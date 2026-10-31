@@ -91,8 +91,8 @@ pub use temporal_pag_completion::{TemporalPagCompletion, TemporalPagCompletionSa
 pub use tiered::{TieredBackground, WithinTier};
 pub use types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark};
 pub use unfold::{
-    LazyUnfoldedTemporalGraph, TemporalCpdagReview, TemporalGraphReview, UnfoldedTemporalGraph,
-    ensure_lagged,
+    AdmittedUnfoldedTemporalGraph, LazyUnfoldedTemporalGraph, TemporalCpdagReview,
+    TemporalGraphReview, UnfoldedTemporalGraph, ensure_lagged,
 };
 pub use unfold_pag::UnfoldedTemporalPag;
 pub use workspace::{BitSet, GraphWorkspace};

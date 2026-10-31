@@ -276,7 +276,7 @@ impl PyPreparedAnalysis {
             let result = crate::interrupt::bind_study_validators(&inner)?
                 .refute(&prior, &data, refute_suite, &ctx)
                 .map_err(py_err)?;
-            let mapped = ate_result_from_analysis(&out_names, &result, false)?;
+            let mapped = ate_result_from_analysis(&out_names, &result, false, &ctx)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(bound);

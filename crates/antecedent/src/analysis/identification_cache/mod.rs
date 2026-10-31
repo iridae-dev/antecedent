@@ -27,8 +27,9 @@ use crate::error::CausalError;
 pub(crate) use self::dbn::build_dbn_mediation_cache_with_identifier;
 pub(crate) use self::dbn::{
     CachedDbnPosteriorAtomIdentification, CachedDbnPosteriorIdentification, DbnIdentifyDemotion,
-    build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
-    build_dbn_posterior_response_identification_cache, temporal_dag_from_dbn_atom,
+    admitted_temporal_dag_atom, build_dbn_posterior_identification_cache,
+    build_dbn_posterior_mediation_identification_cache,
+    build_dbn_posterior_response_identification_cache,
 };
 pub(crate) use self::exposure_posterior::{
     TRANSPORT_CLASS_ATOM_CODE, build_interference_graph_posterior_identification_cache,
@@ -180,4 +181,110 @@ fn dbn_envelope_key(index: usize) -> Result<u64, CausalError> {
     u64::try_from(index).map_err(|_| CausalError::Compile {
         message: "DBN posterior has too many atoms for envelope keys".into(),
     })
+}
+
+/// One admitted temporal class template; the lease must follow the graph owner.
+pub(crate) enum AdmittedTemporalClassAtom {
+    Cpdag(antecedent_graph::TemporalCpdag, antecedent_core::execution::AdmissionLease),
+    Pag(antecedent_graph::TemporalPag, antecedent_core::execution::AdmissionLease),
+}
+
+/// Bound and poll the compact-lag expansion of a class posterior atom.
+pub(crate) fn admitted_temporal_class_atom(
+    posterior: &GraphPosterior,
+    index: usize,
+    variables: &[antecedent_core::VariableId],
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<AdmittedTemporalClassAtom>, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal class atom" });
+    }
+    let masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
+        message: "class posterior missing lag masks".into(),
+    })?;
+    let Some((cmask, lmask)) = posterior.atoms().get(index).zip(masks.get(index)) else {
+        return Ok(None);
+    };
+    let lag = posterior.max_lag().ok_or_else(|| CausalError::Compile {
+        message: "class posterior missing max lag".into(),
+    })?;
+    let n = posterior.n_vars() as u64;
+    let scans = n
+        .checked_mul(n)
+        .and_then(|v| v.checked_mul(u64::from(lag) + 1))
+        .ok_or_else(|| CausalError::Resource { message: "class atom scan overflow".into() })?;
+    let mut edges = 0u64;
+    for word in cmask.words().iter().chain(lmask.words()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal class atom" });
+        }
+        budget.charge_work(1).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        edges = edges
+            .checked_add(u64::from(word.count_ones()))
+            .ok_or_else(|| CausalError::Resource { message: "class atom edge overflow".into() })?;
+    }
+    let nodes = edges
+        .checked_mul(2)
+        .and_then(|v| v.checked_add(n))
+        .zip(n.checked_mul(u64::from(lag) + 1))
+        .map(|(a, b)| a.min(b))
+        .ok_or_else(|| CausalError::Resource { message: "class atom node overflow".into() })?;
+    if nodes > budget.limits().max_graph_nodes || edges > budget.limits().max_graph_edges {
+        return Err(CausalError::Resource { message: "class atom graph limit".into() });
+    }
+    let work =
+        edges
+            .checked_mul(nodes.checked_add(edges).and_then(|v| v.checked_add(1)).ok_or_else(
+                || CausalError::Resource { message: "class atom work overflow".into() },
+            )?)
+            .and_then(|v| v.checked_add(scans))
+            .ok_or_else(|| CausalError::Resource { message: "class atom work overflow".into() })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = nodes
+        .checked_mul(512)
+        .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource { message: "class atom byte overflow".into() })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "class atom byte limit".into() });
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal class atom" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
+    match posterior.atom_kind() {
+        antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
+            match antecedent_discovery::dbn_posterior::temporal_cpdag_from_dbn_atoms_cancellable(
+                cmask,
+                lmask,
+                posterior.n_vars(),
+                lag,
+                variables,
+                || ctx.cancellation.is_cancelled(),
+            ) {
+                Ok(Some(graph)) => Ok(Some(AdmittedTemporalClassAtom::Cpdag(graph, lease))),
+                Ok(None) => Err(CausalError::Cancelled { stage: "temporal class atom" }),
+                Err(_) => Ok(None),
+            }
+        }
+        antecedent_discovery::GraphPosteriorAtomKind::Pag => {
+            match antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms_cancellable(
+                cmask,
+                lmask,
+                posterior.mark_atom(index),
+                posterior.n_vars(),
+                lag,
+                variables,
+                || ctx.cancellation.is_cancelled(),
+            ) {
+                Ok(Some(graph)) => Ok(Some(AdmittedTemporalClassAtom::Pag(graph, lease))),
+                Ok(None) => Err(CausalError::Cancelled { stage: "temporal class atom" }),
+                Err(_) => Ok(None),
+            }
+        }
+        _ => Ok(None),
+    }
 }

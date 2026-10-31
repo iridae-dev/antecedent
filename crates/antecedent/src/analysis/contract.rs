@@ -371,6 +371,17 @@ pub struct CausalContract {
 ///
 /// One owner for the body a claim digests and the body an export writes, so
 /// the two can never differ.
+#[derive(Clone, Debug)]
+pub(crate) struct AdmittedWindowNamespace {
+    entries: Arc<[HorizonAdjustmentNodeWire]>,
+    _lease: Arc<antecedent_core::execution::AdmissionLease>,
+}
+impl PartialEq for AdmittedWindowNamespace {
+    fn eq(&self, other: &Self) -> bool {
+        self.entries == other.entries
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct BodyFrame {
     /// Target query.
@@ -384,7 +395,7 @@ pub(crate) struct BodyFrame {
     temporal_identification: Vec<TemporalIdentificationWire>,
     /// Window namespace of a mediation under a temporal ADMG or PAG, whose identification names
     /// its nodes by window coordinate.
-    window_variables: Option<Vec<HorizonAdjustmentNodeWire>>,
+    window_variables: Option<AdmittedWindowNamespace>,
     /// Bindings for named or custom populations the query references.
     registry: Option<antecedent_core::PopulationRegistry>,
 }

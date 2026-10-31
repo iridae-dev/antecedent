@@ -29,6 +29,9 @@ pub enum EstimationError {
     /// Query validation failed (`AverageEffectQuery::validate`, …).
     #[error(transparent)]
     Query(#[from] QueryError),
+    /// A temporal planning limit, admission, allocation or cancellation refusal.
+    #[error(transparent)]
+    TemporalMaterialization(#[from] antecedent_core::TemporalMaterializationError),
     /// A graph operation (unfolding a temporal graph, reading a node) failed.
     #[error(transparent)]
     Graph(#[from] antecedent_graph::GraphError),

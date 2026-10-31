@@ -17,6 +17,15 @@ use crate::util::{range, sample_std};
 use super::*;
 use antecedent_core::TemporalPolicy;
 
+fn plan_for_tests(
+    interventions: &[Intervention],
+    spec: &TemporalResponseSpec,
+) -> Result<TemporalInterventionKind, crate::error::EstimationError> {
+    let ctx = ExecutionContext::for_tests(1);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    Ok(plan_temporal_intervention(interventions, spec, &mut budget, &ctx)?.kind().clone())
+}
+
 #[test]
 fn soft_constant_resolves_to_set() {
     let v = VariableId::from_raw(0);
@@ -70,8 +79,8 @@ fn multi_step_sequence_is_consecutive_overlays_not_last_step() {
             },
         ]),
     };
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(seq)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(seq)], &spec).unwrap()
     else {
         panic!("expected sequential overlays");
     };
@@ -93,8 +102,8 @@ fn implicit_single_step_pulse_zero_attaches_to_spec_origin() {
         intervention: Intervention::set(variable, Value::f64(1.0)),
         temporal: TemporalPolicy::pulse(0),
     }]);
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(sequence)], &spec).unwrap()
     else {
         panic!("an implicit Pulse(0) Sequence must resolve to overlays");
     };
@@ -130,13 +139,13 @@ fn sequence_step_order_is_the_schedule_not_a_set() {
             temporal: TemporalPolicy::pulse(0),
         },
     ]);
-    let TemporalInterventionPlan::Sequential { overlays: a } =
-        plan_temporal_intervention(&[Intervention::Sequence(forward)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays: a } =
+        plan_for_tests(&[Intervention::Sequence(forward)], &spec).unwrap()
     else {
         panic!("expected sequential overlays");
     };
-    let TemporalInterventionPlan::Sequential { overlays: b } =
-        plan_temporal_intervention(&[Intervention::Sequence(reversed)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays: b } =
+        plan_for_tests(&[Intervention::Sequence(reversed)], &spec).unwrap()
     else {
         panic!("expected sequential overlays");
     };
@@ -161,8 +170,8 @@ fn single_step_sequence_preserves_explicit_pulse_offset() {
         intervention: Intervention::set(variable, Value::f64(2.0)),
         temporal: TemporalPolicy::pulse(-2),
     }]);
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(sequence)], &spec).unwrap()
     else {
         panic!("an explicit Sequence must resolve to overlays");
     };
@@ -182,8 +191,8 @@ fn single_step_sequence_expands_explicit_sustained_policy() {
         intervention: Intervention::shift(variable, Value::f64(0.5)),
         temporal: TemporalPolicy::sustained(-3, -1),
     }]);
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(sequence)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(sequence)], &spec).unwrap()
     else {
         panic!("an explicit Sequence must resolve to overlays");
     };
@@ -213,7 +222,7 @@ fn nested_sequence_fails_closed() {
         }]),
     };
     let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
-    let err = plan_temporal_intervention(&[Intervention::Sequence(outer)], &spec).unwrap_err();
+    let err = plan_for_tests(&[Intervention::Sequence(outer)], &spec).unwrap_err();
     assert!(err.to_string().contains("not licensed"));
 }
 
@@ -549,8 +558,8 @@ fn sequence_multiple_target_variables_fails_closed() {
         ]),
     };
     let spec = TemporalResponseSpec::new(vec![1u32], TemporalPolicy::pulse(-1), None).unwrap();
-    let TemporalInterventionPlan::Sequential { overlays } =
-        plan_temporal_intervention(&[Intervention::Sequence(seq)], &spec).unwrap()
+    let TemporalInterventionKind::Sequential { overlays } =
+        plan_for_tests(&[Intervention::Sequence(seq)], &spec).unwrap()
     else {
         panic!("joint Sequence must be sequential overlays");
     };

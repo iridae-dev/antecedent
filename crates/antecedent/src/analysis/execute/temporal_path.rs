@@ -55,13 +55,16 @@ impl super::Study {
         let inputs = CpdagMediationInputs { data, query, estimator: &estimator, ctx };
         let mut run = CpdagMediationRun::new(query.horizons.len());
         let mut class_weights = TemporalClassWeights::new(self.declared.class_prior.as_ref());
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         for (horizon_index, &horizon) in query.horizons.iter().enumerate() {
             let mut witness = TemporalEffectQuery::pulse(query.treatment, query.outcome, 1.0);
             witness.horizon_steps = horizon;
-            let bundle = self.identify_temporal_class_reusing(
+            let bundle = self.identify_temporal_class_reusing_within(
                 IdentifierId::GeneralizedAdjustment,
                 &witness,
                 physical,
+                &mut temporal_budget,
                 ctx,
             )?;
             let envelope = &bundle.envelope.envelope;
@@ -794,11 +797,15 @@ impl super::Study {
             (cache, prepared)
         } else {
             report_identify_compute(ctx);
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
             (
-                Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons(
+                Arc::new(crate::analysis::prepared::identify_temporal_mediation_horizons_within(
                     graph,
                     query,
                     inference.estimator_id(),
+                    &mut budget,
+                    ctx,
                 )?),
                 false,
             )
@@ -902,11 +909,21 @@ impl super::Study {
         let source_data = data;
         let data = observation.series.as_ref().unwrap_or(data);
 
-        if let Some(overlays) = antecedent_estimate::plan_from_response_query(query)
-            .map_err(CausalError::from)?
-            .and_then(|plan| plan.mechanism_overlays())
-            .filter(|_| !observed_bayes)
-        {
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let plan = antecedent_estimate::plan_from_response_query(query, &mut temporal_budget, ctx)
+            .map_err(CausalError::from)?;
+        let overlays = if observed_bayes {
+            None
+        } else {
+            match &plan {
+                Some(plan) => plan
+                    .admitted_mechanism_overlays(&mut temporal_budget, ctx)
+                    .map_err(CausalError::from)?,
+                None => None,
+            }
+        };
+        if let Some(overlays) = overlays {
             return self.execute_temporal_sequence_response(
                 SequenceResponseInputs {
                     data,
@@ -983,18 +1000,21 @@ impl super::Study {
     ) -> Result<(Arc<crate::analysis::prepared::CachedTemporalIdentification>, bool), CausalError>
     {
         let mut stripped_levels = false;
-        let schedule = match antecedent_estimate::plan_from_response_query(query) {
-            Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
-                let mut nodes = plan.identification_schedule(temporal);
-                for node in &mut nodes {
-                    stripped_levels |= node.2.is_some();
-                    node.2 = None;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let schedule =
+            match antecedent_estimate::plan_from_response_query(query, &mut temporal_budget, ctx)
+                .map_err(CausalError::from)?
+            {
+                Some(plan) if plan.mechanism_overlays().is_some() => {
+                    let (nodes, stripped) = plan
+                        .identification_schedule_without_levels(temporal, &mut temporal_budget, ctx)
+                        .map_err(CausalError::from)?;
+                    stripped_levels = stripped;
+                    Some(nodes)
                 }
-                Some(nodes)
-            }
-            Ok(_) => None,
-            Err(error) => return Err(CausalError::from(error)),
-        };
+                _ => None,
+            };
         // Compile retains the certificate of the schedule as the query states it;
         // this route certifies it without levels, so a retained certificate is its
         // own exactly when there were no levels to strip. A prepared cache is taken
@@ -1018,6 +1038,8 @@ impl super::Study {
                         schedule: schedule.as_deref(),
                         dose: crate::analysis::prepared::single_step_dose(query)?,
                     },
+                    &mut temporal_budget,
+                    ctx,
                 )?),
                 false,
             )
@@ -1062,7 +1084,7 @@ impl super::Study {
                 estimand: &estimand,
                 indexer,
                 identification: &identification,
-                offsets: (probe.try_treatment_offset()?, probe.outcome_offset()),
+                offsets: (probe.try_treatment_offset()?, probe.outcome_offset()?),
             },
             (&self.settings.inference, self.settings.bootstrap_replicates),
             ctx,
@@ -1226,6 +1248,8 @@ impl super::Study {
         // The products compile retained or the prepared handle froze, else fresh identifications.
         let cache = self.reuse_temporal_identification(physical);
         let mut claims = Vec::with_capacity(horizons.len());
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         for &horizon in horizons {
             let reused = cache.as_ref().and_then(|(cache, prepared)| {
                 cache.get(horizon).map(|entry| {
@@ -1243,11 +1267,14 @@ impl super::Study {
                 report_identify_compute(ctx);
                 let single =
                     crate::analysis::temporal_admg_contrast::single_horizon_query(query, horizon)?;
-                let found = crate::analysis::temporal_admg_contrast::identify_window_derivative(
-                    template,
-                    &single,
-                    variable_count,
-                )?;
+                let found =
+                    crate::analysis::temporal_admg_contrast::identify_window_derivative_within(
+                        template,
+                        &single,
+                        variable_count,
+                        &mut budget,
+                        ctx,
+                    )?;
                 (found.identification, found.estimand, found.indexer, false)
             };
             claims.push(AdmgDerivativeClaim { horizon, identification, estimand, indexer, cached });
@@ -1405,7 +1432,7 @@ impl super::Study {
                         estimand,
                         indexer,
                         identification,
-                        offsets: (probe.try_treatment_offset()?, probe.outcome_offset()),
+                        offsets: (probe.try_treatment_offset()?, probe.outcome_offset()?),
                     },
                     (&self.settings.inference, self.settings.bootstrap_replicates),
                     ctx,
@@ -1484,13 +1511,22 @@ impl super::Study {
             temporal.horizons[0],
             query.target_population.clone(),
         );
-        let plan = antecedent_identify::temporal_admg::plan_temporal_admg_window(template, &probe)?;
-        let window = template.unroll_window_over(plan.periods, variable_count)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let plan = antecedent_identify::temporal_admg::plan_temporal_admg_window_within(
+            template,
+            &probe,
+            &mut budget,
+            ctx,
+        )?;
+        let window =
+            template.unroll_window_over_within(plan.periods, variable_count, &mut budget, ctx)?;
         let table = crate::analysis::temporal_admg_contrast::window_table(
             series,
             &window,
             &crate::analysis::temporal_admg_contrast::used_variables(template, &probe),
-            &ctx.kernel_policy,
+            &mut budget,
+            ctx,
         )?;
         let treated = *plan.treated.first().ok_or_else(|| CausalError::Compile {
             message: "a temporal derivative needs a treated period in its policy".into(),
@@ -2125,8 +2161,22 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.execute_temporal_class_response_within(data, query, physical, &mut budget, ctx)
+    }
+
+    pub(crate) fn execute_temporal_class_response_within(
+        &self,
+        data: &TimeSeriesData,
+        query: &ResponseQuery,
+        physical: &PhysicalExecutionPlan,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if super::response_functional_is_derivative(&query.functional) {
-            return self.execute_temporal_class_derivative(data, query, physical, ctx);
+            return self
+                .execute_temporal_class_derivative_within(data, query, physical, budget, ctx);
         }
         let started = Instant::now();
         query.require_licensed_temporal_observation()?;
@@ -2143,14 +2193,9 @@ impl super::Study {
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "class-aware temporal response requires TemporalResponseSpec".into(),
         })?;
-        if matches!(
-            antecedent_estimate::plan_from_response_query(query),
-            Ok(Some(
-                antecedent_estimate::TemporalInterventionPlan::Sequential { .. }
-                    | antecedent_estimate::TemporalInterventionPlan::Mechanisms { .. }
-            ))
-        ) {
-            return self.execute_temporal_class_sequence_response(data, query, physical, ctx);
+        if antecedent_estimate::requires_temporal_overlays(query) {
+            return self
+                .execute_temporal_class_sequence_response(data, query, physical, budget, ctx);
         }
         enforce_temporal_response_memory_budget(
             query,
@@ -2174,10 +2219,11 @@ impl super::Study {
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query =
                 class_horizon_witness(query, temporal, (treatment, outcome), horizon);
-            let bundle = self.identify_temporal_class_reusing(
+            let bundle = self.identify_temporal_class_reusing_within(
                 IdentifierId::GeneralizedAdjustment,
                 &effect_query,
                 physical,
+                budget,
                 ctx,
             )?;
             let envelope = &bundle.envelope.envelope;
@@ -2607,6 +2653,7 @@ impl super::Study {
         data: &TimeSeriesData,
         query: &ResponseQuery,
         physical: &PhysicalExecutionPlan,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
@@ -2618,14 +2665,17 @@ impl super::Study {
         let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
             message: "class-aware Sequence requires TemporalResponseSpec".into(),
         })?;
-        let plan = antecedent_estimate::plan_from_response_query(query)
+        let plan = antecedent_estimate::plan_from_response_query(query, budget, ctx)
             .map_err(CausalError::from)?
             .ok_or_else(|| CausalError::Compile {
                 message: "class-aware Sequence missing intervention plan".into(),
             })?;
-        let overlays = plan.mechanism_overlays().ok_or_else(|| CausalError::Compile {
-            message: "class-aware Sequence missing mechanism overlays".into(),
-        })?;
+        let overlays = plan
+            .admitted_mechanism_overlays(budget, ctx)
+            .map_err(CausalError::from)?
+            .ok_or_else(|| CausalError::Compile {
+                message: "class-aware Sequence missing mechanism overlays".into(),
+            })?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let bayes = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
             if cfg.has_transfer() {
@@ -2652,10 +2702,11 @@ impl super::Study {
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
             let effect_query =
                 class_horizon_witness(query, temporal, (treatment, outcome), horizon);
-            let bundle = self.identify_temporal_class_reusing(
+            let bundle = self.identify_temporal_class_reusing_within(
                 IdentifierId::GeneralizedAdjustment,
                 &effect_query,
                 physical,
+                budget,
                 ctx,
             )?;
             let envelope = &bundle.envelope.envelope;
@@ -2761,7 +2812,7 @@ impl super::Study {
                 observation_query,
                 kind: ClassObservationKind::Sequence {
                     dag: Box::new(dag.clone()),
-                    overlays: overlays.to_vec(),
+                    overlays: (*overlays).clone(),
                     outcome,
                     outcome_offset,
                     status: case.result.status,
@@ -3502,17 +3553,18 @@ impl super::Study {
     /// [`Self::identify_temporal_class`] in the executor order: the prepared
     /// certificate for the query's horizon, then the one the plan's lowered program
     /// retained, then a fresh identification.
-    pub(crate) fn identify_temporal_class_reusing(
+    pub(crate) fn identify_temporal_class_reusing_within(
         &self,
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
     {
         match self.retained_temporal_class_horizon(physical, query.horizon_steps) {
             Some(bundle) => Ok(bundle),
-            None => self.identify_temporal_class(identifier_id, query, ctx),
+            None => self.identify_temporal_class_within(identifier_id, query, budget, ctx),
         }
     }
 
@@ -3520,6 +3572,19 @@ impl super::Study {
         &self,
         identifier_id: IdentifierId,
         query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
+    {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.identify_temporal_class_within(identifier_id, query, &mut budget, ctx)
+    }
+
+    pub(crate) fn identify_temporal_class_within(
+        &self,
+        identifier_id: IdentifierId,
+        query: &TemporalEffectQuery,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>, CausalError>
     {
@@ -3540,6 +3605,7 @@ impl super::Study {
         }
         let mut config = antecedent_identify::GeneralizedAdjustmentConfig {
             context: Some(ctx.clone()),
+            temporal_budget: Some(budget.clone()),
             ..Default::default()
         };
         if let Some(max) = self.declared.max_completions {
@@ -3564,10 +3630,12 @@ impl super::Study {
                 });
             }
         };
-        crate::identify_api::refine_temporal_class_identification(
+        crate::identify_api::refine_temporal_class_identification_within(
             &mut envelope,
             &self.query,
             query.horizon_steps,
+            budget,
+            ctx,
         )?;
         Ok(Arc::new(crate::analysis::prepared::CachedTemporalClassIdentification {
             envelope: Arc::new(envelope),
@@ -4554,10 +4622,7 @@ fn temporal_observation_outcome_regressors(
     outcome: VariableId,
     aligned: &[&crate::analysis::prepared::CachedTemporalHorizonIdentification],
 ) -> Result<Vec<antecedent_core::TemporalNodeKey>, CausalError> {
-    let sequence = antecedent_estimate::plan_from_response_query(query)
-        .map_err(CausalError::from)?
-        .and_then(|plan| plan.mechanism_overlays())
-        .is_some();
+    let sequence = antecedent_estimate::requires_temporal_overlays(query);
     if sequence {
         return Ok(antecedent_estimate::temporal_sequence_outcome_regressors(graph, outcome));
     }
@@ -4775,7 +4840,7 @@ enum ClassObservationKind {
     /// Sequence overlay atom: refit through the unfolded sequential engine.
     Sequence {
         dag: Box<TemporalDag>,
-        overlays: Vec<antecedent_estimate::SequentialMechanismOverlay>,
+        overlays: antecedent_estimate::AdmittedMechanismOverlays,
         outcome: VariableId,
         outcome_offset: i32,
         status: IdentificationStatus,
@@ -5893,7 +5958,7 @@ impl super::Study {
             data,
             used,
             &indexer,
-            (probe.try_treatment_offset()?, probe.outcome_offset()),
+            (probe.try_treatment_offset()?, probe.outcome_offset()?),
             ctx.kernel_policy,
             prior_scale,
         );
@@ -7329,7 +7394,7 @@ struct DerivativeResponseInputs<'a> {
 /// window-coordinate query and the resampling block it was estimated on.
 struct TemporalFrontDoorFit {
     response: CausalResponse,
-    table: TabularData,
+    table: crate::analysis::temporal_admg_contrast::AdmittedWindowTable,
     window_query: ResponseQuery,
     block: usize,
 }
@@ -7712,7 +7777,7 @@ struct ClassSequenceSweep<'a> {
     data: &'a TimeSeriesData,
     query: &'a ResponseQuery,
     temporal: &'a antecedent_core::TemporalResponseSpec,
-    overlays: &'a [antecedent_estimate::SequentialMechanismOverlay],
+    overlays: &'a antecedent_estimate::AdmittedMechanismOverlays,
     bayes: Option<&'a BayesianGComputationAte>,
     treatment: VariableId,
     outcome: VariableId,

@@ -203,35 +203,56 @@ impl<'a> DbnPoint<'a> {
 /// distinct template the temporal back-door identifier decides, in posterior order, exactly as
 /// the executor selects it. The artifact declares it so the identification's dense node ids
 /// stay inside a variable-and-offset namespace.
-#[must_use]
-pub(crate) fn dbn_route_window_namespace(study: &super::Study) -> Option<Vec<(u32, i32)>> {
-    let gp = study.graph_posterior.as_ref()?;
+pub(crate) fn dbn_route_window_namespace(
+    study: &super::Study,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<super::temporal_admg_mediation::NamespaceData>, CausalError> {
+    let Some(gp) = study.graph_posterior.as_ref() else {
+        return Ok(None);
+    };
     if !dbn_atoms(gp) || !dbn_route_query(&study.query) {
-        return None;
+        return Ok(None);
     }
     let (crate::analysis::builder::DataInput::Temporal(data)
     | crate::analysis::builder::DataInput::Event(data)) = &study.data
     else {
-        return None;
+        return Ok(None);
     };
     let variables: Vec<VariableId> =
         data.schema().variables().iter().map(|variable| variable.id).collect();
-    let points = DbnPoint::of_all(&study.query).ok()?;
-    let point = points.first()?;
+    let points = match DbnPoint::of_all(&study.query) {
+        Ok(points) => points,
+        Err(_) => return Ok(None),
+    };
+    let Some(point) = points.first() else {
+        return Ok(None);
+    };
     for index in 0..gp.n_graphs() {
-        let graph = crate::analysis::prepared::temporal_dag_from_dbn_atom(
-            gp,
-            u64::try_from(index).ok()?,
-            &variables,
-        )
-        .ok()?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal namespace" });
+        }
+        budget.charge_work(1).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let Some((graph, _graph_lease)) =
+            crate::analysis::identification_cache::admitted_temporal_dag_atom(
+                gp, index, &variables, budget, ctx,
+            )?
+        else {
+            continue;
+        };
         let identifier = if matches!(point, DbnPoint::Conditional(_)) {
             TemporalBackdoorIdentifier::new().with_parent_adjustment_fallback()
         } else {
             TemporalBackdoorIdentifier::new()
-        };
-        let Ok(found) = identifier.identify_temporal(&graph, point.identification_query()) else {
-            continue;
+        }
+        .with_temporal_context(ctx, budget);
+        let found = match identifier.identify_temporal(&graph, point.identification_query()) {
+            Ok(found) => found,
+            Err(
+                error @ (antecedent_identify::IdentificationError::Cancelled
+                | antecedent_identify::IdentificationError::Budget { .. }),
+            ) => return Err(CausalError::from(error)),
+            Err(_) => continue,
         };
         if !identification_status_ok_for_case(found.result.status)
             || found.result.estimands.is_empty()
@@ -239,14 +260,28 @@ pub(crate) fn dbn_route_window_namespace(study: &super::Study) -> Option<Vec<(u3
         {
             continue;
         }
-        return (0..found.indexer.dense_len())
-            .map(|dense| {
-                let key = found.indexer.key_of(u32::try_from(dense).ok()?).ok()?;
-                Some((key.variable.raw(), key.offset))
-            })
-            .collect();
+        let count = found.indexer.dense_len();
+        let lease = super::temporal_admg_mediation::admit_namespace(count as u64, budget, ctx)?;
+        let mut result = Vec::new();
+        result.try_reserve_exact(count).map_err(|_| CausalError::Resource {
+            message: "temporal namespace allocation".into(),
+        })?;
+        for dense in 0..count {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal namespace" });
+            }
+            let raw = u32::try_from(dense).map_err(|_| CausalError::Resource {
+                message: "temporal namespace overflow".into(),
+            })?;
+            let key = found
+                .indexer
+                .key_of(raw)
+                .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+            result.push((key.variable.raw(), key.offset));
+        }
+        return Ok(Some(super::temporal_admg_mediation::NamespaceData { nodes: result, lease }));
     }
-    None
+    Ok(None)
 }
 
 /// One distinct template of the posterior, identified on its own graph.
@@ -357,6 +392,7 @@ impl super::Study {
         (keys, variables): (&[u64], &[VariableId]),
         point_kind: DbnPoint<'q>,
         prior_scale: Option<f64>,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<DbnLane<'q>, CausalError> {
         let label = point_kind.label();
@@ -374,16 +410,29 @@ impl super::Study {
                     stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
                 });
             }
-            let found = crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, key, variables)
-                .ok()
-                .and_then(|graph| {
-                    let identifier = if matches!(point_kind, DbnPoint::Conditional(_)) {
-                        TemporalBackdoorIdentifier::new().with_parent_adjustment_fallback()
-                    } else {
-                        TemporalBackdoorIdentifier::new()
-                    };
-                    identifier.identify_temporal(&graph, point_kind.identification_query()).ok()
-                });
+            let index = usize::try_from(key)
+                .map_err(|_| CausalError::Resource { message: "DBN atom index overflow".into() })?;
+            let found = if let Some((graph, _graph_lease)) =
+                crate::analysis::identification_cache::admitted_temporal_dag_atom(
+                    gp, index, variables, budget, ctx,
+                )? {
+                let identifier = if matches!(point_kind, DbnPoint::Conditional(_)) {
+                    TemporalBackdoorIdentifier::new().with_parent_adjustment_fallback()
+                } else {
+                    TemporalBackdoorIdentifier::new()
+                }
+                .with_temporal_context(ctx, budget);
+                match identifier.identify_temporal(&graph, point_kind.identification_query()) {
+                    Ok(value) => Some(value),
+                    Err(
+                        error @ (antecedent_identify::IdentificationError::Cancelled
+                        | antecedent_identify::IdentificationError::Budget { .. }),
+                    ) => return Err(CausalError::from(error)),
+                    Err(_) => None,
+                }
+            } else {
+                None
+            };
             let template = found.and_then(|found| {
                 if !identification_status_ok_for_case(found.result.status)
                     || found.result.estimands.is_empty()
@@ -431,7 +480,7 @@ impl super::Study {
         let offsets = match &point_kind {
             DbnPoint::Conditional(_) => (0, 0),
             DbnPoint::Derivative { probe, .. } | DbnPoint::CrossWorld { probe, .. } => {
-                (probe.try_treatment_offset()?, probe.outcome_offset())
+                (probe.try_treatment_offset()?, probe.outcome_offset()?)
             }
         };
         let mut slope_atoms: Vec<(usize, SlopeAtom<'_>)> = Vec::new();
@@ -730,6 +779,8 @@ impl super::Study {
             })?);
         }
 
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let mut lanes: Vec<DbnLane<'_>> = Vec::with_capacity(points.len());
         for point in points {
             lanes.push(self.fit_dbn_lane(
@@ -738,6 +789,7 @@ impl super::Study {
                 (&keys, &variables),
                 point,
                 prior_scale,
+                &mut budget,
                 ctx,
             )?);
         }

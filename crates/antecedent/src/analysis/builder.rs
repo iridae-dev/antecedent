@@ -1369,6 +1369,16 @@ impl StudyBuilder {
         self.finish(true)?.identify_structure()
     }
 
+    /// Identify with the caller's execution context and temporal materialization limits.
+    /// # Errors
+    /// The same identification and resource refusals as `identify_structure`.
+    pub fn identify_structure_within(
+        self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::Identification, CausalError> {
+        self.finish(true)?.identify_structure_within(ctx)
+    }
+
     /// Supply the causal structure.
     ///
     /// An [`AcceptedGraph`] is matrix-axis `accepted`. A bare

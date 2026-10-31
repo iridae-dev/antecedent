@@ -208,7 +208,9 @@ pub use admg_adjustment::{
     FrontDoorSearch, TemporalAdmgAdjustment, default_front_door_limits,
     identify_admg_front_door_derivative, identify_admg_response_adjustment,
     identify_cpdag_derivative_pairs, identify_pag_derivative_pairs,
-    identify_temporal_admg_front_door_derivative, identify_temporal_admg_response_adjustment,
+    identify_temporal_admg_front_door_derivative,
+    identify_temporal_admg_front_door_derivative_within,
+    identify_temporal_admg_response_adjustment, identify_temporal_admg_response_adjustment_within,
     search_admg_front_door_derivative, upgrade_id_only_derivative_cases,
 };
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
@@ -273,7 +275,7 @@ pub use temporal_iv::{TemporalIvIdentifier, TemporalIvResult};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use temporal_pag_path_specific::{
     TEMPORAL_PAG_WINDOW_NOT_MAG_DIAGNOSTIC_CODE, TemporalPagMediationWindow,
-    temporal_pag_mediation_window,
+    temporal_pag_mediation_window, temporal_pag_mediation_window_within,
 };
 pub use tiered::{
     NO_LATENT_TO_OUTCOME, TIERED_JOINT_ADJUSTMENT_REFUSE, identify_tiered, identify_tiered_joint,

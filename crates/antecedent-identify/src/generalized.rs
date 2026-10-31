@@ -101,6 +101,8 @@ pub struct GeneralizedAdjustmentConfig {
     /// completion enumeration, and its cancellation token stops them. `None` runs under a
     /// serial production context with an unlimited pool.
     pub context: Option<ExecutionContext>,
+    /// Shared cumulative budget for nested temporal materializations, if this search is part of a larger operation.
+    pub temporal_budget: Option<antecedent_core::TemporalBudget>,
     /// Separation tests one adjustment search may run before it stops looking for a smaller
     /// set (work budget, not an output cap).
     ///
@@ -135,6 +137,7 @@ impl Default for GeneralizedAdjustmentConfig {
             per_completion_weight: 1.0,
             max_candidates: usize::MAX,
             context: None,
+            temporal_budget: None,
             max_examinations: 1_000_000,
             completion_operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
         }

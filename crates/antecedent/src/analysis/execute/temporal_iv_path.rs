@@ -62,7 +62,7 @@ impl super::Study {
                 )
             } else {
                 super::report_identify_compute(ctx);
-                let found = identify_temporal_instrument(graph, query)?;
+                let found = identify_temporal_instrument(graph, query, ctx)?;
                 (found.identification, found.estimand, found.indexer, Some(found.instrument), false)
             };
         let instrument = if let Some(instrument) = certified_instrument {
@@ -75,14 +75,15 @@ impl super::Study {
             indexer.key_of(dense.raw()).map_err(CausalError::rejected)?
         };
         let treatment_at = query.try_treatment_offset().map_err(CausalError::rejected)?;
-        let lag = usize::try_from(treatment_at - instrument.offset).map_err(|_| {
-            CausalError::Compile {
+        let lag = usize::try_from(i64::from(treatment_at) - i64::from(instrument.offset)).map_err(
+            |_| CausalError::Compile {
                 message: "the temporal instrument does not precede the treatment".into(),
-            }
-        })?;
-        let horizon = usize::try_from(query.outcome_offset() - treatment_at).map_err(|_| {
-            CausalError::Compile { message: "the outcome precedes the treatment".into() }
-        })?;
+            },
+        )?;
+        let horizon = usize::try_from(i64::from(query.outcome_offset()?) - i64::from(treatment_at))
+            .map_err(|_| CausalError::Compile {
+                message: "the outcome precedes the treatment".into(),
+            })?;
         let columns = (
             data.float64_values(instrument.variable).map_err(CausalError::rejected)?,
             data.float64_values(query.treatment).map_err(CausalError::rejected)?,

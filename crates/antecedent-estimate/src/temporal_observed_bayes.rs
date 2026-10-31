@@ -22,8 +22,8 @@
 use crate::arm::TreatmentArm;
 use crate::{
     BayesianGComputationAte, CausalPosterior, EstimationError, SequentialMechanismOverlay,
-    SequentialNodeOverlay, TemporalIdentification, TemporalInterventionPlan,
-    plan_from_response_query,
+    SequentialNodeOverlay, TemporalIdentification, TemporalInterventionKind,
+    TemporalInterventionPlan, plan_from_response_query,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -282,9 +282,20 @@ fn mechanism_templates(
     graph: &TemporalDag,
     outcome: VariableId,
 ) -> Result<MechanismTemplates, EstimationError> {
+    mechanism_templates_inner(graph, outcome, None)
+}
+
+fn mechanism_templates_inner(
+    graph: &TemporalDag,
+    outcome: VariableId,
+    ctx: Option<&ExecutionContext>,
+) -> Result<MechanismTemplates, EstimationError> {
     let mut parents: BTreeMap<VariableId, Vec<(VariableId, usize)>> = BTreeMap::new();
     parents.insert(outcome, Vec::new());
     for node in 0..graph.node_count() {
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+        }
         let child = graph.temporal_key(DenseNodeId::from_raw(node as u32)).ok_or_else(|| {
             EstimationError::data_msg("temporal node is missing from the unfolded graph")
         })?;
@@ -293,6 +304,9 @@ fn mechanism_templates(
         }
         let entry = parents.entry(child.variable).or_default();
         for &p in graph.parents(DenseNodeId::from_raw(node as u32)) {
+            if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             let parent = graph.temporal_key(p).ok_or_else(|| {
                 EstimationError::data_msg("temporal parent is missing from the unfolded graph")
             })?;
@@ -402,6 +416,8 @@ struct EvaluationNode {
     overlay: Option<SequentialMechanismOverlay>,
 }
 struct Evaluation {
+    _overlay_lease: Option<antecedent_core::execution::AdmissionLease>,
+    _evaluation_lease: antecedent_core::execution::AdmissionLease,
     order: Vec<usize>,
     nodes: Vec<EvaluationNode>,
     outcome: usize,
@@ -417,47 +433,118 @@ impl Evaluation {
         outcome: VariableId,
         horizon: u32,
         overlays: Vec<SequentialMechanismOverlay>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        let unfolded = graph.unfold(indexer.clone())?;
-        let mut order: Vec<usize> = unfolded
-            .dag
-            .topological_order()
-            .ok_or_else(|| EstimationError::data_msg("cyclic unfolding"))?
-            .into_iter()
-            .map(DenseNodeId::as_usize)
-            .collect();
-        let keys = (0..unfolded.dag.node_count())
-            .map(|i| indexer.key_of(i as u32))
-            .collect::<Result<Vec<_>, _>>()?;
-        let positions = keys
-            .iter()
-            .enumerate()
-            .map(|(i, key)| ((key.variable, key.offset), i))
-            .collect::<BTreeMap<_, _>>();
-        let templates = mechanism_templates(graph, outcome)?
-            .into_iter()
-            .enumerate()
-            .map(|(i, (v, p))| (v, (i, p)))
-            .collect::<BTreeMap<_, _>>();
-        let mut nodes = keys
-            .iter()
-            .map(|key| {
-                let mechanism = templates.get(&key.variable).and_then(|(model, parents)| {
-                    parents
-                        .iter()
-                        .map(|(variable, lag)| {
-                            i32::try_from(*lag)
-                                .ok()
-                                .and_then(|lag| key.offset.checked_sub(lag))
-                                .and_then(|offset| positions.get(&(*variable, offset)).copied())
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .map(|parents| (*model, parents))
-                });
-                EvaluationNode { variable: key.variable, mechanism, overlay: None }
-            })
-            .collect::<Vec<_>>();
+        use antecedent_core::TemporalMaterializationError as T;
+        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
+        let n = u64::try_from(indexer.dense_len())
+            .map_err(|_| T::Limit { dimension: "graph nodes" })?;
+        budget.charge_work(n)?;
+        let mut edges = 0u64;
+        for i in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            edges = edges
+                .checked_add(unfolded.dag.children(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or(T::Limit { dimension: "graph edges" })?;
+        }
+        let template_nodes = graph.node_count() as u64;
+        budget.charge_work(template_nodes)?;
+        let mut template_edges = 0u64;
+        for i in 0..graph.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            template_edges = template_edges
+                .checked_add(graph.parents(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or(T::Limit { dimension: "work" })?;
+        }
+        let slices = u64::from(indexer.history())
+            .checked_add(u64::from(indexer.horizon()))
+            .ok_or(T::Limit { dimension: "work" })?;
+        let parent_steps =
+            template_edges.checked_mul(slices).ok_or(T::Limit { dimension: "work" })?;
+        let work = n
+            .checked_mul(16)
+            .and_then(|n| edges.checked_mul(16).and_then(|e| n.checked_add(e)))
+            .and_then(|n| parent_steps.checked_mul(32).and_then(|e| n.checked_add(e)))
+            .ok_or(T::Limit { dimension: "work" })?;
+        budget.charge_work(work)?;
+        let bytes = n
+            .checked_mul(1024)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| parent_steps.checked_mul(128).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(T::Limit { dimension: "bytes" })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(T::Limit { dimension: "bytes" }.into());
+        }
+        let evaluation_lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
+            other => T::Admission(other),
+        })?;
+        let mut order = Vec::with_capacity(indexer.dense_len());
+        for id in unfolded.topological_order() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            order.push(id.as_usize());
+        }
+        let mut keys = Vec::with_capacity(indexer.dense_len());
+        let mut positions = BTreeMap::new();
+        for i in 0..unfolded.dag.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let key = indexer.key_of(i as u32)?;
+            positions.insert((key.variable, key.offset), i);
+            keys.push(key);
+        }
+        let mut templates = BTreeMap::new();
+        for (i, (variable, parents)) in
+            mechanism_templates_inner(graph, outcome, Some(ctx))?.into_iter().enumerate()
+        {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            templates.insert(variable, (i, parents));
+        }
+        let mut nodes = Vec::with_capacity(keys.len());
+        for key in &keys {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let mechanism = if let Some((model, parents)) = templates.get(&key.variable) {
+                let mut positions_for_parents = Vec::with_capacity(parents.len());
+                let mut complete = true;
+                for (variable, lag) in parents {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    let position = i32::try_from(*lag)
+                        .ok()
+                        .and_then(|lag| key.offset.checked_sub(lag))
+                        .and_then(|offset| positions.get(&(*variable, offset)).copied());
+                    match position {
+                        Some(position) => positions_for_parents.push(position),
+                        None => {
+                            complete = false;
+                            break;
+                        }
+                    }
+                }
+                complete.then_some((*model, positions_for_parents))
+            } else {
+                None
+            };
+            nodes.push(EvaluationNode { variable: key.variable, mechanism, overlay: None });
+        }
         for overlay in overlays {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
             let position =
                 positions.get(&(overlay.node.variable, overlay.node.offset)).ok_or_else(|| {
                     EstimationError::data_msg("intervention outside temporal unfolding")
@@ -480,6 +567,9 @@ impl Evaluation {
         let mut needed = vec![false; nodes.len()];
         let mut pending = vec![outcome];
         while let Some(i) = pending.pop() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
             if needed[i] {
                 continue;
             }
@@ -492,7 +582,13 @@ impl Evaluation {
             }
         }
         order.retain(|&i| needed[i]);
-        Ok(Self { order, nodes, outcome })
+        Ok(Self {
+            _overlay_lease: None,
+            _evaluation_lease: evaluation_lease,
+            order,
+            nodes,
+            outcome,
+        })
     }
     fn value(&self, models: &[Mechanism], means: &BTreeMap<VariableId, f64>) -> f64 {
         crate::temporal_sequential::propagate_linear_level(
@@ -578,20 +674,36 @@ pub fn estimate_observed_temporal_response(
     ctx: &ExecutionContext,
 ) -> Result<(CausalResponse, CausalPosterior), EstimationError> {
     let TemporalIdentification { horizons: identifications, status, mut assumptions } = identified;
-    let temporal = validate_request(query, estimator, ctx, identifications.len(), status)?;
+    let mut temporal_budget =
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let temporal = validate_request(
+        query,
+        estimator,
+        ctx,
+        identifications.len(),
+        status,
+        &mut temporal_budget,
+    )?;
     let target = response_target(query)?;
     require_observation_containment(data, query, identifications, &target)?;
     let inputs = observed_inputs(data, graph, query, target.outcome)?;
-    let planned = plan_from_response_query(query)?;
+    let planned = plan_from_response_query(query, &mut temporal_budget, ctx)?;
     if planned
         .as_ref()
         .and_then(TemporalInterventionPlan::mechanism_overlays)
-        .is_some_and(|overlays| overlays.iter().any(|overlay| overlay.bounds.is_some()))
+        .is_some_and(|mut overlays| overlays.any(|overlay| overlay.bounds.is_some()))
     {
         assumptions.push(SequentialMechanismOverlay::mean_target_assumption());
     }
-    let (evaluations, grid) =
-        compile_cells(graph, temporal, planned.as_ref(), identifications, &target)?;
+    let (evaluations, grid) = compile_cells(
+        graph,
+        temporal,
+        planned.as_ref(),
+        identifications,
+        &target,
+        &mut temporal_budget,
+        ctx,
+    )?;
     let sweeps = run_chains(data, graph, estimator, ctx, &target, &inputs, &evaluations)?;
     let (diagnostics, summary) = gibbs_diagnostics(&sweeps)?;
     assumptions.push(observation_assumption(query));
@@ -649,8 +761,9 @@ fn validate_request<'q>(
     ctx: &ExecutionContext,
     horizon_count: usize,
     status: IdentificationStatus,
+    budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<&'q TemporalResponseSpec, EstimationError> {
-    query.validate()?;
+    crate::validate_temporal_response_within(query, budget, ctx)?;
     if ctx.cancellation.is_cancelled() {
         return Err(EstimationError::data_msg("observed temporal posterior cancelled"));
     }
@@ -804,49 +917,68 @@ fn compile_cells(
     planned: Option<&TemporalInterventionPlan>,
     identifications: Horizons<'_>,
     target: &ResponseTarget,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<(Vec<Evaluation>, Vec<f64>), EstimationError> {
     let (outcome, treatment, doses) = (target.outcome, target.treatment, &target.doses);
     let mut evaluations = Vec::new();
     let mut grid = Vec::new();
-    for dose in doses.clone().unwrap_or_else(|| vec![0.0]) {
+    for dose in doses.as_deref().unwrap_or(&[0.0]).iter().copied() {
         for (&horizon, &(_, indexer)) in temporal.horizons.iter().zip(identifications) {
-            let overlays = if let Some(plan) = planned {
-                if let Some(overlays) = plan.mechanism_overlays() {
-                    overlays
-                } else {
-                    let TemporalInterventionPlan::Single { treatment, level, shift } = *plan else {
-                        return Err(EstimationError::unsupported_coded(
-                            antecedent_core::reason_code!("route_not_supported"),
-                            "a temporal intervention without mechanism overlays must be a single schedule",
-                        ));
-                    };
-                    temporal
-                        .policy
-                        .active_offsets()?
-                        .iter()
-                        .map(|&at| {
-                            SequentialNodeOverlay { variable: treatment, offset: at, level, shift }
-                                .into()
-                        })
-                        .collect()
+            use antecedent_core::TemporalMaterializationError as T;
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let count = match planned.map(TemporalInterventionPlan::kind) {
+                Some(TemporalInterventionKind::Sequential { overlays }) => overlays.len() as u64,
+                Some(TemporalInterventionKind::Mechanisms { overlays }) => overlays.len() as u64,
+                _ => temporal.policy.offset_count()?,
+            };
+            budget.charge_offsets(count)?;
+            budget.charge_work(count)?;
+            let bytes = count
+                .checked_mul(256)
+                .and_then(|n| n.checked_add(512))
+                .ok_or(T::Limit { dimension: "bytes" })?;
+            if bytes > budget.limits().max_bytes {
+                return Err(T::Limit { dimension: "bytes" }.into());
+            }
+            let overlay_lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+                antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
+                other => T::Admission(other),
+            })?;
+            let mut overlays = Vec::new();
+            overlays
+                .try_reserve_exact(usize::try_from(count).map_err(|_| T::Allocation)?)
+                .map_err(|_| T::Allocation)?;
+            if let Some(iter) = planned.and_then(TemporalInterventionPlan::mechanism_overlays) {
+                for overlay in iter {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    overlays.push(overlay);
                 }
             } else {
-                temporal
-                    .policy
-                    .active_offsets()?
-                    .iter()
-                    .map(|&at| {
-                        SequentialNodeOverlay {
-                            variable: treatment,
-                            offset: at,
-                            level: Some(dose),
-                            shift: 0.0,
-                        }
-                        .into()
-                    })
-                    .collect()
-            };
-            evaluations.push(Evaluation::new(graph, indexer, outcome, horizon, overlays)?);
+                let (variable, level, shift) = match planned.map(TemporalInterventionPlan::kind) {
+                    Some(TemporalInterventionKind::Single { treatment, level, shift }) => {
+                        (*treatment, *level, *shift)
+                    }
+                    None => (treatment, Some(dose), 0.0),
+                    _ => {
+                        return Err(EstimationError::unsupported("invalid temporal response plan"));
+                    }
+                };
+                for offset in temporal.policy.offsets()? {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(T::Cancelled.into());
+                    }
+                    overlays.push(SequentialNodeOverlay { variable, offset, level, shift }.into());
+                }
+            }
+            let mut evaluation =
+                Evaluation::new(graph, indexer, outcome, horizon, overlays, budget, ctx)?;
+            evaluation._overlay_lease = Some(overlay_lease);
+            evaluations.push(evaluation);
             if doses.is_some() {
                 grid.push(dose);
             }
@@ -1232,7 +1364,11 @@ mod evaluation_boundary_tests {
         let mut models = mechanisms(&data, &graph, variable, 1.0).unwrap();
         models[0].beta = vec![2.0, 0.5];
         let means = BTreeMap::from([(variable, 3.0)]);
-        let natural = Evaluation::new(&graph, &indexer, variable, 1, Vec::new()).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let natural =
+            Evaluation::new(&graph, &indexer, variable, 1, Vec::new(), &mut budget, &ctx).unwrap();
         // Boundary y[-1] is empirical 3, not 2 + .5*3; only y[0] is propagated.
         assert!((natural.value(&models, &means) - 3.5).abs() < 1e-12);
         let intervention = Evaluation::new(
@@ -1244,6 +1380,8 @@ mod evaluation_boundary_tests {
                 SequentialNodeOverlay { variable, offset: -1, level: Some(10.0), shift: 0.0 }
                     .into(),
             ],
+            &mut budget,
+            &ctx,
         )
         .unwrap();
         assert!((intervention.value(&models, &means) - 7.0).abs() < 1e-12);
@@ -1255,6 +1393,8 @@ mod evaluation_boundary_tests {
             vec![
                 SequentialNodeOverlay { variable, offset: 0, level: Some(9.0), shift: 0.0 }.into(),
             ],
+            &mut budget,
+            &ctx,
         )
         .unwrap();
         // A hard level needs neither its own natural mean nor any ancestors.

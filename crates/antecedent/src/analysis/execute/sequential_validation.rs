@@ -11,7 +11,7 @@ use super::{
     mix_prior_sensitivity_summaries, temporal_refuter_average, with_prior_sensitivity,
 };
 use antecedent_estimate::temporal_sequential::{
-    SequentialBayesianMechanism, estimate_sustained_window, estimate_sustained_window_gaps_if,
+    SequentialBayesianMechanism, estimate_sustained_window,
 };
 use antecedent_validate::RefutationProblem;
 use antecedent_validate::common::EffectRefit;
@@ -19,7 +19,8 @@ use antecedent_validate::common::EffectRefit;
 #[derive(Clone, Debug)]
 pub(super) struct SequentialValidationAtom {
     pub weight: f64,
-    pub graph: TemporalDag,
+    pub graph: Arc<TemporalDag>,
+    pub _graph_lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
     pub indexer: antecedent_core::TemporalIndexer,
     pub estimand: IdentifiedEstimand,
     pub status: IdentificationStatus,
@@ -46,7 +47,71 @@ impl EffectRefit for SequentialRefitter<'_> {
         let mut time = self.time.clone();
         time.length = data.row_count();
         let series = TimeSeriesData::try_new(data.storage().clone(), time)?;
-        let mut graph = self.atom.graph.clone();
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_validate::ValidationError::Cancelled);
+        }
+        let nodes = self.atom.graph.nodes().len() as u64;
+        let mut edges = 0u64;
+        for i in 0..self.atom.graph.nodes().len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_validate::ValidationError::Cancelled);
+            }
+            edges = edges
+                .checked_add(self.atom.graph.children(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or_else(|| antecedent_validate::ValidationError::Resource {
+                    message: "temporal refit edge count overflow".into(),
+                })?;
+        }
+        let extra_edges = nodes.checked_mul(extras.len() as u64).ok_or_else(|| {
+            antecedent_validate::ValidationError::Resource {
+                message: "temporal refit edge count overflow".into(),
+            }
+        })?;
+        let graph_nodes = nodes.checked_add(extras.len() as u64).ok_or_else(|| {
+            antecedent_validate::ValidationError::Resource {
+                message: "temporal refit node overflow".into(),
+            }
+        })?;
+        let graph_edges = edges.checked_add(extra_edges).ok_or_else(|| {
+            antecedent_validate::ValidationError::Resource {
+                message: "temporal refit edge overflow".into(),
+            }
+        })?;
+        let limits = ctx.temporal_materialization_limits();
+        if graph_nodes > limits.max_graph_nodes || graph_edges > limits.max_graph_edges {
+            return Err(antecedent_validate::ValidationError::Resource {
+                message: "temporal refit graph limit".into(),
+            });
+        }
+        let work = graph_nodes
+            .checked_add(graph_edges)
+            .and_then(|n| n.checked_mul(graph_edges.saturating_add(1)))
+            .ok_or_else(|| antecedent_validate::ValidationError::Resource {
+                message: "temporal refit work overflow".into(),
+            })?;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        budget.charge_work(work).map_err(|e| antecedent_validate::ValidationError::Resource {
+            message: e.to_string(),
+        })?;
+        let bytes = graph_nodes
+            .checked_mul(512)
+            .and_then(|n| graph_edges.checked_mul(256).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| antecedent_validate::ValidationError::Resource {
+                message: "temporal refit byte overflow".into(),
+            })?;
+        if bytes > limits.max_bytes {
+            return Err(antecedent_validate::ValidationError::Resource {
+                message: "temporal refit byte limit".into(),
+            });
+        }
+        let _graph_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                antecedent_validate::ValidationError::Cancelled
+            }
+            other => antecedent_validate::ValidationError::Resource { message: other.to_string() },
+        })?;
+        let mut graph = (*self.atom.graph).clone();
         let indexer = if extras.is_empty() {
             self.atom.indexer.clone()
         } else {
@@ -58,10 +123,16 @@ impl EffectRefit for SequentialRefitter<'_> {
                 u32::try_from(i).ok().filter(|_| contemporaneous).map(DenseNodeId::from_raw)
             }).collect();
             for &extra in extras {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(antecedent_validate::ValidationError::Cancelled);
+                }
                 let parent = graph
                     .add_lagged(extra, antecedent_core::Lag::CONTEMPORANEOUS)
                     .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?;
                 for &child in &children {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(antecedent_validate::ValidationError::Cancelled);
+                    }
                     graph.insert_directed(parent, child).map_err(|e| {
                         antecedent_validate::ValidationError::data_msg(e.to_string())
                     })?;
@@ -76,7 +147,7 @@ impl EffectRefit for SequentialRefitter<'_> {
             )
             .map_err(|e| antecedent_validate::ValidationError::data_msg(e.to_string()))?
         };
-        Ok(estimate_sustained_window_gaps_if(
+        Ok(antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if_within(
             &antecedent_estimate::SequentialProblem {
                 data: &series,
                 graph: &graph,
@@ -93,6 +164,7 @@ impl EffectRefit for SequentialRefitter<'_> {
             ctx,
             None,
             self.gaps,
+            &mut budget,
         )?
         .0)
     }

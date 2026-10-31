@@ -222,6 +222,12 @@ pub enum QueryError {
     /// Horizon must be at least one time step.
     #[error("horizon_steps must be >= 1")]
     NonPositiveHorizon,
+    /// The horizon cannot be represented as a signed temporal offset.
+    #[error("horizon {horizon_steps} exceeds signed temporal offset range")]
+    TemporalOutcomeOffsetOverflow {
+        /// Requested horizon that exceeds the signed temporal offset range.
+        horizon_steps: u32,
+    },
     /// Nested intervention failed validation.
     #[error("invalid intervention: {0}")]
     InvalidIntervention(InterventionFault),

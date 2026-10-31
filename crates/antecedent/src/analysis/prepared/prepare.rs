@@ -185,8 +185,9 @@ impl Study {
         } else {
             analysis.prepare_score_table(ctx)?
         };
-        let ready = PreparedStudy {
+        let mut ready = PreparedStudy {
             state: SampledPreparedState {
+                temporal_namespace: None,
                 data_diagnostics,
                 analysis,
                 materialized,
@@ -204,6 +205,10 @@ impl Study {
                 retained: None,
             },
         };
+        let mut namespace_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        ready.state.temporal_namespace =
+            super::super::contract::window_namespace(ready.study(), &mut namespace_budget, ctx)?;
         ready.seal_inspection_metadata()?;
         Ok(ready)
     }
@@ -593,7 +598,7 @@ impl Study {
                 // the lowered program records that the layer is not claimed.
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Mediation(_)) => {
-                push(temporal(self.prepare_temporal_mediation_identification()?));
+                push(temporal(self.prepare_temporal_mediation_identification(ctx)?));
                 push(temporal_class(self.prepare_temporal_class_identification(ctx)?));
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::TemporalEffect(query))
@@ -601,7 +606,7 @@ impl Study {
             {
                 // A temporal ADMG contrast is identified once on its unrolled window; the
                 // functional over the window coordinates is the claim execution reads.
-                push(temporal(Some(self.prepare_temporal_admg_identification(query)?)));
+                push(temporal(Some(self.prepare_temporal_admg_identification(query, ctx)?)));
             }
             (DataInput::Temporal(_) | DataInput::Event(_), CausalQuery::Response(query))
                 if query.is_temporal()
@@ -610,7 +615,9 @@ impl Study {
                 // A temporal ADMG derivative is identified once by an adjustment set of the
                 // unrolled window; the estimand over the window coordinates is the claim
                 // execution reads.
-                push(temporal(Some(self.prepare_temporal_admg_response_identification(query)?)));
+                push(temporal(Some(
+                    self.prepare_temporal_admg_response_identification(query, ctx)?,
+                )));
             }
             (DataInput::Tabular(_), CausalQuery::Transport(_))
                 if matches!(self.graph.class(), GraphClass::Cpdag | GraphClass::Pag) =>
@@ -654,7 +661,7 @@ impl Study {
                 if self.graph.class().is_incomplete_temporal() {
                     push(temporal_class(self.prepare_temporal_class_identification(ctx)?));
                 } else {
-                    push(temporal(self.prepare_temporal_identification()?));
+                    push(temporal(self.prepare_temporal_identification(ctx)?));
                 }
             }
             (
@@ -669,7 +676,7 @@ impl Study {
                 push(static_cache(self.prepare_static_identification(plan)?));
             }
             (_, _) => {
-                push(temporal(self.prepare_temporal_identification()?));
+                push(temporal(self.prepare_temporal_identification(ctx)?));
                 push(temporal_class(self.prepare_temporal_class_identification(ctx)?));
             }
         }

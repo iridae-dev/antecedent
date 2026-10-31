@@ -12,6 +12,51 @@ fn error(e: impl std::fmt::Display) -> PyErr {
     crate::value_err(e.to_string())
 }
 
+fn temporal_error(e: antecedent_core::TemporalMaterializationError) -> PyErr {
+    crate::py_err(antecedent::CausalError::from(
+        antecedent_estimate::EstimationError::TemporalMaterialization(e),
+    ))
+}
+
+fn resource(message: &str) -> PyErr {
+    crate::py_err(antecedent::CausalError::Resource { message: message.into() })
+}
+
+fn cancelled() -> PyErr {
+    crate::py_err(antecedent::CausalError::Cancelled { stage: "identification metadata" })
+}
+
+// Bound the coordinate vector, named JSON values and their serialized representation.
+fn admit_targets(
+    count: u64,
+    names: &[String],
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<antecedent_core::execution::AdmissionLease> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    let max_name = names.iter().map(|name| name.len() as u64).max().unwrap_or(0);
+    let width = max_name
+        .checked_mul(12)
+        .and_then(|n| n.checked_add(512))
+        .ok_or_else(|| resource("metadata byte overflow"))?;
+    let bytes = count
+        .checked_mul(width)
+        .and_then(|n| n.checked_add(1024))
+        .ok_or_else(|| resource("metadata byte overflow"))?;
+    budget
+        .charge_work(count.checked_mul(width).ok_or_else(|| resource("metadata work overflow"))?)
+        .map_err(temporal_error)?;
+    if bytes > budget.limits().max_bytes {
+        return Err(resource("metadata byte limit"));
+    }
+    ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
+        other => resource(&other.to_string()),
+    })
+}
+
 fn coordinate(
     id: VariableId,
     indexer: Option<&TemporalIndexer>,
@@ -82,6 +127,7 @@ fn envelope<G>(
 pub(crate) fn analysis_to_json(
     result: &antecedent::StudyResult,
     names: &[String],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<Option<String>> {
     let Some(certificate) = &result.certificate else {
         return Ok(None);
@@ -102,6 +148,7 @@ pub(crate) fn analysis_to_json(
         names,
         &format!("{:?}", certificate.graph_class),
         result.population_registry.as_ref(),
+        ctx,
     )
     .map(Some)
 }
@@ -147,7 +194,13 @@ pub(crate) fn to_json(
     names: &[String],
     graph_class: &str,
     registry: Option<&antecedent_core::PopulationRegistry>,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<String> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let mut target_lease = None;
     let mut payload = match identification {
         Identification::Point { result, temporal_indexer, .. } => {
             let mut point = record(result, temporal_indexer.as_ref(), names, registry)?;
@@ -231,28 +284,63 @@ pub(crate) fn to_json(
             vec![TemporalNodeKey::contemporaneous(q.inner.treatment)],
             TemporalNodeKey::contemporaneous(q.inner.outcome),
         ),
-        CausalQuery::Response(q) => (
-            if let Some(temporal) = &q.temporal {
-                if let Some(overlays) = antecedent_estimate::plan_from_response_query(q)
-                    .map_err(error)?
-                    .and_then(|plan| plan.mechanism_overlays())
-                {
-                    overlays
-                        .iter()
-                        .map(|overlay| TemporalNodeKey {
+        CausalQuery::Response(q) => {
+            let targets = if let Some(temporal) = &q.temporal {
+                let plan = antecedent_estimate::plan_from_response_query(q, &mut budget, ctx)
+                    .map_err(|e| crate::py_err(antecedent::CausalError::from(e)))?;
+                if let Some(overlays) = plan.as_ref().and_then(|plan| plan.mechanism_overlays()) {
+                    let count = overlays.count() as u64;
+                    target_lease = Some(admit_targets(count, names, &mut budget, ctx)?);
+                    let mut targets = Vec::new();
+                    targets
+                        .try_reserve_exact(
+                            usize::try_from(count)
+                                .map_err(|_| resource("metadata target count"))?,
+                        )
+                        .map_err(|_| resource("metadata target allocation"))?;
+                    for overlay in plan
+                        .as_ref()
+                        .and_then(|plan| plan.mechanism_overlays())
+                        .expect("overlay plan")
+                    {
+                        if ctx.cancellation.is_cancelled() {
+                            return Err(cancelled());
+                        }
+                        targets.push(TemporalNodeKey {
                             variable: overlay.node.variable,
                             offset: overlay.node.offset,
-                        })
-                        .collect()
+                        });
+                    }
+                    targets
                 } else {
-                    let offsets = temporal.policy.active_offsets().map_err(error)?;
-                    q.functional
-                        .treatment_ids()
-                        .into_iter()
-                        .flat_map(|variable| {
-                            offsets.iter().map(move |&offset| TemporalNodeKey { variable, offset })
-                        })
-                        .collect()
+                    let variables = q.functional.treatment_ids();
+                    let count = temporal
+                        .policy
+                        .offset_count()
+                        .map_err(error)?
+                        .checked_mul(variables.len() as u64)
+                        .ok_or_else(|| resource("metadata target count overflow"))?;
+                    target_lease = Some(admit_targets(count, names, &mut budget, ctx)?);
+                    let offsets = temporal
+                        .policy
+                        .active_offsets_within(&mut budget, ctx)
+                        .map_err(temporal_error)?;
+                    let mut targets = Vec::new();
+                    targets
+                        .try_reserve_exact(
+                            usize::try_from(count)
+                                .map_err(|_| resource("metadata target count"))?,
+                        )
+                        .map_err(|_| resource("metadata target allocation"))?;
+                    for variable in variables {
+                        for &offset in offsets.iter() {
+                            if ctx.cancellation.is_cancelled() {
+                                return Err(cancelled());
+                            }
+                            targets.push(TemporalNodeKey { variable, offset });
+                        }
+                    }
+                    targets
                 }
             } else {
                 q.functional
@@ -260,27 +348,53 @@ pub(crate) fn to_json(
                     .into_iter()
                     .map(TemporalNodeKey::contemporaneous)
                     .collect()
-            },
-            TemporalNodeKey {
-                variable: q
-                    .functional
-                    .primary_pair()
-                    .ok_or_else(|| error("missing response outcome"))?
-                    .1,
-                offset: q.temporal.as_ref().map_or(0, |temporal| {
-                    i32::try_from(temporal.horizons[0].saturating_sub(1)).unwrap_or(i32::MAX)
-                }),
-            },
-        ),
-        CausalQuery::TemporalEffect(q) => (
-            q.policy
-                .active_offsets()
-                .map_err(error)?
-                .iter()
-                .map(|&offset| TemporalNodeKey { variable: q.treatment, offset })
-                .collect(),
-            TemporalNodeKey { variable: q.outcome, offset: q.outcome_offset() },
-        ),
+            };
+            let offset = match &q.temporal {
+                Some(temporal) => i32::try_from(
+                    temporal
+                        .horizons
+                        .first()
+                        .copied()
+                        .and_then(|h| h.checked_sub(1))
+                        .ok_or_else(|| error("missing or zero temporal horizon"))?,
+                )
+                .map_err(error)?,
+                None => 0,
+            };
+            (
+                targets,
+                TemporalNodeKey {
+                    variable: q
+                        .functional
+                        .primary_pair()
+                        .ok_or_else(|| error("missing response outcome"))?
+                        .1,
+                    offset,
+                },
+            )
+        }
+        CausalQuery::TemporalEffect(q) => {
+            let count = q.policy.offset_count().map_err(error)?;
+            target_lease = Some(admit_targets(count, names, &mut budget, ctx)?);
+            let offsets =
+                q.policy.active_offsets_within(&mut budget, ctx).map_err(temporal_error)?;
+            let mut targets = Vec::new();
+            targets
+                .try_reserve_exact(
+                    usize::try_from(count).map_err(|_| resource("metadata target count"))?,
+                )
+                .map_err(|_| resource("metadata target allocation"))?;
+            for &offset in offsets.iter() {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(cancelled());
+                }
+                targets.push(TemporalNodeKey { variable: q.treatment, offset });
+            }
+            (
+                targets,
+                TemporalNodeKey { variable: q.outcome, offset: q.outcome_offset().map_err(error)? },
+            )
+        }
         CausalQuery::Mediation(q) => {
             let temporal = matches!(
                 identification,
@@ -305,11 +419,67 @@ pub(crate) fn to_json(
         _ => return Err(error("query has no adjustment handoff coordinates")),
     };
     let named_key = |key: &TemporalNodeKey| -> PyResult<Value> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
         let name =
             names.get(key.variable.as_usize()).ok_or_else(|| error("unknown query coordinate"))?;
         Ok(json!({"name":name,"variable":key.variable.raw(),"offset":key.offset}))
     };
     payload["treatments"] = json!(targets.iter().map(named_key).collect::<PyResult<Vec<_>>>()?);
     payload["outcome"] = named_key(&outcome)?;
-    serde_json::to_string(&payload).map_err(error)
+    let output = serde_json::to_string(&payload).map_err(error)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
+    drop(target_lease);
+    Ok(output)
+}
+
+#[cfg(test)]
+mod temporal_metadata_context_tests {
+    use super::*;
+    use antecedent_core::{AssumptionSet, ExecutionContext, TemporalEffectQuery, TemporalPolicy};
+    use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
+
+    #[test]
+    fn temporal_to_json_uses_the_supplied_context_for_limits_and_cancellation() {
+        Python::initialize();
+        Python::attach(|py| {
+            let q =
+                TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+                    .with_policy(TemporalPolicy::pulse(-1));
+            let query = CausalQuery::TemporalEffect(q);
+            let identification = Identification::Point {
+                result: IdentificationResult::not_identified(
+                    query.clone(),
+                    DerivationTrace::default(),
+                    AssumptionSet::new(),
+                    IdentificationPerformanceRecord::default(),
+                ),
+                temporal_indexer: None,
+                strategy: antecedent::IdentifierId::TemporalBackdoorUnfolded,
+                structure_version: 0,
+            };
+            let names = vec!["t".to_owned(), "y".to_owned()];
+            let original = ExecutionContext::for_tests(1);
+            let retained = original.clone();
+            let json =
+                to_json(&identification, &query, &names, "temporal_dag", None, &retained).unwrap();
+            let payload: Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(payload["treatments"][0]["offset"], -1);
+
+            let mut limits = original.temporal_materialization_limits();
+            limits.max_offsets = 0;
+            let limited = original.with_temporal_materialization_limits(limits);
+            let refusal = to_json(&identification, &query, &names, "temporal_dag", None, &limited)
+                .unwrap_err();
+            assert!(refusal.is_instance_of::<crate::errors::CausalResourceError>(py));
+
+            original.cancellation.cancel();
+            let refusal = to_json(&identification, &query, &names, "temporal_dag", None, &retained)
+                .unwrap_err();
+            assert!(refusal.is_instance_of::<crate::errors::CausalCancelledError>(py));
+        });
+    }
 }

@@ -13,7 +13,7 @@
 
 use antecedent_core::{Intervention, MediationQuery, TemporalEffectQuery, VariableId};
 use antecedent_data::TableView;
-use antecedent_identify::temporal_admg::plan_temporal_admg_window;
+use std::sync::Arc;
 
 use super::mediation_mixed::{ComponentRun, component_slot, identify_components};
 use super::{
@@ -23,11 +23,40 @@ use super::{
 use crate::analysis::temporal_admg_contrast::{used_variables, window_table};
 use crate::planner::RouteDefaults;
 
+/// Owns the copied intervention payload and its admission together.
+pub(crate) struct AdmittedMediationEffect {
+    effect: TemporalEffectQuery,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+impl std::ops::Deref for AdmittedMediationEffect {
+    type Target = TemporalEffectQuery;
+    fn deref(&self) -> &TemporalEffectQuery {
+        &self.effect
+    }
+}
+
 /// The pulse contrast whose window the mediation reads: same treatment, outcome and horizon.
-pub(crate) fn window_effect_query(
+pub(crate) fn window_effect_query_within(
     query: &MediationQuery,
-) -> Result<TemporalEffectQuery, CausalError> {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<AdmittedMediationEffect, CausalError> {
+    let work = (query.mediators.len() as u64).checked_add(query.horizons.len() as u64).ok_or_else(
+        || CausalError::Resource { message: "temporal mediation validation overflow".into() },
+    )?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let validation = antecedent_core::admit_temporal_intervention_validation(
+        [&query.control, &query.active],
+        budget,
+        ctx,
+    )
+    .map_err(|e| {
+        CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+    })?;
     query.validate()?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal mediation" });
+    }
     let horizon = match query.horizons.as_ref() {
         [horizon] => *horizon,
         _ => {
@@ -43,14 +72,15 @@ pub(crate) fn window_effect_query(
     effect.control = query.control.clone();
     effect.active = query.active.clone();
     effect.target_population = query.target_population.clone();
-    Ok(effect)
+    Ok(AdmittedMediationEffect { effect, _lease: validation })
 }
 
 /// The window problem of a mediation under a temporal ADMG: the unrolled window, the
 /// pulse contrast on its coordinates and the mediators between the pulse and the outcome.
 pub(crate) struct AdmgWindowProblem {
-    effect: TemporalEffectQuery,
-    plan: antecedent_identify::temporal_admg::TemporalAdmgWindowPlan,
+    effect: AdmittedMediationEffect,
+    plan: antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan,
+    _mediator_lease: Arc<antecedent_core::execution::AdmissionLease>,
     window: antecedent_graph::UnrolledTemporalAdmg,
     treatment: VariableId,
     outcome: VariableId,
@@ -64,14 +94,18 @@ pub(crate) struct AdmgWindowProblem {
 ///
 /// The query reads more than one horizon, names a variable the template lacks, has no
 /// mediator in the window, or intervenes other than by `Set`.
-pub(crate) fn admg_window_problem(
+pub(crate) fn admg_window_problem_within(
     template: &antecedent_graph::TemporalAdmg,
     query: &MediationQuery,
     variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<AdmgWindowProblem, CausalError> {
-    let effect = window_effect_query(query)?;
-    let plan = plan_temporal_admg_window(template, &effect)?;
-    let window = template.unroll_window_over(plan.periods, variable_count)?;
+    let effect = window_effect_query_within(query, budget, ctx)?;
+    let plan = antecedent_identify::temporal_admg::plan_temporal_admg_window_within(
+        template, &effect, budget, ctx,
+    )?;
+    let window = template.unroll_window_over_within(plan.periods, variable_count, budget, ctx)?;
     let unknown = |variable: VariableId| CausalError::Compile {
         message: format!(
             "variable {} is not a variable of the temporal ADMG template; name a variable \
@@ -87,9 +121,39 @@ pub(crate) fn admg_window_problem(
     let outcome = window
         .coordinate(query.outcome, plan.outcome_period)
         .ok_or_else(|| unknown(query.outcome))?;
+    let periods =
+        if first <= plan.outcome_period { u64::from(plan.outcome_period - first) + 1 } else { 0 };
+    let count = periods.checked_mul(query.mediators.len() as u64).ok_or_else(|| {
+        CausalError::Resource { message: "temporal mediator count overflow".into() }
+    })?;
+    budget
+        .charge_work(count)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    let bytes = count.checked_mul(64).and_then(|n| n.checked_add(512)).ok_or_else(|| {
+        CausalError::Resource { message: "temporal mediator bytes overflow".into() }
+    })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "temporal mediator byte limit".into() });
+    }
+    let mediator_lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal mediation" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?);
     let mut mediators = Vec::new();
+    mediators
+        .try_reserve_exact(usize::try_from(count).map_err(|_| CausalError::Resource {
+            message: "temporal mediator count exceeds address space".into(),
+        })?)
+        .map_err(|_| CausalError::Resource {
+            message: "temporal mediator allocation failed".into(),
+        })?;
     for &variable in query.mediators.iter() {
         for period in first..=plan.outcome_period {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal mediation" });
+            }
             if let Some(node) = window.coordinate(variable, period) {
                 if node != treatment && node != outcome {
                     mediators.push(node);
@@ -117,7 +181,16 @@ pub(crate) fn admg_window_problem(
     window_query.active = level(&query.active)?;
     window_query.target_population = query.target_population.clone();
 
-    Ok(AdmgWindowProblem { effect, plan, window, treatment, outcome, mediators, window_query })
+    Ok(AdmgWindowProblem {
+        effect,
+        plan,
+        window,
+        treatment,
+        outcome,
+        mediators,
+        window_query,
+        _mediator_lease: mediator_lease,
+    })
 }
 
 impl super::Study {
@@ -161,12 +234,23 @@ impl super::Study {
         let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
-        let problem = admg_window_problem(template, query, variable_count)?;
-        let AdmgWindowProblem { effect, plan, window, treatment, outcome, mediators, window_query } =
-            problem;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let problem =
+            admg_window_problem_within(template, query, variable_count, &mut budget, ctx)?;
+        let AdmgWindowProblem {
+            effect,
+            plan,
+            window,
+            treatment,
+            outcome,
+            mediators,
+            window_query,
+            _mediator_lease,
+        } = problem;
         // The window is identified once, at compile, and the program retains the components;
         // a plan that retained none identifies here.
-        let identified =
+        let mut identified =
             if let Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified)) =
                 crate::analysis::lowering::plan_retained_execution_proof(self, physical)
             {
@@ -175,11 +259,14 @@ impl super::Study {
                 report_identify_compute(ctx);
                 identify_components(window.admg(), &window_query, identifier_id, estimator_id)?
             };
+        for (result, _) in identified.iter_mut().flatten() {
+            result.retain_temporal_lease(Arc::clone(&_mediator_lease));
+        }
         let mut used = used_variables(template, &effect);
         used.extend(query.mediators.iter().copied());
         used.sort_unstable();
         used.dedup();
-        let table = window_table(series, &window, &used, &ctx.kernel_policy)?;
+        let table = window_table(series, &window, &used, &mut budget, ctx)?;
         let mut roles = vec![treatment, outcome];
         roles.extend(mediators.iter().copied());
         let (resampling, design) = self.window_row_resampling(plan.periods)?;
@@ -224,40 +311,67 @@ impl super::Study {
             };
             self.retain_pag_window_identification(count, ctx)
         } else {
-            Ok(self.retain_admg_window_mediation_identification(plan))
+            self.retain_admg_window_mediation_identification(plan, ctx)
         }
     }
 
     fn retain_admg_window_mediation_identification(
         &self,
         plan: &PhysicalExecutionPlan,
-    ) -> Option<crate::planner::lowered::RetainedExecutionProof> {
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::planner::lowered::RetainedExecutionProof>, CausalError> {
         let (super::DataInput::Temporal(series) | super::DataInput::Event(series)) = &self.data
         else {
-            return None;
+            return Ok(None);
         };
-        let variable_count = u32::try_from(series.schema().len()).ok()?;
+        let Ok(variable_count) = u32::try_from(series.schema().len()) else {
+            return Ok(None);
+        };
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         match self.graph.graph_ref() {
             GraphRef::TemporalAdmg(template) => {
                 let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
-                    return None;
+                    return Ok(None);
                 };
-                let (identifier_id, estimator_id) =
-                    plan.binding().resolve(RouteDefaults::PATH).ok()?;
+                let Ok((identifier_id, estimator_id)) = plan.binding().resolve(RouteDefaults::PATH)
+                else {
+                    return Ok(None);
+                };
                 if !matches!(estimator_id, EstimatorId::FunctionalEffect) {
-                    return None;
+                    return Ok(None);
                 }
-                let problem = admg_window_problem(template, query, variable_count).ok()?;
-                let identified = identify_components(
+                let problem = match admg_window_problem_within(
+                    template,
+                    query,
+                    variable_count,
+                    &mut budget,
+                    ctx,
+                ) {
+                    Ok(problem) => problem,
+                    Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                        return Err(error);
+                    }
+                    Err(_) => return Ok(None),
+                };
+                let mut identified = match identify_components(
                     problem.window.admg(),
                     &problem.window_query,
                     identifier_id,
                     estimator_id,
-                )
-                .ok()?;
-                Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified))
+                ) {
+                    Ok(identified) => identified,
+                    Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                        return Err(error);
+                    }
+                    Err(_) => return Ok(None),
+                };
+                for (result, _) in identified.iter_mut().flatten() {
+                    result.retain_temporal_lease(Arc::clone(&problem._mediator_lease));
+                }
+                Ok(Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified)))
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 }
@@ -267,43 +381,118 @@ impl super::Study {
 ///
 /// An identification over the window names its nodes by window coordinate, so a reader needs
 /// this map to place them: the offset is the period relative to the policy origin.
+pub(crate) struct NamespaceData {
+    pub(crate) nodes: Vec<(u32, i32)>,
+    pub(crate) lease: Arc<antecedent_core::execution::AdmissionLease>,
+}
+pub(crate) fn admit_namespace(
+    count: u64,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Arc<antecedent_core::execution::AdmissionLease>, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal namespace" });
+    }
+    budget.charge_work(count).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    // Covers the coordinate vector, wire conversion, and their transient copies.
+    let bytes = count.checked_mul(128).and_then(|v| v.checked_add(4096)).ok_or_else(|| {
+        CausalError::Resource { message: "temporal namespace byte overflow".into() }
+    })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "temporal namespace byte limit".into() });
+    }
+    Ok(Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal namespace" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?))
+}
+
 pub(crate) fn mediation_window_namespace(
     graph: GraphRef<'_>,
     query: &antecedent_core::CausalQuery,
     variable_count: u32,
-) -> Option<Vec<(u32, i32)>> {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<NamespaceData>, CausalError> {
     let antecedent_core::CausalQuery::Mediation(query) = query else {
-        return None;
+        return Ok(None);
     };
-    match graph {
+    let indexer = match graph {
         GraphRef::TemporalAdmg(template) => {
-            let problem = admg_window_problem(template, query, variable_count).ok()?;
-            let count = u32::try_from(problem.window.variables().len()).ok()?;
-            let origin = i32::try_from(problem.plan.origin).ok()?;
-            (0..problem.plan.periods * count)
-                .map(|coordinate| {
-                    let (variable, period) =
-                        problem.window.locate(VariableId::from_raw(coordinate))?;
-                    Some((variable.raw(), i32::try_from(period).ok()? - origin))
-                })
-                .collect()
+            let problem = admg_window_problem_within(template, query, variable_count, budget, ctx)?;
+            let nodes = u64::from(problem.plan.periods)
+                .checked_mul(problem.window.variables().len() as u64)
+                .ok_or_else(|| CausalError::Resource {
+                    message: "temporal namespace size overflow".into(),
+                })?;
+            let lease = admit_namespace(nodes, budget, ctx)?;
+            let origin = i32::try_from(problem.plan.origin).map_err(|_| CausalError::Resource {
+                message: "temporal namespace origin overflow".into(),
+            })?;
+            let mut result = Vec::new();
+            result
+                .try_reserve_exact(usize::try_from(nodes).map_err(|_| CausalError::Resource {
+                    message: "temporal namespace too large".into(),
+                })?)
+                .map_err(|_| CausalError::Resource {
+                    message: "temporal namespace allocation".into(),
+                })?;
+            for coordinate in 0..nodes {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal namespace" });
+                }
+                let raw = u32::try_from(coordinate).map_err(|_| CausalError::Resource {
+                    message: "temporal namespace coordinate overflow".into(),
+                })?;
+                let (variable, period) = problem
+                    .window
+                    .locate(VariableId::from_raw(raw))
+                    .ok_or_else(|| CausalError::Compile {
+                        message: "invalid temporal namespace coordinate".into(),
+                    })?;
+                let offset =
+                    i32::try_from(i64::from(period) - i64::from(origin)).map_err(|_| {
+                        CausalError::Resource {
+                            message: "temporal namespace offset overflow".into(),
+                        }
+                    })?;
+                result.push((variable.raw(), offset));
+            }
+            return Ok(Some(NamespaceData { nodes: result, lease }));
         }
         GraphRef::TemporalPag(template) => {
-            let effect = window_effect_query(query).ok()?;
-            let window = antecedent_identify::temporal_pag_mediation_window(
+            let effect = window_effect_query_within(query, budget, ctx)?;
+            antecedent_identify::temporal_pag_mediation_window_within(
                 template,
                 &effect,
                 query,
                 variable_count,
-            )
-            .ok()?;
-            (0..window.indexer.dense_len())
-                .map(|dense| {
-                    let key = window.indexer.key_of(u32::try_from(dense).ok()?).ok()?;
-                    Some((key.variable.raw(), key.offset))
-                })
-                .collect()
+                budget,
+                ctx,
+            )?
+            .indexer
         }
-        _ => None,
+        _ => return Ok(None),
+    };
+    let nodes = indexer.dense_len() as u64;
+    let lease = admit_namespace(nodes, budget, ctx)?;
+    let mut result = Vec::new();
+    result
+        .try_reserve_exact(indexer.dense_len())
+        .map_err(|_| CausalError::Resource { message: "temporal namespace allocation".into() })?;
+    for dense in 0..indexer.dense_len() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal namespace" });
+        }
+        let raw = u32::try_from(dense).map_err(|_| CausalError::Resource {
+            message: "temporal namespace coordinate overflow".into(),
+        })?;
+        let key = indexer
+            .key_of(raw)
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        result.push((key.variable.raw(), key.offset));
     }
+    Ok(Some(NamespaceData { nodes: result, lease }))
 }

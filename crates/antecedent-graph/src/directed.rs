@@ -187,6 +187,56 @@ impl DirectedCore {
         Ok(())
     }
 
+    /// Cancellation-aware cycle check for an admitted temporal unrolling.
+    pub(crate) fn try_insert_temporal(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(), GraphError> {
+        use antecedent_core::TemporalMaterializationError;
+        if ctx.cancellation.is_cancelled() {
+            return Err(TemporalMaterializationError::Cancelled.into());
+        }
+        if self.has_edge(from, to) {
+            return Err(GraphError::DuplicateEdge { from: from.raw(), to: to.raw() });
+        }
+        let mut ws = core::mem::take(&mut self.insert_ws);
+        ws.prepare(self.children.len());
+        ws.frontier.push(to);
+        ws.visited.insert(to);
+        let mut cycle = false;
+        while let Some(node) = ws.frontier.pop() {
+            if ctx.cancellation.is_cancelled() {
+                self.insert_ws = ws;
+                return Err(TemporalMaterializationError::Cancelled.into());
+            }
+            for &child in &self.children[node.as_usize()] {
+                if ctx.cancellation.is_cancelled() {
+                    self.insert_ws = ws;
+                    return Err(TemporalMaterializationError::Cancelled.into());
+                }
+                if child == from {
+                    cycle = true;
+                    break;
+                }
+                if !ws.visited.contains(child) {
+                    ws.visited.insert(child);
+                    ws.frontier.push(child);
+                }
+            }
+            if cycle {
+                break;
+            }
+        }
+        self.insert_ws = ws;
+        if cycle {
+            return Err(GraphError::Cycle { from: from.raw(), to: to.raw() });
+        }
+        self.push_unchecked(from, to);
+        Ok(())
+    }
+
     /// Append an edge. The caller guarantees both nodes exist, the edge is new,
     /// and the directed graph stays acyclic.
     pub(crate) fn push_unchecked(&mut self, from: DenseNodeId, to: DenseNodeId) {

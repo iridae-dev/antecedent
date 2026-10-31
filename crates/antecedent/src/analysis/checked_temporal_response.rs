@@ -31,10 +31,7 @@ pub(crate) fn temporal_response_is_direct(query: &ResponseQuery) -> bool {
         ResponseFunctional::MeanCurve { .. } => true,
         ResponseFunctional::InterventionResponse { interventions, .. } => {
             interventions.len() == 1
-                && matches!(
-                    antecedent_estimate::plan_from_response_query(query),
-                    Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single { .. }))
-                )
+                && matches!(antecedent_estimate::single_temporal_intervention(query), Ok(Some(_)))
         }
         _ => false,
     }
@@ -64,7 +61,7 @@ impl TemporalResponseHorizonEvidence {
                 message: "temporal response estimand is not supplied by its horizon proof".into(),
             });
         }
-        let expected_offset = effect_query.outcome_offset();
+        let expected_offset = effect_query.outcome_offset()?;
         let treatment_key = TemporalNodeKey {
             variable: effect_query.treatment,
             offset: effect_query.try_treatment_offset()?,
@@ -218,11 +215,8 @@ fn checked_response_grid(
 ) -> Result<(Vec<f64>, usize), CausalError> {
     let grid = match &query.functional {
         ResponseFunctional::MeanCurve { treatment, .. } => treatment.grid.values()?,
-        _ => match antecedent_estimate::plan_from_response_query(query) {
-            Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single {
-                level: Some(level),
-                ..
-            })) => vec![level],
+        _ => match antecedent_estimate::single_temporal_intervention(query) {
+            Ok(Some((_, Some(level), _))) => vec![level],
             _ => Vec::new(),
         },
     };

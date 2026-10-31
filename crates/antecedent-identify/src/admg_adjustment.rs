@@ -43,7 +43,7 @@ use crate::generalized::{
 };
 use crate::response::{append_observation_assumptions, response_pairs};
 use crate::result::{DerivationTrace, IdentificationPerformanceRecord, IdentificationResult};
-use crate::temporal_admg::{TemporalAdmgWindowPlan, plan_temporal_admg_window};
+use crate::temporal_admg::{AdmittedTemporalAdmgWindowPlan, plan_temporal_admg_window_within};
 
 /// One treatment/outcome pair's graph facts.
 struct PairGeometry {
@@ -296,7 +296,7 @@ pub struct TemporalAdmgAdjustment {
     /// coordinates (`period * variable_count + variable`).
     pub result: IdentificationResult,
     /// Where the policy, the outcome and the history sit in the window.
-    pub plan: TemporalAdmgWindowPlan,
+    pub plan: AdmittedTemporalAdmgWindowPlan,
     /// The unrolled window the result is stated on.
     pub window: UnrolledTemporalAdmg,
 }
@@ -322,10 +322,38 @@ pub fn identify_temporal_admg_response_adjustment(
     query: &ResponseQuery,
     variable_count: u32,
 ) -> Result<TemporalAdmgAdjustment, IdentificationError> {
-    let plan = plan_temporal_admg_window(template, probe)?;
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_temporal_admg_response_adjustment_within(
+        template,
+        probe,
+        query,
+        variable_count,
+        &mut budget,
+        &ctx,
+    )
+}
+
+/// Context-aware variant using one cumulative temporal materialization budget.
+/// # Errors
+/// Invalid input, identification, cancellation or resource refusal.
+pub fn identify_temporal_admg_response_adjustment_within(
+    template: &TemporalAdmg,
+    probe: &TemporalEffectQuery,
+    query: &ResponseQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TemporalAdmgAdjustment, IdentificationError> {
+    let plan = plan_temporal_admg_window_within(template, probe, budget, ctx)?;
     let window = template
-        .unroll_window_over(plan.periods, variable_count)
-        .map_err(|error| IdentificationError::construction(error))?;
+        .unroll_window_over_within(plan.periods, variable_count, budget, ctx)
+        .map_err(|error| match error {
+            antecedent_graph::GraphError::TemporalMaterialization(error) => {
+                crate::error::temporal_materialization_error(error)
+            }
+            other => IdentificationError::construction(other),
+        })?;
     let treated_period = plan.treated.first().copied().ok_or(IdentificationError::unsupported(
         "a temporal derivative needs a treated period in its policy",
     ))?;
@@ -671,14 +699,42 @@ pub fn identify_temporal_admg_front_door_derivative(
     query: &ResponseQuery,
     variable_count: u32,
 ) -> Result<Option<TemporalAdmgAdjustment>, IdentificationError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_temporal_admg_front_door_derivative_within(
+        template,
+        probe,
+        query,
+        variable_count,
+        &mut budget,
+        &ctx,
+    )
+}
+
+/// Context-aware variant using one cumulative temporal materialization budget.
+/// # Errors
+/// Invalid input, identification, cancellation or resource refusal.
+pub fn identify_temporal_admg_front_door_derivative_within(
+    template: &TemporalAdmg,
+    probe: &TemporalEffectQuery,
+    query: &ResponseQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Option<TemporalAdmgAdjustment>, IdentificationError> {
     let pairs = response_pairs(&query.functional)?;
     let &[(treatment, outcome)] = pairs.as_slice() else {
         return Ok(None);
     };
-    let plan = plan_temporal_admg_window(template, probe)?;
+    let plan = plan_temporal_admg_window_within(template, probe, budget, ctx)?;
     let window = template
-        .unroll_window_over(plan.periods, variable_count)
-        .map_err(|error| IdentificationError::construction(error))?;
+        .unroll_window_over_within(plan.periods, variable_count, budget, ctx)
+        .map_err(|error| match error {
+            antecedent_graph::GraphError::TemporalMaterialization(error) => {
+                crate::error::temporal_materialization_error(error)
+            }
+            other => IdentificationError::construction(other),
+        })?;
     let treated_period = plan.treated.first().copied().ok_or(IdentificationError::unsupported(
         "a temporal derivative needs a treated period in its policy",
     ))?;

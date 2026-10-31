@@ -206,8 +206,31 @@ impl TemporalEffectQuery {
     }
 
     /// Outcome evaluation offset: `horizon_steps - 1` (absolute from window origin).
+    /// # Errors
+    /// Zero horizon or a horizon whose offset cannot be represented by `i32`.
     #[must_use]
-    pub fn outcome_offset(&self) -> i32 {
-        i32::try_from(self.horizon_steps.saturating_sub(1)).unwrap_or(i32::MAX)
+    pub fn outcome_offset(&self) -> Result<i32, QueryError> {
+        let offset = self.horizon_steps.checked_sub(1).ok_or(QueryError::NonPositiveHorizon)?;
+        i32::try_from(offset).map_err(|_| QueryError::TemporalOutcomeOffsetOverflow {
+            horizon_steps: self.horizon_steps,
+        })
+    }
+}
+
+#[cfg(test)]
+mod checked_horizon_tests {
+    use super::*;
+    #[test]
+    fn outcome_offset_refuses_unrepresentable_horizons() {
+        let query =
+            TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0);
+        assert_eq!(
+            query.clone().with_horizon_steps((i32::MAX as u32) + 1).outcome_offset(),
+            Ok(i32::MAX)
+        );
+        assert!(matches!(
+            query.with_horizon_steps(u32::MAX).outcome_offset(),
+            Err(QueryError::TemporalOutcomeOffsetOverflow { .. })
+        ));
     }
 }

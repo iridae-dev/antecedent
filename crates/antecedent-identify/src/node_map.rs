@@ -37,6 +37,29 @@ impl NodeMap {
         Self { to_dense, to_variable }
     }
 
+    /// Build a node map while honoring cancellation under an existing lease.
+    pub(crate) fn new_with_cancel(
+        nodes: &[NodeRef],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, IdentificationError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        let mut to_dense = HashMap::with_capacity(nodes.len());
+        let mut to_variable = Vec::with_capacity(nodes.len());
+        for index in 0..nodes.len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            let variable = node_variable_id(nodes, index);
+            if let Some(variable) = variable {
+                to_dense.entry(variable).or_insert_with(|| DenseNodeId::from_index(index));
+            }
+            to_variable.push(variable);
+        }
+        Ok(Self { to_dense, to_variable })
+    }
+
     /// Index the nodes of `dag`.
     pub(crate) fn from_dag(dag: &Dag) -> Self {
         Self::new(dag.nodes())

@@ -14,13 +14,11 @@ use super::{
     PhysicalExecutionPlan, RefuteSuite, Strategy, StudyResult, TemporalEffectQuery, TimeSeriesData,
     VariableId, elapsed_ns, report_identify_compute, run_functional,
 };
-use crate::analysis::temporal_admg_contrast::{
-    identify_window_contrast, used_variables, window_coordinates, window_table,
-};
+use crate::analysis::temporal_admg_contrast::{used_variables, window_coordinates, window_table};
 use crate::planner::RouteDefaults;
 use antecedent_data::TableView;
 use antecedent_estimate::RowResampling;
-use antecedent_identify::temporal_admg::plan_temporal_admg_window;
+use antecedent_identify::temporal_admg::plan_temporal_admg_window_within;
 
 /// Stable code of the disclosure every window result carries.
 const WINDOW_DISCLOSURE: &str = "estimate.temporal_admg.window";
@@ -84,10 +82,13 @@ impl super::Study {
         // The product compile retained or the prepared handle froze, else a fresh identification.
         let (identification, estimand, identify_cached) =
             self.identify_admg_contrast(physical, template, query, variable_count, ctx)?;
-        let plan = plan_temporal_admg_window(template, query)?;
-        let window = template.unroll_window_over(plan.periods, variable_count)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let plan = plan_temporal_admg_window_within(template, query, &mut budget, ctx)?;
+        let window =
+            template.unroll_window_over_within(plan.periods, variable_count, &mut budget, ctx)?;
         let table =
-            window_table(series, &window, &used_variables(template, query), &ctx.kernel_policy)?;
+            window_table(series, &window, &used_variables(template, query), &mut budget, ctx)?;
         let coordinates = window_coordinates(&window, &plan, query);
         let (resampling, design) = self.window_row_resampling(plan.periods)?;
         let fitter = FunctionalEffect {
@@ -187,7 +188,16 @@ impl super::Study {
             found
         } else {
             report_identify_compute(ctx);
-            let contrast = identify_window_contrast(template, query, variable_count)?;
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            let contrast =
+                crate::analysis::temporal_admg_contrast::identify_window_contrast_within(
+                    template,
+                    query,
+                    variable_count,
+                    &mut budget,
+                    ctx,
+                )?;
             (contrast.identification, contrast.estimand, false)
         })
     }

@@ -283,7 +283,7 @@ pub enum CausalError {
     Data(#[from] DataError),
     /// Graph construction or validation.
     #[error(transparent)]
-    Graph(#[from] GraphError),
+    Graph(GraphError),
     /// Experiment / measurement design evaluation.
     #[error(transparent)]
     Design(DesignError),
@@ -474,6 +474,24 @@ impl StageError for ValidationError {
 
     fn classify(self) -> Classified<Self> {
         match self {
+            Self::Estimation(EstimationError::TemporalMaterialization(error))
+            | Self::Estimation(EstimationError::Graph(GraphError::TemporalMaterialization(
+                error,
+            ))) => {
+                use antecedent_core::TemporalMaterializationError as T;
+                match error {
+                    T::Cancelled
+                    | T::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+                        Classified::Cancelled
+                    }
+                    error @ (T::Admission(_) | T::Allocation | T::Limit { .. }) => {
+                        Classified::Resource(error.to_string())
+                    }
+                    other => Classified::Finding(Self::Estimation(
+                        EstimationError::TemporalMaterialization(other),
+                    )),
+                }
+            }
             Self::Cancelled
             | Self::Discovery(DiscoveryError::Cancelled)
             | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
@@ -662,9 +680,41 @@ impl From<ProbError> for CausalError {
     }
 }
 
+fn lift_temporal_materialization(
+    error: antecedent_core::TemporalMaterializationError,
+    stage: &'static str,
+) -> CausalError {
+    use antecedent_core::TemporalMaterializationError as T;
+    match error {
+        T::Cancelled | T::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+            CausalError::Cancelled { stage }
+        }
+        T::Admission(error) => lift_admission(error, stage),
+        error @ (T::Limit { .. } | T::Allocation) => {
+            CausalError::Resource { message: error.to_string() }
+        }
+        other => CausalError::Estimate(EstimationError::TemporalMaterialization(other)),
+    }
+}
+
+impl From<GraphError> for CausalError {
+    fn from(error: GraphError) -> Self {
+        match error {
+            GraphError::TemporalMaterialization(error) => {
+                lift_temporal_materialization(error, STAGE_MODEL)
+            }
+            other => Self::Graph(other),
+        }
+    }
+}
+
 impl From<EstimationError> for CausalError {
     fn from(error: EstimationError) -> Self {
         match error {
+            EstimationError::TemporalMaterialization(error)
+            | EstimationError::Graph(GraphError::TemporalMaterialization(error)) => {
+                lift_temporal_materialization(error, STAGE_MODEL)
+            }
             EstimationError::Refused { code, message }
                 if code == antecedent_core::reason_code!("cancelled_no_claim")
                     && message.detail() == Some("dml.cancelled") =>
@@ -876,7 +926,17 @@ impl CausalError {
     /// a variant of their own (`.map_err(CausalError::rejected)`).
     #[must_use]
     pub fn rejected(cause: impl Into<CompileCause>) -> Self {
-        Self::Rejected(CompileFailure::from(cause.into()))
+        use antecedent_core::TemporalMaterializationError as T;
+        match cause.into() {
+            CompileCause::Graph(GraphError::TemporalMaterialization(error))
+            | CompileCause::Estimation(EstimationError::TemporalMaterialization(error))
+            | CompileCause::Estimation(EstimationError::Graph(
+                GraphError::TemporalMaterialization(error),
+            )) if !matches!(&error, T::Policy(_)) => {
+                lift_temporal_materialization(error, STAGE_MODEL)
+            }
+            cause => Self::Rejected(CompileFailure::from(cause)),
+        }
     }
 
     /// The message of a plan or program compile refusal, whether it carries a
@@ -1166,6 +1226,45 @@ mod tests {
     // `except CausalCancelledError` (or `blocker_id().scientific`) would otherwise
     // never see it, and a `CausalValidateError`/`CausalDiscoveryError` would wrongly
     // read as a refutation/discovery finding.
+
+    #[test]
+    fn temporal_operational_errors_survive_compile_rejection_wrappers() {
+        use antecedent_core::TemporalMaterializationError as T;
+        use antecedent_core::execution::AdmissionError;
+        use antecedent_estimate::EstimationError;
+        use antecedent_graph::GraphError;
+        for temporal in [
+            T::Cancelled,
+            T::Admission(AdmissionError::Cancelled),
+            T::Limit { dimension: "bytes" },
+            T::Allocation,
+        ] {
+            let cancelled =
+                matches!(&temporal, T::Cancelled | T::Admission(AdmissionError::Cancelled));
+            let graph = GraphError::TemporalMaterialization(temporal.clone());
+            for error in [
+                CausalError::from(graph.clone()),
+                CausalError::rejected(graph.clone()),
+                CausalError::rejected(EstimationError::Graph(graph)),
+                CausalError::rejected(EstimationError::TemporalMaterialization(temporal.clone())),
+            ] {
+                if cancelled {
+                    assert!(matches!(error, CausalError::Cancelled { .. }), "{error:?}");
+                } else {
+                    assert!(matches!(error, CausalError::Resource { .. }), "{error:?}");
+                }
+                assert!(!error.blocker_id().unwrap().scientific);
+            }
+        }
+        for graph in [
+            GraphError::InvalidEndpoints { message: "invalid graph" },
+            GraphError::TemporalMaterialization(T::Policy(
+                antecedent_core::InterventionError::EmptyDynamicSchedule,
+            )),
+        ] {
+            assert!(matches!(CausalError::rejected(graph), CausalError::Rejected(_)));
+        }
+    }
 
     #[test]
     fn probability_cancellation_preserves_hmc_stage_across_wrappers() {

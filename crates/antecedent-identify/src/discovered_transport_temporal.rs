@@ -386,7 +386,14 @@ fn window_error(message: &str) -> DiscoveredTransportError {
 }
 
 fn graph_error(error: &antecedent_graph::GraphError) -> DiscoveredTransportError {
-    window_error(&error.to_string())
+    match error {
+        antecedent_graph::GraphError::TemporalMaterialization(error) => {
+            DiscoveredTransportError::Identification(crate::error::temporal_materialization_error(
+                error.clone(),
+            ))
+        }
+        _ => window_error(&error.to_string()),
+    }
 }
 
 /// Add a bidirected edge between every pair of `nodes` that does not already have one.
@@ -407,8 +414,10 @@ fn connect_exposed(admg: &mut Admg, nodes: &[u32]) -> Result<(), DiscoveredTrans
 fn dag_window(
     dag: &TemporalDag,
     indexer: &TemporalIndexer,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<Admg, DiscoveredTransportError> {
-    let unfolded = dag.unfold(indexer.clone()).map_err(|e| graph_error(&e))?;
+    let unfolded = dag.unfold_within(indexer.clone(), budget, ctx).map_err(|e| graph_error(&e))?;
     let n = u32::try_from(indexer.dense_len()).map_err(|_| window_error("window size"))?;
     let mut admg = Admg::with_variables(n);
     for edge in unfolded.dag.edges() {
@@ -625,6 +634,8 @@ pub fn transport_across_temporal_class(
 
     let limits = SearchLimits { operations: request.completion_operations, depth: usize::MAX };
     let ctx = ExecutionContext::production(0, 1);
+    let mut temporal_budget =
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let identifier = TransportIdentifier::new();
     let too_large = |detail: String| {
         refusal("discovered_transport.class_too_large", &facts, unresolved.clone(), detail)
@@ -634,7 +645,14 @@ pub fn transport_across_temporal_class(
 
     match request.class {
         TemporalClass::Dag(dag) => {
-            members.push(dag_member(dag, &indexer, &window, &identifier)?);
+            members.push(dag_member(
+                dag,
+                &indexer,
+                &window,
+                &identifier,
+                &mut temporal_budget,
+                &ctx,
+            )?);
         }
         TemporalClass::Cpdag(cpdag) => {
             let mut sampler = TemporalCpdagCompletionSampler::with_budget(
@@ -648,18 +666,30 @@ pub fn transport_across_temporal_class(
                 sampler.by_ref().map(|completion| completion.graph).collect();
             enumeration_complete = !sampler.hit_cap();
             for dag in &completions {
-                members.push(dag_member(dag, &indexer, &window, &identifier)?);
+                members.push(dag_member(
+                    dag,
+                    &indexer,
+                    &window,
+                    &identifier,
+                    &mut temporal_budget,
+                    &ctx,
+                )?);
             }
         }
         TemporalClass::Pag(pag) => {
-            let mut sampler = TemporalPagCompletionSampler::for_window_with_budget(
-                pag.clone(),
-                request.member_bound,
-                &indexer,
-                limits,
-                &ctx,
-            )
-            .map_err(|error| too_large(format!("the class cannot be enumerated ({error})")))?;
+            let mut sampler =
+                TemporalPagCompletionSampler::for_window_with_borrowed_temporal_budget(
+                    pag,
+                    request.member_bound,
+                    &indexer,
+                    limits,
+                    &mut temporal_budget,
+                    &ctx,
+                )
+                .map_err(|error| match error {
+                    antecedent_graph::GraphError::TemporalMaterialization(_) => graph_error(&error),
+                    _ => too_large(format!("the class cannot be enumerated ({error})")),
+                })?;
             let completions: Vec<TemporalPag> =
                 sampler.by_ref().map(|completion| completion.graph).collect();
             if sampler.validation_report().ambiguous_global_class {
@@ -675,7 +705,15 @@ pub fn transport_across_temporal_class(
             }
             enumeration_complete = !sampler.hit_cap() && !sampler.class_audit_incomplete();
             for mag in &completions {
-                let Some(member) = mag_window_member(mag, &indexer, &window, &identifier)? else {
+                let Some(member) = mag_window_member(
+                    mag,
+                    &indexer,
+                    &window,
+                    &identifier,
+                    &mut temporal_budget,
+                    &ctx,
+                )?
+                else {
                     return Err(refusal(
                         "discovered_transport.pag_selection_bias_edge",
                         &facts,
@@ -731,8 +769,10 @@ fn dag_member(
     indexer: &TemporalIndexer,
     window: &TemporalWindow,
     identifier: &TransportIdentifier,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<TemporalEnvelopeMember, DiscoveredTransportError> {
-    let mut admg = dag_window(dag, indexer)?;
+    let mut admg = dag_window(dag, indexer, budget, ctx)?;
     let template = template_edges(dag.nodes(), dag.edges());
     connect_exposed(&mut admg, &exposed_nodes(&template, indexer)?)?;
     let admg = ancestral_subgraph(&admg, &[window.treatment, window.outcome])
@@ -755,8 +795,10 @@ fn mag_window_member(
     indexer: &TemporalIndexer,
     window: &TemporalWindow,
     identifier: &TransportIdentifier,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<Option<TemporalEnvelopeMember>, DiscoveredTransportError> {
-    let unfolded = mag.unfold(indexer.clone()).map_err(|e| graph_error(&e))?;
+    let unfolded = mag.unfold_within(indexer.clone(), budget, ctx).map_err(|e| graph_error(&e))?;
     let template = template_edges(mag.nodes(), mag.edges());
     let directed: Vec<LaggedEdge> = template.iter().filter_map(directed_of).collect();
     let bidirected: Vec<LaggedEdge> = template

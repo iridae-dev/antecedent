@@ -266,7 +266,31 @@ pub fn estimate_sustained_window_gaps_if(
     gaps: bool,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
 {
-    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    estimate_sustained_window_gaps_if_within(
+        problem,
+        query,
+        inference,
+        ctx,
+        validation,
+        gaps,
+        &mut budget,
+    )
+}
+
+/// Fit one sustained window using an operation-wide temporal budget.
+pub fn estimate_sustained_window_gaps_if_within(
+    problem: &SequentialProblem<'_>,
+    query: &TemporalEffectQuery,
+    inference: SequentialInference<'_>,
+    ctx: &ExecutionContext,
+    validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    gaps: bool,
+    budget: &mut antecedent_core::TemporalBudget,
+) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
+{
+    let (overlays, delta) =
+        sustained_contrast_overlays(query, problem.estimand, inference.status, budget, ctx)?;
     if inference.bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
@@ -283,7 +307,7 @@ pub fn estimate_sustained_window_gaps_if(
         problem,
         &SequenceTarget {
             outcome: query.outcome,
-            outcome_offset: query.outcome_offset(),
+            outcome_offset: query.outcome_offset()?,
             overlays: &overlays,
         },
         SequentialEval::Contrast { delta },
@@ -292,6 +316,7 @@ pub fn estimate_sustained_window_gaps_if(
         query.effect_modifiers.as_ref(),
         validation,
         gaps,
+        budget,
     )
 }
 
@@ -314,7 +339,9 @@ pub fn estimate_sustained_window_with_validation(
     ctx: &ExecutionContext,
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, inference.status)?;
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let (overlays, delta) =
+        sustained_contrast_overlays(query, problem.estimand, inference.status, &mut budget, ctx)?;
     let bayesian = inference.bayesian;
     if bayesian.is_some_and(|est| est.likelihood != BayesLikelihood::GaussianIdentity) {
         return Err(EstimationError::unsupported_coded(
@@ -332,7 +359,7 @@ pub fn estimate_sustained_window_with_validation(
         problem,
         &SequenceTarget {
             outcome: query.outcome,
-            outcome_offset: query.outcome_offset(),
+            outcome_offset: query.outcome_offset()?,
             overlays: &overlays,
         },
         SequentialEval::Contrast { delta },
@@ -340,7 +367,19 @@ pub fn estimate_sustained_window_with_validation(
         ctx,
         query.effect_modifiers.as_ref(),
         validation,
+        &mut budget,
     )
+}
+
+struct SustainedOverlays {
+    values: Vec<SequentialMechanismOverlay>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+impl std::ops::Deref for SustainedOverlays {
+    type Target = [SequentialMechanismOverlay];
+    fn deref(&self) -> &Self::Target {
+        &self.values
+    }
 }
 
 /// Validate a multi-step Sustained contrast and build its per-time overlays and
@@ -349,8 +388,20 @@ fn sustained_contrast_overlays(
     query: &TemporalEffectQuery,
     estimand: &IdentifiedEstimand,
     status: IdentificationStatus,
-) -> Result<(Vec<SequentialMechanismOverlay>, f64), EstimationError> {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(SustainedOverlays, f64), EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+    }
+    budget.charge_work(query.effect_modifiers.len() as u64)?;
+    let validation = antecedent_core::admit_temporal_intervention_validation(
+        [&query.control, &query.active],
+        budget,
+        ctx,
+    )?;
     query.validate()?;
+    drop(validation);
     let TemporalPolicy::Sustained { from, until } = query.policy else {
         return Err(EstimationError::unsupported_coded(
             antecedent_core::reason_code!("route_not_supported"),
@@ -372,17 +423,43 @@ fn sustained_contrast_overlays(
     }
     let active = crate::adjustment::intervention_f64(&query.active)?;
     let delta = active - crate::adjustment::intervention_f64(&query.control)?;
-    let overlays = (from..=until)
-        .map(|offset| {
-            SequentialMechanismOverlay::from(SequentialNodeOverlay {
-                variable: query.treatment,
-                offset,
-                level: Some(active),
-                shift: 0.0,
-            })
-        })
-        .collect();
-    Ok((overlays, delta))
+    let count = query.policy.offset_count()?;
+    budget.charge_offsets(count)?;
+    budget.charge_work(count)?;
+    let bytes = count
+        .checked_mul(256)
+        .and_then(|n| n.checked_add(512))
+        .ok_or(antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(
+            antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" }.into()
+        );
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            antecedent_core::TemporalMaterializationError::Cancelled
+        }
+        other => antecedent_core::TemporalMaterializationError::Admission(other),
+    })?;
+    let mut overlays = Vec::new();
+    overlays
+        .try_reserve_exact(
+            usize::try_from(count)
+                .map_err(|_| antecedent_core::TemporalMaterializationError::Allocation)?,
+        )
+        .map_err(|_| antecedent_core::TemporalMaterializationError::Allocation)?;
+    for offset in from..=until {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+        }
+        overlays.push(SequentialMechanismOverlay::from(SequentialNodeOverlay {
+            variable: query.treatment,
+            offset,
+            level: Some(active),
+            shift: 0.0,
+        }));
+    }
+    Ok((SustainedOverlays { values: overlays, _lease: lease }, delta))
 }
 
 /// A Frequentist multi-step Sustained contrast prepared once for repeated OLS
@@ -427,18 +504,22 @@ impl SequentialContrastDesign {
         ctx: &ExecutionContext,
         gaps: bool,
     ) -> Result<Self, EstimationError> {
-        let (overlays, delta) = sustained_contrast_overlays(query, problem.estimand, status)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let (overlays, delta) =
+            sustained_contrast_overlays(query, problem.estimand, status, &mut budget, ctx)?;
         let setup = SequentialSetup::build_with_gaps(
             problem,
             &SequenceTarget {
                 outcome: query.outcome,
-                outcome_offset: query.outcome_offset(),
+                outcome_offset: query.outcome_offset()?,
                 overlays: &overlays,
             },
             SequentialEval::Contrast { delta },
             query.effect_modifiers.as_ref(),
             ctx,
             gaps,
+            &mut budget,
         )?;
         if setup.sampling_weights.is_some() {
             return Err(crate::sampling_weights::unsupported_route(
@@ -648,7 +729,17 @@ pub fn estimate_sequence_mechanisms(
             "composed sequence HMC requires derived-contrast chain diagnostics; use conjugate or Laplace",
         ));
     }
-    estimate_sequential(problem, target, SequentialEval::Level, inference, ctx, &[], None)
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    estimate_sequential(
+        problem,
+        target,
+        SequentialEval::Level,
+        inference,
+        ctx,
+        &[],
+        None,
+        &mut budget,
+    )
 }
 
 /// RNG stream base for the sequential circular-block row bootstrap.
@@ -659,6 +750,8 @@ const SEQUENTIAL_BLOCK_STREAM: u64 = 0x5120_0000;
 /// being the unfolded window that ends at series time `max_lag + r`.
 #[derive(Debug)]
 struct SequentialSetup {
+    // Admission for graph-shaped setup buffers retained by this design.
+    _temporal_lease: antecedent_core::execution::AdmissionLease,
     node_count: usize,
     order: Vec<usize>,
     parents: Vec<Vec<usize>>,
@@ -702,7 +795,9 @@ impl SequentialSetup {
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        Self::build_with_gaps(problem, target, eval, modifiers, ctx, false)
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::build_with_gaps(problem, target, eval, modifiers, ctx, false, &mut budget)
     }
 
     #[allow(
@@ -720,20 +815,56 @@ impl SequentialSetup {
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
         gaps: bool,
+        budget: &mut antecedent_core::TemporalBudget,
     ) -> Result<Self, EstimationError> {
         let SequentialProblem { data, graph, indexer, .. } = *problem;
         let SequenceTarget { outcome, outcome_offset, overlays } = *target;
         let modifiers =
             if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
-        let unfolded = graph.unfold(indexer.clone())?;
+        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
         let dag = &unfolded.dag;
         let node_count = dag.node_count();
+        let mut edges = 0u64;
+        budget.charge_work(node_count as u64)?;
+        for i in 0..node_count {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
+            edges = edges.checked_add(dag.parents(DenseNodeId::from_index(i)).len() as u64).ok_or(
+                antecedent_core::TemporalMaterializationError::Limit { dimension: "work" },
+            )?;
+        }
+        let work = (node_count as u64)
+            .checked_mul(32)
+            .and_then(|n| edges.checked_mul(128).and_then(|e| n.checked_add(e)))
+            .ok_or(antecedent_core::TemporalMaterializationError::Limit { dimension: "work" })?;
+        budget.charge_work(work)?;
+        let bytes = (node_count as u64)
+            .checked_mul(1024)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(antecedent_core::TemporalMaterializationError::Limit {
+                dimension: "bytes",
+            }
+            .into());
+        }
+        let temporal_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                antecedent_core::TemporalMaterializationError::Cancelled
+            }
+            other => antecedent_core::TemporalMaterializationError::Admission(other),
+        })?;
         let outcome = indexer
             .dense_id(TemporalNodeKey { variable: outcome, offset: outcome_offset })?
             as usize;
         let mut intervention = vec![false; node_count];
         let mut overlay_at = vec![None; node_count];
         for &overlay in overlays {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             let dense = indexer.dense_id(TemporalNodeKey {
                 variable: overlay.node.variable,
                 offset: overlay.node.offset,
@@ -749,6 +880,9 @@ impl SequentialSetup {
         let mut needed = vec![false; node_count];
         let mut pending = vec![outcome];
         while let Some(i) = pending.pop() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             if needed[i] {
                 continue;
             }
@@ -832,6 +966,9 @@ impl SequentialSetup {
         let mut interaction_at = vec![Vec::new(); node_count];
         let mut node_modifier_values = vec![Vec::new(); node_count];
         for &i in &order {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             parents[i] =
                 dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
             // Stable coefficient positions across time copies, independent of dense
@@ -916,6 +1053,7 @@ impl SequentialSetup {
             factual[i] = col.iter().sum::<f64>() / n as f64;
         }
         Ok(Self {
+            _temporal_lease: temporal_lease,
             node_count,
             order,
             parents,
@@ -1274,7 +1412,9 @@ fn weight_sequential_windows(
     }
     let positive: Vec<f64> = window_weights.iter().copied().filter(|w| *w > 0.0).collect();
     if positive.is_empty() {
-        return Err(crate::sampling_weights::invalid("no lag window has a positive sampling weight"));
+        return Err(crate::sampling_weights::invalid(
+            "no lag window has a positive sampling weight",
+        ));
     }
     let retained = crate::sampling_weights::RetainedSamplingWeights::from_positive(
         &positive,
@@ -1370,9 +1510,10 @@ fn estimate_sequential(
     ctx: &ExecutionContext,
     modifiers: &[VariableId],
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
+    budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     estimate_sequential_with_gaps(
-        problem, target, eval, inference, ctx, modifiers, validation, false,
+        problem, target, eval, inference, ctx, modifiers, validation, false, budget,
     )
     .map(|(effect, posterior, _)| (effect, posterior))
 }
@@ -1390,6 +1531,7 @@ fn estimate_sequential_with_gaps(
     modifiers: &[VariableId],
     validation: Option<&mut Vec<SequentialBayesianMechanism>>,
     gaps: bool,
+    budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>, Option<crate::GapSelection>), EstimationError>
 {
     let SequentialInference { status, assumptions, bootstrap_replicates, bayesian } = inference;
@@ -1399,7 +1541,8 @@ fn estimate_sequential_with_gaps(
             "a series with gaps is combined with the composed Bayesian posterior for the sustained contrast only: a level also reads root-mean scores with a consecutive-row standard error",
         ));
     }
-    let setup = SequentialSetup::build_with_gaps(problem, target, eval, modifiers, ctx, gaps)?;
+    let setup =
+        SequentialSetup::build_with_gaps(problem, target, eval, modifiers, ctx, gaps, budget)?;
     if bayesian.is_some() && setup.sampling_weights.is_some() {
         return Err(crate::sampling_weights::unsupported_route(
             "sampling weights are read by the frequentist sustained contrast; the composed \

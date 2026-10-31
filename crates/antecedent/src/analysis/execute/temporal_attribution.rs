@@ -20,6 +20,7 @@ pub(super) struct LagAlignedScm {
     columns: Arc<[(VariableId, u32)]>,
     /// Longest template lag of the unfolding.
     history: u32,
+    _temporal_lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 impl LagAlignedScm {
@@ -36,6 +37,26 @@ impl LagAlignedScm {
         graph: &TemporalDag,
         series: &TimeSeriesData,
     ) -> Result<Self, CausalError> {
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::unfold_within(graph, series, &mut budget, &ctx)
+    }
+
+    fn unfold_within(
+        graph: &TemporalDag,
+        series: &TimeSeriesData,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let initial_work = (graph.nodes().len() as u64)
+            .checked_add(series.schema().variables().len() as u64)
+            .ok_or_else(|| CausalError::Resource {
+                message: "attribution input size overflow".into(),
+            })?;
+        budget
+            .charge_work(initial_work)
+            .map_err(|e| CausalError::Resource { message: e.to_string() })?;
         let variables = series.schema().variables();
         if variables.is_empty() || graph.nodes().is_empty() {
             return Err(CausalError::Compile {
@@ -76,10 +97,49 @@ impl LagAlignedScm {
             });
         }
         let indexer = TemporalIndexer::new(variable_count, history, 1)?;
-        let unfolded = graph.unfold(indexer.clone())?;
+        let unfolded = graph.unfold_within(indexer.clone(), budget, ctx)?;
+        let nodes = indexer.dense_len() as u64;
+        budget.charge_work(nodes).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let mut edges = 0u64;
+        for i in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            edges = edges
+                .checked_add(unfolded.dag.children(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or_else(|| CausalError::Resource {
+                    message: "attribution edge overflow".into(),
+                })?;
+        }
+        let work = edges
+            .checked_mul(nodes.checked_add(edges).and_then(|n| n.checked_add(1)).ok_or_else(
+                || CausalError::Resource { message: "attribution work overflow".into() },
+            )?)
+            .and_then(|n| n.checked_add(nodes))
+            .ok_or_else(|| CausalError::Resource { message: "attribution work overflow".into() })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = nodes
+            .checked_mul(1024)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| CausalError::Resource {
+                message: "attribution bytes overflow".into(),
+            })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "attribution byte limit".into() });
+        }
+        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?);
         let mut contemporaneous = Vec::new();
         let mut lagged = Vec::new();
         for dense in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             let dense_id = u32::try_from(dense).map_err(|_| CausalError::Compile {
                 message: "unfolded window exceeds u32 nodes".into(),
             })?;
@@ -100,6 +160,9 @@ impl LagAlignedScm {
         let mut columns = Vec::with_capacity(order.len());
         let mut dag = Dag::empty();
         for (static_index, unfolded_id) in order.iter().copied().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             let static_id = u32::try_from(static_index).map_err(|_| CausalError::Compile {
                 message: "lag-aligned SCM exceeds u32 nodes".into(),
             })?;
@@ -121,6 +184,9 @@ impl LagAlignedScm {
             columns.push((key.variable, lag));
         }
         for edge in unfolded.dag.edges() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             let Some((parent, child)) = edge.parent_child() else {
                 continue;
             };
@@ -131,7 +197,7 @@ impl LagAlignedScm {
                 Err(error) => return Err(error.into()),
             }
         }
-        Ok(Self { dag, columns: Arc::from(columns), history })
+        Ok(Self { dag, columns: Arc::from(columns), history, _temporal_lease: Some(lease) })
     }
 
     /// Unfold a mixed template into the lag-aligned numbering.
@@ -152,6 +218,8 @@ impl LagAlignedScm {
         series: &TimeSeriesData,
         history: u32,
         window: &Admg,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(Self, Admg), CausalError> {
         let variables = series.schema().variables();
         if variables.is_empty() {
@@ -184,6 +252,9 @@ impl LagAlignedScm {
         let mut contemporaneous = Vec::new();
         let mut lagged = Vec::new();
         for dense in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             let dense_id = u32::try_from(dense).map_err(|_| CausalError::Compile {
                 message: "unfolded window exceeds u32 nodes".into(),
             })?;
@@ -205,6 +276,9 @@ impl LagAlignedScm {
         let mut dag = Dag::empty();
         let mut mixed = Admg::empty();
         for (static_index, unfolded_id) in order.iter().copied().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             let static_id = u32::try_from(static_index).map_err(|_| CausalError::Compile {
                 message: "lag-aligned SCM exceeds u32 nodes".into(),
             })?;
@@ -223,6 +297,9 @@ impl LagAlignedScm {
         }
         let relabel = |node: DenseNodeId| DenseNodeId::from_raw(to_static[node.as_usize()]);
         for from in window.node_ids() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             for &to in window.children(from) {
                 for inserted in [
                     dag.insert_directed(relabel(from), relabel(to)),
@@ -243,7 +320,10 @@ impl LagAlignedScm {
                 }
             }
         }
-        Ok((Self { dag, columns: Arc::from(columns), history }, mixed))
+        Ok((
+            Self { dag, columns: Arc::from(columns), history, _temporal_lease: Some(lease) },
+            mixed,
+        ))
     }
 
     /// Bayesian block-bootstrap row weights of `n` consecutive lag-aligned rows: one

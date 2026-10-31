@@ -23,9 +23,6 @@ use super::{
     shared_circular_block_mixture_se, temporal_class_block_span,
 };
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
-use antecedent_discovery::dbn_posterior::{
-    temporal_cpdag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
-};
 
 impl super::Study {
     /// Mix TemporalCpdag/Pag posterior atoms through the existing class response envelope.
@@ -43,7 +40,8 @@ impl super::Study {
         let class_tag = temporal_class_posterior_tag(gp.atom_kind())?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let inputs = ClassPosteriorInputs { data, gp, query, vars: &vars, ctx };
+        let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let inputs = ClassPosteriorInputs { data, gp, query, vars: &vars, ctx, budget: &budget };
         let mapped = self.run_temporal_class_posterior_atoms(&inputs, physical)?;
         let ClassPosteriorFold {
             weighted,
@@ -147,11 +145,11 @@ impl super::Study {
         inputs: &ClassPosteriorInputs<'_>,
         physical: &PhysicalExecutionPlan,
     ) -> Result<Vec<ClassPosteriorAtomRun>, CausalError> {
-        let ClassPosteriorInputs { data, gp, query, vars, ctx } = *inputs;
-        let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
+        let ClassPosteriorInputs { data, gp, query, vars, ctx, budget } = *inputs;
+        let _lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
             message: "temporal class posterior missing per-atom lag masks".into(),
         })?;
-        let max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
+        let _max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
             message: "temporal class posterior missing max_lag".into(),
         })?;
         // A prepared handle retains one completion envelope per atom for the
@@ -163,6 +161,7 @@ impl super::Study {
             .filter(|cache| cache.graphs.n_samples == gp.n_graphs());
         let first_horizon = query.temporal.as_ref().and_then(|spec| spec.horizons.first().copied());
         ctx.map_indexed(gp.n_graphs(), |i, inner| {
+            let mut budget = budget.clone();
             let key = u64::try_from(i).map_err(|_| CausalError::Compile {
                 message: "temporal class graph-posterior response: too many atoms".into(),
             })?;
@@ -181,17 +180,9 @@ impl super::Study {
                         by_horizon: vec![(horizon, atom.envelope.clone())],
                     })
                 });
-            let mark = gp.mark_atom(i);
-            let reconstructed = reconstruct_temporal_class_atom(
-                gp.atom_kind(),
-                &gp.atoms()[i],
-                &lag_masks[i],
-                &mark,
-                gp.n_vars(),
-                max_lag,
-                vars,
-            );
-            let Ok(graph) = reconstructed else {
+            let Some((graph, _graph_lease)) =
+                reconstruct_temporal_class_atom(gp, i, vars, &mut budget, inner)?
+            else {
                 return Ok((key, weight, None));
             };
             let mut atom_study = self.clone();
@@ -201,9 +192,19 @@ impl super::Study {
             atom_study.declared.custom_validators.clear();
             atom_study.identification =
                 retained_atom.map(crate::analysis::IdentificationCache::TemporalClass);
-            match atom_study.execute_temporal_class_response(data, query, physical, inner) {
+            match atom_study.execute_temporal_class_response_within(
+                data,
+                query,
+                physical,
+                &mut budget,
+                inner,
+            ) {
                 Ok(result) => Ok((key, weight, Some(Ok(result)))),
-                Err(err @ CausalError::Unsupported { .. }) => Err(err),
+                Err(
+                    err @ (CausalError::Unsupported { .. }
+                    | CausalError::Resource { .. }
+                    | CausalError::Cancelled { .. }),
+                ) => Err(err),
                 Err(_) => Ok((key, weight, Some(Err(())))),
             }
         })
@@ -315,10 +316,10 @@ impl super::Study {
         first: &CausalResponse,
         value: f64,
     ) -> Result<ResponseUncertainty, CausalError> {
-        let ClassPosteriorInputs { data, gp, query, vars, ctx } = *inputs;
+        let ClassPosteriorInputs { data, gp, query, vars, ctx, budget } = *inputs;
         Ok(
             match temporal_class_response_pooled_block_se(
-                self, data, gp, vars, query, weighted, ctx,
+                self, data, gp, vars, query, weighted, budget, ctx,
             )? {
                 Some(se) => {
                     let level = match &first.uncertainty {
@@ -349,7 +350,7 @@ impl super::Study {
         aggregation_policy: StructuralAggregationPolicy,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
-        let ClassPosteriorInputs { data, gp, query, vars, ctx } = *inputs;
+        let ClassPosteriorInputs { data, gp, query, vars, ctx, budget } = *inputs;
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if is_intervention
@@ -363,6 +364,7 @@ impl super::Study {
                 GraphPosteriorScope { posterior: gp, vars },
                 weighted,
                 aggregation_policy,
+                budget,
                 ctx,
             )?
         } else {
@@ -499,6 +501,7 @@ struct ClassPosteriorInputs<'a> {
     query: &'a ResponseQuery,
     vars: &'a [VariableId],
     ctx: &'a ExecutionContext,
+    budget: &'a antecedent_core::TemporalBudget,
 }
 
 /// One posterior atom's class response run: its key and frozen weight, and
@@ -710,6 +713,7 @@ fn temporal_class_response_pooled_block_se(
     vars: &[VariableId],
     query: &ResponseQuery,
     weighted: &[(u64, f64, CausalResponse)],
+    budget: &antecedent_core::TemporalBudget,
     ctx: &ExecutionContext,
 ) -> Result<Option<f64>, CausalError> {
     if !study.settings.inference.is_frequentist() || study.settings.bootstrap_replicates == 0 {
@@ -720,12 +724,13 @@ fn temporal_class_response_pooled_block_se(
         return Ok(None);
     }
     let pulse = response_pulse_witness(query)?;
-    let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
+    let _lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
+    let _max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing max_lag".into(),
     })?;
+    let mut budget = budget.clone();
     let mut designs = Vec::new();
     let mut weights = Vec::new();
     let mut indexers = Vec::new();
@@ -734,7 +739,7 @@ fn temporal_class_response_pooled_block_se(
             message: "temporal class graph-posterior response SE: atom key overflow".into(),
         })?;
         let Some(bundle) =
-            identify_posterior_atom_pulse(study, (gp, vars), (lag_masks, max_lag), i, &pulse, ctx)?
+            identify_posterior_atom_pulse(study, (gp, vars), i, &pulse, &mut budget, ctx)?
         else {
             continue;
         };
@@ -785,22 +790,14 @@ fn temporal_class_response_pooled_block_se(
 fn identify_posterior_atom_pulse(
     study: &Study,
     (gp, vars): (&GraphPosterior, &[VariableId]),
-    (lag_masks, max_lag): (&[antecedent_discovery::LagMask], u32),
     i: usize,
     pulse: &TemporalEffectQuery,
+    budget: &mut antecedent_core::TemporalBudget,
     ctx: &ExecutionContext,
 ) -> Result<Option<Arc<crate::analysis::prepared::CachedTemporalClassIdentification>>, CausalError>
 {
-    let mark = gp.mark_atom(i);
-    let Ok(graph) = reconstruct_temporal_class_atom(
-        gp.atom_kind(),
-        &gp.atoms()[i],
-        &lag_masks[i],
-        &mark,
-        gp.n_vars(),
-        max_lag,
-        vars,
-    ) else {
+    let Some((graph, _graph_lease)) = reconstruct_temporal_class_atom(gp, i, vars, budget, ctx)?
+    else {
         return Ok(None);
     };
     let mut atom_study = study.clone();
@@ -808,7 +805,12 @@ fn identify_posterior_atom_pulse(
     atom_study.graph = Arc::new(graph);
     atom_study.query = CausalQuery::TemporalEffect(pulse.clone());
     atom_study.clear_identification();
-    match atom_study.identify_temporal_class(IdentifierId::GeneralizedAdjustment, pulse, ctx) {
+    match atom_study.identify_temporal_class_within(
+        IdentifierId::GeneralizedAdjustment,
+        pulse,
+        budget,
+        ctx,
+    ) {
         Ok(bundle) => Ok(Some(bundle)),
         Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => Err(error),
         Err(_) => Ok(None),
@@ -816,32 +818,19 @@ fn identify_posterior_atom_pulse(
 }
 
 fn reconstruct_temporal_class_atom(
-    kind: antecedent_discovery::GraphPosteriorAtomKind,
-    adjacency: &antecedent_discovery::AdjacencyMask,
-    lag_mask: &antecedent_discovery::LagMask,
-    mark: &antecedent_discovery::AdjacencyMask,
-    n_vars: usize,
-    max_lag: u32,
+    gp: &GraphPosterior,
+    index: usize,
     variables: &[VariableId],
-) -> Result<AcceptedGraph, CausalError> {
-    match kind {
-        antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-            let cpdag =
-                temporal_cpdag_from_dbn_atoms(adjacency, lag_mask, n_vars, max_lag, variables)
-                    .map_err(CausalError::rejected)?;
-            Ok(AcceptedGraph::from(cpdag))
-        }
-        antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-            let pag =
-                temporal_pag_from_dbn_atoms(adjacency, lag_mask, mark, n_vars, max_lag, variables)
-                    .map_err(CausalError::rejected)?;
-            Ok(AcceptedGraph::from(pag))
-        }
-        _ => Err(CausalError::Compile {
-            message: "temporal class graph-posterior response requires Cpdag or Pag atom_kind"
-                .into(),
-        }),
-    }
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<(AcceptedGraph, antecedent_core::execution::AdmissionLease)>, CausalError> {
+    use crate::analysis::identification_cache::{
+        AdmittedTemporalClassAtom, admitted_temporal_class_atom,
+    };
+    Ok(admitted_temporal_class_atom(gp, index, variables, budget, ctx)?.map(|atom| match atom {
+        AdmittedTemporalClassAtom::Cpdag(graph, lease) => (AcceptedGraph::from(graph), lease),
+        AdmittedTemporalClassAtom::Pag(graph, lease) => (AcceptedGraph::from(graph), lease),
+    }))
 }
 
 fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, CausalError> {
@@ -882,6 +871,7 @@ fn refute_temporal_class_graph_posterior_intervention(
     scope: GraphPosteriorScope<'_>,
     weighted: &[(u64, f64, CausalResponse)],
     policy: StructuralAggregationPolicy,
+    budget: &antecedent_core::TemporalBudget,
     ctx: &ExecutionContext,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let GraphPosteriorScope { posterior: gp, vars } = scope;
@@ -898,19 +888,20 @@ fn refute_temporal_class_graph_posterior_intervention(
         ));
     }
     let pulse = response_pulse_witness(query)?;
-    let lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
+    let _lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
+    let _max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing max_lag".into(),
     })?;
+    let mut budget = budget.clone();
     let mut refute_atoms = Vec::new();
     for (key, weight, _) in weighted {
         let i = usize::try_from(*key).map_err(|_| CausalError::Compile {
             message: "temporal class graph-posterior IR refuter: atom key overflow".into(),
         })?;
         let Some(bundle) =
-            identify_posterior_atom_pulse(study, (gp, vars), (lag_masks, max_lag), i, &pulse, ctx)?
+            identify_posterior_atom_pulse(study, (gp, vars), i, &pulse, &mut budget, ctx)?
         else {
             continue;
         };

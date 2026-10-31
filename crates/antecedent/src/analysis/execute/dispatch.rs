@@ -3118,6 +3118,16 @@ impl super::Study {
     /// A graph-posterior study (identification runs per graph inside `execute`), an
     /// unsupported graph-class/query pair, or identification failure.
     pub fn identify_structure(&self) -> Result<crate::Identification, CausalError> {
+        self.identify_structure_within(&ExecutionContext::production_default(0))
+    }
+
+    /// Identify with the caller's temporal materialization limits, pool and cancellation.
+    /// # Errors
+    /// The same identification refusals, including temporal resource or cancellation refusal.
+    pub fn identify_structure_within(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<crate::Identification, CausalError> {
         if self.graph_posterior.is_some() {
             return Err(CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
@@ -3125,11 +3135,12 @@ impl super::Study {
                           runs per-graph inside execute.",
             });
         }
-        crate::identify_api::identify_study(
+        crate::identify_api::identify_study_within(
             &self.graph,
             &self.query,
             self.declared.identifier,
             self.structure_source,
+            ctx,
         )
     }
 

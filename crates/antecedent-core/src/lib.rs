@@ -130,8 +130,10 @@ pub use inference_realization::{
 };
 pub use interval::IntervalMethod;
 pub use intervention::{
-    Intervention, InterventionError, InterventionSequence, MechanismOverride,
-    SequencedIntervention, StochasticPolicy, StochasticPolicyFault, TemporalPolicy,
+    AdmittedTemporalOffsets, Intervention, InterventionError, InterventionSequence,
+    MechanismOverride, SequencedIntervention, StochasticPolicy, StochasticPolicyFault,
+    TemporalBudget, TemporalMaterializationError, TemporalMaterializationLimits,
+    TemporalOffsetIter, TemporalPolicy, admit_temporal_intervention_validation,
 };
 pub use node::NodeRef;
 pub use operator::{

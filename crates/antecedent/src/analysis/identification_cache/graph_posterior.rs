@@ -270,7 +270,7 @@ pub(crate) fn build_temporal_admg_posterior_identification_cache(
     query: &antecedent_core::TemporalEffectQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedGraphPosteriorIdentification, CausalError> {
-    use crate::analysis::temporal_admg_contrast::identify_window_contrast;
+    use crate::analysis::temporal_admg_contrast::identify_window_contrast_within;
 
     if !posterior.is_lagged_temporal_admg() {
         return Err(CausalError::Compile {
@@ -292,13 +292,36 @@ pub(crate) fn build_temporal_admg_posterior_identification_cache(
         message: "series schema exceeds the variable id range".into(),
     })?;
     crate::analysis::execute::report_identify_compute(ctx);
-    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mut budget = budget.clone();
         let Some(atom) = posterior.temporal_admg_atom(i) else { return Ok(None) };
-        let Ok(template) = atom.to_template(posterior.n_vars(), max_lag, variables) else {
+        let _template_lease =
+            crate::analysis::temporal_admg_contrast::admit_temporal_atom_template(
+                &atom,
+                posterior.n_vars(),
+                &mut budget,
+                inner,
+            )?;
+        let template = atom.to_template(posterior.n_vars(), max_lag, variables);
+        if inner.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal atom" });
+        }
+        let Ok(template) = template else {
             return Ok(None);
         };
-        let Ok(contrast) = identify_window_contrast(&template, query, variable_count) else {
-            return Ok(None);
+        let contrast = match identify_window_contrast_within(
+            &template,
+            query,
+            variable_count,
+            &mut budget,
+            inner,
+        ) {
+            Ok(contrast) => contrast,
+            Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                return Err(error);
+            }
+            Err(_) => return Ok(None),
         };
         Ok::<Option<(IdentifiedEstimand, IdentificationResult)>, CausalError>(Some((
             contrast.estimand,

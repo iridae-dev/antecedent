@@ -89,13 +89,7 @@ pub(crate) fn dbn_posterior_response_supported(query: &ResponseQuery) -> Result<
             message: "graph-posterior InterventionResponse currently requires one intervention coordinate",
         });
     }
-    if matches!(
-        antecedent_estimate::plan_from_response_query(query),
-        Ok(Some(
-            antecedent_estimate::TemporalInterventionPlan::Sequential { .. }
-                | antecedent_estimate::TemporalInterventionPlan::Mechanisms { .. }
-        ))
-    ) {
+    if antecedent_estimate::requires_temporal_overlays(query) {
         return Err(CausalError::Unsupported {
             message: "DBN-posterior response supports TemporalResponseEstimator surfaces; \
                       Sequence overlays remain on the TemporalDag explicit path",

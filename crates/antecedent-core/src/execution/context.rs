@@ -52,9 +52,27 @@ pub struct ExecutionContext {
     /// Explicit logical-operation ceiling for an exposure-probability procedure.
     pub(super) exposure_probability_work_limit: Option<u64>,
     pub(super) hmc_work_limit: Option<u64>,
+    pub(super) temporal_materialization_limits: Option<crate::TemporalMaterializationLimits>,
 }
 
 impl ExecutionContext {
+    /// Set finite logical ceilings for temporal materialization.
+    #[must_use]
+    pub fn with_temporal_materialization_limits(
+        &self,
+        limits: crate::TemporalMaterializationLimits,
+    ) -> Self {
+        let mut scoped = self.clone();
+        scoped.temporal_materialization_limits = Some(limits);
+        scoped
+    }
+
+    /// Caller-selected temporal limits, or finite defaults.
+    #[must_use]
+    pub fn temporal_materialization_limits(&self) -> crate::TemporalMaterializationLimits {
+        self.temporal_materialization_limits.unwrap_or_default()
+    }
+
     /// This context inside the dispatch of the lowered program `program`.
     ///
     /// Compile, prepare and one-shot run refuse a context that carries this scope:
@@ -181,6 +199,7 @@ impl ExecutionContext {
             pulse_extrapolation_ranges: None,
             exposure_probability_work_limit: None,
             hmc_work_limit: None,
+            temporal_materialization_limits: None,
         }
     }
 
@@ -225,6 +244,7 @@ impl ExecutionContext {
             pulse_extrapolation_ranges: None,
             exposure_probability_work_limit: None,
             hmc_work_limit: None,
+            temporal_materialization_limits: None,
         }
     }
 

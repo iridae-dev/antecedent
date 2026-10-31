@@ -63,11 +63,29 @@ pub struct TemporalPagMediationWindow {
     pub indexer: TemporalIndexer,
     /// The contrast on window coordinates: treatment at the pulse period, outcome at the
     /// horizon period, the declared mediators at every period between them.
-    pub query: MediationQuery,
+    query: std::sync::Arc<MediationQuery>,
     /// Offset of the pulse from the window origin.
     pub treatment_offset: i32,
     /// Offset of the outcome from the window origin.
     pub outcome_offset: i32,
+    // Covers the internally produced window and its bounded component copies.
+    _lease: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+}
+
+impl TemporalPagMediationWindow {
+    /// Borrow the admitted window query. Caller-created copies are outside this owner's lease.
+    #[must_use]
+    pub fn query(&self) -> &MediationQuery {
+        &self.query
+    }
+
+    /// Make a contrast variant while sharing this bounded window owner.
+    #[must_use]
+    pub fn with_contrast(&self, contrast: antecedent_core::MediationContrast) -> Self {
+        let mut next = self.clone();
+        std::sync::Arc::make_mut(&mut next.query).contrast = contrast;
+        next
+    }
 }
 
 /// State the contrast `query` on the window of `template` that the pulse `effect` (same
@@ -86,6 +104,35 @@ pub fn temporal_pag_mediation_window(
     query: &MediationQuery,
     variable_count: u32,
 ) -> Result<TemporalPagMediationWindow, IdentificationError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    temporal_pag_mediation_window_within(template, effect, query, variable_count, &mut budget, &ctx)
+}
+
+/// Construct a mediation window under the caller's shared temporal materialization budget.
+pub fn temporal_pag_mediation_window_within(
+    template: &TemporalPag,
+    effect: &TemporalEffectQuery,
+    query: &MediationQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<TemporalPagMediationWindow, IdentificationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    let _validation = antecedent_core::admit_temporal_intervention_validation(
+        [&effect.control, &effect.active, &query.control, &query.active],
+        budget,
+        ctx,
+    )
+    .map_err(crate::error::temporal_materialization_error)?;
+    let input_work = (template.nodes().len() as u64)
+        .checked_add(query.mediators.len() as u64)
+        .and_then(|n| n.checked_add(query.horizons.len() as u64))
+        .and_then(|n| n.checked_add(effect.effect_modifiers.len() as u64))
+        .ok_or_else(|| IdentificationError::budget(crate::error::IdentificationBudget::Steps))?;
+    budget.charge_work(input_work).map_err(crate::error::temporal_materialization_error)?;
     effect.validate().map_err(|_| IdentificationError::unsupported("invalid temporal effect"))?;
     query.validate().map_err(|_| IdentificationError::unsupported("invalid mediation query"))?;
     if !matches!(effect.policy, TemporalPolicy::Pulse { .. }) {
@@ -96,7 +143,7 @@ pub fn temporal_pag_mediation_window(
     let treatment_offset = effect
         .try_treatment_offset()
         .map_err(|_| IdentificationError::unsupported("the pulse has no treatment offset"))?;
-    let outcome_offset = effect.outcome_offset();
+    let outcome_offset = effect.outcome_offset().map_err(IdentificationError::construction)?;
     if outcome_offset < treatment_offset {
         return Err(IdentificationError::unsupported(
             "the outcome period precedes the pulse period of the mediation",
@@ -114,6 +161,9 @@ pub fn temporal_pag_mediation_window(
     };
     let mut longest_lag = 0u32;
     for node in template.nodes() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
         let NodeRef::Lagged { variable, lag } = node else {
             return Err(IdentificationError::unsupported(
                 "natural mediation on a temporal PAG requires a lagged template",
@@ -133,7 +183,33 @@ pub fn temporal_pag_mediation_window(
     let last = u32::try_from(outcome_offset.max(0)).map_err(|_| {
         IdentificationError::out_of_range("the outcome offset exceeds the window range")
     })?;
-    let indexer = TemporalIndexer::new(variable_count, history, last + 1)
+    let horizon = last
+        .checked_add(1)
+        .ok_or_else(|| IdentificationError::out_of_range("temporal mediation horizon overflow"))?;
+    let span = u64::try_from(i64::from(outcome_offset) - i64::from(treatment_offset) + 1)
+        .map_err(|_| IdentificationError::out_of_range("temporal mediation span overflow"))?;
+    budget.charge_offsets(span).map_err(crate::error::temporal_materialization_error)?;
+    let count = span
+        .checked_mul(query.mediators.len() as u64)
+        .ok_or_else(|| IdentificationError::budget(crate::error::IdentificationBudget::Steps))?;
+    budget
+        .charge_work(count.checked_mul(8).ok_or_else(|| {
+            IdentificationError::budget(crate::error::IdentificationBudget::Steps)
+        })?)
+        .map_err(crate::error::temporal_materialization_error)?;
+    let bytes = count
+        .checked_mul(64)
+        .and_then(|n| n.checked_add(4096))
+        .ok_or_else(|| IdentificationError::budget(crate::error::IdentificationBudget::Memory))?;
+    if bytes > budget.limits().max_bytes {
+        return Err(IdentificationError::budget(crate::error::IdentificationBudget::Memory));
+    }
+    let lease =
+        std::sync::Arc::new(ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+            _ => IdentificationError::budget(crate::error::IdentificationBudget::Memory),
+        })?);
+    let indexer = TemporalIndexer::new(variable_count, history, horizon)
         .map_err(|error| IdentificationError::construction(error))?;
     let coordinate =
         |variable: VariableId, offset: i32| -> Result<VariableId, IdentificationError> {
@@ -147,6 +223,9 @@ pub fn temporal_pag_mediation_window(
     let mut mediators = Vec::new();
     for &variable in query.mediators.iter() {
         for offset in treatment_offset..=outcome_offset {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let node = coordinate(variable, offset)?;
             if node != treatment && node != outcome {
                 mediators.push(node);
@@ -169,7 +248,13 @@ pub fn temporal_pag_mediation_window(
     window.control = level(&query.control)?;
     window.active = level(&query.active)?;
     window.target_population = query.target_population.clone();
-    Ok(TemporalPagMediationWindow { indexer, query: window, treatment_offset, outcome_offset })
+    Ok(TemporalPagMediationWindow {
+        indexer,
+        query: std::sync::Arc::new(window),
+        treatment_offset,
+        outcome_offset,
+        _lease: lease,
+    })
 }
 
 /// Longest lag the template reaches back.
@@ -357,14 +442,19 @@ impl GeneralizedAdjustmentIdentifier {
         let mut seeds = vec![window.query.treatment.as_usize(), window.query.outcome.as_usize()];
         seeds.extend(window.query.mediators.iter().map(|m| m.as_usize()));
         let (limits, ctx) = self.config.completion_search();
-        let mut sampler = TemporalPagCompletionSampler::for_window_with_budget(
-            pag.clone(),
+        let mut temporal_budget = self.config.temporal_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let mut sampler = TemporalPagCompletionSampler::for_window_with_borrowed_temporal_budget(
+            pag,
             self.config.max_completions,
             &big,
             limits,
+            &mut temporal_budget,
             &ctx,
-        )?;
-        let query = CausalQuery::Mediation(window.query.clone());
+        )
+        .map_err(crate::error::temporal_graph_error)?;
+        let query = CausalQuery::Mediation((*window.query).clone());
         let identifier = PathSpecificIdentifier::new();
         let mut workspace = IdentificationWorkspace::default();
         let mut cases = Vec::new();
@@ -372,7 +462,10 @@ impl GeneralizedAdjustmentIdentifier {
         let (mut completions, mut candidates, mut distinct) = (0usize, 0usize, 0usize);
         for completion in sampler.by_ref() {
             completions += 1;
-            let finite = completion.graph.unfold(big.clone())?;
+            let finite = completion
+                .graph
+                .unfold_within(big.clone(), &mut temporal_budget, &ctx)
+                .map_err(crate::error::temporal_graph_error)?;
             let results = if antecedent_graph::completion::is_mag_completion(&finite.pag) {
                 let marginal = window_mag(&finite.pag, inner, shift, &seeds, &ctx)?;
                 self.window_candidate_results(
@@ -398,14 +491,15 @@ impl GeneralizedAdjustmentIdentifier {
                 ));
                 vec![result]
             };
-            unfolded.push(finite.pag);
+            unfolded.push(finite);
             #[allow(
                 clippy::cast_precision_loss,
                 reason = "a completion carries a handful of candidate functionals"
             )]
             let weight =
                 ProbabilityMass(self.config.per_completion_weight / results.len().max(1) as f64);
-            for result in results {
+            for mut result in results {
+                result.retain_temporal_lease(std::sync::Arc::clone(&window._lease));
                 cases.push(GraphIdentificationCase {
                     graph: TemporalCompletionGraph::Mag(completion.graph.clone()),
                     result,
@@ -417,7 +511,10 @@ impl GeneralizedAdjustmentIdentifier {
         let indexers = vec![inner.clone(); cases.len()];
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         let report = sampler.validation_report();
-        let finite_audit = antecedent_graph::completion::audit_finite_mag_equivalence(&unfolded);
+        let refs: Vec<&antecedent_graph::Pag> = unfolded.iter().map(|window| &window.pag).collect();
+        let finite_audit =
+            antecedent_graph::completion::audit_finite_mag_equivalence_refs_within(&refs, &ctx)
+                .map_err(crate::error::temporal_graph_error)?;
         envelope.push_features([GraphFeature {
             kind: Arc::from("temporal_pag_path_specific_window"),
             detail: Arc::from(format!(
@@ -526,6 +623,54 @@ mod tests {
     }
 
     #[test]
+    fn mediation_window_charges_expansion_and_shares_its_owner() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(2);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_offsets = 0;
+        let mut denied = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            temporal_pag_mediation_window_within(
+                &chain(),
+                &pulse(),
+                &mediation(MediationContrast::Total),
+                3,
+                &mut denied,
+                &ctx
+            ),
+            Err(IdentificationError::Budget { .. })
+        ));
+        let mut allowed =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let window = temporal_pag_mediation_window_within(
+            &chain(),
+            &pulse(),
+            &mediation(MediationContrast::Total),
+            3,
+            &mut allowed,
+            &ctx,
+        )
+        .unwrap();
+        let clone = window.clone();
+        assert!(std::sync::Arc::ptr_eq(&window.query, &clone.query));
+        assert!(std::sync::Arc::ptr_eq(&window._lease, &clone._lease));
+        let mut cancelled = antecedent_core::ExecutionContext::for_tests(3);
+        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(cancelled.temporal_materialization_limits());
+        assert!(matches!(
+            temporal_pag_mediation_window_within(
+                &chain(),
+                &pulse(),
+                &mediation(MediationContrast::Total),
+                3,
+                &mut budget,
+                &cancelled
+            ),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
     fn marginal_window_pair_search_observes_context_cancellation() {
         let graph = Pag::with_variables(3);
         let inner = TemporalIndexer::new(3, 0, 1).unwrap();
@@ -548,9 +693,14 @@ mod tests {
         ));
         let window = TemporalPagMediationWindow {
             indexer: TemporalIndexer::new(3, 1, 1).unwrap(),
-            query: mediation(MediationContrast::Total),
+            query: std::sync::Arc::new(mediation(MediationContrast::Total)),
             treatment_offset: 0,
             outcome_offset: 0,
+            _lease: std::sync::Arc::new(
+                antecedent_core::ExecutionContext::production_default(0)
+                    .acquire_admission(0, 0)
+                    .unwrap(),
+            ),
         };
         assert!(matches!(
             GeneralizedAdjustmentIdentifier::new()
@@ -659,6 +809,7 @@ mod tests {
         let ordinary = GeneralizedAdjustmentIdentifier::new()
             .identify_temporal_pag_path_specific_envelope(&graph, &window)
             .unwrap();
+        assert!(ordinary.envelope.cases.iter().all(|case| !case.result.temporal_leases.is_empty()));
         let cancelled = antecedent_core::ExecutionContext::for_tests(84);
         cancelled.cancellation.cancel();
         let configured = |ctx| GeneralizedAdjustmentIdentifier {

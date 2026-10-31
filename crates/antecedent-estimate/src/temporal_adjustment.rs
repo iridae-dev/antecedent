@@ -409,8 +409,13 @@ impl TemporalLinearAdjustment {
         // The anchor is the history operator's admitted horizon, not the query's
         // step count.
         let sample_anchor = outcome_sample_anchor(data.time_index(), query)?.max(0);
-        let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
-        let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
+        let t_lag =
+            offset_to_lag(query.try_treatment_offset()?.checked_sub(sample_anchor).ok_or_else(
+                || EstimationError::unsupported("treatment offset exceeds the temporal lag range"),
+            )?)?;
+        let y_lag = offset_to_lag(query.outcome_offset()?.checked_sub(sample_anchor).ok_or_else(
+            || EstimationError::unsupported("outcome offset exceeds the temporal lag range"),
+        )?)?;
 
         let mut cols =
             Vec::with_capacity(2 + estimand.adjustment_set.len() + extra_contemporaneous.len());
@@ -1217,7 +1222,10 @@ pub fn temporal_coefficient_names(
         schema.get(id).map_or_else(|_| format!("var_{}", id.raw()), |v| v.name.as_ref().to_string())
     };
     let sample_anchor = outcome_sample_anchor(data.time_index(), query)?.max(0);
-    let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
+    let t_lag =
+        offset_to_lag(query.try_treatment_offset()?.checked_sub(sample_anchor).ok_or_else(
+            || EstimationError::unsupported("treatment offset exceeds the temporal lag range"),
+        )?)?;
     let mut names: Vec<Arc<str>> = vec![
         Arc::from("intercept"),
         Arc::from(format!(
@@ -1354,8 +1362,9 @@ fn outcome_sample_anchor(
     let history = match query.max_history_lag {
         Some(lag) => HistoryWindow::max_lag(lag),
         // With no declared cap the planner retains every tick the series has.
-        None => HistoryWindow::planner_default()
-            .resolve(u32::try_from(cadence.length).unwrap_or(u32::MAX)),
+        None => HistoryWindow::planner_default().resolve(u32::try_from(cadence.length).map_err(
+            |_| EstimationError::unsupported("series length exceeds temporal history range"),
+        )?),
     };
     let admitted = admit_temporal_history(
         cadence,
@@ -1367,7 +1376,11 @@ fn outcome_sample_anchor(
         1.0,
     )?;
     let steps = admitted.horizon_steps()?;
-    Ok(i32::try_from(steps.saturating_sub(1)).unwrap_or(i32::MAX))
+    let offset = steps
+        .checked_sub(1)
+        .ok_or_else(|| EstimationError::unsupported("empty temporal history"))?;
+    i32::try_from(offset)
+        .map_err(|_| EstimationError::unsupported("temporal history offset exceeds i32"))
 }
 
 pub(crate) fn offset_to_lag(offset: i32) -> Result<Lag, EstimationError> {
@@ -1505,9 +1518,15 @@ pub fn temporal_conditional_marginal_effect_with_gaps(
             "active and control treatment levels must differ",
         ));
     }
-    let sample_anchor = query.outcome_offset().max(0);
-    let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
-    let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
+    let sample_anchor = query.outcome_offset()?.max(0);
+    let t_lag =
+        offset_to_lag(query.try_treatment_offset()?.checked_sub(sample_anchor).ok_or_else(
+            || EstimationError::unsupported("treatment offset exceeds the temporal lag range"),
+        )?)?;
+    let y_lag =
+        offset_to_lag(query.outcome_offset()?.checked_sub(sample_anchor).ok_or_else(|| {
+            EstimationError::unsupported("outcome offset exceeds the temporal lag range")
+        })?)?;
     let mut cols = vec![
         LaggedColumn { variable: query.treatment, lag: t_lag },
         LaggedColumn { variable: query.outcome, lag: y_lag },
@@ -2037,7 +2056,7 @@ mod tests {
                 .with_max_history_lag(Some(1));
         let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &query).unwrap();
         let steps = outcome_sample_anchor(data.time_index(), &query).unwrap();
-        assert_eq!(steps, query.outcome_offset());
+        assert_eq!(steps, query.outcome_offset().unwrap());
         let estimand = id_res.result.estimands.first().unwrap();
         TemporalLinearAdjustment::new()
             .prepare(

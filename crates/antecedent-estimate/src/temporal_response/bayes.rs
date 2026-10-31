@@ -37,7 +37,7 @@ use super::{
     assumptions::is_tempering_record, assumptions::temporal_bayesian_joint_trajectory_assumption,
     assumptions::temporal_bayesian_product_posterior_assumption,
     assumptions::temporal_bayesian_tempering_assumption, band::max_deviation_band_columns,
-    band::publish_simultaneous_band, plan::TemporalInterventionPlan,
+    band::publish_simultaneous_band, plan::TemporalInterventionKind,
     plan::plan_temporal_intervention, support::intervention_support, support::mean_curve_support,
     surface::HorizonTreatmentRange, surface::TREATMENT_COL, surface::design_column_means,
     surface::flatten_dose_horizon_grid, surface::horizon_identification_of,
@@ -141,13 +141,17 @@ impl TemporalResponseEstimator {
             status: identification_status,
             mut assumptions,
         } = identified;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let temporal = self.validate_bayesian_request(
             query,
             estimator,
             identification_status,
             identifications.len(),
+            &mut temporal_budget,
+            ctx,
         )?;
-        let target = bayesian_target(query, temporal)?;
+        let target = bayesian_target(query, temporal, &mut temporal_budget, ctx)?;
         let run = HorizonRun {
             data,
             identifications,
@@ -264,8 +268,10 @@ impl TemporalResponseEstimator {
         estimator: &crate::BayesianGComputationAte,
         identification_status: IdentificationStatus,
         identification_count: usize,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
     ) -> Result<&'q TemporalResponseSpec, EstimationError> {
-        query.validate()?;
+        super::plan::validate_temporal_response_within(query, budget, ctx)?;
         if query.observation != antecedent_core::ObservationSpec::Complete
             || query.target_population != TargetPopulation::AllObserved
         {
@@ -453,6 +459,8 @@ impl TemporalResponseEstimator {
 fn bayesian_target(
     query: &ResponseQuery,
     temporal: &TemporalResponseSpec,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<BayesTarget, EstimationError> {
     match &query.functional {
         ResponseFunctional::MeanCurve { outcome, treatment } => Ok(BayesTarget {
@@ -462,15 +470,15 @@ fn bayesian_target(
             intervention: None,
         }),
         ResponseFunctional::InterventionResponse { outcome, interventions } => {
-            match plan_temporal_intervention(interventions, temporal)? {
-                TemporalInterventionPlan::Single { treatment, level, shift } => Ok(BayesTarget {
+            match plan_temporal_intervention(interventions, temporal, budget, ctx)?.kind() {
+                TemporalInterventionKind::Single { treatment, level, shift } => Ok(BayesTarget {
                     outcome: *outcome,
-                    treatment,
+                    treatment: *treatment,
                     doses: Vec::new(),
-                    intervention: Some((level, shift)),
+                    intervention: Some((*level, *shift)),
                 }),
-                TemporalInterventionPlan::Sequential { .. }
-                | TemporalInterventionPlan::Mechanisms { .. } => {
+                TemporalInterventionKind::Sequential { .. }
+                | TemporalInterventionKind::Mechanisms { .. } => {
                     Err(EstimationError::unsupported_coded(
                         antecedent_core::reason_code!("route_not_supported"),
                         "Bayesian multi-step Sequence uses sequential mechanism overlays, \
@@ -506,8 +514,10 @@ fn tie_horizons(
         .copied()
         .max()
         .unwrap_or(1)
-        .saturating_add(temporal.max_history_lag.unwrap_or(0));
-    let span = usize::try_from(span).unwrap_or(usize::MAX);
+        .checked_add(temporal.max_history_lag.unwrap_or(0))
+        .ok_or_else(|| EstimationError::unsupported("temporal block span overflow"))?;
+    let span = usize::try_from(span)
+        .map_err(|_| EstimationError::unsupported("temporal block span exceeds address space"))?;
     let outcome = fits
         .into_iter()
         .collect::<Result<Vec<_>, _>>()

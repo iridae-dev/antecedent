@@ -49,25 +49,139 @@ pub struct TemporalAdmgWindowPlan {
     pub outcome_period: u32,
 }
 
-/// Identification of a scheduled contrast on a temporal ADMG, with its window.
+/// An admitted window plan. Clones share the plan and its lease; an explicit
+/// clone of the borrowed plan is a separately caller-owned allocation.
 #[derive(Clone, Debug)]
-pub struct TemporalAdmgIdentification {
-    /// The identification result over the window's coordinates.
-    pub result: IdentificationResult,
-    /// The window the result is stated on.
-    pub window: UnrolledTemporalAdmg,
-    /// Where the policy, the outcome and the history sit in the window.
-    pub plan: TemporalAdmgWindowPlan,
-    /// Window coordinate of the treatment at each treated period, in period order.
-    pub schedule: Vec<VariableId>,
-    /// Window coordinate of the outcome.
-    pub outcome: VariableId,
-    /// Window coordinate of each effect modifier, read at the first treated period; empty for
-    /// an unconditional contrast.
-    pub modifiers: Vec<VariableId>,
-    /// What blocks identification, in template terms; `None` when identified.
-    pub obstruction: Option<String>,
+pub struct AdmittedTemporalAdmgWindowPlan(Arc<AdmittedTemporalAdmgWindowPlanInner>);
+#[derive(Debug)]
+struct AdmittedTemporalAdmgWindowPlanInner {
+    plan: TemporalAdmgWindowPlan,
+    _lease: antecedent_core::execution::AdmissionLease,
 }
+impl PartialEq for AdmittedTemporalAdmgWindowPlan {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.plan == other.0.plan
+    }
+}
+impl Eq for AdmittedTemporalAdmgWindowPlan {}
+impl std::ops::Deref for AdmittedTemporalAdmgWindowPlan {
+    type Target = TemporalAdmgWindowPlan;
+    fn deref(&self) -> &TemporalAdmgWindowPlan {
+        &self.0.plan
+    }
+}
+
+/// Plan a temporal ADMG window under explicit logical and memory ceilings.
+/// No offset is expanded before its size is admitted. Cancellation and resource
+/// exhaustion remain operational failures, not non-identification results.
+/// # Errors
+/// Invalid query, unrepresentable window, limit, cancellation or admission.
+pub fn plan_temporal_admg_window_within(
+    template: &TemporalAdmg,
+    query: &TemporalEffectQuery,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<AdmittedTemporalAdmgWindowPlan, IdentificationError> {
+    use crate::error::IdentificationBudget;
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    budget
+        .charge_work(query.effect_modifiers.len() as u64)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let validation_lease = antecedent_core::admit_temporal_intervention_validation(
+        [&query.control, &query.active],
+        budget,
+        ctx,
+    )
+    .map_err(crate::error::temporal_materialization_error)?;
+    query
+        .validate()
+        .map_err(|_| IdentificationError::unsupported("invalid temporal effect query"))?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    drop(validation_lease);
+    let count = query.policy.offset_count().map_err(IdentificationError::construction)?;
+    budget
+        .charge_offsets(count)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let limits = budget.limits();
+    let work = count
+        .checked_mul(2)
+        .and_then(|n| n.checked_add(template.nodes().len() as u64))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    budget
+        .charge_work(work)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let outcome =
+        query.horizon_steps.checked_sub(1).and_then(|n| i32::try_from(n).ok()).ok_or_else(
+            || IdentificationError::out_of_range("temporal outcome offset exceeds i32"),
+        )?;
+    let mut history = 0u32;
+    for node in template.nodes() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        if let antecedent_core::NodeRef::Lagged { lag, .. } = node {
+            history = history.max(lag.raw());
+        }
+    }
+    let mut earliest = 0i32;
+    for offset in query.policy.offsets().map_err(IdentificationError::construction)? {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        earliest = earliest.min(offset);
+    }
+    let origin = history
+        .checked_add(earliest.unsigned_abs())
+        .ok_or_else(|| IdentificationError::out_of_range("temporal origin exceeds u32"))?;
+    let period = |offset: i32| -> Result<u32, IdentificationError> {
+        u32::try_from(i64::from(origin) + i64::from(offset)).map_err(|_| {
+            IdentificationError::out_of_range(
+                "treated or outcome period exceeds window coordinates",
+            )
+        })
+    };
+    let outcome_period = period(outcome)?;
+    let bytes = count
+        .checked_mul(8)
+        .and_then(|n| n.checked_add(512))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+    if bytes > limits.max_bytes {
+        return Err(IdentificationError::budget(IdentificationBudget::Memory));
+    }
+    let len = usize::try_from(count)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::budget(IdentificationBudget::Memory),
+    })?;
+    let mut treated = Vec::new();
+    treated
+        .try_reserve_exact(len)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+    let mut last = outcome_period;
+    for offset in query.policy.offsets().map_err(IdentificationError::construction)? {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        let next = period(offset)?;
+        last = last.max(next);
+        treated.push(next);
+    }
+    let periods = last
+        .checked_add(1)
+        .ok_or_else(|| IdentificationError::out_of_range("temporal window exceeds u32"))?;
+    Ok(AdmittedTemporalAdmgWindowPlan(Arc::new(AdmittedTemporalAdmgWindowPlanInner {
+        plan: TemporalAdmgWindowPlan { periods, origin, history, treated, outcome_period },
+        _lease: lease,
+    })))
+}
+
+/// A scheduled temporal contrast whose window, plan and lease share ownership.
+pub type TemporalAdmgIdentification = AdmittedTemporalAdmgIdentification;
 
 /// Where the policy, the outcome and the history of `query` sit in the unrolled window of
 /// `template`.
@@ -83,37 +197,10 @@ pub struct TemporalAdmgIdentification {
 pub fn plan_temporal_admg_window(
     template: &TemporalAdmg,
     query: &TemporalEffectQuery,
-) -> Result<TemporalAdmgWindowPlan, IdentificationError> {
-    query
-        .validate()
-        .map_err(|_| IdentificationError::unsupported("invalid temporal effect query"))?;
-    let offsets =
-        query.policy.active_offsets().map_err(|error| IdentificationError::construction(error))?;
-    let history = template
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            antecedent_core::NodeRef::Lagged { lag, .. } => Some(lag.raw()),
-            _ => None,
-        })
-        .max()
-        .unwrap_or(0);
-    let earliest = offsets.iter().copied().min().unwrap_or(0).min(0);
-    let origin = history + earliest.unsigned_abs();
-    let periods_of = |offset: i32| -> Result<u32, IdentificationError> {
-        u32::try_from(i64::from(origin) + i64::from(offset)).map_err(|_| {
-            IdentificationError::out_of_range("a treated step precedes the unrolled window")
-        })
-    };
-    // The same reading as every temporal route: the outcome sits at offset `horizon_steps - 1`
-    // from the policy origin, the offset the treated steps are counted from.
-    let outcome_period = periods_of(query.outcome_offset())?;
-    let mut treated = Vec::with_capacity(offsets.len());
-    for &offset in offsets.iter() {
-        treated.push(periods_of(offset)?);
-    }
-    let last = treated.iter().copied().max().unwrap_or(0).max(outcome_period);
-    Ok(TemporalAdmgWindowPlan { periods: last + 1, origin, history, treated, outcome_period })
+) -> Result<AdmittedTemporalAdmgWindowPlan, IdentificationError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    plan_temporal_admg_window_within(template, query, &mut budget, &ctx)
 }
 
 /// Identify the pulse, sustained or conditional contrast of `query` on `template`, numbering the
@@ -126,18 +213,34 @@ pub fn identify_temporal_admg_contrast(
     template: &TemporalAdmg,
     query: &TemporalEffectQuery,
 ) -> Result<TemporalAdmgIdentification, IdentificationError> {
-    let largest = template
-        .nodes()
-        .iter()
-        .filter_map(|node| match node {
-            antecedent_core::NodeRef::Lagged { variable, .. } => Some(variable.raw()),
-            _ => None,
-        })
-        .chain([query.treatment.raw(), query.outcome.raw()])
-        .chain(query.effect_modifiers.iter().map(|modifier| modifier.raw()))
-        .max()
-        .unwrap_or(0);
-    identify_temporal_admg_contrast_over(template, query, largest + 1)
+    use crate::error::IdentificationBudget;
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let work = (template.nodes().len() as u64)
+        .checked_add(query.effect_modifiers.len() as u64)
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    budget
+        .charge_work(work)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let mut largest = query.treatment.raw().max(query.outcome.raw());
+    for node in template.nodes() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        if let antecedent_core::NodeRef::Lagged { variable, .. } = node {
+            largest = largest.max(variable.raw());
+        }
+    }
+    for modifier in query.effect_modifiers.iter() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        largest = largest.max(modifier.raw());
+    }
+    let count = largest
+        .checked_add(1)
+        .ok_or_else(|| IdentificationError::out_of_range("temporal variable count exceeds u32"))?;
+    identify_temporal_admg_contrast_over_within(template, query, count, &mut budget, &ctx)
 }
 
 /// Identify the pulse, sustained or conditional contrast of `query` on `template`, with
@@ -156,6 +259,56 @@ pub fn identify_temporal_admg_contrast_over(
     query: &TemporalEffectQuery,
     variable_count: u32,
 ) -> Result<TemporalAdmgIdentification, IdentificationError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_temporal_admg_contrast_over_within(template, query, variable_count, &mut budget, &ctx)
+}
+
+/// Context-bounded identification. The Arc-owned result shares its window,
+/// schedule, and retained admission across clones. A caller-created copy of a
+/// borrowed field is owned and accounted by that caller.
+#[derive(Clone, Debug)]
+pub struct AdmittedTemporalAdmgIdentification(Arc<AdmittedTemporalAdmgIdentificationData>);
+/// Borrowable fields of an admitted temporal ADMG identification.
+#[derive(Debug)]
+pub struct AdmittedTemporalAdmgIdentificationData {
+    /// Identification output over the admitted window.
+    pub result: IdentificationResult,
+    /// Admitted window.
+    pub window: UnrolledTemporalAdmg,
+    /// Admitted temporal plan.
+    pub plan: AdmittedTemporalAdmgWindowPlan,
+    /// Treatment coordinates.
+    pub schedule: Vec<VariableId>,
+    /// Outcome coordinate.
+    pub outcome: VariableId,
+    /// Modifier coordinates.
+    pub modifiers: Vec<VariableId>,
+    /// Identification obstruction, when present.
+    pub obstruction: Option<String>,
+    _lease: Arc<antecedent_core::execution::AdmissionLease>,
+}
+impl std::ops::Deref for AdmittedTemporalAdmgIdentification {
+    type Target = AdmittedTemporalAdmgIdentificationData;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Identify a temporal contrast with cumulative work and retained window admission.
+/// # Errors
+/// Invalid query, unsupported interventions, graph, cancellation, or resource refusal.
+pub fn identify_temporal_admg_contrast_over_within(
+    template: &TemporalAdmg,
+    query: &TemporalEffectQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<AdmittedTemporalAdmgIdentification, IdentificationError> {
+    use crate::error::IdentificationBudget;
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
     let set_level = |intervention: &Intervention| -> Result<Value, IdentificationError> {
         match intervention {
             Intervention::Set { value, .. } => Ok(value.clone()),
@@ -164,24 +317,79 @@ pub fn identify_temporal_admg_contrast_over(
             )),
         }
     };
-    let plan = plan_temporal_admg_window(template, query)?;
     let active = set_level(&query.active)?;
     let control = set_level(&query.control)?;
+    let plan = plan_temporal_admg_window_within(template, query, budget, ctx)?;
     let window = template
-        .unroll_window_over(plan.periods, variable_count)
-        .map_err(|error| IdentificationError::construction(error))?;
-    let unknown = |variable: VariableId| IdentificationError::UnknownVariable { id: variable };
-    let schedule = plan
-        .treated
-        .iter()
-        .map(|&period| window.coordinate(query.treatment, period).ok_or(unknown(query.treatment)))
-        .collect::<Result<Vec<_>, _>>()?;
-    let outcome =
-        window.coordinate(query.outcome, plan.outcome_period).ok_or(unknown(query.outcome))?;
-    let modifiers = modifier_coordinates(&window, &plan, query, &schedule)?;
+        .unroll_window_over_within(plan.periods, variable_count, budget, ctx)
+        .map_err(|error| match error {
+            antecedent_graph::GraphError::TemporalMaterialization(error) => {
+                crate::error::temporal_materialization_error(error)
+            }
+            other => IdentificationError::construction(other),
+        })?;
+    let count = plan.treated.len() as u64;
+    let modifier_count = query.effect_modifiers.len() as u64;
+    let nodes = window.admg().node_count() as u64;
+    budget
+        .charge_work(nodes)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let mut edges = 0u64;
+    for i in 0..window.admg().node_count() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        edges = edges
+            .checked_add(
+                window.admg().children(antecedent_graph::DenseNodeId::from_index(i)).len() as u64
+            )
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    }
+    let traversals = count
+        .checked_mul(modifier_count)
+        .and_then(|n| n.checked_mul(nodes.checked_add(edges)?.checked_add(1)?))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let work = traversals
+        .checked_add(count)
+        .and_then(|n| modifier_count.checked_mul(modifier_count).and_then(|m| n.checked_add(m)))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    budget
+        .charge_work(work)
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+    let bytes = nodes
+        .checked_mul(256)
+        .and_then(|n| count.checked_mul(128).and_then(|v| n.checked_add(v)))
+        .and_then(|n| modifier_count.checked_mul(128).and_then(|v| n.checked_add(v)))
+        .and_then(|n| n.checked_add(4096))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+    if bytes > budget.limits().max_bytes {
+        return Err(IdentificationError::budget(IdentificationBudget::Memory));
+    }
+    let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::budget(IdentificationBudget::Memory),
+    })?);
+    let mut schedule = Vec::new();
+    schedule
+        .try_reserve_exact(plan.treated.len())
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+    for &period in &plan.treated {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        schedule.push(
+            window
+                .coordinate(query.treatment, period)
+                .ok_or(IdentificationError::UnknownVariable { id: query.treatment })?,
+        );
+    }
+    let outcome = window
+        .coordinate(query.outcome, plan.outcome_period)
+        .ok_or(IdentificationError::UnknownVariable { id: query.outcome })?;
+    let modifiers = modifier_coordinates_within(&window, &plan, query, &schedule, ctx)?;
+    let prepared = PreparedAdmg::from_unrolled_within(window.clone(), budget, ctx)?;
     let causal_query = CausalQuery::TemporalEffect(query.clone());
     let mut result = if modifiers.is_empty() {
-        let prepared = PreparedAdmg::new(window.admg().clone())?;
         let mut workspace = IdentificationWorkspace::default();
         IdIdentifier::new().identify_schedule_contrast(
             &prepared,
@@ -195,8 +403,8 @@ pub fn identify_temporal_admg_contrast_over(
             &mut workspace,
         )?
     } else {
-        identify_conditional_contrast(
-            &window,
+        identify_conditional_contrast_prepared(
+            &prepared,
             outcome,
             &ConditionalSchedule {
                 schedule: &schedule,
@@ -207,21 +415,16 @@ pub fn identify_temporal_admg_contrast_over(
             causal_query,
         )?
     };
-    result.derivation.push(
-        "temporal_admg.unrolled_window",
-        format!(
-            "complete ID on the {}-period unrolling of the temporal ADMG: {} treated period(s), \
-             outcome at period {}, history {}, {} effect modifier(s)",
-            window.periods(),
-            schedule.len(),
-            plan.outcome_period,
-            plan.history,
-            modifiers.len()
-        ),
-    );
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    result.derivation.push("temporal_admg.unrolled_window", format!(
+        "complete ID on the {}-period unrolling of the temporal ADMG: {} treated period(s), outcome at period {}, history {}, {} effect modifier(s)",
+        window.periods(), schedule.len(), plan.outcome_period, plan.history, modifiers.len()));
+    result.retain_temporal_lease(Arc::clone(&lease));
     let obstruction = (result.status != IdentificationStatus::NonparametricallyIdentified)
         .then(|| describe_obstruction(&result, &window));
-    Ok(TemporalAdmgIdentification {
+    Ok(AdmittedTemporalAdmgIdentification(Arc::new(AdmittedTemporalAdmgIdentificationData {
         result,
         window,
         plan,
@@ -229,55 +432,81 @@ pub fn identify_temporal_admg_contrast_over(
         outcome,
         modifiers,
         obstruction,
-    })
+        _lease: lease,
+    })))
 }
 
-/// Window coordinates of the effect modifiers, read at the first treated period.
-///
-/// A modifier is the state at decision time, so it must precede every intervention it
-/// conditions: one the treated periods can reach is a different variable under the policy.
-fn modifier_coordinates(
+fn modifier_coordinates_within(
     window: &UnrolledTemporalAdmg,
     plan: &TemporalAdmgWindowPlan,
     query: &TemporalEffectQuery,
     schedule: &[VariableId],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<VariableId>, IdentificationError> {
-    if query.effect_modifiers.is_empty() {
-        return Ok(Vec::new());
-    }
+    use crate::error::IdentificationBudget;
+    const CHANGED_MODIFIER: &str = "an effect modifier of a temporal ADMG conditional contrast must be read before \
+         the treated periods can change it (not the treatment, and not a descendant of a \
+         treated period); next attempt: condition on a variable measured at the first \
+         treated period that no treated period reaches, or ask for the unconditional \
+         contrast";
     let first = plan.treated.iter().copied().min().unwrap_or(plan.origin);
-    let mut template_modifiers: Vec<VariableId> = query.effect_modifiers.to_vec();
-    template_modifiers.sort_unstable();
-    if template_modifiers.windows(2).any(|pair| pair[0] == pair[1]) {
+    let mut modifiers = query.effect_modifiers.to_vec();
+    modifiers.sort_unstable();
+    if modifiers.windows(2).any(|pair| pair[0] == pair[1]) {
         return Err(IdentificationError::unsupported(
             "effect modifiers of a temporal ADMG conditional contrast must be unique",
         ));
     }
-    let mut coordinates = Vec::with_capacity(template_modifiers.len());
-    for modifier in template_modifiers {
+    let graph = window.admg();
+    let mut visited = vec![false; graph.node_count()];
+    let mut stack = Vec::new();
+    stack
+        .try_reserve_exact(graph.node_count())
+        .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+    let mut out = Vec::with_capacity(modifiers.len());
+    for modifier in modifiers {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
         let coordinate = window
             .coordinate(modifier, first)
             .ok_or(IdentificationError::UnknownVariable { id: modifier })?;
-        let node = window.admg().dense_of_static(coordinate);
-        let reached = schedule.iter().any(|treated| {
-            *treated == coordinate
-                || matches!(
-                    (window.admg().dense_of_static(*treated), node),
-                    (Some(from), Some(to)) if window.admg().reaches(from, to)
-                )
-        });
-        if reached {
-            return Err(IdentificationError::unsupported(
-                "an effect modifier of a temporal ADMG conditional contrast must be read before \
-                 the treated periods can change it (not the treatment, and not a descendant of a \
-                 treated period); next attempt: condition on a variable measured at the first \
-                 treated period that no treated period reaches, or ask for the unconditional \
-                 contrast",
-            ));
+        let target = graph.dense_of_static(coordinate);
+        for treated in schedule {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            if *treated == coordinate {
+                return Err(IdentificationError::unsupported(CHANGED_MODIFIER));
+            }
+            let (Some(from), Some(target)) = (graph.dense_of_static(*treated), target) else {
+                continue;
+            };
+            visited.fill(false);
+            stack.clear();
+            visited[from.as_usize()] = true;
+            stack.push(from);
+            while let Some(node) = stack.pop() {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(IdentificationError::Cancelled);
+                }
+                for child in graph.children(node) {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(IdentificationError::Cancelled);
+                    }
+                    if *child == target {
+                        return Err(IdentificationError::unsupported(CHANGED_MODIFIER));
+                    }
+                    if !visited[child.as_usize()] {
+                        visited[child.as_usize()] = true;
+                        stack.push(*child);
+                    }
+                }
+            }
         }
-        coordinates.push(coordinate);
+        out.push(coordinate);
     }
-    Ok(coordinates)
+    Ok(out)
 }
 
 /// The treated schedule of a conditional contrast with the modifiers it is averaged over.
@@ -290,14 +519,13 @@ struct ConditionalSchedule<'a> {
 
 /// IDC at the two levels of the schedule, assembled into the mean contrast whose modifier
 /// coordinates stay free.
-fn identify_conditional_contrast(
-    window: &UnrolledTemporalAdmg,
+fn identify_conditional_contrast_prepared(
+    prepared: &PreparedAdmg,
     outcome: VariableId,
     request: &ConditionalSchedule<'_>,
     query: CausalQuery,
 ) -> Result<IdentificationResult, IdentificationError> {
     let idc = IdcIdentifier::new();
-    let prepared = idc.prepare(window.admg())?;
     let mut workspace = IdentificationWorkspace::default();
     let mut law = |level: &Value| -> Result<IdentificationResult, IdentificationError> {
         let interventions: Vec<Intervention> = request
@@ -306,7 +534,7 @@ fn identify_conditional_contrast(
             .map(|coordinate| Intervention::set(*coordinate, level.clone()))
             .collect();
         idc.identify_conditional_at_levels(
-            &prepared,
+            prepared,
             &[outcome],
             &interventions,
             request.modifiers,
@@ -414,6 +642,97 @@ mod tests {
         VariableId::from_raw(raw)
     }
 
+    #[test]
+    fn admitted_window_plan_preserves_small_semantics_and_refuses_huge_inputs() {
+        use antecedent_core::execution::AdmissionPool;
+        use antecedent_core::{ExecutionContext, TemporalMaterializationLimits};
+        let limits = TemporalMaterializationLimits {
+            max_offsets: 8,
+            max_work: 1024,
+            max_bytes: 16384,
+            max_graph_nodes: 128,
+            max_graph_edges: 128,
+        };
+        let pool = AdmissionPool::fixed(1, 16384);
+        let ctx = ExecutionContext::for_tests(4).with_admission(pool.clone());
+        let graph = template(false);
+        let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0).with_horizon_steps(2);
+        let expected = plan_temporal_admg_window(&graph, &query).unwrap();
+        let admitted = plan_temporal_admg_window_within(
+            &graph,
+            &query,
+            &mut antecedent_core::TemporalBudget::new(limits),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(&*admitted, &*expected);
+        let free = pool.available().bytes();
+        let clone = admitted.clone();
+        drop(admitted);
+        assert_eq!(pool.available().bytes(), free);
+        drop(clone);
+        assert_eq!(pool.available().bytes(), 16384);
+        let mut huge = query.clone();
+        huge.policy = antecedent_core::TemporalPolicy::sustained(i32::MIN, i32::MAX);
+        assert!(matches!(
+            plan_temporal_admg_window_within(
+                &graph,
+                &huge,
+                &mut antecedent_core::TemporalBudget::new(limits),
+                &ctx
+            ),
+            Err(IdentificationError::Budget { .. })
+        ));
+        let mut huge_horizon = query;
+        huge_horizon.horizon_steps = u32::MAX;
+        assert!(
+            plan_temporal_admg_window_within(
+                &graph,
+                &huge_horizon,
+                &mut antecedent_core::TemporalBudget::new(limits),
+                &ctx
+            )
+            .is_err()
+        );
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            plan_temporal_admg_window_within(
+                &graph,
+                &huge_horizon,
+                &mut antecedent_core::TemporalBudget::new(limits),
+                &ctx
+            ),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn bounded_identification_shares_window_and_plan_lease_on_clone() {
+        use antecedent_core::execution::AdmissionPool;
+        let pool = AdmissionPool::fixed(1, 1_000_000);
+        let ctx = antecedent_core::ExecutionContext::for_tests(9).with_admission(pool.clone());
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0).with_horizon_steps(2);
+        let before = pool.available().bytes();
+        let found = identify_temporal_admg_contrast_over_within(
+            &template(false),
+            &query,
+            2,
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(found.result.status, IdentificationStatus::NonparametricallyIdentified);
+        let held = pool.available().bytes();
+        assert!(held < before);
+        let cloned = found.clone();
+        drop(found);
+        assert_eq!(pool.available().bytes(), held);
+        drop(cloned);
+        assert_eq!(pool.available().bytes(), before);
+    }
+
     /// x(t-1) -> x(t), y(t-1) -> x(t), and x(t-1) -> y(t) <- y(t-1); optionally x(t-1) <-> y(t).
     fn template(confounded: bool) -> TemporalAdmg {
         let mut graph = TemporalAdmg::empty();
@@ -449,7 +768,7 @@ mod tests {
         let query = TemporalEffectQuery::pulse(v(0), v(1), 1.0).with_horizon_steps(2);
         let blocked = identify_temporal_admg_contrast(&template(true), &query).unwrap();
         assert_eq!(blocked.result.status, IdentificationStatus::NotIdentified);
-        let reason = blocked.obstruction.expect("the obstruction is named");
+        let reason = blocked.obstruction.as_deref().expect("the obstruction is named");
         assert!(reason.contains("hedge") && reason.contains('@'), "{reason}");
     }
 

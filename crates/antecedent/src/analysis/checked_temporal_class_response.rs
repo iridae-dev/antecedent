@@ -103,7 +103,7 @@ fn check_class_response_horizon(
         .with_target_population(query.target_population.clone());
     let treatment_key =
         TemporalNodeKey { variable: treatment, offset: witness.try_treatment_offset()? };
-    let outcome_key = TemporalNodeKey { variable: outcome, offset: witness.outcome_offset() };
+    let outcome_key = TemporalNodeKey { variable: outcome, offset: witness.outcome_offset()? };
     let witness_binds =
         envelope.envelope.cases.iter().zip(&envelope.indexers).all(|(case, indexer)| {
             case.result.average_effect().is_none_or(|proof| {

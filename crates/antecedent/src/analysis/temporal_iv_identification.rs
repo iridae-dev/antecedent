@@ -47,9 +47,11 @@ const NO_INSTRUMENT: &str = "no lagged variable is a valid instrument on the unf
 pub(crate) fn identify_temporal_instrument(
     graph: &TemporalDag,
     query: &TemporalEffectQuery,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<CertifiedTemporalInstrument, CausalError> {
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let found = TemporalIvIdentifier::new()
-        .identify_temporal_iv(graph, query)
+        .identify_temporal_iv_within(graph, query, &mut budget, ctx)
         .map_err(CausalError::from)?;
     if found.result.status == IdentificationStatus::NotIdentified || found.instruments.is_empty() {
         return Err(CausalError::not_identified(found.result.status, false, NO_INSTRUMENT));

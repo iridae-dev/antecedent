@@ -461,7 +461,7 @@ pub(super) fn fit_class_sequential(
         let variables = mixture_read_variables(
             [inputs.query.treatment, inputs.query.outcome],
             run.seq_atoms.iter().map(|atom| &atom.estimand),
-            run.seq_atoms.iter().map(|atom| &atom.graph),
+            run.seq_atoms.iter().map(|atom| atom.graph.as_ref()),
         );
         Some(shared_gap_report(inputs.data, &variables, &run.windows)?)
     };
@@ -540,7 +540,8 @@ fn fit_sequential_completion(
     run.seq_atom_keys.push(key);
     run.seq_atoms.push(SequentialValidationAtom {
         weight,
-        graph: dag,
+        graph: Arc::new(dag),
+        _graph_lease: None,
         indexer: indexer.clone(),
         estimand,
         status: case.result.status,

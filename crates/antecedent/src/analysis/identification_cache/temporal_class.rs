@@ -6,9 +6,6 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalQuery, ExecutionContext, TemporalEffectQuery};
 use antecedent_discovery::GraphPosterior;
-use antecedent_discovery::dbn_posterior::{
-    temporal_cpdag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
-};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
@@ -69,10 +66,10 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
         identify_temporal_pag_configured,
     };
 
-    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
+    let _lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = posterior.max_lag().ok_or_else(|| CausalError::Compile {
+    let _max_lag = posterior.max_lag().ok_or_else(|| CausalError::Compile {
         message: "temporal class posterior missing max_lag".into(),
     })?;
     if !matches!(
@@ -89,53 +86,32 @@ pub(crate) fn build_temporal_class_posterior_identification_cache(
     if let Some(max) = max_completions {
         config.max_completions = max;
     }
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mut budget = budget.clone();
         let mut config = config.clone();
         config.context = Some(inner.clone());
+        config.temporal_budget = Some(budget.clone());
         let key = dbn_envelope_key(i)?;
-        let mark = posterior.mark_atom(i);
-        let cached = match posterior.atom_kind() {
-            antecedent_discovery::GraphPosteriorAtomKind::Cpdag => {
-                let Ok(cpdag) = temporal_cpdag_from_dbn_atoms(
-                    &posterior.atoms()[i],
-                    &lag_masks[i],
-                    posterior.n_vars(),
-                    max_lag,
-                    variables,
-                ) else {
-                    return Ok(None);
-                };
-                Ok::<_, CausalError>(
-                    temporal_class_attempt(identify_temporal_cpdag_configured(
-                        DEFAULT_PAG_IDENTIFIER_ID,
-                        &cpdag,
-                        query,
-                        config.clone(),
-                    ))?
-                    .map(|envelope| cache_temporal_class_atom(key, query, envelope)),
-                )
-            }
-            antecedent_discovery::GraphPosteriorAtomKind::Pag => {
-                let Ok(pag) = temporal_pag_from_dbn_atoms(
-                    &posterior.atoms()[i],
-                    &lag_masks[i],
-                    &mark,
-                    posterior.n_vars(),
-                    max_lag,
-                    variables,
-                ) else {
-                    return Ok(None);
-                };
-                Ok(temporal_class_attempt(identify_temporal_pag_configured(
+        let Some(atom) =
+            super::admitted_temporal_class_atom(posterior, i, variables, &mut budget, inner)?
+        else {
+            return Ok(None);
+        };
+        let envelope = match atom {
+            super::AdmittedTemporalClassAtom::Cpdag(graph, _lease) => {
+                temporal_class_attempt(identify_temporal_cpdag_configured(
                     DEFAULT_PAG_IDENTIFIER_ID,
-                    &pag,
+                    &graph,
                     query,
-                    config.clone(),
+                    config,
                 ))?
-                .map(|envelope| cache_temporal_class_atom(key, query, envelope)))
             }
-            _ => Ok(None),
-        }?;
+            super::AdmittedTemporalClassAtom::Pag(graph, _lease) => temporal_class_attempt(
+                identify_temporal_pag_configured(DEFAULT_PAG_IDENTIFIER_ID, &graph, query, config),
+            )?,
+        };
+        let cached = envelope.map(|envelope| cache_temporal_class_atom(key, query, envelope));
         Ok(cached)
     })?;
     let mut weights = Vec::with_capacity(posterior.n_graphs());
@@ -202,5 +178,74 @@ fn cache_temporal_class_atom(
         identified_weight: envelope.envelope.identified_weight.0,
         truncated_completions: envelope.envelope.truncated_completions,
         envelope: Arc::new(envelope),
+    }
+}
+
+#[cfg(test)]
+mod temporal_class_budget_tests {
+    use super::*;
+    use antecedent_core::{ExecutionContext, TemporalBudget, TemporalEffectQuery, VariableId};
+    use antecedent_discovery::{GraphPosteriorAtomKind, SamplingSummary};
+    use antecedent_prob::InferenceDiagnostics;
+
+    fn posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
+        GraphPosterior::new(
+            2,
+            vec![0.5, 0.5],
+            vec![0_u64, 0],
+            vec![0.0; 4],
+            vec![0.0; 4],
+            SamplingSummary {
+                ess: 2.0,
+                diagnostics: InferenceDiagnostics::analytic("temporal-class-budget"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(kind)
+        .with_lagged_marginals(1, vec![0.0; 4])
+        .unwrap()
+        .with_lag_masks(vec![0_u64, 0])
+        .unwrap()
+    }
+
+    #[test]
+    fn class_posterior_conversion_shares_budget_and_keeps_operational_errors() {
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
+            let posterior = posterior(kind);
+            let ctx = ExecutionContext::for_tests(1);
+            let mut limits = ctx.temporal_materialization_limits();
+            limits.max_work = 31;
+            let mut budget = TemporalBudget::new(limits);
+            let first =
+                super::super::admitted_temporal_class_atom(&posterior, 0, &vars, &mut budget, &ctx)
+                    .unwrap();
+            assert!(first.is_some());
+            assert!(matches!(
+                super::super::admitted_temporal_class_atom(&posterior, 1, &vars, &mut budget, &ctx),
+                Err(CausalError::Resource { .. })
+            ));
+            drop(first);
+
+            let mut limits = ctx.temporal_materialization_limits();
+            limits.max_work = 0;
+            let limited = ctx.with_temporal_materialization_limits(limits);
+            let query = TemporalEffectQuery::pulse(vars[0], vars[1], 1.0);
+            assert!(matches!(
+                build_temporal_class_posterior_identification_cache(
+                    &posterior, &vars, &query, None, &limited
+                ),
+                Err(CausalError::Resource { .. })
+            ));
+            let cancelled = ExecutionContext::for_tests(2);
+            cancelled.cancellation.cancel();
+            assert!(matches!(
+                build_temporal_class_posterior_identification_cache(
+                    &posterior, &vars, &query, None, &cancelled
+                ),
+                Err(CausalError::Cancelled { .. })
+            ));
+        }
     }
 }

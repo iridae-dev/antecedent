@@ -333,6 +333,7 @@ mod tests {
             performance: IdentificationPerformanceRecord::default(),
             hedge: None,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         }
     }
 

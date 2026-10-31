@@ -507,7 +507,8 @@ fn fit_temporal_class_case(
         let estimate = design.effect_estimate(assumptions);
         let sequential = super::sequential_validation::SequentialValidationAtom {
             weight: case.weight.0,
-            graph: dag,
+            graph: Arc::new(dag),
+            _graph_lease: None,
             indexer: indexer.clone(),
             estimand: estimand.clone(),
             status: case.result.status,
@@ -821,7 +822,8 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
             }
             sequential_atoms.push(super::sequential_validation::SequentialValidationAtom {
                 weight: case.weight.0,
-                graph: dag,
+                graph: Arc::new(dag),
+                _graph_lease: None,
                 indexer: indexer.clone(),
                 estimand,
                 status: case.result.status,

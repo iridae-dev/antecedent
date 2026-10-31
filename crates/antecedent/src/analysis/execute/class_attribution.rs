@@ -84,6 +84,7 @@ enum MemberKind {
 /// The members of a class, and whether they cover it.
 struct ClassMembers {
     members: Vec<Member>,
+    _temporal_leases: Vec<antecedent_core::execution::AdmissionLease>,
     /// Whether the enumeration stopped at the retention cap or its search budget, so the
     /// members are a subset of the class.
     capped: bool,
@@ -274,6 +275,7 @@ impl super::Study {
         let cap = self.declared.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
             GraphRef::Admg(admg) => Ok(ClassMembers {
+                _temporal_leases: Vec::new(),
                 members: vec![Member { weight: 1.0, kind: mixed_member(admg, &targets)? }],
                 capped: false,
                 class: "admg",
@@ -282,6 +284,7 @@ impl super::Study {
             GraphRef::TemporalAdmg(temporal) => {
                 let admg = temporal_admg_projection(temporal)?;
                 Ok(ClassMembers {
+                    _temporal_leases: Vec::new(),
                     members: vec![Member { weight: 1.0, kind: mixed_member(&admg, &targets)? }],
                     capped: false,
                     class: "temporal_admg",
@@ -305,6 +308,7 @@ impl super::Study {
                     .collect();
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
+                    _temporal_leases: Vec::new(),
                     members,
                     capped: sampler.hit_cap(),
                     class: "cpdag",
@@ -326,6 +330,7 @@ impl super::Study {
                 }
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
+                    _temporal_leases: Vec::new(),
                     members,
                     capped: sampler.hit_cap() || sampler.class_audit_incomplete(),
                     class: "pag",
@@ -345,18 +350,31 @@ impl super::Study {
         series: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<ClassMembers, CausalError> {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.temporal_class_members_within(series, &mut budget, ctx)
+    }
+
+    fn temporal_class_members_within(
+        &self,
+        series: &TimeSeriesData,
+        temporal_budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<ClassMembers, CausalError> {
         let targets = self.class_attribution_targets()?;
         let cap = self.declared.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
-            GraphRef::TemporalAdmg(template) => Ok(ClassMembers {
-                members: vec![Member {
-                    weight: 1.0,
-                    kind: temporal_mixed_member(template, series, &targets)?,
-                }],
-                capped: false,
-                class: "temporal_admg",
-                posterior: None,
-            }),
+            GraphRef::TemporalAdmg(template) => {
+                let (kind, lease) =
+                    temporal_mixed_member(template, series, &targets, temporal_budget, ctx)?;
+                Ok(ClassMembers {
+                    _temporal_leases: lease.into_iter().collect(),
+                    members: vec![Member { weight: 1.0, kind }],
+                    capped: false,
+                    class: "temporal_admg",
+                    posterior: None,
+                })
+            }
             GraphRef::TemporalCpdag(cpdag) => {
                 let mut sampler = antecedent_graph::TemporalCpdagCompletionSampler::with_budget(
                     cpdag.clone(),
@@ -374,6 +392,7 @@ impl super::Study {
                     .collect();
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
+                    _temporal_leases: Vec::new(),
                     members,
                     capped: sampler.hit_cap(),
                     class: "temporal_cpdag",
@@ -381,23 +400,28 @@ impl super::Study {
                 })
             }
             GraphRef::TemporalPag(pag) => {
-                let mut sampler = antecedent_graph::TemporalPagCompletionSampler::with_budget(
-                    pag.clone(),
-                    cap,
-                    class_completion_limits(),
-                    ctx,
-                )
-                .map_err(CausalError::rejected)?;
+                let mut sampler =
+                    antecedent_graph::TemporalPagCompletionSampler::with_borrowed_temporal_budget(
+                        pag,
+                        cap,
+                        class_completion_limits(),
+                        temporal_budget,
+                        ctx,
+                    )
+                    .map_err(CausalError::from)?;
                 let mut members = Vec::new();
+                let mut leases = Vec::new();
                 for completion in sampler.by_ref() {
-                    let template = temporal_mag_template(&completion.graph, series)?;
-                    members.push(Member {
-                        weight: 1.0,
-                        kind: temporal_mixed_member(&template, series, &targets)?,
-                    });
+                    let (template, _template_lease) =
+                        temporal_mag_template(&completion.graph, series, temporal_budget, ctx)?;
+                    let (kind, lease) =
+                        temporal_mixed_member(&template, series, &targets, temporal_budget, ctx)?;
+                    leases.extend(lease);
+                    members.push(Member { weight: 1.0, kind });
                 }
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
+                    _temporal_leases: leases,
                     members,
                     capped: sampler.hit_cap() || sampler.class_audit_incomplete(),
                     class: "temporal_pag",
@@ -745,6 +769,8 @@ impl super::Study {
             });
         };
         let targets = self.class_attribution_targets()?;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let variables: Vec<VariableId> =
             series.schema().variables().iter().map(|variable| variable.id).collect();
         let mark_of = |index: usize| gp.mark_atom(index);
@@ -767,6 +793,7 @@ impl super::Study {
             *slot += gp.weights()[index];
         }
         let mut members: Vec<Member> = Vec::new();
+        let mut graph_leases = Vec::new();
         let mut keys: Vec<u64> = Vec::new();
         let mut outside: Vec<(u64, f64)> = Vec::new();
         let mut capped = false;
@@ -781,12 +808,20 @@ impl super::Study {
                 (lag_masks, max_lag),
                 &variables,
                 &targets,
+                &mut temporal_budget,
+                ctx,
             )? {
-                Some(SeriesAtomGraph::Member(kind)) => {
+                Some(SeriesAtomGraph::Member(kind, lease)) => {
+                    if let Some(lease) = lease {
+                        graph_leases.push(lease);
+                    }
                     kinds.push((weight, kind));
                     None
                 }
-                Some(SeriesAtomGraph::Class(graph)) => Some(graph),
+                Some(SeriesAtomGraph::Class(graph, lease)) => {
+                    graph_leases.push(lease);
+                    Some(graph)
+                }
                 None => {
                     outside.push((key, weight));
                     None
@@ -795,7 +830,9 @@ impl super::Study {
             if let Some(graph) = class_graph {
                 let mut atom = self.clone();
                 atom.graph = Arc::new(graph);
-                let completions = atom.temporal_class_members(series, ctx)?;
+                let completions =
+                    atom.temporal_class_members_within(series, &mut temporal_budget, ctx)?;
+                graph_leases.extend(completions._temporal_leases);
                 capped |= completions.capped;
                 let share = weight / completions.members.len().max(1) as f64;
                 kinds.extend(completions.members.into_iter().map(|member| (share, member.kind)));
@@ -806,6 +843,7 @@ impl super::Study {
             }
         }
         Ok(ClassMembers {
+            _temporal_leases: graph_leases,
             members,
             capped,
             class: "graph_posterior",
@@ -912,6 +950,7 @@ impl super::Study {
             }
         }
         Ok(ClassMembers {
+            _temporal_leases: Vec::new(),
             members,
             capped,
             class: "graph_posterior",
@@ -992,33 +1031,138 @@ fn temporal_mixed_member(
     template: &TemporalAdmg,
     series: &TimeSeriesData,
     targets: &[VariableId],
-) -> Result<MemberKind, CausalError> {
-    if !template.has_bidirected() {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(MemberKind, Option<antecedent_core::execution::AdmissionLease>), CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+    }
+    budget
+        .charge_work(template.node_count() as u64)
+        .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let mut has_bidirected = false;
+    for i in 0..template.node_count() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        if !template.bidirected_neighbors(DenseNodeId::from_index(i)).is_empty() {
+            has_bidirected = true;
+            break;
+        }
+    }
+    if !has_bidirected {
+        let nodes = template.node_count() as u64;
+        let mut edges = 0u64;
+        for i in 0..template.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            edges = edges
+                .checked_add(template.children(DenseNodeId::from_index(i)).len() as u64)
+                .ok_or_else(|| CausalError::Resource {
+                message: "temporal DAG edge overflow".into(),
+            })?;
+        }
+        if nodes > budget.limits().max_graph_nodes || edges > budget.limits().max_graph_edges {
+            return Err(CausalError::Resource { message: "temporal DAG graph limit".into() });
+        }
+        let work = nodes
+            .checked_add(edges)
+            .and_then(|v| v.checked_add(1))
+            .and_then(|v| v.checked_mul(edges.saturating_add(1)))
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal DAG work overflow".into(),
+            })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = nodes
+            .checked_mul(512)
+            .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
+            .and_then(|v| v.checked_add(4096))
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal DAG bytes overflow".into(),
+            })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "temporal DAG byte limit".into() });
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
         let mut dag = TemporalDag::empty();
         for node in template.nodes() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             dag.add_node(*node).map_err(CausalError::rejected)?;
         }
         for index in 0..template.node_count() {
             let from = DenseNodeId::from_index(index);
             for &to in template.children(from) {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                }
                 dag.insert_directed(from, to).map_err(CausalError::rejected)?;
             }
         }
-        return Ok(MemberKind::Directed(AcceptedGraph::from(dag)));
+        return Ok((MemberKind::Directed(AcceptedGraph::from(dag)), Some(lease)));
     }
     let history = template_history(template.nodes());
     let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
         CausalError::Compile { message: "series schema exceeds the variable id range".into() }
     })?;
-    let window =
-        template.unroll_window_over(history + 1, variable_count).map_err(CausalError::rejected)?;
-    let (unfolding, admg) = LagAlignedScm::unfold_mixed(series, history, window.admg())?;
-    Ok(match plan_noise_blocks(&admg, targets).map_err(CausalError::rejected)? {
-        NoiseBlockIdentification::Identified(plan) => {
-            MemberKind::Blocks { plan, unfolding: Some(unfolding) }
+    let periods = history
+        .checked_add(1)
+        .ok_or_else(|| CausalError::Resource { message: "attribution history overflow".into() })?;
+    let window = template.unroll_window_over_within(periods, variable_count, budget, ctx)?;
+    let nodes = window.admg().node_count() as u64;
+    budget.charge_work(nodes).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let mut edges = 0u64;
+    for from in window.admg().node_ids() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
         }
-        NoiseBlockIdentification::Hedged(hedge) => MemberKind::Hedged(hedge),
-    })
+        edges = edges
+            .checked_add(window.admg().children(from).len() as u64)
+            .and_then(|n| n.checked_add(window.admg().bidirected_neighbors(from).len() as u64))
+            .ok_or_else(|| CausalError::Resource {
+                message: "attribution edge count overflow".into(),
+            })?;
+    }
+    let work =
+        edges
+            .checked_mul(nodes.checked_add(edges).and_then(|n| n.checked_add(1)).ok_or_else(
+                || CausalError::Resource { message: "attribution work overflow".into() },
+            )?)
+            .and_then(|n| n.checked_mul(4))
+            .ok_or_else(|| CausalError::Resource { message: "attribution work overflow".into() })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = nodes
+        .checked_mul(1024)
+        .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+        .and_then(|n| n.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource { message: "attribution bytes overflow".into() })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "attribution byte limit".into() });
+    }
+    let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal attribution" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?);
+    let (unfolding, admg) =
+        LagAlignedScm::unfold_mixed(series, history, window.admg(), lease, ctx)?;
+    Ok((
+        match plan_noise_blocks(&admg, targets).map_err(CausalError::rejected)? {
+            NoiseBlockIdentification::Identified(plan) => {
+                MemberKind::Blocks { plan, unfolding: Some(unfolding) }
+            }
+            NoiseBlockIdentification::Hedged(hedge) => MemberKind::Hedged(hedge),
+        },
+        None,
+    ))
 }
 
 /// A temporal MAG completion as a temporal ADMG template: its directed and bidirected edges,
@@ -1027,7 +1171,48 @@ fn temporal_mixed_member(
 fn temporal_mag_template(
     mag: &TemporalPag,
     series: &TimeSeriesData,
-) -> Result<TemporalAdmg, CausalError> {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(TemporalAdmg, antecedent_core::execution::AdmissionLease), CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+    }
+    let nodes = mag.nodes().len() as u64;
+    let mut edges = 0u64;
+    for _ in mag.edges_lazy() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        budget.charge_work(1).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        edges = edges.checked_add(1).ok_or_else(|| CausalError::Resource {
+            message: "temporal template edge overflow".into(),
+        })?;
+    }
+    let work = nodes
+        .checked_add(edges)
+        .and_then(|v| v.checked_add(1))
+        .and_then(|v| v.checked_mul(edges.saturating_add(1)))
+        .and_then(|v| v.checked_mul(16))
+        .ok_or_else(|| CausalError::Resource {
+            message: "temporal template work overflow".into(),
+        })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = nodes
+        .checked_mul(1024)
+        .and_then(|n| edges.checked_mul(1024).and_then(|e| n.checked_add(e)))
+        .and_then(|n| n.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource {
+            message: "temporal template byte overflow".into(),
+        })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "temporal template byte limit".into() });
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal attribution" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
     let mut template = TemporalAdmg::empty();
     for node in mag.nodes() {
         template.add_node(*node).map_err(CausalError::rejected)?;
@@ -1053,7 +1238,7 @@ fn temporal_mag_template(
     })?;
     let history = template_history(mag.nodes());
     let indexer = TemporalIndexer::new(variable_count, history, 1)?;
-    let unfolded = mag.unfold(indexer).map_err(CausalError::rejected)?;
+    let unfolded = mag.unfold_within(indexer, budget, ctx).map_err(CausalError::from)?;
     let node_of = |template: &mut TemporalAdmg,
                    variable: VariableId,
                    lag: u32|
@@ -1070,8 +1255,8 @@ fn temporal_mag_template(
     for (tail, head) in antecedent_identify::invisible_directed_edges(&unfolded.pag) {
         let tail_key = unfolded.indexer.key_of(tail.raw())?;
         let head_key = unfolded.indexer.key_of(head.raw())?;
-        let delay =
-            u32::try_from(head_key.offset - tail_key.offset).map_err(|_| CausalError::Compile {
+        let delay = u32::try_from(i64::from(head_key.offset) - i64::from(tail_key.offset))
+            .map_err(|_| CausalError::Compile {
                 message: "an invisible directed edge points backwards in time".into(),
             })?;
         let tail_node = node_of(&mut template, tail_key.variable, delay)?;
@@ -1080,7 +1265,7 @@ fn temporal_mag_template(
             tolerate(template.insert_bidirected(tail_node, head_node))?;
         }
     }
-    Ok(template)
+    Ok((template, lease))
 }
 
 /// The noise blocks a member was attributed to.
@@ -1492,8 +1677,8 @@ fn posterior_envelope_diagnostic(identified: &[(usize, StudyResult)]) -> Option<
 
 /// A decoded posterior atom is either one mechanism model or a class to enumerate.
 enum SeriesAtomGraph {
-    Member(MemberKind),
-    Class(AcceptedGraph),
+    Member(MemberKind, Option<antecedent_core::execution::AdmissionLease>),
+    Class(AcceptedGraph, antecedent_core::execution::AdmissionLease),
 }
 
 fn series_posterior_atom(
@@ -1503,20 +1688,17 @@ fn series_posterior_atom(
     lags: (&[LagMask], u32),
     variables: &[VariableId],
     targets: &[VariableId],
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<Option<SeriesAtomGraph>, CausalError> {
-    use antecedent_discovery::dbn_posterior::{
-        temporal_cpdag_from_dbn_atoms, temporal_dag_from_dbn_atoms, temporal_pag_from_dbn_atoms,
-    };
-    let (lag_masks, max_lag) = lags;
+    let (_, max_lag) = lags;
     let graph = match gp.atom_kind() {
         GraphPosteriorAtomKind::Dag => {
-            let Ok(mut dag) = temporal_dag_from_dbn_atoms(
-                gp.atoms()[index].clone(),
-                &lag_masks[index],
-                gp.n_vars(),
-                max_lag,
-                variables,
-            ) else {
+            let Some((mut dag, lease)) =
+                crate::analysis::identification_cache::admitted_temporal_dag_atom(
+                    gp, index, variables, budget, ctx,
+                )?
+            else {
                 return Ok(None);
             };
             // Empty templates still carry isolated target mechanisms.
@@ -1530,44 +1712,46 @@ fn series_posterior_atom(
                     .map_err(CausalError::rejected)?;
                 }
             }
-            SeriesAtomGraph::Member(MemberKind::Directed(AcceptedGraph::temporal_dag(dag)))
+            SeriesAtomGraph::Member(
+                MemberKind::Directed(AcceptedGraph::temporal_dag(dag)),
+                Some(lease),
+            )
         }
         GraphPosteriorAtomKind::TemporalAdmg => {
-            let Some(template) = gp
-                .temporal_admg_atom(index)
-                .and_then(|atom| atom.to_template(gp.n_vars(), max_lag, variables).ok())
-            else {
+            let Some(atom) = gp.temporal_admg_atom(index) else {
                 return Ok(None);
             };
-            SeriesAtomGraph::Member(temporal_mixed_member(&template, series, targets)?)
+            let _template_lease =
+                crate::analysis::temporal_admg_contrast::admit_temporal_atom_template(
+                    &atom,
+                    gp.n_vars(),
+                    budget,
+                    ctx,
+                )?;
+            let template = atom.to_template(gp.n_vars(), max_lag, variables);
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal atom" });
+            }
+            let Ok(template) = template else {
+                return Ok(None);
+            };
+            let (kind, lease) = temporal_mixed_member(&template, series, targets, budget, ctx)?;
+            SeriesAtomGraph::Member(kind, lease)
         }
-        GraphPosteriorAtomKind::Cpdag => {
-            let Some(graph) = temporal_cpdag_from_dbn_atoms(
-                gp.atoms()[index].clone(),
-                &lag_masks[index],
-                gp.n_vars(),
-                max_lag,
-                variables,
-            )
-            .ok()
-            .and_then(|cpdag| AcceptedGraph::temporal_cpdag(cpdag).ok()) else {
-                return Ok(None);
-            };
-            SeriesAtomGraph::Class(graph)
-        }
-        GraphPosteriorAtomKind::Pag => {
-            let mark = gp.mark_atom(index);
-            let Ok(pag) = temporal_pag_from_dbn_atoms(
-                gp.atoms()[index].clone(),
-                &lag_masks[index],
-                mark,
-                gp.n_vars(),
-                max_lag,
-                variables,
-            ) else {
-                return Ok(None);
-            };
-            SeriesAtomGraph::Class(AcceptedGraph::temporal_pag(pag))
+        GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag => {
+            use crate::analysis::identification_cache::AdmittedTemporalClassAtom;
+            match crate::analysis::identification_cache::admitted_temporal_class_atom(
+                gp, index, variables, budget, ctx,
+            )? {
+                Some(AdmittedTemporalClassAtom::Cpdag(graph, lease)) => {
+                    let Ok(graph) = AcceptedGraph::temporal_cpdag(graph) else { return Ok(None) };
+                    SeriesAtomGraph::Class(graph, lease)
+                }
+                Some(AdmittedTemporalClassAtom::Pag(graph, lease)) => {
+                    SeriesAtomGraph::Class(AcceptedGraph::temporal_pag(graph), lease)
+                }
+                None => return Ok(None),
+            }
         }
         _ => {
             return Err(CausalError::Unsupported {
@@ -1583,5 +1767,49 @@ fn class_completion_limits() -> antecedent_core::SearchLimits {
     antecedent_core::SearchLimits {
         operations: antecedent_graph::DEFAULT_COMPLETION_OPERATIONS,
         depth: usize::MAX,
+    }
+}
+
+#[cfg(test)]
+mod temporal_owner_tests {
+    use super::*;
+    use antecedent_core::{AnomalyAttributionQuery, CausalQuery, Lag};
+
+    #[test]
+    fn directed_temporal_member_keeps_its_copy_admission_until_class_drops() {
+        let data = TimeSeriesData::from_f64_columns(
+            [("x", &[0.0, 1.0, 2.0][..]), ("y", &[0.0, 1.0, 3.0][..])],
+            1,
+        )
+        .unwrap();
+        let mut template = TemporalAdmg::empty();
+        let x = template.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let y = template.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        template.insert_directed(x, y).unwrap();
+        let study = crate::Study::series(data.clone())
+            .graph(template)
+            .query(CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+                [VariableId::from_raw(1)],
+                2,
+            )))
+            .build()
+            .unwrap();
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 100_000);
+        let ctx = ExecutionContext::for_tests(7).with_admission(pool.clone());
+        let available = pool.available().bytes();
+        let class = study.temporal_class_members(&data, &ctx).unwrap();
+        assert!(matches!(class.members[0].kind, MemberKind::Directed(_)));
+        assert_eq!(class._temporal_leases.len(), 1);
+        assert!(pool.available().bytes() < available);
+        drop(class);
+        assert_eq!(pool.available().bytes(), available);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_graph_nodes = 1;
+        let limited = ctx.with_temporal_materialization_limits(limits);
+        assert!(matches!(
+            study.temporal_class_members(&data, &limited),
+            Err(CausalError::Resource { .. })
+        ));
+        assert_eq!(pool.available().bytes(), available);
     }
 }

@@ -140,19 +140,32 @@ fn extra_soft_rejects_bad_parameter_shapes_values_and_bounds() {
         ("multiplicative", vec![], "multiplicative requires one finite mean multiplier"),
         ("multiplicative", vec![f64::NAN], "multiplicative requires one finite mean multiplier"),
         ("multiplicative", vec![1.0, 2.0], "multiplicative requires one finite mean multiplier"),
-        ("truncated_shift", vec![1.0], "truncated_shift requires finite [shift, lower, upper] with lower <= upper"),
-        ("truncated_shift", vec![1.0, 3.0, 2.0], "truncated_shift requires finite [shift, lower, upper] with lower <= upper"),
-        ("truncated_shift", vec![1.0, 0.0, f64::INFINITY], "truncated_shift requires finite [shift, lower, upper] with lower <= upper"),
+        (
+            "truncated_shift",
+            vec![1.0],
+            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+        ),
+        (
+            "truncated_shift",
+            vec![1.0, 3.0, 2.0],
+            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+        ),
+        (
+            "truncated_shift",
+            vec![1.0, 0.0, f64::INFINITY],
+            "truncated_shift requires finite [shift, lower, upper] with lower <= upper",
+        ),
     ] {
-        let refusal = antecedent_estimate::plan_from_response_query(&query(soft(
-            0,
-            MechanismOverride::named(family, parameters.clone()),
-        )))
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let refusal = antecedent_estimate::plan_from_response_query(
+            &query(soft(0, MechanismOverride::named(family, parameters.clone()))),
+            &mut budget,
+            &ctx,
+        )
         .unwrap_err();
-        assert!(
-            refusal.to_string().contains(message),
-            "{family} {parameters:?}: {refusal}"
-        );
+        assert!(refusal.to_string().contains(message), "{family} {parameters:?}: {refusal}");
     }
 }
 

@@ -43,15 +43,21 @@ impl Dag {
     /// # Errors
     ///
     /// Window larger than the node-id space.
-    pub fn from_unfolding(indexer: &antecedent_core::TemporalIndexer) -> Result<Self, GraphError> {
-        let mut g = Self::empty();
-        for dense in 0..indexer.dense_len() {
-            let key = indexer
-                .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
-                .map_err(|_| GraphError::TooManyNodes)?;
-            g.add_node(NodeRef::Unfolded { variable: key.variable, offset: key.offset })?;
-        }
-        Ok(g)
+    pub fn from_unfolding(
+        indexer: &antecedent_core::TemporalIndexer,
+    ) -> Result<crate::unfold::AdmittedUnfoldedTemporalGraph, GraphError> {
+        crate::temporal::TemporalDag::empty().unfold(indexer.clone())
+    }
+
+    /// Build an admitted empty temporal window with the caller's budget and context.
+    /// # Errors
+    /// Limit, cancellation, admission or invalid coordinate refusal.
+    pub fn from_unfolding_within(
+        indexer: &antecedent_core::TemporalIndexer,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::unfold::AdmittedUnfoldedTemporalGraph, GraphError> {
+        crate::temporal::TemporalDag::empty().unfold_within(indexer.clone(), budget, ctx)
     }
 
     /// Build a DAG with one static node per variable `0..n`.

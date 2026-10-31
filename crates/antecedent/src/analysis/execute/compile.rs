@@ -112,6 +112,16 @@ impl super::Study {
     /// derived from the stored graph, so the matching accessor (`as_dag`, `as_pag`, …)
     /// is always `Some` for the variant that accessor feeds.
     pub fn compile_logical(&self) -> Result<LogicalAnalysisPlan, CausalError> {
+        self.compile_logical_within(&ExecutionContext::production_default(0))
+    }
+
+    /// Compile logical planning with the caller's resource and cancellation context.
+    /// # Errors
+    /// Invalid input or operational refusal.
+    pub fn compile_logical_within(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
         if self.graph_posterior.is_some() {
             // A graph posterior is a mixture over structures, not one structure — there is
             // no single logical plan to inspect. `self.graph` here is only the placeholder
@@ -121,7 +131,7 @@ impl super::Study {
                           use compile()/run() instead",
             });
         }
-        self.compile_logical_from(&self.route_input()?)
+        self.compile_logical_from(&self.route_input()?, ctx)
     }
 
     #[allow(
@@ -131,6 +141,7 @@ impl super::Study {
     fn compile_logical_from(
         &self,
         input: &RouteInput<'_>,
+        ctx: &ExecutionContext,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let mut plan = match *input {
             RouteInput::StaticResponseDag { data, query: q, graph } => {
@@ -181,7 +192,7 @@ impl super::Study {
                 self.compile_logical_temporal_effect_dag(data, q, graph, classification)
             }
             RouteInput::TemporalEffectAdmg { data, query: q, graph } => {
-                self.compile_logical_temporal_effect_admg(data, q, graph)
+                self.compile_logical_temporal_effect_admg(data, q, graph, ctx)
             }
             RouteInput::TemporalResponseDag { data, query: q, graph } => {
                 self.compile_logical_temporal_response_dag(data, q, graph)
@@ -229,13 +240,13 @@ impl super::Study {
                 self.compile_logical_temporal_mediation_dag(data, q, graph)
             }
             RouteInput::TemporalMediationPag { data, query } => {
-                self.compile_logical_temporal_mediation_pag(data, query)
+                self.compile_logical_temporal_mediation_pag(data, query, ctx)
             }
             RouteInput::TemporalMediationCpdag { data, query } => {
                 self.compile_logical_temporal_mediation_class(data, query)
             }
             RouteInput::TemporalMediationAdmg { data, query } => {
-                self.compile_logical_temporal_mediation_admg(data, query)
+                self.compile_logical_temporal_mediation_admg(data, query, ctx)
             }
             RouteInput::StaticMediationDag { data, graph, source } => {
                 self.compile_logical_static_mediation(data, graph, source)
@@ -700,19 +711,62 @@ impl super::Study {
         data: &TimeSeriesData,
         q: &TemporalEffectQuery,
         graph: &TemporalAdmg,
+        ctx: &ExecutionContext,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
-        q.validate()?;
-        let template_variables: std::collections::BTreeSet<VariableId> = graph
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                antecedent_core::NodeRef::Lagged { variable, .. } => Some(*variable),
-                _ => None,
-            })
-            .collect();
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.compile_logical_temporal_effect_admg_within(data, q, graph, &mut budget, ctx)
+    }
+
+    fn compile_logical_temporal_effect_admg_within(
+        &self,
+        data: &TimeSeriesData,
+        q: &TemporalEffectQuery,
+        graph: &TemporalAdmg,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<LogicalAnalysisPlan, CausalError> {
+        let window = antecedent_identify::temporal_admg::plan_temporal_admg_window_within(
+            graph, q, budget, ctx,
+        )?;
+        let count = (graph.nodes().len() as u64)
+            .checked_add(q.effect_modifiers.len() as u64)
+            .and_then(|n| n.checked_add(2))
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal planning count overflow".into(),
+            })?;
+        budget
+            .charge_work(count.checked_mul(128).ok_or_else(|| CausalError::Resource {
+                message: "temporal planning work overflow".into(),
+            })?)
+            .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = count.checked_mul(256).and_then(|n| n.checked_add(4096)).ok_or_else(|| {
+            CausalError::Resource { message: "temporal planning bytes overflow".into() }
+        })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "temporal planning byte limit".into() });
+        }
+        let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal planning" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let mut template_variables = std::collections::BTreeSet::<VariableId>::new();
+        for node in graph.nodes() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal planning" });
+            }
+            if let antecedent_core::NodeRef::Lagged { variable, .. } = node {
+                template_variables.insert(*variable);
+            }
+        }
         for variable in
             [q.treatment, q.outcome].into_iter().chain(q.effect_modifiers.iter().copied())
         {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal planning" });
+            }
             if !template_variables.contains(&variable) {
                 return Err(crate::compile_reason!(
                     "unknown_variable",
@@ -788,12 +842,12 @@ impl super::Study {
             CausalQuery::TemporalEffect(q.clone()),
             data.row_count() as u64,
         );
-        if let Ok(window) = antecedent_identify::temporal_admg::plan_temporal_admg_window(graph, q)
-        {
-            // The estimator reads one column per template variable and window period.
-            logical.design_columns_hint =
-                (u64::from(window.periods) * template_variables.len() as u64).max(1);
-        }
+        logical.design_columns_hint = u64::from(window.periods)
+            .checked_mul(template_variables.len() as u64)
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal design column count overflow".into(),
+            })?
+            .max(1);
         logical.validate()?;
         Ok(logical)
     }
@@ -1179,14 +1233,24 @@ impl super::Study {
         &self,
         data: &TimeSeriesData,
         query: &MediationQuery,
+        ctx: &ExecutionContext,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let GraphRef::TemporalAdmg(template) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
                 message: "temporal ADMG mediation requires a supplied TemporalAdmg".into(),
             });
         };
-        let effect = super::temporal_admg_mediation::window_effect_query(query)?;
-        let mut plan = self.compile_logical_temporal_effect_admg(data, &effect, template)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let effect =
+            super::temporal_admg_mediation::window_effect_query_within(query, &mut budget, ctx)?;
+        let mut plan = self.compile_logical_temporal_effect_admg_within(
+            data,
+            &effect,
+            template,
+            &mut budget,
+            ctx,
+        )?;
         plan.record.plan_id = Arc::from(PlanId::TemporalAdmgMediation.as_str());
         plan.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
         plan.record.estimator = Some(Arc::from(EstimatorId::FunctionalEffect.as_str()));
@@ -1203,13 +1267,17 @@ impl super::Study {
         &self,
         data: &TimeSeriesData,
         query: &MediationQuery,
+        ctx: &ExecutionContext,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
             return Err(CausalError::Compile {
                 message: "temporal PAG mediation requires a supplied TemporalPag".into(),
             });
         };
-        let effect = super::temporal_admg_mediation::window_effect_query(query)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let effect =
+            super::temporal_admg_mediation::window_effect_query_within(query, &mut budget, ctx)?;
         if self.declared.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
             || self
                 .caller_selected_estimator()
@@ -1242,11 +1310,13 @@ impl super::Study {
         let variable_count = u32::try_from(data.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
-        antecedent_identify::temporal_pag_mediation_window(
+        antecedent_identify::temporal_pag_mediation_window_within(
             template,
             &effect,
             query,
             variable_count,
+            &mut budget,
+            ctx,
         )
         .map_err(CausalError::from)?;
         let mut plan = compile_logical_temporal_effect_classified(
@@ -2110,24 +2180,24 @@ impl super::Study {
             | RouteInput::PanelTemporalResponseDag { graph, .. }
             | RouteInput::PanelTemporalEffectDag { graph, .. }
             | RouteInput::TemporalMediationDag { graph, .. } => self
-                .compile_logical_from(input)?
+                .compile_logical_from(input, ctx)?
                 .compile_physical_with_graph(ctx, Some(graph.clone())),
             RouteInput::StaticResponsePag { pag, .. }
             | RouteInput::StaticAtePag { pag, .. }
             | RouteInput::ConditionalPag { pag, .. } => self
-                .compile_logical_from(input)?
+                .compile_logical_from(input, ctx)?
                 .compile_physical_with_all_graphs(ctx, None, None, Some(pag.clone())),
             RouteInput::ConditionalDag { graph, .. }
             | RouteInput::StaticMediationDag { graph, .. }
             | RouteInput::GcmDag { graph, .. }
             | RouteInput::GcmAttributeDag { graph, .. }
             | RouteInput::GcmSimulateDag { graph, .. } => self
-                .compile_logical_from(input)?
+                .compile_logical_from(input, ctx)?
                 .compile_physical_with_graphs(ctx, None, Some(graph.clone())),
             // A DAG schema is carried into the physical plan; every other structure class
             // compiles as the design alone, which never reads the structure.
             RouteInput::InterferenceDag { class, .. } => {
-                let logical = self.compile_logical_from(input)?;
+                let logical = self.compile_logical_from(input, ctx)?;
                 match self.graph.as_dag() {
                     Some(graph) if class == GraphClass::Dag => {
                         logical.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
@@ -2137,7 +2207,7 @@ impl super::Study {
             }
             RouteInput::DiscoverStatic { query, .. }
             | RouteInput::DiscoverTemporal { query, .. } => {
-                let mut plan = self.compile_logical_from(input)?.compile_physical(ctx)?;
+                let mut plan = self.compile_logical_from(input, ctx)?.compile_physical(ctx)?;
                 // The search runs its own engine, not an adjustment design.
                 plan.record.kernels = Arc::from([(
                     Arc::from(format!("discovery.{}", query.method.id())),
@@ -2186,7 +2256,7 @@ impl super::Study {
             | RouteInput::GcmClass { .. }
             | RouteInput::GcmTemporalClass { .. }
             | RouteInput::TemporalCrossWorldClass { .. } => {
-                self.compile_logical_from(input)?.compile_physical(ctx)
+                self.compile_logical_from(input, ctx)?.compile_physical(ctx)
             }
         }
     }
@@ -2198,10 +2268,14 @@ impl super::Study {
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         let admg = mixed_admg(self)?;
         if admg_has_bidirected(&admg) {
-            self.compile_logical_from(input)?.compile_physical(ctx)
+            self.compile_logical_from(input, ctx)?.compile_physical(ctx)
         } else {
             let dag = admg_without_latents_to_dag(&admg)?;
-            self.compile_logical_from(input)?.compile_physical_with_graphs(ctx, None, Some(dag))
+            self.compile_logical_from(input, ctx)?.compile_physical_with_graphs(
+                ctx,
+                None,
+                Some(dag),
+            )
         }
     }
 

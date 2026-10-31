@@ -83,7 +83,7 @@ pub(crate) use crate::analysis::identification_cache::{
     build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
-    build_temporal_class_posterior_identification_cache, temporal_dag_from_dbn_atom,
+    build_temporal_class_posterior_identification_cache,
 };
 #[cfg(test)]
 pub(crate) use crate::analysis::identification_cache::{
@@ -199,6 +199,7 @@ struct RetainedBranch {
 /// Retained state for sampled-data modalities of the common prepared handle.
 #[derive(Clone, Debug)]
 pub struct SampledPreparedState {
+    pub(crate) temporal_namespace: Option<super::contract::AdmittedWindowNamespace>,
     pub(super) data_diagnostics: Option<Arc<crate::DataDiagnosticsReport>>,
     /// Frozen analysis config (data slot replaced only by checked refresh).
     analysis: Study,

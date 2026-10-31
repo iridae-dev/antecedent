@@ -245,6 +245,22 @@ impl Admg {
         self.directed.try_insert(from, to)
     }
 
+    pub(crate) fn insert_directed_temporal(
+        &mut self,
+        from: DenseNodeId,
+        to: DenseNodeId,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(), GraphError> {
+        self.validate_node(from)?;
+        self.validate_node(to)?;
+        if from == to {
+            return Err(GraphError::InvalidEndpoints {
+                message: "Admg rejects directed self-loops",
+            });
+        }
+        self.directed.try_insert_temporal(from, to, ctx)
+    }
+
     /// Insert bidirected edge `a ↔ b` (latent confounder).
     ///
     /// # Errors

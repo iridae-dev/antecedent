@@ -209,7 +209,7 @@ impl CheckedTemporalResponseExecution {
                 identification: first.identification(),
                 offsets: (
                     first.effect_query().try_treatment_offset()?,
-                    first.effect_query().outcome_offset(),
+                    first.effect_query().outcome_offset()?,
                 ),
             },
             (self.operation.inference(), self.operation.procedure().bootstrap_replicates),

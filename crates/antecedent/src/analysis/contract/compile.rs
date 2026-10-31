@@ -504,7 +504,14 @@ pub(super) fn compile_with_payloads(
         cached,
         study.declared.population_registry.as_ref(),
     )?;
-    body.window_variables = window_namespace(study);
+    body.window_variables = if let Some(prepared) = prepared {
+        prepared.state.temporal_namespace.clone()
+    } else {
+        let ctx = ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        window_namespace(study, &mut budget, &ctx)?
+    };
     let (evidence_obligations, evidence_actions) = evidence_needs::derive(study, cached);
     let functional = contract_functional_label(study, resolved_estimator.as_deref());
     Ok((

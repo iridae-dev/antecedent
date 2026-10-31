@@ -371,3 +371,35 @@ fn dbn_mediation_refuses_a_retained_proof_for_other_intervention_levels() {
         .expect_err("a proof with the same graph weights must still match the intervention levels");
     assert!(error.to_string().contains("another query or horizon"), "{error}");
 }
+
+#[test]
+fn dbn_template_admission_refuses_work_and_cancellation_before_conversion() {
+    let posterior = graph_posterior();
+    let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+    let ctx = ExecutionContext::for_tests(12);
+    let mut limits = ctx.temporal_materialization_limits();
+    limits.max_work = 0;
+    let mut budget = antecedent_core::TemporalBudget::new(limits);
+    assert!(matches!(
+        crate::analysis::identification_cache::admitted_temporal_dag_atom(
+            &posterior,
+            0,
+            &variables,
+            &mut budget,
+            &ctx,
+        ),
+        Err(CausalError::Resource { .. })
+    ));
+    ctx.cancellation.cancel();
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    assert!(matches!(
+        crate::analysis::identification_cache::admitted_temporal_dag_atom(
+            &posterior,
+            0,
+            &variables,
+            &mut budget,
+            &ctx,
+        ),
+        Err(CausalError::Cancelled { .. })
+    ));
+}

@@ -73,7 +73,11 @@ pub use block::{
 };
 pub use bootstrap::circular_block_positions_into;
 pub(crate) use plan::plan_temporal_intervention;
-pub use plan::{TemporalInterventionPlan, plan_from_response_query};
+pub use plan::{
+    AdmittedIdentificationSchedule, AdmittedMechanismOverlays, TemporalInterventionKind,
+    TemporalInterventionPlan, plan_from_response_query, requires_temporal_overlays,
+    single_temporal_intervention, validate_temporal_response_within,
+};
 pub use surface::{JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES, PreparedTemporalSurface};
 
 /// Temporal response estimator: dose × horizon surfaces and temporal intervention responses.
@@ -190,7 +194,9 @@ impl TemporalResponseEstimator {
         // continuation from the planner. Enforce the complete ResponseQuery
         // contract here so callers cannot bypass treatment/outcome, observation,
         // or intervention validation and still receive a numerical response.
-        query.validate()?;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        validate_temporal_response_within(query, &mut temporal_budget, ctx)?;
         if query.observation != ObservationSpec::Complete {
             return Err(EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("route_not_supported"),
@@ -237,24 +243,31 @@ impl TemporalResponseEstimator {
                 ctx,
             ),
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                match plan_temporal_intervention(interventions, temporal)? {
-                    TemporalInterventionPlan::Single { treatment, level, shift } => self
+                match plan_temporal_intervention(
+                    interventions,
+                    temporal,
+                    &mut temporal_budget,
+                    ctx,
+                )?
+                .kind()
+                {
+                    TemporalInterventionKind::Single { treatment, level, shift } => self
                         .estimate_intervention_curve(
                             &SurfaceProblem {
                                 data,
                                 identifications,
                                 outcome: *outcome,
-                                treatment,
+                                treatment: *treatment,
                                 temporal,
                             },
-                            level,
-                            shift,
+                            *level,
+                            *shift,
                             identification_status,
                             assumptions,
                             ctx,
                         ),
-                    TemporalInterventionPlan::Sequential { .. }
-                    | TemporalInterventionPlan::Mechanisms { .. } => {
+                    TemporalInterventionKind::Sequential { .. }
+                    | TemporalInterventionKind::Mechanisms { .. } => {
                         Err(EstimationError::unsupported_coded(
                             antecedent_core::reason_code!("route_not_supported"),
                             "multi-step and joint Sequence overlays require the unfolded \
@@ -537,7 +550,9 @@ impl TemporalResponseEstimator {
         query: &ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<PreparedTemporalSurface, EstimationError> {
-        query.validate()?;
+        let mut temporal_budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        validate_temporal_response_within(query, &mut temporal_budget, ctx)?;
         let temporal = query.temporal.as_ref().ok_or_else(|| {
             EstimationError::unsupported_coded(
                 antecedent_core::reason_code!("required_option_missing"),
@@ -561,10 +576,17 @@ impl TemporalResponseEstimator {
                 (treatment.variable, *outcome, cells)
             }
             ResponseFunctional::InterventionResponse { outcome, interventions } => {
-                match plan_temporal_intervention(interventions, temporal)? {
-                    TemporalInterventionPlan::Single { treatment, level, shift } => {
-                        let eval = level.map_or(CellEval::Shift(shift), CellEval::Dose);
-                        (treatment, *outcome, (0..n_h).map(|h| (h, eval)).collect())
+                match plan_temporal_intervention(
+                    interventions,
+                    temporal,
+                    &mut temporal_budget,
+                    ctx,
+                )?
+                .kind()
+                {
+                    TemporalInterventionKind::Single { treatment, level, shift } => {
+                        let eval = level.map_or(CellEval::Shift(*shift), CellEval::Dose);
+                        (*treatment, *outcome, (0..n_h).map(|h| (h, eval)).collect())
                     }
                     _ => {
                         return Err(EstimationError::unsupported_coded(

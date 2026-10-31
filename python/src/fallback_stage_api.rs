@@ -99,6 +99,7 @@ pub(crate) struct FallbackStage {
     candidates: Vec<DurableStudyCandidate>,
     seed: u64,
     threads: u32,
+    metadata_context: ExecutionContext,
 }
 
 fn unavailable(reason: &FallbackUnavailable) -> (String, String, String, String) {
@@ -140,7 +141,12 @@ impl FallbackStage {
         let Ok(part) = &self.fallback.associational else {
             return Ok(None);
         };
-        let raw = crate::ate_result_from_analysis(&self.names, &part.result, false)?;
+        let raw = crate::ate_result_from_analysis(
+            &self.names,
+            &part.result,
+            false,
+            &self.metadata_context,
+        )?;
         let handle = crate::prepared_api::PyPreparedAnalysis::from_completed(
             Arc::new(part.prepared.clone()),
             Arc::new(part.result.clone()),
@@ -258,6 +264,7 @@ pub(crate) fn describe_refusal(
                 candidates,
                 seed,
                 threads,
+                metadata_context: ctx.clone(),
             };
             Python::attach(|py| {
                 if let Ok(object) = Py::new(py, stage) {

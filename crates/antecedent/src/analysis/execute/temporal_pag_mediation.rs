@@ -23,14 +23,14 @@ use antecedent_estimate::TemporalMediationEstimate;
 use antecedent_graph::TemporalPag;
 use antecedent_identify::{
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, TemporalClassEnvelope,
-    TemporalPagMediationWindow, temporal_pag_mediation_window,
+    TemporalPagMediationWindow, temporal_pag_mediation_window_within,
 };
 
 use super::class_path_specific::ClassPathRun;
 use super::mediation_mixed::{ComponentRun, component_slot, joint_diagnostic};
 use super::mediation_refutation::{MemberProofs, envelope_cases};
 use super::pag_path::{ClassTag, pag_envelope_diagnostic};
-use super::temporal_admg_mediation::window_effect_query;
+use super::temporal_admg_mediation::window_effect_query_within;
 use super::{
     CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext,
     GraphRef, IdentificationStatus, Instant, PathSpecificMixedSource, PhysicalExecutionPlan,
@@ -115,10 +115,14 @@ impl super::Study {
         &self,
         template: &TemporalPag,
         window: &TemporalPagMediationWindow,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<TemporalClassEnvelope, CausalError> {
-        let mut config =
-            GeneralizedAdjustmentConfig { context: Some(ctx.clone()), ..Default::default() };
+        let mut config = GeneralizedAdjustmentConfig {
+            context: Some(ctx.clone()),
+            temporal_budget: Some(budget.clone()),
+            ..Default::default()
+        };
         if let Some(max) = self.declared.max_completions {
             config.max_completions = max;
         }
@@ -140,6 +144,7 @@ impl super::Study {
         template: &TemporalPag,
         windows: &[TemporalPagMediationWindow],
         requested: usize,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<Vec<Option<TemporalClassEnvelope>>, CausalError> {
         let mut envelopes: Vec<Option<TemporalClassEnvelope>> = Vec::new();
@@ -149,7 +154,7 @@ impl super::Study {
                     stage: crate::analysis::stage::STAGE_IDENTIFY,
                 });
             }
-            let envelope = match self.identify_temporal_pag_window(template, window, ctx) {
+            let envelope = match self.identify_temporal_pag_window(template, window, budget, ctx) {
                 Ok(envelope) if fully_identified(&envelope) => Some(envelope),
                 Ok(envelope) if slot == requested => {
                     return Err(CausalError::not_identified(
@@ -182,30 +187,36 @@ impl super::Study {
         variable_count: u32,
         ctx: &ExecutionContext,
     ) -> Result<Option<crate::planner::lowered::RetainedExecutionProof>, CausalError> {
-        let inputs = (|| {
-            let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
-                return None;
-            };
-            let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
-                return None;
-            };
-            let effect = window_effect_query(query).ok()?;
-            let base =
-                temporal_pag_mediation_window(template, &effect, query, variable_count).ok()?;
-            let windows: Vec<TemporalPagMediationWindow> = CONTRASTS
-                .iter()
-                .map(|(contrast, _)| {
-                    let mut window = base.clone();
-                    window.query.contrast = *contrast;
-                    window
-                })
-                .collect();
-            Some((template, windows, component_slot(query.contrast)))
-        })();
-        let Some((template, windows, requested)) = inputs else {
+        let GraphRef::TemporalPag(template) = self.graph.graph_ref() else {
             return Ok(None);
         };
-        match self.identify_pag_window_components(template, &windows, requested, ctx) {
+        let antecedent_core::CausalQuery::Mediation(query) = &self.query else {
+            return Ok(None);
+        };
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let base = (|| -> Result<_, CausalError> {
+            let effect = window_effect_query_within(query, &mut budget, ctx)?;
+            Ok(temporal_pag_mediation_window_within(
+                template,
+                &effect,
+                query,
+                variable_count,
+                &mut budget,
+                ctx,
+            )?)
+        })();
+        let base = match base {
+            Ok(base) => base,
+            Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                return Err(error);
+            }
+            Err(_) => return Ok(None),
+        };
+        let windows: Vec<TemporalPagMediationWindow> =
+            CONTRASTS.iter().map(|(contrast, _)| base.with_contrast(*contrast)).collect();
+        let requested = component_slot(query.contrast);
+        match self.identify_pag_window_components(template, &windows, requested, &mut budget, ctx) {
             Ok(envelopes) => {
                 Ok(Some(crate::planner::lowered::RetainedExecutionProof::Pag { envelopes }))
             }
@@ -230,6 +241,19 @@ impl super::Study {
         series: &TimeSeriesData,
         query: &MediationQuery,
         physical: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.execute_temporal_pag_mediation_within(series, query, physical, &mut budget, ctx)
+    }
+
+    pub(crate) fn execute_temporal_pag_mediation_within(
+        &self,
+        series: &TimeSeriesData,
+        query: &MediationQuery,
+        physical: &PhysicalExecutionPlan,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if !self.declared.custom_validators.is_empty() {
@@ -257,19 +281,20 @@ impl super::Study {
         let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
-        let effect = window_effect_query(query)?;
-        let base = temporal_pag_mediation_window(template, &effect, query, variable_count)
-            .map_err(CausalError::from)?;
+        let effect = window_effect_query_within(query, budget, ctx)?;
+        let base = temporal_pag_mediation_window_within(
+            template,
+            &effect,
+            query,
+            variable_count,
+            budget,
+            ctx,
+        )
+        .map_err(CausalError::from)?;
 
         let requested = component_slot(query.contrast);
-        let windows: Vec<TemporalPagMediationWindow> = CONTRASTS
-            .iter()
-            .map(|(contrast, _)| {
-                let mut window = base.clone();
-                window.query.contrast = *contrast;
-                window
-            })
-            .collect();
+        let windows: Vec<TemporalPagMediationWindow> =
+            CONTRASTS.iter().map(|(contrast, _)| base.with_contrast(*contrast)).collect();
         // The window is identified once, at compile, and the program retains the
         // certificates; a plan that retained none identifies here.
         let envelopes =
@@ -279,7 +304,7 @@ impl super::Study {
                 envelopes.clone()
             } else {
                 report_identify_compute(ctx);
-                self.identify_pag_window_components(template, &windows, requested, ctx)?
+                self.identify_pag_window_components(template, &windows, requested, budget, ctx)?
             };
         let requested_envelope = envelopes[requested].clone().ok_or_else(|| {
             CausalError::Compile { message: "requested contrast has no proof".into() }
@@ -299,7 +324,7 @@ impl super::Study {
             .collect();
         used.sort_unstable();
         used.dedup();
-        let table = window_table_over(series, &variables, periods, &used, &ctx.kernel_policy)?;
+        let table = window_table_over(series, &variables, periods, &used, budget, ctx)?;
         let (resampling, design) = self.window_row_resampling(periods)?;
         let disclosure = window_disclosure(
             &base,
@@ -383,8 +408,8 @@ impl super::Study {
             });
         }
         let mut wq_roles =
-            vec![windows[requested].query.treatment, windows[requested].query.outcome];
-        wq_roles.extend(windows[requested].query.mediators.iter().copied());
+            vec![windows[requested].query().treatment, windows[requested].query().outcome];
+        wq_roles.extend(windows[requested].query().mediators.iter().copied());
         let result = self.estimate_components(
             table,
             ComponentRun {
@@ -436,7 +461,7 @@ impl super::Study {
             results.push(match entry {
                 Some(found) => Some(self.finish_class_path_specific(
                     table,
-                    PathSpecificMixedSource::Mediation(&windows[slot].query),
+                    PathSpecificMixedSource::Mediation(windows[slot].query()),
                     ClassPathRun {
                         envelope: &found.envelope,
                         class: ClassTag::TemporalPag,
@@ -498,8 +523,8 @@ impl super::Study {
                 .map(|entry| entry.as_ref().map(|found| envelope_cases(&found.envelope)))
                 .collect();
         let mut member_roles =
-            vec![windows[requested].query.treatment, windows[requested].query.outcome];
-        member_roles.extend(windows[requested].query.mediators.iter().copied());
+            vec![windows[requested].query().treatment, windows[requested].query().outcome];
+        member_roles.extend(windows[requested].query().mediators.iter().copied());
         result.refutations = self.refute_mediation_members(
             table,
             MemberProofs { per_slot: &per_slot, requested, estimator_id },

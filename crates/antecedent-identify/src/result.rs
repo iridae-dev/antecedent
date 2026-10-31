@@ -133,9 +133,20 @@ pub struct IdentificationResult {
     /// Empty when every estimand shares [`Self::status`] and
     /// [`Self::required_assumptions`] (single-strategy results).
     pub estimand_claims: Vec<EstimandClaim>,
+    /// Runtime-only admission for a copied temporal query or schedule.
+    pub(crate) temporal_leases: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 impl IdentificationResult {
+    /// Retain a lease covering temporal values stored in this result.
+    #[doc(hidden)]
+    pub fn retain_temporal_lease(
+        &mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) {
+        self.temporal_leases.push(lease);
+    }
+
     /// Primary average-effect query, if present.
     #[must_use]
     pub fn average_effect(&self) -> Option<&AverageEffectQuery> {
@@ -166,6 +177,7 @@ impl IdentificationResult {
             performance,
             hedge: None,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         }
     }
 
@@ -190,6 +202,7 @@ impl IdentificationResult {
             performance,
             hedge: None,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         }
     }
 
@@ -212,6 +225,7 @@ impl IdentificationResult {
             performance,
             hedge: None,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         }
     }
 
@@ -236,6 +250,7 @@ impl IdentificationResult {
             performance,
             hedge: Some(hedge),
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         }
     }
 
@@ -264,6 +279,7 @@ impl IdentificationResult {
             performance,
             hedge,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         }
     }
 

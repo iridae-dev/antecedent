@@ -73,9 +73,9 @@ pub(super) fn map_ate(
     names: &[String],
     result: &antecedent::StudyResult,
     _prepared: &PreparedStudy,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> PyResult<AteAnalysisResult> {
-    ate_result_from_analysis(names, result, false)
+    ate_result_from_analysis(names, result, false, ctx)
 }
 
 pub(super) fn refuse_unstaged(inner: &PreparedStudy) -> PyResult<()> {

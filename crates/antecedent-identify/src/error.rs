@@ -284,3 +284,32 @@ impl IdentificationError {
         }
     }
 }
+
+/// Preserve operational and policy semantics when temporal materialization refuses.
+pub(crate) fn temporal_graph_error(error: antecedent_graph::GraphError) -> IdentificationError {
+    match error {
+        antecedent_graph::GraphError::TemporalMaterialization(error) => {
+            temporal_materialization_error(error)
+        }
+        other => IdentificationError::from(other),
+    }
+}
+
+pub(crate) fn temporal_materialization_error(
+    error: antecedent_core::TemporalMaterializationError,
+) -> IdentificationError {
+    use antecedent_core::TemporalMaterializationError as T;
+    match error {
+        T::Cancelled | T::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+            IdentificationError::Cancelled
+        }
+        T::Admission(_)
+        | T::Allocation
+        | T::Limit { dimension: "bytes" | "graph nodes" | "graph edges" } => {
+            IdentificationError::budget(IdentificationBudget::Memory)
+        }
+        T::Policy(error) => IdentificationError::construction(error),
+        T::Limit { .. } => IdentificationError::budget(IdentificationBudget::Steps),
+        _ => IdentificationError::budget(IdentificationBudget::Memory),
+    }
+}

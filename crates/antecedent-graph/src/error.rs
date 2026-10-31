@@ -116,6 +116,9 @@ pub enum GraphError {
         /// Why the node has no lagged representation.
         reason: &'static str,
     },
+    /// Temporal graph materialization was cancelled or exceeded its caller's admission.
+    #[error(transparent)]
+    TemporalMaterialization(#[from] antecedent_core::TemporalMaterializationError),
     /// Node capacity exceeded.
     #[error("too many nodes")]
     TooManyNodes,

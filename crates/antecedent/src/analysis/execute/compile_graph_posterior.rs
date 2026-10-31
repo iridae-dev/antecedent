@@ -491,6 +491,21 @@ impl super::Study {
         q: &antecedent_core::MediationQuery,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let _validation = antecedent_core::admit_temporal_intervention_validation(
+            [&q.control, &q.active],
+            &mut budget,
+            ctx,
+        )
+        .map_err(|e| {
+            CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+        })?;
+        budget
+            .charge_work((q.mediators.len() as u64).saturating_add(q.horizons.len() as u64))
+            .map_err(|e| {
+                CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+            })?;
         q.validate()?;
         let class = match &self.data {
             DataInput::Event(_) => DataClassification::Event,
@@ -508,7 +523,7 @@ impl super::Study {
             // Each atom's three components are identified on its own window by the
             // path-specific identifier and evaluated by the discrete plug-in; one outcome
             // horizon names the window.
-            super::temporal_admg_mediation::window_effect_query(q)?;
+            super::temporal_admg_mediation::window_effect_query_within(q, &mut budget, ctx)?;
             logical.record.plan_id =
                 Arc::from(super::plan_id::PlanId::TemporalAdmgMediation.as_str());
             logical.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));
@@ -520,7 +535,7 @@ impl super::Study {
         {
             // Each atom is a temporal PAG read through the ADMGs of its window, as a supplied
             // one is; one outcome horizon names the window.
-            super::temporal_admg_mediation::window_effect_query(q)?;
+            super::temporal_admg_mediation::window_effect_query_within(q, &mut budget, ctx)?;
             logical.record.plan_id =
                 Arc::from(super::plan_id::PlanId::TemporalPagMediation.as_str());
             logical.record.identifier = Some(Arc::from(IdentifierId::PathSpecificNatural.as_str()));

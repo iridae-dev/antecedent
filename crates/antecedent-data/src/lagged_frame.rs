@@ -161,13 +161,57 @@ impl LaggedFrame {
         options: LaggedFrameOptions,
         _policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
+        Self::from_series_options_inner(data, variables, max_lag, reference, options, _policy, None)
+    }
+
+    /// Materialize with cancellation polling; callers must admit the quoted buffers.
+    /// # Errors
+    /// Invalid input or cancellation.
+    pub fn from_series_with_options_and_context(
+        data: &TimeSeriesData,
+        variables: &[VariableId],
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+        options: LaggedFrameOptions,
+        policy: &KernelPolicy,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, DataError> {
+        Self::from_series_options_inner(
+            data,
+            variables,
+            max_lag,
+            reference,
+            options,
+            policy,
+            Some(ctx),
+        )
+    }
+
+    fn from_series_options_inner(
+        data: &TimeSeriesData,
+        variables: &[VariableId],
+        max_lag: u32,
+        reference: ReferencePointPolicy,
+        options: LaggedFrameOptions,
+        _policy: &KernelPolicy,
+        ctx: Option<&antecedent_core::ExecutionContext>,
+    ) -> Result<Self, DataError> {
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(DataError::Cancelled);
+        }
         if variables.is_empty() {
             return Err(DataError::empty("lagged frame variables"));
         }
         let lag_map = LagMap::with_reference(data.row_count(), max_lag, reference)?;
         let n_effective = lag_map.n_effective();
-        let n_lags = max_lag as usize + 1;
-        let n_cols = variables.len().saturating_mul(n_lags);
+        let n_lags = usize::try_from(max_lag)
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or_else(|| DataError::overflow("lag count"))?;
+        let n_cols = variables
+            .len()
+            .checked_mul(n_lags)
+            .ok_or_else(|| DataError::overflow("lagged column count"))?;
         let mut sources = Vec::with_capacity(variables.len());
         let mut validity = Vec::with_capacity(n_cols);
         let base_t = lag_map.base_row();
@@ -177,6 +221,9 @@ impl LaggedFrame {
         // Shared by every column whose source and mask are fully valid.
         let all_valid = ValidityBitmap::all_valid(n_effective);
         for &var in variables {
+            if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+                return Err(DataError::Cancelled);
+            }
             let ColumnView::Float64(src) = data.column(var)? else {
                 return Err(DataError::TypeMismatch { id: var, expected: "float64" });
             };
@@ -200,6 +247,9 @@ impl LaggedFrame {
             let clean = src.validity.is_all_valid()
                 && (options.mask == MaskPolicy::Ignore || mask_all_valid);
             for lag in 0..n_lags {
+                if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+                    return Err(DataError::Cancelled);
+                }
                 if clean {
                     validity.push(all_valid.clone());
                 } else {
@@ -212,6 +262,9 @@ impl LaggedFrame {
             sources.push(src.values.clone());
         }
 
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(DataError::Cancelled);
+        }
         let variables: Arc<[VariableId]> = Arc::from(variables);
         let slot_index = slot_map(&variables);
         let values = ColumnValues::Shared { sources, base_t };

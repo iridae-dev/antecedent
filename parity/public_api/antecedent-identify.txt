@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn <antecedent_identify::IdentificationResult>::fn retain_temporal_lease(&mut self, lease: alloc::sync::Arc<antecedent_core::execution::admission::AdmissionLease>)
 #[doc(hidden)] pub fn antecedent_identify::admg_conditional_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
 #[doc(hidden)] pub fn antecedent_identify::counterfactual_id::evaluate_counterfactual_functional(problem: &antecedent_identify::counterfactual_id::CounterfactualIdProblem, derivation: &antecedent_identify::counterfactual_id::CounterfactualIdDerivation, law: &antecedent_expr::exact::ExactDiscreteLaw, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::counterfactual_id::CounterfactualIdPoint, antecedent_identify::counterfactual_id::CounterfactualIdRefusal>
 #[doc(hidden)] pub fn antecedent_identify::counterfactual_transport_refusal(error: &antecedent_identify::IdentificationError) -> core::option::Option<(&'static str, &'static str)>
@@ -300,6 +301,8 @@ impl core::clone::Clone for antecedent_identify::cyclic_calculus::CyclicCalculus
 impl core::clone::Clone for antecedent_identify::cyclic_id::CyclicIdPremises
 impl core::clone::Clone for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportError
+impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportOperational
+impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 impl core::clone::Clone for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::clone::Clone for antecedent_identify::discovered_transport::EnvelopeMember
 impl core::clone::Clone for antecedent_identify::discovered_transport::EnvelopeStatus
@@ -332,6 +335,10 @@ impl core::clone::Clone for antecedent_identify::experimental_recovery::Recovery
 impl core::clone::Clone for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::clone::Clone for antecedent_identify::panel_unrolled::PanelNode
+impl core::clone::Clone for antecedent_identify::panel_unrolled::UnrolledPanelGraph
+impl core::clone::Clone for antecedent_identify::panel_unrolled::UnrolledPanelIdentification
+impl core::clone::Clone for antecedent_identify::panel_unrolled::UnrolledPanelSpec
 impl core::clone::Clone for antecedent_identify::sid::Rule
 impl core::clone::Clone for antecedent_identify::sid::SHedgeCertificate
 impl core::clone::Clone for antecedent_identify::sid::SHedgeRecord
@@ -377,8 +384,10 @@ impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::clone::Clone for antecedent_identify::sid::temporal_sequence::UnrolledSequence
-impl core::clone::Clone for antecedent_identify::temporal_admg::TemporalAdmgIdentification
+impl core::clone::Clone for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification
+impl core::clone::Clone for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
 impl core::clone::Clone for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
+impl core::clone::Clone for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes
 impl core::cmp::Eq for antecedent_identify::AcceptedRegimeContract
 impl core::cmp::Eq for antecedent_identify::ChainPartial
 impl core::cmp::Eq for antecedent_identify::ChainRecoveryDetail
@@ -528,6 +537,7 @@ impl core::cmp::Eq for antecedent_identify::cyclic_calculus::CyclicCalculusRule
 impl core::cmp::Eq for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
 impl core::cmp::Eq for antecedent_identify::cyclic_id::CyclicIdPremises
 impl core::cmp::Eq for antecedent_identify::cyclic_id::CyclicIdStatus
+impl core::cmp::Eq for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 impl core::cmp::Eq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::Eq for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::cmp::Eq for antecedent_identify::discovered_transport::UnresolvedPair
@@ -544,6 +554,8 @@ impl core::cmp::Eq for antecedent_identify::experimental_recovery::InadmissibleC
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::cmp::Eq for antecedent_identify::panel_unrolled::PanelNode
+impl core::cmp::Eq for antecedent_identify::panel_unrolled::UnrolledPanelSpec
 impl core::cmp::Eq for antecedent_identify::sid::Rule
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionDag
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionRecord
@@ -566,6 +578,7 @@ impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::SliceInvaria
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalRefusal
 impl core::cmp::Eq for antecedent_identify::sid::temporal_sequence::TemporalSlots
+impl core::cmp::Eq for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
 impl core::cmp::Eq for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 impl core::cmp::Ord for antecedent_identify::CounterfactualLevel
 impl core::cmp::Ord for antecedent_identify::CounterfactualLevelIndex
@@ -580,6 +593,7 @@ impl core::cmp::Ord for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::Ord for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::Ord for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::cmp::Ord for antecedent_identify::experiment_moments::MissingPair
+impl core::cmp::Ord for antecedent_identify::panel_unrolled::PanelNode
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::Ord for antecedent_identify::sid::scenario_invariance::TargetFactor
 impl core::cmp::PartialEq for antecedent_identify::AcceptedRegimeContract
@@ -761,6 +775,8 @@ impl core::cmp::PartialEq for antecedent_identify::cyclic_calculus::CyclicCalcul
 impl core::cmp::PartialEq for antecedent_identify::cyclic_id::CyclicIdPremises
 impl core::cmp::PartialEq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportError
+impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportOperational
+impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::EnvelopeMember
 impl core::cmp::PartialEq for antecedent_identify::discovered_transport::EnvelopeStatus
@@ -793,6 +809,8 @@ impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::Recove
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::cmp::PartialEq for antecedent_identify::panel_unrolled::PanelNode
+impl core::cmp::PartialEq for antecedent_identify::panel_unrolled::UnrolledPanelSpec
 impl core::cmp::PartialEq for antecedent_identify::sid::Rule
 impl core::cmp::PartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::cmp::PartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -818,6 +836,7 @@ impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::Slice
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalDecisionLimits
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalRefusal
 impl core::cmp::PartialEq for antecedent_identify::sid::temporal_sequence::TemporalSlots
+impl core::cmp::PartialEq for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
 impl core::cmp::PartialEq for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
 impl core::cmp::PartialOrd for antecedent_identify::CounterfactualLevel
 impl core::cmp::PartialOrd for antecedent_identify::CounterfactualLevelIndex
@@ -832,6 +851,7 @@ impl core::cmp::PartialOrd for antecedent_identify::counterfactual_id::CfValue
 impl core::cmp::PartialOrd for antecedent_identify::cross_world::CounterfactualNode
 impl core::cmp::PartialOrd for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::cmp::PartialOrd for antecedent_identify::experiment_moments::MissingPair
+impl core::cmp::PartialOrd for antecedent_identify::panel_unrolled::PanelNode
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::TargetFactor
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_identify::IdentificationError
@@ -872,6 +892,7 @@ impl core::default::Default for antecedent_identify::TemporalMediationIdentifier
 impl core::default::Default for antecedent_identify::TransportIdentifier
 impl core::default::Default for antecedent_identify::UnitMask
 impl core::default::Default for antecedent_identify::experiment_regime::PassiveUnitDeclaration
+impl core::default::Default for antecedent_identify::panel_unrolled::UnrolledPanelSpec
 impl core::default::Default for antecedent_identify::sid::temporal_sequence::HistoryLattice
 impl core::error::Error for antecedent_identify::ChainRecoveryError
 impl core::error::Error for antecedent_identify::IdentificationError
@@ -1142,6 +1163,8 @@ impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdError
 impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdPremises
 impl core::fmt::Debug for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportError
+impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportOperational
+impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 impl core::fmt::Debug for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::fmt::Debug for antecedent_identify::discovered_transport::EnvelopeMember
 impl core::fmt::Debug for antecedent_identify::discovered_transport::EnvelopeStatus
@@ -1174,6 +1197,10 @@ impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryDr
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::fmt::Debug for antecedent_identify::panel_unrolled::PanelNode
+impl core::fmt::Debug for antecedent_identify::panel_unrolled::UnrolledPanelGraph
+impl core::fmt::Debug for antecedent_identify::panel_unrolled::UnrolledPanelIdentification
+impl core::fmt::Debug for antecedent_identify::panel_unrolled::UnrolledPanelSpec
 impl core::fmt::Debug for antecedent_identify::sid::Rule
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeCertificate
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeRecord
@@ -1220,8 +1247,11 @@ impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalS
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::TemporalSlots
 impl core::fmt::Debug for antecedent_identify::sid::temporal_sequence::UnrolledSequence
-impl core::fmt::Debug for antecedent_identify::temporal_admg::TemporalAdmgIdentification
+impl core::fmt::Debug for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification
+impl core::fmt::Debug for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData
+impl core::fmt::Debug for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
 impl core::fmt::Debug for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
+impl core::fmt::Debug for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes
 impl core::fmt::Display for antecedent_identify::ChainRecoveryError
 impl core::fmt::Display for antecedent_identify::IdentificationError
 impl core::fmt::Display for antecedent_identify::ProductRefusal
@@ -1285,6 +1315,7 @@ impl core::hash::Hash for antecedent_identify::experimental_recovery::Inadmissib
 impl core::hash::Hash for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::hash::Hash for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::hash::Hash for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::hash::Hash for antecedent_identify::panel_unrolled::PanelNode
 impl core::marker::Copy for antecedent_identify::BinaryIvLaw
 impl core::marker::Copy for antecedent_identify::ChainPartial
 impl core::marker::Copy for antecedent_identify::ChainRecoveryDetail
@@ -1336,6 +1367,7 @@ impl core::marker::Copy for antecedent_identify::cyclic_calculus::CyclicCalculus
 impl core::marker::Copy for antecedent_identify::cyclic_calculus::CyclicCalculusStatus
 impl core::marker::Copy for antecedent_identify::cyclic_id::CyclicIdPremises
 impl core::marker::Copy for antecedent_identify::cyclic_id::CyclicIdStatus
+impl core::marker::Copy for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 impl core::marker::Copy for antecedent_identify::discovered_transport::EnvelopeStatus
 impl core::marker::Copy for antecedent_identify::discovered_transport_temporal::LaggedEdge
 impl core::marker::Copy for antecedent_identify::experiment_moments::ConstraintRow
@@ -1349,6 +1381,7 @@ impl core::marker::Copy for antecedent_identify::experimental_recovery::PointCol
 impl core::marker::Copy for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::marker::Copy for antecedent_identify::panel_unrolled::PanelNode
 impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
@@ -1609,6 +1642,8 @@ impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdPremises [
 impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
 impl core::marker::Freeze for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
+impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportOperational [auto]
+impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::EnvelopeMember [auto]
 impl core::marker::Freeze for antecedent_identify::discovered_transport::EnvelopeStatus [auto]
@@ -1641,6 +1676,10 @@ impl core::marker::Freeze for antecedent_identify::experimental_recovery::Recove
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Freeze for antecedent_identify::panel_unrolled::PanelNode [auto]
+impl core::marker::Freeze for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
+impl core::marker::Freeze for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
+impl core::marker::Freeze for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
 impl core::marker::Freeze for antecedent_identify::sid::Rule [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeRecord [auto]
@@ -1687,8 +1726,11 @@ impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::Tempo
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Freeze for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
-impl core::marker::Freeze for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
+impl core::marker::Freeze for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification [auto]
+impl core::marker::Freeze for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData [auto]
+impl core::marker::Freeze for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan [auto]
 impl core::marker::Freeze for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
+impl core::marker::Freeze for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes [auto]
 impl core::marker::Send for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Send for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Send for antecedent_identify::AdmgCandidates [auto]
@@ -1945,6 +1987,8 @@ impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdPremises [au
 impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
 impl core::marker::Send for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
+impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportOperational [auto]
+impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::EnvelopeMember [auto]
 impl core::marker::Send for antecedent_identify::discovered_transport::EnvelopeStatus [auto]
@@ -1977,6 +2021,10 @@ impl core::marker::Send for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Send for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Send for antecedent_identify::panel_unrolled::PanelNode [auto]
+impl core::marker::Send for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
+impl core::marker::Send for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
+impl core::marker::Send for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
 impl core::marker::Send for antecedent_identify::sid::Rule [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2023,8 +2071,11 @@ impl core::marker::Send for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Send for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
-impl core::marker::Send for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
+impl core::marker::Send for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification [auto]
+impl core::marker::Send for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData [auto]
+impl core::marker::Send for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan [auto]
 impl core::marker::Send for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
+impl core::marker::Send for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes [auto]
 impl core::marker::StructuralPartialEq for antecedent_identify::AcceptedRegimeContract
 impl core::marker::StructuralPartialEq for antecedent_identify::BinaryIvLaw
 impl core::marker::StructuralPartialEq for antecedent_identify::ChainPartial
@@ -2201,6 +2252,8 @@ impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_calculus:
 impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_id::CyclicIdPremises
 impl core::marker::StructuralPartialEq for antecedent_identify::cyclic_id::CyclicIdStatus
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportError
+impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportOperational
+impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::EnvelopeMember
 impl core::marker::StructuralPartialEq for antecedent_identify::discovered_transport::EnvelopeStatus
@@ -2233,6 +2286,8 @@ impl core::marker::StructuralPartialEq for antecedent_identify::experimental_rec
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::marker::StructuralPartialEq for antecedent_identify::panel_unrolled::PanelNode
+impl core::marker::StructuralPartialEq for antecedent_identify::panel_unrolled::UnrolledPanelSpec
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::Rule
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -2515,6 +2570,8 @@ impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdPremises [au
 impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
 impl core::marker::Sync for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
+impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportOperational [auto]
+impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::EnvelopeMember [auto]
 impl core::marker::Sync for antecedent_identify::discovered_transport::EnvelopeStatus [auto]
@@ -2547,6 +2604,10 @@ impl core::marker::Sync for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Sync for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Sync for antecedent_identify::panel_unrolled::PanelNode [auto]
+impl core::marker::Sync for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
+impl core::marker::Sync for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
+impl core::marker::Sync for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
 impl core::marker::Sync for antecedent_identify::sid::Rule [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2593,8 +2654,11 @@ impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::Tempora
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Sync for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
-impl core::marker::Sync for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
+impl core::marker::Sync for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification [auto]
+impl core::marker::Sync for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData [auto]
+impl core::marker::Sync for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan [auto]
 impl core::marker::Sync for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
+impl core::marker::Sync for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes [auto]
 impl core::marker::Unpin for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::marker::Unpin for antecedent_identify::AdjustmentSearchConfig [auto]
 impl core::marker::Unpin for antecedent_identify::AdmgCandidates [auto]
@@ -2851,6 +2915,8 @@ impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdPremises [a
 impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
 impl core::marker::Unpin for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
+impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportOperational [auto]
+impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::EnvelopeMember [auto]
 impl core::marker::Unpin for antecedent_identify::discovered_transport::EnvelopeStatus [auto]
@@ -2883,6 +2949,10 @@ impl core::marker::Unpin for antecedent_identify::experimental_recovery::Recover
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Unpin for antecedent_identify::panel_unrolled::PanelNode [auto]
+impl core::marker::Unpin for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
+impl core::marker::Unpin for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
+impl core::marker::Unpin for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
 impl core::marker::Unpin for antecedent_identify::sid::Rule [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2929,8 +2999,14 @@ impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::Tempor
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::marker::Unpin for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
-impl core::marker::Unpin for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
+impl core::marker::Unpin for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification [auto]
+impl core::marker::Unpin for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData [auto]
+impl core::marker::Unpin for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan [auto]
 impl core::marker::Unpin for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
+impl core::marker::Unpin for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes [auto]
+impl core::ops::deref::Deref for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification
+impl core::ops::deref::Deref for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
+impl core::ops::deref::Deref for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::AdmgCandidates [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::BinaryIvLaw [auto]
@@ -3178,6 +3254,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id:
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportOperational [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::EnvelopeMember [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::discovered_transport::EnvelopeStatus [auto]
@@ -3210,6 +3288,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::PanelNode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3256,8 +3338,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::tempo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
-impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AcceptedRegimeContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::AdmgCandidates [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::BinaryIvLaw [auto]
@@ -3505,6 +3590,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::Cy
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::cyclic_id::CyclicIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportOperational [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::DiscoveredTransportRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::EnvelopeMember [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::discovered_transport::EnvelopeStatus [auto]
@@ -3537,6 +3624,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::PanelNode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3583,8 +3674,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal_sequence::TemporalSlots [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::temporal_sequence::UnrolledSequence [auto]
-impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_admg::TemporalAdmgWindowPlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes [auto]
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalNonTransportabilityRecord
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalObstructionRecord
 impl serde_core::ser::Serialize for antecedent_identify::ConditionalTransportRecord
@@ -3940,6 +4034,7 @@ pub enum antecedent_identify::cyclic_calculus::CyclicCalculusRule
 pub enum antecedent_identify::cyclic_calculus::CyclicCalculusStatus
 pub enum antecedent_identify::cyclic_id::CyclicIdError
 pub enum antecedent_identify::cyclic_id::CyclicIdStatus
+pub enum antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
 pub enum antecedent_identify::discovered_transport::EnvelopeStatus
 pub enum antecedent_identify::discovered_transport::MemberVerdict
 pub enum antecedent_identify::discovered_transport_temporal::TemporalClass<'a>
@@ -3954,6 +4049,8 @@ pub enum antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
 pub enum antecedent_identify::experimental_recovery::RecoveryWarning
 pub enum antecedent_identify::experimental_recovery::UncertaintyFault
 pub enum antecedent_identify::experimental_recovery::UniquenessRestriction
+pub enum antecedent_identify::panel_unrolled::PanelNode
+pub enum antecedent_identify::panel_unrolled::UnrolledPanelIdentification
 pub enum antecedent_identify::sid::Rule
 pub enum antecedent_identify::sid::cpdag_completion::CpdagEvidence
 pub enum antecedent_identify::sid::cpdag_completion::CpdagScenarioError
@@ -4167,6 +4264,7 @@ pub field antecedent_identify::GeneralizedAdjustmentConfig::max_candidates: usiz
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_completions: usize
 pub field antecedent_identify::GeneralizedAdjustmentConfig::max_examinations: u64
 pub field antecedent_identify::GeneralizedAdjustmentConfig::per_completion_weight: f64
+pub field antecedent_identify::GeneralizedAdjustmentConfig::temporal_budget: core::option::Option<antecedent_core::intervention::TemporalBudget>
 pub field antecedent_identify::GeneralizedAdjustmentIdentifier::config: antecedent_identify::GeneralizedAdjustmentConfig
 pub field antecedent_identify::GraphFeature::detail: alloc::sync::Arc<str>
 pub field antecedent_identify::GraphFeature::kind: alloc::sync::Arc<str>
@@ -4447,7 +4545,7 @@ pub field antecedent_identify::StudySubsetRecord::candidates: alloc::vec::Vec<al
 pub field antecedent_identify::StudySubsetRecord::cost_units: u64
 pub field antecedent_identify::StudySubsetRecord::outcome: antecedent_identify::StudySubsetOutcome
 pub field antecedent_identify::StudySubsetRecord::sample_budget: u64
-pub field antecedent_identify::TemporalAdmgAdjustment::plan: antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
+pub field antecedent_identify::TemporalAdmgAdjustment::plan: antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
 pub field antecedent_identify::TemporalAdmgAdjustment::result: antecedent_identify::IdentificationResult
 pub field antecedent_identify::TemporalAdmgAdjustment::window: antecedent_graph::temporal_admg::UnrolledTemporalAdmg
 pub field antecedent_identify::TemporalBackdoorIdentifier::inner: antecedent_identify::BackdoorIdentifier
@@ -4458,20 +4556,19 @@ pub field antecedent_identify::TemporalIdentificationResult::indexer: antecedent
 pub field antecedent_identify::TemporalIdentificationResult::outcome_key: antecedent_core::temporal::TemporalNodeKey
 pub field antecedent_identify::TemporalIdentificationResult::result: antecedent_identify::IdentificationResult
 pub field antecedent_identify::TemporalIdentificationResult::treatment_key: antecedent_core::temporal::TemporalNodeKey
-pub field antecedent_identify::TemporalIdentificationResult::unfolded: antecedent_graph::unfold::UnfoldedTemporalGraph
+pub field antecedent_identify::TemporalIdentificationResult::unfolded: antecedent_graph::unfold::AdmittedUnfoldedTemporalGraph
 pub field antecedent_identify::TemporalIvIdentifier::config: antecedent_identify::InstrumentSearchConfig
 pub field antecedent_identify::TemporalIvResult::indexer: antecedent_core::temporal::TemporalIndexer
-pub field antecedent_identify::TemporalIvResult::instruments: alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>
+pub field antecedent_identify::TemporalIvResult::instruments: alloc::sync::Arc<[antecedent_core::temporal::TemporalNodeKey]>
 pub field antecedent_identify::TemporalIvResult::outcome_key: antecedent_core::temporal::TemporalNodeKey
 pub field antecedent_identify::TemporalIvResult::result: antecedent_identify::IdentificationResult
 pub field antecedent_identify::TemporalIvResult::treatment_key: antecedent_core::temporal::TemporalNodeKey
-pub field antecedent_identify::TemporalIvResult::uncertified: alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>
-pub field antecedent_identify::TemporalIvResult::unfolded: antecedent_graph::unfold::UnfoldedTemporalGraph
+pub field antecedent_identify::TemporalIvResult::uncertified: alloc::sync::Arc<[antecedent_core::temporal::TemporalNodeKey]>
+pub field antecedent_identify::TemporalIvResult::unfolded: antecedent_graph::unfold::AdmittedUnfoldedTemporalGraph
 pub field antecedent_identify::TemporalMediationIdentifier::allow_natural_controlled_alias: bool
 pub field antecedent_identify::TemporalMediationIdentifier::temporal: antecedent_identify::TemporalBackdoorIdentifier
 pub field antecedent_identify::TemporalPagMediationWindow::indexer: antecedent_core::temporal::TemporalIndexer
 pub field antecedent_identify::TemporalPagMediationWindow::outcome_offset: i32
-pub field antecedent_identify::TemporalPagMediationWindow::query: antecedent_core::query::mediation::MediationQuery
 pub field antecedent_identify::TemporalPagMediationWindow::treatment_offset: i32
 pub field antecedent_identify::TransportCertificate::premises: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_identify::TransportCertificate::rule: alloc::sync::Arc<str>
@@ -4623,6 +4720,9 @@ pub field antecedent_identify::cyclic_id::CyclicIdentification::derivation: allo
 pub field antecedent_identify::cyclic_id::CyclicIdentification::premises: antecedent_identify::cyclic_id::CyclicIdPremises
 pub field antecedent_identify::cyclic_id::CyclicIdentification::program: core::option::Option<antecedent_expr::program::FunctionalProgram>
 pub field antecedent_identify::cyclic_id::CyclicIdentification::status: antecedent_identify::cyclic_id::CyclicIdStatus
+pub field antecedent_identify::discovered_transport::DiscoveredTransportOperational::code: core::option::Option<&'static str>
+pub field antecedent_identify::discovered_transport::DiscoveredTransportOperational::kind: antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind
+pub field antecedent_identify::discovered_transport::DiscoveredTransportOperational::message: alloc::string::String
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::code: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::detail: &'static str
 pub field antecedent_identify::discovered_transport::DiscoveredTransportRefusal::exhausted_search_bounds: usize
@@ -4696,6 +4796,14 @@ pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::noise_c
 pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::noise_mean: alloc::vec::Vec<f64>
 pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::unresolved: alloc::vec::Vec<antecedent_identify::UnresolvedDirection>
 pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::weight: f64
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::carryover_reach: usize
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::channel_persistence: bool
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::channels: usize
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::contexts: usize
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::history_feedback: bool
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::latent_confounding: alloc::vec::Vec<(antecedent_identify::panel_unrolled::PanelNode, antecedent_identify::panel_unrolled::PanelNode)>
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::outcome_persistence: bool
+pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::periods: usize
 pub field antecedent_identify::sid::SHedgeCertificate::larger: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeCertificate::smaller: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeRecord::evidence_setting: alloc::string::String
@@ -4840,13 +4948,13 @@ pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::covariates
 pub field antecedent_identify::sid::temporal_sequence::TemporalSlots::outcome: antecedent_core::ids::VariableId
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::admg: antecedent_graph::admg::Admg
 pub field antecedent_identify::sid::temporal_sequence::UnrolledSequence::slots: antecedent_identify::sid::temporal_sequence::TemporalSlots
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::modifiers: alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::obstruction: core::option::Option<alloc::string::String>
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::outcome: antecedent_core::ids::VariableId
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::plan: antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::result: antecedent_identify::IdentificationResult
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::schedule: alloc::vec::Vec<antecedent_core::ids::VariableId>
-pub field antecedent_identify::temporal_admg::TemporalAdmgIdentification::window: antecedent_graph::temporal_admg::UnrolledTemporalAdmg
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::modifiers: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::obstruction: core::option::Option<alloc::string::String>
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::outcome: antecedent_core::ids::VariableId
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::plan: antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::result: antecedent_identify::IdentificationResult
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::schedule: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData::window: antecedent_graph::temporal_admg::UnrolledTemporalAdmg
 pub field antecedent_identify::temporal_admg::TemporalAdmgWindowPlan::history: u32
 pub field antecedent_identify::temporal_admg::TemporalAdmgWindowPlan::origin: u32
 pub field antecedent_identify::temporal_admg::TemporalAdmgWindowPlan::outcome_period: u32
@@ -4983,16 +5091,19 @@ pub fn <antecedent_identify::CounterfactualTransportDecision>::fn derivation(&se
 pub fn <antecedent_identify::CounterfactualTransportDecision>::fn detail_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn canonical_text(&self) -> alloc::string::String
 pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn replay_checked(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::CounterfactualTransportDerivation>::fn try_canonical_text<E>(&self, check: impl core::ops::function::FnMut(usize) -> core::result::Result<(), E>) -> core::result::Result<alloc::string::String, E>
 pub fn <antecedent_identify::CounterfactualTransportObstruction>::fn verify(&self) -> core::result::Result<antecedent_identify::CounterfactualTransportWitnessCheck, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn bidirected(&self) -> &[(usize, usize)]
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn canonical_text(&self) -> alloc::string::String
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn directed(&self) -> &[(usize, usize)]
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn from_admg(admg: &antecedent_graph::admg::Admg, levels: &[(antecedent_core::ids::VariableId, alloc::vec::Vec<f64>)]) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn index_of(&self, variable: antecedent_core::ids::VariableId) -> core::option::Option<usize>
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn level_count(&self, index: usize) -> core::option::Option<usize>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn level_index(&self, index: usize, level: f64) -> core::option::Option<usize>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn levels(&self, index: usize) -> alloc::vec::Vec<f64>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn new(variables: &[(antecedent_core::ids::VariableId, alloc::vec::Vec<f64>)], directed: &[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)], bidirected: &[(antecedent_core::ids::VariableId, antecedent_core::ids::VariableId)]) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn topological_order(&self) -> &[usize]
+pub fn <antecedent_identify::CounterfactualTransportProblem>::fn try_level_index<E>(&self, index: usize, level: f64, check: impl core::ops::function::FnMut(usize) -> core::result::Result<(), E>) -> core::result::Result<core::option::Option<usize>, E>
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variable_count(&self) -> usize
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_identify::CounterfactualTransportProblem>::fn variables_of_mask(&self, mask: u32) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
@@ -5144,6 +5255,7 @@ pub fn <antecedent_identify::PreparedAdmg>::fn declared_assumptions(&self) -> &a
 pub fn <antecedent_identify::PreparedAdmg>::fn dense_to_var(&self, id: antecedent_graph::types::DenseNodeId) -> core::result::Result<antecedent_core::ids::VariableId, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PreparedAdmg>::fn from_dag(dag: &antecedent_graph::dag::Dag) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PreparedAdmg>::fn from_dag_with_assumptions(dag: &antecedent_graph::dag::Dag, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::PreparedAdmg>::fn from_unrolled_within(window: antecedent_graph::temporal_admg::UnrolledTemporalAdmg, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PreparedAdmg>::fn is_single_c_component(&self, nodes: &antecedent_graph::workspace::BitSet) -> bool
 pub fn <antecedent_identify::PreparedAdmg>::fn new(admg: antecedent_graph::admg::Admg) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::PreparedAdmg>::fn topo(&self) -> &[antecedent_graph::types::DenseNodeId]
@@ -5203,6 +5315,7 @@ pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn identify_temporal(&
 pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn identify_temporal_schedule(&self, template: &antecedent_graph::temporal::TemporalDag, outcome: antecedent_core::ids::VariableId, outcome_at: i32, schedule: &[(antecedent_core::ids::VariableId, i32, core::option::Option<f64>)], max_history_lag: core::option::Option<u32>, target_population: antecedent_core::query::target::TargetPopulation) -> core::result::Result<antecedent_identify::TemporalIdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn new() -> Self
 pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn with_parent_adjustment_fallback(self) -> Self
+pub fn <antecedent_identify::TemporalBackdoorIdentifier>::fn with_temporal_context(self, ctx: &antecedent_core::execution::context::ExecutionContext, budget: &antecedent_core::intervention::TemporalBudget) -> Self
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn digest(&self) -> [u8; 32]
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn digest_without_allocation(&self, should_stop: &dyn core::ops::function::Fn() -> bool) -> core::option::Option<[u8; 32]>
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn fingerprint(&self) -> u64
@@ -5210,11 +5323,15 @@ pub fn <antecedent_identify::TemporalCompletionGraph>::fn fingerprint_without_al
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn has_bidirected(&self) -> bool
 pub fn <antecedent_identify::TemporalCompletionGraph>::fn sequential_dag(&self) -> core::option::Option<antecedent_graph::temporal::TemporalDag>
 pub fn <antecedent_identify::TemporalIvIdentifier>::fn identify_temporal_iv(&self, template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::TemporalIvResult, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::TemporalIvIdentifier>::fn identify_temporal_iv_within(&self, template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::temporal::TemporalEffectQuery, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::TemporalIvResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalIvIdentifier>::fn new() -> Self
-pub fn <antecedent_identify::TemporalMediationIdentifier>::fn adjustment_nodes(template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::mediation::MediationQuery) -> core::result::Result<alloc::vec::Vec<antecedent_core::temporal::TemporalNodeKey>, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::TemporalMediationIdentifier>::fn adjustment_nodes(template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::mediation::MediationQuery) -> core::result::Result<antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::TemporalMediationIdentifier>::fn adjustment_nodes_within(template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::mediation::MediationQuery, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalMediationIdentifier>::fn identify(&self, template: &antecedent_graph::temporal::TemporalDag, query: &antecedent_core::query::mediation::MediationQuery) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalMediationIdentifier>::fn identify_with_horizon(&self, template: &antecedent_graph::temporal::TemporalDag, mediation: &antecedent_core::query::mediation::MediationQuery, horizon_steps: u32) -> core::result::Result<(antecedent_identify::IdentificationResult, antecedent_identify::TemporalIdentificationResult), antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::TemporalMediationIdentifier>::fn new() -> Self
+pub fn <antecedent_identify::TemporalPagMediationWindow>::fn query(&self) -> &antecedent_core::query::mediation::MediationQuery
+pub fn <antecedent_identify::TemporalPagMediationWindow>::fn with_contrast(&self, contrast: antecedent_core::query::mediation::MediationContrast) -> Self
 pub fn <antecedent_identify::TransportIdentification>::fn outcome(&self) -> antecedent_core::query::transport_contract::TransportOutcome
 pub fn <antecedent_identify::TransportIdentifier>::const fn new() -> Self
 pub fn <antecedent_identify::TransportIdentifier>::fn identify(&self, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_core::query::transport::TransportQuery) -> core::result::Result<antecedent_identify::TransportIdentification, antecedent_identify::IdentificationError>
@@ -5313,6 +5430,12 @@ pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertai
 pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn total_mass(&self) -> f64
 pub fn <antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty>::fn try_collapse(&self) -> core::result::Result<antecedent_identify::experimental_recovery::RecoveredCoefficientPoint, antecedent_identify::experimental_recovery::PointCollapseRefusal>
 pub fn <antecedent_identify::experimental_recovery::RecoveryWarning>::const fn design_fault(self) -> antecedent_identify::DesignFault
+pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn admg(&self) -> &antecedent_graph::admg::Admg
+pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn build(spec: antecedent_identify::panel_unrolled::UnrolledPanelSpec) -> core::result::Result<Self, antecedent_identify::IdentificationError>
+pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn node_index(&self, node: antecedent_identify::panel_unrolled::PanelNode) -> core::option::Option<usize>
+pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn program_nodes(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn spec(&self) -> &antecedent_identify::panel_unrolled::UnrolledPanelSpec
+pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn variable(&self, node: antecedent_identify::panel_unrolled::PanelNode) -> core::option::Option<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn to_record(&self) -> antecedent_identify::sid::SHedgeRecord
 pub fn <antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision>::const fn is_exportable(&self) -> bool
@@ -5386,7 +5509,9 @@ pub fn antecedent_identify::admg_adjustment::identify_admg_response_adjustment(a
 pub fn antecedent_identify::admg_adjustment::identify_cpdag_derivative_pairs(cpdag: &antecedent_graph::cpdag::Cpdag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::dag::Dag>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_pag_derivative_pairs(pag: &antecedent_graph::pag::Pag, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32) -> core::result::Result<core::option::Option<antecedent_identify::TemporalAdmgAdjustment>, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative_within(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::option::Option<antecedent_identify::TemporalAdmgAdjustment>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32) -> core::result::Result<antecedent_identify::TemporalAdmgAdjustment, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment_within(template: &antecedent_graph::temporal_admg::TemporalAdmg, probe: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::response::ResponseQuery, variable_count: u32, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::TemporalAdmgAdjustment, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::search_admg_front_door_derivative(admg: &antecedent_graph::admg::Admg, query: &antecedent_core::query::response::ResponseQuery, limits: antecedent_core::search::SearchLimits) -> core::result::Result<antecedent_identify::FrontDoorSearch<antecedent_identify::IdentificationResult>, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::admg_adjustment::upgrade_id_only_derivative_cases(envelope: &mut antecedent_identify::IdentificationEnvelope<antecedent_graph::pag::Pag>, query: &antecedent_core::query::response::ResponseQuery) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::backdoor::check_joint_adjustment(graph: &antecedent_graph::dag::Dag, treatments: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, adjustment: &[antecedent_core::ids::VariableId]) -> core::result::Result<core::option::Option<antecedent_identify::backdoor::CheckedJointAdjustment>, antecedent_identify::IdentificationError>
@@ -5451,6 +5576,7 @@ pub fn antecedent_identify::intervention_levels_conflict(earlier: &[alloc::vec::
 pub fn antecedent_identify::intervention_mutilated_admg(graph: &antecedent_graph::admg::Admg, treatments: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_graph::admg::Admg, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::lower_transport_formula(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula) -> antecedent_expr::ExprId
 pub fn antecedent_identify::lower_transport_mean(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula, outcome: antecedent_core::ids::VariableId) -> antecedent_expr::ExprId
+pub fn antecedent_identify::panel_unrolled::identify_joint_panel_intervention(graph: &antecedent_identify::panel_unrolled::UnrolledPanelGraph, outcome_periods: &[usize]) -> core::result::Result<antecedent_identify::panel_unrolled::UnrolledPanelIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::plan_study_additions(graph: &antecedent_graph::admg::Admg, route: &antecedent_identify::StudyPlanRoute, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, candidates: &[antecedent_identify::StudyPlanCandidate], limits: antecedent_identify::StudyPlanLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::StudyPlan, antecedent_identify::StudyPlanRefusal>
 pub fn antecedent_identify::recovery::verify_observation_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, effect: core::option::Option<&antecedent_identify::RecoveredEffectQuery>, stored: &antecedent_identify::StoredRecovery<'_>, max: antecedent_identify::RecoveryLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::RecoveryDerivation, antecedent_identify::RecoveryError>
 pub fn antecedent_identify::recovery::verify_recovery_witness(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, witness: &antecedent_identify::RecoveryWitness) -> core::result::Result<antecedent_identify::WitnessCheck, antecedent_identify::RecoveryError>
@@ -5482,8 +5608,11 @@ pub fn antecedent_identify::sid::verify_s_hedge(diagram: &antecedent_graph::sele
 pub fn antecedent_identify::sid::verify_z_transport_derivation(diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ZTransportQuery, derivation: &antecedent_identify::ZTransportDerivation, limits: antecedent_identify::SidLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast_over(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery, variable_count: u32) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgIdentification, antecedent_identify::IdentificationError>
-pub fn antecedent_identify::temporal_admg::plan_temporal_admg_window(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::TemporalAdmgWindowPlan, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::temporal_admg::identify_temporal_admg_contrast_over_within(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery, variable_count: u32, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::temporal_admg::plan_temporal_admg_window(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery) -> core::result::Result<antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::temporal_admg::plan_temporal_admg_window_within(template: &antecedent_graph::temporal_admg::TemporalAdmg, query: &antecedent_core::query::temporal::TemporalEffectQuery, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::temporal_pag_mediation_window(template: &antecedent_graph::temporal_pag::TemporalPag, effect: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::mediation::MediationQuery, variable_count: u32) -> core::result::Result<antecedent_identify::TemporalPagMediationWindow, antecedent_identify::IdentificationError>
+pub fn antecedent_identify::temporal_pag_mediation_window_within(template: &antecedent_graph::temporal_pag::TemporalPag, effect: &antecedent_core::query::temporal::TemporalEffectQuery, query: &antecedent_core::query::mediation::MediationQuery, variable_count: u32, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::TemporalPagMediationWindow, antecedent_identify::IdentificationError>
 pub mod antecedent_identify::admg_adjustment
 pub mod antecedent_identify::assumptions
 pub mod antecedent_identify::auto
@@ -5510,6 +5639,7 @@ pub mod antecedent_identify::id
 pub mod antecedent_identify::idc
 pub mod antecedent_identify::identifier
 pub mod antecedent_identify::iv
+pub mod antecedent_identify::panel_unrolled
 pub mod antecedent_identify::path_specific
 pub mod antecedent_identify::prepared
 pub mod antecedent_identify::rd
@@ -5623,6 +5753,7 @@ pub struct antecedent_identify::IdIdentifier
 pub struct antecedent_identify::IdcIdentifier
 pub struct antecedent_identify::IdentificationEnvelope<G>
 pub struct antecedent_identify::IdentificationPerformanceRecord
+pub struct antecedent_identify::IdentificationResult has private fields
 pub struct antecedent_identify::IdentificationResultParts
 pub struct antecedent_identify::IdentificationWorkspace
 pub struct antecedent_identify::InstrumentSearchConfig
@@ -5704,12 +5835,16 @@ pub struct antecedent_identify::StudyRepair
 pub struct antecedent_identify::StudySubsetRecord
 pub struct antecedent_identify::TemporalAdmgAdjustment
 pub struct antecedent_identify::TemporalBackdoorIdentifier
+pub struct antecedent_identify::TemporalBackdoorIdentifier has private fields
 pub struct antecedent_identify::TemporalClassEnvelope
 pub struct antecedent_identify::TemporalIdentificationResult
+pub struct antecedent_identify::TemporalIdentificationResult has private fields
 pub struct antecedent_identify::TemporalIvIdentifier
 pub struct antecedent_identify::TemporalIvResult
+pub struct antecedent_identify::TemporalIvResult has private fields
 pub struct antecedent_identify::TemporalMediationIdentifier
 pub struct antecedent_identify::TemporalPagMediationWindow
+pub struct antecedent_identify::TemporalPagMediationWindow has private fields
 pub struct antecedent_identify::TransportCertificate
 pub struct antecedent_identify::TransportIdentifier
 pub struct antecedent_identify::TwoSourceZTransportComponent
@@ -5758,6 +5893,7 @@ pub struct antecedent_identify::cross_world::CrossWorldRefusal
 pub struct antecedent_identify::cyclic_calculus::CyclicCalculusApplication
 pub struct antecedent_identify::cyclic_id::CyclicIdPremises
 pub struct antecedent_identify::cyclic_id::CyclicIdentification
+pub struct antecedent_identify::discovered_transport::DiscoveredTransportOperational
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRefusal
 pub struct antecedent_identify::discovered_transport::DiscoveredTransportRequest<'a>
 pub struct antecedent_identify::discovered_transport::EnvelopeMember
@@ -5789,6 +5925,9 @@ pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
 pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
 pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty has private fields
 pub struct antecedent_identify::experimental_recovery::RecoveryDrawInput
+pub struct antecedent_identify::panel_unrolled::UnrolledPanelGraph
+pub struct antecedent_identify::panel_unrolled::UnrolledPanelGraph has private fields
+pub struct antecedent_identify::panel_unrolled::UnrolledPanelSpec
 pub struct antecedent_identify::sid::SHedgeCertificate
 pub struct antecedent_identify::sid::SHedgeCertificate has private fields
 pub struct antecedent_identify::sid::SHedgeRecord
@@ -5832,8 +5971,15 @@ pub struct antecedent_identify::sid::temporal_sequence::TemporalSequenceSpec has
 pub struct antecedent_identify::sid::temporal_sequence::TemporalSlots
 pub struct antecedent_identify::sid::temporal_sequence::UnrolledSequence
 pub struct antecedent_identify::sid::temporal_sequence::UnrolledSequence has private fields
-pub struct antecedent_identify::temporal_admg::TemporalAdmgIdentification
+pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification
+pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification has private fields
+pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData
+pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentificationData has private fields
+pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan
+pub struct antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan has private fields
 pub struct antecedent_identify::temporal_admg::TemporalAdmgWindowPlan
+pub struct antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes
+pub struct antecedent_identify::temporal_mediation::AdmittedTemporalAdjustmentNodes has private fields
 pub trait antecedent_identify::Identifier<G>: sealed::Sealed
 pub trait antecedent_identify::WitnessMeter
 pub trait fn fn antecedent_identify::Identifier::identify(&self, prepared: &<Self as antecedent_identify::Identifier>::Prepared, query: &antecedent_core::query::variants::CausalQuery, workspace: &mut antecedent_identify::IdentificationWorkspace) -> core::result::Result<antecedent_identify::IdentificationResult, antecedent_identify::IdentificationError>
@@ -5841,6 +5987,7 @@ pub trait fn fn antecedent_identify::Identifier::prepare(&self, graph: &G, assum
 pub trait fn fn antecedent_identify::WitnessMeter::charge(&mut self, bytes: u64) -> core::result::Result<(), antecedent_identify::IdentificationError>
 pub trait fn fn antecedent_identify::WitnessMeter::operations_remaining(&self) -> u64
 pub trait type antecedent_identify::Identifier::Prepared
+pub type antecedent_identify::temporal_admg::TemporalAdmgIdentification = antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification
 pub use antecedent_identify::IdentificationStatus = result::IdentificationStatus
 pub use antecedent_identify::IdentifiedEstimand = result::IdentifiedEstimand
 pub use antecedent_identify::admg_adjustment::FrontDoorSearch = antecedent_identify::FrontDoorSearch
@@ -5923,7 +6070,9 @@ pub use antecedent_identify::identify_admg_response_adjustment = antecedent_iden
 pub use antecedent_identify::identify_cpdag_derivative_pairs = antecedent_identify::admg_adjustment::identify_cpdag_derivative_pairs
 pub use antecedent_identify::identify_pag_derivative_pairs = antecedent_identify::admg_adjustment::identify_pag_derivative_pairs
 pub use antecedent_identify::identify_temporal_admg_front_door_derivative = antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative
+pub use antecedent_identify::identify_temporal_admg_front_door_derivative_within = antecedent_identify::admg_adjustment::identify_temporal_admg_front_door_derivative_within
 pub use antecedent_identify::identify_temporal_admg_response_adjustment = antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment
+pub use antecedent_identify::identify_temporal_admg_response_adjustment_within = antecedent_identify::admg_adjustment::identify_temporal_admg_response_adjustment_within
 pub use antecedent_identify::invisible_directed_edges = antecedent_identify::generalized::invisible_directed_edges
 pub use antecedent_identify::iv::InstrumentSearchConfig = antecedent_identify::InstrumentSearchConfig
 pub use antecedent_identify::iv::InstrumentalVariableIdentifier = antecedent_identify::InstrumentalVariableIdentifier
@@ -6477,7 +6626,11 @@ pub variant antecedent_identify::cyclic_id::CyclicIdStatus::Identified
 pub variant antecedent_identify::cyclic_id::CyclicIdStatus::NotIdentifiedByProcedure
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Estimation(alloc::string::String)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Identification(antecedent_identify::IdentificationError)
+pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Operational(antecedent_identify::discovered_transport::DiscoveredTransportOperational)
 pub variant antecedent_identify::discovered_transport::DiscoveredTransportError::Refused(antecedent_identify::discovered_transport::DiscoveredTransportRefusal)
+pub variant antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind::Cancelled
+pub variant antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind::OtherRefused
+pub variant antecedent_identify::discovered_transport::DiscoveredTransportOperationalKind::Resource
 pub variant antecedent_identify::discovered_transport::EnvelopeStatus::IdentifiedInEveryMember
 pub variant antecedent_identify::discovered_transport::EnvelopeStatus::MembersDisagree
 pub variant antecedent_identify::discovered_transport::EnvelopeStatus::NotIdentifiedInEveryMember
@@ -6539,6 +6692,11 @@ pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::B
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::Faithfulness
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::MinimumNormCompletion
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::NotOffered
+pub variant antecedent_identify::panel_unrolled::PanelNode::Channel { channel: usize, period: usize }
+pub variant antecedent_identify::panel_unrolled::PanelNode::Context(usize)
+pub variant antecedent_identify::panel_unrolled::PanelNode::Outcome(usize)
+pub variant antecedent_identify::panel_unrolled::UnrolledPanelIdentification::Identified(alloc::boxed::Box<antecedent_identify::IdentificationResult>)
+pub variant antecedent_identify::panel_unrolled::UnrolledPanelIdentification::NotIdentified { hedge: alloc::boxed::Box<antecedent_identify::HedgeCertificate>, result: alloc::boxed::Box<antecedent_identify::IdentificationResult> }
 pub variant antecedent_identify::sid::Rule::Ancestors
 pub variant antecedent_identify::sid::Rule::DirectTransport
 pub variant antecedent_identify::sid::Rule::Districts

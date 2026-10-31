@@ -11,6 +11,9 @@
 #[doc(hidden)] pub fn antecedent_core::execution_attempt::record_physical(event: antecedent_core::execution_attempt::PhysicalEvent, amount: u64)
 #[doc(hidden)] pub fn antecedent_core::execution_attempt::run_operation<T, E>(operation: antecedent_core::execution_attempt::Operation, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> core::result::Result<T, E>
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::acquire(bytes: u64) -> core::option::Option<core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>>
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::exposure_probability_work_limit() -> u64
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::has_context() -> bool
+#[doc(hidden)] pub fn antecedent_core::numerical_admission::hmc_work_limit() -> u64
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::is_cancelled() -> bool
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::with_context<T>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> T
 #[doc(hidden)] pub fn antecedent_core::numerical_admission::with_context_and_failure<T>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> T) -> (T, core::option::Option<antecedent_core::execution::AdmissionError>)
@@ -83,6 +86,7 @@
 #[non_exhaustive] pub enum antecedent_core::TargetPopulation
 #[non_exhaustive] pub enum antecedent_core::TemporalDesignFault
 #[non_exhaustive] pub enum antecedent_core::TemporalIndexError
+#[non_exhaustive] pub enum antecedent_core::TemporalMaterializationError
 #[non_exhaustive] pub enum antecedent_core::TemporalPolicy
 #[non_exhaustive] pub enum antecedent_core::TheoremFamily
 #[non_exhaustive] pub enum antecedent_core::TransportFault
@@ -304,6 +308,7 @@ impl core::clone::Clone for antecedent_core::AdaptiveBootstrapBudget
 impl core::clone::Clone for antecedent_core::AdaptiveDrawBudget
 impl core::clone::Clone for antecedent_core::AdmittedBytes
 impl core::clone::Clone for antecedent_core::AdmittedRouteMemory
+impl core::clone::Clone for antecedent_core::AdmittedTemporalOffsets
 impl core::clone::Clone for antecedent_core::AllocationMethod
 impl core::clone::Clone for antecedent_core::AllowedRule
 impl core::clone::Clone for antecedent_core::AnomalyAttributionQuery
@@ -651,6 +656,7 @@ impl core::clone::Clone for antecedent_core::TargetForm
 impl core::clone::Clone for antecedent_core::TargetPopulation
 impl core::clone::Clone for antecedent_core::TargetSampling
 impl core::clone::Clone for antecedent_core::TemporalAssignment
+impl core::clone::Clone for antecedent_core::TemporalBudget
 impl core::clone::Clone for antecedent_core::TemporalDesignFault
 impl core::clone::Clone for antecedent_core::TemporalDesignFunctional
 impl core::clone::Clone for antecedent_core::TemporalDesignQuery
@@ -658,6 +664,8 @@ impl core::clone::Clone for antecedent_core::TemporalDoseTarget
 impl core::clone::Clone for antecedent_core::TemporalEffectQuery
 impl core::clone::Clone for antecedent_core::TemporalIndexError
 impl core::clone::Clone for antecedent_core::TemporalIndexer
+impl core::clone::Clone for antecedent_core::TemporalMaterializationError
+impl core::clone::Clone for antecedent_core::TemporalMaterializationLimits
 impl core::clone::Clone for antecedent_core::TemporalNodeKey
 impl core::clone::Clone for antecedent_core::TemporalPolicy
 impl core::clone::Clone for antecedent_core::TemporalRegimeMethod
@@ -828,6 +836,8 @@ impl core::clone::Clone for antecedent_core::recalc::StageIdentities
 impl core::clone::Clone for antecedent_core::recalc::StageIdentity
 impl core::clone::Clone for antecedent_core::recalc::StageStatus
 impl core::clone::Clone for antecedent_core::route_memory::RouteMemoryProfile
+impl core::clone::Clone for antecedent_core::scientific_target::CompositionQuoteLimits
+impl core::clone::Clone for antecedent_core::scientific_target::CompositionTargetQuote
 impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::clone::Clone for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::clone::Clone for antecedent_core::search_budget::AdmittedExactSearch
@@ -1122,6 +1132,8 @@ impl core::cmp::Eq for antecedent_core::TargetSampling
 impl core::cmp::Eq for antecedent_core::TemporalDesignFault
 impl core::cmp::Eq for antecedent_core::TemporalIndexError
 impl core::cmp::Eq for antecedent_core::TemporalIndexer
+impl core::cmp::Eq for antecedent_core::TemporalMaterializationError
+impl core::cmp::Eq for antecedent_core::TemporalMaterializationLimits
 impl core::cmp::Eq for antecedent_core::TemporalNodeKey
 impl core::cmp::Eq for antecedent_core::TemporalPolicy
 impl core::cmp::Eq for antecedent_core::TemporalRegimeMethod
@@ -1680,6 +1692,8 @@ impl core::cmp::PartialEq for antecedent_core::TemporalDoseTarget
 impl core::cmp::PartialEq for antecedent_core::TemporalEffectQuery
 impl core::cmp::PartialEq for antecedent_core::TemporalIndexError
 impl core::cmp::PartialEq for antecedent_core::TemporalIndexer
+impl core::cmp::PartialEq for antecedent_core::TemporalMaterializationError
+impl core::cmp::PartialEq for antecedent_core::TemporalMaterializationLimits
 impl core::cmp::PartialEq for antecedent_core::TemporalNodeKey
 impl core::cmp::PartialEq for antecedent_core::TemporalPolicy
 impl core::cmp::PartialEq for antecedent_core::TemporalRegimeMethod
@@ -1893,6 +1907,7 @@ impl core::cmp::PartialOrd for antecedent_core::recalc::Branch
 impl core::cmp::PartialOrd for antecedent_core::recalc::Revalidation
 impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
 impl core::cmp::PartialOrd for antecedent_core::recalc::StageIdentity
+impl core::convert::AsRef<[i32]> for antecedent_core::AdmittedTemporalOffsets
 impl core::convert::From<&[alloc::vec::Vec<f64>]> for antecedent_core::ProbabilityRows
 impl core::convert::From<alloc::vec::Vec<alloc::vec::Vec<f64>>> for antecedent_core::ProbabilityRows
 impl core::convert::From<antecedent_core::AnomalyAttributionQuery> for antecedent_core::CausalQuery
@@ -1906,6 +1921,7 @@ impl core::convert::From<antecedent_core::CounterfactualQuery> for antecedent_co
 impl core::convert::From<antecedent_core::DiscoverQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::HistoryMatchQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::InterferenceQuery> for antecedent_core::CausalQuery
+impl core::convert::From<antecedent_core::InterventionError> for antecedent_core::TemporalMaterializationError
 impl core::convert::From<antecedent_core::InterventionError> for antecedent_core::intervention::AdmitError
 impl core::convert::From<antecedent_core::InterventionalDistributionQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::IvBoundsQuery> for antecedent_core::CausalQuery
@@ -1928,6 +1944,7 @@ impl core::convert::From<antecedent_core::TemporalEffectQuery> for antecedent_co
 impl core::convert::From<antecedent_core::TransportQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::UnitChangeQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::VariableId> for antecedent_core::ComponentId
+impl core::convert::From<antecedent_core::execution::AdmissionError> for antecedent_core::TemporalMaterializationError
 impl core::convert::From<antecedent_core::intervention::CapabilityRefusal> for antecedent_core::intervention::AdmitError
 impl core::default::Default for antecedent_core::AdaptiveBootstrapBudget
 impl core::default::Default for antecedent_core::AdaptiveDrawBudget
@@ -1967,6 +1984,7 @@ impl core::default::Default for antecedent_core::SmallRoleSet
 impl core::default::Default for antecedent_core::StateVersion
 impl core::default::Default for antecedent_core::SyntheticInterval
 impl core::default::Default for antecedent_core::SyntheticPanelMethod
+impl core::default::Default for antecedent_core::TemporalMaterializationLimits
 impl core::default::Default for antecedent_core::execution_attempt::AttemptReport
 impl core::default::Default for antecedent_core::execution_attempt::ObservationToken
 impl core::default::Default for antecedent_core::execution_attempt::OperationCounts
@@ -1982,6 +2000,7 @@ impl core::default::Default for antecedent_core::measurement_record::PeakRss
 impl core::default::Default for antecedent_core::numerical_admission::NumericalAdmissionToken
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
+impl core::default::Default for antecedent_core::scientific_target::CompositionTargetQuote
 impl core::default::Default for antecedent_core::search_budget::FunctionalEnumeration
 impl core::error::Error for antecedent_core::ActionFault
 impl core::error::Error for antecedent_core::AssociationFault
@@ -2027,6 +2046,7 @@ impl core::error::Error for antecedent_core::StochasticPolicyFault
 impl core::error::Error for antecedent_core::SurvivalFault
 impl core::error::Error for antecedent_core::TemporalDesignFault
 impl core::error::Error for antecedent_core::TemporalIndexError
+impl core::error::Error for antecedent_core::TemporalMaterializationError
 impl core::error::Error for antecedent_core::ToleranceError
 impl core::error::Error for antecedent_core::TransportFault
 impl core::error::Error for antecedent_core::UnansweredCapability
@@ -2049,6 +2069,7 @@ impl core::fmt::Debug for antecedent_core::AdaptiveBootstrapBudget
 impl core::fmt::Debug for antecedent_core::AdaptiveDrawBudget
 impl core::fmt::Debug for antecedent_core::AdmittedBytes
 impl core::fmt::Debug for antecedent_core::AdmittedRouteMemory
+impl core::fmt::Debug for antecedent_core::AdmittedTemporalOffsets
 impl core::fmt::Debug for antecedent_core::AllocationMethod
 impl core::fmt::Debug for antecedent_core::AllowedRule
 impl core::fmt::Debug for antecedent_core::AnomalyAttributionQuery
@@ -2398,6 +2419,7 @@ impl core::fmt::Debug for antecedent_core::TargetForm
 impl core::fmt::Debug for antecedent_core::TargetPopulation
 impl core::fmt::Debug for antecedent_core::TargetSampling
 impl core::fmt::Debug for antecedent_core::TemporalAssignment
+impl core::fmt::Debug for antecedent_core::TemporalBudget
 impl core::fmt::Debug for antecedent_core::TemporalDesignFault
 impl core::fmt::Debug for antecedent_core::TemporalDesignFunctional
 impl core::fmt::Debug for antecedent_core::TemporalDesignQuery
@@ -2405,6 +2427,8 @@ impl core::fmt::Debug for antecedent_core::TemporalDoseTarget
 impl core::fmt::Debug for antecedent_core::TemporalEffectQuery
 impl core::fmt::Debug for antecedent_core::TemporalIndexError
 impl core::fmt::Debug for antecedent_core::TemporalIndexer
+impl core::fmt::Debug for antecedent_core::TemporalMaterializationError
+impl core::fmt::Debug for antecedent_core::TemporalMaterializationLimits
 impl core::fmt::Debug for antecedent_core::TemporalNodeKey
 impl core::fmt::Debug for antecedent_core::TemporalPolicy
 impl core::fmt::Debug for antecedent_core::TemporalRegimeMethod
@@ -2579,6 +2603,8 @@ impl core::fmt::Debug for antecedent_core::recalc::StageIdentities
 impl core::fmt::Debug for antecedent_core::recalc::StageIdentity
 impl core::fmt::Debug for antecedent_core::recalc::StageStatus
 impl core::fmt::Debug for antecedent_core::route_memory::RouteMemoryProfile
+impl core::fmt::Debug for antecedent_core::scientific_target::CompositionQuoteLimits
+impl core::fmt::Debug for antecedent_core::scientific_target::CompositionTargetQuote
 impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedExperiment
 impl core::fmt::Debug for antecedent_core::scientific_target::HistoryIndexedTargetLaw
 impl core::fmt::Debug for antecedent_core::search_budget::AdmittedExactSearch
@@ -2684,6 +2710,7 @@ impl core::fmt::Display for antecedent_core::StochasticPolicyFault
 impl core::fmt::Display for antecedent_core::SurvivalFault
 impl core::fmt::Display for antecedent_core::TemporalDesignFault
 impl core::fmt::Display for antecedent_core::TemporalIndexError
+impl core::fmt::Display for antecedent_core::TemporalMaterializationError
 impl core::fmt::Display for antecedent_core::ToleranceError
 impl core::fmt::Display for antecedent_core::TransportFault
 impl core::fmt::Display for antecedent_core::UnansweredCapability
@@ -3051,6 +3078,7 @@ impl core::hash::Hash for antecedent_core::search_budget::NumericalMode
 impl core::hash::Hash for antecedent_core::search_budget::SearchEstimate
 impl core::hash::Hash for antecedent_core::search_budget::SearchFamily
 impl core::hash::Hash for antecedent_core::search_budget::SearchResourceLimit
+impl core::iter::traits::iterator::Iterator for antecedent_core::TemporalOffsetIter<'_>
 impl core::marker::Copy for antecedent_core::AdaptiveBootstrapBudget
 impl core::marker::Copy for antecedent_core::AdaptiveDrawBudget
 impl core::marker::Copy for antecedent_core::AdmittedBytes
@@ -3217,6 +3245,7 @@ impl core::marker::Copy for antecedent_core::SyntheticInterval
 impl core::marker::Copy for antecedent_core::SyntheticPanelMethod
 impl core::marker::Copy for antecedent_core::TargetSampling
 impl core::marker::Copy for antecedent_core::TemporalDesignFunctional
+impl core::marker::Copy for antecedent_core::TemporalMaterializationLimits
 impl core::marker::Copy for antecedent_core::TemporalNodeKey
 impl core::marker::Copy for antecedent_core::TemporalRegimeMethod
 impl core::marker::Copy for antecedent_core::TemporalResponseLicense
@@ -3310,17 +3339,14 @@ impl core::marker::Copy for antecedent_core::recalc::ChangeKind
 impl core::marker::Copy for antecedent_core::recalc::ChangedDependency
 impl core::marker::Copy for antecedent_core::recalc::CouplingInput
 impl core::marker::Copy for antecedent_core::recalc::MissingDependency
-impl core::marker::Copy for antecedent_core::recalc::RecalcCapabilities
-impl core::marker::Copy for antecedent_core::recalc::RefusalReason
-impl core::marker::Copy for antecedent_core::recalc::RequestSupport
 impl core::marker::Copy for antecedent_core::recalc::ResumeContext
 impl core::marker::Copy for antecedent_core::recalc::RetargetSupport
 impl core::marker::Copy for antecedent_core::recalc::Revalidation
 impl core::marker::Copy for antecedent_core::recalc::Stage
-impl core::marker::Copy for antecedent_core::recalc::StageEntry
 impl core::marker::Copy for antecedent_core::recalc::StageIdentity
-impl core::marker::Copy for antecedent_core::recalc::StageStatus
 impl core::marker::Copy for antecedent_core::route_memory::RouteMemoryProfile
+impl core::marker::Copy for antecedent_core::scientific_target::CompositionQuoteLimits
+impl core::marker::Copy for antecedent_core::scientific_target::CompositionTargetQuote
 impl core::marker::Copy for antecedent_core::search_budget::AdmittedExactSearch
 impl core::marker::Copy for antecedent_core::search_budget::ApproximationEvidence
 impl core::marker::Copy for antecedent_core::search_budget::ExactGraphSearch
@@ -3339,6 +3365,7 @@ impl core::marker::Freeze for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Freeze for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Freeze for antecedent_core::AdmittedBytes [auto]
 impl core::marker::Freeze for antecedent_core::AdmittedRouteMemory [auto]
+impl core::marker::Freeze for antecedent_core::AdmittedTemporalOffsets [auto]
 impl core::marker::Freeze for antecedent_core::AllocationMethod [auto]
 impl core::marker::Freeze for antecedent_core::AllowedRule [auto]
 impl core::marker::Freeze for antecedent_core::AnomalyAttributionQuery [auto]
@@ -3687,6 +3714,7 @@ impl core::marker::Freeze for antecedent_core::TargetForm [auto]
 impl core::marker::Freeze for antecedent_core::TargetPopulation [auto]
 impl core::marker::Freeze for antecedent_core::TargetSampling [auto]
 impl core::marker::Freeze for antecedent_core::TemporalAssignment [auto]
+impl core::marker::Freeze for antecedent_core::TemporalBudget [auto]
 impl core::marker::Freeze for antecedent_core::TemporalDesignFault [auto]
 impl core::marker::Freeze for antecedent_core::TemporalDesignFunctional [auto]
 impl core::marker::Freeze for antecedent_core::TemporalDesignQuery [auto]
@@ -3694,6 +3722,8 @@ impl core::marker::Freeze for antecedent_core::TemporalDoseTarget [auto]
 impl core::marker::Freeze for antecedent_core::TemporalEffectQuery [auto]
 impl core::marker::Freeze for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Freeze for antecedent_core::TemporalIndexer [auto]
+impl core::marker::Freeze for antecedent_core::TemporalMaterializationError [auto]
+impl core::marker::Freeze for antecedent_core::TemporalMaterializationLimits [auto]
 impl core::marker::Freeze for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Freeze for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Freeze for antecedent_core::TemporalRegimeMethod [auto]
@@ -3863,6 +3893,8 @@ impl core::marker::Freeze for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Freeze for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Freeze for antecedent_core::route_memory::RouteMemoryProfile [auto]
+impl core::marker::Freeze for antecedent_core::scientific_target::CompositionQuoteLimits [auto]
+impl core::marker::Freeze for antecedent_core::scientific_target::CompositionTargetQuote [auto]
 impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Freeze for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Freeze for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -3883,6 +3915,7 @@ impl core::marker::Send for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Send for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Send for antecedent_core::AdmittedBytes [auto]
 impl core::marker::Send for antecedent_core::AdmittedRouteMemory [auto]
+impl core::marker::Send for antecedent_core::AdmittedTemporalOffsets [auto]
 impl core::marker::Send for antecedent_core::AllocationMethod [auto]
 impl core::marker::Send for antecedent_core::AllowedRule [auto]
 impl core::marker::Send for antecedent_core::AnomalyAttributionQuery [auto]
@@ -4232,6 +4265,7 @@ impl core::marker::Send for antecedent_core::TargetForm [auto]
 impl core::marker::Send for antecedent_core::TargetPopulation [auto]
 impl core::marker::Send for antecedent_core::TargetSampling [auto]
 impl core::marker::Send for antecedent_core::TemporalAssignment [auto]
+impl core::marker::Send for antecedent_core::TemporalBudget [auto]
 impl core::marker::Send for antecedent_core::TemporalDesignFault [auto]
 impl core::marker::Send for antecedent_core::TemporalDesignFunctional [auto]
 impl core::marker::Send for antecedent_core::TemporalDesignQuery [auto]
@@ -4239,6 +4273,8 @@ impl core::marker::Send for antecedent_core::TemporalDoseTarget [auto]
 impl core::marker::Send for antecedent_core::TemporalEffectQuery [auto]
 impl core::marker::Send for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Send for antecedent_core::TemporalIndexer [auto]
+impl core::marker::Send for antecedent_core::TemporalMaterializationError [auto]
+impl core::marker::Send for antecedent_core::TemporalMaterializationLimits [auto]
 impl core::marker::Send for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Send for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Send for antecedent_core::TemporalRegimeMethod [auto]
@@ -4412,6 +4448,8 @@ impl core::marker::Send for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Send for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Send for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Send for antecedent_core::route_memory::RouteMemoryProfile [auto]
+impl core::marker::Send for antecedent_core::scientific_target::CompositionQuoteLimits [auto]
+impl core::marker::Send for antecedent_core::scientific_target::CompositionTargetQuote [auto]
 impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Send for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Send for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -4773,6 +4811,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::TemporalDoseTarget
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalEffectQuery
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalIndexError
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalIndexer
+impl core::marker::StructuralPartialEq for antecedent_core::TemporalMaterializationError
+impl core::marker::StructuralPartialEq for antecedent_core::TemporalMaterializationLimits
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalNodeKey
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalPolicy
 impl core::marker::StructuralPartialEq for antecedent_core::TemporalRegimeMethod
@@ -4955,6 +4995,7 @@ impl core::marker::Sync for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Sync for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Sync for antecedent_core::AdmittedBytes [auto]
 impl core::marker::Sync for antecedent_core::AdmittedRouteMemory [auto]
+impl core::marker::Sync for antecedent_core::AdmittedTemporalOffsets [auto]
 impl core::marker::Sync for antecedent_core::AllocationMethod [auto]
 impl core::marker::Sync for antecedent_core::AllowedRule [auto]
 impl core::marker::Sync for antecedent_core::AnomalyAttributionQuery [auto]
@@ -5304,6 +5345,7 @@ impl core::marker::Sync for antecedent_core::TargetForm [auto]
 impl core::marker::Sync for antecedent_core::TargetPopulation [auto]
 impl core::marker::Sync for antecedent_core::TargetSampling [auto]
 impl core::marker::Sync for antecedent_core::TemporalAssignment [auto]
+impl core::marker::Sync for antecedent_core::TemporalBudget [auto]
 impl core::marker::Sync for antecedent_core::TemporalDesignFault [auto]
 impl core::marker::Sync for antecedent_core::TemporalDesignFunctional [auto]
 impl core::marker::Sync for antecedent_core::TemporalDesignQuery [auto]
@@ -5311,6 +5353,8 @@ impl core::marker::Sync for antecedent_core::TemporalDoseTarget [auto]
 impl core::marker::Sync for antecedent_core::TemporalEffectQuery [auto]
 impl core::marker::Sync for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Sync for antecedent_core::TemporalIndexer [auto]
+impl core::marker::Sync for antecedent_core::TemporalMaterializationError [auto]
+impl core::marker::Sync for antecedent_core::TemporalMaterializationLimits [auto]
 impl core::marker::Sync for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Sync for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Sync for antecedent_core::TemporalRegimeMethod [auto]
@@ -5484,6 +5528,8 @@ impl core::marker::Sync for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Sync for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Sync for antecedent_core::route_memory::RouteMemoryProfile [auto]
+impl core::marker::Sync for antecedent_core::scientific_target::CompositionQuoteLimits [auto]
+impl core::marker::Sync for antecedent_core::scientific_target::CompositionTargetQuote [auto]
 impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Sync for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Sync for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -5504,6 +5550,7 @@ impl core::marker::Unpin for antecedent_core::AdaptiveBootstrapBudget [auto]
 impl core::marker::Unpin for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::marker::Unpin for antecedent_core::AdmittedBytes [auto]
 impl core::marker::Unpin for antecedent_core::AdmittedRouteMemory [auto]
+impl core::marker::Unpin for antecedent_core::AdmittedTemporalOffsets [auto]
 impl core::marker::Unpin for antecedent_core::AllocationMethod [auto]
 impl core::marker::Unpin for antecedent_core::AllowedRule [auto]
 impl core::marker::Unpin for antecedent_core::AnomalyAttributionQuery [auto]
@@ -5853,6 +5900,7 @@ impl core::marker::Unpin for antecedent_core::TargetForm [auto]
 impl core::marker::Unpin for antecedent_core::TargetPopulation [auto]
 impl core::marker::Unpin for antecedent_core::TargetSampling [auto]
 impl core::marker::Unpin for antecedent_core::TemporalAssignment [auto]
+impl core::marker::Unpin for antecedent_core::TemporalBudget [auto]
 impl core::marker::Unpin for antecedent_core::TemporalDesignFault [auto]
 impl core::marker::Unpin for antecedent_core::TemporalDesignFunctional [auto]
 impl core::marker::Unpin for antecedent_core::TemporalDesignQuery [auto]
@@ -5860,6 +5908,8 @@ impl core::marker::Unpin for antecedent_core::TemporalDoseTarget [auto]
 impl core::marker::Unpin for antecedent_core::TemporalEffectQuery [auto]
 impl core::marker::Unpin for antecedent_core::TemporalIndexError [auto]
 impl core::marker::Unpin for antecedent_core::TemporalIndexer [auto]
+impl core::marker::Unpin for antecedent_core::TemporalMaterializationError [auto]
+impl core::marker::Unpin for antecedent_core::TemporalMaterializationLimits [auto]
 impl core::marker::Unpin for antecedent_core::TemporalNodeKey [auto]
 impl core::marker::Unpin for antecedent_core::TemporalPolicy [auto]
 impl core::marker::Unpin for antecedent_core::TemporalRegimeMethod [auto]
@@ -6033,6 +6083,8 @@ impl core::marker::Unpin for antecedent_core::recalc::StageIdentities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageIdentity [auto]
 impl core::marker::Unpin for antecedent_core::recalc::StageStatus [auto]
 impl core::marker::Unpin for antecedent_core::route_memory::RouteMemoryProfile [auto]
+impl core::marker::Unpin for antecedent_core::scientific_target::CompositionQuoteLimits [auto]
+impl core::marker::Unpin for antecedent_core::scientific_target::CompositionTargetQuote [auto]
 impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::marker::Unpin for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -6048,6 +6100,7 @@ impl core::marker::Unpin for antecedent_core::search_budget::SearchEstimate [aut
 impl core::marker::Unpin for antecedent_core::search_budget::SearchFamily [auto]
 impl core::marker::Unpin for antecedent_core::search_budget::SearchResourceLimit [auto]
 impl core::marker::Unpin for antecedent_core::value::InterventionValueError [auto]
+impl core::ops::deref::Deref for antecedent_core::AdmittedTemporalOffsets
 impl core::ops::drop::Drop for antecedent_core::device_reservation::DeviceReservationLease
 impl core::ops::drop::Drop for antecedent_core::execution::AdmissionLease
 impl core::ops::drop::Drop for antecedent_core::execution_attempt::ObservedAdmission
@@ -6058,6 +6111,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveBootst
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedBytes [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedRouteMemory [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AdmittedTemporalOffsets [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AllocationMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AllowedRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::AnomalyAttributionQuery [auto]
@@ -6406,6 +6460,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TargetForm [au
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TargetPopulation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TargetSampling [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalAssignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalDesignFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalDesignFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalDesignQuery [auto]
@@ -6413,6 +6468,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalDoseTa
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalEffectQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalIndexError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalIndexer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalMaterializationError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalMaterializationLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalNodeKey [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalRegimeMethod [auto]
@@ -6586,6 +6643,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageI
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::StageStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::route_memory::RouteMemoryProfile [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::CompositionQuoteLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::CompositionTargetQuote [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -6606,6 +6665,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdaptiveBootstrap
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdaptiveDrawBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdmittedBytes [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdmittedRouteMemory [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AdmittedTemporalOffsets [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AllocationMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AllowedRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::AnomalyAttributionQuery [auto]
@@ -6954,6 +7014,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TargetForm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TargetPopulation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TargetSampling [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalAssignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalDesignFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalDesignFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalDesignQuery [auto]
@@ -6961,6 +7022,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalDoseTarge
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalEffectQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalIndexError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalIndexer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalMaterializationError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalMaterializationLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalNodeKey [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalRegimeMethod [auto]
@@ -7134,6 +7197,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIden
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageIdentity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::StageStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::route_memory::RouteMemoryProfile [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::CompositionQuoteLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::CompositionTargetQuote [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::scientific_target::HistoryIndexedTargetLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::search_budget::AdmittedExactSearch [auto]
@@ -7165,21 +7230,27 @@ impl<'a> core::marker::Copy for antecedent_core::Refusal<'a>
 impl<'a> core::marker::Freeze for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_core::Refusal<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_core::SearchBudget<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_core::TemporalOffsetIter<'a> [auto]
 impl<'a> core::marker::Send for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::marker::Send for antecedent_core::Refusal<'a> [auto]
 impl<'a> core::marker::Send for antecedent_core::SearchBudget<'a> [auto]
+impl<'a> core::marker::Send for antecedent_core::TemporalOffsetIter<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_core::FactorNeed<'a>
 impl<'a> core::marker::StructuralPartialEq for antecedent_core::Refusal<'a>
 impl<'a> core::marker::Sync for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_core::Refusal<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_core::SearchBudget<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_core::TemporalOffsetIter<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_core::Refusal<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_core::SearchBudget<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_core::TemporalOffsetIter<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Refusal<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_core::TemporalOffsetIter<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_core::FactorNeed<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_core::Refusal<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_core::TemporalOffsetIter<'a> [auto]
 impl<E: core::fmt::Debug> core::fmt::Debug for antecedent_core::execution::MapExecutionError<E>
 impl<E> core::convert::From<antecedent_core::execution::AdmissionError> for antecedent_core::execution::MapExecutionError<E>
 impl<E> core::error::Error for antecedent_core::execution::MapExecutionError<E> where Self: core::fmt::Debug + core::fmt::Display
@@ -7213,6 +7284,9 @@ macro antecedent_core::reason_code!
 pub const <antecedent_core::CancellationPoints>::EMPTY: Self
 pub const <antecedent_core::DeclaredSamplingDesign>::ALL: [Self; 3]
 pub const <antecedent_core::DiagnosticScope>::ALL: [Self; 3]
+pub const <antecedent_core::ExecutionContext>::DEFAULT_EXPOSURE_PROBABILITY_WORK_LIMIT: u64
+pub const <antecedent_core::ExecutionContext>::DEFAULT_HMC_WORK_LIMIT: u64
+pub const <antecedent_core::ExecutionContext>::DEFAULT_PULSE_EXTRAPOLATION_RANGES: f64
 pub const <antecedent_core::IdentificationStatus>::ALL: [Self; 6]
 pub const <antecedent_core::IdentityDomain>::ALL: [antecedent_core::IdentityDomain; 15]
 pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 9]
@@ -7242,6 +7316,7 @@ pub const <antecedent_core::StreamDomain>::TemporalBlock: Self
 pub const <antecedent_core::StreamDomain>::Test: Self
 pub const <antecedent_core::StreamDomain>::Transport: Self
 pub const <antecedent_core::SupportStatus>::ALL: [Self; 5]
+pub const <antecedent_core::SyntheticControlQuery>::DECLARED_CLUSTERED_PLACEBO_REPLICATES: u32
 pub const <antecedent_core::TemporalResponseSpec>::ALLOWED_POLICIES: &'static [&'static str]
 pub const <antecedent_core::TemporalResponseSpec>::DEFAULT_POLICY: &'static str
 pub const <antecedent_core::TemporalResponseSpec>::DEFAULT_TREATMENT_LAG: u32
@@ -7423,6 +7498,7 @@ pub enum antecedent_core::TargetSampling
 pub enum antecedent_core::TemporalAssignment
 pub enum antecedent_core::TemporalDesignFunctional
 pub enum antecedent_core::TemporalDoseTarget
+pub enum antecedent_core::TemporalOffsetIter<'a>
 pub enum antecedent_core::TemporalRegimeMethod
 pub enum antecedent_core::ToleranceClass
 pub enum antecedent_core::ToleranceError
@@ -7514,6 +7590,7 @@ pub field antecedent_core::CalibrationBasis::row_count: u64
 pub field antecedent_core::CalibrationBasis::se_kind: alloc::sync::Arc<str>
 pub field antecedent_core::CalibrationBasis::structure: alloc::sync::Arc<str>
 pub field antecedent_core::CalibrationBasis::unidentified_mass: f64
+pub field antecedent_core::CalibrationBasis::validation: alloc::sync::Arc<str>
 pub field antecedent_core::CallbackRefusal::code: &'static str
 pub field antecedent_core::CallbackRefusal::message: alloc::string::String
 pub field antecedent_core::CallbackSpec::dependencies: alloc::sync::Arc<[antecedent_core::PinnedDependency]>
@@ -7962,6 +8039,11 @@ pub field antecedent_core::TemporalEffectQuery::outcome: antecedent_core::Variab
 pub field antecedent_core::TemporalEffectQuery::policy: antecedent_core::TemporalPolicy
 pub field antecedent_core::TemporalEffectQuery::target_population: antecedent_core::TargetPopulation
 pub field antecedent_core::TemporalEffectQuery::treatment: antecedent_core::VariableId
+pub field antecedent_core::TemporalMaterializationLimits::max_bytes: u64
+pub field antecedent_core::TemporalMaterializationLimits::max_graph_edges: u64
+pub field antecedent_core::TemporalMaterializationLimits::max_graph_nodes: u64
+pub field antecedent_core::TemporalMaterializationLimits::max_offsets: u64
+pub field antecedent_core::TemporalMaterializationLimits::max_work: u64
 pub field antecedent_core::TemporalNodeKey::offset: i32
 pub field antecedent_core::TemporalNodeKey::variable: antecedent_core::VariableId
 pub field antecedent_core::TemporalResponseLicense::allowed_policies: &'static [&'static str]
@@ -8155,6 +8237,11 @@ pub field antecedent_core::recalc::ResumeContext::supplied_provider: bool
 pub field antecedent_core::recalc::StageEntry::identity: antecedent_core::recalc::StageIdentity
 pub field antecedent_core::recalc::StageEntry::stage: antecedent_core::recalc::Stage
 pub field antecedent_core::recalc::StageEntry::status: antecedent_core::recalc::StageStatus
+pub field antecedent_core::scientific_target::CompositionQuoteLimits::max_depth: usize
+pub field antecedent_core::scientific_target::CompositionQuoteLimits::max_payload_bytes: usize
+pub field antecedent_core::scientific_target::CompositionQuoteLimits::max_work: usize
+pub field antecedent_core::scientific_target::CompositionTargetQuote::payload_bytes: usize
+pub field antecedent_core::scientific_target::CompositionTargetQuote::work: usize
 pub fn <antecedent_core::AdaptiveBootstrapBudget>::const fn disabled() -> Self
 pub fn <antecedent_core::AdaptiveBootstrapBudget>::const fn enabled_default() -> Self
 pub fn <antecedent_core::AdaptiveBootstrapBudget>::fn required_replicates(&self) -> u32
@@ -8166,6 +8253,7 @@ pub fn <antecedent_core::AdmittedBytes>::const fn scratch(self) -> u64
 pub fn <antecedent_core::AdmittedBytes>::const fn total(self) -> u64
 pub fn <antecedent_core::AdmittedRouteMemory>::const fn estimate(self) -> antecedent_core::RouteMemoryEstimate
 pub fn <antecedent_core::AdmittedRouteMemory>::const fn total(self) -> u64
+pub fn <antecedent_core::AdmittedTemporalOffsets>::fn as_slice(&self) -> &[i32]
 pub fn <antecedent_core::AllocationMethod>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::AnomalyAttributionQuery>::fn new(targets: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>, max_units: usize) -> Self
 pub fn <antecedent_core::AnomalyAttributionQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
@@ -8236,6 +8324,7 @@ pub fn <antecedent_core::CacheBudget>::const fn unlimited() -> Self
 pub fn <antecedent_core::CachePolicy>::const fn disabled() -> Self
 pub fn <antecedent_core::CachePolicy>::const fn enabled(max_bytes: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::CalibrationBasis>::fn new(key: [alloc::sync::Arc<str>; 11], level: f64, identification: alloc::sync::Arc<str>, row_count: u64, replicates_ok: core::option::Option<u32>, posterior_draws: core::option::Option<u32>, unidentified_mass: f64) -> Self
+pub fn <antecedent_core::CalibrationBasis>::fn with_validation(self, validation: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_core::CallbackCall>::fn args(&self) -> &[antecedent_core::ValueExpr]
 pub fn <antecedent_core::CallbackCall>::fn callback(&self) -> &alloc::sync::Arc<dyn antecedent_core::BatchCallback>
 pub fn <antecedent_core::CallbackCall>::fn new(callback: alloc::sync::Arc<dyn antecedent_core::BatchCallback>, args: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ValueExpr]>>) -> Self
@@ -8275,6 +8364,7 @@ pub fn <antecedent_core::CanonicalWriter>::fn real(&mut self, value: f64) -> &mu
 pub fn <antecedent_core::CanonicalWriter>::fn reals(&mut self, values: &[f64]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn text(&mut self, text: &str) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn texts<S: core::convert::AsRef<str>>(&mut self, values: &[S]) -> &mut Self
+pub fn <antecedent_core::CanonicalWriter>::fn try_bytes<E>(&mut self, bytes: &[u8], check: impl core::ops::function::FnMut() -> core::result::Result<(), E>) -> core::result::Result<&mut Self, E>
 pub fn <antecedent_core::CanonicalWriter>::fn u32s(&mut self, values: &[u32]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn word(&mut self, word: u64) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn words(&mut self, values: &[u64]) -> &mut Self
@@ -8390,6 +8480,7 @@ pub fn <antecedent_core::CounterfactualEventQuery>::fn given(&self) -> &[anteced
 pub fn <antecedent_core::CounterfactualEventQuery>::fn new(worlds: alloc::vec::Vec<antecedent_core::WorldSpec>, coupling: antecedent_core::ExogenousCoupling, event: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::CounterfactualEvent>, given: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::CounterfactualEvent>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::CounterfactualEventQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::CounterfactualEventQuery>::fn worlds(&self) -> &[antecedent_core::WorldSpec]
+pub fn <antecedent_core::CounterfactualEventQuery>::fn write_canonical(&self, out: &mut impl core::fmt::Write) -> core::fmt::Result
 pub fn <antecedent_core::CounterfactualQuery>::const fn with_nested(self, allow_nested: bool) -> Self
 pub fn <antecedent_core::CounterfactualQuery>::fn active_variables(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
 pub fn <antecedent_core::CounterfactualQuery>::fn control_variables(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
@@ -8522,25 +8613,34 @@ pub fn <antecedent_core::ExecutionContext>::const fn lowered_dispatch(&self) -> 
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission(&self, threads: u32, bytes: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_bounded(&self, threads: u32, bytes: u64, bound: core::time::Duration) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn acquire_admission_product(&self, threads: u32, count: u64, width: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
+pub fn <antecedent_core::ExecutionContext>::fn acquire_serial_numerical_admission(&self, bytes: u64) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::execution::AdmissionError>
 pub fn <antecedent_core::ExecutionContext>::fn admission(&self) -> antecedent_core::execution::AdmissionPool
 pub fn <antecedent_core::ExecutionContext>::fn admit_index_bytes(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
 pub fn <antecedent_core::ExecutionContext>::fn admit_scratch(&self, work_items: usize, per_worker_bytes: u64) -> core::result::Result<antecedent_core::ScratchLease, antecedent_core::ScratchRefusal>
+pub fn <antecedent_core::ExecutionContext>::fn exposure_probability_work_limit(&self) -> u64
 pub fn <antecedent_core::ExecutionContext>::fn for_tests(seed: u64) -> Self
-pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
-pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
-pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch_if_free<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, E> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn hmc_work_limit(&self) -> u64
+pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch_if_free<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn memory_limit_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed<T, E, P, C>(&self, n: usize, window: usize, produce: P, consume: C) -> core::result::Result<antecedent_core::execution::PipelineReceipt, antecedent_core::execution::MapExecutionError<E>> where C: core::ops::function::FnMut(usize, T) -> core::result::Result<antecedent_core::execution::PipelineStep, E>, E: core::marker::Send, P: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed_with_scratch<T, S, E, P, C>(&self, n: usize, window: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, produce: P, consume: C) -> core::result::Result<antecedent_core::execution::PipelineReceipt, antecedent_core::execution::MapExecutionError<E>> where C: core::ops::function::FnMut(usize, T) -> core::result::Result<antecedent_core::execution::PipelineStep, E>, E: core::marker::Send, P: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn pulse_extrapolation_ranges(&self) -> f64
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn set_memory_limit(&mut self, limit: core::option::Option<u64>)
+pub fn <antecedent_core::ExecutionContext>::fn temporal_materialization_limits(&self) -> antecedent_core::TemporalMaterializationLimits
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn try_map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn with_admission(self, pool: antecedent_core::execution::AdmissionPool) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_exposure_probability_work_limit(&self, limit: u64) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_hmc_work_limit(&self, limit: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_imputation_bootstrap(&self, replicates: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_memory_limit(self, limit: core::option::Option<u64>) -> Self
+pub fn <antecedent_core::ExecutionContext>::fn with_pulse_extrapolation_ranges(&self, ranges: f64) -> core::option::Option<Self>
+pub fn <antecedent_core::ExecutionContext>::fn with_temporal_materialization_limits(&self, limits: antecedent_core::TemporalMaterializationLimits) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::ExecutionRequestState>::const fn publishes_claim(self) -> bool
@@ -9072,6 +9172,7 @@ pub fn <antecedent_core::SupportStatus>::const fn severity(self) -> u8
 pub fn <antecedent_core::SupportStatus>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::SurvivalQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::SyntheticControlQuery>::fn difference_in_differences(self) -> Self
+pub fn <antecedent_core::SyntheticControlQuery>::fn honor_declared_dependence(&mut self, design: core::option::Option<antecedent_core::DeclaredSamplingDesign>)
 pub fn <antecedent_core::SyntheticControlQuery>::fn new(outcome: antecedent_core::VariableId, units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, periods: impl core::convert::Into<alloc::sync::Arc<[i64]>>, treated_unit: impl core::convert::Into<alloc::sync::Arc<str>>, intervention_period: i64) -> Self
 pub fn <antecedent_core::SyntheticControlQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::SyntheticControlQuery>::fn with_augmentation(self, ridge_penalty: f64) -> Self
@@ -9087,6 +9188,10 @@ pub fn <antecedent_core::TargetPopulation>::fn resolve(&self, n: usize, treatmen
 pub fn <antecedent_core::TargetPopulation>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::TargetSampling>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::TargetSampling>::const fn represents_target_law(self) -> bool
+pub fn <antecedent_core::TemporalBudget>::const fn limits(&self) -> antecedent_core::TemporalMaterializationLimits
+pub fn <antecedent_core::TemporalBudget>::fn charge_offsets(&mut self, count: u64) -> core::result::Result<(), antecedent_core::TemporalMaterializationError>
+pub fn <antecedent_core::TemporalBudget>::fn charge_work(&mut self, count: u64) -> core::result::Result<(), antecedent_core::TemporalMaterializationError>
+pub fn <antecedent_core::TemporalBudget>::fn new(limits: antecedent_core::TemporalMaterializationLimits) -> Self
 pub fn <antecedent_core::TemporalDesignQuery>::const fn design_name(&self) -> &'static str
 pub fn <antecedent_core::TemporalDesignQuery>::fn columns(&self) -> alloc::vec::Vec<antecedent_core::VariableId>
 pub fn <antecedent_core::TemporalDesignQuery>::fn rows(&self) -> usize
@@ -9094,7 +9199,7 @@ pub fn <antecedent_core::TemporalDesignQuery>::fn validate(&self) -> core::resul
 pub fn <antecedent_core::TemporalEffectQuery>::const fn is_multi_step_sustained(&self) -> bool
 pub fn <antecedent_core::TemporalEffectQuery>::const fn with_horizon_steps(self, horizon_steps: u32) -> Self
 pub fn <antecedent_core::TemporalEffectQuery>::const fn with_max_history_lag(self, max_history_lag: core::option::Option<u32>) -> Self
-pub fn <antecedent_core::TemporalEffectQuery>::fn outcome_offset(&self) -> i32
+pub fn <antecedent_core::TemporalEffectQuery>::fn outcome_offset(&self) -> core::result::Result<i32, antecedent_core::QueryError>
 pub fn <antecedent_core::TemporalEffectQuery>::fn pulse(treatment: antecedent_core::VariableId, outcome: antecedent_core::VariableId, active_level: f64) -> Self
 pub fn <antecedent_core::TemporalEffectQuery>::fn sustained(treatment: antecedent_core::VariableId, outcome: antecedent_core::VariableId, until: i32, active_level: f64) -> Self
 pub fn <antecedent_core::TemporalEffectQuery>::fn treatment_offset(&self) -> i32
@@ -9116,9 +9221,12 @@ pub fn <antecedent_core::TemporalPolicy>::const fn is_pulse_or_sustained(&self) 
 pub fn <antecedent_core::TemporalPolicy>::const fn is_single_step(&self) -> bool
 pub fn <antecedent_core::TemporalPolicy>::const fn pulse(at: i32) -> Self
 pub fn <antecedent_core::TemporalPolicy>::const fn sustained(from: i32, until: i32) -> Self
-pub fn <antecedent_core::TemporalPolicy>::fn active_offsets(&self) -> core::result::Result<alloc::sync::Arc<[i32]>, antecedent_core::InterventionError>
+pub fn <antecedent_core::TemporalPolicy>::fn active_offsets(&self) -> core::result::Result<antecedent_core::AdmittedTemporalOffsets, antecedent_core::TemporalMaterializationError>
+pub fn <antecedent_core::TemporalPolicy>::fn active_offsets_within(&self, budget: &mut antecedent_core::TemporalBudget, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::AdmittedTemporalOffsets, antecedent_core::TemporalMaterializationError>
 pub fn <antecedent_core::TemporalPolicy>::fn dynamic(rule: antecedent_core::DynamicRuleId, active_at: impl core::convert::Into<alloc::sync::Arc<[i32]>>) -> Self
 pub fn <antecedent_core::TemporalPolicy>::fn is_active_at(&self, t: i32) -> bool
+pub fn <antecedent_core::TemporalPolicy>::fn offset_count(&self) -> core::result::Result<u64, antecedent_core::InterventionError>
+pub fn <antecedent_core::TemporalPolicy>::fn offsets(&self) -> core::result::Result<antecedent_core::TemporalOffsetIter<'_>, antecedent_core::InterventionError>
 pub fn <antecedent_core::TemporalPolicy>::fn validate(&self) -> core::result::Result<(), antecedent_core::InterventionError>
 pub fn <antecedent_core::TemporalRegimeMethod>::const fn name(self) -> &'static str
 pub fn <antecedent_core::TemporalRegimeMethod>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -9605,6 +9713,7 @@ pub fn <antecedent_core::recalc::StageIdentity>::fn is_absent(&self) -> bool
 pub fn <antecedent_core::recalc::StageIdentity>::fn of(label: &str, parts: &[&[u8]]) -> Self
 pub fn <antecedent_core::recalc::StageIdentity>::fn revalidation_since(&self, retained: core::option::Option<Self>) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageIdentity>::fn to_hex(&self) -> alloc::string::String
+pub fn <antecedent_core::recalc::StageIdentity>::fn try_of<E>(label: &str, parts: &[&[u8]], check: impl core::ops::function::FnMut() -> core::result::Result<(), E>) -> core::result::Result<Self, E>
 pub fn <antecedent_core::recalc::StageStatus>::const fn revalidation(&self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::StageStatus>::const fn tag(&self) -> &'static str
 pub fn <antecedent_core::route_memory::RouteMemoryProfile>::const fn columns(self) -> u64
@@ -9657,6 +9766,7 @@ pub fn <antecedent_core::search_budget::SearchFamily>::const fn as_str(self) -> 
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn memory_bytes(self) -> u64
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn new(memory_bytes: u64, work: u64) -> Self
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self) -> u64
+pub fn antecedent_core::admit_temporal_intervention_validation<'a>(interventions: impl core::iter::traits::collect::IntoIterator<Item = &'a antecedent_core::Intervention>, budget: &mut antecedent_core::TemporalBudget, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::TemporalMaterializationError>
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::clip_value(value: f64, lower: f64, upper: f64) -> f64
 pub fn antecedent_core::default_user_threads() -> u32
@@ -9676,6 +9786,7 @@ pub fn antecedent_core::is_blank(text: &str) -> bool
 pub fn antecedent_core::measurement_model::measurement_data_digest(parts: &[(&str, &[f64])]) -> antecedent_core::SemanticDigest
 pub fn antecedent_core::measurement_record::measure<T, E>(ctx: &antecedent_core::ExecutionContext, probe: &dyn antecedent_core::measurement_record::ResourceProbe, work: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> (core::result::Result<T, E>, antecedent_core::measurement_record::MeasurementRecord)
 pub fn antecedent_core::measurement_record::sample_peak_rss() -> antecedent_core::measurement_record::PeakRss
+pub fn antecedent_core::policy_assignment_cost_within_budget(total: f64, budget: f64) -> bool
 pub fn antecedent_core::policy_graphless_coordinate(multi: bool, ipw: bool, uplift: bool, cate: bool, regret: bool, crossfit: bool) -> (&'static str, &'static str, &'static str)
 pub fn antecedent_core::query::randomized_graphless_coordinate(design: &antecedent_core::RandomizationDesign, estimand: antecedent_core::RandomizedEstimand, received_treatment: bool, fixed_cuped: bool, has_ancova: bool) -> (&'static str, &'static str, &'static str, &'static str, &'static str)
 pub fn antecedent_core::reason_code::split_prefix(message: &str) -> core::option::Option<(&str, &str)>
@@ -9683,6 +9794,9 @@ pub fn antecedent_core::refusal::changed_identity(detail: &str, field: impl core
 pub fn antecedent_core::refusal::explanation_of(text: &str) -> alloc::string::String
 pub fn antecedent_core::refusal::replay_mismatch(detail: &str, explanation: alloc::string::String) -> antecedent_core::refusal::RefusalParts
 pub fn antecedent_core::same_intervention_level(left: &antecedent_core::Value, right: &antecedent_core::Value) -> bool
+pub fn antecedent_core::scientific_target::composition_assumptions_identity(records: &antecedent_core::AssumptionSet) -> antecedent_core::SemanticDigest
+pub fn antecedent_core::scientific_target::quote_composition_assumptions(records: &antecedent_core::AssumptionSet, limits: &antecedent_core::scientific_target::CompositionQuoteLimits, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::scientific_target::CompositionTargetQuote, &'static str>
+pub fn antecedent_core::scientific_target::quote_composition_target(target: &antecedent_core::ScientificTarget, limits: &antecedent_core::scientific_target::CompositionQuoteLimits, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::scientific_target::CompositionTargetQuote, &'static str>
 pub mod antecedent_core::assumption
 pub mod antecedent_core::calibration_basis
 pub mod antecedent_core::callback
@@ -9733,6 +9847,8 @@ pub struct antecedent_core::AdmittedBytes
 pub struct antecedent_core::AdmittedBytes has private fields
 pub struct antecedent_core::AdmittedRouteMemory
 pub struct antecedent_core::AdmittedRouteMemory has private fields
+pub struct antecedent_core::AdmittedTemporalOffsets
+pub struct antecedent_core::AdmittedTemporalOffsets has private fields
 pub struct antecedent_core::AnomalyAttributionQuery
 pub struct antecedent_core::AssociationQuery
 pub struct antecedent_core::AssumptionBranch
@@ -10033,10 +10149,13 @@ pub struct antecedent_core::SupportReport
 pub struct antecedent_core::SurvivalQuery
 pub struct antecedent_core::SyntheticControlQuery
 pub struct antecedent_core::SyntheticRollout
+pub struct antecedent_core::TemporalBudget
+pub struct antecedent_core::TemporalBudget has private fields
 pub struct antecedent_core::TemporalDesignQuery
 pub struct antecedent_core::TemporalEffectQuery
 pub struct antecedent_core::TemporalIndexer
 pub struct antecedent_core::TemporalIndexer has private fields
+pub struct antecedent_core::TemporalMaterializationLimits
 pub struct antecedent_core::TemporalNodeKey
 pub struct antecedent_core::TemporalResponseLicense
 pub struct antecedent_core::TemporalResponseSpec
@@ -10195,6 +10314,8 @@ pub struct antecedent_core::recalc::StageIdentity
 pub struct antecedent_core::recalc::StageIdentity has private fields
 pub struct antecedent_core::route_memory::RouteMemoryProfile
 pub struct antecedent_core::route_memory::RouteMemoryProfile has private fields
+pub struct antecedent_core::scientific_target::CompositionQuoteLimits
+pub struct antecedent_core::scientific_target::CompositionTargetQuote
 pub struct antecedent_core::scientific_target::HistoryIndexedExperiment
 pub struct antecedent_core::scientific_target::HistoryIndexedExperiment has private fields
 pub struct antecedent_core::scientific_target::HistoryIndexedTargetLaw
@@ -10352,6 +10473,7 @@ pub use antecedent_core::inference_realization::SCORE_FREQUENTIST_TAG = antecede
 pub use antecedent_core::inference_realization::ScoreFrequentist = antecedent_core::ScoreFrequentist
 pub use antecedent_core::inference_realization::ScoreModel = antecedent_core::ScoreModel
 pub use antecedent_core::interval::IntervalMethod = antecedent_core::IntervalMethod
+pub use antecedent_core::intervention::AdmittedTemporalOffsets = antecedent_core::AdmittedTemporalOffsets
 pub use antecedent_core::intervention::Intervention = antecedent_core::Intervention
 pub use antecedent_core::intervention::InterventionError = antecedent_core::InterventionError
 pub use antecedent_core::intervention::InterventionSequence = antecedent_core::InterventionSequence
@@ -10359,7 +10481,12 @@ pub use antecedent_core::intervention::MechanismOverride = antecedent_core::Mech
 pub use antecedent_core::intervention::SequencedIntervention = antecedent_core::SequencedIntervention
 pub use antecedent_core::intervention::StochasticPolicy = antecedent_core::StochasticPolicy
 pub use antecedent_core::intervention::StochasticPolicyFault = antecedent_core::StochasticPolicyFault
+pub use antecedent_core::intervention::TemporalBudget = antecedent_core::TemporalBudget
+pub use antecedent_core::intervention::TemporalMaterializationError = antecedent_core::TemporalMaterializationError
+pub use antecedent_core::intervention::TemporalMaterializationLimits = antecedent_core::TemporalMaterializationLimits
+pub use antecedent_core::intervention::TemporalOffsetIter = antecedent_core::TemporalOffsetIter
 pub use antecedent_core::intervention::TemporalPolicy = antecedent_core::TemporalPolicy
+pub use antecedent_core::intervention::admit_temporal_intervention_validation = antecedent_core::admit_temporal_intervention_validation
 pub use antecedent_core::mix64 = antecedent_core::execution::mix64
 pub use antecedent_core::node::NodeRef = antecedent_core::NodeRef
 pub use antecedent_core::operator::EvidenceClaims = antecedent_core::EvidenceClaims
@@ -10575,6 +10702,7 @@ pub use antecedent_core::query::VariableDomain = antecedent_core::VariableDomain
 pub use antecedent_core::query::WorldId = antecedent_core::WorldId
 pub use antecedent_core::query::WorldObservation = antecedent_core::WorldObservation
 pub use antecedent_core::query::WorldSpec = antecedent_core::WorldSpec
+pub use antecedent_core::query::policy_assignment_cost_within_budget = antecedent_core::policy_assignment_cost_within_budget
 pub use antecedent_core::query::policy_graphless_coordinate = antecedent_core::policy_graphless_coordinate
 pub use antecedent_core::randomized_graphless_coordinate = antecedent_core::query::randomized_graphless_coordinate
 pub use antecedent_core::refusal::NextAttempt = antecedent_core::NextAttempt
@@ -10952,6 +11080,7 @@ pub variant antecedent_core::DidSamplingDesign::StaggeredEventStudy
 pub variant antecedent_core::DidSamplingDesign::StaggeredGroupTime
 pub variant antecedent_core::DidSamplingDesign::StaggeredHeterogeneityRobust
 pub variant antecedent_core::DiscoverFault::ClassPosteriorBase
+pub variant antecedent_core::DiscoverFault::DoubledLagOverflow
 pub variant antecedent_core::DiscoverFault::GesSubsetCap
 pub variant antecedent_core::DiscoverFault::LingamPruneThreshold
 pub variant antecedent_core::DiscoverFault::McmcSchedule
@@ -11376,6 +11505,7 @@ pub variant antecedent_core::QueryError::PopulationNonBinaryTreatment
 pub variant antecedent_core::QueryError::PopulationRegistryRequired
 pub variant antecedent_core::QueryError::PopulationRowOutOfRange { row: usize, n: usize }
 pub variant antecedent_core::QueryError::RandomizedEffectRefused(antecedent_core::RandomizedEffectFault)
+pub variant antecedent_core::QueryError::TemporalOutcomeOffsetOverflow { horizon_steps: u32 }
 pub variant antecedent_core::QueryError::TreatmentEqualsOutcome { id: antecedent_core::VariableId }
 pub variant antecedent_core::QueryError::UnknownDistributionRef { id: u32 }
 pub variant antecedent_core::QueryError::UnknownPredicateName { name: alloc::sync::Arc<str> }
@@ -11417,6 +11547,7 @@ pub variant antecedent_core::RandomizedEffectFault::StratifiedConsistency
 pub variant antecedent_core::RandomizedEffectFault::SwitchbackDuplicatePeriod
 pub variant antecedent_core::RandomizedEffectFault::SwitchbackLabels
 pub variant antecedent_core::RandomizedEffectFault::SwitchbackSequences
+pub variant antecedent_core::RandomizedEffectFault::SwitchbackSinglePeriod
 pub variant antecedent_core::RandomizedEffectFault::TreatmentOnTreatedNoncompliance
 pub variant antecedent_core::RandomizedEffectFault::UnobservedArm
 pub variant antecedent_core::RandomizedEstimand::ComplierAverageCausalEffect
@@ -11698,6 +11829,14 @@ pub variant antecedent_core::TemporalIndexError::OffsetOutsideWindow
 pub variant antecedent_core::TemporalIndexError::OffsetOverflow
 pub variant antecedent_core::TemporalIndexError::UnknownVariable { id: antecedent_core::VariableId }
 pub variant antecedent_core::TemporalIndexError::WindowOverflow
+pub variant antecedent_core::TemporalMaterializationError::Admission(antecedent_core::execution::AdmissionError)
+pub variant antecedent_core::TemporalMaterializationError::Allocation
+pub variant antecedent_core::TemporalMaterializationError::Cancelled
+pub variant antecedent_core::TemporalMaterializationError::Limit { dimension: &'static str }
+pub variant antecedent_core::TemporalMaterializationError::Policy(antecedent_core::InterventionError)
+pub variant antecedent_core::TemporalOffsetIter::Dynamic(core::iter::adapters::copied::Copied<core::slice::iter::Iter<'a, i32>>)
+pub variant antecedent_core::TemporalOffsetIter::Pulse(core::option::IntoIter<i32>)
+pub variant antecedent_core::TemporalOffsetIter::Sustained(core::ops::range::RangeInclusive<i32>)
 pub variant antecedent_core::TemporalPolicy::Dynamic { rule: antecedent_core::DynamicRuleId, active_at: alloc::sync::Arc<[i32]> }
 pub variant antecedent_core::TemporalPolicy::Pulse { at: i32 }
 pub variant antecedent_core::TemporalPolicy::Sustained { from: i32, until: i32 }
@@ -11806,6 +11945,7 @@ pub variant antecedent_core::device_reservation::CpuAdmissionError::LearnerExcee
 pub variant antecedent_core::device_reservation::CpuAdmissionError::Overflow
 pub variant antecedent_core::device_reservation::CpuAdmissionError::Released
 pub variant antecedent_core::device_reservation::CpuAdmissionError::Scratch { bytes: u64 }
+pub variant antecedent_core::device_reservation::CpuAdmissionError::WorkerSpawn
 pub variant antecedent_core::device_reservation::DeviceReservationError::Cancelled
 pub variant antecedent_core::device_reservation::DeviceReservationError::ExceedsRemainder { requested_device_bytes: u64, requested_spill_bytes: u64, remaining_device_bytes: u64, remaining_spill_bytes: u64 }
 pub variant antecedent_core::device_reservation::DeviceReservationError::Overflow
@@ -11834,6 +11974,7 @@ pub variant antecedent_core::execution::AdmissionError::ExceedsRemainder { reque
 pub variant antecedent_core::execution::AdmissionError::Overflow
 pub variant antecedent_core::execution::AdmissionError::Released
 pub variant antecedent_core::execution::AdmissionError::WaitBoundExceeded { bound: core::time::Duration }
+pub variant antecedent_core::execution::AdmissionError::WorkerSpawn
 pub variant antecedent_core::execution::MapExecutionError::Admission(antecedent_core::execution::AdmissionError)
 pub variant antecedent_core::execution::MapExecutionError::Work(E)
 pub variant antecedent_core::execution::PipelineStep::Continue
@@ -12044,13 +12185,13 @@ pub variant antecedent_core::recalc::ProviderStandingInput::Revoked
 pub variant antecedent_core::recalc::ProviderStandingInput::Unverified
 pub variant antecedent_core::recalc::ProviderStandingInput::Verified { level: alloc::string::String, receipt: antecedent_core::recalc::StageIdentity }
 pub variant antecedent_core::recalc::RefusalReason::Blocked { by: antecedent_core::recalc::Stage }
-pub variant antecedent_core::recalc::RefusalReason::OffGrid { licensed_route: core::option::Option<&'static str> }
+pub variant antecedent_core::recalc::RefusalReason::OffGrid { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
 pub variant antecedent_core::recalc::RefusalReason::RetargetIncompatible
 pub variant antecedent_core::recalc::RefusalReason::Unavailable { missing: antecedent_core::recalc::MissingDependency }
-pub variant antecedent_core::recalc::RefusalReason::Unsupported { licensed_route: core::option::Option<&'static str> }
-pub variant antecedent_core::recalc::RequestSupport::OffGrid { licensed_route: core::option::Option<&'static str> }
+pub variant antecedent_core::recalc::RefusalReason::Unsupported { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
+pub variant antecedent_core::recalc::RequestSupport::OffGrid { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
 pub variant antecedent_core::recalc::RequestSupport::OnGrid
-pub variant antecedent_core::recalc::RequestSupport::Unsupported { licensed_route: core::option::Option<&'static str> }
+pub variant antecedent_core::recalc::RequestSupport::Unsupported { licensed_route: core::option::Option<alloc::sync::Arc<str>> }
 pub variant antecedent_core::recalc::RetargetSupport::Incompatible
 pub variant antecedent_core::recalc::RetargetSupport::Licensed
 pub variant antecedent_core::recalc::RetargetSupport::NotDeclared

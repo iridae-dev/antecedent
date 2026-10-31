@@ -225,7 +225,8 @@ fn fit_sustained(
             } else {
                 let atom = super::sequential_validation::SequentialValidationAtom {
                     weight: 1.0,
-                    graph: graph.clone(),
+                    graph: Arc::new(graph.clone()),
+                    _graph_lease: None,
                     indexer: indexer.clone(),
                     estimand: estimand.clone(),
                     status: identification.status,
@@ -287,7 +288,8 @@ fn fit_sustained(
         .map_err(CausalError::from)?;
     let atom = super::sequential_validation::SequentialValidationAtom {
         weight: 1.0,
-        graph: graph.clone(),
+        graph: Arc::new(graph.clone()),
+        _graph_lease: None,
         indexer: indexer.clone(),
         estimand: estimand.clone(),
         status: identification.status,

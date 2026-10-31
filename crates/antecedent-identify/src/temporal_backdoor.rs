@@ -31,7 +31,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, Intervention, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{TemporalIndexer, TemporalNodeKey};
-use antecedent_graph::{DenseNodeId, NodeRef, TemporalDag, UnfoldedTemporalGraph};
+use antecedent_graph::{AdmittedUnfoldedTemporalGraph, DenseNodeId, NodeRef, TemporalDag};
 
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
@@ -54,6 +54,7 @@ pub struct TemporalBackdoorIdentifier {
     /// where the graph is one fully oriented [`TemporalDag`] the analysis
     /// accepted, never for completions of a class or posterior atoms.
     pub parent_adjustment_fallback: bool,
+    temporal_budget: Option<antecedent_core::TemporalBudget>,
 }
 
 /// Derivation rule id of a single-step pulse identified by adjusting for the
@@ -73,14 +74,82 @@ pub struct TemporalIdentificationResult {
     pub indexer: TemporalIndexer,
     /// Unfolded DAG [`Self::indexer`] addresses. Callers read this graph
     /// instead of unfolding the template again.
-    pub unfolded: UnfoldedTemporalGraph,
+    pub unfolded: AdmittedUnfoldedTemporalGraph,
     /// Temporal key of the treatment node used for identification.
     pub treatment_key: TemporalNodeKey,
     /// Temporal key of the outcome node used for identification.
     pub outcome_key: TemporalNodeKey,
+    _schedule_lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
+fn map_admission_error(error: antecedent_core::execution::AdmissionError) -> IdentificationError {
+    match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::budget(crate::error::IdentificationBudget::Memory),
+    }
+}
+// Charge the temporary graph copy and its indexes, distinct from the retained window.
+fn admit_graph_copy(
+    dag: &antecedent_graph::Dag,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+    use crate::error::IdentificationBudget;
+    let nodes = dag.node_count() as u64;
+    budget.charge_work(nodes).map_err(map_temporal_error)?;
+    let mut edges = 0u64;
+    for i in 0..dag.node_count() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        edges = edges
+            .checked_add(dag.children(DenseNodeId::from_index(i)).len() as u64)
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    }
+    // DAG-to-ADMG insertion may walk the existing graph once per edge.
+    let work = nodes
+        .checked_add(edges)
+        .and_then(|n| n.checked_mul(edges.saturating_add(1)))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    budget.charge_work(work).map_err(map_temporal_error)?;
+    let bytes = nodes
+        .checked_mul(512)
+        .and_then(|n| edges.checked_mul(256).and_then(|e| n.checked_add(e)))
+        .and_then(|n| n.checked_add(4096))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+    if bytes > budget.limits().max_bytes {
+        return Err(IdentificationError::budget(IdentificationBudget::Memory));
+    }
+    ctx.acquire_admission(0, bytes).map_err(map_admission_error)
+}
+fn map_temporal_error(error: antecedent_core::TemporalMaterializationError) -> IdentificationError {
+    crate::error::temporal_materialization_error(error)
+}
+fn map_graph_error(error: antecedent_graph::GraphError) -> IdentificationError {
+    match error {
+        antecedent_graph::GraphError::TemporalMaterialization(error) => map_temporal_error(error),
+        other => IdentificationError::construction(other),
+    }
 }
 
 impl TemporalBackdoorIdentifier {
+    /// Share the caller's cancellation, admission and cumulative temporal budget.
+    #[must_use]
+    pub fn with_temporal_context(
+        mut self,
+        ctx: &antecedent_core::ExecutionContext,
+        budget: &antecedent_core::TemporalBudget,
+    ) -> Self {
+        self.inner.config.context = Some(ctx.clone());
+        self.temporal_budget = Some(budget.clone());
+        self
+    }
+
+    /// Shared cumulative temporal allowance supplied to this identifier, when present.
+    pub(crate) fn temporal_budget(&self) -> Option<antecedent_core::TemporalBudget> {
+        self.temporal_budget.clone()
+    }
+
     /// Create with default config.
     #[must_use]
     pub fn new() -> Self {
@@ -130,28 +199,109 @@ impl TemporalBackdoorIdentifier {
         query: &TemporalEffectQuery,
         minimum_history: u32,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        use crate::error::IdentificationBudget;
+        let default_ctx;
+        let ctx = match self.inner.config.context.as_ref() {
+            Some(ctx) => ctx,
+            None => {
+                default_ctx = antecedent_core::ExecutionContext::production_default(0);
+                &default_ctx
+            }
+        };
+        let mut budget = self.temporal_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let validation = antecedent_core::admit_temporal_intervention_validation(
+            [&query.control, &query.active],
+            &mut budget,
+            ctx,
+        )
+        .map_err(map_temporal_error)?;
+        budget.charge_work(query.effect_modifiers.len() as u64).map_err(map_temporal_error)?;
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        drop(validation);
         let treatment_at =
             query.try_treatment_offset().map_err(|_| IdentificationError::UnsupportedQuery {
                 message: "TemporalPolicy::Dynamic requires a non-empty active_at schedule",
             })?;
-        let outcome_at = query.outcome_offset();
+        let outcome_at = query.outcome_offset().map_err(IdentificationError::construction)?;
         match &query.policy {
             // Multi-step schedules need sequential / g-formula. A one-step
             // Sustained or Dynamic is the same treatment-time node as a Pulse
             // and must use backdoor `Z`, not the empty-adjustment General ID
             // functional `identify_schedule_contrast` emits.
             TemporalPolicy::Sustained { from, until } if from != until => {
-                let schedule: Vec<_> =
-                    (*from..=*until).map(|offset| (query.treatment, offset)).collect();
-                return self.identify_active_offsets(template, query, &schedule, outcome_at);
+                let offsets = query
+                    .policy
+                    .active_offsets_within(&mut budget, ctx)
+                    .map_err(map_temporal_error)?;
+                let bytes = (offsets.len() as u64)
+                    .checked_mul(1024)
+                    .and_then(|n| n.checked_add(512))
+                    .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+                if bytes > budget.limits().max_bytes {
+                    return Err(IdentificationError::budget(IdentificationBudget::Memory));
+                }
+                budget.charge_work(offsets.len() as u64).map_err(map_temporal_error)?;
+                let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(map_admission_error)?);
+                let mut schedule = Vec::new();
+                schedule
+                    .try_reserve_exact(offsets.len())
+                    .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+                for &offset in offsets.as_slice() {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(IdentificationError::Cancelled);
+                    }
+                    schedule.push((query.treatment, offset));
+                }
+                return self.identify_active_offsets(
+                    template,
+                    query,
+                    &schedule,
+                    outcome_at,
+                    &mut budget,
+                    ctx,
+                    Some(lease),
+                );
             }
             TemporalPolicy::Dynamic { active_at, .. } if active_at.len() != 1 => {
-                let schedule: Vec<_> =
-                    active_at.iter().map(|&offset| (query.treatment, offset)).collect();
-                return self.identify_active_offsets(template, query, &schedule, outcome_at);
+                let offsets = query
+                    .policy
+                    .active_offsets_within(&mut budget, ctx)
+                    .map_err(map_temporal_error)?;
+                let bytes = (offsets.len() as u64)
+                    .checked_mul(1024)
+                    .and_then(|n| n.checked_add(512))
+                    .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+                if bytes > budget.limits().max_bytes {
+                    return Err(IdentificationError::budget(IdentificationBudget::Memory));
+                }
+                budget.charge_work(offsets.len() as u64).map_err(map_temporal_error)?;
+                let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(map_admission_error)?);
+                let mut schedule = Vec::new();
+                schedule
+                    .try_reserve_exact(offsets.len())
+                    .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+                for &offset in offsets.as_slice() {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(IdentificationError::Cancelled);
+                    }
+                    schedule.push((query.treatment, offset));
+                }
+                return self.identify_active_offsets(
+                    template,
+                    query,
+                    &schedule,
+                    outcome_at,
+                    &mut budget,
+                    ctx,
+                    Some(lease),
+                );
             }
             TemporalPolicy::Pulse { .. }
             | TemporalPolicy::Sustained { .. }
@@ -167,15 +317,23 @@ impl TemporalBackdoorIdentifier {
         let max_offset = treatment_at.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
             .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
-            .saturating_add(1);
+            .checked_add(1)
+            .ok_or_else(|| IdentificationError::out_of_range("temporal horizon overflow"))?;
 
-        let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
+        budget
+            .charge_work((template.nodes().len() as u64).checked_mul(2).ok_or_else(|| {
+                IdentificationError::budget(crate::error::IdentificationBudget::Steps)
+            })?)
+            .map_err(map_temporal_error)?;
+        let variable_count = required_variable_count(template, [query.treatment, query.outcome])?;
         let max_lag = template_max_lag(template);
         let base_history = min_offset.unsigned_abs().max(max_lag).max(minimum_history);
         // The user's max_history_lag, when set, caps window growth; otherwise
         // bound simple confounder chains through every template variable.
-        let chain_cap =
-            variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs());
+        let chain_cap = variable_count
+            .checked_mul(max_lag)
+            .and_then(|n| n.checked_add(min_offset.unsigned_abs()))
+            .ok_or_else(|| IdentificationError::out_of_range("temporal history cap overflow"))?;
         let history_cap = query.max_history_lag.unwrap_or(chain_cap).max(base_history);
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
@@ -191,18 +349,19 @@ impl TemporalBackdoorIdentifier {
             base_history,
             history_cap,
             chain_cap,
-            self.inner.config.context.as_ref(),
+            ctx,
+            &mut budget,
         ) {
             Ok(grown) => grown,
             Err(IdentificationError::NotCertified { message })
                 if self.parent_adjustment_fallback
                     && matches!(query.policy, TemporalPolicy::Pulse { .. }) =>
             {
-                return Self::parent_adjustment(template, query, Some(message));
+                return Self::parent_adjustment(template, query, Some(message), &mut budget, ctx);
             }
             Err(error) => return Err(error),
         };
-        let crate::temporal_window::GrownWindow { history, unfolded, dense } = grown;
+        let crate::temporal_window::GrownWindow { history, unfolded, dense, _lease } = grown;
         let &[treatment_dense, outcome_dense] = dense.as_slice() else {
             return Err(IdentificationError::InvariantViolated {
                 message: "temporal window growth returned a different seed count",
@@ -225,12 +384,14 @@ impl TemporalBackdoorIdentifier {
         );
 
         let mut identifier = self.inner.clone();
-        apply_history_lag_filter(
+        let _history_lease = apply_history_lag_filter(
             &mut identifier.config,
             &unfolded.indexer,
             treatment_key.offset.max(outcome_key.offset),
             query.max_history_lag,
-        );
+            &mut budget,
+            ctx,
+        )?;
         let prepared = identifier.prepare(&unfolded.dag)?;
         let mut id_ws = IdentificationWorkspace::default();
         let mut result =
@@ -243,6 +404,7 @@ impl TemporalBackdoorIdentifier {
             unfolded,
             treatment_key,
             outcome_key,
+            _schedule_lease: None,
         })
     }
 
@@ -276,7 +438,18 @@ impl TemporalBackdoorIdentifier {
         template: &TemporalDag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
-        Self::parent_adjustment(template, query, None)
+        let default_ctx;
+        let ctx = match self.inner.config.context.as_ref() {
+            Some(ctx) => ctx,
+            None => {
+                default_ctx = antecedent_core::ExecutionContext::production_default(0);
+                &default_ctx
+            }
+        };
+        let mut budget = self.temporal_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        Self::parent_adjustment(template, query, None, &mut budget, ctx)
     }
 
     #[allow(
@@ -287,10 +460,20 @@ impl TemporalBackdoorIdentifier {
         template: &TemporalDag,
         query: &TemporalEffectQuery,
         unfolding_refusal: Option<&'static str>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        let validation = antecedent_core::admit_temporal_intervention_validation(
+            [&query.control, &query.active],
+            budget,
+            ctx,
+        )
+        .map_err(map_temporal_error)?;
+        budget.charge_work(query.effect_modifiers.len() as u64).map_err(map_temporal_error)?;
         query.validate().map_err(|_| IdentificationError::UnsupportedQuery {
             message: "invalid temporal-effect query",
         })?;
+        drop(validation);
         if !matches!(query.policy, TemporalPolicy::Pulse { .. }) {
             return Err(IdentificationError::UnsupportedQuery {
                 message: "parent adjustment identifies only a single-step Pulse; multi-step \
@@ -300,23 +483,31 @@ impl TemporalBackdoorIdentifier {
         let treatment_at = query.try_treatment_offset().map_err(|_| {
             IdentificationError::UnsupportedQuery { message: "invalid pulse treatment offset" }
         })?;
-        let outcome_at = query.outcome_offset();
+        let outcome_at = query.outcome_offset().map_err(IdentificationError::construction)?;
         let min_offset = treatment_at.min(outcome_at).min(0);
         let max_offset = treatment_at.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
             .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
-            .saturating_add(1);
-        let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
+            .checked_add(1)
+            .ok_or_else(|| IdentificationError::out_of_range("temporal horizon overflow"))?;
+        budget
+            .charge_work((template.nodes().len() as u64).checked_mul(2).ok_or_else(|| {
+                IdentificationError::budget(crate::error::IdentificationBudget::Steps)
+            })?)
+            .map_err(map_temporal_error)?;
+        let variable_count = required_variable_count(template, [query.treatment, query.outcome])?;
         // Every template parent of T[treatment_at] sits at most template_max_lag
         // slices earlier, so this window contains all of pa(T).
-        let history = min_offset.unsigned_abs().saturating_add(template_max_lag(template));
+        let history = min_offset
+            .unsigned_abs()
+            .checked_add(template_max_lag(template))
+            .ok_or_else(|| IdentificationError::out_of_range("temporal history overflow"))?;
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
         let indexer = TemporalIndexer::new(variable_count, history, horizon)
             .map_err(|e| IdentificationError::construction(e))?;
-        let unfolded =
-            template.unfold(indexer).map_err(|e| IdentificationError::construction(e))?;
+        let unfolded = template.unfold_within(indexer, budget, ctx).map_err(map_graph_error)?;
         let treatment_dense = unfolded
             .indexer
             .dense_id(treatment_key)
@@ -343,7 +534,8 @@ impl TemporalBackdoorIdentifier {
                 .indexer
                 .key_of(parent.raw())
                 .map_err(|e| IdentificationError::construction(e))?;
-            let lag = u32::try_from(reference.saturating_sub(key.offset)).unwrap_or(0);
+            let lag = u32::try_from((i64::from(reference) - i64::from(key.offset)).max(0))
+                .map_err(|_| IdentificationError::out_of_range("temporal parent lag overflow"))?;
             if query.max_history_lag.is_some_and(|cap| lag > cap) {
                 return Err(IdentificationError::NotCertified {
                     message: "temporal unfolding cannot certify backdoor identification, and \
@@ -354,6 +546,7 @@ impl TemporalBackdoorIdentifier {
             }
             parent_keys.push(key);
         }
+        let _copy_lease = admit_graph_copy(&unfolded.dag, budget, ctx)?;
         let mutilated = crate::backdoor::remove_outgoing(&unfolded.dag, t)?;
         let mut dsep = antecedent_graph::DSeparationWorkspace::default();
         if !crate::backdoor::is_backdoor_adjustment(&mutilated, t, y, &parents, &mut dsep)? {
@@ -456,6 +649,7 @@ impl TemporalBackdoorIdentifier {
             unfolded,
             treatment_key,
             outcome_key,
+            _schedule_lease: None,
         })
     }
 
@@ -487,9 +681,39 @@ impl TemporalBackdoorIdentifier {
         max_history_lag: Option<u32>,
         target_population: antecedent_core::TargetPopulation,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
+        use crate::error::IdentificationBudget;
+        let default_ctx;
+        let ctx = match self.inner.config.context.as_ref() {
+            Some(ctx) => ctx,
+            None => {
+                default_ctx = antecedent_core::ExecutionContext::production_default(0);
+                &default_ctx
+            }
+        };
+        let mut budget = self.temporal_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
         if schedule.is_empty() {
             return Err(IdentificationError::EmptyTreatmentSchedule);
         }
+        let count = schedule.len() as u64;
+        budget.charge_offsets(count).map_err(map_temporal_error)?;
+        let work = count
+            .checked_mul(count)
+            .and_then(|v| count.checked_mul(16).and_then(|w| v.checked_add(w)))
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+        budget.charge_work(work).map_err(map_temporal_error)?;
+        let bytes = count
+            .checked_mul(1024)
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+        if bytes > budget.limits().max_bytes {
+            return Err(IdentificationError::budget(IdentificationBudget::Memory));
+        }
+        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(map_admission_error)?);
         let (treatment, first_offset, _) = schedule[0];
         let offsets: Vec<i32> = {
             let mut offsets: Vec<i32> = schedule.iter().map(|&(_, offset, _)| offset).collect();
@@ -498,8 +722,9 @@ impl TemporalBackdoorIdentifier {
             offsets
         };
         let same_var = schedule.iter().all(|(variable, _, _)| *variable == treatment);
-        let contiguous =
-            same_var && offsets.len() > 1 && offsets.windows(2).all(|w| w[1] == w[0] + 1);
+        let contiguous = same_var
+            && offsets.len() > 1
+            && offsets.windows(2).all(|w| w[0].checked_add(1) == Some(w[1]));
         let policy = if contiguous {
             TemporalPolicy::sustained(offsets[0], *offsets.last().expect("non-empty"))
         } else if offsets.len() == 1 {
@@ -514,7 +739,7 @@ impl TemporalBackdoorIdentifier {
             policy,
             control: Intervention::set(treatment, antecedent_core::Value::f64(0.0)),
             active: Intervention::set(treatment, antecedent_core::Value::f64(active_level)),
-            horizon_steps: u32::try_from(outcome_at.saturating_add(1)).map_err(|_| {
+            horizon_steps: u32::try_from(i64::from(outcome_at) + 1).map_err(|_| {
                 IdentificationError::out_of_range("outcome offset does not fit horizon")
             })?,
             max_history_lag,
@@ -527,7 +752,15 @@ impl TemporalBackdoorIdentifier {
         })?;
         let schedule_pairs: Vec<(VariableId, i32)> =
             schedule.iter().map(|&(variable, offset, _)| (variable, offset)).collect();
-        self.identify_active_offsets(template, &query, &schedule_pairs, outcome_at)
+        self.identify_active_offsets(
+            template,
+            &query,
+            &schedule_pairs,
+            outcome_at,
+            &mut budget,
+            ctx,
+            Some(lease),
+        )
     }
 
     /// Multi-time-point interventions (sustained windows or dynamic schedules):
@@ -538,6 +771,9 @@ impl TemporalBackdoorIdentifier {
         query: &TemporalEffectQuery,
         schedule: &[(VariableId, i32)],
         outcome_at: i32,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+        schedule_lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         if schedule.is_empty() {
             return Err(IdentificationError::EmptyTreatmentSchedule);
@@ -548,15 +784,23 @@ impl TemporalBackdoorIdentifier {
         let max_offset = until.max(outcome_at).max(0);
         let horizon = u32::try_from(max_offset)
             .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
-            .saturating_add(1);
+            .checked_add(1)
+            .ok_or_else(|| IdentificationError::out_of_range("temporal horizon overflow"))?;
 
         let mut variables = vec![query.treatment, query.outcome];
         variables.extend(schedule.iter().map(|&(variable, _)| variable));
-        let variable_count = required_variable_count(template, variables);
+        budget
+            .charge_work((template.nodes().len() as u64).checked_mul(2).ok_or_else(|| {
+                IdentificationError::budget(crate::error::IdentificationBudget::Steps)
+            })?)
+            .map_err(map_temporal_error)?;
+        let variable_count = required_variable_count(template, variables)?;
         let max_lag = template_max_lag(template);
         let base_history = min_offset.unsigned_abs().max(max_lag);
-        let chain_cap =
-            variable_count.saturating_mul(max_lag).saturating_add(min_offset.unsigned_abs());
+        let chain_cap = variable_count
+            .checked_mul(max_lag)
+            .and_then(|n| n.checked_add(min_offset.unsigned_abs()))
+            .ok_or_else(|| IdentificationError::out_of_range("temporal history cap overflow"))?;
         let history_cap = query.max_history_lag.unwrap_or(chain_cap).max(base_history);
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: from };
@@ -574,9 +818,10 @@ impl TemporalBackdoorIdentifier {
             base_history,
             history_cap,
             chain_cap,
-            self.inner.config.context.as_ref(),
+            ctx,
+            budget,
         )?;
-        let crate::temporal_window::GrownWindow { history, unfolded, dense } = grown;
+        let crate::temporal_window::GrownWindow { history, unfolded, dense, _lease } = grown;
         let Some((&outcome_dense, treatment_nodes)) = dense.split_last() else {
             return Err(IdentificationError::EmptyTreatmentSchedule);
         };
@@ -608,6 +853,7 @@ impl TemporalBackdoorIdentifier {
             treatment_nodes.iter().map(|&d| VariableId::from_raw(d)).collect();
         let outcome_var = VariableId::from_raw(outcome_dense);
 
+        let _copy_lease = admit_graph_copy(&unfolded.dag, budget, ctx)?;
         let prepared = PreparedAdmg::from_dag(&unfolded.dag)?;
         let id = IdIdentifier::new();
         let mut ws = IdentificationWorkspace::default();
@@ -631,12 +877,16 @@ impl TemporalBackdoorIdentifier {
             ),
         );
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
+        if let Some(lease) = &schedule_lease {
+            result.retain_temporal_lease(Arc::clone(lease));
+        }
         Ok(TemporalIdentificationResult {
             result,
             indexer: unfolded.indexer.clone(),
             unfolded,
             treatment_key,
             outcome_key,
+            _schedule_lease: schedule_lease,
         })
     }
 }
@@ -714,7 +964,19 @@ fn apply_history_lag_filter(
     indexer: &TemporalIndexer,
     reference_offset: i32,
     max_history_lag: Option<u32>,
-) {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+    let count = indexer.dense_len() as u64;
+    budget.charge_work(count).map_err(map_temporal_error)?;
+    let bytes = count
+        .checked_mul(64)
+        .and_then(|n| n.checked_add(512))
+        .ok_or_else(|| IdentificationError::budget(crate::error::IdentificationBudget::Memory))?;
+    if bytes > budget.limits().max_bytes {
+        return Err(IdentificationError::budget(crate::error::IdentificationBudget::Memory));
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(map_admission_error)?;
     config.max_history_lag = max_history_lag;
     let mut lags = Vec::with_capacity(indexer.dense_len());
     #[allow(
@@ -723,19 +985,24 @@ fn apply_history_lag_filter(
     )]
     let dense_len = indexer.dense_len() as u32;
     for dense in 0..dense_len {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
         let Ok(key) = indexer.key_of(dense) else {
             continue;
         };
-        let lag = u32::try_from(reference_offset.saturating_sub(key.offset).max(0)).unwrap_or(0);
+        let lag = u32::try_from((i64::from(reference_offset) - i64::from(key.offset)).max(0))
+            .map_err(|_| IdentificationError::out_of_range("temporal history lag overflow"))?;
         lags.push((VariableId::from_raw(dense), lag));
     }
     config.history_lags = Arc::from(lags);
+    Ok(lease)
 }
 
 pub(crate) fn required_variable_count(
     template: &TemporalDag,
     variables: impl IntoIterator<Item = VariableId>,
-) -> u32 {
+) -> Result<u32, IdentificationError> {
     let mut max_id = 0;
     for variable in variables {
         max_id = max_id.max(variable.raw());
@@ -745,7 +1012,9 @@ pub(crate) fn required_variable_count(
             max_id = max_id.max(variable.raw());
         }
     }
-    max_id.saturating_add(1)
+    max_id
+        .checked_add(1)
+        .ok_or_else(|| IdentificationError::out_of_range("temporal variable count exceeds u32"))
 }
 
 pub(crate) fn retarget(
@@ -863,6 +1132,21 @@ mod tests {
     /// window, not only at ancestors sitting on the deepest slice: at an odd depth the lag-two
     /// ancestors land one slice above the boundary and would otherwise certify a window whose
     /// ancestry is cut.
+    #[test]
+    fn enormous_sustained_schedule_refuses_before_expansion() {
+        let mut graph = TemporalDag::empty();
+        let x = VariableId::from_raw(0);
+        let y = VariableId::from_raw(1);
+        graph.add_lagged(x, antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        graph.add_lagged(y, antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
+        let mut query = TemporalEffectQuery::pulse(x, y, 1.0);
+        query.policy = TemporalPolicy::sustained(i32::MIN, i32::MAX);
+        assert!(matches!(
+            TemporalBackdoorIdentifier::new().identify_temporal(&graph, &query),
+            Err(IdentificationError::Budget { .. })
+        ));
+    }
+
     #[test]
     fn temporal_window_observes_the_backdoor_execution_context() {
         let mut template = TemporalDag::empty();

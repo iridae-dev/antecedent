@@ -25,13 +25,12 @@ use std::collections::BTreeMap;
 use antecedent_core::{MediationQuery, TemporalEffectQuery, VariableId};
 use antecedent_discovery::GraphPosterior;
 use antecedent_estimate::{FunctionalEffect, PreparedFunctionalEffect, TemporalMediationEstimate};
-use antecedent_identify::temporal_admg::{TemporalAdmgWindowPlan, plan_temporal_admg_window};
+use antecedent_identify::temporal_admg::TemporalAdmgWindowPlan;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
 use super::mediation_mixed::{component_slot, identify_components};
 use super::mediation_refutation::plug_in_value;
-use super::temporal_admg_mediation::window_effect_query;
 use super::{
     Arc, BootstrapAccounting, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
     DiagnosticSeverity, EffectEstimate, EstimatorId, ExecutionContext, IdentificationResult,
@@ -58,17 +57,48 @@ const COMPONENTS: [antecedent_core::MediationContrast; 3] = [
     antecedent_core::MediationContrast::NaturalIndirect,
 ];
 
-/// Where one atom's target sits in the window of its own template.
+/// Where one atom's target sits; clones share the allocated columns and lease.
 #[derive(Clone, Debug)]
-struct AtomWindow {
-    /// Periods of the window, which names the window table the atom reads.
+struct AtomWindow(Arc<AtomWindowInner>);
+#[derive(Debug)]
+struct AtomWindowInner {
     periods: u32,
-    /// Window columns the functional reads.
     roles: Vec<VariableId>,
-    /// Variables of the series the window table must hold values for.
     used: Vec<VariableId>,
-    /// Window columns of the treated periods (empty for a mediation).
     treated: Vec<VariableId>,
+    _lease: Arc<antecedent_core::execution::AdmissionLease>,
+}
+impl std::ops::Deref for AtomWindow {
+    type Target = AtomWindowInner;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+fn admit_atom_window(
+    count: u64,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal posterior" });
+    }
+    let work = count.checked_mul(64).ok_or_else(|| CausalError::Resource {
+        message: "posterior window work overflow".into(),
+    })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = count.checked_mul(256).and_then(|n| n.checked_add(4096)).ok_or_else(|| {
+        CausalError::Resource { message: "posterior window bytes overflow".into() }
+    })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "posterior window byte limit".into() });
+    }
+    ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal posterior" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })
 }
 
 /// One atom's evaluation: the plug-in of its identified functional on its window table.
@@ -136,7 +166,7 @@ struct AtomFit {
 
 /// The window tables of one execution: one lag-aligned table per window length.
 struct WindowTables {
-    tables: BTreeMap<u32, TabularData>,
+    tables: BTreeMap<u32, crate::analysis::temporal_admg_contrast::AdmittedWindowTable>,
 }
 
 impl WindowTables {
@@ -146,10 +176,27 @@ impl WindowTables {
         series: &TimeSeriesData,
         variables: &[VariableId],
         windows: &[AtomWindow],
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
+        budget
+            .charge_work(windows.len() as u64)
+            .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let mut count = 0u64;
+        for window in windows {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal posterior" });
+            }
+            count = count.checked_add(window.used.len() as u64).ok_or_else(|| {
+                CausalError::Resource { message: "posterior table roles overflow".into() }
+            })?;
+        }
+        let _scratch = admit_atom_window(count, budget, ctx)?;
         let mut used: BTreeMap<u32, Vec<VariableId>> = BTreeMap::new();
         for window in windows {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal posterior" });
+            }
             used.entry(window.periods).or_default().extend(window.used.iter().copied());
         }
         let mut tables = BTreeMap::new();
@@ -158,14 +205,14 @@ impl WindowTables {
             names.dedup();
             tables.insert(
                 periods,
-                window_table_over(series, variables, periods, &names, &ctx.kernel_policy)?,
+                window_table_over(series, variables, periods, &names, budget, ctx)?,
             );
         }
         Ok(Self { tables })
     }
 
     fn get(&self, periods: u32) -> Result<&TabularData, CausalError> {
-        self.tables.get(&periods).ok_or_else(|| CausalError::Compile {
+        self.tables.get(&periods).map(|table| &**table).ok_or_else(|| CausalError::Compile {
             message: format!("no window table of {periods} periods was built"),
         })
     }
@@ -227,87 +274,189 @@ fn window_variables(
 ///
 /// The identification names its nodes by window coordinate, so the artifact declares this map for
 /// a reader to place them; the offset is the period relative to the policy origin.
-#[must_use]
 pub(crate) fn temporal_admg_posterior_window_namespace(
     study: &super::Study,
-) -> Option<Vec<(u32, i32)>> {
-    use crate::analysis::temporal_admg_contrast::identify_window_contrast;
-
-    let gp = study.graph_posterior.as_ref()?;
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<super::temporal_admg_mediation::NamespaceData>, CausalError> {
+    use crate::analysis::temporal_admg_contrast::{
+        admit_temporal_atom_template, identify_window_contrast_within,
+    };
+    let Some(gp) = study.graph_posterior.as_ref() else {
+        return Ok(None);
+    };
     let (crate::analysis::builder::DataInput::Temporal(series)
     | crate::analysis::builder::DataInput::Event(series)) = &study.data
     else {
-        return None;
+        return Ok(None);
     };
+    let max_lag = gp.max_lag().unwrap_or(0);
     if let (antecedent_discovery::GraphPosteriorAtomKind::Pag, Some(lag_masks), Some(max_lag)) =
         (gp.atom_kind(), gp.lag_masks(), gp.max_lag())
     {
         if !matches!(study.query, antecedent_core::CausalQuery::Mediation(_)) {
-            return None;
+            return Ok(None);
         }
         let variables: Vec<VariableId> =
             series.schema().variables().iter().map(|variable| variable.id).collect();
-        let variable_count = u32::try_from(variables.len()).ok()?;
+        let variable_count = u32::try_from(variables.len())
+            .map_err(|_| CausalError::Resource { message: "series schema overflow".into() })?;
+        let n = gp.n_vars() as u64;
+        let candidate = n
+            .checked_mul(n)
+            .and_then(|v| v.checked_mul(u64::from(max_lag) + 1))
+            .ok_or_else(|| CausalError::Resource { message: "PAG atom size overflow".into() })?;
         for index in 0..gp.n_graphs() {
-            let Ok(template) = antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms(
-                &gp.atoms()[index],
-                &lag_masks[index],
-                gp.mark_atom(index),
-                gp.n_vars(),
-                max_lag,
-                &variables,
-            ) else {
-                continue;
-            };
-            if let Some(nodes) = super::mediation_window_namespace(
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal namespace" });
+            }
+            let mut edges = 0u64;
+            for word in gp.atoms()[index].words().iter().chain(lag_masks[index].words()) {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal namespace" });
+                }
+                budget
+                    .charge_work(1)
+                    .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+                edges = edges.checked_add(u64::from(word.count_ones())).ok_or_else(|| {
+                    CausalError::Resource { message: "PAG atom edge overflow".into() }
+                })?;
+            }
+            let nodes_by_edges =
+                edges.checked_mul(2).and_then(|v| v.checked_add(n)).ok_or_else(|| {
+                    CausalError::Resource { message: "PAG atom node overflow".into() }
+                })?;
+            let nodes_by_lag = n.checked_mul(u64::from(max_lag) + 1).ok_or_else(|| {
+                CausalError::Resource { message: "PAG atom node overflow".into() }
+            })?;
+            let nodes = nodes_by_edges.min(nodes_by_lag);
+            if nodes > budget.limits().max_graph_nodes || edges > budget.limits().max_graph_edges {
+                return Err(CausalError::Resource { message: "PAG atom graph limit".into() });
+            }
+            let work = edges
+                .checked_mul(nodes.checked_add(edges).and_then(|v| v.checked_add(1)).ok_or_else(
+                    || CausalError::Resource { message: "PAG atom work overflow".into() },
+                )?)
+                .and_then(|v| v.checked_add(candidate))
+                .ok_or_else(|| CausalError::Resource {
+                    message: "PAG atom work overflow".into(),
+                })?;
+            budget
+                .charge_work(work)
+                .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+            let bytes = nodes
+                .checked_mul(512)
+                .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
+                .and_then(|v| v.checked_add(4096))
+                .ok_or_else(|| CausalError::Resource {
+                    message: "PAG atom bytes overflow".into(),
+                })?;
+            if bytes > budget.limits().max_bytes {
+                return Err(CausalError::Resource { message: "PAG atom byte limit".into() });
+            }
+            let _lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    CausalError::Cancelled { stage: "temporal namespace" }
+                }
+                other => CausalError::Resource { message: other.to_string() },
+            })?;
+            let template =
+                match antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms_cancellable(
+                    &gp.atoms()[index],
+                    &lag_masks[index],
+                    gp.mark_atom(index),
+                    gp.n_vars(),
+                    max_lag,
+                    &variables,
+                    || ctx.cancellation.is_cancelled(),
+                ) {
+                    Ok(Some(template)) => template,
+                    Ok(None) => return Err(CausalError::Cancelled { stage: "temporal namespace" }),
+                    Err(_) => continue,
+                };
+            match super::mediation_window_namespace(
                 super::GraphRef::TemporalPag(&template),
                 &study.query,
                 variable_count,
+                budget,
+                ctx,
             ) {
-                return Some(nodes);
+                Ok(Some(nodes)) => return Ok(Some(nodes)),
+                Ok(None) => continue,
+                Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                    return Err(e);
+                }
+                Err(_) => continue,
             }
         }
-        return None;
+        return Ok(None);
     }
     if !gp.is_lagged_temporal_admg() {
-        return None;
+        return Ok(None);
     }
-    let (variables, variable_count) = window_variables(series, gp).ok()?;
-    let max_lag = gp.max_lag().unwrap_or(0);
-    let query = match &study.query {
-        antecedent_core::CausalQuery::TemporalEffect(query) => query,
-        antecedent_core::CausalQuery::Mediation(_) => {
-            for index in 0..gp.n_graphs() {
-                let Some(atom) = gp.temporal_admg_atom(index) else { continue };
-                let Ok(template) = atom.to_template(gp.n_vars(), max_lag, &variables) else {
-                    continue;
-                };
-                if let Some(nodes) = super::mediation_window_namespace(
-                    super::GraphRef::TemporalAdmg(&template),
-                    &study.query,
-                    variable_count,
-                ) {
-                    return Some(nodes);
-                }
-            }
-            return None;
-        }
-        _ => return None,
-    };
+    let (variables, variable_count) = window_variables(series, gp)?;
     for index in 0..gp.n_graphs() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal namespace" });
+        }
         let Some(atom) = gp.temporal_admg_atom(index) else { continue };
+        let _lease = admit_temporal_atom_template(&atom, gp.n_vars(), budget, ctx)?;
         let Ok(template) = atom.to_template(gp.n_vars(), max_lag, &variables) else { continue };
-        let Ok(contrast) = identify_window_contrast(&template, query, variable_count) else {
-            continue;
-        };
-        return (0..contrast.indexer.dense_len())
-            .map(|dense| {
-                let key = contrast.indexer.key_of(u32::try_from(dense).ok()?).ok()?;
-                Some((key.variable.raw(), key.offset))
-            })
-            .collect();
+        match &study.query {
+            antecedent_core::CausalQuery::Mediation(_) => match super::mediation_window_namespace(
+                super::GraphRef::TemporalAdmg(&template),
+                &study.query,
+                variable_count,
+                budget,
+                ctx,
+            ) {
+                Ok(Some(nodes)) => return Ok(Some(nodes)),
+                Ok(None) => continue,
+                Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                    return Err(e);
+                }
+                Err(_) => continue,
+            },
+            antecedent_core::CausalQuery::TemporalEffect(query) => {
+                let contrast = match identify_window_contrast_within(
+                    &template,
+                    query,
+                    variable_count,
+                    budget,
+                    ctx,
+                ) {
+                    Ok(contrast) => contrast,
+                    Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                        return Err(e);
+                    }
+                    Err(_) => continue,
+                };
+                let count = contrast.indexer.dense_len();
+                let lease =
+                    super::temporal_admg_mediation::admit_namespace(count as u64, budget, ctx)?;
+                let mut nodes = Vec::new();
+                nodes.try_reserve_exact(count).map_err(|_| CausalError::Resource {
+                    message: "temporal namespace allocation".into(),
+                })?;
+                for dense in 0..count {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "temporal namespace" });
+                    }
+                    let raw = u32::try_from(dense).map_err(|_| CausalError::Resource {
+                        message: "temporal namespace overflow".into(),
+                    })?;
+                    let key = contrast
+                        .indexer
+                        .key_of(raw)
+                        .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                    nodes.push((key.variable.raw(), key.offset));
+                }
+                return Ok(Some(super::temporal_admg_mediation::NamespaceData { nodes, lease }));
+            }
+            _ => return Ok(None),
+        }
     }
-    None
+    Ok(None)
 }
 
 /// Posterior position named by a position-derived graph key.
@@ -733,16 +882,44 @@ impl super::Study {
                  window of its template",
             ));
         }
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let mut windows = Vec::with_capacity(identified.atoms.len());
         for atom in identified.atoms.iter() {
-            let template = gp
-                .temporal_admg_atom(position_of(atom.key)?)
-                .ok_or_else(|| CausalError::Compile {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal posterior" });
+            }
+            let source_atom = gp.temporal_admg_atom(position_of(atom.key)?).ok_or_else(|| {
+                CausalError::Compile {
                     message: "a retained atom has no lagged template in the posterior".into(),
-                })?
-                .to_template(gp.n_vars(), max_lag, &variables)?;
-            let plan = plan_temporal_admg_window(&template, query)?;
-            windows.push(AtomWindow {
+                }
+            })?;
+            let _template_lease =
+                crate::analysis::temporal_admg_contrast::admit_temporal_atom_template(
+                    &source_atom,
+                    gp.n_vars(),
+                    &mut budget,
+                    ctx,
+                )?;
+            let template = source_atom.to_template(gp.n_vars(), max_lag, &variables)?;
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal atom" });
+            }
+            let plan = antecedent_identify::temporal_admg::plan_temporal_admg_window_within(
+                &template,
+                query,
+                &mut budget,
+                ctx,
+            )?;
+            let count = (plan.treated.len() as u64)
+                .checked_add(template.nodes().len() as u64)
+                .and_then(|n| n.checked_add(query.effect_modifiers.len() as u64))
+                .and_then(|n| n.checked_add(4))
+                .ok_or_else(|| CausalError::Resource {
+                    message: "posterior window count overflow".into(),
+                })?;
+            let lease = Arc::new(admit_atom_window(count, &mut budget, ctx)?);
+            windows.push(AtomWindow(Arc::new(AtomWindowInner {
                 periods: plan.periods,
                 roles: contrast_roles(&plan, query, variable_count),
                 used: used_variables(&template, query),
@@ -751,9 +928,10 @@ impl super::Study {
                     .iter()
                     .map(|&period| coordinate(query.treatment, period, variable_count))
                     .collect(),
-            });
+                _lease: lease,
+            })));
         }
-        let tables = WindowTables::build(series, &variables, &windows, ctx)?;
+        let tables = WindowTables::build(series, &variables, &windows, &mut budget, ctx)?;
         let unidentified_mass = identified.graphs.unidentified_mass();
         let (mut mixed, se) = self.mix_window_atoms(
             &WindowMix {
@@ -824,19 +1002,36 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         self.ensure_admg_posterior_window_licensed()?;
-        let effect = window_effect_query(query)?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let effect =
+            super::temporal_admg_mediation::window_effect_query_within(query, &mut budget, ctx)?;
         let (variables, variable_count) = window_variables(series, gp)?;
         let requested = component_slot(query.contrast);
         crate::analysis::execute::report_identify_compute(ctx);
         let found = ctx.map_indexed(gp.n_graphs(), |i, inner| {
+            let mut budget = budget.clone();
             if inner.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled {
                     stage: crate::analysis::stage::STAGE_IDENTIFY,
                 });
             }
-            Ok::<Option<AtomComponents>, CausalError>(
-                atom_components(gp, i, &variables, variable_count, query, &effect).ok().flatten(),
-            )
+            match atom_components(
+                gp,
+                i,
+                &variables,
+                variable_count,
+                query,
+                &effect,
+                &mut budget,
+                inner,
+            ) {
+                Ok(value) => Ok(value),
+                Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                    Err(error)
+                }
+                Err(_) => Ok(None),
+            }
         })?;
         let (slots, keys) = mediation_component_slots(gp, &found)?;
         if slots[requested].proofs.is_empty() {
@@ -847,9 +1042,16 @@ impl super::Study {
                  mediation contrast on the window of its template",
             ));
         }
+        let total_windows = slots
+            .iter()
+            .try_fold(0u64, |sum, layer| sum.checked_add(layer.windows.len() as u64))
+            .ok_or_else(|| CausalError::Resource {
+                message: "posterior window count overflow".into(),
+            })?;
+        let _window_list_lease = admit_atom_window(total_windows, &mut budget, ctx)?;
         let all_windows: Vec<AtomWindow> =
             slots.iter().flat_map(|layer| layer.windows.iter().cloned()).collect();
-        let tables = WindowTables::build(series, &variables, &all_windows, ctx)?;
+        let tables = WindowTables::build(series, &variables, &all_windows, &mut budget, ctx)?;
         let weights: Vec<f64> = gp.weights().to_vec();
         let mut results: Vec<Option<(MixedAtomEvals, f64)>> = Vec::new();
         for (slot, layer) in slots.iter().enumerate() {
@@ -972,13 +1174,27 @@ fn atom_components(
     variable_count: u32,
     query: &MediationQuery,
     effect: &TemporalEffectQuery,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<Option<AtomComponents>, CausalError> {
     let Some(atom) = gp.temporal_admg_atom(index) else { return Ok(None) };
-    let Ok(template) = atom.to_template(gp.n_vars(), gp.max_lag().unwrap_or(0), variables) else {
+    let _template_lease = crate::analysis::temporal_admg_contrast::admit_temporal_atom_template(
+        &atom,
+        gp.n_vars(),
+        budget,
+        ctx,
+    )?;
+    let template = atom.to_template(gp.n_vars(), gp.max_lag().unwrap_or(0), variables);
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal atom" });
+    }
+    let Ok(template) = template else {
         return Ok(None);
     };
-    let plan = plan_temporal_admg_window(&template, effect)?;
-    let window = template.unroll_window_over(plan.periods, variable_count)?;
+    let plan = antecedent_identify::temporal_admg::plan_temporal_admg_window_within(
+        &template, effect, budget, ctx,
+    )?;
+    let window = template.unroll_window_over_within(plan.periods, variable_count, budget, ctx)?;
     let first = plan.treated.first().copied().ok_or_else(|| CausalError::Compile {
         message: "the pulse has no treated period".into(),
     })?;
@@ -988,9 +1204,22 @@ fn atom_components(
     ) else {
         return Ok(None);
     };
+    let periods =
+        if first <= plan.outcome_period { u64::from(plan.outcome_period - first) + 1 } else { 0 };
+    let count = periods
+        .checked_mul(query.mediators.len() as u64)
+        .and_then(|n| n.checked_add(template.nodes().len() as u64))
+        .and_then(|n| n.checked_add(4))
+        .ok_or_else(|| CausalError::Resource {
+            message: "posterior mediator count overflow".into(),
+        })?;
+    let lease = Arc::new(admit_atom_window(count, budget, ctx)?);
     let mut mediators = Vec::new();
     for &variable in query.mediators.iter() {
         for period in first..=plan.outcome_period {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal posterior" });
+            }
             if let Some(node) = window.coordinate(variable, period) {
                 if node != treatment && node != outcome {
                     mediators.push(node);
@@ -1015,14 +1244,21 @@ fn atom_components(
     window_query.control = control;
     window_query.active = active;
     window_query.target_population = query.target_population.clone();
-    let Ok(components) = identify_components(
+    let mut components = match identify_components(
         window.admg(),
         &window_query,
         IdentifierId::PathSpecificNatural,
         EstimatorId::FunctionalEffect,
-    ) else {
-        return Ok(None);
+    ) {
+        Ok(components) => components,
+        Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+            return Err(error);
+        }
+        Err(_) => return Ok(None),
     };
+    for (result, _) in components.iter_mut().flatten() {
+        result.retain_temporal_lease(Arc::clone(&lease));
+    }
     let mut roles = vec![treatment, outcome];
     roles.extend(mediators);
     let mut used = used_variables(&template, effect);
@@ -1030,7 +1266,13 @@ fn atom_components(
     used.sort_unstable();
     used.dedup();
     Ok(Some(AtomComponents {
-        window: AtomWindow { periods: plan.periods, roles, used, treated: Vec::new() },
+        window: AtomWindow(Arc::new(AtomWindowInner {
+            periods: plan.periods,
+            roles,
+            used,
+            treated: Vec::new(),
+            _lease: lease,
+        })),
         components,
     }))
 }

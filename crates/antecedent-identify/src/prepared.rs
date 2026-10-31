@@ -11,6 +11,21 @@ use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace, NodeRef};
 use crate::error::IdentificationError;
 use crate::node_map::NodeMap;
 
+#[derive(Clone, Debug)]
+enum PreparedGraph {
+    Ordinary(Arc<Admg>),
+    TemporalWindow(antecedent_graph::UnrolledTemporalAdmg),
+}
+impl std::ops::Deref for PreparedGraph {
+    type Target = Admg;
+    fn deref(&self) -> &Admg {
+        match self {
+            Self::Ordinary(graph) => graph,
+            Self::TemporalWindow(window) => window.admg(),
+        }
+    }
+}
+
 /// Prepared semi-Markovian graph for ID/IDC.
 ///
 /// Owns one [`Admg`] and caches the topological order and the variable-to-node index.
@@ -19,7 +34,10 @@ use crate::node_map::NodeMap;
 /// during the recursion.
 #[derive(Clone, Debug)]
 pub struct PreparedAdmg {
-    admg: Admg,
+    admg: PreparedGraph,
+    // The temporal graph's lease is retained in PreparedGraph; this second
+    // lease owns the topological order and node index built from it.
+    _temporal_index_lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
     declared_assumptions: AssumptionSet,
     /// Dense node of each static variable.
     var_index: Arc<NodeMap>,
@@ -55,6 +73,138 @@ impl PreparedAdmg {
         admg: Admg,
         declared_assumptions: AssumptionSet,
     ) -> Result<Self, IdentificationError> {
+        Self::with_graph_owner(PreparedGraph::Ordinary(Arc::new(admg)), declared_assumptions, None)
+    }
+
+    /// Prepare an admitted temporal window without cloning its graph. The
+    /// index has separate admission and follows this handle across clones.
+    /// # Errors
+    /// Graph validation, cancellation, logical limits or admission.
+    pub fn from_unrolled_within(
+        window: antecedent_graph::UnrolledTemporalAdmg,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, IdentificationError> {
+        use crate::error::IdentificationBudget;
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        let limits = budget.limits();
+        if !window.is_admitted() {
+            return Err(IdentificationError::unsupported("temporal graph is not admitted"));
+        }
+        let graph = window.admg();
+        let nodes = u64::try_from(graph.node_count())
+            .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+        if nodes > limits.max_graph_nodes {
+            return Err(IdentificationError::budget(IdentificationBudget::Memory));
+        }
+        budget
+            .charge_work(nodes)
+            .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+        let mut directed = 0u64;
+        let mut bidirected_adjacency = 0u64;
+        for i in 0..graph.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            let id = DenseNodeId::from_index(i);
+            directed = directed
+                .checked_add(graph.children(id).len() as u64)
+                .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+            bidirected_adjacency = bidirected_adjacency
+                .checked_add(graph.bidirected_neighbors(id).len() as u64)
+                .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+        }
+        // Each undirected edge occurs in two adjacency rows.
+        let edges = directed
+            .checked_add(bidirected_adjacency / 2)
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+        if edges > limits.max_graph_edges {
+            return Err(IdentificationError::budget(IdentificationBudget::Memory));
+        }
+        // Counting, Kahn traversal and NodeMap construction each scan nodes;
+        // Kahn scans each directed edge once. The extra passes are conservative.
+        let work = nodes
+            .checked_mul(7)
+            .and_then(|n| directed.checked_mul(2).and_then(|d| n.checked_add(d)))
+            .and_then(|n| n.checked_add(bidirected_adjacency))
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+        budget
+            .charge_work(work)
+            .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+        let bytes = nodes
+            .checked_mul(512)
+            .and_then(|n| edges.checked_mul(64).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+        if bytes > limits.max_bytes {
+            return Err(IdentificationError::budget(IdentificationBudget::Memory));
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+            _ => IdentificationError::budget(IdentificationBudget::Memory),
+        })?;
+        // Reproduce the graph's Kahn order, polling cancellation inside both
+        // node and edge loops. The window was built by checked insertions.
+        let graph = window.admg();
+        let mut indegree = Vec::with_capacity(graph.node_count());
+        let mut ready = Vec::new();
+        for i in 0..graph.node_count() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            let id = DenseNodeId::from_index(i);
+            let count = u32::try_from(graph.parents(id).len())
+                .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
+            indegree.push(count);
+            if count == 0 {
+                ready.push(id);
+            }
+        }
+        let mut topo = Vec::with_capacity(graph.node_count());
+        while let Some(node) = ready.pop() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            topo.push(node);
+            for &child in graph.children(node) {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(IdentificationError::Cancelled);
+                }
+                let degree = &mut indegree[child.as_usize()];
+                *degree = degree.checked_sub(1).ok_or(IdentificationError::InvariantViolated {
+                    message: "temporal graph indegree underflow",
+                })?;
+                if *degree == 0 {
+                    ready.push(child);
+                }
+            }
+        }
+        if topo.len() != graph.node_count() {
+            return Err(IdentificationError::Graph(antecedent_graph::GraphError::Cycle {
+                from: 0,
+                to: 0,
+            }));
+        }
+        let var_index = NodeMap::new_with_cancel(graph.nodes(), ctx)?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        Ok(Self {
+            admg: PreparedGraph::TemporalWindow(window),
+            declared_assumptions: AssumptionSet::new(),
+            var_index: Arc::new(var_index),
+            topo: Arc::from(topo),
+            _temporal_index_lease: Some(Arc::new(lease)),
+        })
+    }
+
+    fn with_graph_owner(
+        admg: PreparedGraph,
+        declared_assumptions: AssumptionSet,
+        lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
+    ) -> Result<Self, IdentificationError> {
         admg.validate().map_err(IdentificationError::from)?;
         let topo: Arc<[DenseNodeId]> = Arc::from(admg.topological_order().ok_or_else(|| {
             IdentificationError::construction(
@@ -69,7 +219,13 @@ impl PreparedAdmg {
             )
         })?);
         let var_index = NodeMap::new(admg.nodes());
-        Ok(Self { admg, declared_assumptions, var_index: Arc::new(var_index), topo })
+        Ok(Self {
+            admg,
+            declared_assumptions,
+            var_index: Arc::new(var_index),
+            topo,
+            _temporal_index_lease: lease,
+        })
     }
 
     /// Embed a DAG as an ADMG (directed edges only; no bidirected).
@@ -353,5 +509,48 @@ mod tests {
         assert!(once.contains(DenseNodeId::from_raw(1)));
         assert!(once.contains(DenseNodeId::from_raw(2)));
         assert!(!once.contains(DenseNodeId::from_raw(3)));
+    }
+}
+
+#[cfg(test)]
+mod temporal_owner_tests {
+    use super::*;
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_core::{Lag, TemporalMaterializationLimits};
+    #[test]
+    fn prepared_temporal_window_keeps_both_leases_across_clones() {
+        let mut graph = antecedent_graph::TemporalAdmg::empty();
+        graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let limits = TemporalMaterializationLimits {
+            max_offsets: 8,
+            max_work: 1024,
+            max_bytes: 50_000,
+            max_graph_nodes: 8,
+            max_graph_edges: 8,
+        };
+        let pool = AdmissionPool::fixed(1, 50_000);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let window = graph
+            .unroll_window_over_within(
+                2,
+                1,
+                &mut antecedent_core::TemporalBudget::new(limits),
+                &ctx,
+            )
+            .unwrap();
+        let prepared = PreparedAdmg::from_unrolled_within(
+            window,
+            &mut antecedent_core::TemporalBudget::new(limits),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(prepared.admg().node_count(), 2);
+        let used = pool.available().bytes();
+        assert!(used < 50_000);
+        let clone = prepared.clone();
+        drop(prepared);
+        assert_eq!(pool.available().bytes(), used);
+        drop(clone);
+        assert_eq!(pool.available().bytes(), 50_000);
     }
 }

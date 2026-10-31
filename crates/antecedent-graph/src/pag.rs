@@ -62,13 +62,44 @@ impl Pag {
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
+    /// The returned owner and its clones share the graph and admission lease.
     ///
     /// # Errors
+    /// Cancellation, temporal limits, admission, or invalid coordinates.
+    pub fn from_unfolding(
+        indexer: &antecedent_core::TemporalIndexer,
+    ) -> Result<crate::unfold_pag::UnfoldedTemporalPag, GraphError> {
+        crate::temporal_pag::TemporalPag::empty().unfold(indexer.clone())
+    }
+
+    /// Construct the same admitted window under the caller's context and cumulative budget.
     ///
-    /// Window larger than the node-id space.
-    pub fn from_unfolding(indexer: &antecedent_core::TemporalIndexer) -> Result<Self, GraphError> {
+    /// # Errors
+    /// Cancellation, temporal limits, admission, or invalid coordinates.
+    pub fn from_unfolding_within(
+        indexer: &antecedent_core::TemporalIndexer,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<crate::unfold_pag::UnfoldedTemporalPag, GraphError> {
+        crate::temporal_pag::TemporalPag::empty().unfold_within(indexer.clone(), budget, ctx)
+    }
+
+    /// Build inside `TemporalPag::unfold_within` after it has admitted this allocation.
+    pub(crate) fn from_unfolding_admitted(
+        indexer: &antecedent_core::TemporalIndexer,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
         let mut g = Self::empty();
+        g.nodes.try_reserve_exact(indexer.dense_len()).map_err(|_| T::Allocation)?;
+        g.adj.try_reserve_exact(indexer.dense_len()).map_err(|_| T::Allocation)?;
         for dense in 0..indexer.dense_len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
             let key = indexer
                 .key_of(u32::try_from(dense).map_err(|_| GraphError::TooManyNodes)?)
                 .map_err(|_| GraphError::TooManyNodes)?;

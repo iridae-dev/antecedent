@@ -7,7 +7,6 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, MediationQuery, ResponseQuery, TemporalEffectQuery};
 use antecedent_data::TemporalIndexer;
 use antecedent_discovery::GraphPosterior;
-use antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::TemporalDag;
 use antecedent_identify::{IdentificationResult, TemporalBackdoorIdentifier};
@@ -16,9 +15,96 @@ use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 use super::{dbn_envelope_key, map_posterior_graphs};
 use crate::analysis::prepared::{
     CachedTemporalIdentification, TemporalResponseIdentificationRequest,
-    identify_temporal_mediation_horizons, identify_temporal_response_horizons, single_step_dose,
+    identify_temporal_response_horizons, single_step_dose,
 };
 use crate::error::CausalError;
+
+/// Admit a DBN template conversion before scanning lag/variable combinations.
+pub(crate) fn admitted_temporal_dag_atom(
+    posterior: &GraphPosterior,
+    index: usize,
+    variables: &[antecedent_core::VariableId],
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<(TemporalDag, antecedent_core::execution::AdmissionLease)>, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal atom" });
+    }
+    let masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
+        message: "DBN posterior missing lag masks".into(),
+    })?;
+    let Some((cmask, lmask)) = posterior.atoms().get(index).zip(masks.get(index)) else {
+        return Ok(None);
+    };
+    let lag = posterior
+        .max_lag()
+        .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
+    let n = posterior.n_vars() as u64;
+    let scans = n
+        .checked_mul(n)
+        .and_then(|n| n.checked_mul(u64::from(lag) + 1))
+        .ok_or_else(|| CausalError::Resource { message: "DBN template scan overflow".into() })?;
+    let words = (cmask.words().len() as u64)
+        .checked_add(lmask.words().len() as u64)
+        .ok_or_else(|| CausalError::Resource { message: "DBN mask size overflow".into() })?;
+    budget.charge_work(words).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let mut edges = 0u64;
+    for word in cmask.words().iter().chain(lmask.words()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal atom" });
+        }
+        edges = edges
+            .checked_add(u64::from(word.count_ones()))
+            .ok_or_else(|| CausalError::Resource { message: "DBN edge count overflow".into() })?;
+    }
+    let nodes_by_edges = edges
+        .checked_mul(2)
+        .and_then(|v| v.checked_add(n))
+        .ok_or_else(|| CausalError::Resource { message: "DBN node count overflow".into() })?;
+    let nodes_by_lag = n
+        .checked_mul(u64::from(lag) + 1)
+        .ok_or_else(|| CausalError::Resource { message: "DBN node count overflow".into() })?;
+    let nodes = nodes_by_edges.min(nodes_by_lag);
+    if nodes > budget.limits().max_graph_nodes || edges > budget.limits().max_graph_edges {
+        return Err(CausalError::Resource { message: "DBN template graph limit".into() });
+    }
+    let work = scans
+        .checked_mul(n.max(1))
+        .and_then(|w| {
+            edges
+                .checked_mul(nodes.checked_add(edges)?.checked_add(1)?)
+                .and_then(|e| w.checked_add(e))
+        })
+        .ok_or_else(|| CausalError::Resource { message: "DBN template work overflow".into() })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = nodes
+        .checked_mul(512)
+        .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource { message: "DBN template bytes overflow".into() })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "DBN template byte limit".into() });
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal atom" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
+    let graph = antecedent_discovery::dbn_posterior::temporal_dag_from_dbn_atoms_cancellable(
+        cmask,
+        lmask,
+        posterior.n_vars(),
+        lag,
+        variables,
+        || ctx.cancellation.is_cancelled(),
+    );
+    match graph {
+        Ok(Some(graph)) => Ok(Some((graph, lease))),
+        Ok(None) => Err(CausalError::Cancelled { stage: "temporal atom" }),
+        Err(_) => Ok(None),
+    }
+}
 
 /// One identified atom in a prepared DBN graph posterior.
 #[derive(Clone, Debug)]
@@ -210,14 +296,16 @@ pub(crate) fn build_dbn_posterior_identification_cache(
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
 
-    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
+    let _lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = posterior
+    let _max_lag = posterior
         .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
-    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mut budget = budget.clone();
         // A DBN atom is the pair (contemporaneous mask, lag mask), but the
         // public GraphPosterior constructor keys atoms by contemporaneous mask
         // alone. Use posterior position as a collision-free execution key so
@@ -225,18 +313,23 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         // effect envelope. This key is internal and does not alter the public
         // GraphPosterior representation.
         let key = dbn_envelope_key(i)?;
-        let Ok(graph) = temporal_dag_from_dbn_atoms(
-            &posterior.atoms()[i],
-            &lag_masks[i],
-            posterior.n_vars(),
-            max_lag,
-            variables,
-        ) else {
+        let Some((graph, _graph_lease)) =
+            admitted_temporal_dag_atom(posterior, i, variables, &mut budget, inner)?
+        else {
             return Ok(DbnAtomOutcome::InvalidGraph);
         };
-        let Ok(temporal) = TemporalBackdoorIdentifier::new().identify_temporal(&graph, query)
-        else {
-            return Ok(DbnAtomOutcome::IdentifyFailed);
+        let temporal = match TemporalBackdoorIdentifier::new()
+            .with_temporal_context(inner, &budget)
+            .identify_temporal(&graph, query)
+        {
+            Ok(value) => value,
+            Err(antecedent_identify::IdentificationError::Cancelled) => {
+                return Err(CausalError::Cancelled { stage: "temporal identification" });
+            }
+            Err(error @ antecedent_identify::IdentificationError::Budget { .. }) => {
+                return Err(CausalError::from(error));
+            }
+            Err(_) => return Ok(DbnAtomOutcome::IdentifyFailed),
         };
         let identification = temporal.result;
         if !crate::analysis::execute::identification_status_ok_for_case(identification.status) {
@@ -333,25 +426,24 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
     })?;
     let (treatment, outcome) =
         crate::analysis::proof_support::require_primary_pair(&query.functional)?;
-    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
+    let _lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = posterior
+    let _max_lag = posterior
         .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
-    let mapped = map_posterior_graphs(posterior, ctx, |i, _inner| {
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    let dose = single_step_dose(query)?;
+    let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
+        let mut budget = budget.clone();
         let key = dbn_envelope_key(i)?;
-        let Ok(graph) = temporal_dag_from_dbn_atoms(
-            &posterior.atoms()[i],
-            &lag_masks[i],
-            posterior.n_vars(),
-            max_lag,
-            variables,
-        ) else {
+        let Some((graph, _graph_lease)) =
+            admitted_temporal_dag_atom(posterior, i, variables, &mut budget, inner)?
+        else {
             return Ok(DbnAtomOutcome::InvalidGraph);
         };
-        let Ok(horizons) = identify_temporal_response_horizons(
+        let horizons = match identify_temporal_response_horizons(
             &graph,
             estimator_id,
             &TemporalResponseIdentificationRequest {
@@ -360,10 +452,16 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
                 temporal,
                 target_population: &query.target_population,
                 schedule: None,
-                dose: single_step_dose(query).ok().flatten(),
+                dose,
             },
-        ) else {
-            return Ok(DbnAtomOutcome::IdentifyFailed);
+            &mut budget,
+            inner,
+        ) {
+            Ok(horizons) => horizons,
+            Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                return Err(error);
+            }
+            Err(_) => return Ok(DbnAtomOutcome::IdentifyFailed),
         };
         if horizons.by_horizon.len() != temporal.horizons.len()
             || horizons.by_horizon.iter().any(|entry| {
@@ -449,26 +547,50 @@ pub(crate) fn build_dbn_posterior_mediation_identification_cache(
     query: &MediationQuery,
     ctx: &ExecutionContext,
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
-    build_dbn_mediation_cache_with_identifier(
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    build_dbn_mediation_cache_with_identifier_within(
         posterior,
         variables,
         query,
         ctx,
+        budget.clone(),
         |_, _, graph, horizon_query| {
-            identify_temporal_mediation_horizons(
+            crate::analysis::prepared::identify_temporal_mediation_horizons_within(
                 graph,
                 horizon_query,
                 crate::strategy_table::EstimatorId::BayesianTemporalMediation,
+                &mut budget.clone(),
+                ctx,
             )
         },
     )
 }
 
+#[cfg(test)]
 pub(crate) fn build_dbn_mediation_cache_with_identifier(
     posterior: &GraphPosterior,
     variables: &[antecedent_core::VariableId],
     query: &MediationQuery,
     ctx: &ExecutionContext,
+    identify: impl FnMut(
+        usize,
+        u32,
+        &TemporalDag,
+        &MediationQuery,
+    ) -> Result<CachedTemporalIdentification, CausalError>,
+) -> Result<CachedDbnPosteriorIdentification, CausalError> {
+    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    build_dbn_mediation_cache_with_identifier_within(
+        posterior, variables, query, ctx, budget, identify,
+    )
+}
+
+fn build_dbn_mediation_cache_with_identifier_within(
+    posterior: &GraphPosterior,
+    variables: &[antecedent_core::VariableId],
+    query: &MediationQuery,
+    ctx: &ExecutionContext,
+    mut budget: antecedent_core::TemporalBudget,
     mut identify: impl FnMut(
         usize,
         u32,
@@ -476,10 +598,10 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         &MediationQuery,
     ) -> Result<CachedTemporalIdentification, CausalError>,
 ) -> Result<CachedDbnPosteriorIdentification, CausalError> {
-    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
+    let _lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
         message: "DBN posterior missing per-atom lag masks".into(),
     })?;
-    let max_lag = posterior
+    let _max_lag = posterior
         .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
@@ -487,6 +609,19 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
     let mut flags = Vec::with_capacity(posterior.n_graphs());
     let mut keys = Vec::with_capacity(posterior.n_graphs());
     let mut atoms = Vec::new();
+    let _validation = antecedent_core::admit_temporal_intervention_validation(
+        [&query.control, &query.active],
+        &mut budget,
+        ctx,
+    )
+    .map_err(|e| {
+        CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+    })?;
+    budget
+        .charge_work((query.mediators.len() as u64).saturating_add(query.horizons.len() as u64))
+        .map_err(|e| {
+            CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+        })?;
     query.validate()?;
     let mut horizon_demotions: Vec<_> =
         query.horizons.iter().map(|h| (*h, DbnIdentifyDemotion::default())).collect();
@@ -504,13 +639,9 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         let key = dbn_envelope_key(i)?;
         keys.push(key);
         weights.push(posterior.weights()[i]);
-        let Ok(graph) = temporal_dag_from_dbn_atoms(
-            &posterior.atoms()[i],
-            &lag_masks[i],
-            posterior.n_vars(),
-            max_lag,
-            variables,
-        ) else {
+        let Some((graph, _graph_lease)) =
+            admitted_temporal_dag_atom(posterior, i, variables, &mut budget, ctx)?
+        else {
             flags.push(GraphIdentFlag::Unidentified);
             for (_, counts) in &mut horizon_demotions {
                 counts.invalid_graph += 1;
@@ -521,9 +652,15 @@ pub(crate) fn build_dbn_mediation_cache_with_identifier(
         for (horizon, counts) in &mut horizon_demotions {
             let mut horizon_query = query.clone();
             horizon_query.horizons = Arc::from([*horizon]);
-            let Ok(horizons) = identify(i, *horizon, &graph, &horizon_query) else {
-                counts.identify_failed += 1;
-                continue;
+            let horizons = match identify(i, *horizon, &graph, &horizon_query) {
+                Ok(horizons) => horizons,
+                Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                    return Err(error);
+                }
+                Err(_) => {
+                    counts.identify_failed += 1;
+                    continue;
+                }
             };
             let Some(entry) = horizons.by_horizon.first() else {
                 counts.no_estimand += 1;
@@ -569,32 +706,4 @@ fn dbn_temporal_effect_estimator(
     query: &TemporalEffectQuery,
 ) -> crate::strategy_table::EstimatorId {
     crate::strategy_table::EstimatorId::temporal_effect_procedure(query, false)
-}
-
-/// Reconstruct the [`TemporalDag`] for a DBN envelope key (posterior index).
-pub(crate) fn temporal_dag_from_dbn_atom(
-    posterior: &GraphPosterior,
-    key: u64,
-    variables: &[antecedent_core::VariableId],
-) -> Result<TemporalDag, CausalError> {
-    let index = usize::try_from(key).map_err(|_| CausalError::Compile {
-        message: "DBN envelope key does not fit a posterior index".into(),
-    })?;
-    let lag_masks = posterior.lag_masks().ok_or_else(|| CausalError::Compile {
-        message: "DBN posterior missing per-atom lag masks".into(),
-    })?;
-    let max_lag = posterior
-        .max_lag()
-        .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
-    if index >= posterior.n_graphs() || index >= lag_masks.len() {
-        return Err(CausalError::Compile { message: "DBN envelope key is out of range".into() });
-    }
-    temporal_dag_from_dbn_atoms(
-        &posterior.atoms()[index],
-        &lag_masks[index],
-        posterior.n_vars(),
-        max_lag,
-        variables,
-    )
-    .map_err(CausalError::rejected)
 }

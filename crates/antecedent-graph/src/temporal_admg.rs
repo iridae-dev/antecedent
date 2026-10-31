@@ -8,6 +8,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use antecedent_core::{Lag, TemporalNodeKey, VariableId};
 
@@ -29,50 +30,55 @@ use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 /// a [`crate::TemporalDag`].
 #[derive(Clone, Debug)]
 pub struct UnrolledTemporalAdmg {
+    inner: Arc<UnrolledTemporalAdmgInner>,
+}
+#[derive(Debug)]
+struct UnrolledTemporalAdmgInner {
     admg: Admg,
     variables: Vec<VariableId>,
-    /// Position of each template variable in `variables`.
     position: std::collections::HashMap<VariableId, usize>,
     periods: u32,
+    _lease: Option<antecedent_core::execution::AdmissionLease>,
 }
-
 impl UnrolledTemporalAdmg {
-    /// The window as a static ADMG whose node `i` has variable id `i`.
+    /// Whether this window carries an admission lease.
+    #[must_use]
+    pub fn is_admitted(&self) -> bool {
+        self.inner._lease.is_some()
+    }
+    /// The window graph. A caller explicitly cloning this borrowed graph owns
+    /// and must separately account for that independent copy.
     #[must_use]
     pub fn admg(&self) -> &Admg {
-        &self.admg
+        &self.inner.admg
     }
-
     /// Number of periods in the window.
     #[must_use]
-    pub const fn periods(&self) -> u32 {
-        self.periods
+    pub fn periods(&self) -> u32 {
+        self.inner.periods
     }
-
-    /// The variable ids of one period, in coordinate order (`0 .. variable_count`).
+    /// Variable IDs for one period.
     #[must_use]
     pub fn variables(&self) -> &[VariableId] {
-        &self.variables
+        &self.inner.variables
     }
-
-    /// Window coordinate of template `variable` in `period`, if both exist.
+    /// Map a variable and period to its window coordinate.
     #[must_use]
     pub fn coordinate(&self, variable: VariableId, period: u32) -> Option<VariableId> {
-        if period >= self.periods {
+        if period >= self.inner.periods {
             return None;
         }
-        let index = *self.position.get(&variable)?;
-        let count = u32::try_from(self.variables.len()).ok()?;
+        let index = *self.inner.position.get(&variable)?;
+        let count = u32::try_from(self.inner.variables.len()).ok()?;
         Some(VariableId::from_raw(period * count + u32::try_from(index).ok()?))
     }
-
-    /// Template variable and period of a window coordinate.
+    /// Invert a window coordinate.
     #[must_use]
     pub fn locate(&self, coordinate: VariableId) -> Option<(VariableId, u32)> {
-        let count = u32::try_from(self.variables.len()).ok()?;
+        let count = u32::try_from(self.inner.variables.len()).ok()?;
         let period = coordinate.raw().checked_div(count)?;
         let index = usize::try_from(coordinate.raw() % count).ok()?;
-        (period < self.periods).then(|| (self.variables[index], period))
+        (period < self.inner.periods).then(|| (self.inner.variables[index], period))
     }
 }
 
@@ -297,18 +303,28 @@ impl TemporalAdmg {
     ///
     /// As [`Self::unroll_window_over`].
     pub fn unroll_window(&self, periods: u32) -> Result<UnrolledTemporalAdmg, GraphError> {
-        let largest = self
-            .nodes()
-            .iter()
-            .filter_map(|node| match node {
-                NodeRef::Lagged { variable, .. } => Some(variable.raw()),
-                _ => None,
-            })
-            .max()
-            .ok_or(GraphError::InvalidEndpoints {
-                message: "TemporalAdmg unrolling needs at least one period and one variable",
-            })?;
-        self.unroll_window_over(periods, largest + 1)
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        budget.charge_work(self.nodes().len() as u64)?;
+        let mut largest = None;
+        for node in self.nodes() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
+            if let NodeRef::Lagged { variable, .. } = node {
+                largest = Some(largest.map_or(variable.raw(), |old: u32| old.max(variable.raw())));
+            }
+        }
+        let largest = largest.ok_or(GraphError::InvalidEndpoints {
+            message: "TemporalAdmg unrolling needs at least one period and one variable",
+        })?;
+        self.unroll_window_over_within(
+            periods,
+            largest.checked_add(1).ok_or(GraphError::TooManyNodes)?,
+            &mut budget,
+            &ctx,
+        )
     }
 
     /// Unroll the template over `periods` consecutive periods into one static [`Admg`], with
@@ -326,6 +342,222 @@ impl TemporalAdmg {
         periods: u32,
         variable_count: u32,
     ) -> Result<UnrolledTemporalAdmg, GraphError> {
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.unroll_window_over_within(periods, variable_count, &mut budget, &ctx)
+    }
+
+    /// Quote and admit a finite temporal graph before any unroll allocation.
+    /// The returned handle and its clones share the retained admission.
+    /// # Errors
+    /// Invalid dimensions, logical/byte limits, cancellation or graph construction.
+    pub fn unroll_window_over_within(
+        &self,
+        periods: u32,
+        variable_count: u32,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<UnrolledTemporalAdmg, GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        let limit = |dimension| GraphError::TemporalMaterialization(T::Limit { dimension });
+        let limits = budget.limits();
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        if periods == 0 || variable_count == 0 {
+            return Err(GraphError::InvalidEndpoints {
+                message: "TemporalAdmg unrolling needs at least one period and one variable",
+            });
+        }
+        let nodes = u64::from(periods)
+            .checked_mul(u64::from(variable_count))
+            .ok_or_else(|| limit("graph nodes"))?;
+        if nodes > u64::from(u32::MAX) || nodes > limits.max_graph_nodes {
+            return Err(limit("graph nodes"));
+        }
+        let template_nodes = u64::try_from(self.nodes().len()).map_err(|_| limit("work"))?;
+        budget.charge_work(template_nodes.checked_mul(4).ok_or_else(|| limit("work"))?)?;
+        // Only edges with positive delay can originate before the window.
+        // Count those boundary candidates separately; treating every replicated
+        // edge as truncated would overcharge ordinary long windows quadratically.
+        let lag = |index: usize| -> Result<i64, GraphError> {
+            match self.nodes().get(index) {
+                Some(NodeRef::Lagged { lag, .. }) => Ok(i64::from(lag.raw())),
+                _ => Err(GraphError::InvalidEndpoints {
+                    message: "TemporalAdmg unrolling requires lagged nodes",
+                }),
+            }
+        };
+        let mut directed_templates = 0u64;
+        let mut bidirected_templates = 0u64;
+        let mut boundary = 0u64;
+        let mut count_edge = |from: usize, to: usize| -> Result<(), GraphError> {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            let delay = lag(from)? - lag(to)?;
+            let truncated = if delay > 0 {
+                u64::try_from(delay).unwrap_or(u64::MAX).min(u64::from(periods))
+            } else {
+                0
+            };
+            boundary = boundary.checked_add(truncated).ok_or_else(|| limit("graph edges"))?;
+            Ok(())
+        };
+        for (from, children) in self.directed.child_adj().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            for child in children {
+                directed_templates =
+                    directed_templates.checked_add(1).ok_or_else(|| limit("graph edges"))?;
+                budget.charge_work(2)?;
+                count_edge(from, child.as_usize())?;
+            }
+        }
+        for (from, partners) in self.bidirected.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            for partner in partners {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(T::Cancelled.into());
+                }
+                if partner.as_usize() < from {
+                    continue;
+                }
+                bidirected_templates =
+                    bidirected_templates.checked_add(1).ok_or_else(|| limit("graph edges"))?;
+                budget.charge_work(4)?;
+                count_edge(from, partner.as_usize())?;
+            }
+        }
+        let directed = directed_templates
+            .checked_mul(u64::from(periods))
+            .ok_or_else(|| limit("graph edges"))?;
+        let bidirected = bidirected_templates
+            .checked_mul(u64::from(periods))
+            .ok_or_else(|| limit("graph edges"))?;
+        // Count the actual pre-window source/period groups before quoting
+        // cliques. This temporary map is separately admitted; independent
+        // sources do not induce quadratic phantom edge charges.
+        budget.charge_work(boundary.checked_mul(512).ok_or_else(|| limit("work"))?)?;
+        let group_bytes = boundary
+            .checked_mul(512)
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| limit("bytes"))?;
+        if group_bytes > limits.max_bytes {
+            return Err(limit("bytes"));
+        }
+        let group_lease = ctx.acquire_admission(0, group_bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
+            other => T::Admission(other),
+        })?;
+        let mut groups = std::collections::BTreeMap::<(usize, i64), u64>::new();
+        let mut pairs = 0u64;
+        let mut count_groups = |from: usize, to: usize| -> Result<(), GraphError> {
+            let NodeRef::Lagged { variable, .. } = self
+                .nodes()
+                .get(from)
+                .ok_or(GraphError::InvalidEndpoints { message: "missing temporal node" })?
+            else {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "TemporalAdmg unrolling requires lagged nodes",
+                });
+            };
+            let delay = lag(from)? - lag(to)?;
+            let end = delay.max(0).min(i64::from(periods));
+            for period in 0..end {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(T::Cancelled.into());
+                }
+                let n = groups.entry((variable.as_usize(), period - delay)).or_default();
+                pairs = pairs.checked_add(*n).ok_or_else(|| limit("graph edges"))?;
+                *n = n.checked_add(1).ok_or_else(|| limit("graph edges"))?;
+                if pairs > limits.max_graph_edges {
+                    return Err(limit("graph edges"));
+                }
+            }
+            Ok(())
+        };
+        for (from, children) in self.directed.child_adj().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            for child in children {
+                count_groups(from, child.as_usize())?;
+            }
+        }
+        for (from, partners) in self.bidirected.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            for partner in partners {
+                if partner.as_usize() >= from {
+                    count_groups(from, partner.as_usize())?;
+                }
+            }
+        }
+        drop(groups);
+        drop(group_lease);
+        let edges = directed
+            .checked_add(bidirected)
+            .and_then(|n| n.checked_add(pairs))
+            .ok_or_else(|| limit("graph edges"))?;
+        if edges > limits.max_graph_edges {
+            return Err(limit("graph edges"));
+        }
+        // A directed insertion performs one BFS (at most V + directed edges);
+        // a bidirected insertion scans a row of at most V distinct neighbors.
+        let work = nodes
+            .checked_add(directed)
+            .and_then(|n| n.checked_add(bidirected))
+            .and_then(|n| {
+                directed
+                    .checked_mul(nodes.checked_add(directed)?.checked_add(1)?)
+                    .and_then(|d| n.checked_add(d))
+            })
+            .and_then(|n| {
+                bidirected
+                    .checked_add(pairs)?
+                    .checked_mul(nodes.checked_add(1)?)
+                    .and_then(|b| n.checked_add(b))
+            })
+            .ok_or_else(|| limit("work"))?;
+        budget.charge_work(work)?;
+        let bytes = nodes
+            .checked_mul(512)
+            .and_then(|n| edges.checked_mul(256).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| limit("bytes"))?;
+        if bytes > limits.max_bytes {
+            return Err(limit("bytes"));
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
+            other => T::Admission(other),
+        })?;
+        self.unroll_window_over_inner(periods, variable_count, Some(ctx), Some(lease))
+    }
+
+    fn unroll_window_over_inner(
+        &self,
+        periods: u32,
+        variable_count: u32,
+        ctx: Option<&antecedent_core::ExecutionContext>,
+        lease: Option<antecedent_core::execution::AdmissionLease>,
+    ) -> Result<UnrolledTemporalAdmg, GraphError> {
+        let poll = || {
+            if ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
+                Err(GraphError::TemporalMaterialization(
+                    antecedent_core::TemporalMaterializationError::Cancelled,
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        poll()?;
         for node in self.nodes() {
             let NodeRef::Lagged { variable, .. } = node else {
                 return Err(GraphError::InvalidEndpoints {
@@ -338,13 +570,17 @@ impl TemporalAdmg {
                 });
             }
         }
-        let variables: Vec<VariableId> = (0..variable_count).map(VariableId::from_raw).collect();
         let count = variable_count;
         let total = periods.checked_mul(count).ok_or(GraphError::TooManyNodes)?;
         if periods == 0 || count == 0 {
             return Err(GraphError::InvalidEndpoints {
                 message: "TemporalAdmg unrolling needs at least one period and one variable",
             });
+        }
+        let mut variables = Vec::with_capacity(variable_count as usize);
+        for id in 0..variable_count {
+            poll()?;
+            variables.push(VariableId::from_raw(id));
         }
         let template = |id: DenseNodeId| -> Result<(usize, i64), GraphError> {
             match self.nodes().get(id.as_usize()) {
@@ -363,7 +599,11 @@ impl TemporalAdmg {
             DenseNodeId::from_raw(flat)
         };
         let window = i64::from(periods);
-        let mut admg = Admg::with_variables(total);
+        let mut admg = Admg::empty();
+        for id in 0..total {
+            poll()?;
+            admg.add_node(NodeRef::Static(VariableId::from_raw(id)))?;
+        }
         // In-window effects of each observed cause that precedes the window.
         let mut truncated: std::collections::BTreeMap<(usize, i64), Vec<DenseNodeId>> =
             std::collections::BTreeMap::new();
@@ -372,11 +612,13 @@ impl TemporalAdmg {
             other => other,
         };
         for (parent_id, kids) in self.directed.child_adj().iter().enumerate() {
+            poll()?;
             let (pi, plag) = template(DenseNodeId::from_index(parent_id))?;
             for &kid in kids {
                 let (ci, clag) = template(kid)?;
                 let delay = plag - clag;
                 for child_period in 0..window {
+                    poll()?;
                     let parent_period = child_period - delay;
                     if parent_period >= window {
                         continue;
@@ -385,12 +627,17 @@ impl TemporalAdmg {
                     if parent_period < 0 {
                         truncated.entry((pi, parent_period)).or_default().push(child);
                     } else {
-                        tolerate(admg.insert_directed(coordinate(pi, parent_period), child))?;
+                        let parent = coordinate(pi, parent_period);
+                        tolerate(match ctx {
+                            Some(ctx) => admg.insert_directed_temporal(parent, child, ctx),
+                            None => admg.insert_directed(parent, child),
+                        })?;
                     }
                 }
             }
         }
         for (a_id, partners) in self.bidirected.iter().enumerate() {
+            poll()?;
             let (ai, alag) = template(DenseNodeId::from_index(a_id))?;
             for &partner in partners {
                 if partner.as_usize() < a_id {
@@ -399,6 +646,7 @@ impl TemporalAdmg {
                 let (bi, blag) = template(partner)?;
                 let delay = alag - blag;
                 for b_period in 0..window {
+                    poll()?;
                     let a_period = b_period - delay;
                     if a_period >= window {
                         continue;
@@ -418,6 +666,7 @@ impl TemporalAdmg {
         for effects in truncated.values() {
             for (i, &a) in effects.iter().enumerate() {
                 for &b in &effects[i + 1..] {
+                    poll()?;
                     if a != b {
                         tolerate(admg.insert_bidirected(a, b))?;
                     }
@@ -426,9 +675,19 @@ impl TemporalAdmg {
         }
         let mut position = std::collections::HashMap::with_capacity(variables.len());
         for (index, variable) in variables.iter().enumerate() {
+            poll()?;
             position.entry(*variable).or_insert(index);
         }
-        Ok(UnrolledTemporalAdmg { admg, variables, position, periods })
+        poll()?;
+        Ok(UnrolledTemporalAdmg {
+            inner: Arc::new(UnrolledTemporalAdmgInner {
+                admg,
+                variables,
+                position,
+                periods,
+                _lease: lease,
+            }),
+        })
     }
 
     /// Lift a static [`Admg`] to contemporaneous lagged nodes.
@@ -506,5 +765,119 @@ mod tests {
         let past = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let now = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
         assert!(matches!(graph.insert_directed(now, past), Err(GraphError::FutureToPast { .. })));
+    }
+}
+
+#[cfg(test)]
+mod admitted_unroll_tests {
+    use super::*;
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_core::{TemporalMaterializationError, TemporalMaterializationLimits};
+    fn limits() -> TemporalMaterializationLimits {
+        TemporalMaterializationLimits {
+            max_offsets: 16,
+            max_work: 1000,
+            max_bytes: 8192,
+            max_graph_nodes: 16,
+            max_graph_edges: 64,
+        }
+    }
+    #[test]
+    fn unroll_checks_before_allocating_and_clones_retain_lease() {
+        let mut graph = TemporalAdmg::empty();
+        graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let pool = AdmissionPool::fixed(1, 8192);
+        let ctx = antecedent_core::ExecutionContext::for_tests(8).with_admission(pool.clone());
+        assert!(matches!(
+            graph.unroll_window_over_within(
+                u32::MAX,
+                u32::MAX,
+                &mut antecedent_core::TemporalBudget::new(limits()),
+                &ctx
+            ),
+            Err(GraphError::TemporalMaterialization(TemporalMaterializationError::Limit { .. }))
+        ));
+        let window = graph
+            .unroll_window_over_within(
+                3,
+                2,
+                &mut antecedent_core::TemporalBudget::new(limits()),
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(window.admg().node_count(), 6);
+        let remaining = pool.available().bytes();
+        assert!(remaining < 8192);
+        let clone = window.clone();
+        drop(window);
+        assert_eq!(pool.available().bytes(), remaining);
+        drop(clone);
+        assert_eq!(pool.available().bytes(), 8192);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            graph.unroll_window_over_within(
+                1,
+                1,
+                &mut antecedent_core::TemporalBudget::new(limits()),
+                &ctx
+            ),
+            Err(GraphError::TemporalMaterialization(TemporalMaterializationError::Cancelled))
+        ));
+    }
+    #[test]
+    fn long_window_charges_boundary_candidates_not_all_replicated_edges() {
+        let mut graph = TemporalAdmg::empty();
+        let past = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let one = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        let two = graph.add_lagged(VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(past, one).unwrap();
+        graph.insert_directed(past, two).unwrap();
+        let bounds = TemporalMaterializationLimits {
+            max_offsets: 1000,
+            max_work: 250_000,
+            max_bytes: 512_000,
+            max_graph_nodes: 300,
+            max_graph_edges: 300,
+        };
+        let ctx = antecedent_core::ExecutionContext::for_tests(8)
+            .with_admission(AdmissionPool::fixed(1, 512_000));
+        let window = graph
+            .unroll_window_over_within(
+                100,
+                3,
+                &mut antecedent_core::TemporalBudget::new(bounds),
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(window.admg().node_count(), 300);
+    }
+
+    #[test]
+    fn unrelated_boundary_sources_do_not_create_phantom_cliques() {
+        let mut graph = TemporalAdmg::empty();
+        for id in 0..100 {
+            let source = graph.add_lagged(VariableId::from_raw(id), Lag::from_raw(1)).unwrap();
+            let target =
+                graph.add_lagged(VariableId::from_raw(100 + id), Lag::CONTEMPORANEOUS).unwrap();
+            graph.insert_directed(source, target).unwrap();
+        }
+        let bounds = TemporalMaterializationLimits {
+            max_offsets: 4,
+            max_work: 300_000,
+            max_bytes: 512_000,
+            max_graph_nodes: 400,
+            max_graph_edges: 200,
+        };
+        let ctx = antecedent_core::ExecutionContext::for_tests(8)
+            .with_admission(AdmissionPool::fixed(1, 512_000));
+        let window = graph
+            .unroll_window_over_within(
+                2,
+                200,
+                &mut antecedent_core::TemporalBudget::new(bounds),
+                &ctx,
+            )
+            .unwrap();
+        assert_eq!(window.admg().node_count(), 400);
     }
 }

@@ -737,9 +737,10 @@ impl super::Study {
     }
 
     /// Refuses panel response queries outside the licensed slice and returns their temporal spec.
-    fn panel_response_temporal_spec(
-        query: &ResponseQuery,
-    ) -> Result<&antecedent_core::TemporalResponseSpec, CausalError> {
+    fn panel_response_temporal_spec<'a>(
+        query: &'a ResponseQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<&'a antecedent_core::TemporalResponseSpec, CausalError> {
         if query.observation != ObservationSpec::Complete {
             return Err(CausalError::Unsupported {
                 message: "panel response is licensed for complete observations only",
@@ -750,10 +751,11 @@ impl super::Study {
                 message: "panel response route requires TemporalResponseSpec".into(),
             });
         };
-        if antecedent_estimate::plan_from_response_query(query)
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        if antecedent_estimate::plan_from_response_query(query, &mut budget, ctx)
             .map_err(CausalError::from)?
-            .and_then(|plan| plan.mechanism_overlays())
-            .is_some()
+            .is_some_and(|plan| plan.mechanism_overlays().is_some())
         {
             return Err(CausalError::Unsupported {
                 message: "panel multi-step Sequence overlays are not licensed; keep the \
@@ -779,6 +781,8 @@ impl super::Study {
                 reused
             } else {
                 report_identify_compute(ctx);
+                let mut budget =
+                    antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
                 (
                     Arc::new(crate::analysis::prepared::identify_temporal_response_horizons(
                         graph,
@@ -791,6 +795,8 @@ impl super::Study {
                             schedule: None,
                             dose: crate::analysis::prepared::single_step_dose(query)?,
                         },
+                        &mut budget,
+                        ctx,
                     )?),
                     false,
                 )
@@ -855,7 +861,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         self.refuse_unlicensed_panel(panel)?;
         let started = Instant::now();
-        let temporal = Self::panel_response_temporal_spec(query)?;
+        let temporal = Self::panel_response_temporal_spec(query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let (cache, identify_cached) = self.panel_response_identification(
             graph,
@@ -958,7 +964,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         self.refuse_unlicensed_panel(panel)?;
         let started = Instant::now();
-        let temporal = Self::panel_response_temporal_spec(query)?;
+        let temporal = Self::panel_response_temporal_spec(query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let identify_cached = self.panel_class_response_cache_covers(temporal)?;
@@ -972,6 +978,7 @@ impl super::Study {
             identify_cached,
             physical,
             ctx,
+            budget: antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()),
         };
         let mut state = PanelClassResponseState::new(
             super::temporal_path::ClassResponseAssembly::new(query, temporal)?,
@@ -1093,7 +1100,12 @@ impl super::Study {
             if !run.identify_cached {
                 report_identify_compute(run.ctx);
             }
-            self.identify_temporal_class(run.identifier_id, &horizon_query, run.ctx)?
+            self.identify_temporal_class_within(
+                run.identifier_id,
+                &horizon_query,
+                &mut run.budget.clone(),
+                run.ctx,
+            )?
         };
         let envelope = &bundle.envelope.envelope;
         state.diagnostics.push(super::temporal_path::temporal_class_envelope_diagnostic(
@@ -1611,7 +1623,8 @@ impl super::Study {
                 let fit = &atom.units[unit_index];
                 let validation_atom = super::sequential_validation::SequentialValidationAtom {
                     weight: *weight,
-                    graph: atom.graph.clone(),
+                    graph: Arc::new(atom.graph.clone()),
+                    _graph_lease: None,
                     indexer: atom.indexer.clone(),
                     estimand: atom.estimand.clone(),
                     status: atom.status,
@@ -2523,6 +2536,7 @@ struct PanelClassResponseRun<'a> {
     identify_cached: bool,
     physical: &'a PhysicalExecutionPlan,
     ctx: &'a ExecutionContext,
+    budget: antecedent_core::TemporalBudget,
 }
 
 /// Accumulated horizons of a panel class response.

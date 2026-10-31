@@ -24,7 +24,7 @@ use antecedent_core::{
 };
 use antecedent_data::{TemporalIndexer, TemporalNodeKey};
 use antecedent_expr::CausalExprArena;
-use antecedent_graph::{DenseNodeId, TemporalDag, UnfoldedTemporalGraph};
+use antecedent_graph::{AdmittedUnfoldedTemporalGraph, DenseNodeId, TemporalDag};
 
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
@@ -57,15 +57,16 @@ pub struct TemporalIvResult {
     /// Indexer of the finite unfolding.
     pub indexer: TemporalIndexer,
     /// The unfolded DAG [`Self::indexer`] addresses.
-    pub unfolded: UnfoldedTemporalGraph,
+    pub unfolded: AdmittedUnfoldedTemporalGraph,
     /// Temporal key of the treatment node.
     pub treatment_key: TemporalNodeKey,
     /// Temporal key of the outcome node.
     pub outcome_key: TemporalNodeKey,
     /// Valid instruments, in estimand order.
-    pub instruments: Vec<TemporalNodeKey>,
+    pub instruments: Arc<[TemporalNodeKey]>,
     /// Candidates whose ancestry no finite window certified, so none was reported valid.
-    pub uncertified: Vec<TemporalNodeKey>,
+    pub uncertified: Arc<[TemporalNodeKey]>,
+    _candidate_lease: Arc<antecedent_core::execution::AdmissionLease>,
 }
 
 /// The finite window and keys one query is identified in.
@@ -102,19 +103,25 @@ impl Window {
             query.try_treatment_offset().map_err(|_| IdentificationError::UnsupportedQuery {
                 message: "temporal IV needs one treatment offset",
             })?;
-        let outcome_at = query.outcome_offset();
-        let variable_count = required_variable_count(template, [query.treatment, query.outcome]);
+        let outcome_at = query.outcome_offset().map_err(IdentificationError::construction)?;
+        let variable_count = required_variable_count(template, [query.treatment, query.outcome])?;
         let max_lag = template_max_lag(template);
         let span = max_lag.max(1);
         let span_offset = i32::try_from(span)
             .map_err(|_| IdentificationError::out_of_range("instrument window span exceeds i32"))?;
-        let earliest = treatment_at.min(outcome_at).min(0).saturating_sub(span_offset);
+        let earliest =
+            treatment_at.min(outcome_at).min(0).checked_sub(span_offset).ok_or_else(|| {
+                IdentificationError::out_of_range("instrument window offset overflow")
+            })?;
         let horizon = u32::try_from(treatment_at.max(outcome_at).max(0))
             .map_err(|_| IdentificationError::out_of_range("negative horizon"))?
-            .saturating_add(1);
+            .checked_add(1)
+            .ok_or_else(|| IdentificationError::out_of_range("instrument horizon overflow"))?;
         let base_history = earliest.unsigned_abs().max(max_lag);
-        let chain_cap =
-            variable_count.saturating_mul(max_lag).saturating_add(earliest.unsigned_abs());
+        let chain_cap = variable_count
+            .checked_mul(max_lag)
+            .and_then(|n| n.checked_add(earliest.unsigned_abs()))
+            .ok_or_else(|| IdentificationError::out_of_range("instrument history cap overflow"))?;
         Ok(Self {
             treatment_key: TemporalNodeKey { variable: query.treatment, offset: treatment_at },
             outcome_key: TemporalNodeKey { variable: query.outcome, offset: outcome_at },
@@ -131,6 +138,8 @@ impl Window {
         &self,
         template: &TemporalDag,
         seeds: &[TemporalNodeKey],
+        ctx: &antecedent_core::ExecutionContext,
+        budget: &mut antecedent_core::TemporalBudget,
     ) -> Result<GrownWindow, IdentificationError> {
         grow_window(
             template,
@@ -140,25 +149,21 @@ impl Window {
             self.base_history,
             self.history_cap,
             self.chain_cap,
-            None,
+            ctx,
+            budget,
         )
     }
 
     /// Every lagged candidate: each variable at each offset before the treatment.
-    fn candidates(&self) -> Vec<TemporalNodeKey> {
-        let mut keys = Vec::new();
-        for variable in 0..self.variable_count {
-            for back in 1..=self.span_offset {
-                let key = TemporalNodeKey {
+    fn candidates(&self) -> impl Iterator<Item = TemporalNodeKey> + '_ {
+        (0..self.variable_count)
+            .flat_map(move |variable| {
+                (1..=self.span_offset).map(move |back| TemporalNodeKey {
                     variable: VariableId::from_raw(variable),
                     offset: self.treatment_key.offset - back,
-                };
-                if key != self.outcome_key {
-                    keys.push(key);
-                }
-            }
-        }
-        keys
+                })
+            })
+            .filter(|key| *key != self.outcome_key)
     }
 }
 
@@ -192,12 +197,58 @@ impl TemporalIvIdentifier {
         template: &TemporalDag,
         query: &TemporalEffectQuery,
     ) -> Result<TemporalIvResult, IdentificationError> {
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        self.identify_temporal_iv_within(template, query, &mut budget, &ctx)
+    }
+
+    /// Identify using the caller's shared temporal budget and cancellation.
+    /// # Errors
+    /// Invalid query, budget, admission, cancellation, or identification failure.
+    pub fn identify_temporal_iv_within(
+        &self,
+        template: &TemporalDag,
+        query: &TemporalEffectQuery,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<TemporalIvResult, IdentificationError> {
+        use crate::error::IdentificationBudget;
+        let validation = antecedent_core::admit_temporal_intervention_validation(
+            [&query.control, &query.active],
+            budget,
+            ctx,
+        )
+        .map_err(crate::error::temporal_materialization_error)?;
+        budget
+            .charge_work((template.nodes().len() as u64).checked_mul(2).ok_or_else(|| {
+                IdentificationError::budget(crate::error::IdentificationBudget::Steps)
+            })?)
+            .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
         let window = Window::of(template, query)?;
-        let search = self.search(template, &window)?;
+        drop(validation);
+        let candidates = u64::from(window.variable_count)
+            .checked_mul(window.span_offset as u64)
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+        budget
+            .charge_work(candidates)
+            .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
+        let bytes = candidates
+            .checked_mul(128)
+            .and_then(|n| n.checked_add(4096))
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+        if bytes > budget.limits().max_bytes {
+            return Err(IdentificationError::budget(IdentificationBudget::Memory));
+        }
+        let lease = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+            _ => IdentificationError::budget(IdentificationBudget::Memory),
+        })?);
+        let search = self.search(template, &window, budget, ctx)?;
         let mut seeds = vec![window.treatment_key, window.outcome_key];
         seeds.extend(search.valid.iter().copied());
-        let grown = window.grow(template, &seeds)?;
-        assemble(query, &window, grown, search)
+        let grown = window.grow(template, &seeds, ctx, budget)?;
+        assemble(query, &window, grown, search, lease)
     }
 
     /// Examine each candidate in a window that certifies its own ancestry.
@@ -205,13 +256,18 @@ impl TemporalIvIdentifier {
         &self,
         template: &TemporalDag,
         window: &Window,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Search, IdentificationError> {
         let mut workspace = IdentificationWorkspace::default();
         let mut search = Search { valid: Vec::new(), uncertified: Vec::new(), examined: 0 };
         for candidate in window.candidates() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             search.examined += 1;
             let seeds = [window.treatment_key, window.outcome_key, candidate];
-            let grown = match window.grow(template, &seeds) {
+            let grown = match window.grow(template, &seeds, ctx, budget) {
                 Ok(grown) => grown,
                 Err(IdentificationError::NotCertified { .. }) => {
                     search.uncertified.push(candidate);
@@ -254,8 +310,9 @@ fn assemble(
     window: &Window,
     grown: GrownWindow,
     search: Search,
+    candidate_lease: Arc<antecedent_core::execution::AdmissionLease>,
 ) -> Result<TemporalIvResult, IdentificationError> {
-    let GrownWindow { history, unfolded, dense } = grown;
+    let GrownWindow { history, unfolded, dense, _lease } = grown;
     let (Some(&treatment_dense), Some(&outcome_dense)) = (dense.first(), dense.get(1)) else {
         return Err(seed_count());
     };
@@ -296,8 +353,9 @@ fn assemble(
         unfolded,
         treatment_key: window.treatment_key,
         outcome_key: window.outcome_key,
-        instruments: search.valid,
-        uncertified: search.uncertified,
+        instruments: Arc::from(search.valid),
+        uncertified: Arc::from(search.uncertified),
+        _candidate_lease: candidate_lease,
     })
 }
 

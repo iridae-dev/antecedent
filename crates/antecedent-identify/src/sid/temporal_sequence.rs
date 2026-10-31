@@ -577,8 +577,24 @@ pub fn unroll_two_slice(
     }
     let indexer = antecedent_core::TemporalIndexer::new(n, 0, 2)
         .map_err(|e| TemporalRefusal::invalid_spec(e.to_string()))?;
-    let unfolded =
-        template.unfold(indexer).map_err(|e| TemporalRefusal::invalid_spec(e.to_string()))?;
+    let unfolded = template.unfold(indexer).map_err(|error| match error {
+        antecedent_graph::GraphError::TemporalMaterialization(
+            antecedent_core::TemporalMaterializationError::Cancelled
+            | antecedent_core::TemporalMaterializationError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ),
+        ) => TemporalRefusal::new(
+            reason_code!("cancelled_no_claim"),
+            TEMPORAL_BOUNDS_EXCEEDED,
+            "temporal unfolding cancelled",
+        ),
+        antecedent_graph::GraphError::TemporalMaterialization(error) => TemporalRefusal::new(
+            reason_code!("transport_budget_cancel"),
+            TEMPORAL_BOUNDS_EXCEEDED,
+            error.to_string(),
+        ),
+        other => TemporalRefusal::invalid_spec(other.to_string()),
+    })?;
     let total = u32::try_from(baseline)
         .ok()
         .and_then(|b| b.checked_add(2 * n))

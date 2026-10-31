@@ -511,10 +511,26 @@ pub fn temporal_dag_from_dbn_atoms(
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<antecedent_graph::TemporalDag, DiscoveryError> {
+    temporal_dag_from_dbn_atoms_cancellable(cmask, lmask, n_vars, max_lag, variables, || false)
+        .map(|graph| graph.expect("cancellation disabled"))
+}
+
+/// The same conversion, polling cancellation at bounded row boundaries.
+pub fn temporal_dag_from_dbn_atoms_cancellable(
+    cmask: impl Into<AdjacencyMask>,
+    lmask: impl Into<LagMask>,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<Option<antecedent_graph::TemporalDag>, DiscoveryError> {
     use antecedent_core::Lag;
     use antecedent_graph::TemporalDag;
     use antecedent_graph::unfold::ensure_lagged;
 
+    if cancelled() {
+        return Ok(None);
+    }
     let (cmask, lmask) = (cmask.into(), lmask.into());
 
     if variables.len() != n_vars {
@@ -530,9 +546,18 @@ pub fn temporal_dag_from_dbn_atoms(
             "temporal_dag_from_dbn_atoms: contemporaneous mask is not a DAG; {refusal}"
         )));
     }
+    if cancelled() {
+        return Ok(None);
+    }
     let mut g = TemporalDag::empty();
+    if n_vars == 0 {
+        return Ok(Some(g));
+    }
     // Contemporaneous edges.
     for i in 0..n_vars {
+        if cancelled() {
+            return Ok(None);
+        }
         for j in 0..n_vars {
             if i != j && cmask.has_edge(n_vars, i, j) {
                 let from = ensure_lagged(&mut g, variables[i], Lag::CONTEMPORANEOUS)?;
@@ -543,7 +568,13 @@ pub fn temporal_dag_from_dbn_atoms(
     }
     // Lagged edges: X_{t-lag} → Y_t.
     for lag in 1..=max_lag {
+        if cancelled() {
+            return Ok(None);
+        }
         for i in 0..n_vars {
+            if cancelled() {
+                return Ok(None);
+            }
             for j in 0..n_vars {
                 if has_lag_edge(&lmask, n_vars, max_lag, lag, i, j) {
                     let from = ensure_lagged(&mut g, variables[i], Lag::from_raw(lag))?;
@@ -553,15 +584,17 @@ pub fn temporal_dag_from_dbn_atoms(
             }
         }
     }
-    Ok(g)
+    if cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(g))
 }
 
 /// Shared surface over the temporal graph types that accept lagged nodes, so
-/// [`ensure_lagged`] / [`insert_lagged_directed`] can be written once.
+/// [`ensure_lagged`] can be written once.
 trait LaggedGraph {
     fn nodes(&self) -> &[NodeRef];
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError>;
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError>;
 }
 
 impl LaggedGraph for TemporalCpdag {
@@ -571,9 +604,6 @@ impl LaggedGraph for TemporalCpdag {
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
         TemporalCpdag::add_lagged(self, variable, lag)
     }
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
-        TemporalCpdag::insert_directed(self, from, to)
-    }
 }
 
 impl LaggedGraph for TemporalPag {
@@ -582,9 +612,6 @@ impl LaggedGraph for TemporalPag {
     }
     fn add_lagged(&mut self, variable: VariableId, lag: Lag) -> Result<DenseNodeId, GraphError> {
         TemporalPag::add_lagged(self, variable, lag)
-    }
-    fn insert_directed(&mut self, from: DenseNodeId, to: DenseNodeId) -> Result<(), GraphError> {
-        TemporalPag::insert_directed(self, from, to)
     }
 }
 
@@ -603,27 +630,6 @@ fn ensure_lagged<G: LaggedGraph>(
     Ok(graph.add_lagged(variable, lag)?)
 }
 
-fn insert_lagged_directed<G: LaggedGraph>(
-    graph: &mut G,
-    lmask: &LagMask,
-    n_vars: usize,
-    max_lag: u32,
-    variables: &[VariableId],
-) -> Result<(), DiscoveryError> {
-    for lag in 1..=max_lag {
-        for i in 0..n_vars {
-            for j in 0..n_vars {
-                if has_lag_edge(lmask, n_vars, max_lag, lag, i, j) {
-                    let from = ensure_lagged(graph, variables[i], Lag::from_raw(lag))?;
-                    let to = ensure_lagged(graph, variables[j], Lag::CONTEMPORANEOUS)?;
-                    graph.insert_directed(from, to)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 /// Build a [`TemporalCpdag`] from contemporaneous + lag masks.
 ///
 /// Contemporaneous packing matches [`crate::adjacency_mask::cpdag_from_adjacency_mask`]: both
@@ -640,6 +646,22 @@ pub fn temporal_cpdag_from_dbn_atoms(
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalCpdag, DiscoveryError> {
+    temporal_cpdag_from_dbn_atoms_cancellable(cmask, lmask, n_vars, max_lag, variables, || false)
+        .map(|graph| graph.expect("cancellation disabled"))
+}
+
+/// Convert a temporal CPDAG while polling at each input row.
+pub fn temporal_cpdag_from_dbn_atoms_cancellable(
+    cmask: impl Into<AdjacencyMask>,
+    lmask: impl Into<LagMask>,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<Option<TemporalCpdag>, DiscoveryError> {
+    if cancelled() {
+        return Ok(None);
+    }
     let (cmask, lmask) = (cmask.into(), lmask.into());
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
@@ -647,7 +669,13 @@ pub fn temporal_cpdag_from_dbn_atoms(
         ));
     }
     let mut graph = TemporalCpdag::empty();
+    if n_vars == 0 {
+        return Ok(Some(graph));
+    }
     for i in 0..n_vars {
+        if cancelled() {
+            return Ok(None);
+        }
         for j in (i + 1)..n_vars {
             let ij = cmask.has_edge(n_vars, i, j);
             let ji = cmask.has_edge(n_vars, j, i);
@@ -665,8 +693,27 @@ pub fn temporal_cpdag_from_dbn_atoms(
             }
         }
     }
-    insert_lagged_directed(&mut graph, &lmask, n_vars, max_lag, variables)?;
-    Ok(graph)
+    for lag in 1..=max_lag {
+        if cancelled() {
+            return Ok(None);
+        }
+        for i in 0..n_vars {
+            if cancelled() {
+                return Ok(None);
+            }
+            for j in 0..n_vars {
+                if has_lag_edge(&lmask, n_vars, max_lag, lag, i, j) {
+                    let from = ensure_lagged(&mut graph, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    graph.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(graph))
 }
 
 /// Build a [`TemporalPag`] from contemporaneous + lag + circle-mark masks.
@@ -685,6 +732,31 @@ pub fn temporal_pag_from_dbn_atoms(
     max_lag: u32,
     variables: &[VariableId],
 ) -> Result<TemporalPag, DiscoveryError> {
+    temporal_pag_from_dbn_atoms_cancellable(
+        cmask,
+        lmask,
+        mark_mask,
+        n_vars,
+        max_lag,
+        variables,
+        || false,
+    )
+    .map(|graph| graph.expect("cancellation disabled"))
+}
+
+/// Convert a temporal PAG while polling at each input row.
+pub fn temporal_pag_from_dbn_atoms_cancellable(
+    cmask: impl Into<AdjacencyMask>,
+    lmask: impl Into<LagMask>,
+    mark_mask: impl Into<AdjacencyMask>,
+    n_vars: usize,
+    max_lag: u32,
+    variables: &[VariableId],
+    mut cancelled: impl FnMut() -> bool,
+) -> Result<Option<TemporalPag>, DiscoveryError> {
+    if cancelled() {
+        return Ok(None);
+    }
     let (cmask, lmask, mark_mask) = (cmask.into(), lmask.into(), mark_mask.into());
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
@@ -692,7 +764,13 @@ pub fn temporal_pag_from_dbn_atoms(
         ));
     }
     let mut graph = TemporalPag::empty();
+    if n_vars == 0 {
+        return Ok(Some(graph));
+    }
     for i in 0..n_vars {
+        if cancelled() {
+            return Ok(None);
+        }
         for j in (i + 1)..n_vars {
             let ij = cmask.has_edge(n_vars, i, j);
             let ji = cmask.has_edge(n_vars, j, i);
@@ -726,8 +804,27 @@ pub fn temporal_pag_from_dbn_atoms(
             }
         }
     }
-    insert_lagged_directed(&mut graph, &lmask, n_vars, max_lag, variables)?;
-    Ok(graph)
+    for lag in 1..=max_lag {
+        if cancelled() {
+            return Ok(None);
+        }
+        for i in 0..n_vars {
+            if cancelled() {
+                return Ok(None);
+            }
+            for j in 0..n_vars {
+                if has_lag_edge(&lmask, n_vars, max_lag, lag, i, j) {
+                    let from = ensure_lagged(&mut graph, variables[i], Lag::from_raw(lag))?;
+                    let to = ensure_lagged(&mut graph, variables[j], Lag::CONTEMPORANEOUS)?;
+                    graph.insert_directed(from, to)?;
+                }
+            }
+        }
+    }
+    if cancelled() {
+        return Ok(None);
+    }
+    Ok(Some(graph))
 }
 
 /// Build a [`TemporalDag`](antecedent_graph::TemporalDag) from a single-word contemporaneous
@@ -971,6 +1068,28 @@ fn propose_dbn(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn temporal_template_conversion_polls_and_handles_empty_variables() {
+        let vars = [antecedent_core::VariableId::from_raw(0)];
+        let mut checks = 0;
+        let result =
+            super::temporal_dag_from_dbn_atoms_cancellable(0u64, 0u64, 1, 100, &vars, || {
+                checks += 1;
+                checks >= 4
+            })
+            .unwrap();
+        assert!(result.is_none());
+        let empty =
+            super::temporal_dag_from_dbn_atoms_cancellable(0u64, 0u64, 0, u32::MAX, &[], || false)
+                .unwrap();
+        assert!(empty.is_some());
+        assert!(
+            super::temporal_pag_from_dbn_atoms_cancellable(0u64, 0u64, 0u64, 1, 1, &vars, || true)
+                .unwrap()
+                .is_none()
+        );
+    }
+
     use super::*;
     use antecedent_core::{
         CausalSchemaBuilder, ExecutionContext, Lag, MeasurementSpec, RoleHint, SmallRoleSet,

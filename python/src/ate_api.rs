@@ -725,7 +725,7 @@ fn analyze_ate_many(
         )?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let results = batch.estimate_many(&ate_queries, &ctx).map_err(py_err)?;
-        results.into_iter().map(|r| ate_result_from_analysis(&names, &r, false)).collect()
+        results.into_iter().map(|r| ate_result_from_analysis(&names, &r, false, &ctx)).collect()
     })
 }
 
@@ -733,6 +733,7 @@ pub(crate) fn ate_result_from_analysis(
     names: &[String],
     result: &antecedent::StudyResult,
     include_posterior_artifact: bool,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<AteAnalysisResult> {
     let effect_authority =
         result.identification.average_effect().zip(result.estimate().as_effect()).map(
@@ -747,7 +748,7 @@ pub(crate) fn ate_result_from_analysis(
             },
         );
     let effect = result.estimate().as_effect();
-    let certificate_json = crate::identification_details::analysis_to_json(result, names)?;
+    let certificate_json = crate::identification_details::analysis_to_json(result, names, ctx)?;
     // A single-outcome counterfactual answers with its own unit result; one with several
     // outcomes or a joint baseline answers with contrasts, whose first outcome fills the
     // same fields so the single-outcome surface reads identically.
@@ -1550,7 +1551,8 @@ fn identify_structure(
                 .map_err(|e| crate::value_err(e.to_string()))?;
             builder = builder.identifier(strategy);
         }
-        let identification = builder.identify_structure().map_err(py_err)?;
+        let ctx = py_execution_context(0, crate::resolve_user_threads(None));
+        let identification = builder.identify_structure_within(&ctx).map_err(py_err)?;
         let details = if include_details {
             Some(crate::identification_details::to_json(
                 &identification,
@@ -1558,6 +1560,7 @@ fn identify_structure(
                 &names,
                 structure.class().as_str(),
                 None,
+                &ctx,
             )?)
         } else {
             None
@@ -1637,6 +1640,7 @@ pub struct PyCompletedBatch {
     pub(crate) names: Vec<String>,
     seed: u64,
     threads: u32,
+    metadata_context: antecedent_core::ExecutionContext,
 }
 
 #[pymethods]
@@ -1694,7 +1698,7 @@ impl PyPreparedBatch {
             })
             .transpose()?;
         let threads = crate::resolve_user_threads(threads);
-        let completed = detach_catch(py, move || {
+        let (completed, metadata_context) = detach_catch(py, move || {
             let ctx = py_execution_context(seed, threads);
             let staged = sinks
                 .map(|sinks| {
@@ -1705,13 +1709,15 @@ impl PyPreparedBatch {
                 .transpose()
                 .map_err(py_err)?;
             let source = staged.as_ref().unwrap_or(inner.as_ref());
-            source.execute_retained(&ctx).map_err(py_err)
+            let completed = source.execute_retained(&ctx).map_err(py_err)?;
+            Ok((completed, ctx))
         })?;
         Ok(PyCompletedBatch {
             inner: std::sync::Arc::new(completed),
             names: self.names.clone(),
             seed,
             threads,
+            metadata_context,
         })
     }
 
@@ -1775,7 +1781,8 @@ impl PyCompletedBatch {
             .iter()
             .zip(self.inner.results())
             .map(|(study, result)| {
-                let raw = ate_result_from_analysis(&self.names, result, false)?;
+                let raw =
+                    ate_result_from_analysis(&self.names, result, false, &self.metadata_context)?;
                 let execution = crate::prepared_api::PyPreparedAnalysis::from_completed(
                     std::sync::Arc::new(study.clone()),
                     std::sync::Arc::clone(result),

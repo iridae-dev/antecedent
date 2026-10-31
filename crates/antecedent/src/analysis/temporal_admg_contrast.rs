@@ -15,8 +15,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    KernelPolicy, Lag, ResponseQuery, TargetPopulation, TemporalEffectQuery, TemporalIndexer,
-    VariableId,
+    Lag, ResponseQuery, TargetPopulation, TemporalEffectQuery, TemporalIndexer, VariableId,
 };
 use antecedent_data::{
     LaggedFrame, LaggedFrameOptions, MaskPolicy, MissingPolicy, ReferencePointPolicy, TableView,
@@ -25,9 +24,9 @@ use antecedent_data::{
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{TemporalAdmg, UnrolledTemporalAdmg};
 use antecedent_identify::IdentificationResult;
-use antecedent_identify::identify_temporal_admg_response_adjustment;
 use antecedent_identify::temporal_admg::{
-    TemporalAdmgWindowPlan, identify_temporal_admg_contrast_over,
+    AdmittedTemporalAdmgWindowPlan, TemporalAdmgWindowPlan,
+    identify_temporal_admg_contrast_over_within,
 };
 
 use crate::analysis::prepared::{
@@ -61,7 +60,9 @@ pub(crate) struct WindowContrast {
             reason = "the tests read the plan; the run recomputes it from the template"
         )
     )]
-    pub(crate) plan: TemporalAdmgWindowPlan,
+    pub(crate) plan: AdmittedTemporalAdmgWindowPlan,
+    /// Retain the identification owner's admitted schedule and supporting window.
+    _identification_owner: antecedent_identify::temporal_admg::AdmittedTemporalAdmgIdentification,
     /// The unrolled window the functional is stated on.
     #[cfg_attr(
         not(test),
@@ -74,6 +75,67 @@ pub(crate) struct WindowContrast {
     /// The window's variable namespace as the unfolding indexer of the schema it is numbered
     /// over: coordinate `period * variables + variable` is the node at offset `period - origin`.
     pub(crate) indexer: TemporalIndexer,
+}
+
+/// Admit the temporary template built from one posterior atom before its
+/// quadratic contemporaneous scan and graph construction.
+pub(crate) fn admit_temporal_atom_template(
+    atom: &antecedent_discovery::TemporalAdmgAtom,
+    n_vars: usize,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal atom" });
+    }
+    let masks = [&atom.contemporaneous, &atom.lagged_directed, &atom.lagged_bidirected];
+    let words = masks
+        .iter()
+        .try_fold(0u64, |sum, mask| sum.checked_add(mask.words().len() as u64))
+        .ok_or_else(|| CausalError::Resource { message: "temporal atom size overflow".into() })?;
+    budget.charge_work(words).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let mut bits = 0u64;
+    for mask in masks {
+        for &word in mask.words() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal atom" });
+            }
+            bits = bits.checked_add(u64::from(word.count_ones())).ok_or_else(|| {
+                CausalError::Resource { message: "temporal atom edge overflow".into() }
+            })?;
+        }
+    }
+    let n = n_vars as u64;
+    let nodes = bits
+        .checked_mul(2)
+        .and_then(|v| v.checked_add(n))
+        .ok_or_else(|| CausalError::Resource { message: "temporal atom nodes overflow".into() })?;
+    if nodes > budget.limits().max_graph_nodes || bits > budget.limits().max_graph_edges {
+        return Err(CausalError::Resource { message: "temporal atom graph limit".into() });
+    }
+    let work = n
+        .checked_mul(n)
+        .and_then(|v| {
+            bits.checked_mul(nodes.checked_add(bits)?.checked_add(1)?)
+                .and_then(|e| v.checked_add(e))
+        })
+        .and_then(|v| v.checked_mul(8))
+        .ok_or_else(|| CausalError::Resource { message: "temporal atom work overflow".into() })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = nodes
+        .checked_mul(512)
+        .and_then(|v| bits.checked_mul(512).and_then(|e| v.checked_add(e)))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource { message: "temporal atom bytes overflow".into() })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "temporal atom byte limit".into() });
+    }
+    ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal atom" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })
 }
 
 /// A derivative identified by adjustment on the unrolled window of a temporal ADMG.
@@ -119,20 +181,30 @@ pub(crate) fn identify_window_derivatives(
     template: &TemporalAdmg,
     query: &ResponseQuery,
     variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<(u32, WindowDerivative)>, CausalError> {
     let horizons =
-        query.temporal.as_ref().map(|temporal| temporal.horizons.to_vec()).ok_or_else(|| {
+        query.temporal.as_ref().map(|temporal| temporal.horizons.as_ref()).ok_or_else(|| {
             CausalError::Compile {
                 message: "a temporal derivative needs ResponseQuery.temporal".into(),
             }
         })?;
-    horizons
-        .into_iter()
-        .map(|horizon| {
-            let single = single_horizon_query(query, horizon)?;
-            Ok((horizon, identify_window_derivative(template, &single, variable_count)?))
-        })
-        .collect()
+    budget
+        .charge_work(horizons.len() as u64)
+        .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let mut out = Vec::with_capacity(horizons.len());
+    for &horizon in horizons {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal identification" });
+        }
+        let single = single_horizon_query(query, horizon)?;
+        out.push((
+            horizon,
+            identify_window_derivative_within(template, &single, variable_count, budget, ctx)?,
+        ));
+    }
+    Ok(out)
 }
 
 /// Identify the derivative or Jacobian `query` at its one horizon on `template`, by one
@@ -144,10 +216,12 @@ pub(crate) fn identify_window_derivatives(
 /// run finds a hedge (the typed refusal names the variables and periods that carry it); a
 /// window that general ID identifies only through a non-adjustment functional, which no
 /// continuous-treatment estimator evaluates; or a window the graph crate cannot number.
-pub(crate) fn identify_window_derivative(
+pub(crate) fn identify_window_derivative_within(
     template: &TemporalAdmg,
     query: &ResponseQuery,
     variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<WindowDerivative, CausalError> {
     let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
         message: "a temporal derivative needs ResponseQuery.temporal".into(),
@@ -185,16 +259,27 @@ pub(crate) fn identify_window_derivative(
             ),
         });
     }
-    let found = identify_temporal_admg_response_adjustment(template, probe, query, variable_count)?;
+    let found = antecedent_identify::identify_temporal_admg_response_adjustment_within(
+        template,
+        probe,
+        query,
+        variable_count,
+        budget,
+        ctx,
+    )?;
     if found.result.estimands.is_empty() {
         // No adjustment set: a front-door set of the window identifies the mean through its
         // mediators.
-        if let Some(front_door) = antecedent_identify::identify_temporal_admg_front_door_derivative(
-            template,
-            probe,
-            query,
-            variable_count,
-        )? {
+        if let Some(front_door) =
+            antecedent_identify::identify_temporal_admg_front_door_derivative_within(
+                template,
+                probe,
+                query,
+                variable_count,
+                budget,
+                ctx,
+            )?
+        {
             let estimand = front_door.result.estimands[0].clone();
             let indexer = TemporalIndexer::new(
                 variable_count,
@@ -204,7 +289,13 @@ pub(crate) fn identify_window_derivative(
             return Ok(WindowDerivative { identification: front_door.result, estimand, indexer });
         }
         // Otherwise the complete algorithm decides whether this is a hedge.
-        let contrast = identify_temporal_admg_contrast_over(template, probe, variable_count)?;
+        let contrast = identify_temporal_admg_contrast_over_within(
+            template,
+            probe,
+            variable_count,
+            budget,
+            ctx,
+        )?;
         if let Some(obstruction) = &contrast.obstruction {
             return Err(CausalError::not_identified(
                 contrast.result.status,
@@ -301,10 +392,23 @@ fn no_directed_path_note(horizon: u32) -> antecedent_core::Diagnostic {
 /// the treated periods can reach, a hedge on the window (the typed refusal names the variables
 /// and periods that carry it and the next attempts), or no estimand the functional estimator
 /// evaluates.
+#[cfg(test)]
 pub(crate) fn identify_window_contrast(
     template: &TemporalAdmg,
     query: &TemporalEffectQuery,
     variable_count: u32,
+) -> Result<WindowContrast, CausalError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_window_contrast_within(template, query, variable_count, &mut budget, &ctx)
+}
+
+pub(crate) fn identify_window_contrast_within(
+    template: &TemporalAdmg,
+    query: &TemporalEffectQuery,
+    variable_count: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<WindowContrast, CausalError> {
     if query.target_population != TargetPopulation::AllObserved {
         return Err(CausalError::Compile {
@@ -314,7 +418,8 @@ pub(crate) fn identify_window_contrast(
             ),
         });
     }
-    let found = identify_temporal_admg_contrast_over(template, query, variable_count)?;
+    let found =
+        identify_temporal_admg_contrast_over_within(template, query, variable_count, budget, ctx)?;
     if let Some(obstruction) = &found.obstruction {
         return Err(CausalError::not_identified(
             found.result.status,
@@ -329,11 +434,12 @@ pub(crate) fn identify_window_contrast(
         found.plan.periods - found.plan.origin,
     )?;
     Ok(WindowContrast {
-        identification: found.result,
+        identification: found.result.clone(),
         estimand,
-        plan: found.plan,
-        window: found.window,
+        plan: found.plan.clone(),
+        window: found.window.clone(),
         indexer,
+        _identification_owner: found,
     })
 }
 
@@ -414,13 +520,42 @@ pub(crate) fn window_coordinates(
     clippy::trivially_copy_pass_by_ref,
     reason = "the policy is passed by reference as every kernel-policy consumer takes it"
 )]
+#[derive(Clone, Debug)]
+pub(crate) struct AdmittedWindowTable(std::sync::Arc<AdmittedWindowTableInner>);
+#[derive(Debug)]
+struct AdmittedWindowTableInner {
+    table: TabularData,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+impl std::ops::Deref for AdmittedWindowTable {
+    type Target = TabularData;
+    fn deref(&self) -> &Self::Target {
+        &self.0.table
+    }
+}
+impl TableView for AdmittedWindowTable {
+    fn schema(&self) -> &antecedent_core::CausalSchema {
+        self.0.table.schema()
+    }
+    fn row_count(&self) -> usize {
+        self.0.table.row_count()
+    }
+    fn column(
+        &self,
+        id: VariableId,
+    ) -> Result<antecedent_data::ColumnView<'_>, antecedent_data::DataError> {
+        self.0.table.column(id)
+    }
+}
+
 pub(crate) fn window_table(
     series: &TimeSeriesData,
     window: &UnrolledTemporalAdmg,
     used: &[VariableId],
-    kernel_policy: &KernelPolicy,
-) -> Result<TabularData, CausalError> {
-    window_table_over(series, window.variables(), window.periods(), used, kernel_policy)
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<AdmittedWindowTable, CausalError> {
+    window_table_over(series, window.variables(), window.periods(), used, budget, ctx)
 }
 
 /// [`window_table`] for a window known only by its layout: `periods` consecutive times of the
@@ -440,20 +575,83 @@ pub(crate) fn window_table_over(
     variables: &[VariableId],
     periods: u32,
     used: &[VariableId],
-    kernel_policy: &KernelPolicy,
-) -> Result<TabularData, CausalError> {
-    let max_lag = periods - 1;
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<AdmittedWindowTable, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal window table" });
+    }
+    let max_lag = periods
+        .checked_sub(1)
+        .ok_or_else(|| CausalError::Resource { message: "zero temporal window periods".into() })?;
+    let columns = (variables.len() as u64)
+        .checked_mul(u64::from(periods))
+        .ok_or_else(|| CausalError::Resource { message: "window column count overflow".into() })?;
+    if columns > budget.limits().max_graph_nodes {
+        return Err(CausalError::Resource { message: "window column limit".into() });
+    }
+    let column_capacity = usize::try_from(columns).map_err(|_| CausalError::Resource {
+        message: "window column count exceeds address space".into(),
+    })?;
+    let rows = series.row_count() as u64;
+    let cells = columns
+        .checked_mul(rows)
+        .ok_or_else(|| CausalError::Resource { message: "window cell count overflow".into() })?;
+    let compare = (variables.len() as u64)
+        .checked_mul(used.len() as u64)
+        .ok_or_else(|| CausalError::Resource { message: "window lookup work overflow".into() })?;
+    let mut name_bytes = 0u64;
+    budget
+        .charge_work(variables.len() as u64)
+        .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    for &variable in variables {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal window table" });
+        }
+        name_bytes = name_bytes
+            .checked_add(series.schema().get(variable)?.name.len() as u64)
+            .ok_or_else(|| CausalError::Resource { message: "window names overflow".into() })?;
+    }
+    let names = name_bytes
+        .checked_mul(u64::from(periods))
+        .ok_or_else(|| CausalError::Resource { message: "window names overflow".into() })?;
+    let work = cells
+        .checked_mul(4)
+        .and_then(|n| n.checked_add(compare))
+        .and_then(|n| n.checked_add(columns))
+        .and_then(|n| n.checked_add(names))
+        .ok_or_else(|| CausalError::Resource { message: "window table work overflow".into() })?;
+    budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let bytes = cells
+        .checked_mul(64)
+        .and_then(|n| columns.checked_mul(256).and_then(|c| n.checked_add(c)))
+        .and_then(|n| n.checked_add(names))
+        .and_then(|n| n.checked_add(4096))
+        .ok_or_else(|| CausalError::Resource { message: "window table byte overflow".into() })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(CausalError::Resource { message: "window table byte limit".into() });
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal window table" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
     let read: Vec<VariableId> =
         variables.iter().copied().filter(|variable| used.contains(variable)).collect();
-    let frame = LaggedFrame::from_series_with_options(
+    let frame = LaggedFrame::from_series_with_options_and_context(
         series,
         &read,
         max_lag,
         ReferencePointPolicy::SeriesOrigin,
         LaggedFrameOptions { mask: MaskPolicy::Honor, missing: MissingPolicy::ErrorOnMissing },
-        kernel_policy,
+        &ctx.kernel_policy,
+        ctx,
     )
     .map_err(|error| {
+        if matches!(error, antecedent_data::DataError::Cancelled) {
+            return CausalError::Cancelled { stage: "temporal window table" };
+        }
         crate::compile_reason!(
             "missing_policy_required",
             "the lag-aligned window table of a temporal window contrast reads {periods} \
@@ -473,18 +671,29 @@ pub(crate) fn window_table_over(
     }
     let schema = series.schema();
     let absent = vec![f64::NAN; frame.n_effective()];
-    let mut names = Vec::with_capacity(variables.len() * periods as usize);
+    let mut names = Vec::with_capacity(column_capacity);
     let mut columns: Vec<&[f64]> = Vec::with_capacity(names.capacity());
     for period in 0..periods {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal window table" });
+        }
         let lag = Lag::from_raw(max_lag - period);
         for &variable in variables {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal window table" });
+            }
             names.push(format!("{}@{period}", schema.get(variable)?.name));
             columns.push(
                 frame.column_index(variable, lag).map_or(absent.as_slice(), |i| frame.column(i)),
             );
         }
     }
-    TabularData::from_f64_columns(names.into_iter().zip(columns)).map_err(CausalError::from)
+    let table =
+        TabularData::from_f64_columns(names.into_iter().zip(columns)).map_err(CausalError::from)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "temporal window table" });
+    }
+    Ok(AdmittedWindowTable(std::sync::Arc::new(AdmittedWindowTableInner { table, _lease: lease })))
 }
 
 #[cfg(test)]
@@ -541,10 +750,12 @@ mod tests {
         graph: &TemporalAdmg,
         query: &TemporalEffectQuery,
         contrast: &WindowContrast,
-    ) -> TabularData {
+    ) -> AdmittedWindowTable {
         let used = used_variables(graph, query);
-        let policy = ExecutionContext::for_tests(10).kernel_policy;
-        window_table(data, &contrast.window, &used, &policy).unwrap()
+        let ctx = ExecutionContext::for_tests(10);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        window_table(data, &contrast.window, &used, &mut budget, &ctx).unwrap()
     }
 
     #[test]
@@ -691,6 +902,36 @@ mod tests {
     }
 
     #[test]
+    fn window_table_refuses_tight_limits_and_clones_retain_lease() {
+        let (x, y) = series(40, &[]);
+        let series_data = data(&x, &y);
+        let graph = lagged_cause();
+        let query = next_period();
+        let contrast = identify_window_contrast(&graph, &query, 2).unwrap();
+        let used = used_variables(&graph, &query);
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(10).with_admission(pool.clone());
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let before = pool.available().bytes();
+        let table = window_table(&series_data, &contrast.window, &used, &mut budget, &ctx).unwrap();
+        let held = pool.available().bytes();
+        assert!(held < before);
+        let copy = table.clone();
+        drop(table);
+        assert_eq!(pool.available().bytes(), held);
+        drop(copy);
+        assert_eq!(pool.available().bytes(), before);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_bytes = 1;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            window_table(&series_data, &contrast.window, &used, &mut budget, &ctx),
+            Err(CausalError::Resource { .. })
+        ));
+    }
+
+    #[test]
     fn a_gap_in_a_variable_the_graph_does_not_name_refuses_nothing_but_a_gap_in_a_used_one_does() {
         let (x, y) = series(40, &[]);
         let mut unrelated = vec![0.0; 40];
@@ -698,21 +939,23 @@ mod tests {
         let query = next_period();
         let graph = lagged_cause();
         let contrast = identify_window_contrast(&graph, &query, 3).unwrap();
-        let policy = ExecutionContext::for_tests(10).kernel_policy;
+        let ctx = ExecutionContext::for_tests(10);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let used = used_variables(&graph, &query);
         let three = TimeSeriesData::from_f64_columns(
             [("x", &x[..]), ("y", &y[..]), ("z", &unrelated[..])],
             1,
         )
         .unwrap();
-        let table = window_table(&three, &contrast.window, &used, &policy).unwrap();
+        let table = window_table(&three, &contrast.window, &used, &mut budget, &ctx).unwrap();
         assert_eq!(table.schema().len(), 3 * contrast.window.periods() as usize);
         let mut gappy = y.clone();
         gappy[20] = f64::NAN;
         let refused =
             TimeSeriesData::from_f64_columns([("x", &x[..]), ("y", &gappy[..])], 1).unwrap();
         let contrast = identify_window_contrast(&graph, &query, 2).unwrap();
-        let error = window_table(&refused, &contrast.window, &used, &policy).unwrap_err();
+        let error = window_table(&refused, &contrast.window, &used, &mut budget, &ctx).unwrap_err();
         assert!(error.to_string().contains("missing"), "{error}");
     }
 
@@ -723,8 +966,11 @@ mod tests {
         let graph = lagged_cause();
         let contrast = identify_window_contrast(&graph, &query, 2).unwrap();
         let used = used_variables(&graph, &query);
-        let policy = ExecutionContext::for_tests(10).kernel_policy;
-        let error = window_table(&data(&x, &y), &contrast.window, &used, &policy).unwrap_err();
+        let ctx = ExecutionContext::for_tests(10);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let error =
+            window_table(&data(&x, &y), &contrast.window, &used, &mut budget, &ctx).unwrap_err();
         assert!(error.to_string().contains("next attempt"), "{error}");
     }
 }

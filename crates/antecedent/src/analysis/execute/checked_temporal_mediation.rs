@@ -136,11 +136,23 @@ fn replay_mediation_horizons(
 }
 
 impl CheckedTemporalMediationOperation {
+    #[cfg(test)]
     pub(crate) fn checked(
         study: &Study,
         data: &TimeSeriesData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &crate::analysis::prepared::CachedTemporalIdentification,
+    ) -> Result<Self, CausalError> {
+        let ctx = ExecutionContext::production_default(0);
+        Self::checked_within(study, data, physical, cache, &ctx)
+    }
+
+    pub(crate) fn checked_within(
+        study: &Study,
+        data: &TimeSeriesData,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        cache: &crate::analysis::prepared::CachedTemporalIdentification,
+        ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
         let CausalQuery::Mediation(query) = &study.query else {
             return Err(CausalError::Compile {
@@ -183,10 +195,14 @@ impl CheckedTemporalMediationOperation {
         let verified = if sealed {
             None
         } else {
-            Some(crate::analysis::prepared::identify_temporal_mediation_horizons(
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            Some(crate::analysis::prepared::identify_temporal_mediation_horizons_within(
                 graph,
                 query,
                 estimator_id,
+                &mut budget,
+                ctx,
             )?)
         };
         if cache.by_horizon.len() != query.horizons.len()

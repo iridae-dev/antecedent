@@ -11,13 +11,15 @@
 impl !core::marker::Freeze for antecedent_graph::Pag [auto]
 impl !core::marker::Freeze for antecedent_graph::PagCompletion [auto]
 impl !core::marker::Freeze for antecedent_graph::PagReview [auto]
-impl !core::marker::Freeze for antecedent_graph::UnfoldedTemporalPag [auto]
+impl !core::marker::Freeze for antecedent_graph::TemporalPagCompletionSampler [auto]
+impl !core::marker::Freeze for antecedent_graph::unfold_pag::UnfoldedTemporalPagData [auto]
 impl antecedent_core::canonical_encode::CanonicalEncode for antecedent_graph::TieredBackground
 impl antecedent_graph::algo::MaskWord for u16
 impl antecedent_graph::algo::MaskWord for u32
 impl antecedent_graph::algo::MaskWord for u64
 impl antecedent_graph::algo::MaskWord for u8
 impl core::clone::Clone for antecedent_graph::Admg
+impl core::clone::Clone for antecedent_graph::AdmittedUnfoldedTemporalGraph
 impl core::clone::Clone for antecedent_graph::BitSet
 impl core::clone::Clone for antecedent_graph::CompletionSampler
 impl core::clone::Clone for antecedent_graph::CompletionValidationReport
@@ -67,7 +69,6 @@ impl core::clone::Clone for antecedent_graph::TemporalDag
 impl core::clone::Clone for antecedent_graph::TemporalGraphReview
 impl core::clone::Clone for antecedent_graph::TemporalPag
 impl core::clone::Clone for antecedent_graph::TemporalPagCompletion
-impl core::clone::Clone for antecedent_graph::TemporalPagCompletionSampler
 impl core::clone::Clone for antecedent_graph::TemporalPagReview
 impl core::clone::Clone for antecedent_graph::TieredBackground
 impl core::clone::Clone for antecedent_graph::UnfoldedTemporalGraph
@@ -148,6 +149,7 @@ impl core::cmp::PartialEq for antecedent_graph::WithinTier
 impl core::cmp::PartialEq for antecedent_graph::bipartite::BSeparation
 impl core::cmp::PartialEq for antecedent_graph::bipartite::BipartiteCausalGraph
 impl core::cmp::PartialOrd for antecedent_graph::DenseNodeId
+impl core::convert::From<antecedent_core::intervention::TemporalMaterializationError> for antecedent_graph::GraphError
 impl core::default::Default for antecedent_graph::BitSet
 impl core::default::Default for antecedent_graph::CompletionValidationReport
 impl core::default::Default for antecedent_graph::DSeparationWorkspace
@@ -157,6 +159,7 @@ impl core::default::Default for antecedent_graph::SigmaSeparationWorkspace
 impl core::error::Error for antecedent_graph::CyclicDagRefusal
 impl core::error::Error for antecedent_graph::GraphError
 impl core::fmt::Debug for antecedent_graph::Admg
+impl core::fmt::Debug for antecedent_graph::AdmittedUnfoldedTemporalGraph
 impl core::fmt::Debug for antecedent_graph::BitSet
 impl core::fmt::Debug for antecedent_graph::CompletionSampler
 impl core::fmt::Debug for antecedent_graph::CompletionValidationReport
@@ -215,6 +218,7 @@ impl core::fmt::Debug for antecedent_graph::UnrolledTemporalAdmg
 impl core::fmt::Debug for antecedent_graph::WithinTier
 impl core::fmt::Debug for antecedent_graph::bipartite::BSeparation
 impl core::fmt::Debug for antecedent_graph::bipartite::BipartiteCausalGraph
+impl core::fmt::Debug for antecedent_graph::unfold_pag::UnfoldedTemporalPagData
 impl core::fmt::Display for antecedent_graph::CyclicDagRefusal
 impl core::fmt::Display for antecedent_graph::CyclicNextAttempt
 impl core::fmt::Display for antecedent_graph::DagOperation
@@ -246,6 +250,7 @@ impl core::marker::Copy for antecedent_graph::SigmaSeparationAssumptions
 impl core::marker::Copy for antecedent_graph::SigmaSeparationStatus
 impl core::marker::Copy for antecedent_graph::WithinTier
 impl core::marker::Freeze for antecedent_graph::Admg [auto]
+impl core::marker::Freeze for antecedent_graph::AdmittedUnfoldedTemporalGraph [auto]
 impl core::marker::Freeze for antecedent_graph::BitSet [auto]
 impl core::marker::Freeze for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Freeze for antecedent_graph::CompletionValidationReport [auto]
@@ -292,15 +297,16 @@ impl core::marker::Freeze for antecedent_graph::TemporalDag [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalGraphReview [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalPag [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalPagCompletion [auto]
-impl core::marker::Freeze for antecedent_graph::TemporalPagCompletionSampler [auto]
 impl core::marker::Freeze for antecedent_graph::TemporalPagReview [auto]
 impl core::marker::Freeze for antecedent_graph::TieredBackground [auto]
 impl core::marker::Freeze for antecedent_graph::UnfoldedTemporalGraph [auto]
+impl core::marker::Freeze for antecedent_graph::UnfoldedTemporalPag [auto]
 impl core::marker::Freeze for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Freeze for antecedent_graph::WithinTier [auto]
 impl core::marker::Freeze for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Freeze for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
 impl core::marker::Send for antecedent_graph::Admg [auto]
+impl core::marker::Send for antecedent_graph::AdmittedUnfoldedTemporalGraph [auto]
 impl core::marker::Send for antecedent_graph::BitSet [auto]
 impl core::marker::Send for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Send for antecedent_graph::CompletionValidationReport [auto]
@@ -359,6 +365,7 @@ impl core::marker::Send for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Send for antecedent_graph::WithinTier [auto]
 impl core::marker::Send for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Send for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
+impl core::marker::Send for antecedent_graph::unfold_pag::UnfoldedTemporalPagData [auto]
 impl core::marker::StructuralPartialEq for antecedent_graph::CompletionValidationReport
 impl core::marker::StructuralPartialEq for antecedent_graph::Condensation
 impl core::marker::StructuralPartialEq for antecedent_graph::CopyLabels
@@ -391,6 +398,7 @@ impl core::marker::StructuralPartialEq for antecedent_graph::WithinTier
 impl core::marker::StructuralPartialEq for antecedent_graph::bipartite::BSeparation
 impl core::marker::StructuralPartialEq for antecedent_graph::bipartite::BipartiteCausalGraph
 impl core::marker::Sync for antecedent_graph::Admg [auto]
+impl core::marker::Sync for antecedent_graph::AdmittedUnfoldedTemporalGraph [auto]
 impl core::marker::Sync for antecedent_graph::BitSet [auto]
 impl core::marker::Sync for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Sync for antecedent_graph::CompletionValidationReport [auto]
@@ -449,7 +457,9 @@ impl core::marker::Sync for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Sync for antecedent_graph::WithinTier [auto]
 impl core::marker::Sync for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Sync for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
+impl core::marker::Sync for antecedent_graph::unfold_pag::UnfoldedTemporalPagData [auto]
 impl core::marker::Unpin for antecedent_graph::Admg [auto]
+impl core::marker::Unpin for antecedent_graph::AdmittedUnfoldedTemporalGraph [auto]
 impl core::marker::Unpin for antecedent_graph::BitSet [auto]
 impl core::marker::Unpin for antecedent_graph::CompletionSampler [auto]
 impl core::marker::Unpin for antecedent_graph::CompletionValidationReport [auto]
@@ -508,7 +518,11 @@ impl core::marker::Unpin for antecedent_graph::UnrolledTemporalAdmg [auto]
 impl core::marker::Unpin for antecedent_graph::WithinTier [auto]
 impl core::marker::Unpin for antecedent_graph::bipartite::BSeparation [auto]
 impl core::marker::Unpin for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
+impl core::marker::Unpin for antecedent_graph::unfold_pag::UnfoldedTemporalPagData [auto]
+impl core::ops::deref::Deref for antecedent_graph::AdmittedUnfoldedTemporalGraph
+impl core::ops::deref::Deref for antecedent_graph::UnfoldedTemporalPag
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::Admg [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::AdmittedUnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::BitSet [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CompletionSampler [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::CompletionValidationReport [auto]
@@ -567,7 +581,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::UnrolledTempo
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::WithinTier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::bipartite::BSeparation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_graph::unfold_pag::UnfoldedTemporalPagData [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::Admg [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::AdmittedUnfoldedTemporalGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::BitSet [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CompletionSampler [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::CompletionValidationReport [auto]
@@ -626,6 +642,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::UnrolledTemporal
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::WithinTier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::bipartite::BSeparation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::bipartite::BipartiteCausalGraph [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_graph::unfold_pag::UnfoldedTemporalPagData [auto]
 impl<'a> core::clone::Clone for antecedent_graph::DagView<'a>
 impl<'a> core::fmt::Debug for antecedent_graph::DagView<'a>
 impl<'a> core::marker::Copy for antecedent_graph::DagView<'a>
@@ -722,11 +739,11 @@ pub field antecedent_graph::TieredBackground::tiers: alloc::sync::Arc<[alloc::sy
 pub field antecedent_graph::TieredBackground::within_tier: antecedent_graph::WithinTier
 pub field antecedent_graph::UnfoldedTemporalGraph::dag: antecedent_graph::Dag
 pub field antecedent_graph::UnfoldedTemporalGraph::indexer: antecedent_core::temporal::TemporalIndexer
-pub field antecedent_graph::UnfoldedTemporalPag::indexer: antecedent_core::temporal::TemporalIndexer
-pub field antecedent_graph::UnfoldedTemporalPag::pag: antecedent_graph::Pag
 pub field antecedent_graph::bipartite::BSeparation::assumptions: &'static str
 pub field antecedent_graph::bipartite::BSeparation::determined: alloc::vec::Vec<usize>
 pub field antecedent_graph::bipartite::BSeparation::separated: bool
+pub field antecedent_graph::unfold_pag::UnfoldedTemporalPagData::indexer: antecedent_core::temporal::TemporalIndexer
+pub field antecedent_graph::unfold_pag::UnfoldedTemporalPagData::pag: antecedent_graph::Pag
 pub fn <antecedent_graph::Admg>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn ancestors_of(&self, nodes: &[antecedent_graph::DenseNodeId], out: &mut antecedent_graph::BitSet, ws: &mut antecedent_graph::GraphWorkspace)
 pub fn <antecedent_graph::Admg>::fn ancestors_within(&self, seeds: &antecedent_graph::BitSet, active: &antecedent_graph::BitSet, bar_x: core::option::Option<&antecedent_graph::BitSet>, ws: &mut antecedent_graph::GraphWorkspace) -> antecedent_graph::BitSet
@@ -767,6 +784,7 @@ pub fn <antecedent_graph::Admg>::fn topological_order(&self) -> core::option::Op
 pub fn <antecedent_graph::Admg>::fn validate(&self) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn weak_components(&self) -> alloc::vec::Vec<alloc::vec::Vec<antecedent_graph::DenseNodeId>>
 pub fn <antecedent_graph::Admg>::fn with_variables(n: u32) -> Self
+pub fn <antecedent_graph::AdmittedUnfoldedTemporalGraph>::fn topological_order(&self) -> &[antecedent_graph::DenseNodeId]
 pub fn <antecedent_graph::BitSet>::const fn bit_len(&self) -> usize
 pub fn <antecedent_graph::BitSet>::fn any(&self) -> bool
 pub fn <antecedent_graph::BitSet>::fn clear(&mut self)
@@ -893,7 +911,8 @@ pub fn <antecedent_graph::Dag>::fn directed_paths_with_budget(&self, from: antec
 pub fn <antecedent_graph::Dag>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
 pub fn <antecedent_graph::Dag>::fn empty() -> Self
 pub fn <antecedent_graph::Dag>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
-pub fn <antecedent_graph::Dag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn from_unfolding_within(indexer: &antecedent_core::temporal::TemporalIndexer, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn is_d_separated(&self, x: antecedent_graph::DenseNodeId, y: antecedent_graph::DenseNodeId, z: &[antecedent_graph::DenseNodeId], ws: &mut antecedent_graph::DSeparationWorkspace) -> core::result::Result<bool, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn is_empty(&self) -> bool
@@ -936,7 +955,7 @@ pub fn <antecedent_graph::GraphOverlay>::fn observational(n: usize) -> Self
 pub fn <antecedent_graph::GraphOverlay>::fn remove_outgoing(n: usize, nodes: &[antecedent_graph::DenseNodeId]) -> Self
 pub fn <antecedent_graph::GraphWorkspace>::fn prepare(&mut self, n: usize)
 pub fn <antecedent_graph::GraphWorkspace>::fn prepare_with_predecessors(&mut self, n: usize)
-pub fn <antecedent_graph::LazyUnfoldedTemporalGraph>::fn materialize(&self) -> core::result::Result<antecedent_graph::UnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::LazyUnfoldedTemporalGraph>::fn materialize(&self) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
 pub fn <antecedent_graph::MarkedEdge>::const fn directed(from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> Self
 pub fn <antecedent_graph::MarkedEdge>::const fn is_admg_legal(self) -> bool
 pub fn <antecedent_graph::MarkedEdge>::const fn is_bidirected(self) -> bool
@@ -958,7 +977,8 @@ pub fn <antecedent_graph::Pag>::fn directed_children(&self, id: antecedent_graph
 pub fn <antecedent_graph::Pag>::fn edge_between(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_graph::MarkedEdge>
 pub fn <antecedent_graph::Pag>::fn empty() -> Self
 pub fn <antecedent_graph::Pag>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
-pub fn <antecedent_graph::Pag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::UnfoldedTemporalPag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Pag>::fn from_unfolding_within(indexer: &antecedent_core::temporal::TemporalIndexer, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::UnfoldedTemporalPag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Pag>::fn has_edge(&self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> bool
 pub fn <antecedent_graph::Pag>::fn insert_bidirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Pag>::fn insert_circle_arrow(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
@@ -1006,6 +1026,7 @@ pub fn <antecedent_graph::TemporalAdmg>::fn project_preserving_functional(&self)
 pub fn <antecedent_graph::TemporalAdmg>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
 pub fn <antecedent_graph::TemporalAdmg>::fn unroll_window(&self, periods: u32) -> core::result::Result<antecedent_graph::UnrolledTemporalAdmg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalAdmg>::fn unroll_window_over(&self, periods: u32, variable_count: u32) -> core::result::Result<antecedent_graph::UnrolledTemporalAdmg, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalAdmg>::fn unroll_window_over_within(&self, periods: u32, variable_count: u32, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::UnrolledTemporalAdmg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_context(&mut self, variable: antecedent_core::ids::VariableId, environment: core::option::Option<antecedent_core::ids::EnvironmentId>) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_lagged(&mut self, variable: antecedent_core::ids::VariableId, lag: antecedent_core::ids::Lag) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalCpdag>::fn add_node(&mut self, node: antecedent_core::node::NodeRef) -> core::result::Result<antecedent_graph::DenseNodeId, antecedent_graph::GraphError>
@@ -1059,8 +1080,9 @@ pub fn <antecedent_graph::TemporalDag>::fn parents(&self, id: antecedent_graph::
 pub fn <antecedent_graph::TemporalDag>::fn reaches(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> bool
 pub fn <antecedent_graph::TemporalDag>::fn reaches_with(&self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId, ws: &mut antecedent_graph::GraphWorkspace) -> bool
 pub fn <antecedent_graph::TemporalDag>::fn temporal_key(&self, id: antecedent_graph::DenseNodeId) -> core::option::Option<antecedent_core::temporal::TemporalNodeKey>
-pub fn <antecedent_graph::TemporalDag>::fn unfold(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::UnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn unfold(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalDag>::fn unfold_lazy(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::LazyUnfoldedTemporalGraph, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalDag>::fn unfold_within(&self, indexer: antecedent_core::temporal::TemporalIndexer, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalGraphReview>::fn accept_edge(self, from: antecedent_core::temporal::TemporalNodeKey, to: antecedent_core::temporal::TemporalNodeKey) -> Self
 pub fn <antecedent_graph::TemporalGraphReview>::fn from_graph(graph: antecedent_graph::TemporalDag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_graph::TemporalGraphReview>::fn is_complete(&self) -> bool
@@ -1093,16 +1115,21 @@ pub fn <antecedent_graph::TemporalPag>::fn set_marks(&mut self, a: antecedent_gr
 pub fn <antecedent_graph::TemporalPag>::fn set_middle(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId, middle: antecedent_graph::MiddleMark) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn try_into_temporal_dag(&self) -> core::result::Result<antecedent_graph::TemporalDag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPag>::fn unfold(&self, indexer: antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::UnfoldedTemporalPag, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPag>::fn unfold_within(&self, indexer: antecedent_core::temporal::TemporalIndexer, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::UnfoldedTemporalPag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn class_audit_incomplete(&self) -> bool
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn max_completions(&self) -> usize
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn search_receipt(&self) -> core::option::Option<&antecedent_core::search::SearchReceipt>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn search_stop(&self) -> core::option::Option<antecedent_core::search::SearchStop>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::const fn validation_report(&self) -> antecedent_graph::CompletionValidationReport
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window_with_borrowed_temporal_budget(pag: &antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer, limits: antecedent_core::search::SearchLimits, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window_with_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn for_window_with_temporal_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, indexer: &antecedent_core::temporal::TemporalIndexer, limits: antecedent_core::search::SearchLimits, temporal_budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn hit_cap(&self) -> bool
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn new(pag: antecedent_graph::TemporalPag, max_completions: usize) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn with_borrowed_temporal_budget(pag: &antecedent_graph::TemporalPag, max_completions: usize, limits: antecedent_core::search::SearchLimits, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn with_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, limits: antecedent_core::search::SearchLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::TemporalPagCompletionSampler>::fn with_temporal_budget(pag: antecedent_graph::TemporalPag, max_completions: usize, limits: antecedent_core::search::SearchLimits, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TemporalPagReview>::fn from_pag(graph: antecedent_graph::TemporalPag, algorithm: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_graph::TemporalPagReview>::fn is_complete(&self) -> bool
 pub fn <antecedent_graph::TieredBackground>::fn from_named(schema: &antecedent_core::schema::CausalSchema, tiers: &[alloc::vec::Vec<&str>], within_tier: antecedent_graph::WithinTier) -> core::result::Result<Self, antecedent_graph::GraphError>
@@ -1113,10 +1140,11 @@ pub fn <antecedent_graph::TieredBackground>::fn tier_of(&self, id: antecedent_co
 pub fn <antecedent_graph::TieredBackground>::fn to_admg(&self, schema: &antecedent_core::schema::CausalSchema) -> core::result::Result<antecedent_graph::Admg, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TieredBackground>::fn to_pag(&self, schema: &antecedent_core::schema::CausalSchema) -> core::result::Result<antecedent_graph::Pag, antecedent_graph::GraphError>
 pub fn <antecedent_graph::TieredBackground>::fn unknown_canonical_sets(&self, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>; 2], antecedent_graph::GraphError>
-pub fn <antecedent_graph::UnrolledTemporalAdmg>::const fn periods(&self) -> u32
 pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn admg(&self) -> &antecedent_graph::Admg
 pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn coordinate(&self, variable: antecedent_core::ids::VariableId, period: u32) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn is_admitted(&self) -> bool
 pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn locate(&self, coordinate: antecedent_core::ids::VariableId) -> core::option::Option<(antecedent_core::ids::VariableId, u32)>
+pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn periods(&self) -> u32
 pub fn <antecedent_graph::UnrolledTemporalAdmg>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_graph::bipartite::BipartiteCausalGraph>::fn acyclification(&self) -> &antecedent_graph::Dag
 pub fn <antecedent_graph::bipartite::BipartiteCausalGraph>::fn b_separates(&self, x: usize, y: usize, conditioning: &[usize]) -> core::result::Result<antecedent_graph::bipartite::BSeparation, antecedent_graph::GraphError>
@@ -1130,6 +1158,8 @@ pub fn antecedent_graph::algo::implicit_closure<N: core::cmp::Ord + core::clone:
 pub fn antecedent_graph::algo::is_dag(parents: &[alloc::vec::Vec<antecedent_graph::DenseNodeId>], children: &[alloc::vec::Vec<antecedent_graph::DenseNodeId>]) -> bool
 pub fn antecedent_graph::algo::mask_closure<M: antecedent_graph::algo::MaskWord>(seeds: M, next: &[M], frozen: M) -> M
 pub fn antecedent_graph::completion::audit_finite_mag_equivalence(graphs: &[antecedent_graph::Pag]) -> core::option::Option<bool>
+pub fn antecedent_graph::completion::audit_finite_mag_equivalence_refs(graphs: &[&antecedent_graph::Pag]) -> core::option::Option<bool>
+pub fn antecedent_graph::completion::audit_finite_mag_equivalence_refs_within(graphs: &[&antecedent_graph::Pag], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<core::option::Option<bool>, antecedent_graph::GraphError>
 pub fn antecedent_graph::completion::is_mag_completion(g: &antecedent_graph::Pag) -> bool
 pub fn antecedent_graph::cpdag_completion::is_mec_member(cpdag: &antecedent_graph::Cpdag, dag: &antecedent_graph::Dag) -> bool
 pub fn antecedent_graph::directed_edges_contain_cycle(node_count: usize, edges: &[(u32, u32)]) -> bool
@@ -1171,6 +1201,8 @@ pub mod antecedent_graph::unfold_pag
 pub mod antecedent_graph::workspace
 pub struct antecedent_graph::Admg
 pub struct antecedent_graph::Admg has private fields
+pub struct antecedent_graph::AdmittedUnfoldedTemporalGraph
+pub struct antecedent_graph::AdmittedUnfoldedTemporalGraph has private fields
 pub struct antecedent_graph::BitSet
 pub struct antecedent_graph::BitSet has private fields
 pub struct antecedent_graph::CompletionSampler
@@ -1236,11 +1268,13 @@ pub struct antecedent_graph::TieredBackground
 pub struct antecedent_graph::TieredBackground has private fields
 pub struct antecedent_graph::UnfoldedTemporalGraph
 pub struct antecedent_graph::UnfoldedTemporalPag
+pub struct antecedent_graph::UnfoldedTemporalPag has private fields
 pub struct antecedent_graph::UnrolledTemporalAdmg
 pub struct antecedent_graph::UnrolledTemporalAdmg has private fields
 pub struct antecedent_graph::bipartite::BSeparation
 pub struct antecedent_graph::bipartite::BipartiteCausalGraph
 pub struct antecedent_graph::bipartite::BipartiteCausalGraph has private fields
+pub struct antecedent_graph::unfold_pag::UnfoldedTemporalPagData
 pub trait antecedent_graph::algo::MaskWord: core::marker::Copy + core::cmp::Eq + core::ops::bit::BitOr<Output = Self> + core::ops::bit::BitAnd<Output = Self> + core::ops::bit::Not<Output = Self>
 pub trait const antecedent_graph::algo::MaskWord::ZERO: Self
 pub trait fn fn antecedent_graph::algo::MaskWord::lowest_bit(self) -> core::option::Option<usize>
@@ -1307,6 +1341,7 @@ pub use antecedent_graph::types::Endpoint = antecedent_graph::Endpoint
 pub use antecedent_graph::types::MarkedEdge = antecedent_graph::MarkedEdge
 pub use antecedent_graph::types::MiddleMark = antecedent_graph::MiddleMark
 pub use antecedent_graph::types::NodeRef = antecedent_core::NodeRef
+pub use antecedent_graph::unfold::AdmittedUnfoldedTemporalGraph = antecedent_graph::AdmittedUnfoldedTemporalGraph
 pub use antecedent_graph::unfold::LazyUnfoldedTemporalGraph = antecedent_graph::LazyUnfoldedTemporalGraph
 pub use antecedent_graph::unfold::TemporalCpdagReview = antecedent_graph::TemporalCpdagReview
 pub use antecedent_graph::unfold::TemporalGraphReview = antecedent_graph::TemporalGraphReview
@@ -1333,6 +1368,8 @@ pub variant antecedent_graph::Endpoint::Circle
 pub variant antecedent_graph::Endpoint::Conflict
 pub variant antecedent_graph::Endpoint::Tail
 pub variant antecedent_graph::GraphError::ContemporaneousSelfEdge { variable: antecedent_core::ids::VariableId }
+pub variant antecedent_graph::GraphError::ContextCaused { from: u32, to: u32 }
+pub variant antecedent_graph::GraphError::ContextNotRepresentable { node: u32, reason: &'static str }
 pub variant antecedent_graph::GraphError::Cycle { from: u32, to: u32 }
 pub variant antecedent_graph::GraphError::DuplicateEdge { from: u32, to: u32 }
 pub variant antecedent_graph::GraphError::FutureToPast { from: u32, to: u32, from_lag: antecedent_core::ids::Lag, to_lag: antecedent_core::ids::Lag }
@@ -1342,6 +1379,7 @@ pub variant antecedent_graph::GraphError::InvalidSelectionDiagram { message: all
 pub variant antecedent_graph::GraphError::NodeBoundExceeded { nodes: usize, bound: usize }
 pub variant antecedent_graph::GraphError::SearchBudgetExhausted { max_paths: usize, max_len: usize }
 pub variant antecedent_graph::GraphError::SeparationUndetermined
+pub variant antecedent_graph::GraphError::TemporalMaterialization(antecedent_core::intervention::TemporalMaterializationError)
 pub variant antecedent_graph::GraphError::TooManyNodes
 pub variant antecedent_graph::GraphError::UnknownNode { id: u32 }
 pub variant antecedent_graph::GraphError::UnknownVariableName { name: alloc::string::String }

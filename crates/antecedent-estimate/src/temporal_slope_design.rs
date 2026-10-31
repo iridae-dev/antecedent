@@ -277,9 +277,14 @@ impl TemporalSlopeDesign {
                 "active and control treatment levels must differ",
             ));
         }
-        let sample_anchor = query.outcome_offset().max(0);
-        let t_lag = offset_to_lag(query.try_treatment_offset()? - sample_anchor)?;
-        let y_lag = offset_to_lag(query.outcome_offset() - sample_anchor)?;
+        let sample_anchor = query.outcome_offset()?.max(0);
+        let t_lag =
+            offset_to_lag(query.try_treatment_offset()?.checked_sub(sample_anchor).ok_or_else(
+                || EstimationError::unsupported("treatment offset exceeds the temporal lag range"),
+            )?)?;
+        let y_lag = offset_to_lag(query.outcome_offset()?.checked_sub(sample_anchor).ok_or_else(
+            || EstimationError::unsupported("outcome offset exceeds the temporal lag range"),
+        )?)?;
         let mut cols = vec![
             LaggedColumn { variable: query.treatment, lag: t_lag },
             LaggedColumn { variable: query.outcome, lag: y_lag },

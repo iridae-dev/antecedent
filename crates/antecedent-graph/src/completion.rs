@@ -801,24 +801,76 @@ impl Iterator for CompletionSampler {
 /// This certifies only the supplied finite graphs, not an infinite temporal model.
 #[must_use]
 pub fn audit_finite_mag_equivalence(graphs: &[Pag]) -> Option<bool> {
-    let reference = graphs.first()?;
+    let refs: Vec<&Pag> = graphs.iter().collect();
+    audit_finite_mag_equivalence_refs(&refs)
+}
+
+/// Audit finite MAG references without cloning their admitted graph owners.
+pub fn audit_finite_mag_equivalence_refs(graphs: &[&Pag]) -> Option<bool> {
+    let (_, ctx) = default_completion_search();
+    audit_finite_mag_equivalence_refs_within(graphs, &ctx).ok().flatten()
+}
+
+/// Audit finite graphs under the caller's cancellation and search admission.
+pub fn audit_finite_mag_equivalence_refs_within(
+    graphs: &[&Pag],
+    ctx: &ExecutionContext,
+) -> Result<Option<bool>, GraphError> {
+    use antecedent_core::TemporalMaterializationError as T;
+    if ctx.cancellation.is_cancelled() {
+        return Err(T::Cancelled.into());
+    }
+    let Some(reference) = graphs.first().copied() else {
+        return Ok(None);
+    };
     let n = reference.node_count();
-    if graphs.iter().any(|g| g.node_count() != n || !is_mag_completion(g)) {
-        return Some(false);
-    }
-    if graphs.len() == 1 {
-        return Some(true);
-    }
-    let (limits, ctx) = default_completion_search();
-    let mut budget = SearchBudget::new(limits, &ctx).ok()?;
-    let bytes = signature_bytes(n).saturating_mul(2);
-    let signature = m_separation_signature(reference, || budget.charge(n, bytes)).ok()?;
-    for g in &graphs[1..] {
-        if !m_separation_model_matches(g, &signature, || budget.charge(n, bytes)).ok()? {
-            return Some(false);
+    for graph in graphs {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        if graph.node_count() != n || !is_mag_completion(graph) {
+            return Ok(Some(false));
         }
     }
-    Some(true)
+    if graphs.len() == 1 {
+        return Ok(Some(true));
+    }
+    let (limits, _) = default_completion_search();
+    // The fixed search policy can rule the exponential audit out before it starts.
+    // Report that as an incomplete audit, as the completion sampler does, rather
+    // than treating the policy ceiling as a physical admission failure. A lower
+    // caller memory limit or a refused admission still remains an error below.
+    if !signature_fits_budget(n, limits.operations, antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES) {
+        return Ok(None);
+    }
+    let stop = |stop| -> Result<Option<bool>, GraphError> {
+        match stop {
+            SearchStop::Cancelled => Err(T::Cancelled.into()),
+            SearchStop::Memory => Err(T::Limit { dimension: "bytes" }.into()),
+            _ => Ok(None),
+        }
+    };
+    let mut budget = match SearchBudget::new(limits, ctx) {
+        Ok(budget) => budget,
+        Err(receipt) => return stop(receipt.stop),
+    };
+    let bytes = signature_bytes(n).saturating_mul(2);
+    let _signature_lease = match budget.lease_storage(bytes) {
+        Ok(lease) => lease,
+        Err(error) => return stop(error),
+    };
+    let signature = match m_separation_signature(reference, || budget.charge(n, bytes)) {
+        Ok(value) => value,
+        Err(error) => return stop(error),
+    };
+    for graph in &graphs[1..] {
+        match m_separation_model_matches(graph, &signature, || budget.charge(n, bytes)) {
+            Ok(true) => {}
+            Ok(false) => return Ok(Some(false)),
+            Err(error) => return stop(error),
+        }
+    }
+    Ok(Some(true))
 }
 
 #[cfg(test)]
@@ -864,6 +916,55 @@ mod tests {
             }
         }
         true
+    }
+
+    #[test]
+    fn finite_temporal_audit_reports_cancellation_and_memory_refusal() {
+        let first = Pag::with_variables(2);
+        let second = Pag::with_variables(2);
+        let refs = [&first, &second];
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &cancelled),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Cancelled
+            ))
+        ));
+        let mut during = ExecutionContext::for_tests(2);
+        during.cancellation = antecedent_core::CancellationToken::cancel_after_checks(3);
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &during),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Cancelled
+            ))
+        ));
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1);
+        let pool_limited = ExecutionContext::for_tests(4).with_admission(pool);
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &pool_limited),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" }
+            ))
+        ));
+        let limited = ExecutionContext::for_tests(3).with_memory_limit(Some(0));
+        assert!(matches!(
+            audit_finite_mag_equivalence_refs_within(&refs, &limited),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Limit { dimension: "bytes" }
+            ))
+        ));
+    }
+
+    #[test]
+    fn finite_audit_skips_a_signature_above_its_declared_search_policy() {
+        let first = Pag::with_variables(40);
+        let second = Pag::with_variables(40);
+        let ctx = ExecutionContext::for_tests(1);
+        assert_eq!(
+            audit_finite_mag_equivalence_refs_within(&[&first, &second], &ctx).unwrap(),
+            None
+        );
     }
 
     #[test]

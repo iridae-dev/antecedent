@@ -100,6 +100,7 @@ impl core::clone::Clone for antecedent_data::GlobalId
 impl core::clone::Clone for antecedent_data::GlobalIndexError
 impl core::clone::Clone for antecedent_data::GroupAccounting
 impl core::clone::Clone for antecedent_data::IdRemap
+impl core::clone::Clone for antecedent_data::ImputationDomain
 impl core::clone::Clone for antecedent_data::ImputationModel
 impl core::clone::Clone for antecedent_data::ImputationSpec
 impl core::clone::Clone for antecedent_data::Int64Column
@@ -230,6 +231,7 @@ impl core::cmp::Eq for antecedent_data::EnvHoldoutSplit
 impl core::cmp::Eq for antecedent_data::GlobalId
 impl core::cmp::Eq for antecedent_data::GlobalIndexError
 impl core::cmp::Eq for antecedent_data::GroupAccounting
+impl core::cmp::Eq for antecedent_data::ImputationDomain
 impl core::cmp::Eq for antecedent_data::ImputationModel
 impl core::cmp::Eq for antecedent_data::ImputationSpec
 impl core::cmp::Eq for antecedent_data::Int64Column
@@ -350,6 +352,7 @@ impl core::cmp::PartialEq for antecedent_data::Float64Column
 impl core::cmp::PartialEq for antecedent_data::GlobalId
 impl core::cmp::PartialEq for antecedent_data::GlobalIndexError
 impl core::cmp::PartialEq for antecedent_data::GroupAccounting
+impl core::cmp::PartialEq for antecedent_data::ImputationDomain
 impl core::cmp::PartialEq for antecedent_data::ImputationModel
 impl core::cmp::PartialEq for antecedent_data::ImputationSpec
 impl core::cmp::PartialEq for antecedent_data::Int64Column
@@ -515,6 +518,7 @@ impl core::fmt::Debug for antecedent_data::GlobalId
 impl core::fmt::Debug for antecedent_data::GlobalIndexError
 impl core::fmt::Debug for antecedent_data::GroupAccounting
 impl core::fmt::Debug for antecedent_data::IdRemap
+impl core::fmt::Debug for antecedent_data::ImputationDomain
 impl core::fmt::Debug for antecedent_data::ImputationModel
 impl core::fmt::Debug for antecedent_data::ImputationSpec
 impl core::fmt::Debug for antecedent_data::Int64Column
@@ -651,6 +655,7 @@ impl core::hash::Hash for antecedent_data::ChunkIndex
 impl core::hash::Hash for antecedent_data::DiscoveryEstimationSplit
 impl core::hash::Hash for antecedent_data::DropReason
 impl core::hash::Hash for antecedent_data::GlobalId
+impl core::hash::Hash for antecedent_data::ImputationDomain
 impl core::hash::Hash for antecedent_data::ImputationModel
 impl core::hash::Hash for antecedent_data::ImputationSpec
 impl core::hash::Hash for antecedent_data::LaggedColumn
@@ -702,6 +707,7 @@ impl core::marker::Copy for antecedent_data::DropSummary
 impl core::marker::Copy for antecedent_data::DummyOptions
 impl core::marker::Copy for antecedent_data::GlobalId
 impl core::marker::Copy for antecedent_data::GlobalIndexError
+impl core::marker::Copy for antecedent_data::ImputationDomain
 impl core::marker::Copy for antecedent_data::ImputationModel
 impl core::marker::Copy for antecedent_data::ImputationSpec
 impl core::marker::Copy for antecedent_data::LaggedColumn
@@ -783,6 +789,7 @@ impl core::marker::Freeze for antecedent_data::GlobalId [auto]
 impl core::marker::Freeze for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Freeze for antecedent_data::GroupAccounting [auto]
 impl core::marker::Freeze for antecedent_data::IdRemap [auto]
+impl core::marker::Freeze for antecedent_data::ImputationDomain [auto]
 impl core::marker::Freeze for antecedent_data::ImputationModel [auto]
 impl core::marker::Freeze for antecedent_data::ImputationSpec [auto]
 impl core::marker::Freeze for antecedent_data::Int64Column [auto]
@@ -930,6 +937,7 @@ impl core::marker::Send for antecedent_data::GlobalId [auto]
 impl core::marker::Send for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Send for antecedent_data::GroupAccounting [auto]
 impl core::marker::Send for antecedent_data::IdRemap [auto]
+impl core::marker::Send for antecedent_data::ImputationDomain [auto]
 impl core::marker::Send for antecedent_data::ImputationModel [auto]
 impl core::marker::Send for antecedent_data::ImputationSpec [auto]
 impl core::marker::Send for antecedent_data::Int64Column [auto]
@@ -1070,6 +1078,7 @@ impl core::marker::StructuralPartialEq for antecedent_data::Float64Column
 impl core::marker::StructuralPartialEq for antecedent_data::GlobalId
 impl core::marker::StructuralPartialEq for antecedent_data::GlobalIndexError
 impl core::marker::StructuralPartialEq for antecedent_data::GroupAccounting
+impl core::marker::StructuralPartialEq for antecedent_data::ImputationDomain
 impl core::marker::StructuralPartialEq for antecedent_data::ImputationModel
 impl core::marker::StructuralPartialEq for antecedent_data::ImputationSpec
 impl core::marker::StructuralPartialEq for antecedent_data::Int64Column
@@ -1193,6 +1202,7 @@ impl core::marker::Sync for antecedent_data::GlobalId [auto]
 impl core::marker::Sync for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Sync for antecedent_data::GroupAccounting [auto]
 impl core::marker::Sync for antecedent_data::IdRemap [auto]
+impl core::marker::Sync for antecedent_data::ImputationDomain [auto]
 impl core::marker::Sync for antecedent_data::ImputationModel [auto]
 impl core::marker::Sync for antecedent_data::ImputationSpec [auto]
 impl core::marker::Sync for antecedent_data::Int64Column [auto]
@@ -1338,6 +1348,7 @@ impl core::marker::Unpin for antecedent_data::GlobalId [auto]
 impl core::marker::Unpin for antecedent_data::GlobalIndexError [auto]
 impl core::marker::Unpin for antecedent_data::GroupAccounting [auto]
 impl core::marker::Unpin for antecedent_data::IdRemap [auto]
+impl core::marker::Unpin for antecedent_data::ImputationDomain [auto]
 impl core::marker::Unpin for antecedent_data::ImputationModel [auto]
 impl core::marker::Unpin for antecedent_data::ImputationSpec [auto]
 impl core::marker::Unpin for antecedent_data::Int64Column [auto]
@@ -1481,6 +1492,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GlobalId [auto
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GlobalIndexError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GroupAccounting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::IdRemap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ImputationDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ImputationModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::ImputationSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_data::Int64Column [auto]
@@ -1606,6 +1618,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GlobalId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GlobalIndexError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::GroupAccounting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::IdRemap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ImputationDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ImputationModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::ImputationSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_data::Int64Column [auto]
@@ -1797,6 +1810,7 @@ pub enum antecedent_data::BalanceRequirement
 pub enum antecedent_data::ColumnView<'a>
 pub enum antecedent_data::Contrast
 pub enum antecedent_data::DropReason
+pub enum antecedent_data::ImputationDomain
 pub enum antecedent_data::OwnedColumn
 pub enum antecedent_data::PopulationUnit
 pub enum antecedent_data::PreparationMode
@@ -1910,6 +1924,7 @@ pub field antecedent_data::MissingCell::id: antecedent_core::ids::VariableId
 pub field antecedent_data::MissingCell::row: usize
 pub field antecedent_data::MissingCell::variable: alloc::sync::Arc<str>
 pub field antecedent_data::MissingDeclaration::covariates: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
+pub field antecedent_data::MissingDeclaration::imputation_domains: alloc::sync::Arc<[(alloc::sync::Arc<str>, antecedent_data::ImputationDomain)]>
 pub field antecedent_data::MissingDeclaration::policy: antecedent_data::MissingPolicy
 pub field antecedent_data::NetworkEdge::from: antecedent_data::GlobalId
 pub field antecedent_data::NetworkEdge::to: antecedent_data::GlobalId
@@ -2106,6 +2121,7 @@ pub fn <antecedent_data::GlobalIndexError>::const fn next_attempt(self) -> &'sta
 pub fn <antecedent_data::IdRemap>::fn is_empty(&self) -> bool
 pub fn <antecedent_data::IdRemap>::fn len(&self) -> usize
 pub fn <antecedent_data::IdRemap>::fn map(&self, old: antecedent_core::ids::VariableId) -> core::result::Result<antecedent_core::ids::VariableId, antecedent_data::DataError>
+pub fn <antecedent_data::ImputationDomain>::const fn name(self) -> &'static str
 pub fn <antecedent_data::ImputationModel>::const fn name(self) -> &'static str
 pub fn <antecedent_data::ImputationModel>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_data::ImputationSpec>::const fn new() -> Self
@@ -2136,6 +2152,7 @@ pub fn <antecedent_data::LaggedFrame>::fn column_valid(&self, idx: usize) -> &an
 pub fn <antecedent_data::LaggedFrame>::fn from_panel(units: &[antecedent_data::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn from_series(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn from_series_with_options(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, options: antecedent_data::LaggedFrameOptions, _policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
+pub fn <antecedent_data::LaggedFrame>::fn from_series_with_options_and_context(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, options: antecedent_data::LaggedFrameOptions, policy: &antecedent_core::execution::budget::KernelPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn from_series_with_reference(data: &antecedent_data::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], max_lag: u32, reference: antecedent_data::ReferencePointPolicy, policy: &antecedent_core::execution::budget::KernelPolicy) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedFrame>::fn is_fully_valid(&self) -> bool
 pub fn <antecedent_data::LaggedFrame>::fn keep_mask_for_columns(&self, cols: &[usize]) -> core::result::Result<antecedent_data::ValidityBitmap, antecedent_data::DataError>
@@ -2161,6 +2178,7 @@ pub fn <antecedent_data::LaggedSampleWorkspace>::const fn capacity_n(&self) -> u
 pub fn <antecedent_data::LaggedSampleWorkspace>::fn prepare(&mut self, n: usize, ncols: usize)
 pub fn <antecedent_data::MissingDeclaration>::fn new(policy: antecedent_data::MissingPolicy) -> Self
 pub fn <antecedent_data::MissingDeclaration>::fn with_covariates(self, covariates: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::VariableId]>>) -> Self
+pub fn <antecedent_data::MissingDeclaration>::fn with_imputation_domains(self, domains: impl core::convert::Into<alloc::sync::Arc<[(alloc::sync::Arc<str>, antecedent_data::ImputationDomain)]>>) -> Self
 pub fn <antecedent_data::MissingPolicy>::const fn imputation(self) -> core::option::Option<antecedent_data::ImputationSpec>
 pub fn <antecedent_data::MissingPolicy>::const fn name(self) -> &'static str
 pub fn <antecedent_data::MissingPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -2863,6 +2881,7 @@ pub use antecedent_data::sample::LaggedColumn = antecedent_data::LaggedColumn
 pub use antecedent_data::sample::LaggedPreparedSample = antecedent_data::LaggedPreparedSample
 pub use antecedent_data::sample::LaggedSamplePlan = antecedent_data::LaggedSamplePlan
 pub use antecedent_data::sample::LaggedSampleWorkspace = antecedent_data::LaggedSampleWorkspace
+pub use antecedent_data::sample_policy::ImputationDomain = antecedent_data::ImputationDomain
 pub use antecedent_data::sample_policy::ImputationModel = antecedent_data::ImputationModel
 pub use antecedent_data::sample_policy::ImputationSpec = antecedent_data::ImputationSpec
 pub use antecedent_data::sample_policy::MaskPolicy = antecedent_data::MaskPolicy
@@ -2943,6 +2962,8 @@ pub variant antecedent_data::DataError::Unsupported { operation: &'static str, r
 pub variant antecedent_data::DropReason::AnalysisMask
 pub variant antecedent_data::DropReason::MissingValue
 pub variant antecedent_data::DropReason::UnitIncomplete
+pub variant antecedent_data::ImputationDomain::Binary
+pub variant antecedent_data::ImputationDomain::Continuous
 pub variant antecedent_data::ImputationModel::ChainedEquations
 pub variant antecedent_data::ImputationModel::JointNormal
 pub variant antecedent_data::MaskPolicy::Honor

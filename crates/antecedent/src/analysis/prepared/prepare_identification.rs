@@ -26,21 +26,24 @@ use antecedent_graph::TemporalDag;
 use antecedent_identify::{TemporalBackdoorIdentifier, TemporalMediationIdentifier};
 use std::sync::Arc;
 
-/// Identification schedule of a sequence plan: `(variable, lag, optional level)` per step.
-type IdentificationSchedule = Vec<(antecedent_core::VariableId, i32, Option<f64>)>;
-
+/// Identification schedule of a sequence plan, retaining its allocation lease.
 fn sequence_identification_schedule(
     query: &antecedent_core::ResponseQuery,
-) -> Result<Option<IdentificationSchedule>, CausalError> {
-    match antecedent_estimate::plan_from_response_query(query) {
-        Ok(Some(plan)) if plan.mechanism_overlays().is_some() => {
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<antecedent_estimate::AdmittedIdentificationSchedule>, CausalError> {
+    match antecedent_estimate::plan_from_response_query(query, budget, ctx)
+        .map_err(CausalError::from)?
+    {
+        Some(plan) if plan.mechanism_overlays().is_some() => {
             let temporal = query.temporal.as_ref().ok_or_else(|| CausalError::Compile {
                 message: "sequence schedule requires TemporalResponseSpec".into(),
             })?;
-            Ok(Some(plan.identification_schedule(temporal)))
+            Ok(Some(
+                plan.identification_schedule(temporal, budget, ctx).map_err(CausalError::from)?,
+            ))
         }
-        Ok(_) => Ok(None),
-        Err(error) => Err(CausalError::from(error)),
+        _ => Ok(None),
     }
 }
 
@@ -48,11 +51,9 @@ fn sequence_identification_schedule(
 pub(crate) fn single_step_dose(
     query: &antecedent_core::ResponseQuery,
 ) -> Result<Option<f64>, CausalError> {
-    match antecedent_estimate::plan_from_response_query(query) {
-        Ok(Some(antecedent_estimate::TemporalInterventionPlan::Single { level, .. })) => Ok(level),
-        Ok(_) => Ok(None),
-        Err(error) => Err(CausalError::from(error)),
-    }
+    Ok(antecedent_estimate::single_temporal_intervention(query)
+        .map_err(CausalError::from)?
+        .and_then(|(_, level, _)| level))
 }
 
 /// The response-query facts a per-horizon temporal identification reads.
@@ -71,6 +72,8 @@ pub(crate) fn identify_temporal_response_horizons(
     graph: &TemporalDag,
     estimator_id: crate::strategy_table::EstimatorId,
     request: &TemporalResponseIdentificationRequest<'_>,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
     let TemporalResponseIdentificationRequest {
@@ -89,11 +92,25 @@ pub(crate) fn identify_temporal_response_horizons(
     let origin = temporal.treatment_offset()?;
     let sequential = schedule
         .filter(|nodes| nodes.len() != 1 || (nodes[0].0, nodes[0].1) != (treatment, origin));
+    budget
+        .charge_work(temporal.horizons.len() as u64)
+        .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+    let identifier = TemporalBackdoorIdentifier::new().with_temporal_context(ctx, budget);
     let mut by_horizon = Vec::with_capacity(temporal.horizons.len());
     for &horizon in temporal.horizons.iter() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal identification" });
+        }
         let id_res = if let Some(nodes) = sequential {
-            let outcome_at = i32::try_from(horizon.saturating_sub(1)).unwrap_or(i32::MAX);
-            TemporalBackdoorIdentifier::new()
+            let outcome_at = i32::try_from(
+                horizon.checked_sub(1).ok_or(antecedent_core::QueryError::NonPositiveHorizon)?,
+            )
+            .map_err(|_| {
+                antecedent_core::QueryError::TemporalOutcomeOffsetOverflow {
+                    horizon_steps: horizon,
+                }
+            })?;
+            identifier
                 .identify_temporal_schedule(
                     graph,
                     outcome,
@@ -115,9 +132,7 @@ pub(crate) fn identify_temporal_response_horizons(
                 target_population: target_population.clone(),
                 effect_modifiers: std::sync::Arc::from([]),
             };
-            TemporalBackdoorIdentifier::new()
-                .identify_temporal(graph, &id_query)
-                .map_err(CausalError::from)?
+            identifier.identify_temporal(graph, &id_query).map_err(CausalError::from)?
         };
         let estimand = select_estimand(&id_res.result, estimator_id)?;
         by_horizon.push(CachedTemporalHorizonIdentification {
@@ -130,12 +145,38 @@ pub(crate) fn identify_temporal_response_horizons(
     Ok(CachedTemporalIdentification { by_horizon: Arc::from(by_horizon) })
 }
 
+#[cfg(test)]
 pub(crate) fn identify_temporal_mediation_horizons(
     graph: &TemporalDag,
     query: &MediationQuery,
     estimator_id: crate::strategy_table::EstimatorId,
 ) -> Result<CachedTemporalIdentification, CausalError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_temporal_mediation_horizons_within(graph, query, estimator_id, &mut budget, &ctx)
+}
+
+pub(crate) fn identify_temporal_mediation_horizons_within(
+    graph: &TemporalDag,
+    query: &MediationQuery,
+    estimator_id: crate::strategy_table::EstimatorId,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<CachedTemporalIdentification, CausalError> {
     use crate::strategy_table::select_estimand;
+    let _validation = antecedent_core::admit_temporal_intervention_validation(
+        [&query.control, &query.active],
+        budget,
+        ctx,
+    )
+    .map_err(|e| {
+        CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+    })?;
+    budget
+        .charge_work((query.mediators.len() as u64).saturating_add(query.horizons.len() as u64))
+        .map_err(|e| {
+            CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+        })?;
     query.validate()?;
     if query.horizons.is_empty() {
         return Err(CausalError::Compile {
@@ -143,6 +184,8 @@ pub(crate) fn identify_temporal_mediation_horizons(
         });
     }
     let ider = TemporalMediationIdentifier {
+        temporal: antecedent_identify::TemporalBackdoorIdentifier::new()
+            .with_temporal_context(ctx, budget),
         allow_natural_controlled_alias: true,
         ..TemporalMediationIdentifier::new()
     };
@@ -401,6 +444,7 @@ impl Study {
     pub(crate) fn prepare_temporal_admg_identification(
         &self,
         query: &TemporalEffectQuery,
+        ctx: &ExecutionContext,
     ) -> Result<CachedTemporalIdentification, CausalError> {
         let (
             GraphRef::TemporalAdmg(template),
@@ -416,10 +460,14 @@ impl Study {
         let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
-        let contrast = crate::analysis::temporal_admg_contrast::identify_window_contrast(
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let contrast = crate::analysis::temporal_admg_contrast::identify_window_contrast_within(
             template,
             query,
             variable_count,
+            &mut budget,
+            ctx,
         )?;
         Ok(crate::analysis::temporal_admg_contrast::retained_identification(contrast, query))
     }
@@ -435,6 +483,7 @@ impl Study {
     pub(crate) fn prepare_temporal_admg_response_identification(
         &self,
         query: &antecedent_core::ResponseQuery,
+        ctx: &ExecutionContext,
     ) -> Result<CachedTemporalIdentification, CausalError> {
         let (
             GraphRef::TemporalAdmg(template),
@@ -450,10 +499,14 @@ impl Study {
         let variable_count = u32::try_from(series.schema().len()).map_err(|_| {
             CausalError::Compile { message: "series schema exceeds the variable id range".into() }
         })?;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let by_horizon = crate::analysis::temporal_admg_contrast::identify_window_derivatives(
             template,
             query,
             variable_count,
+            &mut budget,
+            ctx,
         )?
         .into_iter()
         .map(|(horizon, derivative)| CachedTemporalHorizonIdentification {
@@ -807,6 +860,7 @@ impl Study {
     /// Identify once per requested horizon at prepare for temporal response or `TemporalEffect`.
     pub(super) fn prepare_temporal_identification(
         &self,
+        ctx: &ExecutionContext,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
         use crate::strategy_table::{EstimatorId, select_estimand};
         let GraphRef::TemporalDag(graph) = self.graph.graph_ref() else {
@@ -819,7 +873,9 @@ impl Study {
                 };
                 let (treatment, outcome) =
                     crate::analysis::proof_support::require_primary_pair(&query.functional)?;
-                let schedule = sequence_identification_schedule(query)?;
+                let mut budget =
+                    antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+                let schedule = sequence_identification_schedule(query, &mut budget, ctx)?;
                 Ok(Some(identify_temporal_response_horizons(
                     graph,
                     EstimatorId::temporal_response_for(&self.settings.inference),
@@ -831,6 +887,8 @@ impl Study {
                         schedule: schedule.as_deref(),
                         dose: single_step_dose(query)?,
                     },
+                    &mut budget,
+                    ctx,
                 )?))
             }
             CausalQuery::TemporalEffect(query)
@@ -839,7 +897,7 @@ impl Study {
             {
                 let found =
                     crate::analysis::temporal_iv_identification::identify_temporal_instrument(
-                        graph, query,
+                        graph, query, ctx,
                     )?;
                 Ok(Some(CachedTemporalIdentification {
                     by_horizon: Arc::from([CachedTemporalHorizonIdentification {
@@ -851,7 +909,10 @@ impl Study {
                 }))
             }
             CausalQuery::TemporalEffect(query) => {
+                let budget =
+                    antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
                 let id_res = TemporalBackdoorIdentifier::new()
+                    .with_temporal_context(ctx, &budget)
                     .with_parent_adjustment_fallback()
                     .identify_temporal(graph, query)
                     .map_err(CausalError::from)?;
@@ -910,9 +971,12 @@ impl Study {
             _ => return Ok(None),
         };
         let identifier_id = self.declared.identifier.unwrap_or(RouteDefaults::PAG.identifier);
-        let mut bundle = std::sync::Arc::unwrap_or_clone(self.identify_temporal_class(
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let mut bundle = std::sync::Arc::unwrap_or_clone(self.identify_temporal_class_within(
             identifier_id,
             &query,
+            &mut budget,
             ctx,
         )?);
         let horizons: &[u32] = match &self.query {
@@ -928,7 +992,9 @@ impl Study {
             let identified = if horizon == query.horizon_steps {
                 bundle.envelope.clone()
             } else {
-                self.identify_temporal_class(identifier_id, &qh, ctx)?.envelope.clone()
+                self.identify_temporal_class_within(identifier_id, &qh, &mut budget, ctx)?
+                    .envelope
+                    .clone()
             };
             bundle.by_horizon.push((horizon, identified));
         }
@@ -938,6 +1004,7 @@ impl Study {
     /// One `I(h)` per requested mediation horizon (path-product + that horizon's backdoor `Z`).
     pub(super) fn prepare_temporal_mediation_identification(
         &self,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
         use crate::strategy_table::EstimatorId;
         let CausalQuery::Mediation(query) = &self.query else {
@@ -946,7 +1013,9 @@ impl Study {
         let GraphRef::TemporalDag(graph) = self.graph.graph_ref() else {
             return Ok(None);
         };
-        Ok(Some(identify_temporal_mediation_horizons(
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Ok(Some(identify_temporal_mediation_horizons_within(
             graph,
             query,
             if matches!(self.settings.inference, InferenceMode::Bayesian(_)) {
@@ -954,6 +1023,8 @@ impl Study {
             } else {
                 EstimatorId::TemporalMediation
             },
+            &mut budget,
+            ctx,
         )?))
     }
 

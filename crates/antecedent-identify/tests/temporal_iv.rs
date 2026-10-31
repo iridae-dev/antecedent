@@ -48,7 +48,7 @@ fn a_lagged_cause_of_the_treatment_is_the_instrument_and_the_confounder_is_not()
     let found =
         TemporalIvIdentifier::new().identify_temporal_iv(&confounded_chain(), &query()).unwrap();
     assert_eq!(found.result.status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
-    assert_eq!(found.instruments, vec![key(Z, -2)]);
+    assert_eq!(found.instruments.as_ref(), &[key(Z, -2)]);
     assert_eq!(found.treatment_key, key(X, -1));
     assert_eq!(found.outcome_key, key(Y, 0));
     let estimand = &found.result.estimands[0];

@@ -26,7 +26,7 @@ use crate::error::CausalError;
 use crate::strategy_table::{
     self, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_IDENTIFIER_ID,
     IdentifierId, identify_admg, identify_cpdag, identify_pag, identify_static_query,
-    identify_temporal_cpdag, identify_temporal_pag,
+    identify_temporal_cpdag_configured, identify_temporal_pag_configured,
 };
 
 /// Identification outcome.
@@ -173,17 +173,30 @@ impl Identification {
 ///
 /// Unsupported graph-class/query pair, strategy incompatible with the graph class, or
 /// identification failure.
+#[cfg(test)]
 pub(crate) fn identify_study(
     structure: &AcceptedGraph,
     query: &CausalQuery,
     identifier: Option<IdentifierId>,
     source: crate::support::StructureSource,
 ) -> Result<Identification, CausalError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    identify_study_within(structure, query, identifier, source, &ctx)
+}
+
+pub(crate) fn identify_study_within(
+    structure: &AcceptedGraph,
+    query: &CausalQuery,
+    identifier: Option<IdentifierId>,
+    source: crate::support::StructureSource,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Identification, CausalError> {
     let strategy = identifier.unwrap_or_else(|| match structure.class() {
         GraphClass::Dag => dag_default_strategy(query),
         class => default_strategy(class),
     });
-    identify_with_source(structure, query, strategy, source)
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    identify_with_source(structure, query, strategy, source, &mut budget, ctx)
 }
 
 /// The default-identifier identification of an accepted graph, for the module's own tests.
@@ -197,6 +210,8 @@ fn identify_with_source(
     query: &CausalQuery,
     strategy: IdentifierId,
     source: crate::support::StructureSource,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     let structure_version = structure.version();
     crate::support::refuse_undeclared_off_axis(query)?;
@@ -218,14 +233,26 @@ fn identify_with_source(
             identify_source_temporal_admg(temporal, query, strategy, structure_version)
         }
         GraphRef::TemporalDag(dag) => {
-            identify_source_temporal_dag(dag, query, strategy, structure_version)
+            identify_source_temporal_dag(dag, query, strategy, structure_version, budget, ctx)
         }
-        GraphRef::TemporalCpdag(cpdag) => {
-            identify_source_temporal_cpdag(structure, cpdag, query, strategy, structure_version)
-        }
-        GraphRef::TemporalPag(pag) => {
-            identify_source_temporal_pag(structure, pag, query, strategy, structure_version)
-        }
+        GraphRef::TemporalCpdag(cpdag) => identify_source_temporal_cpdag(
+            structure,
+            cpdag,
+            query,
+            strategy,
+            structure_version,
+            budget,
+            ctx,
+        ),
+        GraphRef::TemporalPag(pag) => identify_source_temporal_pag(
+            structure,
+            pag,
+            query,
+            strategy,
+            structure_version,
+            budget,
+            ctx,
+        ),
         GraphRef::RandomizedTrial => Err(CausalError::Unsupported {
             message: "randomized trial queries are identified by the dedicated experiment route",
         }),
@@ -308,6 +335,8 @@ fn identify_source_temporal_dag(
     query: &CausalQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    budget: &antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     let CausalQuery::TemporalEffect(q) = query else {
         return Err(CausalError::Unsupported {
@@ -315,6 +344,7 @@ fn identify_source_temporal_dag(
         });
     };
     let identified = TemporalBackdoorIdentifier::new()
+        .with_temporal_context(ctx, budget)
         .with_parent_adjustment_fallback()
         .identify_temporal(dag, q)
         .map_err(CausalError::from)?;
@@ -332,11 +362,28 @@ fn identify_source_temporal_cpdag(
     query: &CausalQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     let q = temporal_class_identify_query(query, GraphClass::TemporalCpdag)?;
-    let mut envelope = identify_temporal_cpdag(strategy, cpdag, &q)?;
-    refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
-    audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
+    let mut envelope = identify_temporal_cpdag_configured(
+        strategy,
+        cpdag,
+        &q,
+        antecedent_identify::GeneralizedAdjustmentConfig {
+            context: Some(ctx.clone()),
+            temporal_budget: Some(budget.clone()),
+            ..Default::default()
+        },
+    )?;
+    refine_temporal_class_identification_within(
+        &mut envelope,
+        query,
+        q.horizon_steps,
+        budget,
+        ctx,
+    )?;
+    audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q, budget, ctx)?;
     Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
 }
 
@@ -346,14 +393,38 @@ fn identify_source_temporal_pag(
     query: &CausalQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
     if let CausalQuery::Mediation(mediation) = query {
-        return identify_temporal_pag_mediation(pag, mediation, strategy, structure_version);
+        return identify_temporal_pag_mediation(
+            pag,
+            mediation,
+            strategy,
+            structure_version,
+            budget,
+            ctx,
+        );
     }
     let q = temporal_class_identify_query(query, GraphClass::TemporalPag)?;
-    let mut envelope = identify_temporal_pag(strategy, pag, &q)?;
-    refine_temporal_class_identification(&mut envelope, query, q.horizon_steps)?;
-    audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q)?;
+    let mut envelope = identify_temporal_pag_configured(
+        strategy,
+        pag,
+        &q,
+        antecedent_identify::GeneralizedAdjustmentConfig {
+            context: Some(ctx.clone()),
+            temporal_budget: Some(budget.clone()),
+            ..Default::default()
+        },
+    )?;
+    refine_temporal_class_identification_within(
+        &mut envelope,
+        query,
+        q.horizon_steps,
+        budget,
+        ctx,
+    )?;
+    audit_temporal_class_horizons(&mut envelope, structure, query, strategy, &q, budget, ctx)?;
     Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
 }
 
@@ -365,7 +436,26 @@ fn identify_temporal_pag_mediation(
     mediation: &antecedent_core::MediationQuery,
     strategy: IdentifierId,
     structure_version: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Identification, CausalError> {
+    let _input_lease = antecedent_core::admit_temporal_intervention_validation(
+        [&mediation.control, &mediation.active],
+        budget,
+        ctx,
+    )
+    .map_err(|e| {
+        CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+    })?;
+    budget
+        .charge_work(
+            (mediation.mediators.len() as u64)
+                .saturating_add(mediation.horizons.len() as u64)
+                .saturating_add(pag.nodes().len() as u64),
+        )
+        .map_err(|e| {
+            CausalError::from(antecedent_estimate::EstimationError::TemporalMaterialization(e))
+        })?;
     mediation.validate()?;
     let [horizon] = mediation.horizons.as_ref() else {
         return Err(CausalError::Unsupported {
@@ -390,8 +480,16 @@ fn identify_temporal_pag_mediation(
         .chain(mediation.mediators.iter().map(|mediator| mediator.raw()))
         .max()
         .unwrap_or(0);
-    let window =
-        antecedent_identify::temporal_pag_mediation_window(pag, &effect, mediation, largest + 1)?;
+    let window = antecedent_identify::temporal_pag_mediation_window_within(
+        pag,
+        &effect,
+        mediation,
+        largest.checked_add(1).ok_or_else(|| CausalError::Resource {
+            message: "temporal variable count overflow".into(),
+        })?,
+        budget,
+        ctx,
+    )?;
     let envelope = antecedent_identify::GeneralizedAdjustmentIdentifier::new()
         .identify_temporal_pag_path_specific_envelope(pag, &window)?;
     Ok(Identification::TemporalEnvelope { envelope, strategy, structure_version })
@@ -495,6 +593,8 @@ fn audit_temporal_class_horizons(
     query: &CausalQuery,
     strategy: IdentifierId,
     witness: &TemporalEffectQuery,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(), CausalError> {
     let horizons: &[u32] = match query {
         CausalQuery::Response(response) => {
@@ -510,8 +610,26 @@ fn audit_temporal_class_horizons(
         let mut qh = witness.clone();
         qh.horizon_steps = horizon;
         let mut local = match structure.graph_ref() {
-            GraphRef::TemporalCpdag(graph) => identify_temporal_cpdag(strategy, graph, &qh)?,
-            GraphRef::TemporalPag(graph) => identify_temporal_pag(strategy, graph, &qh)?,
+            GraphRef::TemporalCpdag(graph) => identify_temporal_cpdag_configured(
+                strategy,
+                graph,
+                &qh,
+                antecedent_identify::GeneralizedAdjustmentConfig {
+                    context: Some(ctx.clone()),
+                    temporal_budget: Some(budget.clone()),
+                    ..Default::default()
+                },
+            )?,
+            GraphRef::TemporalPag(graph) => identify_temporal_pag_configured(
+                strategy,
+                graph,
+                &qh,
+                antecedent_identify::GeneralizedAdjustmentConfig {
+                    context: Some(ctx.clone()),
+                    temporal_budget: Some(budget.clone()),
+                    ..Default::default()
+                },
+            )?,
             _ => {
                 return Err(CausalError::Compile {
                     message: "temporal class horizon audit requires a TemporalCpdag or \
@@ -520,7 +638,7 @@ fn audit_temporal_class_horizons(
                 });
             }
         };
-        refine_temporal_class_identification(&mut local, query, horizon)?;
+        refine_temporal_class_identification_within(&mut local, query, horizon, budget, ctx)?;
         primary.envelope.truncated_completions =
             primary.envelope.truncated_completions.max(local.envelope.truncated_completions);
         for case in &mut primary.envelope.cases {
@@ -560,7 +678,7 @@ enum RefineKind<'a> {
         response: &'a antecedent_core::ResponseQuery,
         outcome: antecedent_core::VariableId,
         max_history_lag: Option<u32>,
-        schedule: Vec<(antecedent_core::VariableId, i32, Option<f64>)>,
+        schedule: antecedent_estimate::AdmittedIdentificationSchedule,
     },
     /// A temporal mediation contrast.
     Mediation(&'a antecedent_core::MediationQuery),
@@ -574,10 +692,22 @@ pub(crate) fn refine_temporal_class_identification(
     query: &CausalQuery,
     horizon: u32,
 ) -> Result<(), CausalError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+    refine_temporal_class_identification_within(envelope, query, horizon, &mut budget, &ctx)
+}
+
+pub(crate) fn refine_temporal_class_identification_within(
+    envelope: &mut TemporalClassEnvelope,
+    query: &CausalQuery,
+    horizon: u32,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(), CausalError> {
     // Decode the requested functional once, with everything each case needs.
     let refine = match query {
         CausalQuery::Response(response) => {
-            match antecedent_estimate::plan_from_response_query(response)
+            match antecedent_estimate::plan_from_response_query(response, budget, ctx)
                 .map_err(CausalError::from)?
             {
                 Some(plan) if plan.mechanism_overlays().is_some() => {
@@ -592,7 +722,9 @@ pub(crate) fn refine_temporal_class_identification(
                         response,
                         outcome,
                         max_history_lag: temporal.max_history_lag,
-                        schedule: plan.identification_schedule(temporal),
+                        schedule: plan
+                            .identification_schedule(temporal, budget, ctx)
+                            .map_err(CausalError::from)?,
                     }
                 }
                 _ => return Ok(()),
@@ -621,6 +753,7 @@ pub(crate) fn refine_temporal_class_identification(
         let identified = match &refine {
             RefineKind::Schedule { response, outcome, max_history_lag, schedule } => {
                 TemporalBackdoorIdentifier::new()
+                    .with_temporal_context(ctx, budget)
                     .identify_temporal_schedule(
                         &dag,
                         *outcome,

@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use antecedent_core::{CachePolicy, ExecutionContext, KernelPolicy};
+use antecedent_core::{CachePolicy, ExecutionContext, KernelPolicy, TemporalMaterializationLimits};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
@@ -57,6 +57,8 @@ pub(crate) fn apply(ctx: &mut ExecutionContext) {
     *ctx =
         ctx.with_exposure_probability_work_limit(policy.context.exposure_probability_work_limit());
     *ctx = ctx.with_hmc_work_limit(policy.context.hmc_work_limit());
+    *ctx =
+        ctx.with_temporal_materialization_limits(policy.context.temporal_materialization_limits());
     ctx.kernel_policy = policy.context.kernel_policy;
     if let Some(ranges) = policy.pulse_extrapolation_ranges {
         if let Some(scoped) = ctx.with_pulse_extrapolation_ranges(ranges) {
@@ -81,7 +83,7 @@ pub(crate) struct PythonExecution {
 #[pymethods]
 impl PythonExecution {
     #[new]
-    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None, exposure_probability_work_limit=None, hmc_work_limit=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None, exposure_probability_work_limit=None, hmc_work_limit=None, temporal_materialization_limits=None))]
     fn new(
         seed: u64,
         threads: Option<u32>,
@@ -95,6 +97,7 @@ impl PythonExecution {
         pulse_extrapolation_ranges: Option<f64>,
         exposure_probability_work_limit: Option<u64>,
         hmc_work_limit: Option<u64>,
+        temporal_materialization_limits: Option<(u64, u64, u64, u64, u64)>,
     ) -> PyResult<Self> {
         if let Some(ranges) = pulse_extrapolation_ranges {
             if !(ranges.is_finite() && ranges >= 0.0) {
@@ -113,6 +116,17 @@ impl PythonExecution {
         }
         if let Some(limit) = hmc_work_limit {
             context = context.with_hmc_work_limit(limit);
+        }
+        if let Some((max_offsets, max_work, max_bytes, max_graph_nodes, max_graph_edges)) =
+            temporal_materialization_limits
+        {
+            context = context.with_temporal_materialization_limits(TemporalMaterializationLimits {
+                max_offsets,
+                max_work,
+                max_bytes,
+                max_graph_nodes,
+                max_graph_edges,
+            });
         }
         context.cache_policy = match cache {
             "disabled" => CachePolicy::disabled(),
@@ -190,12 +204,22 @@ mod tests {
     #[test]
     fn nested_policies_restore_and_keep_the_same_admission_pool() {
         assert!(capture().is_none());
-        let outer = policy(128);
+        let mut outer = policy(128);
+        let limits = TemporalMaterializationLimits {
+            max_offsets: 3,
+            max_work: 7,
+            max_bytes: 11,
+            max_graph_nodes: 13,
+            max_graph_edges: 17,
+        };
+        let outer_policy = Arc::get_mut(&mut outer).unwrap();
+        outer_policy.context = outer_policy.context.with_temporal_materialization_limits(limits);
         {
             let _outer = enter(Some(Arc::clone(&outer)));
             let mut first = ExecutionContext::for_tests(21);
             apply(&mut first);
             assert_eq!(first.memory_limit_bytes(), Some(128));
+            assert_eq!(first.temporal_materialization_limits(), limits);
             assert_eq!(first.cache_policy, CachePolicy::disabled());
             let lease = first.acquire_admission(0, 96).unwrap();
             let mut second = ExecutionContext::for_tests(22);
@@ -206,6 +230,10 @@ mod tests {
                 let mut inner = ExecutionContext::for_tests(23);
                 apply(&mut inner);
                 assert_eq!(inner.memory_limit_bytes(), Some(8));
+                assert_eq!(
+                    inner.temporal_materialization_limits(),
+                    TemporalMaterializationLimits::default()
+                );
             }
             assert!(Arc::ptr_eq(&capture().unwrap(), &outer));
             drop(lease);

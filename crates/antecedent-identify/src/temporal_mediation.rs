@@ -24,6 +24,54 @@ use crate::result::{
 };
 use crate::temporal_backdoor::{TemporalBackdoorIdentifier, TemporalIdentificationResult};
 
+// Bound temporary parent/mediator collections and scans before premise
+// checks or reachability allocate structures derived from the template.
+fn admit_mediation_scratch(
+    template: &TemporalDag,
+    query: &MediationQuery,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, IdentificationError> {
+    use crate::error::IdentificationBudget;
+    if ctx.cancellation.is_cancelled() {
+        return Err(IdentificationError::Cancelled);
+    }
+    let nodes = template.nodes().len() as u64;
+    let mediators = query.mediators.len() as u64;
+    budget.charge_work(nodes).map_err(crate::error::temporal_materialization_error)?;
+    let mut edges = 0u64;
+    for i in 0..template.nodes().len() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
+        }
+        edges = edges
+            .checked_add(
+                template.children(antecedent_graph::DenseNodeId::from_index(i)).len() as u64
+            )
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    }
+    let work = nodes
+        .checked_add(mediators)
+        .and_then(|v| v.checked_add(edges))
+        .and_then(|v| v.checked_add(1))
+        .and_then(|v| v.checked_mul(mediators.checked_add(edges)?.checked_add(1)?))
+        .and_then(|v| v.checked_mul(8))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+    budget.charge_work(work).map_err(crate::error::temporal_materialization_error)?;
+    let bytes = mediators
+        .checked_add(edges)
+        .and_then(|v| v.checked_mul(256))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Memory))?;
+    if bytes > budget.limits().max_bytes {
+        return Err(IdentificationError::budget(IdentificationBudget::Memory));
+    }
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
+        _ => IdentificationError::budget(IdentificationBudget::Memory),
+    })
+}
+
 /// Certified shared adjustment set for one horizon (see
 /// [`TemporalMediationIdentifier::identify_with_horizon`]).
 struct MediationAdjustment {
@@ -42,7 +90,7 @@ fn describe_keys(keys: &[TemporalNodeKey], outcome_offset: i32) -> String {
     let items: Vec<String> = keys
         .iter()
         .map(|key| {
-            let lag = outcome_offset - key.offset;
+            let lag = i64::from(outcome_offset) - i64::from(key.offset);
             if lag == 0 {
                 format!("v{}[t]", key.variable.raw())
             } else {
@@ -51,6 +99,27 @@ fn describe_keys(keys: &[TemporalNodeKey], outcome_offset: i32) -> String {
         })
         .collect();
     format!("{{{}}}", items.join(", "))
+}
+
+/// An admitted baseline adjustment set. Clones share both the nodes and their lease.
+/// Caller-created copies of the borrowed slice are outside this owner's accounting.
+#[derive(Clone, Debug)]
+pub struct AdmittedTemporalAdjustmentNodes {
+    inner: Arc<AdmittedTemporalAdjustmentNodesInner>,
+}
+
+#[derive(Debug)]
+struct AdmittedTemporalAdjustmentNodesInner {
+    nodes: Vec<TemporalNodeKey>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
+impl std::ops::Deref for AdmittedTemporalAdjustmentNodes {
+    type Target = [TemporalNodeKey];
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner.nodes
+    }
 }
 
 /// Temporal linear mediation identifier.
@@ -111,12 +180,22 @@ impl TemporalMediationIdentifier {
         query: &MediationQuery,
         horizon: u32,
     ) -> Result<(IdentificationResult, TemporalIdentificationResult), IdentificationError> {
-        Self::ensure_mediators_intercept(template, query)?;
-        // Template premises (T@lag-1 into the mediator set, M/Y contemporaneous,
-        // no treatment-induced mediator/outcome parent) stay required for the
-        // linear path-product and keep their refusal.
-        let _premises = Self::adjustment_nodes(template, query)?;
-        let temporal = self.identify_backdoor(template, query, horizon)?;
+        let ctx = self
+            .temporal
+            .inner
+            .config
+            .context
+            .clone()
+            .unwrap_or_else(|| antecedent_core::ExecutionContext::production_default(0));
+        let mut budget = self.temporal.temporal_budget().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let _premise_lease = admit_mediation_scratch(template, query, &mut budget, &ctx)?;
+        Self::ensure_mediators_intercept(template, query, &ctx)?;
+        // Use the same caller budget for premise traversal and backdoor growth.
+        let _premises = Self::adjustment_nodes_admitted(template, query, &mut budget, &ctx)?;
+        let temporal_identifier = self.temporal.clone().with_temporal_context(&ctx, &budget);
+        let temporal = self.identify_backdoor(&temporal_identifier, template, query, horizon)?;
         let adjustment = Self::mediation_adjustment(query, &temporal)?;
         let id = Self::mediation_result(query, horizon, &temporal, &adjustment)?;
         Ok((id, temporal))
@@ -256,6 +335,7 @@ impl TemporalMediationIdentifier {
 
     fn identify_backdoor(
         &self,
+        temporal_identifier: &TemporalBackdoorIdentifier,
         template: &TemporalDag,
         mediation: &MediationQuery,
         horizon_steps: u32,
@@ -275,7 +355,7 @@ impl TemporalMediationIdentifier {
             target_population: mediation.target_population.clone(),
             effect_modifiers: std::sync::Arc::from([]),
         };
-        self.temporal.identify_temporal(template, &te)
+        temporal_identifier.identify_temporal(template, &te)
     }
 
     #[allow(
@@ -424,6 +504,7 @@ impl TemporalMediationIdentifier {
             },
             hedge: None,
             estimand_claims: Vec::new(),
+            temporal_leases: Vec::new(),
         })
     }
 
@@ -457,11 +538,21 @@ impl TemporalMediationIdentifier {
     fn ensure_mediators_intercept(
         template: &TemporalDag,
         query: &MediationQuery,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(), IdentificationError> {
-        let med: std::collections::HashSet<VariableId> = query.mediators.iter().copied().collect();
+        let mut med = std::collections::HashSet::new();
+        for &variable in query.mediators.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
+            med.insert(variable);
+        }
         let mut has_t_to_m = false;
         let mut has_m_to_y = false;
         for e in template.edges() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let Some((from, to)) = e.parent_child() else {
                 continue;
             };
@@ -496,6 +587,33 @@ impl TemporalMediationIdentifier {
     pub fn adjustment_nodes(
         template: &TemporalDag,
         query: &MediationQuery,
+    ) -> Result<AdmittedTemporalAdjustmentNodes, IdentificationError> {
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::adjustment_nodes_within(template, query, &mut budget, &ctx)
+    }
+
+    /// Resolve baseline parents under a caller-provided cumulative temporal budget.
+    pub fn adjustment_nodes_within(
+        template: &TemporalDag,
+        query: &MediationQuery,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<AdmittedTemporalAdjustmentNodes, IdentificationError> {
+        let lease = admit_mediation_scratch(template, query, budget, ctx)?;
+        let nodes = Self::adjustment_nodes_admitted(template, query, budget, ctx)?;
+        Ok(AdmittedTemporalAdjustmentNodes {
+            inner: Arc::new(AdmittedTemporalAdjustmentNodesInner { nodes, _lease: lease }),
+        })
+    }
+
+    // The caller retains the scratch admission across this entire traversal.
+    fn adjustment_nodes_admitted(
+        template: &TemporalDag,
+        query: &MediationQuery,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Vec<TemporalNodeKey>, IdentificationError> {
         if query.mediators.is_empty() {
             return Err(IdentificationError::unsupported(
@@ -520,6 +638,9 @@ impl TemporalMediationIdentifier {
             .checked_add(1)
             .ok_or_else(|| IdentificationError::out_of_range("temporal variable count overflow"))?;
         for node in template.nodes() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             if let NodeRef::Lagged { variable, .. } = node {
                 let count = variable.raw().checked_add(1).ok_or_else(|| {
                     IdentificationError::out_of_range("temporal variable count overflow")
@@ -528,6 +649,9 @@ impl TemporalMediationIdentifier {
             }
         }
         for edge in template.edges() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let (from, to) = edge.parent_child().expect("directed temporal edge");
             let (
                 NodeRef::Lagged { variable: source, lag: source_lag },
@@ -563,27 +687,40 @@ impl TemporalMediationIdentifier {
         let mediator_nodes =
             mediator_keys.iter().map(|&key| dense(key)).collect::<Result<Vec<_>, _>>()?;
         for &key in &adjustment {
+            if ctx.cancellation.is_cancelled() {
+                return Err(IdentificationError::Cancelled);
+            }
             let z = dense(key)?;
-            let induced = t == z
-                || crate::temporal_window::reaches_in_window(
+            let mut induced = t == z || mediator_nodes.contains(&z);
+            if !induced {
+                induced = crate::temporal_window::reaches_in_window(
                     template,
                     treatment,
                     key,
                     variable_count,
                     history,
                     1,
-                )
-                || mediator_nodes.contains(&z)
-                || mediator_keys.iter().any(|&mediator_key| {
-                    crate::temporal_window::reaches_in_window(
+                    budget,
+                    ctx,
+                )?;
+            }
+            if !induced {
+                for &mediator_key in &mediator_keys {
+                    if crate::temporal_window::reaches_in_window(
                         template,
                         mediator_key,
                         key,
                         variable_count,
                         history,
                         1,
-                    )
-                });
+                        budget,
+                        ctx,
+                    )? {
+                        induced = true;
+                        break;
+                    }
+                }
+            }
             if induced {
                 return Err(IdentificationError::unsupported(
                     "treatment-induced mediation covariates require a larger path model",
@@ -610,6 +747,110 @@ mod tests {
         g.insert_directed(t1, m0).unwrap();
         g.insert_directed(m0, y0).unwrap();
         g
+    }
+
+    #[test]
+    fn sparse_variable_reachability_obeys_caller_limits() {
+        let mut graph = chain_template();
+        let sparse = graph.add_lagged(VariableId::from_raw(16), Lag::from_raw(1)).unwrap();
+        let outcome = antecedent_graph::DenseNodeId::from_index(2);
+        graph.insert_directed(sparse, outcome).unwrap();
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let ctx = antecedent_core::ExecutionContext::for_tests(4);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_graph_nodes = 10;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes_within(&graph, &query, &mut budget, &ctx),
+            Err(IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory })
+        ));
+        limits.max_graph_nodes = 32;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        let parents =
+            TemporalMediationIdentifier::adjustment_nodes_within(&graph, &query, &mut budget, &ctx)
+                .unwrap();
+        assert!(
+            parents.contains(&TemporalNodeKey { variable: VariableId::from_raw(16), offset: -1 })
+        );
+        let mut small = ctx.temporal_materialization_limits();
+        small.max_work = 1;
+        let shared = antecedent_core::TemporalBudget::new(small);
+        let identifier = TemporalMediationIdentifier {
+            temporal: TemporalBackdoorIdentifier::new().with_temporal_context(&ctx, &shared),
+            ..TemporalMediationIdentifier::new()
+        };
+        assert!(matches!(
+            identifier.identify_with_horizon(&graph, &query, 1),
+            Err(IdentificationError::Budget { .. })
+        ));
+        // Clones of the supplied allowance see the work charged by premise
+        // checks and backdoor growth, rather than an independent default budget.
+        let mut shared =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let identifier = TemporalMediationIdentifier {
+            temporal: TemporalBackdoorIdentifier::new().with_temporal_context(&ctx, &shared),
+            ..TemporalMediationIdentifier::new()
+        };
+        identifier.identify_with_horizon(&chain_template(), &query, 1).unwrap();
+        let entire_allowance = shared.limits().max_work;
+        assert!(shared.charge_work(entire_allowance).is_err());
+        ctx.cancellation.cancel();
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes_within(&graph, &query, &mut budget, &ctx),
+            Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn adjustment_nodes_clones_retain_the_admission() {
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 100_000);
+        let ctx = antecedent_core::ExecutionContext::for_tests(5).with_admission(pool.clone());
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let nodes = TemporalMediationIdentifier::adjustment_nodes_within(
+            &chain_template(),
+            &query,
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        let cloned = nodes.clone();
+        let remaining = pool.available().bytes();
+        assert!(remaining < 100_000);
+        drop(nodes);
+        assert_eq!(pool.available().bytes(), remaining);
+        drop(cloned);
+        assert_eq!(pool.available().bytes(), 100_000);
+    }
+
+    #[test]
+    fn extreme_sparse_variable_refuses_without_dense_allocation() {
+        let mut graph = chain_template();
+        let sparse =
+            graph.add_lagged(VariableId::from_raw(1_000_000_000), Lag::from_raw(1)).unwrap();
+        graph.insert_directed(sparse, antecedent_graph::DenseNodeId::from_index(2)).unwrap();
+        let query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        assert!(matches!(
+            TemporalMediationIdentifier::adjustment_nodes(&graph, &query),
+            Err(IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory })
+        ));
     }
 
     #[test]

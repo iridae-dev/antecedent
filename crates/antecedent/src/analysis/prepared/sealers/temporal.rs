@@ -30,8 +30,8 @@ pub(super) fn temporal_mediation(cx: &SealContext<'_>) -> SealOutcome {
                     RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
                 ) =>
         {
-            Some(crate::analysis::execute::CheckedTemporalMediationOperation::checked(
-                analysis, data, plan, cache,
+            Some(crate::analysis::execute::CheckedTemporalMediationOperation::checked_within(
+                analysis, data, plan, cache, cx.ctx,
             )?)
         }
         _ => None,

@@ -17,41 +17,47 @@ pub(super) fn executed_scalar(result: &StudyResult) -> Option<f64> {
 }
 
 /// The window namespace of a mediation under a temporal ADMG or PAG.
-pub(super) fn window_namespace(study: &Study) -> Option<Vec<HorizonAdjustmentNodeWire>> {
+pub(crate) fn window_namespace(
+    study: &Study,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Option<AdmittedWindowNamespace>, CausalError> {
     let (DataInput::Temporal(series) | DataInput::Event(series)) = &study.data else {
-        return None;
+        return Ok(None);
     };
-    let count = u32::try_from(series.schema().len()).ok()?;
-    // A dynamic graph posterior answered atom by atom identifies in line (no cached product),
-    // so its result's identification is declared on the unfolded window of the template it
-    // names.
-    if let Some(nodes) = crate::analysis::execute::dbn_route_window_namespace(study) {
-        return Some(
-            nodes
-                .into_iter()
-                .map(|(variable, offset)| HorizonAdjustmentNodeWire { variable, offset })
-                .collect(),
-        );
-    }
-    if let Some(nodes) = crate::analysis::execute::temporal_admg_posterior_window_namespace(study) {
-        return Some(
-            nodes
-                .into_iter()
-                .map(|(variable, offset)| HorizonAdjustmentNodeWire { variable, offset })
-                .collect(),
-        );
-    }
-    crate::analysis::execute::mediation_window_namespace(
-        study.graph.graph_ref(),
-        &study.query,
-        count,
-    )
-    .map(|nodes| {
-        nodes
+    let count = u32::try_from(series.schema().len())
+        .map_err(|_| CausalError::Resource { message: "series schema overflow".into() })?;
+    let nodes = if let Some(nodes) =
+        crate::analysis::execute::dbn_route_window_namespace(study, budget, ctx)?
+    {
+        Some(nodes)
+    } else if let Some(nodes) =
+        crate::analysis::execute::temporal_admg_posterior_window_namespace(study, budget, ctx)?
+    {
+        Some(nodes)
+    } else {
+        match crate::analysis::execute::mediation_window_namespace(
+            study.graph.graph_ref(),
+            &study.query,
+            count,
+            budget,
+            ctx,
+        ) {
+            Ok(nodes) => nodes,
+            Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
+                return Err(e);
+            }
+            Err(_) => None,
+        }
+    };
+    Ok(nodes.map(|nodes| AdmittedWindowNamespace {
+        entries: nodes
+            .nodes
             .into_iter()
             .map(|(variable, offset)| HorizonAdjustmentNodeWire { variable, offset })
-            .collect()
-    })
+            .collect(),
+        _lease: nodes.lease,
+    }))
 }
 
 pub(super) fn body_frame(
@@ -91,7 +97,7 @@ pub(super) fn body_for(
         .find(|entry| entry.identification.query == identification.query)
         .or_else(|| temporal_identification.first())
         .map(|entry| entry.variables.clone())
-        .or_else(|| frame.window_variables.clone());
+        .or_else(|| frame.window_variables.as_ref().map(|namespace| namespace.entries.to_vec()));
     identification.query = frame.query.clone();
     let effect = result.estimate.as_effect();
     let published = effect.map(crate::PublishedScalarUncertainty::select);

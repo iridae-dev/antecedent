@@ -470,14 +470,16 @@ pub use temporal_mediation::{
     TemporalMediationSlice, TemporalMediationUncertainty, shared_mediation_block_bootstrap,
 };
 pub use temporal_response::{
-    JOINT_HORIZON_LAYOUT, JOINT_HORIZON_REPLICATES, MaxDeviationBand, PreparedTemporalSurface,
-    ResponseBlockLength, SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER,
-    SIMULTANEOUS_BAND_MIN_REPLICATES, SIMULTANEOUS_BAND_UPPER,
-    TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC, TEMPORAL_RESPONSE_BAND_WITHHELD,
-    TEMPORAL_RESPONSE_BLOCK_LENGTH, TEMPORAL_RESPONSE_FEW_REPLICATES, TemporalIdentification,
+    AdmittedIdentificationSchedule, AdmittedMechanismOverlays, JOINT_HORIZON_LAYOUT,
+    JOINT_HORIZON_REPLICATES, MaxDeviationBand, PreparedTemporalSurface, ResponseBlockLength,
+    SIMULTANEOUS_BAND_CRITICAL, SIMULTANEOUS_BAND_LOWER, SIMULTANEOUS_BAND_MIN_REPLICATES,
+    SIMULTANEOUS_BAND_UPPER, TEMPORAL_BAYESIAN_TEMPERING_DIAGNOSTIC,
+    TEMPORAL_RESPONSE_BAND_WITHHELD, TEMPORAL_RESPONSE_BLOCK_LENGTH,
+    TEMPORAL_RESPONSE_FEW_REPLICATES, TemporalIdentification, TemporalInterventionKind,
     TemporalInterventionPlan, TemporalResponseEstimator, block_dispersion_inflation,
     circular_block_positions_into, clear_simultaneous_band, disclose_response_block_bootstrap,
     inflate_replicates, max_deviation_band, plan_from_response_query, publish_simultaneous_band,
+    requires_temporal_overlays, single_temporal_intervention, validate_temporal_response_within,
 };
 pub use temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 pub use temporal_sequential::{

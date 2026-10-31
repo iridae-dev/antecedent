@@ -15,8 +15,9 @@ pub struct TemporalPagCompletion {
 }
 
 /// Bounded temporal MAG completions, constrained before retention and class audit.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TemporalPagCompletionSampler {
+    _template_lease: antecedent_core::execution::AdmissionLease,
     base: TemporalPag,
     inner: CompletionSampler,
     max_completions: usize,
@@ -45,14 +46,41 @@ impl TemporalPagCompletionSampler {
         limits: SearchLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, GraphError> {
-        if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
-            return Err(GraphError::InvalidEndpoints {
-                message: "temporal MAG completion requires non-conflict directed/bidirected-family marks; selection edges are unsupported",
-            });
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::with_temporal_budget(pag, max_completions, limits, &mut budget, ctx)
+    }
+
+    /// Quote a borrowed template copy before constructing its sampler.
+    pub fn with_borrowed_temporal_budget(
+        pag: &TemporalPag,
+        max_completions: usize,
+        limits: SearchLimits,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
+        let _copy = admit_template_copy(pag, budget, ctx)?;
+        Self::with_temporal_budget(pag.clone(), max_completions, limits, budget, ctx)
+    }
+
+    /// Enumerate under one cumulative temporal materialization budget.
+    pub fn with_temporal_budget(
+        pag: TemporalPag,
+        max_completions: usize,
+        limits: SearchLimits,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
         }
+        budget.charge_work(pag.nodes().len() as u64)?;
         let mut variables = 0;
         let mut history = 0;
         for node in pag.nodes() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_core::TemporalMaterializationError::Cancelled.into());
+            }
             if let NodeRef::Lagged { variable, lag } = node {
                 variables =
                     variables.max(variable.raw().checked_add(1).ok_or(GraphError::TooManyNodes)?);
@@ -61,7 +89,7 @@ impl TemporalPagCompletionSampler {
         }
         let indexer =
             TemporalIndexer::new(variables, history, 1).map_err(|_| GraphError::TooManyNodes)?;
-        Self::for_window_with_budget(pag, max_completions, &indexer, limits, ctx)
+        Self::for_window_with_temporal_budget(pag, max_completions, &indexer, limits, budget, ctx)
     }
     /// Enumerate templates whose stationary copies are valid MAGs in a supplied window.
     ///
@@ -90,24 +118,121 @@ impl TemporalPagCompletionSampler {
         limits: SearchLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, GraphError> {
-        if pag.edges().iter().any(|e| e.is_conflict() || e.is_undirected()) {
-            return Err(GraphError::InvalidEndpoints {
-                message: "temporal MAG completion requires the non-conflict directed/bidirected family",
-            });
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::for_window_with_temporal_budget(
+            pag,
+            max_completions,
+            indexer,
+            limits,
+            &mut budget,
+            ctx,
+        )
+    }
+
+    /// Admit the borrowed source copy before enumerating this window.
+    pub fn for_window_with_borrowed_temporal_budget(
+        pag: &TemporalPag,
+        max_completions: usize,
+        indexer: &TemporalIndexer,
+        limits: SearchLimits,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
+        let _copy = admit_template_copy(pag, budget, ctx)?;
+        Self::for_window_with_temporal_budget(
+            pag.clone(),
+            max_completions,
+            indexer,
+            limits,
+            budget,
+            ctx,
+        )
+    }
+
+    /// Enumerate while charging each projected window to the shared temporal budget.
+    pub fn for_window_with_temporal_budget(
+        pag: TemporalPag,
+        max_completions: usize,
+        indexer: &TemporalIndexer,
+        limits: SearchLimits,
+        temporal_budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphError> {
+        use antecedent_core::TemporalMaterializationError as T;
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
         }
+        temporal_budget.charge_work(pag.nodes().len() as u64)?;
+        let mut edges = 0u64;
+        for edge in pag.edges_lazy() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(T::Cancelled.into());
+            }
+            temporal_budget.charge_work(1)?;
+            edges = edges.checked_add(1).ok_or(T::Limit { dimension: "graph edges" })?;
+            if edge.is_conflict() || edge.is_undirected() {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "temporal MAG completion requires the non-conflict directed/bidirected family",
+                });
+            }
+        }
+        let bytes = (pag.nodes().len() as u64)
+            .checked_mul(512)
+            .and_then(|n| edges.checked_mul(512).and_then(|e| n.checked_add(e)))
+            .and_then(|n| n.checked_add(4096))
+            .ok_or(T::Limit { dimension: "bytes" })?;
+        if bytes > temporal_budget.limits().max_bytes {
+            return Err(T::Limit { dimension: "bytes" }.into());
+        }
+        let template_lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled,
+            other => T::Admission(other),
+        })?;
         let projected = pag.as_static_pag_for_alg()?;
-        let inner = CompletionSampler::with_projection(
+        let projection_budget = std::cell::RefCell::new(temporal_budget.clone());
+        let projection_error = std::cell::RefCell::new(None);
+        // The first lease covers audit_source; later leases cover the current candidate.
+        let projection_leases = std::cell::RefCell::new(Vec::new());
+        let inner_result = CompletionSampler::with_projection(
             &projected,
             max_completions,
             limits,
             ctx,
             |candidate| {
-                refine(&pag, candidate)
-                    .and_then(|graph| graph.unfold(indexer.clone()).ok())
-                    .map(|unfolded| unfolded.pag)
+                if projection_error.borrow().is_some() {
+                    return None;
+                }
+                projection_leases.borrow_mut().truncate(1);
+                if let Err(error) = projection_budget
+                    .borrow_mut()
+                    .charge_work((pag.nodes().len() as u64).saturating_add(edges).saturating_mul(8))
+                {
+                    *projection_error.borrow_mut() =
+                        Some(GraphError::TemporalMaterialization(error));
+                    return None;
+                }
+                let graph = refine(&pag, candidate)?;
+                match graph.unfold_within(indexer.clone(), &mut projection_budget.borrow_mut(), ctx)
+                {
+                    Ok(window) => {
+                        let (graph, lease) = window.into_parts();
+                        projection_leases.borrow_mut().push(lease);
+                        Some(graph)
+                    }
+                    Err(error @ GraphError::TemporalMaterialization(_)) => {
+                        *projection_error.borrow_mut() = Some(error);
+                        None
+                    }
+                    Err(_) => None,
+                }
             },
-        )?;
-        Ok(Self { base: pag, inner, max_completions })
+        );
+        if let Some(error) = projection_error.into_inner() {
+            return Err(error);
+        }
+        let inner = inner_result?;
+        Ok(Self { base: pag, inner, max_completions, _template_lease: template_lease })
     }
     /// Maximum retained valid templates.
     #[must_use]
@@ -141,6 +266,37 @@ impl TemporalPagCompletionSampler {
     pub const fn validation_report(&self) -> CompletionValidationReport {
         self.inner.validation_report()
     }
+}
+fn admit_template_copy(
+    pag: &TemporalPag,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, GraphError> {
+    use antecedent_core::TemporalMaterializationError as T;
+    if ctx.cancellation.is_cancelled() {
+        return Err(T::Cancelled.into());
+    }
+    budget.charge_work(pag.nodes().len() as u64)?;
+    let mut edges = 0u64;
+    for _ in pag.edges_lazy() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(T::Cancelled.into());
+        }
+        budget.charge_work(1)?;
+        edges = edges.checked_add(1).ok_or(T::Limit { dimension: "graph edges" })?;
+    }
+    let bytes = (pag.nodes().len() as u64)
+        .checked_mul(256)
+        .and_then(|v| edges.checked_mul(256).and_then(|e| v.checked_add(e)))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or(T::Limit { dimension: "bytes" })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(T::Limit { dimension: "bytes" }.into());
+    }
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => T::Cancelled.into(),
+        other => T::Admission(other).into(),
+    })
 }
 fn refine(base: &TemporalPag, candidate: &Pag) -> Option<TemporalPag> {
     let mut graph = base.clone();
@@ -234,15 +390,20 @@ mod tests {
         assert_eq!(expected, actual);
         let cancelled = ExecutionContext::for_tests(87);
         cancelled.cancellation.cancel();
-        let mut stopped =
-            TemporalPagCompletionSampler::with_budget(graph.clone(), 32, limits, &cancelled)
-                .unwrap();
-        assert!(stopped.next().is_none());
-        assert_eq!(stopped.search_stop(), Some(SearchStop::Cancelled));
+        assert!(matches!(
+            TemporalPagCompletionSampler::with_budget(graph.clone(), 32, limits, &cancelled),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Cancelled
+            ))
+        ));
         let limited = ExecutionContext::for_tests(87).with_memory_limit(Some(1));
-        let mut stopped =
-            TemporalPagCompletionSampler::with_budget(graph, 32, limits, &limited).unwrap();
-        assert!(stopped.next().is_none());
-        assert_eq!(stopped.search_stop(), Some(SearchStop::Memory));
+        assert!(matches!(
+            TemporalPagCompletionSampler::with_budget(graph, 32, limits, &limited),
+            Err(GraphError::TemporalMaterialization(
+                antecedent_core::TemporalMaterializationError::Admission(
+                    antecedent_core::execution::AdmissionError::ExceedsRemainder { .. }
+                )
+            ))
+        ));
     }
 }

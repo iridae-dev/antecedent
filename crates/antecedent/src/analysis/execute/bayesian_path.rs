@@ -2710,6 +2710,8 @@ impl super::Study {
         (identified, gaps): (&'a super::super::prepared::CachedDbnPosteriorIdentification, bool),
         ctx: &ExecutionContext,
     ) -> Result<DbnFrequentistAtoms<'a>, CausalError> {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let mut contexts = Vec::new();
         let mut atom_estimates = Vec::new();
         let mut designs = Vec::new();
@@ -2726,9 +2728,21 @@ impl super::Study {
             let mut assumptions = atom.identification.required_assumptions.clone();
             let design = if query.is_multi_step_sustained() {
                 assumptions.push(sequential_linear_sem_assumption(DBN_LINEAR_SEM));
+                let index = usize::try_from(atom.key).map_err(|_| CausalError::Resource {
+                    message: "DBN atom index overflow".into(),
+                })?;
+                let (graph, _graph_lease) =
+                    crate::analysis::identification_cache::admitted_temporal_dag_atom(
+                        gp,
+                        index,
+                        vars,
+                        &mut budget,
+                        ctx,
+                    )?
+                    .ok_or_else(|| CausalError::Compile { message: "invalid DBN atom".into() })?;
                 TemporalAtomDesign::sequential_with_gaps(
                     data,
-                    &crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, atom.key, vars)?,
+                    &graph,
                     &atom.indexer,
                     &atom.estimand,
                     query,
@@ -2861,15 +2875,30 @@ impl super::Study {
         {
             (Vec::new(), Vec::new())
         } else if query.is_multi_step_sustained() {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
             let validation_atoms = contexts
                 .iter()
                 .zip(atom_estimates)
                 .map(|((atom, weight), original)| {
+                    let index = usize::try_from(atom.key).map_err(|_| CausalError::Resource {
+                        message: "DBN atom index overflow".into(),
+                    })?;
+                    let (graph, lease) =
+                        crate::analysis::identification_cache::admitted_temporal_dag_atom(
+                            gp,
+                            index,
+                            vars,
+                            &mut budget,
+                            ctx,
+                        )?
+                        .ok_or_else(|| CausalError::Compile {
+                            message: "invalid DBN atom".into(),
+                        })?;
                     Ok(SequentialValidationAtom {
                         weight: *weight,
-                        graph: crate::analysis::prepared::temporal_dag_from_dbn_atom(
-                            gp, atom.key, vars,
-                        )?,
+                        graph: Arc::new(graph),
+                        _graph_lease: Some(Arc::new(lease)),
                         indexer: atom.indexer.clone(),
                         estimand: atom.estimand.clone(),
                         status: atom.identification.status,
@@ -3098,6 +3127,8 @@ impl super::Study {
             unevaluable_weight: 0.0,
             windows: Vec::new(),
         };
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         for atom in identified.atoms.iter() {
             let atom = DbnFitAtom {
                 key: atom.key,
@@ -3106,7 +3137,7 @@ impl super::Study {
                 indexer: atom.indexer.clone(),
             };
             if run.multi_step {
-                self.fit_dbn_sequential_atom(run, &mut state, atom, ctx);
+                self.fit_dbn_sequential_atom(run, &mut state, atom, &mut budget, ctx)?;
             } else {
                 self.fit_dbn_linear_atom(run, &mut state, atom, ctx)?;
             }
@@ -3121,19 +3152,26 @@ impl super::Study {
         run: &DbnBayesianRun<'_>,
         state: &mut DbnBayesianAtomFits,
         atom: DbnFitAtom,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
-    ) {
+    ) -> Result<(), CausalError> {
         let DbnBayesianRun { data, gp, vars, query, sequential_bayes, gaps, .. } = *run;
         let DbnFitAtom { key, estimand, identification, indexer } = atom;
-        let Ok(graph) = crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, key, vars) else {
+        let index = usize::try_from(key)
+            .map_err(|_| CausalError::Resource { message: "DBN atom index overflow".into() })?;
+        let Some((graph, graph_lease)) =
+            crate::analysis::identification_cache::admitted_temporal_dag_atom(
+                gp, index, vars, budget, ctx,
+            )?
+        else {
             state.demote(key, DbnAtomDemotion::Prepare);
-            return;
+            return Ok(());
         };
         let mut assumptions = identification.required_assumptions.clone();
         assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
         let mut mechanisms = Vec::new();
-        let Ok((atom_estimate, Some(posterior), selection)) =
-            antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if(
+        let result =
+            antecedent_estimate::temporal_sequential::estimate_sustained_window_gaps_if_within(
                 &antecedent_estimate::SequentialProblem {
                     data,
                     graph: &graph,
@@ -3150,17 +3188,30 @@ impl super::Study {
                 ctx,
                 Some(&mut mechanisms),
                 gaps,
-            )
-        else {
-            state.demote(key, DbnAtomDemotion::Fit);
-            return;
+                budget,
+            );
+        let (atom_estimate, posterior, selection) = match result {
+            Ok((estimate, Some(posterior), selection)) => (estimate, posterior, selection),
+            Err(error) => {
+                let error = CausalError::from(error);
+                if matches!(error, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
+                    return Err(error);
+                }
+                state.demote(key, DbnAtomDemotion::Fit);
+                return Ok(());
+            }
+            Ok(_) => {
+                state.demote(key, DbnAtomDemotion::Fit);
+                return Ok(());
+            }
         };
         if let Ok(draws) = envelope_draws_from_posterior(key, &posterior) {
             state.windows.extend(selection);
             state.sequential_keys.push(key);
             state.sequential_atoms.push(SequentialValidationAtom {
                 weight: state.key_weights.get(key),
-                graph,
+                graph: Arc::new(graph),
+                _graph_lease: Some(Arc::new(graph_lease)),
                 indexer: indexer.clone(),
                 estimand: estimand.clone(),
                 status: identification.status,
@@ -3177,6 +3228,7 @@ impl super::Study {
         } else {
             state.demote(key, DbnAtomDemotion::Draws);
         }
+        Ok(())
     }
 
     /// Pulse / single-step atom: prepare the temporal design, resolve the shared prior

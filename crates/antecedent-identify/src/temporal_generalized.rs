@@ -363,28 +363,37 @@ impl GeneralizedAdjustmentIdentifier {
         query: &TemporalEffectQuery,
     ) -> Result<TemporalClassEnvelope, IdentificationError> {
         refuse_unsupported_class_policy(query)?;
-        let indexer = crate::temporal_mag::window(pag, query)?;
         let (limits, ctx) = self.config.completion_search();
-        let mut sampler = TemporalPagCompletionSampler::for_window_with_budget(
-            pag.clone(),
+        let mut temporal_budget = self.config.temporal_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let indexer = crate::temporal_mag::window_within(pag, query, &mut temporal_budget, &ctx)?;
+        let mut sampler = TemporalPagCompletionSampler::for_window_with_borrowed_temporal_budget(
+            pag,
             self.config.max_completions,
             &indexer,
             limits,
+            &mut temporal_budget,
             &ctx,
-        )?;
+        )
+        .map_err(crate::error::temporal_graph_error)?;
         let mut cases = Vec::new();
         let mut unfolded = Vec::new();
         for completion in sampler.by_ref() {
-            let finite = completion.graph.unfold(indexer.clone())?;
+            let finite = completion
+                .graph
+                .unfold_within(indexer.clone(), &mut temporal_budget, &ctx)
+                .map_err(crate::error::temporal_graph_error)?;
             let result = crate::temporal_mag::identify(
                 &completion.graph,
                 query,
                 &finite,
                 self.config.max_candidates,
                 self.config.max_examinations,
-                self.config.context.as_ref(),
+                Some(&ctx),
+                &mut temporal_budget,
             )?;
-            unfolded.push(finite.pag);
+            unfolded.push(finite);
             cases.push(GraphIdentificationCase {
                 graph: TemporalCompletionGraph::Mag(completion.graph),
                 result,
@@ -395,7 +404,10 @@ impl GeneralizedAdjustmentIdentifier {
         let indexers = vec![indexer; cases.len()];
         let mut envelope = IdentificationEnvelope::from_cases(cases);
         let report = sampler.validation_report();
-        let finite_audit = antecedent_graph::completion::audit_finite_mag_equivalence(&unfolded);
+        let refs: Vec<&antecedent_graph::Pag> = unfolded.iter().map(|window| &window.pag).collect();
+        let finite_audit =
+            antecedent_graph::completion::audit_finite_mag_equivalence_refs_within(&refs, &ctx)
+                .map_err(crate::error::temporal_graph_error)?;
         envelope.push_features([GraphFeature { kind:Arc::from("temporal_pag_mixed_completion_audit"),detail:Arc::from(format!("stationary assignments={}, rejected_temporal_constraints={}, represented={}, ambiguous_class={}, window_audit_skipped={}, search_stop={}, finite_query_equivalence={finite_audit:?}",report.assignments_examined,report.rejected_constraints,report.represented_completions,report.ambiguous_global_class,report.equivalence_audit_skipped,sampler.search_stop().map_or("none",antecedent_core::SearchStop::code))) }]);
         if finite_audit == Some(false) {
             return Err(IdentificationError::NotCertified {
@@ -429,7 +441,11 @@ where
     I: Iterator,
     I::Item: CompletionGraph,
 {
-    let backdoor = TemporalBackdoorIdentifier::new();
+    let (_, ctx) = id.config.completion_search();
+    let budget = id.config.temporal_budget.clone().unwrap_or_else(|| {
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+    });
+    let backdoor = TemporalBackdoorIdentifier::new().with_temporal_context(&ctx, &budget);
     let w = ProbabilityMass(id.config.per_completion_weight);
     let mut cases = Vec::new();
     let mut indexers = Vec::new();

@@ -46,7 +46,6 @@ use antecedent_discovery::adjacency_mask::{
     admg_from_adjacency_mask, cpdag_from_adjacency_mask, dag_from_adjacency_mask,
     pag_from_adjacency_mask,
 };
-use antecedent_discovery::dbn_posterior::temporal_pag_from_dbn_atoms;
 use antecedent_discovery::{AdjacencyMask, GraphPosteriorAtomKind, LagMask};
 use antecedent_estimate::{
     DistributionAtom, InterventionalDistributionEstimate, TemporalMediationEstimate,
@@ -1057,6 +1056,8 @@ impl super::Study {
         let mut keys = Vec::with_capacity(firsts.len());
         let mut runs = Vec::with_capacity(firsts.len());
         let mut refusal = None;
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         for index in firsts {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled {
@@ -1064,24 +1065,34 @@ impl super::Study {
                 });
             }
             keys.push(u64::try_from(index).unwrap_or(u64::MAX));
-            let template = temporal_pag_from_dbn_atoms(
-                &gp.atoms()[index],
-                &lag_masks[index],
-                mark_of(index),
-                gp.n_vars(),
-                max_lag,
+            let Some(crate::analysis::identification_cache::AdmittedTemporalClassAtom::Pag(
+                template,
+                _lease,
+            )) = crate::analysis::identification_cache::admitted_temporal_class_atom(
+                gp,
+                index,
                 &variables,
-            );
-            let Ok(template) = template else {
+                &mut budget,
+                ctx,
+            )?
+            else {
                 runs.push(AtomRun::Unidentified);
                 continue;
             };
             let mut member = self.clone();
             member.graph = Arc::new(AcceptedGraph::temporal_pag(template));
-            runs.push(match member.execute_temporal_pag_mediation(series, query, physical, ctx) {
-                Ok(result) => AtomRun::Fit(Box::new(result)),
-                Err(error) => atom_outcome_of(error, &mut refusal)?,
-            });
+            runs.push(
+                match member.execute_temporal_pag_mediation_within(
+                    series,
+                    query,
+                    physical,
+                    &mut budget,
+                    ctx,
+                ) {
+                    Ok(result) => AtomRun::Fit(Box::new(result)),
+                    Err(error) => atom_outcome_of(error, &mut refusal)?,
+                },
+            );
         }
         let rerun = |atoms: &[(u64, f64)]| {
             self.temporal_pag_shared_replicates(
@@ -1091,6 +1102,7 @@ impl super::Study {
                 physical,
                 ctx,
                 atoms,
+                &mut budget.clone(),
             )
         };
         self.publish_cross_world(
@@ -1122,8 +1134,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
         atoms: &[(u64, f64)],
+        budget: &mut antecedent_core::TemporalBudget,
     ) -> Result<ReplicateSe, CausalError> {
-        let (gp, lag_masks, max_lag) = posterior;
+        let (gp, _lag_masks, max_lag) = posterior;
         let requested = self.settings.bootstrap_replicates;
         let unavailable =
             |note: &str| ReplicateSe { se: None, ok: 0, failed: 0, note: note.to_owned() };
@@ -1164,11 +1177,10 @@ impl super::Study {
         if !total.is_finite() || total <= 0.0 {
             return Ok(unavailable("the contributing atoms carry no posterior mass"));
         }
-        let members =
-            match self.temporal_pag_replicate_members((gp, lag_masks, max_lag), &ids, atoms) {
-                Ok(members) => members,
-                Err(note) => return Ok(unavailable(note)),
-            };
+        let Some(members) = self.temporal_pag_replicate_members(gp, &ids, atoms, budget, ctx)?
+        else {
+            return Ok(unavailable("a contributing atom no longer builds its template"));
+        };
         let slot = CrossWorldKind::Mediation(query).requested();
         let tabular = TabularData::new(series.storage().clone());
         let mut values: Vec<f64> = Vec::new();
@@ -1190,14 +1202,17 @@ impl super::Study {
                 continue;
             };
             let mut mixed = 0.0;
-            for (weight, member) in &members {
-                let value = member
-                    .execute_temporal_pag_mediation(&resampled, query, physical, ctx)
-                    .ok()
-                    .and_then(|result| {
-                        CrossWorldKind::Mediation(query).component_value(&result, slot)
-                    })
-                    .filter(|value| value.is_finite());
+            for (weight, member, _lease) in &members {
+                let value = match member
+                    .execute_temporal_pag_mediation_within(&resampled, query, physical, budget, ctx)
+                {
+                    Ok(result) => CrossWorldKind::Mediation(query).component_value(&result, slot),
+                    Err(error @ (CausalError::Resource { .. } | CausalError::Cancelled { .. })) => {
+                        return Err(error);
+                    }
+                    Err(_) => None,
+                }
+                .filter(|value| value.is_finite());
                 let Some(value) = value else {
                     failed += 1;
                     continue 'replicates;
@@ -1224,35 +1239,34 @@ impl super::Study {
     /// Resolve every contributing template before any shared resampling stream is drawn.
     fn temporal_pag_replicate_members(
         &self,
-        posterior: (&GraphPosterior, &[LagMask], u32),
+        gp: &GraphPosterior,
         ids: &[VariableId],
         atoms: &[(u64, f64)],
-    ) -> Result<Vec<(f64, Self)>, &'static str> {
-        let (gp, lag_masks, max_lag) = posterior;
-        let mark_of = |index: usize| gp.mark_atom(index);
-        let mut members: Vec<(f64, Self)> = Vec::with_capacity(atoms.len());
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Vec<(f64, Self, antecedent_core::execution::AdmissionLease)>>, CausalError>
+    {
+        let mut members = Vec::with_capacity(atoms.len());
         for (key, weight) in atoms {
-            let index = usize::try_from(*key).unwrap_or(usize::MAX);
-            if index >= gp.n_graphs() {
-                return Err("a contributing atom is outside the posterior");
-            }
-            let Ok(template) = temporal_pag_from_dbn_atoms(
-                &gp.atoms()[index],
-                &lag_masks[index],
-                mark_of(index),
-                gp.n_vars(),
-                max_lag,
-                ids,
-            ) else {
-                return Err("a contributing atom no longer builds its template");
+            let Ok(index) = usize::try_from(*key) else {
+                return Ok(None);
+            };
+            let Some(crate::analysis::identification_cache::AdmittedTemporalClassAtom::Pag(
+                template,
+                lease,
+            )) = crate::analysis::identification_cache::admitted_temporal_class_atom(
+                gp, index, ids, budget, ctx,
+            )?
+            else {
+                return Ok(None);
             };
             let mut member = self.clone();
             member.settings.bootstrap_replicates = 0;
             member.settings.refute = RefuteSuite::None;
             member.graph = Arc::new(AcceptedGraph::temporal_pag(template));
-            members.push((*weight, member));
+            members.push((*weight, member, lease));
         }
-        Ok(members)
+        Ok(Some(members))
     }
 
     /// The uncertainty of the mixture of the atoms that contribute a value.
@@ -1818,5 +1832,108 @@ fn strip_scalar_free_response(
         if matches!(by_key.get(&atom.graph_key).copied(), Some(AtomRun::Fit(_))) {
             atom.value = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod pag_replicate_admission_tests {
+    use super::*;
+    use crate::Study;
+    use antecedent_core::{
+        CausalSchemaBuilder, MeasurementSpec, MediationContrast, RoleHint, SmallRoleSet,
+        TemporalBudget, ValueType,
+    };
+    use antecedent_data::{
+        Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
+        ValidityBitmap,
+    };
+    use antecedent_discovery::{GraphPosteriorAtomKind, SamplingSummary};
+    use antecedent_prob::InferenceDiagnostics;
+
+    fn fixture() -> (Study, GraphPosterior, Vec<VariableId>) {
+        let mut builder = CausalSchemaBuilder::new();
+        for name in ["t", "m", "y"] {
+            builder
+                .add_variable(
+                    name,
+                    ValueType::Continuous,
+                    SmallRoleSet::from_hint(RoleHint::Context),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        let schema = builder.build().unwrap();
+        let vars: Vec<_> = (0..3).map(VariableId::from_raw).collect();
+        let columns = vars
+            .iter()
+            .map(|&id| {
+                OwnedColumn::Float64(
+                    Float64Column::new(id, Arc::from(vec![0.0; 8]), ValidityBitmap::all_valid(8))
+                        .unwrap(),
+                )
+            })
+            .collect();
+        let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+        let series = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: 8 },
+        )
+        .unwrap();
+        let posterior = GraphPosterior::new(
+            3,
+            vec![0.5, 0.5],
+            vec![0_u64, 0],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            SamplingSummary {
+                ess: 2.0,
+                diagnostics: InferenceDiagnostics::analytic("pag-replicate-admission"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Pag)
+        .with_lagged_marginals(1, vec![0.0; 9])
+        .unwrap()
+        .with_lag_masks(vec![0_u64, 0])
+        .unwrap();
+        let query =
+            MediationQuery::binary(vars[0], vars[2], [vars[1]], MediationContrast::Mediated);
+        let study = Study::series(series)
+            .graph_posterior(posterior.clone())
+            .query(CausalQuery::Mediation(query))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        (study, posterior, vars)
+    }
+
+    #[test]
+    fn pag_replicate_member_conversion_propagates_shared_budget_and_cancellation() {
+        let (study, posterior, vars) = fixture();
+        let atoms = [(0_u64, 0.5), (1_u64, 0.5)];
+        let ctx = ExecutionContext::for_tests(1);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_work = 35; // One 3-by-3, two-slice scan fits; two cannot.
+        let mut budget = TemporalBudget::new(limits);
+        assert!(matches!(
+            study.temporal_pag_replicate_members(&posterior, &vars, &atoms, &mut budget, &ctx),
+            Err(CausalError::Resource { .. })
+        ));
+        let cancelled = ExecutionContext::for_tests(2);
+        cancelled.cancellation.cancel();
+        let mut budget = TemporalBudget::new(cancelled.temporal_materialization_limits());
+        assert!(matches!(
+            study.temporal_pag_replicate_members(
+                &posterior,
+                &vars,
+                &atoms,
+                &mut budget,
+                &cancelled
+            ),
+            Err(CausalError::Cancelled { .. })
+        ));
     }
 }

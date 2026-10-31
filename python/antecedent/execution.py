@@ -38,6 +38,42 @@ class ResourceLimits:
 
 
 @dataclass(frozen=True, slots=True)
+class TemporalMaterializationLimits:
+    """Finite ceilings for temporal offsets, graph expansion, work and bytes.
+
+    Offsets and work accumulate across one temporal operation; metadata exports
+    have their own allowance under the execution policy retained with the result.
+    ``max_bytes`` bounds each admitted materialization; graph limits apply to
+    each unfolding.
+    Use ``ResourceLimits.memory_bytes`` to bound the shared resident-memory pool.
+    These limits also apply when that pool is unlimited. Zero refuses any
+    materialization requiring that resource.
+    """
+
+    max_offsets: int = 100_000
+    max_work: int = 100_000_000
+    max_bytes: int = 256 * 1024 * 1024
+    max_graph_nodes: int = 100_000
+    max_graph_edges: int = 1_000_000
+
+    def __post_init__(self) -> None:
+        for name in ("max_offsets", "max_work", "max_bytes", "max_graph_nodes", "max_graph_edges"):
+            value = getattr(self, name)
+            if value is None:
+                raise CausalTypeError(f"{name} must be an integer")
+            _integer(value, name)
+
+    def _native_tuple(self) -> tuple[int, int, int, int, int]:
+        return (
+            self.max_offsets,
+            self.max_work,
+            self.max_bytes,
+            self.max_graph_nodes,
+            self.max_graph_edges,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class CachePolicy:
     """Permission for semantic reuse, independently of numerical equivalence."""
 
@@ -91,7 +127,8 @@ class Execution:
     requests over the bound are refused without reducing their draw count.
     ``hmc_work_limit`` bounds total HMC sampling and diagnostic work. None selects
     the engine default (4 billion); a higher value authorizes more work without
-    changing the requested sampling schedule.
+    changing the requested sampling schedule. ``temporal_materialization`` sets
+    finite temporal expansion limits; None selects the engine defaults.
     """
 
     seed: int = 1
@@ -108,6 +145,7 @@ class Execution:
     pulse_extrapolation_ranges: float | None = None
     exposure_probability_work_limit: int | None = None
     hmc_work_limit: int | None = None
+    temporal_materialization: TemporalMaterializationLimits | None = None
     _handle: Any = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -128,6 +166,12 @@ class Execution:
             raise CausalValueError("threads exceeds the native thread range")
         if not isinstance(self.limits, ResourceLimits) or not isinstance(self.cache, CachePolicy):
             raise CausalTypeError("execution limits and cache must use their typed declarations")
+        if self.temporal_materialization is not None and not isinstance(
+            self.temporal_materialization, TemporalMaterializationLimits
+        ):
+            raise CausalTypeError(
+                "temporal_materialization must be TemporalMaterializationLimits or None"
+            )
         if self.kernels not in ("auto", "portable", "scalar"):
             raise CausalValueError("kernels must be auto, portable or scalar")
         for name in ("on_progress", "on_stage"):
@@ -151,6 +195,11 @@ class Execution:
                 callback_failure_capacity=self.callback_failure_capacity,
                 exposure_probability_work_limit=self.exposure_probability_work_limit,
                 hmc_work_limit=self.hmc_work_limit,
+                temporal_materialization_limits=(
+                    None
+                    if self.temporal_materialization is None
+                    else self.temporal_materialization._native_tuple()
+                ),
                 pulse_extrapolation_ranges=(
                     None
                     if self.pulse_extrapolation_ranges is None

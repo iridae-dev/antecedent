@@ -116,7 +116,7 @@ fn a_window_without_lags_carries_the_effect_of_every_model_its_mag_represents() 
     for (contrast, name) in CONTRASTS {
         let (window, found) = identified(&template, 1, 3, &[2], contrast, 5);
         // History 0 and one period: the coordinates are the variables.
-        assert_eq!(window.query.treatment, var(1), "{name}");
+        assert_eq!(window.query().treatment, var(1), "{name}");
         let envelope = &found.envelope;
         assert_eq!(envelope.unidentified_weight.0, 0.0, "{name}: {:?}", envelope.status);
         assert!(envelope.identified_weight.0 > 0.0, "{name}");
@@ -217,9 +217,9 @@ fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
     for (contrast, name) in CONTRASTS {
         let (window, found) = identified(&template, 3, 5, &[4], contrast, 7);
         assert_eq!(window.indexer.history(), 2, "{name}");
-        assert_eq!(window.query.treatment.raw() as usize, X_NOW, "{name}");
-        assert_eq!(window.query.outcome.raw() as usize, Y_NOW, "{name}");
-        assert_eq!(window.query.mediators.as_ref(), &[var(M_NOW as u32)], "{name}");
+        assert_eq!(window.query().treatment.raw() as usize, X_NOW, "{name}");
+        assert_eq!(window.query().outcome.raw() as usize, Y_NOW, "{name}");
+        assert_eq!(window.query().mediators.as_ref(), &[var(M_NOW as u32)], "{name}");
         let envelope = &found.envelope;
         assert_eq!(
             envelope.unidentified_weight.0, 0.0,
@@ -240,7 +240,7 @@ fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
         ];
         let induced = identify(
             &admg(WINDOW_NODES, &directed, &[]),
-            &CausalQuery::Mediation(window.query.clone()),
+            &CausalQuery::Mediation(window.query().clone()),
         );
         for seed in 0..8u64 {
             let scm = confounded_window_scm(100 + seed);

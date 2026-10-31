@@ -733,6 +733,7 @@ impl super::Study {
         identifier_id: IdentifierId,
         probe: &TemporalEffectQuery,
         physical: &PhysicalExecutionPlan,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<(Arc<antecedent_identify::TemporalClassEnvelope>, bool), CausalError> {
         Ok(if let Some((cache, prepared)) = self.reuse_temporal_class_identification(physical) {
@@ -745,7 +746,12 @@ impl super::Study {
             }
         } else {
             report_identify_compute(ctx);
-            (self.identify_temporal_class(identifier_id, probe, ctx)?.envelope.clone(), false)
+            (
+                self.identify_temporal_class_within(identifier_id, probe, budget, ctx)?
+                    .envelope
+                    .clone(),
+                false,
+            )
         })
     }
 
@@ -768,11 +774,12 @@ impl super::Study {
         clippy::too_many_lines,
         reason = "one class derivative execution: the completions, the mixture and its band stay together"
     )]
-    pub(super) fn execute_temporal_class_derivative(
+    pub(crate) fn execute_temporal_class_derivative_within(
         &self,
         data: &TimeSeriesData,
         query: &ResponseQuery,
         physical: &PhysicalExecutionPlan,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
@@ -796,8 +803,8 @@ impl super::Study {
         );
         let identifier_id = physical.binding().identifier_or(RouteDefaults::PAG)?;
         let (bundle, identify_cached) =
-            self.derivative_class_envelope(identifier_id, &probe, physical, ctx)?;
-        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
+            self.derivative_class_envelope(identifier_id, &probe, physical, budget, ctx)?;
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset()?);
         let envelope = &bundle.envelope;
         let ClassDerivatives { atoms, responses, values, estimand } = class_derivative_responses(
             data,
@@ -945,7 +952,7 @@ impl super::Study {
                 report_identify_compute(ctx);
                 (self.identify_temporal_class(identifier_id, &probe, ctx)?.envelope.clone(), false)
             };
-        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset()?);
         let query = &self.query;
         let fitted = collect_class_cross_world(
             data,
@@ -1185,7 +1192,7 @@ impl super::Study {
         let prior_scale =
             isotropic_prior_scale(&self.settings.inference, DERIVATIVE_PRIOR_REFUSAL)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;
-        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset()?);
         let mut pairs = Vec::new();
         let mut responses = Vec::new();
         let mut pooled_atoms = Vec::new();
@@ -1319,7 +1326,7 @@ impl super::Study {
         let (cache, identify_cached) = load_class_posterior_cache(self, gp, data, &probe, ctx)?;
         let prior_scale =
             isotropic_prior_scale(&self.settings.inference, CROSS_WORLD_PRIOR_REFUSAL)?;
-        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset());
+        let offsets = (probe.try_treatment_offset()?, probe.outcome_offset()?);
         let mut pairs = Vec::new();
         let mut pooled = PooledAtoms::default();
         let mut chosen = None;
