@@ -238,7 +238,11 @@ class JointEvidence:
         exposure: str = "unspecified",
         exposure_assumption_id: str | None = None,
         spillover_bias_bounds: Sequence[float] | None = None,
+        treated_spillover_bias_bounds: Sequence[float] | None = None,
+        control_spillover_bias_bounds: Sequence[float] | None = None,
         adjustments: Sequence[Mapping[str, Any]] = (),
+        cluster_sizes: Sequence[int] | None = None,
+        pretreatment_totals: Mapping[str, Sequence[float]] | None = None,
     ) -> JointEvidence:
         """Estimate cluster-randomized outcomes jointly.
 
@@ -250,8 +254,27 @@ class JointEvidence:
         """
         if len(components) != len(totals):
             raise CausalValueError("components must align with the outcome totals")
+        prepared = [[float(v) for v in row] for row in totals]
+        centered = [a for a in adjustments if a.get("kind") == "centered_fixed_cuped"]
+        if centered:
+            if cluster_sizes is None or pretreatment_totals is None or len(cluster_sizes) != len(assigned) or any(n <= 0 for n in cluster_sizes) or sum(cluster_sizes) != outcome_rows:
+                raise CausalValueError("centered CUPED requires positive cluster sizes summing to outcome_rows")
+            names = list(components)
+            seen = set()
+            for a in centered:
+                name, covariate = str(a["component"]), str(a["covariate"])
+                if name in seen or name not in names or covariate not in pretreatment_totals:
+                    raise CausalValueError("centered CUPED needs one known adjustment per component and pretreatment totals")
+                seen.add(name)
+                xs = [float(x) for x in pretreatment_totals[covariate]]
+                if len(xs) != len(assigned) or len(prepared[names.index(name)]) != len(assigned):
+                    raise CausalValueError("pretreatment and outcome totals must align with clusters")
+                mean = sum(xs) / outcome_rows
+                coefficient = float(a["coefficient"])
+                i = names.index(name)
+                prepared[i] = [y - coefficient * (x - n * mean) for y, x, n in zip(prepared[i], xs, cluster_sizes, strict=True)]
         raw = _native.decision_evidence_cluster_contrast(
-            [[float(v) for v in row] for row in totals], [bool(a) for a in assigned], int(outcome_rows)
+            prepared, [bool(a) for a in assigned], int(outcome_rows)
         )
         if raw is None:
             raise CausalValueError(
@@ -259,6 +282,10 @@ class JointEvidence:
                 "two clusters in each arm and a positive row count"
             )
         c = json.loads(raw)
+        exposure_wire = _exposure(exposure, exposure_assumption_id, spillover_bias_bounds)
+        if exposure == "bounded_arm_spillover":
+            exposure_wire["treated_bias_bounds"] = [float(b) for b in treated_spillover_bias_bounds or ()]
+            exposure_wire["control_bias_bounds"] = [float(b) for b in control_spillover_bias_bounds or ()]
         return JointEvidence(
             {
                 "evidence_id": evidence_id,
@@ -284,7 +311,7 @@ class JointEvidence:
                     "outcome_rows": int(outcome_rows),
                 },
                 "adjustments": [dict(a) for a in adjustments],
-                "exposure": _exposure(exposure, exposure_assumption_id, spillover_bias_bounds),
+                "exposure": exposure_wire,
             }
         )
 

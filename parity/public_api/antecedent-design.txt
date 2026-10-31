@@ -1860,6 +1860,7 @@ impl core::convert::From<&antecedent_design::inverse_query::InverseResult> for a
 impl core::convert::From<&antecedent_design::inverse_query::MemberStatus> for antecedent_design::inverse_query_artifact::MemberStatusWire
 impl core::convert::From<&antecedent_design::inverse_query::PosteriorFeasibility> for antecedent_design::inverse_query_artifact::PosteriorFeasibilityWire
 impl core::convert::From<antecedent_contract::external_refusal::ExternalRefusal> for antecedent_design::sequential_evaluation::SequentialEvaluationError
+impl core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<antecedent_design::evsi::EvsiError>> for antecedent_design::evsi::EvsiError
 impl core::convert::From<antecedent_core::query::error::QueryError> for antecedent_design::ZTransportPlanningError
 impl core::convert::From<antecedent_design::DesignError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::convert::From<antecedent_design::DesignError> for antecedent_design::evsi::EvsiError
@@ -8809,6 +8810,7 @@ impl<A> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_s
 impl<A> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::HeldoutSelection<A> where A: core::panic::unwind_safe::UnwindSafe [auto]
 impl<A> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::RankedProgram<A> where A: core::panic::unwind_safe::UnwindSafe [auto]
 impl<A> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::selection::procedure::WholeProcedureSelection<A> where A: core::panic::unwind_safe::UnwindSafe [auto]
+impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<E>> for antecedent_design::DesignError where Self: core::convert::From<E>
 impl<O: core::clone::Clone> core::clone::Clone for antecedent_design::DecisionPrior<O>
 impl<O: core::cmp::PartialEq> core::cmp::PartialEq for antecedent_design::DecisionPrior<O>
 impl<O: core::fmt::Debug> core::fmt::Debug for antecedent_design::DecisionPrior<O>
@@ -13699,6 +13701,7 @@ pub variant antecedent_design::DesignError::EmptyPosterior
 pub variant antecedent_design::DesignError::NoAdmissibleAction(alloc::string::String)
 pub variant antecedent_design::DesignError::Numerical(alloc::string::String)
 pub variant antecedent_design::DesignError::Prob(alloc::string::String)
+pub variant antecedent_design::DesignError::Resource(alloc::string::String)
 pub variant antecedent_design::DesignError::Shape(alloc::string::String)
 pub variant antecedent_design::DesignObjective::DistinguishModels { models: alloc::sync::Arc<[antecedent_core::ids::ModelId]> }
 pub variant antecedent_design::DesignObjective::IncreaseIdentificationProbability { query: antecedent_core::ids::QueryId }
@@ -14010,6 +14013,7 @@ pub variant antecedent_design::decision_evaluation::MissingCarrier::Predictions
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Draws
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Means
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Predictions
+pub variant antecedent_design::decision_evidence::AdjustmentKind::CenteredFixedCuped { covariate: alloc::string::String, coefficient: f64 }
 pub variant antecedent_design::decision_evidence::AdjustmentKind::FixedCuped { covariate: alloc::string::String, coefficient: f64 }
 pub variant antecedent_design::decision_evidence::AdjustmentKind::None
 pub variant antecedent_design::decision_evidence::Arm::Control
@@ -14029,6 +14033,7 @@ pub variant antecedent_design::decision_evidence::EvidenceRefusal::InterferenceU
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::Invalid(alloc::string::String)
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::TooManyUnknowns(usize)
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::UnsupportedAssignmentDesign(alloc::string::String)
+pub variant antecedent_design::decision_evidence::Exposure::BoundedArmSpillover { assumption_id: alloc::string::String, treated_bias_bounds: alloc::vec::Vec<f64>, control_bias_bounds: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Exposure::BoundedSpillover { assumption_id: alloc::string::String, bias_bounds: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Exposure::NoBetweenUnitInterference { assumption_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::Exposure::Unspecified

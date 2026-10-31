@@ -271,6 +271,7 @@ enum DimKind {
     Control(usize),
     /// Additive offset on the treated arm mean of a component.
     Spill(usize),
+    ControlSpill(usize),
 }
 
 /// Evaluate a derived quantity over joint evidence.
@@ -387,6 +388,29 @@ pub fn derive(
             assumption_ids.push(assumption_id.clone());
         }
     }
+    if let Exposure::BoundedArmSpillover {
+        assumption_id,
+        treated_bias_bounds,
+        control_bias_bounds,
+    } = &evidence.exposure
+    {
+        let mut used = false;
+        for (c, (&tb, &cb)) in treated_bias_bounds.iter().zip(control_bias_bounds).enumerate() {
+            if slot.contains(&Some(c)) {
+                if tb > 0.0 {
+                    dims.push(Dim { lower: -tb, upper: tb, kind: DimKind::Spill(c) });
+                    used = true;
+                }
+                if cb > 0.0 {
+                    dims.push(Dim { lower: -cb, upper: cb, kind: DimKind::ControlSpill(c) });
+                    used = true;
+                }
+            }
+        }
+        if used {
+            assumption_ids.push(assumption_id.clone());
+        }
+    }
     assumption_ids.sort();
     assumption_ids.dedup();
     if dims.len() > MAX_UNKNOWN_DIMENSIONS {
@@ -448,10 +472,14 @@ pub fn derive(
                 }
                 DimKind::Treated(k) => t[k] = v,
                 DimKind::Control(k) => c[k] = v,
-                DimKind::Spill(comp) => {
+                DimKind::Spill(comp) | DimKind::ControlSpill(comp) => {
                     for (k, s) in slot.iter().enumerate() {
                         if *s == Some(comp) {
-                            t[k] += v;
+                            if matches!(dim.kind, DimKind::Spill(_)) {
+                                t[k] += v;
+                            } else {
+                                c[k] += v;
+                            }
                         }
                     }
                 }
@@ -578,11 +606,16 @@ pub fn derive(
                     }
                     DimKind::Treated(k) => (lt[k], ut[k]) = (dim.lower, dim.upper),
                     DimKind::Control(k) => (lc[k], uc[k]) = (dim.lower, dim.upper),
-                    DimKind::Spill(comp) => {
+                    DimKind::Spill(comp) | DimKind::ControlSpill(comp) => {
                         for (k, s) in slot.iter().enumerate() {
                             if *s == Some(comp) {
-                                lt[k] += dim.lower;
-                                ut[k] += dim.upper;
+                                if matches!(dim.kind, DimKind::Spill(_)) {
+                                    lt[k] += dim.lower;
+                                    ut[k] += dim.upper;
+                                } else {
+                                    lc[k] += dim.lower;
+                                    uc[k] += dim.upper;
+                                }
                             }
                         }
                     }
@@ -1004,12 +1037,50 @@ pub(super) mod tests {
     fn rejects_indefinite_joint_covariance() {
         let ev = evidence(1.0, no_interference());
         let invalid = vec![1.0, 0.9, 0.9, 0.9, 1.0, -0.9, 0.9, -0.9, 1.0];
-        assert!(JointExperimentEvidence::new(
-            ev.evidence_id, ev.population_id, (ev.treated_regime_id, ev.control_regime_id),
-            ev.horizon, ev.components, (ev.treated_means, ev.control_means),
-            Dependence::Joint { treated: invalid.clone(), control: invalid }, ev.design,
-            ev.adjustments, ev.exposure,
-        ).is_err());
+        assert!(
+            JointExperimentEvidence::new(
+                ev.evidence_id,
+                ev.population_id,
+                (ev.treated_regime_id, ev.control_regime_id),
+                ev.horizon,
+                ev.components,
+                (ev.treated_means, ev.control_means),
+                Dependence::Joint { treated: invalid.clone(), control: invalid },
+                ev.design,
+                ev.adjustments,
+                ev.exposure,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn arm_spillover_bounds_support_nonlinear_margin() {
+        let ev = evidence(
+            0.05,
+            Exposure::BoundedArmSpillover {
+                assumption_id: "arm-bias".into(),
+                treated_bias_bounds: vec![0.1, 0.5, 0.0],
+                control_bias_bounds: vec![0.1, 0.5, 0.0],
+            },
+        );
+        let result =
+            derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).unwrap();
+        let r = result.assumption_range.unwrap();
+        assert!(r.lower < 3.2 && r.upper > 3.2 && r.exact);
+        assert_eq!(r.assumption_ids, vec!["arm-bias"]);
+    }
+
+    #[test]
+    fn centered_adjustment_allows_nonlinear_margin() {
+        let mut ev = evidence(0.05, no_interference());
+        ev.adjustments.push(ComponentAdjustment {
+            component: "frequency".into(),
+            kind: AdjustmentKind::CenteredFixedCuped { covariate: "pre".into(), coefficient: 1.0 },
+        });
+        let result =
+            derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).unwrap();
+        assert!(result.sampling.is_some());
     }
 
     #[test]

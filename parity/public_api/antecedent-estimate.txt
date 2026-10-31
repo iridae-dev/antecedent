@@ -17160,8 +17160,10 @@ pub field antecedent_estimate::synthetic_control::SyntheticDidFit::n_donors: usi
 pub field antecedent_estimate::synthetic_control::SyntheticDidFit::n_post_periods: usize
 pub field antecedent_estimate::synthetic_control::SyntheticDidFit::n_pre_periods: usize
 pub field antecedent_estimate::synthetic_control::SyntheticDidFit::pre_treatment_rmse: f64
+pub field antecedent_estimate::synthetic_control::SyntheticDidFit::rounding_bound: f64
 pub field antecedent_estimate::synthetic_control::SyntheticDidFit::time_weights: alloc::vec::Vec<(i64, f64)>
 pub field antecedent_estimate::synthetic_control::SyntheticUnitRandomizationTest::p_value: f64
+pub field antecedent_estimate::synthetic_control::SyntheticUnitRandomizationTest::ranking_tolerance: f64
 pub field antecedent_estimate::synthetic_control::SyntheticUnitRandomizationTest::statistics: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_estimate::synthetic_rollout::ConformalSyntheticFit::donor_weights: alloc::vec::Vec<(alloc::string::String, f64)>
 pub field antecedent_estimate::synthetic_rollout::ConformalSyntheticFit::overall: antecedent_estimate::rollout_resampling::DesignEffect
@@ -17983,6 +17985,7 @@ pub fn <antecedent_estimate::OutcomeKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::OverlapPolicy>::const fn bounds(self) -> core::option::Option<(core::option::Option<f64>, core::option::Option<f64>)>
 pub fn <antecedent_estimate::OverlapPolicy>::const fn canonical(self) -> Self
 pub fn <antecedent_estimate::OverlapPolicy>::const fn is_declared(self) -> bool
+pub fn <antecedent_estimate::OverlapPolicy>::const fn replay_overlap(self) -> core::option::Option<antecedent_learn::dr_replay::DrOverlap>
 pub fn <antecedent_estimate::OverlapPolicy>::const fn require_diagnostics() -> Self
 pub fn <antecedent_estimate::OverlapPolicy>::fn validate(self) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::OverlapReport>::fn from_propensities(propensities: &[f64], weights: core::option::Option<&[f64]>, policy: antecedent_estimate::OverlapPolicy, treatment: core::option::Option<&[f64]>, target: core::option::Option<antecedent_estimate::IpwTarget>, observation_weights: core::option::Option<&[f64]>) -> Self
@@ -19270,6 +19273,7 @@ pub fn antecedent_estimate::quantile::invert_supported_cdf(thresholds: &[f64], r
 pub fn antecedent_estimate::quantile::quantile_arm(table: &antecedent_estimate::ScoreTable, weights: core::option::Option<&[f64]>, tau: f64, arm: u32) -> core::result::Result<antecedent_estimate::quantile::QuantileArm, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::quantile::quantile_contrast(table: &antecedent_estimate::ScoreTable, weights: core::option::Option<&[f64]>, tau: f64) -> core::result::Result<antecedent_estimate::quantile::QuantileContrast, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::quantile_posterior::randomized_quantile_posterior(outcome: &[f64], treated: &[bool], thresholds: &[f64], bin_concentration: f64, tau: f64, draws: usize, seed: u64) -> core::result::Result<antecedent_estimate::quantile_posterior::QuantilePosterior, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::randomized_joint::centered_fixed_cuped_totals(outcome_totals: &[f64], pretreatment_totals: &[f64], cluster_sizes: &[usize], coefficient: f64) -> core::option::Option<alloc::vec::Vec<f64>>
 pub fn antecedent_estimate::randomized_joint::complete_cluster_joint_contrast(totals: &[&[f64]], assigned: &[bool], outcome_rows: usize) -> core::option::Option<antecedent_estimate::randomized_joint::JointClusterContrast>
 pub fn antecedent_estimate::randomized_missing::responder_pseudo_outcomes(outcome: &[f64], observed: &[bool], group: &[usize], covariates_colmajor: &[f64], ncov: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_missing::responder_weighted_itt(outcome: &[f64], observed: &[bool], treated: &[bool], covariates_colmajor: &[f64], ncov: usize) -> core::result::Result<antecedent_estimate::randomized_missing::ResponderWeightedItt, antecedent_estimate::EstimationError>

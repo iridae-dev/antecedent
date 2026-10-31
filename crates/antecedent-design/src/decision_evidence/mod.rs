@@ -232,6 +232,14 @@ pub struct OutcomeComponent {
 pub enum AdjustmentKind {
     /// No adjustment.
     None,
+    /// Fixed CUPED with totals centered on the pretreatment mean of the target rows.
+    /// This preserves each arm mean as well as the contrast.
+    CenteredFixedCuped {
+        /// Covariate name.
+        covariate: String,
+        /// Coefficient fixed independently of experimental outcomes.
+        coefficient: f64,
+    },
     /// A pretreatment covariate with a coefficient fixed outside this experiment's outcomes.
     FixedCuped {
         /// Covariate name.
@@ -275,6 +283,16 @@ pub enum Exposure {
         assumption_id: String,
         /// Per-component bound on the bias of the contrast, aligned with the outcomes.
         bias_bounds: Vec<f64>,
+    },
+    /// Bounds on the absolute bias of each arm mean, aligned with the components.
+    /// These are substantive assumptions, not empirically established intervals.
+    BoundedArmSpillover {
+        /// Identity of the declared assumption.
+        assumption_id: String,
+        /// Bounds on treated-arm mean bias.
+        treated_bias_bounds: Vec<f64>,
+        /// Bounds on control-arm mean bias.
+        control_bias_bounds: Vec<f64>,
     },
     /// Nothing is declared; derived quantities refuse.
     Unspecified,
@@ -473,13 +491,34 @@ impl JointExperimentEvidence {
         if design.treated_units < 2 || design.control_units < 2 || design.outcome_rows == 0 {
             return invalid("each arm needs at least two independently assigned units");
         }
-        if adjustments.iter().any(|a| !names.contains(a.component.as_str())) {
-            return invalid("an adjustment names an unknown component");
+        let mut adjusted = std::collections::BTreeSet::new();
+        for a in &adjustments {
+            if !names.contains(a.component.as_str()) || !adjusted.insert(a.component.as_str()) {
+                return invalid("adjustments must name distinct known components");
+            }
+            if let AdjustmentKind::FixedCuped { covariate, coefficient }
+            | AdjustmentKind::CenteredFixedCuped { covariate, coefficient } = &a.kind
+            {
+                if covariate.trim().is_empty() || !coefficient.is_finite() {
+                    return invalid("fixed CUPED needs a covariate and a finite coefficient");
+                }
+            }
         }
         if let Exposure::BoundedSpillover { bias_bounds, .. } = &exposure {
             if bias_bounds.len() != k || bias_bounds.iter().any(|b| !b.is_finite() || *b < 0.0) {
                 return invalid(
                     "spillover bounds must be finite, nonnegative and aligned with the components",
+                );
+            }
+        }
+        if let Exposure::BoundedArmSpillover { treated_bias_bounds, control_bias_bounds, .. } =
+            &exposure
+        {
+            if [treated_bias_bounds, control_bias_bounds].iter().any(|bounds| {
+                bounds.len() != k || bounds.iter().any(|b| !b.is_finite() || *b < 0.0)
+            }) {
+                return invalid(
+                    "arm spillover bounds must be finite, nonnegative and aligned with the components",
                 );
             }
         }
@@ -671,6 +710,13 @@ impl JointExperimentEvidence {
             Exposure::BoundedSpillover { assumption_id, bias_bounds } => {
                 w.word(2).text(assumption_id).reals(bias_bounds);
             }
+            Exposure::BoundedArmSpillover {
+                assumption_id,
+                treated_bias_bounds,
+                control_bias_bounds,
+            } => {
+                w.word(3).text(assumption_id).reals(treated_bias_bounds).reals(control_bias_bounds);
+            }
             Exposure::Unspecified => {
                 w.word(0);
             }
@@ -692,6 +738,9 @@ impl JointExperimentEvidence {
                 }
                 AdjustmentKind::FixedCuped { covariate, coefficient } => {
                     w.word(1).text(covariate).real(*coefficient);
+                }
+                AdjustmentKind::CenteredFixedCuped { covariate, coefficient } => {
+                    w.word(2).text(covariate).real(*coefficient);
                 }
             }
         }
@@ -841,7 +890,9 @@ pub fn compile_joint_experiment(
                 adjustment.component
             )));
         }
-        if let AdjustmentKind::FixedCuped { coefficient, covariate } = &adjustment.kind {
+        if let AdjustmentKind::FixedCuped { coefficient, covariate }
+        | AdjustmentKind::CenteredFixedCuped { coefficient, covariate } = &adjustment.kind
+        {
             if !coefficient.is_finite() || covariate.trim().is_empty() {
                 return Err(EvidenceRefusal::Invalid(
                     "fixed CUPED needs a covariate and a finite coefficient".into(),
@@ -897,6 +948,9 @@ pub fn compile_joint_experiment(
             AdjustmentKind::FixedCuped { covariate, coefficient } => {
                 adj.word(1).text(covariate).real(*coefficient);
             }
+            AdjustmentKind::CenteredFixedCuped { covariate, coefficient } => {
+                adj.word(2).text(covariate).real(*coefficient);
+            }
         }
     }
     Ok(CompiledJointExperiment {
@@ -922,6 +976,9 @@ pub fn compile_joint_experiment(
             }
             Exposure::BoundedSpillover { assumption_id, bias_bounds } => {
                 w.word(2).text(assumption_id).reals(bias_bounds);
+            }
+            Exposure::BoundedArmSpillover { assumption_id, treated_bias_bounds, control_bias_bounds } => {
+                w.word(3).text(assumption_id).reals(treated_bias_bounds).reals(control_bias_bounds);
             }
             Exposure::Unspecified => {
                 w.word(0);

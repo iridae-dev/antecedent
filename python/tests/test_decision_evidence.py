@@ -199,3 +199,19 @@ def test_planning_reuse_and_withdrawal():
     assert not ledger.unsupported_parts(ev.evidence_id)
     ledger.withdraw(ev.evidence_id, "assignment log found corrupted")
     assert ledger.unsupported_parts(ev.evidence_id)
+
+
+def test_arm_spillover_bounds_support_nonlinear_margin():
+    ev = _evidence(80, exposure="bounded_arm_spillover", exposure_assumption_id="arm-bias",
+                   treated_spillover_bias_bounds=[0.1, 0.2, 0.0],
+                   control_spillover_bias_bounds=[0.1, 0.2, 0.0])
+    result = de.evaluate(ev, _margin(Measured("cost"))).derived
+    assert result["assumption_range"]["assumption_ids"] == ["arm-bias"]
+    assert result["assumption_range"]["lower"] < result["contrast"] < result["assumption_range"]["upper"]
+
+
+def test_centered_fixed_cuped_supports_nonlinear_margin():
+    n = 80
+    ev = _evidence(n, adjustments=[{"kind": "centered_fixed_cuped", "component": "frequency", "covariate": "pre", "coefficient": 0.4}],
+                   cluster_sizes=[ROWS] * n, pretreatment_totals={"pre": [ROWS * (1 + 0.01 * c) for c in range(n)]})
+    assert de.evaluate(ev, _margin(Measured("cost"))).derived["sampling"] is not None

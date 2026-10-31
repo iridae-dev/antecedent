@@ -8,7 +8,7 @@
 //! Nothing here widens an interval or turns an assumption range into a probability.
 
 use antecedent::decision_evidence::{
-    AdjustmentKind, Candidate, ComponentAdjustment, Dependence, DecisionFrame, DecisionResult,
+    AdjustmentKind, Candidate, ComponentAdjustment, DecisionFrame, DecisionResult, Dependence,
     DerivedQuantity, DerivedResult, DesignRecord, EvidenceRefusal, Exposure, InputBinding,
     JointExperimentEvidence, JointExperimentSpec, OutcomeComponent, PlanValue, Request,
     SamplingInterval, StageDigests, Standing, Target, UnresolvedReason, UtilityExpr, Verdict,
@@ -75,6 +75,10 @@ fn adjustments(map: &Map<String, Json>) -> PyResult<Vec<ComponentAdjustment>> {
             let m = object(item, "adjustment")?;
             let kind = match text(m, "kind")?.as_str() {
                 "none" => AdjustmentKind::None,
+                "centered_fixed_cuped" => AdjustmentKind::CenteredFixedCuped {
+                    covariate: text(m, "covariate")?,
+                    coefficient: real(m, "coefficient")?,
+                },
                 "fixed_cuped" => AdjustmentKind::FixedCuped {
                     covariate: text(m, "covariate")?,
                     coefficient: real(m, "coefficient")?,
@@ -97,6 +101,11 @@ fn exposure(map: &Map<String, Json>) -> PyResult<Exposure> {
         "bounded_spillover" => Exposure::BoundedSpillover {
             assumption_id: text(m, "assumption_id")?,
             bias_bounds: reals(m, "bias_bounds")?,
+        },
+        "bounded_arm_spillover" => Exposure::BoundedArmSpillover {
+            assumption_id: text(m, "assumption_id")?,
+            treated_bias_bounds: reals(m, "treated_bias_bounds")?,
+            control_bias_bounds: reals(m, "control_bias_bounds")?,
         },
         "unspecified" => Exposure::Unspecified,
         other => return Err(crate::value_err(format!("unknown exposure kind `{other}`"))),
@@ -147,9 +156,9 @@ fn request(value: &Json) -> PyResult<Request> {
             let t = object(t, "target")?;
             match text(t, "kind")?.as_str() {
                 "experimental_contrast" => Target::ExperimentalContrast,
-                "deployment" => {
-                    Target::Deployment { bridge_assumption_id: opt_text(t, "bridge_assumption_id")? }
-                }
+                "deployment" => Target::Deployment {
+                    bridge_assumption_id: opt_text(t, "bridge_assumption_id")?,
+                },
                 other => return Err(crate::value_err(format!("unknown target kind `{other}`"))),
             }
         }
@@ -180,7 +189,10 @@ fn expr(value: &Json) -> PyResult<UtilityExpr> {
     let op = text(map, "op")?;
     let args = list(map, "args")?;
     let arg = |i: usize| -> PyResult<UtilityExpr> {
-        expr(args.get(i).ok_or_else(|| crate::value_err(format!("`{op}` is missing an argument")))?)
+        expr(
+            args.get(i)
+                .ok_or_else(|| crate::value_err(format!("`{op}` is missing an argument")))?,
+        )
     };
     let binary = |args: &Vec<Json>| -> PyResult<()> {
         (args.len() == 2)
@@ -276,7 +288,9 @@ fn candidates(map: &Map<String, Json>) -> PyResult<Vec<Candidate>> {
                     id: text(m, "id")?,
                     additional_units_per_arm: member(m, "additional_units_per_arm")?
                         .as_u64()
-                        .ok_or_else(|| crate::value_err("`additional_units_per_arm` must be an integer"))?,
+                        .ok_or_else(|| {
+                            crate::value_err("`additional_units_per_arm` must be an integer")
+                        })?,
                     cost,
                 },
                 "resolve_assumption" => Candidate::ResolveAssumption {

@@ -8,7 +8,7 @@
 
 pub use antecedent_design::decision_evidence::*;
 pub use antecedent_estimate::randomized_joint::{
-    JointClusterContrast, complete_cluster_joint_contrast,
+    JointClusterContrast, centered_fixed_cuped_totals, complete_cluster_joint_contrast,
 };
 
 /// Wrap a joint cluster estimate as decision evidence.

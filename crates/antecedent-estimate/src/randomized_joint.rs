@@ -45,6 +45,38 @@ pub struct JointClusterContrast {
     pub interval_supported: bool,
 }
 
+/// Center fixed-coefficient pretreatment adjustment at the population pretreatment mean.
+///
+/// Each cluster receives `Y_c - coefficient * (X_c - n_c * X_bar)`, where `X_bar`
+/// is computed over all target rows. Thus each arm estimator retains the original outcome
+/// scale. Cluster sizes and pretreatment totals must be fixed before assignment.
+#[must_use]
+pub fn centered_fixed_cuped_totals(
+    outcome_totals: &[f64],
+    pretreatment_totals: &[f64],
+    cluster_sizes: &[usize],
+    coefficient: f64,
+) -> Option<Vec<f64>> {
+    if outcome_totals.is_empty()
+        || outcome_totals.len() != pretreatment_totals.len()
+        || outcome_totals.len() != cluster_sizes.len()
+        || !coefficient.is_finite()
+        || outcome_totals.iter().chain(pretreatment_totals).any(|v| !v.is_finite())
+        || cluster_sizes.contains(&0)
+    {
+        return None;
+    }
+    let rows = cluster_sizes.iter().try_fold(0usize, |sum, n| sum.checked_add(*n))?;
+    let mean = pretreatment_totals.iter().sum::<f64>() / rows as f64;
+    let result: Vec<_> = outcome_totals
+        .iter()
+        .zip(pretreatment_totals)
+        .zip(cluster_sizes)
+        .map(|((y, x), n)| y - coefficient * (x - *n as f64 * mean))
+        .collect();
+    result.iter().all(|v| v.is_finite()).then_some(result)
+}
+
 /// Estimate the joint per-row arm means and their covariance.
 ///
 /// `totals[k][c]` is outcome `k` summed over the rows of assigned cluster `c`, already
@@ -168,6 +200,31 @@ mod tests {
             .map(|i| control1[i] - sizes[i] as f64 * (0.9 + 0.1 * (i as f64 * 0.29).sin()))
             .collect::<Vec<_>>();
         (sizes, [control0, control1], [treated0, treated1])
+    }
+
+    #[test]
+    fn centered_cuped_preserves_each_arm_mean_over_all_allocations() {
+        // Unequal cluster sizes make centering by cluster mean incorrect.
+        let sizes = [1, 2, 3, 4];
+        let x = [1.0, 6.0, 15.0, 28.0];
+        let y = [2.0, 8.0, 18.0, 32.0];
+        let adjusted = centered_fixed_cuped_totals(&y, &x, &sizes, 0.7).unwrap();
+        assert!((adjusted.iter().sum::<f64>() - y.iter().sum::<f64>()).abs() < 1e-12);
+        let mut means = [0.0; 2];
+        let mut n = 0;
+        for a in 0..4 {
+            for b in a + 1..4 {
+                let assigned: Vec<_> = (0..4).map(|i| i == a || i == b).collect();
+                let result = complete_cluster_joint_contrast(&[&adjusted], &assigned, 10).unwrap();
+                means[0] += result.treated_means[0];
+                means[1] += result.control_means[0];
+                n += 1;
+            }
+        }
+        for mean in means {
+            assert!((mean / n as f64 - 6.0).abs() < 1e-12);
+        }
+        assert!(centered_fixed_cuped_totals(&y, &x, &[1, 2, 3], 0.7).is_none());
     }
 
     #[test]

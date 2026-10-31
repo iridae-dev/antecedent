@@ -289,3 +289,46 @@ fn planning_reuse_and_withdrawal_follow_the_decision() {
     ledger.withdraw(&ev.evidence_id, "assignment log found corrupted");
     assert_eq!(ledger.unsupported_parts(&ev.evidence_id).len(), 1);
 }
+
+#[test]
+fn centered_adjustment_and_arm_spillover_compose_for_a_nonlinear_decision() {
+    let mut fx = fixture(80);
+    let sizes = vec![ROWS_PER_CLUSTER; fx.assigned.len()];
+    let pre: Vec<f64> =
+        (0..sizes.len()).map(|c| ROWS_PER_CLUSTER as f64 * (1.0 + shock(c, 0.0))).collect();
+    fx.totals[0] = centered_fixed_cuped_totals(&fx.totals[0], &pre, &sizes, 0.4).unwrap();
+    let slices: Vec<&[f64]> = fx.totals.iter().map(Vec::as_slice).collect();
+    let contrast = complete_cluster_joint_contrast(&slices, &fx.assigned, fx.rows).unwrap();
+    let ev = evidence_from_cluster_contrast(
+        &contrast,
+        "exp-shipping-centered",
+        "active_customers",
+        ("free_shipping", "standard_shipping"),
+        4,
+        components(),
+        fx.rows,
+        vec![ComponentAdjustment {
+            component: "frequency".into(),
+            kind: AdjustmentKind::CenteredFixedCuped {
+                covariate: "pre_frequency".into(),
+                coefficient: 0.4,
+            },
+        }],
+        Exposure::BoundedArmSpillover {
+            assumption_id: "arm-spillover".into(),
+            treated_bias_bounds: vec![0.1, 0.2, 0.0],
+            control_bias_bounds: vec![0.1, 0.2, 0.0],
+        },
+    )
+    .unwrap();
+    let answer =
+        decide(&ev, &request(), &margin(InputBinding::Measured("cost".into())), &frame(0.0))
+            .unwrap();
+    assert!(answer.derived.sampling.is_some());
+    let range = answer.derived.assumption_range.unwrap();
+    assert!(
+        range.lower < answer.derived.contrast.unwrap()
+            && range.upper > answer.derived.contrast.unwrap()
+    );
+    assert_eq!(range.assumption_ids, vec!["arm-spillover"]);
+}
