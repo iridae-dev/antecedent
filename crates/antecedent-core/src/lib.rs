@@ -106,7 +106,7 @@ pub use execution::{
     NonZeroThreadCount, Parallelism, ProgressSink, RandomizationTestLimits, RequestIdentity,
     RngFactory, StreamDomain, WeakCancellationToken, default_user_threads,
 };
-pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
+pub use execution::{GOLDEN_GAMMA, INDEX_GAMMA, derive_stream, mix64, splitmix64};
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
 pub use identity::{
     CanonicalWriter, ContractIdentities, FNV1A_64_OFFSET, FNV1A_64_PRIME, Fnv1a64, IDENTITY_FORMAT,

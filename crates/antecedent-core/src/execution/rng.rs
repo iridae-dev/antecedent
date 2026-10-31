@@ -154,13 +154,17 @@ impl RngFactory {
     #[must_use]
     pub fn stream_for(&self, domain: StreamDomain, index: u64) -> CausalRng {
         // Odd multiplier so domain tags stay distinct under xor with index.
-        let stream_id = domain.tag().wrapping_mul(0xD1B5_4A32_D192_ED03) ^ index;
+        let stream_id = domain.tag().wrapping_mul(INDEX_GAMMA) ^ index;
         self.stream(stream_id)
     }
 }
 
 /// The `SplitMix64` increment (the golden-ratio gamma).
 pub const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// Second Weyl multiplier of per-index stream keys: an odd constant that keeps an index
+/// coordinate distinct from the [`GOLDEN_GAMMA`] coordinate when the two are combined by xor.
+pub const INDEX_GAMMA: u64 = 0xD1B5_4A32_D192_ED03;
 
 /// The `SplitMix64` output finalizer: a bijective avalanche mix of one word.
 #[must_use]

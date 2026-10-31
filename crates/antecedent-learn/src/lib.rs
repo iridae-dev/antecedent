@@ -15,6 +15,7 @@ pub mod bayesian_basis_regression;
 pub mod categorical;
 mod coefficient;
 pub mod crossfit;
+pub mod crossfit_plan;
 pub mod nested_markov_bayesian;
 pub use categorical::FiniteJoint;
 mod dense;

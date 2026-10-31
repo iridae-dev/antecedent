@@ -41,5 +41,6 @@ pub use context::{ExecutionContext, RandomizationTestLimits};
 pub use pipeline::{MapExecutionError, PipelineReceipt, PipelineStep};
 pub use request::{ExecutionReceipt, ExecutionRequestState, RequestIdentity};
 pub use rng::{
-    CausalRng, GOLDEN_GAMMA, RngFactory, StreamDomain, derive_stream, mix64, splitmix64,
+    CausalRng, GOLDEN_GAMMA, INDEX_GAMMA, RngFactory, StreamDomain, derive_stream, mix64,
+    splitmix64,
 };

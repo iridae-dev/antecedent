@@ -1787,7 +1787,6 @@ mod recovery_intervention_tests {
     };
     use antecedent_model::intervention_request::InterventionRequestError;
     use antecedent_model::linear_solution::SolvabilityRefusal;
-    use antecedent_model::scc_compile::SccCompileError;
 
     fn node(raw: u32) -> VariableId {
         VariableId::from_raw(raw)
@@ -2102,19 +2101,17 @@ mod recovery_intervention_tests {
     }
 
     #[test]
-    fn non_gaussian_disturbance_stays_distinct_from_the_clamp_and_the_family() {
+    fn an_indefinite_disturbance_is_inadmissible_and_distinct_from_the_clamp_and_the_family() {
         let indefinite = RecoveryDrawInput {
             noise_covariance: vec![1.0, 2.0, 2.0, 1.0],
             ..draw(1.0, 0.5, false)
         };
         let retained = plan(vec![draw(1.0, 0.5, false), indefinite]);
         let evaluation = consume_retained_recovery_plan(&retained);
-        assert!(matches!(
-            evaluation.draws()[1].certification_fault(),
-            Some(CertificationFault::Request(InterventionRequestError::Compile(
-                SccCompileError::NotPositiveSemidefinite { .. }
-            )))
-        ));
+        // The covariance has a negative eigenvalue, so the draw is classed inadmissible before any
+        // matrix is completed: neither a clamp fault nor a family-certificate fault.
+        assert!(matches!(evaluation.draws()[1].outcome(), EvaluatedOutcome::Inadmissible(_)));
+        assert!(evaluation.draws()[1].certification_fault().is_none());
         assert!(close(evaluation.withheld_mass(), 0.5));
     }
 

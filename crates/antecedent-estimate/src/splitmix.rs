@@ -5,6 +5,8 @@
 
 // The mixer, its increment and the stepper are owned by `antecedent_core`; this module
 // re-exports them under the crate-local path and keeps the seed scrambler and fixtures.
+#[cfg(test)]
+pub(crate) use antecedent_core::INDEX_GAMMA;
 pub(crate) use antecedent_core::{GOLDEN_GAMMA, mix64, splitmix64};
 
 /// Scramble a caller seed so nearby seeds start unrelated streams: the first
@@ -13,10 +15,6 @@ pub(crate) use antecedent_core::{GOLDEN_GAMMA, mix64, splitmix64};
 pub(crate) const fn seed_mix(seed: u64) -> u64 {
     mix64(seed.wrapping_add(GOLDEN_GAMMA))
 }
-
-/// Second Weyl multiplier of the per-index stream key: replicate and row indices of test
-/// fixtures are combined as `(replicate + 1)·GOLDEN_GAMMA ^ (index + 1)·INDEX_GAMMA`.
-pub(crate) const INDEX_GAMMA: u64 = 0xD1B5_4A32_D192_ED03;
 
 /// Multiplier of the third stream coordinate of the test-fixture key.
 #[cfg(test)]
