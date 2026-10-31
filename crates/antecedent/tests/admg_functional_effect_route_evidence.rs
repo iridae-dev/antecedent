@@ -167,25 +167,49 @@ fn verify_functional_effect_coordinate(
         .encode_contracted_result(&refreshed, &format!("functional-effect-{coordinate}"), &ctx)
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
+    let is_replay = |reason: &std::sync::Arc<str>| {
+        matches!(
+            reason.as_ref(),
+            "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+        )
+    };
+    let unresolved = consumed.acceptance.unresolved.to_vec();
+    let replay: Vec<_> = unresolved.iter().filter(|reason| is_replay(reason)).cloned().collect();
+    let others: Vec<_> = unresolved.iter().filter(|reason| !is_replay(reason)).cloned().collect();
+    if validation == "none" {
+        assert!(consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(replay.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
+    } else {
+        // A compact artifact cannot replay a refuter without the data, so the
+        // refutation replay obligation is the only addition over the unvalidated twin.
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(!replay.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
+        assert_eq!(
+            &unresolved[..replay.len()],
+            replay.as_slice(),
+            "{coordinate} replay reasons come first: {unresolved:?}"
+        );
+        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+    }
     if bayesian {
         assert_eq!(
-            consumed.acceptance.unresolved.len(),
+            others.len(),
             1,
             "{coordinate} should have one precise posterior replay dependency"
         );
         assert!(
-            consumed.acceptance.unresolved.iter().any(|reason| {
-                reason.as_ref() == "dependencies.functional_effect_posterior_draws"
-            }),
-            "{coordinate} artifact dependencies: {:?}",
-            consumed.acceptance.unresolved
+            others
+                .iter()
+                .any(|reason| reason.as_ref() == "dependencies.functional_effect_posterior_draws"),
+            "{coordinate} artifact dependencies: {unresolved:?}"
         );
         assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
     } else {
-        assert!(
+        assert!(others.is_empty(), "{coordinate} artifact dependencies: {unresolved:?}");
+        assert_eq!(
             consumed.acceptance.accepts_as_verified_program(),
-            "{coordinate} artifact dependencies: {:?}",
-            consumed.acceptance.unresolved
+            validation == "none",
+            "{coordinate} artifact dependencies: {unresolved:?}"
         );
     }
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact result");

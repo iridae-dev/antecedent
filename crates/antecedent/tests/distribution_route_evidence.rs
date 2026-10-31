@@ -189,25 +189,47 @@ fn verify_distribution_coordinate(
         .encode_contracted_result(&refreshed, &format!("distribution-{coordinate}"), &ctx)
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
+    let is_replay = |reason: &std::sync::Arc<str>| {
+        matches!(
+            reason.as_ref(),
+            "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+        )
+    };
+    let unresolved = consumed.acceptance.unresolved.to_vec();
+    let replay: Vec<_> = unresolved.iter().filter(|reason| is_replay(reason)).cloned().collect();
+    let others: Vec<_> = unresolved.iter().filter(|reason| !is_replay(reason)).cloned().collect();
+    if suite_name == "none" {
+        assert!(consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(replay.is_empty(), "{coordinate}: {unresolved:?}");
+    } else {
+        // A compact artifact cannot replay a refuter without the data, so the
+        // refutation replay obligation is the only addition over the unvalidated twin.
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+        assert!(!replay.is_empty(), "{coordinate}: {unresolved:?}");
+        assert_eq!(
+            &unresolved[..replay.len()],
+            replay.as_slice(),
+            "{coordinate}: replay reasons come first: {unresolved:?}"
+        );
+        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+    }
     if bayesian {
         assert!(
-            consumed
-                .acceptance
-                .unresolved
+            others
                 .iter()
                 .any(|reason| reason.as_ref() == "dependencies.distribution_posterior_factor_draws"),
-            "{coordinate}: expected precise posterior-factor-draw replay dependency, got {:?}",
-            consumed.acceptance.unresolved
+            "{coordinate}: expected precise posterior-factor-draw replay dependency, got {unresolved:?}"
         );
         assert!(
             !consumed.acceptance.accepts_as_verified_program(),
             "{coordinate}: posterior factor draws cannot yet be independently replayed"
         );
     } else {
-        assert!(
+        assert!(others.is_empty(), "{coordinate}: {unresolved:?}");
+        assert_eq!(
             consumed.acceptance.accepts_as_verified_program(),
-            "{coordinate}: {:?}",
-            consumed.acceptance.unresolved
+            suite_name == "none",
+            "{coordinate}: {unresolved:?}"
         );
         assert_eq!(consumed.body.estimate, Some(0.7), "{coordinate}");
     }
@@ -392,6 +414,7 @@ fn resolved_only_distribution_artifact(bayesian: bool) -> antecedent_io::Analysi
         } else {
             InferenceMode::Frequentist
         })
+        .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .build()
         .unwrap();

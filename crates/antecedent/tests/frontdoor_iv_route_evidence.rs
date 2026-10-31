@@ -129,6 +129,15 @@ fn suite(name: &str) -> RefuteSuite {
     }
 }
 
+fn expected_unresolved(validation: &str) -> Vec<&'static str> {
+    let mut expected = Vec::new();
+    if validation != "none" {
+        expected.push("dependencies.refutation_replay");
+    }
+    expected.push("dependencies.checked_estimator_operation");
+    expected
+}
+
 fn verify_frontdoor(accepted: bool, validation: &str) {
     let coordinate = format!(
         "AverageEffect:Dag:{}:Frequentist:{}::estimator=frontdoor.linear_two_stage",
@@ -194,13 +203,15 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     // The checked lowering binds the route; portable replay of the fitted
-    // estimator operation remains unresolved until R11 is implemented.
+    // estimator operation remains unresolved. A refutation suite adds only the
+    // refutation replay obligation, which a compact artifact cannot discharge.
     assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
-        ["dependencies.checked_estimator_operation"],
+        expected_unresolved(validation),
         "{coordinate}"
     );
+    assert_eq!(consumed.body.refutations.is_empty(), validation == "none", "{coordinate}");
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact estimate");
 }
 
@@ -280,13 +291,15 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
     // The checked lowering binds the route; portable replay of the fitted
-    // estimator operation remains unresolved until R11 is implemented.
+    // estimator operation remains unresolved. A refutation suite adds only the
+    // refutation replay obligation, which a compact artifact cannot discharge.
     assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
     assert_eq!(
         consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
-        ["dependencies.checked_estimator_operation"],
+        expected_unresolved(validation),
         "{coordinate}"
     );
+    assert_eq!(consumed.body.refutations.is_empty(), validation == "none", "{coordinate}");
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact estimate");
 }
 
