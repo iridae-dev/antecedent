@@ -1750,6 +1750,18 @@ pub(crate) fn executed_input_identity(
     data: &DataInput,
     ctx: &ExecutionContext,
 ) -> Result<ExecutedInputIdentity, CausalError> {
+    // A run cancelled before it was finalised (a bootstrap stopped part-way) still returns the
+    // partial result it reached, and that result is bound to its input. Only a cancellation
+    // arriving while the input is being identified stops the identification.
+    let finalised;
+    let ctx = if ctx.cancellation.is_cancelled() {
+        let mut fresh = ctx.clone();
+        fresh.cancellation = antecedent_core::CancellationToken::new();
+        finalised = fresh;
+        &finalised
+    } else {
+        ctx
+    };
     let part = |storage: &antecedent_data::OwnedColumnarStorage,
                 time: Option<antecedent_data::TimeIndex>,
                 unit_id: Option<u32>|

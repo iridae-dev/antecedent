@@ -196,9 +196,18 @@ pub(crate) fn to_json(
     registry: Option<&antecedent_core::PopulationRegistry>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<String> {
-    if ctx.cancellation.is_cancelled() {
-        return Err(cancelled());
-    }
+    // A run cancelled before it was finalised still returns the partial result it reached, and
+    // that result carries its identification record. Only a cancellation that arrives while the
+    // record is being built stops it.
+    let finalised;
+    let ctx = if ctx.cancellation.is_cancelled() {
+        let mut fresh = ctx.clone();
+        fresh.cancellation = antecedent_core::CancellationToken::new();
+        finalised = fresh;
+        &finalised
+    } else {
+        ctx
+    };
     let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let mut target_lease = None;
     let mut payload = match identification {
