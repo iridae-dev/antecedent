@@ -350,9 +350,14 @@ class CategoricalTreatmentIdentity:
     monotonicity_null: str
     result_id: str
     digest: str
+    posterior_declaration_id: str | None = None
 
     def _wire(self) -> dict[str, str]:
-        return {name: getattr(self, name) for name in self.__slots__}
+        return {
+            name: getattr(self, name)
+            for name in self.__slots__
+            if getattr(self, name) is not None
+        }
 
 
 @dataclass(frozen=True, slots=True)

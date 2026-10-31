@@ -333,7 +333,7 @@ class CrossFileHelperTests(unittest.TestCase):
             self.assertIn(("example.identity", "route_not_supported"), entries)
             self.assertIn(("example.identity", None), entries)
             self.assertIn(("example.replay", "invalid_argument"), entries)
-            path.write_text(path.read_text() + '\nfn changed_identity(x: &str, y: &str) {}\n')
+            path.write_text(path.read_text(encoding="utf-8") + '\nfn changed_identity(x: &str, y: &str) {}\n', encoding="utf-8")
             entries = [(lit.value, lit.reason_code) for lit in rust_literals(path, in_crate=False)]
             self.assertNotIn(("example.identity", "route_not_supported"), entries)
 
@@ -697,14 +697,14 @@ class ExternalSurfaceOwnershipTests(unittest.TestCase):
         self.assertTrue(self.check()[1])
         self.write_registry()
         registry = self.root / self.entry["registry"]
-        registry.write_text(registry.read_text().replace("prepare_experimental_recovery", "other_workflow"), encoding="utf-8")
+        registry.write_text(registry.read_text(encoding="utf-8").replace("prepare_experimental_recovery", "other_workflow"), encoding="utf-8")
         self.assertTrue(self.check()[1])
         self.write_registry()
         (self.root / self.fixture).rmdir()
         self.assertTrue(self.check()[1])
         (self.root / self.fixture).mkdir()
         self.write_registry()
-        registry.write_text(registry.read_text() + registry.read_text(), encoding="utf-8")
+        registry.write_text(registry.read_text(encoding="utf-8") + registry.read_text(encoding="utf-8"), encoding="utf-8")
         self.assertTrue(self.check()[1])
 
 

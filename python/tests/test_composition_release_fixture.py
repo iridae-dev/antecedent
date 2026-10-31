@@ -355,12 +355,14 @@ def test_new_observations_revalidate_the_claim_graph_and_the_decision_is_reevalu
     assert require_success(revised.result).selected == (REVISED["selected"],)
     assert revised.plan_identity != world.plan_identity
 
-    # The classification against the earlier graph: what rested on study B is recomputed;
+    # The classification against the earlier graph: the old claims that rested on study B lose
+    # authority when its evidence changes (they are withdrawn, none left to recompute);
     # what did not is still valid and keeps its numbers.
     moved = rb.verify(world.graph, revised.graph, revised.ledger, pooled.result)
-    assert moved.keys_of("recompute") == (
+    assert moved.keys_of("withdrawn") == (
         "claim", "decision", "mechanisms", "pooled_effect", "study_b",
     )  # fmt: skip
+    assert moved.keys_of("recompute") == ()
     assert moved.keys_of("still_valid") == ("measurement", "study_a", "survey")
     # And the recomputed decision is usable against its own graph.
     assert revised.gate().classify("decision").klass == "still_valid"

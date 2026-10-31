@@ -304,7 +304,9 @@ def test_three_components_are_separate_and_a_combined_number_is_refused() -> Non
     se = report.monte_carlo_error["candidates"][1]["estimate"]["standard_error"]
     # Spread is a property of the law (about 2); the standard error shrinks with the draws.
     assert spread == pytest.approx(2.0, abs=0.25)
-    assert se == pytest.approx(spread / math.sqrt(500), rel=1e-9)
+    # The source spread is the empirical law's population standard deviation; the Monte Carlo
+    # standard error divides the sample standard deviation (n - 1) by sqrt(n).
+    assert se == pytest.approx(spread / math.sqrt(499), rel=1e-9)
     assert "selected" in report.selection_uncertainty
     assert _draws(columns, source="known_law") is not None
     known = require_success(dr.assess(_draws(columns, source="known_law"))).report

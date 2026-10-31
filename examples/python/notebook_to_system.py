@@ -116,11 +116,20 @@ def main() -> None:
     )
     assert require_success(contract.evaluate(mean)).source.means == (2.0,)
 
-    envelope = checked.export()
-    assert bytes(checked.export()) == envelope.data
+    # A result carrying refutation reports is recognized on load but not accepted: the reports
+    # have no checked replay, so the recorded answer is withheld and the replay is named.
+    checked_envelope = checked.export()
+    withheld = require_success(ant.load(checked_envelope, expected=checked_envelope.expectation))
+    assert withheld.acceptance.recognized and not withheld.acceptance.verified
+    assert "dependencies.refutation_replay" in withheld.acceptance.unresolved
+    assert withheld.answer.kind == "unavailable"
+
+    # The refutation-free result keeps its answer through an independent load.
+    envelope = result.export()
+    assert bytes(result.export()) == envelope.data
     assert ant.artifacts.inspect(envelope).acceptance.status == "unavailable"
     consumed = require_success(ant.load(envelope, expected=envelope.expectation))
-    assert consumed.answer.value == checked.answer.value
+    assert consumed.answer.value == result.answer.value
     assert consumed.acceptance.identity_bound
     with TemporaryDirectory() as directory:
         artifact_path = Path(directory) / "analysis.bin"
@@ -138,7 +147,7 @@ print(json.dumps(r.answer.value))
             text=True,
             capture_output=True,
         )
-        assert json.loads(replay.stdout) == checked.answer.value
+        assert json.loads(replay.stdout) == result.answer.value
     print("Fresh-process consumption preserved the answer and identity bindings.")
 
 

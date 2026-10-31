@@ -15,6 +15,8 @@ Install with `python -m pip install antecedent`; see examples/README.md."""
 
 from __future__ import annotations
 
+import dataclasses
+
 import antecedent
 import numpy as np
 from antecedent.outcomes import require_success
@@ -149,16 +151,7 @@ def main() -> None:
         target_population=tags_t["population"],
     )
     # Clear offline conflict for fit; α' already applied.
-    prior_for_fit = antecedent.priors.ComposedPrior(
-        mean=composed.mean,
-        variance=composed.variance,
-        source_ids=composed.source_ids,
-        alphas_requested=composed.alphas_requested,
-        alphas_applied=composed.alphas_applied,
-        mixture_weights=composed.mixture_weights,
-        sources=composed.sources,
-        conflict=None,
-    )
+    prior_for_fit = dataclasses.replace(composed, conflict=None)
 
     target = require_success(
         antecedent.analyze(

@@ -123,13 +123,15 @@ def _prepare_response_grid(
 
     if not isinstance(data, (ExactTransportData, StatisticalTransportData)):
         raise TypeError("Grid data must be exact laws or explicit statistical providers")
+    statistical = isinstance(data, StatisticalTransportData)
     native = _native.prepare_transport_grid(
         identification._native,
         catalog,
         data,
         [dict(point) for point in at],
-        statistical=isinstance(data, StatisticalTransportData),
-        estimator=estimator,
+        statistical=statistical,
+        # Exact laws have no sampling uncertainty to estimate, so no estimator configures them.
+        estimator=estimator if statistical else None,
         bootstrap=bootstrap,
         coverage_level=coverage_level,
         seed=seed,

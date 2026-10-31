@@ -33,7 +33,7 @@ def make_request():
     return data, graph, ant.AverageEffect("treatment", "outcome")
 
 
-def serve(data, graph, query):
+def serve(data, graph, query, **declarations):
     """Compile, read the status, run only when it is open, and answer with the claim.
 
     Returns the host response and the artifact the host would store beside the
@@ -46,6 +46,7 @@ def serve(data, graph, query):
         query=query,
         execution=ant.Execution(seed=19),
         inference=ant.Frequentist(bootstrap=0),
+        **declarations,
     )
     before = host.inspection_status(prepared.inspect())
     print("before running:", before)
@@ -78,8 +79,9 @@ def main():
 
     data, graph, query = make_request()
 
-    # Supported claim.
-    response, artifact = serve(data, graph, query)
+    # Supported claim. The host serves it without refutation reports: a body that carries
+    # them has no checked replay, so an independent load relays it as partial (below).
+    response, artifact = serve(data, graph, query, refute="none")
     print("response:", json.dumps({k: v for k, v in response.items() if k != "claim"}))
     assert response["status"] == "supported", response
     assert response["claim"]["kind"] == "point"
@@ -90,6 +92,15 @@ def main():
     print("loaded:", accepted["status"])
     assert accepted["status"] == "supported", accepted
     assert accepted["value"] == response["value"]
+
+    # The same claim served with the default refutation reports is recognized and bound to
+    # the retained identity, but its reports cannot be replayed from bytes alone: the host
+    # relays it as partial and names the missing replay, never as a supported number.
+    reported, reported_artifact = serve(data, graph, query)
+    partial = accept(reported_artifact.data, reported_artifact.expectation)
+    print("loaded with refutation reports:", partial["status"])
+    assert partial["status"] == "partial", partial
+    assert "dependencies.refutation_replay" in partial["restriction"], partial
 
     # A refusal is a coded record, never a number. This one is what a route that
     # cannot answer raises; the host relays code, family and remedy unchanged.

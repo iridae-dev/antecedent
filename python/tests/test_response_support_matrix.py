@@ -18,6 +18,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.errors import CausalEstimateError
 from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, load_toml
@@ -82,21 +83,20 @@ def test_accepted_graph_analyze_response_curve_threads_accepted():
     )
 
 
-def test_path_distribution_graph_posterior_rule_executes_and_the_prepare_gate_is_gone():
-    """A graph posterior of path-restricted effects or distributions executes, unlicensed.
+def test_path_distribution_graph_posterior_is_licensed_and_the_prepare_gate_is_gone():
+    """A graph posterior of path-restricted effects or distributions executes, licensed.
 
-    The rule in the TOML says every atom is answered by the executor its own structure has, so
-    the prepare routing gate that once refused the cell must not remain beside it.
+    Every atom is answered by the executor its own structure has. The cell is licensed, so no
+    closed rule remains for it, and the prepare routing gate that once refused it is gone.
     """
     rules = load_toml(_SUPPORT_CLOSED_TOML)["closed"]
     matches = [
         rule
         for rule in rules
-        if set(rule.get("queries", [])) == {"PathSpecificEffect", "InterventionalDistribution"}
-        and set(rule.get("structures", [])) == {"graph_posterior"}
+        if {"PathSpecificEffect", "InterventionalDistribution"} & set(rule.get("queries", []))
+        and "graph_posterior" in rule.get("structures", [])
     ]
-    assert len(matches) == 1, matches
-    assert matches[0].get("executes_unlicensed") is True
+    assert matches == [], matches
     rng = np.random.default_rng(5)
     treatment = (rng.random(200) < 0.5).astype(float)
     outcome = (rng.random(200) < 0.3 + 0.4 * treatment).astype(float)
@@ -155,10 +155,27 @@ def test_handle_response_bayesian_derivative_is_licensed():
             _DATA,
             query=antecedent.AverageDerivative("t", "y"),
             graph=_DAG,
-            inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
+            inference=antecedent.Bayesian(n_draws=32),
             refute=False,
         )
     )
-    # The data are 2 t + noise: the average derivative is the fitted slope (observed gap 0.05).
+    # The data are 2 t + noise: the average derivative is the fitted slope (observed gap 0.09).
     assert abs(_SLOPE - 2.0) < 0.1
     assert result.effect == pytest.approx(_SLOPE, abs=0.15)
+    assert result.evidence_status == "licensed"
+
+
+def test_bayesian_derivative_refuses_a_backend_it_does_not_use():
+    """The derivative posterior is a Rubin Bayesian bootstrap, so a selected backend is refused."""
+    with pytest.raises(CausalEstimateError) as refusal:
+        require_success(
+            antecedent.analyze(
+                _DATA,
+                query=antecedent.AverageDerivative("t", "y"),
+                graph=_DAG,
+                inference=antecedent.Bayesian(backend="conjugate", n_draws=32),
+                refute=False,
+            )
+        )
+    assert refusal.value.reason_code == "option_not_applicable"
+    assert "Rubin Bayesian bootstrap" in str(refusal.value)

@@ -18,7 +18,7 @@ class StubbedDriverBranches(unittest.TestCase):
             }
             for name, content in fake.items():
                 path = root / name
-                path.write_text(content)
+                path.write_text(content, encoding="utf-8")
                 path.chmod(0o755)
             env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ.get("PATH", ""), CAPTURE=str(capture))
             for options, expected in [
@@ -29,9 +29,9 @@ class StubbedDriverBranches(unittest.TestCase):
                 (["--missing-only"], ["<run>", "<--missing-only>", "<--keep-existing>"])
             ]:
                 with self.subTest(options=options):
-                    capture.write_text("")
+                    capture.write_text("", encoding="utf-8")
                     result = subprocess.run(["/bin/bash", str(SCRIPT), "--jobs", "1", *options], env=env, capture_output=True, text=True)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    calls = capture.read_text()
+                    calls = capture.read_text(encoding="utf-8")
                     for token in expected:
                         self.assertIn(token, calls)

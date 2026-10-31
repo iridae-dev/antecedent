@@ -13,7 +13,7 @@ class CollectionDecisionRequired(unittest.TestCase):
             log = Path(tmp) / "family.p0.log"
             def write(record, context=True):
                 log.write_text(("calibration-decision-context {}\n" if context else "") +
-                               "calibration-record " + json.dumps(record) + "\n")
+                               "calibration-record " + json.dumps(record) + "\n", encoding="utf-8")
             write({"id":"x"}, False)
             with self.assertRaises(SystemExit):
                 collector.require_frozen_collection_decisions([log])
@@ -27,7 +27,7 @@ class CollectionDecisionRequired(unittest.TestCase):
                 collector.require_frozen_collection_decisions([log])
                 validate.assert_called_once()
             confirmation = Path(tmp) / "family.p0.confirm.log"
-            confirmation.write_text(log.read_text())
+            confirmation.write_text(log.read_text(encoding="utf-8"), encoding="utf-8")
             with self.assertRaises(SystemExit):
                 collector.require_frozen_collection_decisions([confirmation])
 
@@ -35,7 +35,7 @@ class CollectionDecisionRequired(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             log = root / "old.log"
-            log.write_text("test result: ok. 1 passed; 0 failed; 0 ignored\n")
+            log.write_text("test result: ok. 1 passed; 0 failed; 0 ignored\n", encoding="utf-8")
             before = {p.name: p.read_bytes() for p in root.iterdir()}
             script = Path(collector.__file__).resolve()
             result = subprocess.run([sys.executable, str(script), "--inspect-legacy-logs", "--log-dir", str(root)], capture_output=True, text=True)

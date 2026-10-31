@@ -29,7 +29,7 @@ from antecedent.outcomes import require_success
 from antecedent.population import CustomDistribution, PopulationRegistry, Treated
 
 from _repo_text import REPO_ROOT
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import assert_loaded_outcome
 
 ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads((ROOT / "parity" / "python_products.toml").read_text(encoding="utf-8"))
@@ -80,7 +80,9 @@ def _analyze(**kwargs: Any):
 
 def _contract(result: Any) -> dict[str, Any]:
     loaded = require_success(ant.load(bytes(result.export())))
-    assert_answer_kept(loaded)
+    # Refutation or validation reports leave the load recognized but withheld; the decoded
+    # contract still names the executed plan either way.
+    assert_loaded_outcome(loaded)
     return loaded.decoded_artifact.to_dict()["contract"]
 
 
@@ -370,6 +372,29 @@ def test_return_posterior_artifact_reaches_plan():
     decoded = ant.inference.decode_posterior_artifact(bytes(exported))
     assert decoded.n_draws == 32
     assert len(decoded.draws) == 32 * len(decoded.quantity_names)
+
+
+def test_data_diagnostics_reaches_plan():
+    def study(**kwargs):
+        return ant.prepare(
+            _data(),
+            graph=GRAPH,
+            query=ant.AverageEffect("t", "y"),
+            refute="none",
+            inference=Frequentist(bootstrap=0),
+            **kwargs,
+        )
+
+    def duplicate_rows(prepared):
+        (check,) = (
+            c for c in prepared.data_diagnostics.checks if c.code == "data.duplicate_rows"
+        )
+        return check.status
+
+    assert duplicate_rows(study()) == "evaluated"
+    assert study(data_diagnostics=False).data_diagnostics is None
+    custom = study(data_diagnostics=ant.DataDiagnostics(skewness=3.0, duplicate_rows=False))
+    assert duplicate_rows(custom) == "not_evaluated"
 
 
 def test_running_variable_reaches_plan():

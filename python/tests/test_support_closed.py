@@ -29,7 +29,7 @@ _ACCEPTED = antecedent.AcceptedGraph.from_graph(_DAG, algorithm_id="hand")
 _CURVE = antecedent.ResponseCurve("t", "y", grid=[0.5, 1.0, 1.5])
 
 
-def test_path_specific_graph_posterior_runs_and_is_never_licensed():
+def test_path_specific_graph_posterior_runs_and_is_licensed():
     # A path-restricted effect reads a finite-discrete table, so the posterior runs on binary
     # columns; every atom is answered by the executor its own structure has.
     rng = np.random.default_rng(1)
@@ -48,7 +48,7 @@ def test_path_specific_graph_posterior_runs_and_is_never_licensed():
         )
     )
     assert np.isfinite(result.estimate.ate)
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status == "licensed"
 
 
 def test_licensed_pag_response_curve_runs():

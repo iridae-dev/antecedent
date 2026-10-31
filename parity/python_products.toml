@@ -844,6 +844,69 @@ retains = true
 reason = ""
 test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_explicit"
 
+[[route]]
+kind = "average"
+data = "series"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_series_accepted"
+
+[[route]]
+kind = "average"
+data = "series"
+structure = "explicit"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_series_explicit"
+
+[[route]]
+kind = "average"
+data = "series"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_average_series_graph_posterior"
+
+[[route]]
+kind = "mediation"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_mediation_tabular_graph_posterior"
+
+[[route]]
+kind = "distribution"
+data = "tabular"
+structure = "graph_posterior"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_python_products.py::test_route_distribution_tabular_graph_posterior"
+
+[[route]]
+kind = "transport"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_transport_tabular_accepted"
+
+[[route]]
+kind = "interference"
+data = "tabular"
+structure = "accepted"
+options = ""
+retains = true
+reason = ""
+test = "python/tests/test_transport_interference_lifecycle.py::test_route_interference_tabular_accepted"
+
 # Permanent refusals: combinations the study builder does not license. Each names its
 # reason code and the test that pins it.
 
@@ -1055,6 +1118,15 @@ binding = "contract"
 contract_key = "target.query"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_population_registry_reaches_plan"
+
+# Observed on the prepared study: the declaration chooses which data checks run, or disables
+# collection, and the retained report shows it. It does not enter the executed contract.
+[[parameter]]
+name = "data_diagnostics"
+entry_points = ["analyze", "prepare", "PreparedAnalysis.prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_data_diagnostics_reaches_plan"
 
 [[parameter]]
 name = "return_posterior_artifact"

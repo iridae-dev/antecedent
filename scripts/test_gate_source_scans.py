@@ -15,15 +15,15 @@ class SourceScans(unittest.TestCase):
             binary = root / "bin"
             binary.mkdir()
             fake = binary / "git"
-            fake.write_text('#!/bin/sh\ncase " $* " in *" --others "*" -z "*) cat "$INDEX_DATA";; *) exit 4;; esac\n')
+            fake.write_text('#!/bin/sh\ncase " $* " in *" --others "*" -z "*) cat "$INDEX_DATA";; *) exit 4;; esac\n', encoding="utf-8")
             fake.chmod(0o755)
             names = ["crates/example/src/space name.rs", "crates/example/src/new.rs"]
             for name in names:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text('#![allow(clippy::float_cmp, reason = "valid ] bracket")]\n')
+                path.write_text('#![allow(clippy::float_cmp, reason = "valid ] bracket")]\n', encoding="utf-8")
             # The new untracked path lacks a reason. A commented fake allow is ignored.
-            (root / names[1]).write_text('// #![allow(clippy::float_cmp)]\n#![allow(clippy::cast_sign_loss)]\n')
+            (root / names[1]).write_text('// #![allow(clippy::float_cmp)]\n#![allow(clippy::cast_sign_loss)]\n', encoding="utf-8")
             data = root / "git-index"
             data.write_bytes(b"\0".join(name.encode() for name in names) + b"\0")
             env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ.get("PATH", ""), INDEX_DATA=str(data))
@@ -38,14 +38,14 @@ class SourceScans(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "parity").mkdir()
-            (root / "parity/upstream_name_allowlist.toml").write_text('names=["distinctiveupstream"]\nscan_suffixes=[".toml"]\n')
-            (root / ".secret.toml").write_text('value="distinctiveupstream"\n')
+            (root / "parity/upstream_name_allowlist.toml").write_text('names=["distinctiveupstream"]\nscan_suffixes=[".toml"]\n', encoding="utf-8")
+            (root / ".secret.toml").write_text('value="distinctiveupstream"\n', encoding="utf-8")
             (root / ".github").mkdir()
-            (root / ".github/workflow.toml").write_text('value="distinctiveupstream"\n')
+            (root / ".github/workflow.toml").write_text('value="distinctiveupstream"\n', encoding="utf-8")
             binary = root / "bin"
             binary.mkdir()
             fake = binary / "git"
-            fake.write_text('#!/bin/sh\nprintf ".secret.toml\\0.github/workflow.toml\\0"\n')
+            fake.write_text('#!/bin/sh\nprintf ".secret.toml\\0.github/workflow.toml\\0"\n', encoding="utf-8")
             fake.chmod(0o755)
             env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ.get("PATH", ""))
             result = subprocess.run([sys.executable, str(SCRIPTS / "gate_upstream_names.py")], cwd=root, env=env, capture_output=True, text=True)

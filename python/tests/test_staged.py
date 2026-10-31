@@ -358,6 +358,9 @@ def test_static_mediation_refuter_pin():
         for key in ("original_ate", "refuted_ate", "comparison"):
             got = actual.pop(key)
             assert got == pytest.approx(expected[key], abs=pin["atol"])
+        # An unscoped report records no declared scope: every scope field is absent.
+        scope = {key: actual.pop(key) for key in list(actual) if key.startswith("scope_")}
+        assert scope and all(value is None for value in scope.values()), scope
         assert actual == {k: v for k, v in expected.items() if k in actual}
     # The regression pin is anchored to the independent structural truth (indirect effect
     # 4 * 2 * (0.8 - 0.2) = 4.8): the unrefuted estimate, and a placebo mediator that has no effect.
@@ -590,9 +593,9 @@ def test_v13_named_refusals():
         require_success(ac.analyze(data, graph=dag, query=cf, refute="none")).effect
     )
     # Cheap validation of a counterfactual on a supplied Dag runs the functional refuter state
-    # and stays unlicensed (no evidence row or coverage record names the cell).
+    # and is licensed (the licensed table has an evidence row for the cell).
     validated_cf = require_success(ac.analyze(data, graph=dag, query=cf, refute="cheap"))
-    assert validated_cf.evidence_status != "licensed"
+    assert validated_cf.evidence_status == "licensed"
     med_bayes = require_success(
         ac.analyze(data, graph=dag, query=med, inference=ac.Bayesian(n_draws=64), refute="none")
     )
@@ -635,14 +638,15 @@ def test_v13_named_refusals():
         )
     )
     assert np.isfinite(mixed.effect)
-    assert mixed.evidence_status != "licensed"
-    # Full validation and a prepared cheap suite run the same functional refuter state.
+    assert mixed.evidence_status == "licensed"
+    # Full validation and a prepared cheap suite run the same functional refuter state, and the
+    # licensed table has an evidence row for each.
     assert (
         require_success(ac.analyze(data, graph=dag, query=cf, refute="full")).evidence_status
-        != "licensed"
+        == "licensed"
     )
     prepared_cf = _prepare(data, graph=dag, query=cf, refute="cheap")
-    assert require_success(prepared_cf.estimate()).evidence_status != "licensed"
+    assert require_success(prepared_cf.estimate()).evidence_status == "licensed"
     # A Frequentist replicate count runs the mechanism-refit row bootstrap, which is
     # unlicensed; the Bayesian cell keeps its posterior and refuses bootstrap=.
     bootstrapped = require_success(

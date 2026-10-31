@@ -4,7 +4,7 @@ Bayesian ``InterventionResponse`` with ``refute="cheap"`` or ``"full"`` runs the
 Bayesian refuter state (plugin-level overlap on the posterior-mean level and the
 prior and posterior predictive checks; full adds prior sensitivity) and is licensed
 (``evidence_status`` is ``"licensed"``); a static derivative runs its derivative
-refuter state.
+refuter state and is licensed too.
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def test_derivative_cheap_runs_its_refuter_state():
             execution=antecedent.Execution(seed=3),
         )
     )
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status == "licensed"
     refuters = _refuter_names(result)
     assert "derivative.support" in refuters and "derivative.finite_difference" in refuters
     # The outcome is linear in t with slope 2 after adjusting for z.

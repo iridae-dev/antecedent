@@ -19,7 +19,7 @@
 
 ## Claim
 
-- **Claim id:** 1291f6dbb5c7f69dbc0dd498a11e1be6ad9d7123feb849ef3b2b24808ee31f42
+- **Claim id:** 77843ce2f396c023184039329b13695bcf29170e3abc6e67a6e43cbddd1fbcbd
 - **Kind:** point
 - **Value:** 2
 - **Outcome units:** none
@@ -83,14 +83,14 @@
 ### Calibration
 
 - **Calibration status:** scope\_not\_assessed
-- **Governing record:** cov.average\_effect.dag.frequentist.analytic\_se.l95.linear\_adjustment\_analytic\_ci\_coverage
-- **Reason:** coverage\_record\_not\_attesting
-- **Measured rows (smallest):** 150
-- **Measured rows (largest):** 600
+- **Governing record:** cov.average\_effect.dag.frequentist.analytic\_se.l95.practitioner\_linear\_adjustment\_analytic\_interval
+- **Reason:** sample\_size\_outside\_measured\_range
+- **Measured rows (smallest):** 1000
+- **Measured rows (largest):** 100000
 - **Record dependence:** iid
 - **Measured at:** c30e10304f4bd85a01ad81dd133a360ddc95c2f1
 - **Nominal level:** 0.95
-- **Observed coverage:** 0.9325
+- **Observed coverage:** 0.947
 - **Basis query:** AverageEffect
 - **Basis graph class:** Dag
 - **Basis structure:** fixed
@@ -137,7 +137,7 @@
 
 ### Limits
 
-- Calibration is scope\_not\_assessed (coverage\_record\_not\_attesting).
+- Calibration is scope\_not\_assessed (sample\_size\_outside\_measured\_range).
 
 ### Blockers and refusals
 

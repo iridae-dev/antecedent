@@ -185,12 +185,6 @@ evidence_test = "crates/antecedent-model/src/falsify.rs"
 evidence_assertion = "a_budget_exhausted_before_the_minimum_permutations_is_incomplete"
 
 [[conformance]]
-id = "falsification_cancellation_incomplete"
-clause = "falsification_budget_limited"
-evidence_test = "crates/antecedent-model/src/falsify.rs"
-evidence_assertion = "cancellation_is_incomplete"
-
-[[conformance]]
 id = "influence_linear_chain"
 clause = "intrinsic_influence_linear_variance"
 evidence_test = "crates/antecedent-attribution/tests/intrinsic_influence.rs"

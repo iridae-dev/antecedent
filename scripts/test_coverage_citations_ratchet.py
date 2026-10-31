@@ -18,7 +18,7 @@ class CoverageCitationRatchet(unittest.TestCase):
                 self.assertTrue(any("0.93" in problem for problem in gate.check()))
                 backlog.write_text("unattributed|q/g/s/i/v|0.93\n", encoding="utf-8")
                 self.assertEqual(gate.check(), [])
-                licensed.write_text(licensed.read_text().replace("0.93", "0.94"), encoding="utf-8")
+                licensed.write_text(licensed.read_text(encoding="utf-8").replace("0.93", "0.94"), encoding="utf-8")
                 problems = gate.check()
                 self.assertTrue(any("0.94" in problem for problem in problems))
                 self.assertTrue(any("no longer occurs" in problem for problem in problems))

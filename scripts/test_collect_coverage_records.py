@@ -1191,7 +1191,7 @@ class GateProtocolTest(unittest.TestCase):
             log = Path(directory) / "one.log"
             log.write_text(
                 'calibration-decision-context {}\n'
-                'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n'
+                'test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n', encoding="utf-8"
             )
             decisions = {
                 "one.recheck.log": [{"record_id": None, "covered": 1900}],

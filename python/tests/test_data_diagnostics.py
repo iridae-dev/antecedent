@@ -215,7 +215,7 @@ def test_shared_conformance_fixture():
     fixture = json.loads(
         (
             Path(__file__).resolve().parents[2] / "conformance/data_diagnostics/basic/fixture.json"
-        ).read_text()
+        ).read_text(encoding="utf-8")
     )
     report = diagnose_data(fixture["columns"])
     expected = fixture["expected"]

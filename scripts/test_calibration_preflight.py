@@ -16,13 +16,13 @@ class DirectGatePreflight(unittest.TestCase):
                 preflight.validate_inherited(text, config)
         preflight.validate_inherited(decision.canonical_json(config), config)
     def test_gate_preflight_is_skipped_for_dry_run_and_smoke(self):
-        source = Path(__file__).with_name("gate_calibration.sh").read_text()
+        source = Path(__file__).with_name("gate_calibration.sh").read_text(encoding="utf-8")
         start = source.index('# Ordinary direct execution must carry')
         end = source.index('\nFAILED=""', start)
         prefix = source[start:end]
         with tempfile.TemporaryDirectory() as tmp:
             mock = Path(tmp) / "python3"
-            mock.write_text("#!/bin/sh\necho CALLED\nexit 7\n")
+            mock.write_text("#!/bin/sh\necho CALLED\nexit 7\n", encoding="utf-8")
             mock.chmod(0o755)
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ.get("PATH", ""))
             for dry, smoke, expected in [("", "", 2), ("1", "", 0), ("", "1", 0)]:

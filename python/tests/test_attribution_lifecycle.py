@@ -26,7 +26,12 @@ from antecedent.outcomes import require_success
 from antecedent.prepared import PreparedAnalysis
 
 from _repo_text import REPO_ROOT, read_text
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import (
+    assert_answer_kept,
+    assert_loaded_outcome,
+    assert_refutation_replay_withheld,
+    carries_refutation_replay,
+)
 
 ROOT = REPO_ROOT
 PIN = json.loads(
@@ -109,9 +114,12 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
 
-    assert_answer_kept(loaded)
+    # Refutation-bearing bodies (the anomaly cells run functional refuters) are recognized
+    # but withheld; the others keep the recorded answer.
+    assert_loaded_outcome(loaded)
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
-    assert loaded.answer == result.answer
+    if not carries_refutation_replay(loaded):
+        assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
@@ -312,8 +320,23 @@ def test_fixed_anomaly_reference_runs_through_analyze_and_artifact():
     assert posterior.quantity_names == ("mean_anomaly_score[1]",)
     assert posterior.q025[0] < posterior.q975[0]
     loaded = require_success(ant.load(bytes(result.export())))
-    assert loaded.answer == result.answer
+    # The anomaly cell runs functional refuters: the load is recognized but withheld.
+    assert_refutation_replay_withheld(loaded)
     assert bytes(loaded.export()) == bytes(result.export())
+    # Without refutation reports the same query keeps its recorded answer on load.
+    plain = require_success(
+        ant.analyze(
+            data,
+            graph=_dag(),
+            query=query,
+            inference=ant.Bayesian(n_draws=32),
+            refute="none",
+        )
+    )
+    plain_loaded = require_success(ant.load(bytes(plain.export())))
+    assert_answer_kept(plain_loaded)
+    assert plain_loaded.answer == plain.answer
+    assert bytes(plain_loaded.export()) == bytes(plain.export())
 
 
 @pytest.mark.parametrize("scale", [0.0, -1.0, float("nan")])

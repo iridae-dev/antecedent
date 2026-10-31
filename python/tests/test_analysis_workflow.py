@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import assert_answer_kept, assert_refutation_replay_withheld
 
 
 def sample(seed=7):
@@ -354,7 +354,10 @@ def test_refuting_an_old_result_does_not_change_its_export():
     assert checked.effect == first.effect
     assert checked.data_snapshot_id == first.data_snapshot_id
     assert bytes(first.export()) == before
-    assert require_success(ant.load(bytes(checked.export()))).acceptance.verified
+    # The refuted result carries refutation reports, which have no checked replay: its load is
+    # recognized but not a verified program. The refutation-free export is unchanged.
+    assert_refutation_replay_withheld(require_success(ant.load(bytes(checked.export()))))
+    assert_answer_kept(require_success(ant.load(before)))
 
 
 def test_contracted_posterior_keeps_draws_and_native_uncertainty_target():

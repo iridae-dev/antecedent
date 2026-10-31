@@ -192,6 +192,9 @@ def _routes() -> dict:
     routes["anomaly-attribution"] = require_success(
         ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query())
     )
+    routes["anomaly-attribution-without-refutation"] = require_success(
+        ant.analyze(_outlier_chain(), graph=_dag(), query=_anomaly_query(), refute="none")
+    )
     routes["change-attribution"] = require_success(
         ant.analyze(_two_period_chain(), graph=_dag(), query=_change_query())
     )
@@ -204,10 +207,16 @@ def test_every_route_artifact_reloads_in_a_fresh_process_with_its_identities(tmp
         path.write_bytes(bytes(result.export(artifact_id=name)))
         seen = _fresh_process(path)
         assert seen["recognized"] is True, name
-        assert seen["status"] in {"verified", "sealed"}, name
         assert seen["program_id"] == result.program_id, name
         assert seen["claim_id"] == result.claim_id, name
-        assert seen["kind"] == result.answer.kind, name
+        if name == "anomaly-attribution":
+            # The default anomaly cell carries refutation reports with no checked replay: the
+            # fresh process recognizes it and binds its identities, but keeps no answer.
+            assert seen["status"] == "unavailable", name
+            assert seen["kind"] == "unavailable", name
+        else:
+            assert seen["status"] in {"verified", "sealed"}, name
+            assert seen["kind"] == result.answer.kind, name
 
 
 def test_a_changed_byte_is_refused_or_never_a_different_recognized_answer() -> None:

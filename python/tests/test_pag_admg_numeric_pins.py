@@ -355,17 +355,17 @@ def test_admg_interventional_distribution_numeric_pin(accepted: bool) -> None:
 
 
 @pytest.mark.parametrize("refute", ["cheap", "full"])
-def test_admg_interventional_distribution_runs_cheap_full_unlicensed(refute: str) -> None:
+def test_admg_interventional_distribution_runs_cheap_full_licensed(refute: str) -> None:
     """Cheap/full on an ADMG InterventionalDistribution run the functional refuter state.
 
     The atom probabilities are refitted by the same compiled program on perturbed data; the
-    cell has no evidence row or coverage record, so the result stays unlicensed.
+    cell has an evidence row in the licensed table, so the result is licensed.
     """
     data = _expand_contingency(_ADMG_DIST_PIN)
     graph = _admg_distribution(accepted=False)
     query = antecedent.InterventionalDistribution("y", interventions={"t": 1.0})
     result = require_success(antecedent.analyze(data, graph=graph, query=query, refute=refute))
-    assert result.evidence_status != "licensed"
+    assert result.evidence_status == "licensed"
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])

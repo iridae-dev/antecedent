@@ -188,12 +188,16 @@ def test_the_frozen_previous_route_artifact_gets_an_explicit_outcome_for_every_r
     assert not [m.id for m in migrated if m.is_break], "no fixture record is a break"
     by_id = {m.id: m for m in migrated}
     assert by_id["licensed.AverageEffect.Dag"].outcome == "split"
-    assert by_id["closed.AnomalyAttribution.Admg"].outcome in {"one_to_one", "split"}
+    # A closed route that stays closed is kept as a refusal and carries no method.
+    closed = by_id["closed.AnomalyAttribution.Admg"]
+    assert closed.outcome == "refusal_kept"
+    assert closed.methods == ()
 
     response = by_id["licensed.InterventionResponse.CoDetermined"]
     assert response.outcome == "split"
-    assert sum(m.narrowed for m in response.methods) == 1
-    assert any(not m.narrowed and m.status == "licensed" for m in response.methods)
+    # Every method now carrying the route holds the original license kind, so none is narrowed.
+    assert len(response.methods) == 2
+    assert all(m.status == "licensed" and not m.narrowed for m in response.methods)
 
     temporal = by_id["licensed.AnomalyAttribution.TemporalDag"]
     assert temporal.outcome == "split"
@@ -217,13 +221,32 @@ def test_a_removed_route_reports_its_break_beside_the_carried_records() -> None:
         b'"design_time_model":"static","inference":"Frequentist"},'
         b'{"id":"graphless.removed.design","status":"graphless",'
         b'"design_time_model":"static","inference":"unlisted"},'
-        b'{"id":"licensed.AverageEffect.Dag","status":"withdrawn",'
+        b'{"id":"licensed.AverageEffect.Dag.withdrawn","status":"withdrawn",'
         b'"design_time_model":"static","inference":"Frequentist"}]}'
     )
     migrated = rm.consume_previous_route_records(routes, manifest_methods())
-    assert [m.outcome for m in migrated] == ["split", "break", "retired", "break"]
+    # A graphless route no method carries is a break, as a licensed one is; only a route that
+    # was neither licensed nor graphless retires.
+    assert [m.outcome for m in migrated] == ["split", "break", "break", "break"]
     assert migrated[1].kind == "route_without_current_method"
     assert migrated[1].message is not None and "method that replaced it" in migrated[1].message
+    assert migrated[2].kind == "route_without_current_method"
+    retired = rm.consume_previous_route_records(
+        b'{"routes":[{"id":"execution_only.removed.design","status":"execution_only",'
+        b'"design_time_model":"static","inference":"Frequentist"}]}',
+        manifest_methods(),
+    )
+    assert [m.outcome for m in retired] == ["retired"]
     assert migrated[3].kind == "unknown_status"
     with pytest.raises(CausalSerializationError):
         rm.consume_previous_route_records(b'{"routes":[{"id":"x"}]}', manifest_methods())
+    # One record id names one route: a repeated id is an invalid migration link.
+    repeated = (
+        b'{"routes":['
+        b'{"id":"licensed.AverageEffect.Dag","status":"licensed",'
+        b'"design_time_model":"static","inference":"Frequentist"},'
+        b'{"id":"licensed.AverageEffect.Dag","status":"withdrawn",'
+        b'"design_time_model":"static","inference":"Frequentist"}]}'
+    )
+    with pytest.raises(CausalSerializationError):
+        rm.consume_previous_route_records(repeated, manifest_methods())

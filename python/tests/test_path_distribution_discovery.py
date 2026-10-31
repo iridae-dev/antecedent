@@ -129,11 +129,16 @@ def test_path_specific_exact_dag_posterior_map():
             execution=antecedent.Execution(seed=1),
         )
     )
-    # The MAP graph x -> y has no mediator, so the path effect is the difference of means.
-    assert result.estimate.ate == pytest.approx(
-        data["y"][data["x"] == 1].mean() - data["y"][data["x"] == 0].mean(), abs=1e-9
-    )
-    assert result.evidence_status != "licensed"
+    # The exact posterior splits its mass between the Markov-equivalent graphs x -> y and
+    # y -> x. With no mediator, the path effect on x -> y is the difference of means; on
+    # y -> x there is no path from x to y, so it is structurally zero and identified. The
+    # mixture reports the identified set between them, and the point reading is its midpoint.
+    difference = data["y"][data["x"] == 1].mean() - data["y"][data["x"] == 0].mean()
+    assert result.answer.kind == "bounds"
+    assert result.answer.detail == "identified_set"
+    assert result.answer.bounds == pytest.approx((0.0, difference), abs=1e-9)
+    assert result.estimate.ate == pytest.approx(difference / 2.0, abs=1e-9)
+    assert result.evidence_status == "licensed"
 
 
 def test_interventional_distribution_exact_dag_posterior_mixes_the_atoms():

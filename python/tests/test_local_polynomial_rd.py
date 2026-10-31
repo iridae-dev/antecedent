@@ -127,9 +127,17 @@ def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
         1.0 + 2.0 * x + treatment_value
         for x, treatment_value in zip(running, treatment, strict=True)
     ]
-    with pytest.raises(CausalCompileError, match="discontinuity is too small"):
+    # A treatment that is smooth through the cutoff has a first stage that rounding leaves
+    # indistinguishable from zero at its own HC0 interval.
+    with pytest.raises(CausalCompileError, match="weak first stage"):
         analyze(
             {"x": running, "t": treatment, "y": outcome},
+            query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0),
+        )
+    # A constant treatment has no discontinuity at all.
+    with pytest.raises(CausalCompileError, match="discontinuity is too small"):
+        analyze(
+            {"x": running, "t": [0.0] * len(running), "y": outcome},
             query=FuzzyRegressionDiscontinuity("y", "t", "x", 0.0, 1.0),
         )
     rng = np.random.default_rng(4)

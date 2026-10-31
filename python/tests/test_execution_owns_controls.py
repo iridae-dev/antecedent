@@ -32,6 +32,9 @@ ALLOWLIST: dict[str, str] = {
     "antecedent.execution.Execution:on_progress": "Execution owns the progress observer",
     "antecedent.execution.Execution:on_stage": "Execution owns the stage observer",
     "antecedent.execution.ResourceLimits:memory_bytes": "the memory limit Execution carries",
+    "antecedent.execution.TemporalMaterializationLimits:max_bytes": (
+        "the per-materialization byte bound Execution carries"
+    ),
     "antecedent.execution.CachePolicy:max_bytes": "the cache bound Execution carries",
     "antecedent.execution.CachePolicy.bounded:max_bytes": "the cache bound Execution carries",
     "antecedent.execution.native_controls:seed": "names the native keyword that receives the seed",

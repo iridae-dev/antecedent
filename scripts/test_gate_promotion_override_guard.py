@@ -10,7 +10,7 @@ class PromotionOverrideGuard(unittest.TestCase):
     def test_ordinary_entry_rejects_overrides_and_selftest_allows_them(self):
         with tempfile.TemporaryDirectory() as tmp:
             fake = Path(tmp) / "python3"
-            fake.write_text("#!/bin/sh\necho MOCK\nexit 0\n")
+            fake.write_text("#!/bin/sh\necho MOCK\nexit 0\n", encoding="utf-8")
             fake.chmod(0o755)
             env = dict(os.environ, PATH=tmp + os.pathsep + os.environ["PATH"])
             names = ("PROMOTION_TRANSPORT_STAGES", "PROMOTION_SUPPORT_LICENSED",

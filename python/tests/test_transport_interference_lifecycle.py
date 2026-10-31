@@ -36,7 +36,7 @@ from antecedent.transport import advanced as transport
 from antecedent.transport.advanced import TransportQuery
 
 from _repo_text import REPO_ROOT, read_text
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import assert_answer_kept, assert_refutation_replay_withheld
 
 ROOT = REPO_ROOT
 TRANSPORT_PIN = json.loads(
@@ -151,13 +151,11 @@ def _assert_lifecycle(
 
     # export -> load recognizes the artifact and round-trips its identities, but an
     # independent consumer cannot replay the sealed checked operation without the
-    # retained proof, so it keeps the recorded answer and names that dependency
-    # instead of reporting a verified program.
-    assert_answer_kept(loaded)
-    assert not loaded.acceptance.verified
+    # retained proof, and the default refutation reports it carries have no checked
+    # replay: it names both and does not report a verified program or keep the answer.
+    assert_refutation_replay_withheld(loaded)
     assert dependency in loaded.acceptance.unresolved
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
-    assert loaded.answer == result.answer
     assert loaded.program_id == result.program_id
     assert loaded.claim_id == result.claim_id
     for name in ("status", "reason", "record_id", "observed_coverage"):
@@ -186,7 +184,8 @@ def test_route_transport_tabular_explicit():
         report,
         loaded,
         fresh=fresh,
-        coordinate="TransportQuery:Admg:explicit:Frequentist:none",
+        # The omitted suite maps to the full support axis; it is not an explicit Full suite.
+        coordinate="TransportQuery:Admg:explicit:Frequentist:full",
         dependency="dependencies.checked_transport_trial_operation",
         key={
             "query": "TransportQuery",
@@ -210,6 +209,57 @@ def test_route_transport_tabular_explicit():
     assert overlap.selection.probability_min == pytest.approx(float(np.min(data["s"][trial_rows])))
 
 
+def test_transport_and_interference_without_refutation_keep_their_answer_on_load():
+    """The same routes without refutation reports keep the recorded answer, naming the seal."""
+    data = _transport_data(400, 1)
+    transport_result = require_success(
+        ant.analyze(data, graph=_transport_graph(), query=_transport_query(), refute="none")
+    )
+    assignment, interference_data = _interference_design()
+    interference_result = require_success(
+        ant.analyze(
+            interference_data,
+            graph=[],
+            query=_interference_query(assignment),
+            refute="none",
+        )
+    )
+    for result, dependency in (
+        (transport_result, "dependencies.checked_transport_trial_operation"),
+        (interference_result, "dependencies.checked_interference_operation"),
+    ):
+        loaded = require_success(ant.load(bytes(result.export())))
+        assert_answer_kept(loaded)
+        assert not loaded.acceptance.verified
+        assert dependency in loaded.acceptance.unresolved
+        assert loaded.answer == result.answer
+
+
+def test_route_transport_tabular_accepted():
+    """`parity/python_products.toml` route row: an accepted-structure TransportQuery retains."""
+    data, new_data = _transport_data(400, 1), _transport_data(400, 2)
+    graph = ant.AcceptedGraph(_transport_graph())
+    result, study, updated, report, loaded = _golden(data, graph, _transport_query(), new_data)
+    fresh = require_success(ant.analyze(new_data, graph=graph, query=_transport_query()))
+    _assert_lifecycle(
+        result,
+        study,
+        updated,
+        report,
+        loaded,
+        fresh=fresh,
+        # The omitted suite maps to the full support axis; it is not an explicit Full suite.
+        coordinate="TransportQuery:Admg:accepted:Frequentist:full",
+        dependency="dependencies.checked_transport_trial_operation",
+        key={},
+    )
+    assert result.estimate.estimator_id == "transport.trial_ipw"
+    explicit = require_success(
+        ant.analyze(data, graph=_transport_graph(), query=_transport_query())
+    )
+    assert result.answer == explicit.answer
+
+
 def test_route_interference_tabular_explicit():
     """`parity/python_products.toml` route row: InterferenceQuery retains its study."""
     assignment, data = _interference_design()
@@ -224,7 +274,8 @@ def test_route_interference_tabular_explicit():
         report,
         loaded,
         fresh=fresh,
-        coordinate="InterferenceQuery:Dag:explicit:Frequentist:none",
+        # The omitted suite maps to the full support axis; it is not an explicit Full suite.
+        coordinate="InterferenceQuery:Dag:explicit:Frequentist:full",
         dependency="dependencies.checked_interference_operation",
         key={
             "query": "InterferenceQuery",
@@ -505,7 +556,7 @@ def test_constructions_outside_the_licensed_cells_refuse():
     assert raised.value.reason_code == "construction_not_licensed"
 
 
-def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
+def test_bayesian_trial_transport_and_validated_interference_axes_on_analyze():
     bayesian = require_success(
         ant.analyze(
             _transport_data(200, 7),
@@ -518,12 +569,12 @@ def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
     assert bayesian.posterior is not None
     assignment, data = _interference_design()
     # Full validation runs the interference-native suite and an accepted structure runs the
-    # same known-assignment contrast as the explicit one; neither has an evidence row or a
-    # coverage record, so both execute unlicensed.
+    # same known-assignment contrast as the explicit one; the licensed table has an evidence
+    # row for each, so both execute licensed.
     validated = require_success(
         ant.analyze(data, graph=[], query=_interference_query(assignment), refute="full")
     )
-    assert validated.evidence_status != "licensed"
+    assert validated.evidence_status == "licensed"
     accepted = require_success(
         ant.analyze(
             data,
@@ -531,7 +582,41 @@ def test_bayesian_trial_transport_and_unlicensed_axes_on_analyze():
             query=_interference_query(assignment),
         )
     )
-    assert accepted.evidence_status != "licensed"
+    assert accepted.evidence_status == "licensed"
+
+
+def test_route_interference_tabular_accepted():
+    """`parity/python_products.toml` route row: an accepted-structure InterferenceQuery retains."""
+    assignment, data = _interference_design()
+    new_data = {"y": data["y"] + np.linspace(0.0, 1.0, UNITS)}
+    query = _interference_query(assignment)
+    graph = ant.AcceptedGraph(ant.Dag.from_edges(["y"], []))
+    result, study, updated, report, loaded = _golden(data, graph, query, new_data)
+    fresh = require_success(ant.analyze(new_data, graph=graph, query=query))
+    _assert_lifecycle(
+        result,
+        study,
+        updated,
+        report,
+        loaded,
+        fresh=fresh,
+        # The omitted suite maps to the full support axis; it is not an explicit Full suite.
+        coordinate="InterferenceQuery:Dag:accepted:Frequentist:full",
+        dependency="dependencies.checked_interference_operation",
+        key={},
+    )
+    explicit = require_success(ant.analyze(data, graph=[], query=query))
+    assert result.answer == explicit.answer
+
+
+def test_interference_has_no_graph_posterior_mixture():
+    assignment, data = _interference_design()
+    posterior = ant.discovery.ExactDagPosterior().run(data, execution=ant.Execution(seed=1))
+    with pytest.raises(CausalUnsupportedError) as raised:
+        require_success(
+            ant.analyze(data, discovery=posterior, query=_interference_query(assignment))
+        )
+    assert raised.value.reason_code == "option_not_applicable"
 
 
 def test_analyze_requires_the_design_facts():

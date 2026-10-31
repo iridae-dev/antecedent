@@ -9,6 +9,7 @@ from antecedent.errors import (
     CausalCancelledError,
     CausalResourceError,
     CausalSerializationError,
+    CausalValueError,
 )
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.mechanism_composition import MeanContrast, MechanismCompositionRefusal
@@ -129,13 +130,16 @@ def test_native_exact_consumer_rejects_semantically_changed_records(changed, mon
         return native_consume(data, **kwargs)
 
     monkeypatch.setattr(_native, "consume_exact_transport", checked_native_consume)
+    # The proof carries a registered derivation code (a serialization refusal); the binding
+    # classifies the fixed identity and claim messages as value errors, not by their text.
     expected = {
-        "proof": "transport.invalid_derivation",
-        "law": "transport artifact identity mismatch",
-        "target_claim": "transport artifact execution claim mismatch",
-        "identity": "transport artifact identity mismatch",
+        "proof": (CausalSerializationError, "transport.invalid_derivation"),
+        "law": (CausalValueError, "transport artifact identity mismatch"),
+        "target_claim": (CausalValueError, "transport artifact execution claim mismatch"),
+        "identity": (CausalValueError, "transport artifact identity mismatch"),
     }
-    with pytest.raises(CausalSerializationError, match=expected[changed]):
+    error_type, message = expected[changed]
+    with pytest.raises(error_type, match=message):
         transport.consume_exact(damaged)
     assert calls == [damaged]
 

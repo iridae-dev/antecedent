@@ -27,7 +27,7 @@ from antecedent import _native
 from antecedent.ids import Estimator
 from antecedent.outcomes import require_success
 
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import assert_refutation_replay_withheld
 
 REGISTERED = frozenset(_native.runtime_refusal_codes())
 GRAPH = [("z", "treatment"), ("z", "outcome"), ("treatment", "outcome")]
@@ -119,6 +119,13 @@ def test_prepared_aipw_refresh_and_independent_artifact_consumption() -> None:
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
 
+def _assert_sealed_estimator(accepted: Any) -> None:
+    """A checked estimator operation without retained replay data is recognized, not verified."""
+    assert accepted["recognized"] == "true"
+    assert accepted["accepts_as_verified_program"] == "false"
+    assert accepted["unresolved"] == "dependencies.checked_estimator_operation"
+
+
 def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> None:
     """A checked front-door result survives public refresh and portable consumption."""
     data = _frontdoor(31)
@@ -135,14 +142,14 @@ def test_prepared_frontdoor_refresh_and_independent_artifact_consumption() -> No
     first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.0, abs=0.15)
     accepted = ant.artifacts.accept(bytes(first.export()))
-    assert accepted["accepts_as_verified_program"] == "true"
+    _assert_sealed_estimator(accepted)
 
     changed = {**data, "y": data["y"] + 0.4}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
     accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    _assert_sealed_estimator(accepted_refresh)
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
@@ -166,14 +173,14 @@ def test_prepared_binary_iv_refresh_and_independent_artifact_consumption(
     first = require_success(prepared.estimate())
     assert first.effect == pytest.approx(1.5, abs=0.35)
     accepted = ant.artifacts.accept(bytes(first.export()))
-    assert accepted["accepts_as_verified_program"] == "true"
+    _assert_sealed_estimator(accepted)
 
     changed = {**data, "y": data["y"] + 0.5}
     refreshed = require_success(prepared.rebind(data=changed).estimate())
     assert prepared.inspect() == original
     assert refreshed.effect == pytest.approx(first.effect, abs=1e-10)
     accepted_refresh = ant.artifacts.accept(bytes(refreshed.export()))
-    assert accepted_refresh["accepts_as_verified_program"] == "true"
+    _assert_sealed_estimator(accepted_refresh)
     assert accepted_refresh["program"] == accepted["program"]
     assert refreshed.data_snapshot_id != first.data_snapshot_id
 
@@ -558,9 +565,8 @@ def test_a_failed_validation_survives_export_and_load() -> None:
     loaded_result = require_success(ant.load(bytes(result.export())))
     loaded = loaded_result.inspect().to_dict()
     assert live["support"]["payload"]["validation"]["passed"] is False
-    assert_answer_kept(loaded_result)
-    assert loaded_result.acceptance.verified is False
-    assert loaded_result.answer == result.answer
+    # The body carries validation reports with no checked replay: recognized, withheld.
+    assert_refutation_replay_withheld(loaded_result)
     assert loaded["support"]["payload"]["validation"]["passed"] is False
     assert loaded["support"]["payload"]["validation"]["count"] == 1
     assert _evidence(live) == _evidence(loaded)
@@ -602,9 +608,8 @@ def test_live_and_loaded_reports_share_one_contract_shape() -> None:
     loaded_result = require_success(ant.load(bytes(result.export())))
     loaded = loaded_result.inspect().to_dict()
     json.dumps(live, allow_nan=False)
-    assert_answer_kept(loaded_result)
-    assert loaded_result.acceptance.verified is False
-    assert loaded_result.answer == result.answer
+    # The body carries validation reports with no checked replay: recognized, withheld.
+    assert_refutation_replay_withheld(loaded_result)
     assert isinstance(live["contract"], dict) and isinstance(loaded["contract"], dict)
     assert live["contract"] == loaded["contract"]
     assert live["inference_binding"] == loaded["inference_binding"]

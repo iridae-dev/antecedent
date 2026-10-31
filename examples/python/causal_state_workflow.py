@@ -1,8 +1,8 @@
 """Update an analysis as new data arrive.
 
 CausalState tracks which results are out of date after data change.
-Appending data does not rerun queries: call refresh_results explicitly and
-check the version before displaying results together.
+Appending data does not rerun queries: capture the state version before computing, then
+publish with refresh_results_at so a result computed on older data is refused.
 
 For a full re-estimate on a fixed graph and question, retain result.study
 from analyze(...) and call antecedent.estimate(antecedent.rebind(study, data=new_data)) instead."""
@@ -24,9 +24,10 @@ y = 0.5 * t + rng.normal(size=n) * 0.1
 ver = state.append_data(["t", "y"], [t, y])
 print(f"version after append={ver}")
 
-# Register a query; refresh stores a versioned fingerprint (does not run estimators).
+# Register a query; refresh stores a versioned fingerprint (does not run estimators). The
+# version is captured before computing and published with the results.
 _, qid = state.register_average_effect(0, 1)
-state.refresh_results([(qid, 1, 8)])
+state.refresh_results_at(state.version, [(qid, 1, 8)])
 print(f"stale_queries={state.stale_query_count()} batches={len(state.batch_ids())}")
 assert state.stale_query_count() == 0  # an explicit refresh clears staleness
 assert len(state.batch_ids()) == 1
@@ -48,6 +49,6 @@ assert np.allclose(np.asarray(ols["xty"]), design.T @ y, rtol=0, atol=1e-9)
 state.replace_data(["t", "y"], [t, y])
 print(f"after replace stale={state.stale_query_count()}")
 assert state.stale_query_count() >= 1  # replacing data stales the registered query
-state.refresh_results([(qid, 1, 8)])
+state.refresh_results_at(state.version, [(qid, 1, 8)])
 print(f"after refresh stale={state.stale_query_count()} version={state.version}")
 assert state.stale_query_count() == 0

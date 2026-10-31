@@ -12,7 +12,7 @@ class FrozenSnapshot(unittest.TestCase):
             (folder / "v1.0.0.toml").write_text(
                 'coverage_present=["c"]\nzero_cell_queries=[]\n'
                 '[[record]]\nid="r"\ninference_claim="calibrated"\ncoverage_records=["c"]\n'
-                '[[record.routes]]\nstage="uncertainty"\nstatus="licensed"\n')
+                '[[record.routes]]\nstage="uncertainty"\nstatus="licensed"\n', encoding="utf-8")
             rows, present, queries = gate.source_for(root, "1.0.0", "2.0.0")
             self.assertEqual(queries, [])
             self.assertEqual(gate.effective_claim(rows[0], present), ("calibrated", False))

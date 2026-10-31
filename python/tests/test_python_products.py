@@ -56,7 +56,7 @@ from antecedent.intervention import Set
 from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT, read_text
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import assert_answer_kept, assert_refutation_replay_withheld
 
 ROOT = REPO_ROOT
 PRODUCTS = tomllib.loads(read_text(ROOT / "parity" / "python_products.toml"))
@@ -382,7 +382,20 @@ def _run_route(kind: str, data: str, structure: str, options: str = "") -> None:
     artifact = outcome.export()
     loaded = require_success(ant.load(bytes(artifact), expected=artifact.expectation))
     assert loaded.decoded_artifact.payload_kind == "analysis_result"
-    assert_answer_kept(loaded)
+    if options == "validators":
+        # Attested validator reports have no checked replay: recognized, not accepted.
+        assert_refutation_replay_withheld(loaded)
+    elif (kind, structure) == ("distribution", "graph_posterior"):
+        # The mixture's factor laws and posterior draws are not carried by the artifact, and
+        # no checked operation covers it: the load is recognized and names exactly those two.
+        assert loaded.acceptance.recognized and not loaded.acceptance.verified
+        assert loaded.acceptance.unresolved == (
+            "dependencies.distribution_posterior_factor_draws",
+            "dependencies.distribution_factor_laws",
+        )
+        assert loaded.answer.kind == "unavailable"
+    else:
+        assert_answer_kept(loaded)
 
     label = f"{kind}/{data}/{structure}"
     ids = ("program_id", "claim_id", "data_snapshot_id")
@@ -484,13 +497,38 @@ def test_every_licensed_combination_has_a_route_row():
                 expected.add((kind, "panel", structure))
             if structure != "graph_posterior" and kind in {"pulse", "sustained"}:
                 expected.add((kind, "multi_env", structure))
+    # The Python facade names its own graph-posterior cells, and its static average takes only
+    # series data on a temporal graph: the rest are Rust-only and pinned as refusals.
+    refused = {
+        (kind, data, structure)
+        for kind, data, structure in expected
+        if (kind in PYTHON_STATIC_QUERY_KINDS and data in {"event", "panel"})
+        or (
+            kind in PYTHON_WITHOUT_GRAPH_POSTERIOR
+            and structure == "graph_posterior"
+            and data == "tabular"
+        )
+    }
+    # An event frame handed to the static average under a graph posterior is analysed, but the
+    # prepared tabular study cannot be rebound onto it; the combination has no route or
+    # refusal row. Interference has no graph-posterior mixture in the facade, and a transport
+    # trial's selection columns leave a posterior no constraint-valid structure.
+    unreachable = {
+        ("average", "event", "graph_posterior"),
+        ("interference", "tabular", "graph_posterior"),
+        ("transport", "tabular", "graph_posterior"),
+    }
     present = {
         (row["kind"], row["data"], row["structure"])
         for row in PRODUCTS.get("route", [])
         if not row.get("options")
     }
-    missing = sorted(expected - present)
+    missing = sorted(expected - present - unreachable - refused)
     assert not missing, f"licensed combinations missing product rows: {missing}"
+    # Each Rust-only combination is pinned by a refusal below (not a registry row).
+    registered = {(row["kind"], row["data"], row["structure"]) for row in PRODUCTS["refusal"]}
+    unpinned = sorted(refused - unreachable - set(RUST_ONLY_REFUSALS) - registered)
+    assert not unpinned, f"Rust-only licensed combinations without a pinned refusal: {unpinned}"
 
 
 def test_every_signature_parameter_has_a_row():
@@ -522,6 +560,35 @@ def test_every_refusal_row_names_a_reason_code():
     for row in PRODUCTS.get("refusal", []):
         assert row["reason"] in codes, row
 
+
+#: Static queries whose temporal-graph cells reach Python as series data only: event and panel
+#: frames are refused (pinned by the refusal rows).
+PYTHON_STATIC_QUERY_KINDS = frozenset({"average"})
+
+#: Query kinds the Python facade does not offer a graph-posterior mixture for (it names its own
+#: graph-posterior cells and refuses these with `option_not_applicable`, pinned by refusal rows).
+PYTHON_WITHOUT_GRAPH_POSTERIOR = frozenset(
+    {
+        "average_derivative",
+        "counterfactual",
+        "directional_derivative",
+        "elasticity",
+        "point_derivative",
+        "response_jacobian",
+        "semi_elasticity",
+    }
+)
+
+#: The combinations the facade refuses although the Rust table licenses them, with their codes.
+RUST_ONLY_REFUSALS = {
+    ("average", "event", "explicit"): "data_modality_not_licensed",
+    ("average", "event", "accepted"): "data_modality_not_licensed",
+    ("average", "panel", "accepted"): "data_modality_not_licensed",
+    **{
+        (kind, "tabular", "graph_posterior"): "option_not_applicable"
+        for kind in sorted(PYTHON_WITHOUT_GRAPH_POSTERIOR)
+    },
+}
 
 QUERY_KIND = {
     "AverageEffect": "average",
@@ -670,6 +737,15 @@ def _refusal_code(kind: str, data: str, structure: str) -> str | None:
 )
 def test_refusal_rows_are_reason_coded(kind, data, structure, reason):
     assert _refusal_code(kind, data, structure) == reason
+
+
+@pytest.mark.parametrize(
+    ("combination", "reason"),
+    sorted(RUST_ONLY_REFUSALS.items()),
+    ids=[f"{kind}_{data}_{structure}" for kind, data, structure in sorted(RUST_ONLY_REFUSALS)],
+)
+def test_rust_only_licensed_combinations_are_refused_with_their_reason(combination, reason):
+    assert _refusal_code(*combination) == reason
 
 
 def _install_route_tests() -> None:

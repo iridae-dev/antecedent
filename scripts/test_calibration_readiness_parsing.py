@@ -23,9 +23,9 @@ class ReadinessParsing(unittest.TestCase):
             key = ("PointDerivative", "Dag", "explicit", "Frequentist")
             groups = [(name, name)]
             with patch.object(gate, "ROOT", root):
-                source.write_text(prefix + '#[test] fn ' + name + '() {' + body + '}\n' + helper)
+                source.write_text(prefix + '#[test] fn ' + name + '() {' + body + '}\n' + helper, encoding="utf-8")
                 self.assertFalse(gate.has_record_emitter(key, groups))
-                source.write_text(prefix + '#[test] #[ignore = "calibration: run via scripts/gate_calibration.sh"] fn ' + name + '() {' + body + '}\n' + helper)
+                source.write_text(prefix + '#[test] #[ignore = "calibration: run via scripts/gate_calibration.sh"] fn ' + name + '() {' + body + '}\n' + helper, encoding="utf-8")
                 self.assertTrue(gate.has_record_emitter(key, groups))
-                source.write_text('#[test] #[ignore = "calibration: run via scripts/gate_calibration.sh"] fn ' + name + '();')
+                source.write_text('#[test] #[ignore = "calibration: run via scripts/gate_calibration.sh"] fn ' + name + '();', encoding="utf-8")
                 self.assertFalse(gate.has_record_emitter(key, groups))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
+from antecedent.errors import CausalCancelled
 from antecedent.gcm import GraphFalsification, evaluate_graph
 
 TRUE_PAIRS = [("x0", "x1"), ("x2", "x3"), ("x4", "x5"), ("x6", "x7")]
@@ -90,12 +91,13 @@ def test_invalid_settings_are_refused():
         evaluate_graph(_linear_pairs(100), TRUE_PAIRS, ci_test="no_such_test")
 
 
-def test_a_cancelled_token_yields_an_incomplete_result():
+def test_a_token_cancelled_before_the_run_is_refused():
     token = antecedent.state.CancellationToken()
     token.cancel()
-    result = evaluate_graph(
-        _linear_pairs(300), TRUE_PAIRS, alpha=0.01, execution=antecedent.Execution(cancel=token)
-    )
-    assert result.outcome == "incomplete"
-    assert result.stop == "search.cancelled"
-    assert result.p_value is None
+    with pytest.raises(CausalCancelled):
+        evaluate_graph(
+            _linear_pairs(300),
+            TRUE_PAIRS,
+            alpha=0.01,
+            execution=antecedent.Execution(cancel=token),
+        )

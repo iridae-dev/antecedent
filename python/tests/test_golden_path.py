@@ -30,7 +30,12 @@ import pytest
 from antecedent.outcomes import require_success
 from antecedent.transport.advanced import SelectionDiagram, TransportQuery
 
-from _sealed_loads import assert_answer_kept
+from _sealed_loads import (
+    assert_answer_kept,
+    assert_loaded_outcome,
+    assert_refutation_replay_withheld,
+    carries_refutation_replay,
+)
 
 
 def _static(seed: int, n: int = 1200) -> dict[str, np.ndarray]:
@@ -317,10 +322,14 @@ CASES = [
 ]
 
 
+@pytest.mark.parametrize("refute", ["default", "none"])
 @pytest.mark.parametrize("case", CASES, ids=[case.name for case in CASES])
-def test_golden_path(case: Case) -> None:
+def test_golden_path(case: Case, refute: str) -> None:
+    """With refutation reports the loaded artifact is recognized but withheld; without, kept."""
     data, new_data = case.make(1), case.make(2)
     graph, query, options = case.graph, case.query, dict(case.options)
+    if refute == "none":
+        options["refute"] = "none"
     method = options.pop("discovery", None)
     if method is not None:
         graph = ant.discovery.discover(data, method=method, accept_discovered=True)
@@ -347,8 +356,14 @@ def test_golden_path(case: Case) -> None:
         json.dumps(loaded_report, allow_nan=False)
         assert set(report) == set(loaded_report)
 
-        # Live and loaded answers agree.
-        assert_answer_kept(loaded)
+        # Live and loaded answers agree when the body carries no refutation reports; a body
+        # that does is recognized, names the missing replay and keeps no recorded answer.
+        if refute == "none":
+            assert not carries_refutation_replay(loaded)
+            assert_answer_kept(loaded)
+        else:
+            assert_loaded_outcome(loaded)
+        withheld = carries_refutation_replay(loaded)
         assert result.answer.kind == case.kind
         if case.truth is not None:
             # The point answer is the generating value (the confounded contrast would be off by
@@ -358,8 +373,12 @@ def test_golden_path(case: Case) -> None:
         if case.check is not None:
             case.check(result, data)
             case.check(updated, new_data)
-        assert loaded.answer == result.answer
-        assert report["answer"] == loaded_report["answer"]
+        if withheld:
+            assert_refutation_replay_withheld(loaded)
+            assert loaded.answer != result.answer
+        else:
+            assert loaded.answer == result.answer
+            assert report["answer"] == loaded_report["answer"]
         assert loaded.program_id == result.program_id
         assert loaded.claim_id == result.claim_id
         assert loaded_report["data_snapshot_id"] == result.data_snapshot_id
@@ -456,8 +475,8 @@ def test_autoregressive_treatment_pulse_is_identified_by_parent_adjustment(
     for answer in (result.answer, updated.answer):
         assert answer.kind == "point"
         assert answer.value == pytest.approx(0.8, abs=0.08)
-    assert_answer_kept(loaded)
-    assert loaded.answer == result.answer
+    # The default refutations make the loaded body unreplayable: recognized, withheld.
+    assert_refutation_replay_withheld(loaded)
 
     identification = report["identification"]["payload"]
     # The inspection payload reports the native reasoning slot's wire spelling, the same
