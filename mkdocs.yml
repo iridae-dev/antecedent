@@ -129,6 +129,7 @@ nav:
     - Reliability of a selected decision: decision-reliability.md
   - Evidence and composition:
     - External evidence and study synthesis: evidence-ledger.md
+    - Experimental evidence for decisions: decision-evidence.md
     - Measurement models: measurement-models.md
     - Scientific bridges: scientific-bridges.md
     - Compose sources into a decision: composition.md

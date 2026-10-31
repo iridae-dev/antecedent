@@ -97,6 +97,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `errors` | The exception surface: `CausalError` and its concrete subclasses | [reference/refusal-codes.md](reference/refusal-codes.md) |
 | `estimation` | High-level estimation entry points | [python-options.md](python-options.md) |
 | `estimators` | Typed front-end over the `estimator_config=` dict kwarg | [python-options.md](python-options.md) |
+| `decision_evidence` | Joint experimental outcomes, derived decision quantities, assumption ranges and robust / assumption-dependent / unresolved decisions | [decision-evidence.md](decision-evidence.md) |
 | `evidence_ledger` | The evidence ledger: which evidence contributed to a result, how it overlaps, and what changed | [evidence-ledger.md](evidence-ledger.md) |
 | `execution_attempt` | Diagnostic work observations around one original synchronous native execution | [recalculation-capabilities.md](recalculation-capabilities.md) |
 | `execution` | Reusable execution policies with shared native admission accounting | [python-options.md](python-options.md) |
