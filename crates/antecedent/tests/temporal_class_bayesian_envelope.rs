@@ -909,7 +909,7 @@ fn class_curve_prior_is_used_and_atom_uncertainty_survives() {
     for masses in [[2e-100, 8e-100], [2e307, 8e307]] {
         let scaled = run(masses);
         let Some(antecedent_core::ResponseValue::Surface { mean: scaled_mean, .. }) =
-            scaled.structural_response.unwrap().conditional_on_identified
+            scaled.structural_response.as_ref().unwrap().conditional_on_identified.as_ref()
         else {
             panic!("scaled class prior lost conditional surface")
         };

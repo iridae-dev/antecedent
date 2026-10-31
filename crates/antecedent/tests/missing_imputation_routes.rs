@@ -353,6 +353,57 @@ fn run_conditional(
 }
 
 #[test]
+fn pooled_result_keeps_original_input_identity_not_first_completed_table() {
+    use antecedent::analysis::target_validation::{
+        PreparedTargetData, TargetRefitOptions, TargetRefutationConfig, TargetSuite,
+        refute_prepared_target,
+    };
+    on_large_stack(|| {
+        let columns = conditional_columns(300, 21);
+        let original = columns.table();
+        let completed = columns.completed_with(spec(), Vec::new(), &[("t", "w")]);
+        let context = ctx();
+        let prepared = Study::tabular(original.clone())
+            .graph(conditional_graph())
+            .query(conditional_query(OutcomeFunctional::Mean))
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .missing(declaration(spec()))
+            .build()
+            .unwrap()
+            .prepare(&context)
+            .unwrap();
+        let result = prepared.estimate(&original, &context).unwrap();
+        assert!(!report_of(&result).points.is_empty());
+        let config = TargetRefutationConfig { replicates: 0, ..TargetRefutationConfig::default() };
+        let original_check = refute_prepared_target(
+            &prepared,
+            &result,
+            PreparedTargetData::Tabular(&original),
+            TargetSuite::Cheap,
+            &config,
+            &TargetRefitOptions::default(),
+            &context,
+        );
+        assert!(
+            original_check.is_ok(),
+            "original-data refutation must succeed: {original_check:?}"
+        );
+        let completed_check = refute_prepared_target(
+            &prepared,
+            &result,
+            PreparedTargetData::Tabular(&completed[0]),
+            TargetSuite::Cheap,
+            &config,
+            &TargetRefitOptions::default(),
+            &context,
+        );
+        assert!(matches!(completed_check, Err(CausalError::Conflict { what: "data", .. })));
+    });
+}
+
+#[test]
 fn a_conditional_effect_pools_to_the_hand_pooled_reference() {
     on_large_stack(|| {
         let columns = conditional_columns(1_500, 21);

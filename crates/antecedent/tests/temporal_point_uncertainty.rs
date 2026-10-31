@@ -206,7 +206,7 @@ fn point_only_without_replicates_and_the_same_interval_for_any_thread_budget() {
     );
     let draws_a = run_series(&data, &graph, query.clone(), Some(bayesian(64)), 0, &serial).unwrap();
     let draws_b = run_series(&data, &graph, query, Some(bayesian(64)), 0, &parallel).unwrap();
-    assert_eq!(draws_a.posterior.unwrap().draws.values, draws_b.posterior.unwrap().draws.values);
+    assert_eq!(draws_a.posterior.as_ref().unwrap().draws.values, draws_b.posterior.as_ref().unwrap().draws.values);
 }
 
 #[test]

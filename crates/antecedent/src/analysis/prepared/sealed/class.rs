@@ -52,7 +52,7 @@ impl SealedOperation for CheckedGraphPosteriorEffect {
                 ctx,
             )?
         };
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -74,7 +74,7 @@ impl SealedOperation for CheckedClassGraphPosteriorEffect {
             &handle.plan,
             ctx,
         )?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -92,7 +92,7 @@ impl SealedOperation for CheckedBayesianGraphPosteriorAte {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result =
             handle.analysis.execute_checked_bayesian_graph_posterior_ate(data, self, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -135,7 +135,7 @@ impl SealedOperation for CheckedStaticClassEffect {
             }
         };
         handle
-            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract())
+            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract(), ctx)
             .map(Some)
     }
 }
@@ -154,7 +154,7 @@ impl SealedOperation for CheckedAdmgGraphPosteriorResponse {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result =
             handle.analysis.execute_checked_admg_graph_posterior_response(data, self, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -171,7 +171,7 @@ impl SealedOperation for CheckedBayesianClassConditional {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(&handle.analysis, data, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -189,7 +189,7 @@ impl SealedOperation for CheckedStaticClassResponse {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = handle.analysis.execute_checked_static_class_response(data, self, ctx)?;
         handle
-            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract())
+            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract(), ctx)
             .map(Some)
     }
 }
@@ -208,7 +208,7 @@ impl SealedOperation for CheckedGraphPosteriorResponse {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = handle.analysis.execute_checked_graph_posterior_response(data, self, ctx)?;
         handle
-            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract())
+            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract(), ctx)
             .map(Some)
     }
 }
@@ -226,7 +226,7 @@ impl SealedOperation for CheckedBayesianSpecialistOperation {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(&handle.analysis, data, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -243,6 +243,6 @@ impl SealedOperation for CheckedTransportTrialOperation {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(&handle.analysis, data, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }

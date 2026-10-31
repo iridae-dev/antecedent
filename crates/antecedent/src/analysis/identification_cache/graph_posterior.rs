@@ -36,6 +36,8 @@ pub(crate) struct CachedGraphPosteriorAtomIdentification {
 /// One completion case inside a CPDAG/PAG posterior atom.
 #[derive(Clone, Debug)]
 pub(crate) struct CachedClassPosteriorCase {
+    /// Full canonical identity of the completion retained by the point producer.
+    pub completion_digest: [u8; 32],
     /// Enumeration weight of this completion.
     pub weight: f64,
     /// Identification status of the completion.
@@ -393,7 +395,13 @@ fn build_class_graph_posterior_identification_cache(
                     query,
                     Some(inner),
                 ))
-                .map(|envelope| envelope.map(|envelope| cache_class_envelope(key, query, envelope)))
+                .and_then(|envelope| {
+                    envelope
+                        .map(|envelope| {
+                            cache_class_envelope(key, query, envelope, antecedent_io::dag_identity)
+                        })
+                        .transpose()
+                })
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 let Ok(pag) = pag_from_adjacency_mask(mask, &mark, posterior.n_vars()) else {
@@ -405,7 +413,13 @@ fn build_class_graph_posterior_identification_cache(
                     query,
                     Some(inner),
                 ))
-                .map(|envelope| envelope.map(|envelope| cache_class_envelope(key, query, envelope)))
+                .and_then(|envelope| {
+                    envelope
+                        .map(|envelope| {
+                            cache_class_envelope(key, query, envelope, antecedent_io::pag_identity)
+                        })
+                        .transpose()
+                })
             }
             _ => Ok(None),
         }?;
@@ -435,7 +449,8 @@ fn cache_class_envelope<G>(
     key: u64,
     query: &AverageEffectQuery,
     envelope: IdentificationEnvelope<G>,
-) -> CachedClassPosteriorAtomIdentification {
+    identity: impl Fn(&G) -> Result<antecedent_io::GraphIdentityWire, antecedent_io::IoError>,
+) -> Result<CachedClassPosteriorAtomIdentification, CausalError> {
     use crate::strategy_table::{EstimatorId, select_estimand};
 
     let identification =
@@ -444,6 +459,14 @@ fn cache_class_envelope<G>(
         .cases
         .into_iter()
         .map(|case| {
+            let wire = identity(&case.graph).map_err(|e| CausalError::Compile {
+                message: format!("completion graph identity: {e}"),
+            })?;
+            let digest =
+                antecedent_io::digest_wire(antecedent_core::IdentityDomain::Identification, &wire)
+                    .map_err(|e| CausalError::Compile {
+                        message: format!("completion graph digest: {e}"),
+                    })?;
             let estimand =
                 if crate::analysis::execute::identification_status_ok_for_case(case.result.status)
                     && !case.result.estimands.is_empty()
@@ -455,22 +478,23 @@ fn cache_class_envelope<G>(
                 } else {
                     None
                 };
-            CachedClassPosteriorCase {
+            Ok(CachedClassPosteriorCase {
+                completion_digest: *digest.as_bytes(),
                 weight: case.weight.0,
                 status: case.result.status,
                 identification: Arc::new(case.result),
                 estimand,
-            }
+            })
         })
-        .collect();
-    CachedClassPosteriorAtomIdentification {
+        .collect::<Result<_, CausalError>>()?;
+    Ok(CachedClassPosteriorAtomIdentification {
         key,
         identification,
         invariant: envelope.invariant,
         cases: Arc::from(cases),
         identified_weight: envelope.identified_weight.0,
         truncated_completions: envelope.truncated_completions,
-    }
+    })
 }
 
 #[cfg(test)]
@@ -480,6 +504,63 @@ mod tests {
     use antecedent_discovery::adjacency_mask::set_edge;
     use antecedent_discovery::{AdjacencyMask, SamplingSummary};
     use antecedent_prob::InferenceDiagnostics;
+
+    #[test]
+    fn completion_witnesses_hash_the_actual_canonical_graphs() {
+        use antecedent_graph::{Cpdag, DenseNodeId};
+        let mut class = Cpdag::with_variables(2);
+        class.insert_undirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let envelope = crate::strategy_table::identify_cpdag(
+            crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+            &class,
+            &query,
+        )
+        .unwrap();
+        assert!(envelope.cases.len() >= 2);
+        let expected: Vec<[u8; 32]> = envelope
+            .cases
+            .iter()
+            .map(|case| {
+                let graph = antecedent_io::dag_identity(&case.graph).unwrap();
+                *antecedent_io::digest_wire(antecedent_core::IdentityDomain::Identification, &graph)
+                    .unwrap()
+                    .as_bytes()
+            })
+            .collect();
+        let cached =
+            cache_class_envelope(17, &query, envelope, antecedent_io::dag_identity).unwrap();
+        let actual: Vec<_> = cached.cases.iter().map(|case| case.completion_digest).collect();
+        assert_eq!(actual, expected);
+        assert_ne!(actual[0], actual[1]);
+
+        let pag = antecedent_graph::Pag::with_variables(2);
+        let envelope = crate::strategy_table::identify_pag_in_context(
+            crate::strategy_table::IdentifierId::GeneralizedAdjustment,
+            &pag,
+            &query,
+            None,
+        )
+        .unwrap();
+        assert!(!envelope.cases.is_empty());
+        let expected: Vec<[u8; 32]> = envelope
+            .cases
+            .iter()
+            .map(|case| {
+                let graph = antecedent_io::pag_identity(&case.graph).unwrap();
+                *antecedent_io::digest_wire(antecedent_core::IdentityDomain::Identification, &graph)
+                    .unwrap()
+                    .as_bytes()
+            })
+            .collect();
+        let cached =
+            cache_class_envelope(21, &query, envelope, antecedent_io::pag_identity).unwrap();
+        assert_eq!(
+            cached.cases.iter().map(|case| case.completion_digest).collect::<Vec<_>>(),
+            expected
+        );
+    }
 
     /// A static posterior whose samples repeat a handful of confounding structures, as an
     /// MCMC posterior does: many entries, few distinct graphs.

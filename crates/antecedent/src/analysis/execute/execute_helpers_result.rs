@@ -636,7 +636,7 @@ fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyResult {
         &finish.common.custom_validator_names,
     );
     if finish.mirror_refuted_evalue {
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
     }
     if finish.rebind_bayesian_interval {
         result.rebind_interval(finish.common.inference.is_bayesian());

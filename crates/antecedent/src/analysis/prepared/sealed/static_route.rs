@@ -46,7 +46,7 @@ macro_rules! executes_as_prepared {
         notes: &mut ClickNotes,
             ) -> Result<Option<StudyResult>, CausalError> {
                 let result = self.execute(data, ctx)?;
-                stamp_tabular(handle, data, result, notes)
+                stamp_tabular(handle, data, result, notes, ctx)
             }
         }
     )+};
@@ -84,7 +84,7 @@ impl SealedOperation for CheckedAttributionOperation {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(data, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
@@ -115,7 +115,7 @@ impl SealedOperation for CheckedUnknownTieredAverageOperation {
             },
             crate::analysis::execute::Strategy::new(self.identifier, self.estimator),
         )?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -133,7 +133,7 @@ impl SealedOperation for CheckedDerivativeResponseOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result =
             handle.analysis.execute_checked_derivative_response(data, &handle.plan, ctx, self)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -152,7 +152,7 @@ impl SealedOperation for CheckedStaticDagResponseOperation {
         let result =
             handle.analysis.execute_checked_static_dag_response(data, &handle.plan, ctx, self)?;
         handle
-            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract())
+            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract(), ctx)
             .map(Some)
     }
 }
@@ -177,7 +177,7 @@ impl SealedOperation for CheckedCellAipwResponseOperation {
             ctx,
             &rebound,
         )?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::CellAipwResponse(Box::new(rebound)));
         result
     }
@@ -252,15 +252,16 @@ impl SealedOperation for CheckedAssociationOperation {
             &DataInput::Tabular(data.clone()),
             &handle.plan,
             &mut result,
+            ctx,
         )?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         self.require_program(&call.handle.plan)?;
         let mut result =
             call.study.execute_association_series(call.series, &call.handle.plan, call.ctx)?;
-        finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;
+        finish_family_result(call.study, call.input, &call.handle.plan, &mut result, call.ctx)?;
         Ok(Some(result))
     }
 }
@@ -293,14 +294,15 @@ impl SealedOperation for CheckedDiscoveryOperation {
             &DataInput::Tabular(data.clone()),
             &handle.plan,
             &mut result,
+            ctx,
         )?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
         self.require_program(&call.handle.plan)?;
         let mut result = call.study.execute_discover(call.input, &call.handle.plan, call.ctx)?;
-        finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;
+        finish_family_result(call.study, call.input, &call.handle.plan, &mut result, call.ctx)?;
         Ok(Some(result))
     }
 }
@@ -338,8 +340,9 @@ impl SealedOperation for crate::analysis::execute::CheckedStaticCrossWorldOperat
             &DataInput::Tabular(data.clone()),
             &handle.plan,
             &mut result,
+            ctx,
         )?;
-        let stamped = stamp_tabular(handle, data, result, notes);
+        let stamped = stamp_tabular(handle, data, result, notes, ctx);
         if stamped.is_ok() {
             notes.record(Rebound::Dispatch(Box::new(
                 crate::analysis::prepared::PreparedExecution::StaticCrossWorld(rebound),
@@ -379,8 +382,9 @@ impl SealedOperation for crate::analysis::execute::CheckedClassAttributionOperat
             &DataInput::Tabular(data.clone()),
             &handle.plan,
             &mut result,
+            ctx,
         )?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
@@ -391,7 +395,7 @@ impl SealedOperation for crate::analysis::execute::CheckedClassAttributionOperat
             call.provenance,
             call.ctx,
         )?;
-        finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;
+        finish_family_result(call.study, call.input, &call.handle.plan, &mut result, call.ctx)?;
         Ok(Some(result))
     }
 }

@@ -216,7 +216,7 @@ fn run_envelope(
         .diagnostics
         .iter()
         .any(|d| d.code.as_ref() == "estimate.envelope.interactive_subsample");
-    let post = result.posterior.expect("posterior");
+    let post = result.posterior.as_ref().expect("posterior");
     let mean = post.summaries.mean[post.effect_column().unwrap()];
     (mean, subsampled)
 }

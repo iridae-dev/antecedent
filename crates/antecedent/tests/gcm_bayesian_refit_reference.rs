@@ -85,7 +85,7 @@ fn every_counterfactual_draw_is_the_product_of_the_weighted_slopes_of_its_weight
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let posterior = result.posterior.expect("posterior");
+    let posterior = result.posterior.as_ref().expect("posterior");
     let column = posterior.draws.column(posterior.effect_column().unwrap()).unwrap();
     assert_eq!(column.len(), DRAWS);
     let mut rng = ctx.rng.stream_for(StreamDomain::Attribution, 0x0CF0);
@@ -153,7 +153,7 @@ fn change_attribution_draws_use_one_weight_vector_per_population_and_stay_couple
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let posterior = result.posterior.expect("posterior");
+    let posterior = result.posterior.as_ref().expect("posterior");
     let total = column_named(&posterior, "total_change");
     let covariate = column_named(&posterior, "component[0]");
     let intercept = column_named(&posterior, "component[1]");

@@ -283,7 +283,7 @@ fn prepared_gaussian_materializes_the_actual_categorical_design() {
     assert_eq!(checked.problem().preparation.categories()[0].n_columns, 3);
     let result = prepared.estimate_retained(&ctx).unwrap();
     assert!((result.effect() - 2.0).abs() < 1e-12);
-    assert_eq!(result.performance.native_execution.unwrap().observed_model_fits(), Some(1));
+    assert_eq!(result.performance.native_execution.as_ref().unwrap().observed_model_fits(), Some(1));
 }
 
 #[test]

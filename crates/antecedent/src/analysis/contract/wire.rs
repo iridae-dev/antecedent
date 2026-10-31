@@ -84,6 +84,7 @@ pub(super) fn body_for(
     frame: &BodyFrame,
     result: &StudyResult,
 ) -> Result<AnalysisResultWire, CausalError> {
+    crate::analysis::target_validation::validate_runtime_refutation_proof(result)?;
     let mut identification = match &frame.identification {
         Some(identification) => identification.clone(),
         None => {

@@ -1728,7 +1728,7 @@ fn bayesian_conditional_staged_known_truth() {
                 assert!(!result.predictive_checks.is_empty());
             }
             if suite == RefuteSuite::Full {
-                assert!(result.posterior.unwrap().prior_sensitivity.is_some());
+                assert!(result.posterior.as_ref().unwrap().prior_sensitivity.is_some());
             }
         }
     }

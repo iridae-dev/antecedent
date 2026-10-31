@@ -374,6 +374,12 @@ mod tests {
                     .cases
                     .iter()
                     .map(|case| crate::analysis::prepared::CachedClassPosteriorCase {
+                        completion_digest: *antecedent_io::digest_wire(
+                            antecedent_core::IdentityDomain::Identification,
+                            &antecedent_io::dag_identity(&case.graph).unwrap(),
+                        )
+                        .unwrap()
+                        .as_bytes(),
                         weight: case.weight.0,
                         status: case.result.status,
                         identification: Arc::new(case.result.clone()),

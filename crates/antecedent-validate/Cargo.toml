@@ -30,6 +30,7 @@ antecedent-data = { workspace = true }
 antecedent-estimate = { workspace = true }
 antecedent-expr = { workspace = true }
 antecedent-identify = { workspace = true }
+antecedent-learn = { workspace = true }
 antecedent-io-core = { workspace = true }
 antecedent-discovery = { workspace = true }
 antecedent-graph = { workspace = true }

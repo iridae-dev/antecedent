@@ -113,12 +113,12 @@ impl super::Study {
                 ..PosteriorMassSummary::default()
             },
         );
-        if let Some(posterior) = result.posterior.as_mut() {
+        if let Some(posterior) = result.view.posterior.as_mut() {
             // The contrast posterior is conditional on the declared design; the structure
             // posterior adds only the mass of atoms that are not members of the graph class.
             let total = identified.graphs.total_weight();
             posterior.unidentified_mass = if total > 0.0 { unidentified_mass / total } else { 0.0 };
-            posterior.identification = result.identification.status;
+            posterior.identification = result.view.identification.status;
         }
         self.annotate_interference_posterior(
             &mut result,

@@ -1102,14 +1102,14 @@ impl CheckedAipwOperation {
             self.population_registry.as_ref(),
             &self.custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
         crate::analysis::helpers::attach_tiered_evalue_for_cell(
             &mut result.estimate,
             data,
             self.query.outcome,
             self.query.outcome_functional.quantile_level().is_some(),
             self.tiered_background.as_ref(),
-            &mut result.diagnostics,
+            &mut result.view.diagnostics,
         );
         Ok(result)
     }
@@ -1578,7 +1578,7 @@ impl CheckedLinearOperation {
             self.population_registry.as_ref(),
             &self.custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
         Ok(result)
     }
 

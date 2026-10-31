@@ -734,7 +734,7 @@ impl crate::StudyResult {
     pub const fn execution_facts(
         &self,
     ) -> Option<&antecedent_core::execution_facts::ExecutionFacts> {
-        self.performance.native_execution.as_ref()
+        self.view.performance.native_execution.as_ref()
     }
 
     /// Measured facts, admission reservations and the plan's estimates of this run,

@@ -210,7 +210,7 @@ fn rd_posterior_intervals_calibrate_under_declared_local_linear_law() {
             .build()
             .unwrap();
         if let Ok(result) = rd_study.run(&ExecutionContext::for_tests(5_000 + rep as u64)) {
-            let p = result.posterior.unwrap();
+            let p = result.posterior.as_ref().unwrap();
             if p.summaries.q025[0] <= 2.5 && 2.5 <= p.summaries.q975[0] {
                 rd_covered += 1;
             }
@@ -266,7 +266,7 @@ fn iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law() {
             .build()
             .unwrap();
         let result = study.run(&ExecutionContext::for_tests(9_000 + rep as u64)).unwrap();
-        let posterior = result.posterior.unwrap();
+        let posterior = result.posterior.as_ref().unwrap();
         covered +=
             usize::from(posterior.summaries.q025[0] <= 2.0 && 2.0 <= posterior.summaries.q975[0]);
     }

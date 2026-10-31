@@ -401,6 +401,13 @@ pub trait EffectRefit: std::fmt::Debug {
         ctx: &ExecutionContext,
     ) -> Result<EffectEstimate, ValidationError>;
 
+    /// Whether a static row bootstrap may resample only the problem's witness
+    /// treatment, outcome, adjustment and modifier columns. Implementations may
+    /// opt in only when the refit reads no other row-varying input.
+    fn static_bootstrap_uses_witness_columns(&self) -> bool {
+        false
+    }
+
     /// Prepare the composed estimator once on the original series so resampling
     /// checks can refit it on lag-aligned rows (each row keeping its original lag
     /// window) instead of rebuilding lags on a resampled raw series. `None` when

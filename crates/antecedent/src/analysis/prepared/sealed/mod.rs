@@ -246,8 +246,9 @@ pub(super) fn stamp_tabular(
     data: &TabularData,
     result: StudyResult,
     notes: &ClickNotes,
+    ctx: &ExecutionContext,
 ) -> Result<Option<StudyResult>, CausalError> {
     handle
-        .stamp_deferrable(&DataInput::Tabular(data.clone()), result, notes.defers_contract())
+        .stamp_deferrable(&DataInput::Tabular(data.clone()), result, notes.defers_contract(), ctx)
         .map(Some)
 }

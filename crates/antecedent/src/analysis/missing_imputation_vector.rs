@@ -942,7 +942,7 @@ fn apply_bayesian(
         clear_first_table_inference(effect);
     }
     if let (Some(posterior), ResultPayload::Distribution(distribution)) =
-        (result.posterior.as_ref(), &mut result.payload)
+        (result.view.posterior.as_ref(), &mut result.payload)
     {
         let mean_first = matches!(
             posterior.draws.schema.quantities.first(),
@@ -960,7 +960,7 @@ fn apply_bayesian(
         }
     }
     if let (Some(posterior), ResultPayload::Mediation { decomposition, grid }) =
-        (result.posterior.as_ref(), &mut result.payload)
+        (result.view.posterior.as_ref(), &mut result.payload)
     {
         apply_bayesian_mediation(posterior, decomposition, grid, extras);
     }
@@ -1543,6 +1543,7 @@ where
     let mut missing = missing_data::report(route_of(study), true, covariates, accounting);
     missing.imputation = Some(report);
     result.extras.missing_data = Some(missing);
+    crate::analysis::target_validation::reset_pooled_refutations(&mut result);
     Ok(result)
 }
 
@@ -1787,5 +1788,6 @@ where
     let mut missing = missing_data::report(MissingRoute::Temporal, true, covariates, accounting);
     missing.imputation = Some(report);
     result.extras.missing_data = Some(missing);
+    crate::analysis::target_validation::reset_pooled_refutations(&mut result);
     Ok(result)
 }

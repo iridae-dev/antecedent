@@ -964,6 +964,23 @@ fn class_posterior_graph_posterior_intervention_response_cheap_and_full_run() {
                     !result.refutations.is_empty(),
                     "{label} {inference:?} {suite:?} must run plugin-level refuters"
                 );
+                for report in &result.refutations {
+                    let Some(antecedent_validate::RefutationScope::StaticClassCompletion {
+                        outer_atom,
+                        completion_digest,
+                        target,
+                    }) = &report.scope
+                    else {
+                        panic!("{label}: report lacks completion scope")
+                    };
+                    assert_eq!(target.family(), antecedent_validate::TargetFamily::WorldValued);
+                    let prefix = format!(
+                        "scope:v1:static_class_completion:{}:{}|",
+                        outer_atom,
+                        antecedent_core::identity::to_hex(completion_digest)
+                    );
+                    assert!(target.labels().iter().all(|label| label.starts_with(&prefix)));
+                }
                 assert!(
                     result
                         .diagnostics

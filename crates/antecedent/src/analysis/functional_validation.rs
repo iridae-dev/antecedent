@@ -55,6 +55,20 @@ const CHEAP_REPLICATES: u32 = 30;
 /// Replicates of a full refuter.
 const FULL_REPLICATES: u32 = 60;
 
+fn temporal_class_posterior_level(study: &Study) -> bool {
+    use antecedent_discovery::GraphPosteriorAtomKind;
+    let Some(posterior) = &study.graph_posterior else {
+        return false;
+    };
+    posterior.max_lag().is_some()
+        && matches!(
+            posterior.atom_kind(),
+            GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
+        )
+        && matches!(&study.query, CausalQuery::Response(query)
+            if matches!(&query.functional, ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() == 1))
+}
+
 /// Whether `study` requests a validation suite whose native suite is the functional one.
 ///
 /// A path-specific effect and an interventional distribution on a supplied Dag keep their
@@ -63,6 +77,9 @@ const FULL_REPLICATES: u32 = 60;
 pub(crate) fn requested(study: &Study) -> bool {
     if study.settings.refute == RefuteSuite::None {
         return false;
+    }
+    if temporal_class_posterior_level(study) {
+        return true;
     }
     let class = study.graph.class();
     match &study.query {
@@ -162,6 +179,14 @@ pub(crate) fn validate_data(
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
     base.settings.refute = RefuteSuite::None;
+    base.retain_response_witnesses = temporal_class_posterior_level(study);
+    if base.retain_response_witnesses {
+        base.temporal_validation_budget =
+            Some(antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()));
+    }
+    if temporal_class_posterior_level(study) {
+        base.declared.custom_validators.clear();
+    }
     base.data = data;
     validate_over(study, &base, ctx)
 }
@@ -179,6 +204,14 @@ pub(crate) fn run_validated(
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
     base.settings.refute = RefuteSuite::None;
+    base.retain_response_witnesses = temporal_class_posterior_level(study);
+    if base.retain_response_witnesses {
+        base.temporal_validation_budget =
+            Some(antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()));
+    }
+    if temporal_class_posterior_level(study) {
+        base.declared.custom_validators.clear();
+    }
     validate_over(study, &base, ctx)
 }
 
@@ -210,6 +243,144 @@ fn validate_over(
     }
 }
 
+// Keep set/graph-dependent point publication intact. Each report describes one
+// point-producing completion's level under full-program refits, never the set.
+fn validate_temporal_members(
+    mut result: StudyResult,
+    prepared: &PreparedStudy,
+    data: PreparedTargetData<'_>,
+    suite: TargetSuite,
+    ctx: &ExecutionContext,
+) -> Result<StudyResult, CausalError> {
+    let Some(witnesses) = result.temporal_posterior_witnesses.clone() else {
+        result.view.diagnostics.push(Diagnostic::new(
+            "refute.envelope.temporal_class_graph_posterior", DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info, "completion-level refutations were unavailable because point-time witnesses were not retained",
+        ));
+        return Ok(result);
+    };
+    let expected = result
+        .structural_response
+        .as_ref()
+        .map_or(0, |mixture| mixture.atoms.iter().filter(|atom| atom.value.is_some()).count());
+    if witnesses.members.len() != expected {
+        result.view.diagnostics.push(Diagnostic::new(
+            "refute.envelope.temporal_class_graph_posterior", DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info, "completion-level refutations cover only retained point-time members; they do not certify the outer set",
+        ));
+    }
+    let program = result.lowered_identity.as_ref().map(|identity| *identity.as_bytes());
+    // One member has at most the fixed target-native suite's report count.
+    // Fund their retained vector, scopes and labels before running the suite.
+    let mut member_count = 0u64;
+    for member in &witnesses.members {
+        member_count = member_count
+            .checked_add(u64::try_from(member.witnesses.entries.len()).map_err(|_| {
+                CausalError::Resource { message: "temporal report count overflow".into() }
+            })?)
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal report count overflow".into(),
+            })?;
+    }
+    let max_reports = member_count.checked_mul(16).ok_or_else(|| CausalError::Resource {
+        message: "temporal report count overflow".into(),
+    })?;
+    let bytes =
+        max_reports.checked_mul(4096).and_then(|n| n.checked_add(4096)).ok_or_else(|| {
+            CausalError::Resource { message: "temporal report bytes overflow".into() }
+        })?;
+    if bytes > ctx.temporal_materialization_limits().max_bytes {
+        return Err(CausalError::Resource { message: "temporal report byte limit".into() });
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "temporal response refutation" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
+    let mut budget = prepared.study().temporal_validation_budget.clone().unwrap_or_else(|| {
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+    });
+    let suite_work = max_reports
+        .checked_mul(u64::from(replicates(suite, 1)))
+        .ok_or_else(|| CausalError::Resource { message: "temporal report work overflow".into() })?;
+    budget
+        .charge_work(suite_work)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    let mut reports = Vec::new();
+    let mut refutation_notes = Vec::new();
+    reports
+        .try_reserve_exact(usize::try_from(max_reports).map_err(|_| CausalError::Resource {
+            message: "temporal report count exceeds address space".into(),
+        })?)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    result
+        .retained_resources
+        .try_reserve_exact(1)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    let checked = super::target_validation::checked_refutation_input(&result, data, ctx)?;
+    for member in &witnesses.members {
+        for witness in &member.witnesses.entries {
+            let config = TargetRefutationConfig {
+                replicates: replicates(suite, 1),
+                ..TargetRefutationConfig::default()
+            };
+            let (scope, run) = super::target_validation::refute_temporal_response_member(
+                prepared,
+                &result,
+                data,
+                member.outer_atom,
+                witness,
+                suite,
+                &config,
+                &checked,
+                &mut budget,
+                ctx,
+            )?;
+            for report in &run.reports {
+                let mut report = as_refutation(report, program);
+                report.scope = Some(scope.clone());
+                reports.push(report);
+            }
+            for refusal in &run.refused {
+                refutation_notes.push(Diagnostic::new(
+                    "refute.temporal_completion.refused",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!(
+                        "refuter `{}` did not run for one completion: {}",
+                        refusal.kind.as_str(),
+                        refusal.reason
+                    ),
+                ));
+            }
+        }
+    }
+    drop(checked);
+    result.view.diagnostics.extend(refutation_notes);
+    if reports.is_empty() {
+        result.view.diagnostics.push(Diagnostic::new(
+            "refute.envelope.temporal_class_graph_posterior",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "no checked completion-level refuter produced a report",
+        ));
+        // Refusal notes remain in the result, so retain their admitted owner.
+        // Do not mutably access the report view: the point result remains valid.
+        result.retained_resources.push(std::sync::Arc::new(lease));
+        return Ok(result);
+    }
+    result.refutations = reports;
+    result.retained_resources.push(std::sync::Arc::new(lease));
+    if !result.refutations.is_empty() {
+        super::target_validation::seal_runtime_refutations(
+            &mut result,
+            crate::result::RuntimeRefutationOrigin::ScopedCompletion,
+        )?;
+    }
+    Ok(result)
+}
+
 fn validate(
     study: &Study,
     prepared: &PreparedStudy,
@@ -217,7 +388,17 @@ fn validate(
     data: PreparedTargetData<'_>,
     ctx: &ExecutionContext,
 ) -> Result<StudyResult, CausalError> {
+    if temporal_class_posterior_level(study) && !study.declared.custom_validators.is_empty() {
+        result.view.diagnostics.push(Diagnostic::new(
+            "refute.temporal_response.custom_unavailable", DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "scalar custom validators do not check temporal response levels; no custom report was produced",
+        ));
+    }
     let suite = target_suite(study.settings.refute);
+    if temporal_class_posterior_level(study) && result_target_values(&result).is_err() {
+        return validate_temporal_members(result, prepared, data, suite, ctx);
+    }
     let (_, _, values) = result_target_values(&result)?;
     let config = TargetRefutationConfig {
         replicates: replicates(suite, values.len()),
@@ -232,6 +413,15 @@ fn validate(
         &TargetRefitOptions::default(),
         ctx,
     )?;
+    if outcome.run.reports.is_empty() && temporal_class_posterior_level(study) {
+        result.view.diagnostics.push(Diagnostic::new(
+            "refute.envelope.temporal_class_graph_posterior",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "no whole-target check ran with all original temporal completion contributors",
+        ));
+        return Ok(result);
+    }
     if outcome.run.reports.is_empty() {
         let first = outcome.run.refused.first().map_or_else(
             || "the suite names no refuter for this target".to_owned(),
@@ -269,9 +459,9 @@ fn validate(
         result.refutations.push(report);
     }
     result.refutations.extend(extra_reports);
-    result.diagnostics.extend(extra_notes);
+    result.view.diagnostics.extend(extra_notes);
     for refusal in &outcome.run.refused {
-        result.diagnostics.push(Diagnostic::new(
+        result.view.diagnostics.push(Diagnostic::new(
             "refute.functional.refuter_refused",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
@@ -284,7 +474,7 @@ fn validate(
         ));
     }
     let licensed = matches!(study.support_status(), Some(crate::support::CellStatus::Licensed));
-    result.diagnostics.push(Diagnostic::new(
+    result.view.diagnostics.push(Diagnostic::new(
         "refute.functional.state",
         DiagnosticKind::Scientific,
         DiagnosticSeverity::Info,
@@ -311,6 +501,10 @@ fn validate(
         crate::support::CellStatus::Refused
     });
     result.executed_contract = None;
+    super::target_validation::seal_runtime_refutations(
+        &mut result,
+        crate::result::RuntimeRefutationOrigin::WholeTarget,
+    )?;
     Ok(result)
 }
 

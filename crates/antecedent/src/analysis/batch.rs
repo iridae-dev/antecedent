@@ -1521,8 +1521,8 @@ fn attach_shared_design_diagnostics(
         ]);
         // A prepared plan can carry the diagnostic from its prepare; this estimate's
         // sharing replaces it.
-        result.diagnostics.retain(|d| d.code.as_ref() != "batch.shared_design");
-        result.diagnostics.push(d);
+        result.view.diagnostics.retain(|d| d.code.as_ref() != "batch.shared_design");
+        result.view.diagnostics.push(d);
     }
 }
 
@@ -1574,7 +1574,7 @@ fn withhold_family_inference(results: &mut [StudyResult], message: &str) {
         effect.family.contrast = None;
         effect.family.contrast_interval = None;
         effect.family.compiled_contrast = None;
-        result.diagnostics.push(antecedent_core::Diagnostic::new(
+        result.view.diagnostics.push(antecedent_core::Diagnostic::new(
             "batch.joint_if",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
@@ -1628,7 +1628,7 @@ fn attach_batch_family_joint_inference(
         FamilyWithheld::SingleClaim => {}
         FamilyWithheld::Unavailable(message) => {
             for result in results.iter_mut() {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                result.view.diagnostics.push(antecedent_core::Diagnostic::new(
                     "batch.joint_if.unavailable",
                     antecedent_core::DiagnosticKind::Scientific,
                     antecedent_core::DiagnosticSeverity::Warning,
@@ -1925,7 +1925,7 @@ fn attach_family_contrast_posterior(
         }
         Err(reason) => {
             for result in results.iter_mut() {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                result.view.diagnostics.push(antecedent_core::Diagnostic::new(
                     "batch.family_posterior",
                     antecedent_core::DiagnosticKind::Scientific,
                     antecedent_core::DiagnosticSeverity::Info,
@@ -2004,7 +2004,7 @@ fn attach_family_p_values(
             ));
         }
         d.fields = std::sync::Arc::from(fields);
-        result.diagnostics.push(d);
+        result.view.diagnostics.push(d);
     }
     attach_candidate_selection(results, screen, &bh, &by, Some(&rank_stats));
 }
@@ -2068,7 +2068,7 @@ fn resolve_max_t_critical(
         Ok(c) => Some(c),
         Err(err) => {
             for result in results.iter_mut() {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                result.view.diagnostics.push(antecedent_core::Diagnostic::new(
                     "batch.joint_if.max_t_unavailable",
                     antecedent_core::DiagnosticKind::Scientific,
                     antecedent_core::DiagnosticSeverity::Warning,
@@ -2244,9 +2244,9 @@ fn attach_candidate_selection(
                     std::sync::Arc::from(if selection.disjoint { "true" } else { "false" }),
                 ),
             ]);
-            result.diagnostics.push(d);
+            result.view.diagnostics.push(d);
             if !selection.disjoint {
-                result.diagnostics.push(antecedent_core::Diagnostic::new(
+                result.view.diagnostics.push(antecedent_core::Diagnostic::new(
                     "batch.candidate_selection.overlap",
                     antecedent_core::DiagnosticKind::Support,
                     antecedent_core::DiagnosticSeverity::Warning,
@@ -2254,7 +2254,7 @@ fn attach_candidate_selection(
                 ));
             }
         } else {
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
+            result.view.diagnostics.push(antecedent_core::Diagnostic::new(
                 "batch.candidate_selection.unrecorded",
                 antecedent_core::DiagnosticKind::Scientific,
                 antecedent_core::DiagnosticSeverity::Info,
@@ -2262,7 +2262,7 @@ fn attach_candidate_selection(
             ));
         }
         if recorded {
-            result.diagnostics.push(antecedent_core::Diagnostic::new(
+            result.view.diagnostics.push(antecedent_core::Diagnostic::new(
                 "batch.candidate_selection.ranked_on_reported_family",
                 antecedent_core::DiagnosticKind::Scientific,
                 antecedent_core::DiagnosticSeverity::Info,

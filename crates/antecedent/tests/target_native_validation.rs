@@ -70,6 +70,15 @@ fn prepared(data: &TabularData, graph: &Dag, ctx: &ExecutionContext) -> antecede
         .unwrap()
 }
 
+fn checked_outcome(
+    prepared: &antecedent::PreparedStudy, result: &antecedent::StudyResult,
+    data: &TabularData, ctx: &ExecutionContext,
+) -> antecedent::analysis::target_validation::TargetRefutationOutcome {
+    refute_prepared_target(prepared, result, PreparedTargetData::Tabular(data), TargetSuite::Placebo,
+        &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(), ctx).unwrap()
+}
+
 #[test]
 fn a_derivative_target_is_refuted_by_refits_of_its_own_program() {
     let (data, graph) = fixture(500);
@@ -149,6 +158,7 @@ fn the_claim_refuses_a_scalar_average_effect_refutation_of_a_derivative() {
     let ctx = ExecutionContext::for_tests(62);
     let prepared = prepared(&data, &graph, &ctx);
     let clean = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &clean, &data, &ctx);
     let contract = prepared.contract().unwrap();
     if let Err(error) = clean.claim(&contract, &ctx) {
         assert!(!error.to_string().contains("cannot certify"), "{error}");
@@ -166,32 +176,53 @@ fn the_claim_refuses_a_scalar_average_effect_refutation_of_a_derivative() {
     ));
     let error = certified_by_ate.claim(&contract, &ctx).unwrap_err();
     let message = error.to_string();
-    assert!(message.contains("cannot certify a response_derivative target"), "{message}");
-    assert!(message.contains("next attempt"), "{message}");
+    assert!(message.contains("modified") || message.contains("refutation"), "{message}");
     assert!(matches!(
-        certify_result_refutations(&certified_by_ate, &[]),
-        Err(TargetCertificationError::ScalarRefuterForOtherTarget { .. })
+        certify_result_refutations(&certified_by_ate, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
     ));
 }
 
 #[test]
-fn a_report_the_route_produced_for_its_own_target_is_accepted() {
+fn modifying_the_published_target_invalidates_the_runtime_report_binding() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(66);
+    let prepared = prepared(&data, &graph, &ctx);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &result, &data, &ctx);
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let mut changed_effect = result.clone();
+    changed_effect.estimate_mut().as_effect_mut().unwrap().ate += 1.0;
+    assert!(certify_result_refutations(&changed_effect, &outcome).is_err());
+    let mut changed_query = result.clone();
+    let mut query = query();
+    query.functional = ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2), treatment: VariableId::from_raw(0),
+        at: 3.0, order: 1, scale: DerivativeScale::Identity,
+    };
+    changed_query.identification.query = CausalQuery::Response(query);
+    assert!(certify_result_refutations(&changed_query, &outcome).is_err());
+}
+
+#[test]
+fn a_caller_forged_same_program_stamp_is_not_a_route_report() {
     let (data, graph) = fixture(300);
     let ctx = ExecutionContext::for_tests(64);
     let prepared = prepared(&data, &graph, &ctx);
     let clean = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &clean, &data, &ctx);
     let contract = prepared.contract().unwrap();
     let program = *clean.lowered_program_identity().unwrap().as_bytes();
     let report = || RefutationReport::new("sensitivity.evalue", 2.0, 2.0, 3.1, true, true, None, 0);
 
-    // Stamped by the result's own program: a route-native report, whatever its name.
+    // Public stamps are descriptive: appending a forged report invalidates the
+    // result's engine-issued binding even when its program bytes match.
     let mut native = clean.clone();
     let mut own = report();
     own.stamp_producer(program);
     native.refutations.push(own);
-    if let Err(error) = native.claim(&contract, &ctx) {
-        assert!(!error.to_string().contains("cannot certify"), "{error}");
-    }
+    assert!(native.claim(&contract, &ctx).is_err());
+    assert!(matches!(certify_result_refutations(&native, &outcome), Err(TargetCertificationError::TargetMismatch { .. })));
 
     // Stamped by another program: refused, like an unstamped scalar report.
     let mut foreign = clean.clone();
@@ -199,8 +230,8 @@ fn a_report_the_route_produced_for_its_own_target_is_accepted() {
     theirs.stamp_producer([7; 32]);
     foreign.refutations.push(theirs);
     assert!(matches!(
-        certify_result_refutations(&foreign, &[]),
-        Err(TargetCertificationError::ScalarRefuterForOtherTarget { .. })
+        certify_result_refutations(&foreign, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
     ));
 }
 
@@ -210,20 +241,18 @@ fn descriptive_scope_cannot_certify_even_when_program_and_target_match() {
     let ctx = ExecutionContext::for_tests(65);
     let prepared = prepared(&data, &graph, &ctx);
     let mut result = prepared.estimate(&data, &ctx).unwrap();
+    let outcome = checked_outcome(&prepared, &result, &data, &ctx);
     let contract = prepared.contract().unwrap();
     let target = result_refutation_target(&result).unwrap();
     let program = *result.lowered_program_identity().unwrap().as_bytes();
-    let mut report =
-        RefutationReport::new("target.subset_stability", 2.0, 2.0, 0.9, true, true, None, 8);
+    let mut report = RefutationReport::new("target.subset_stability", 2.0, 2.0, 0.9, true, true, None, 8);
     report.scope = Some(antecedent_validate::RefutationScope::WholeTarget { target });
     report.stamp_producer(program);
     result.refutations.push(report);
-    assert!(matches!(
-        certify_result_refutations(&result, &[]),
-        Err(TargetCertificationError::TargetMismatch { .. })
-    ));
+    assert!(matches!(certify_result_refutations(&result, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })));
     let error = result.claim(&contract, &ctx).unwrap_err();
-    assert!(error.to_string().contains("unverified descriptive scope"), "{error}");
+    assert!(error.to_string().contains("modified") || error.to_string().contains("refutation"), "{error}");
 }
 
 #[test]
@@ -243,7 +272,7 @@ fn a_report_on_another_program_does_not_certify_the_result() {
         &ctx,
     )
     .unwrap();
-    assert!(certify_result_refutations(&result, &outcome.run.reports).is_ok());
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
     // The same reports relabelled to a target defined by another program.
     let elsewhere = RefutationTarget::new(
         TargetFamily::ResponseDerivative,
@@ -252,20 +281,37 @@ fn a_report_on_another_program_does_not_certify_the_result() {
         [9; 32],
     )
     .unwrap();
-    let moved: Vec<_> = outcome
-        .run
-        .reports
-        .iter()
-        .cloned()
-        .map(|mut report| {
-            report.target = elsewhere.clone();
-            report
-        })
-        .collect();
+    let mut moved = outcome.clone();
+    for report in &mut moved.run.reports { report.target = elsewhere.clone(); }
     assert!(matches!(
         certify_result_refutations(&result, &moved),
         Err(TargetCertificationError::TargetMismatch { .. })
     ));
+}
+
+#[test]
+fn checked_outcome_binds_actual_data_and_rejects_mutation() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(67);
+    let prepared = prepared(&data, &graph, &ctx);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let (equivalent, _) = fixture(300); // independently allocated, byte-identical
+    let outcome = checked_outcome(&prepared, &result, &equivalent, &ctx);
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let mut modified = outcome.clone();
+    modified.run.reports.clear();
+    assert!(certify_result_refutations(&result, &modified).is_err());
+    assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let (different, _) = fixture(301);
+    let refused = refute_prepared_target(&prepared, &result, PreparedTargetData::Tabular(&different),
+        TargetSuite::Placebo, &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(), &ctx);
+    assert!(matches!(refused, Err(antecedent::CausalError::Conflict { what: "data", .. })));
+    let cancelled = ExecutionContext::for_tests(67);
+    cancelled.cancellation.cancel();
+    let refused = refute_prepared_target(&prepared, &result, PreparedTargetData::Tabular(&equivalent),
+        TargetSuite::Placebo, &TargetRefutationConfig::default(), &TargetRefitOptions::default(), &cancelled);
+    assert!(matches!(refused, Err(antecedent::CausalError::Cancelled { .. })));
 }
 
 /// `z -> t -> y`, `z -> y` over `(z, t, y)` with a deterministic, well-conditioned table.

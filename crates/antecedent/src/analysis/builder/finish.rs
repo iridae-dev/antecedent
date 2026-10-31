@@ -2237,6 +2237,8 @@ fn into_study(exposure: BoundExposure) -> Study {
         latency_mode: execution.latency_mode,
         identification: identification_cache.map(IdentificationCache::Static),
         shared_batch_design: None,
+        retain_response_witnesses: false,
+        temporal_validation_budget: None,
         interference,
     }
 }

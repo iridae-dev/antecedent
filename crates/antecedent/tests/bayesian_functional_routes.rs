@@ -1456,7 +1456,7 @@ fn counterfactual_posterior_has_bayesian_bootstrap_variance() {
         .unwrap()
         .run(&ExecutionContext::for_tests(812))
         .unwrap();
-    let posterior = result.posterior.unwrap();
+    let posterior = result.posterior.as_ref().unwrap();
     let column = posterior.effect_column().unwrap();
     assert!((posterior.summaries.mean[column] - 5.0).abs() < 0.1);
     assert!(

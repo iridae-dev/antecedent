@@ -50,6 +50,7 @@ impl SealedOperation for CheckedBayesianDagAteExecution {
                 self.operation().inference(),
                 result,
                 notes.defers_contract(),
+                ctx,
             )
             .map(Some)
     }
@@ -69,7 +70,7 @@ impl SealedOperation for CheckedBayesianBasisAteExecution {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(data, ctx)?;
         handle
-            .stamp_with_likelihood(data, &self.inference(), result, notes.defers_contract())
+            .stamp_with_likelihood(data, &self.inference(), result, notes.defers_contract(), ctx)
             .map(Some)
     }
 }
@@ -87,7 +88,7 @@ impl SealedOperation for CheckedBayesianBasisCateExecution {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(data, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -104,7 +105,7 @@ impl SealedOperation for CheckedBayesianRobustAteExecution {
         notes: &mut ClickNotes,
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(data, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -131,7 +132,7 @@ impl SealedOperation for CheckedBayesianConditionalOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let result = self.execute(data, ctx)?;
         handle
-            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract())
+            .stamp_with_likelihood(data, self.inference(), result, notes.defers_contract(), ctx)
             .map(Some)
     }
 }
@@ -160,7 +161,7 @@ impl SealedOperation for CheckedGlmAdjustmentOperation {
         }
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_glm(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::GlmAdjustment(Box::new(rebound)));
         result
     }
@@ -187,7 +188,7 @@ impl SealedOperation for CheckedRdOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_rd(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::Rd(Box::new(rebound)));
         result
     }
@@ -207,7 +208,7 @@ impl SealedOperation for CheckedPropensityOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_propensity(data, &rebound, ctx)?;
-        stamp_tabular(handle, data, result, notes)
+        stamp_tabular(handle, data, result, notes, ctx)
     }
 }
 
@@ -225,7 +226,7 @@ impl SealedOperation for CheckedConditionalOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_conditional(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::Conditional(Box::new(rebound)));
         result
     }

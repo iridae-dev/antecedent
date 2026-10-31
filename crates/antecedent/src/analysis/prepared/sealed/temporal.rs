@@ -248,6 +248,7 @@ impl SealedOperation for crate::analysis::execute::CheckedTemporalAdmgOperation 
             call.input,
             &call.handle.plan,
             &mut result,
+            call.ctx,
         )?;
         Ok(Some(result))
     }

@@ -236,7 +236,7 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
     for inference in [InferenceMode::Frequentist, bayesian()] {
         let only = |mask: u64| {
             let result = run(&data, posterior(&[mask], &[1.0]), query.clone(), inference.clone());
-            scalar(result.structural_response.unwrap().conditional_on_identified.as_ref().unwrap())
+            scalar(result.structural_response.as_ref().unwrap().conditional_on_identified.as_ref().unwrap())
         };
         let (value_a, value_b) = (only(direct()), only(adjusted()));
         assert!((value_a - value_b).abs() > 0.1, "atoms must identify different responses");

@@ -51,7 +51,10 @@ impl PreparedStudy {
         refute: RefuteSuite,
         defer: bool,
         result: &mut StudyResult,
+        ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
+        result.executed_input =
+            Some(crate::analysis::target_validation::executed_input_identity(data, ctx)?);
         result.stamp_lowered_program(self.plan.require_lowered(None)?);
         crate::analysis::target_validation::stamp_route_refutations(result);
         if let (DataInput::Tabular(tabular), Some(MissingRoute::Static)) =
@@ -73,6 +76,7 @@ impl PreparedStudy {
         inference: &InferenceMode,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let input = DataInput::Tabular(data.clone());
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
@@ -80,7 +84,7 @@ impl PreparedStudy {
             inference,
             &input,
         );
-        self.stamp_deferrable(&input, result, defer)
+        self.stamp_deferrable(&input, result, defer, ctx)
     }
 
     /// Stamp the contract `result` was executed under on `data`.
@@ -88,8 +92,9 @@ impl PreparedStudy {
         &self,
         data: &DataInput,
         result: StudyResult,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        self.stamp_deferrable(data, result, false)
+        self.stamp_deferrable(data, result, false, ctx)
     }
 
     /// [`Self::stamp`], leaving the contract to the caller when `defer`.
@@ -98,13 +103,16 @@ impl PreparedStudy {
         data: &DataInput,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        // Bind the outer caller input, including when an internal imputation or
+        // refit used a derived table before returning this engine-owned result.
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &self.analysis.settings.inference,
             data,
         );
-        self.bind_executed_contract(data, self.analysis.settings.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, self.analysis.settings.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 
@@ -114,13 +122,14 @@ impl PreparedStudy {
         operation: &CheckedDistributionOperation,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, operation.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 
@@ -130,13 +139,14 @@ impl PreparedStudy {
         operation: &CheckedLinearOperation,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, operation.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 
@@ -451,7 +461,7 @@ impl PreparedStudy {
         // identification. Preserve the class envelope in the public result
         // certificate so completion masses and individual cases remain
         // inspectable just as they are for the ordinary class-aware routes.
-        result.certificate = match &operation.class_proof {
+        result.view.certificate = match &operation.class_proof {
             Some(crate::analysis::checked_conditional::ConditionalClassProof::Pag {
                 cache,
                 ..
@@ -476,7 +486,7 @@ impl PreparedStudy {
                 query: operation.source_query.clone(),
                 graph_class: operation.graph_class(),
             }),
-            None => result.certificate,
+            None => result.view.certificate.take(),
         };
         if let Some(diagnostic) = crate::analysis::helpers::conditional_quantile_grid_diagnostic(
             data,
@@ -495,7 +505,7 @@ impl PreparedStudy {
             result.diagnostics.iter().map(|diagnostic| Arc::clone(&diagnostic.code)).collect();
         if let Some(effect) = result.estimate.as_effect() {
             crate::analysis::execute::push_grid_scalar_cleared(
-                &mut result.diagnostics,
+                &mut result.view.diagnostics,
                 &mut seen,
                 effect,
             );
@@ -617,7 +627,10 @@ impl PreparedStudy {
             self.analysis.declared.population_registry.as_ref(),
             &custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
         Ok(result)
     }
 
@@ -722,7 +735,10 @@ impl PreparedStudy {
             metadata.population_registry,
             metadata.custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
         Ok(result)
     }
 
@@ -732,13 +748,14 @@ impl PreparedStudy {
         operation: &CheckedAipwOperation,
         mut result: StudyResult,
         defer: bool,
+        ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         crate::analysis::execute::push_gaussian_likelihood_disclosure(
             &mut result,
             &operation.inference,
             data,
         );
-        self.bind_executed_contract(data, operation.refute, defer, &mut result)?;
+        self.bind_executed_contract(data, operation.refute, defer, &mut result, ctx)?;
         Ok(result)
     }
 }

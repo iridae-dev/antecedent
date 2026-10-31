@@ -775,6 +775,8 @@ impl super::Study {
         result.stamp_lowered_program(
             physical.require_lowered(crate::analysis::lowering::expected_cell(self))?,
         );
+        result.executed_input =
+            Some(crate::analysis::target_validation::executed_input_identity(data, ctx)?);
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
@@ -1155,6 +1157,10 @@ impl super::Study {
         result.stamp_lowered_program(
             physical.require_lowered(crate::analysis::lowering::expected_cell(self))?,
         );
+        result.executed_input = Some(crate::analysis::target_validation::executed_input_identity(
+            &DataInput::Tabular(data.clone()),
+            ctx,
+        )?);
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
@@ -1980,7 +1986,7 @@ impl super::Study {
             .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
         });
         if let Ok(result) = &mut observed.result {
-            result.performance.native_execution.clone_from(&observed.facts);
+            result.view.performance.native_execution.clone_from(&observed.facts);
         }
         observed
     }
@@ -3258,7 +3264,7 @@ pub(crate) fn push_gaussian_likelihood_disclosure(
         return;
     }
     if let Some(disclosure) = gaussian_likelihood_disclosure(inference, data, result.outcome) {
-        result.diagnostics.push(disclosure);
+        result.view.diagnostics.push(disclosure);
     }
 }
 
@@ -3277,7 +3283,7 @@ pub(crate) fn push_lag_zero_average_effect_disclosure(
     }
     let treatment = average.treatment.raw().to_string();
     let outcome = average.outcome.raw().to_string();
-    result.diagnostics.push(
+    result.view.diagnostics.push(
         Diagnostic::new(
             CODE,
             DiagnosticKind::Scientific,

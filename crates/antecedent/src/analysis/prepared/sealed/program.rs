@@ -78,6 +78,7 @@ impl SealedOperation for CheckedLinearOperation {
             &rebound,
             result,
             notes.defers_contract(),
+            ctx,
         )?;
         notes.record(Rebound::Linear(Box::new(rebound)));
         Ok(Some(result))
@@ -227,6 +228,7 @@ impl SealedOperation for CheckedAipwOperation {
             &rebound,
             result,
             notes.defers_contract(),
+            ctx,
         )?;
         notes.record(Rebound::Aipw(Box::new(rebound)));
         Ok(Some(result))
@@ -266,6 +268,7 @@ impl SealedOperation for CheckedDistributionOperation {
                 &rebound,
                 result,
                 notes.defers_contract(),
+                ctx,
             )
             .map(Some);
         if stamped.is_ok() {
@@ -298,7 +301,7 @@ impl SealedOperation for CheckedFrontDoorOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_frontdoor(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::FrontDoor(Box::new(rebound)));
         result
     }
@@ -327,7 +330,7 @@ impl SealedOperation for CheckedIvOperation {
     ) -> Result<Option<StudyResult>, CausalError> {
         let rebound = self.rebind(data)?;
         let result = handle.execute_checked_iv(data, &rebound, ctx)?;
-        let result = stamp_tabular(handle, data, result, notes);
+        let result = stamp_tabular(handle, data, result, notes, ctx);
         notes.record(Rebound::Iv(Box::new(rebound)));
         result
     }

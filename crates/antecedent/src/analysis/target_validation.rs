@@ -72,11 +72,17 @@ type ColumnReplacements = Vec<(VariableId, Arc<[f64]>)>;
 /// the result at that point were produced by that program for its own target, whatever
 /// suite produced them. A report already stamped keeps its producer.
 pub(crate) fn stamp_route_refutations(result: &mut StudyResult) {
+    if !matches!(&result.authority, crate::result::RuntimeRefutationAuthority::Fresh) {
+        return;
+    }
     if let Some(program) = result.lowered_identity {
         let program = *program.as_bytes();
         for report in &mut result.refutations {
             report.stamp_producer(program);
         }
+        // Repeated binding is common, but must never bless edits to a previously
+        // issued result. Only a checked follow-up operation can issue anew.
+        let _ = seal_runtime_refutations(result, crate::result::RuntimeRefutationOrigin::Route);
     }
 }
 
@@ -394,6 +400,279 @@ pub fn result_target_values(
     Ok((family, labels, values))
 }
 
+/// Internal stable selector for one actual point-producing temporal class member.
+/// Enumeration position is deliberately not part of the identity.
+#[derive(Clone, Debug)]
+struct TemporalResponseMemberSelector {
+    outer_atom: u64,
+    horizon_index: usize,
+    horizon: u32,
+    completion_digest: [u8; 32],
+}
+
+/// Read the exact retained member of a whole-program result. Missing or repeated
+/// identities are refused; a refit is never substituted with another completion.
+fn temporal_response_member_values(
+    result: &StudyResult,
+    selector: &TemporalResponseMemberSelector,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, CausalError> {
+    let Some(posterior) = &result.temporal_posterior_witnesses else {
+        return Err(CausalError::Unsupported {
+            message: "temporal response has no retained completion witnesses",
+        });
+    };
+    let mut visits = u64::try_from(posterior.members.len())
+        .map_err(|_| CausalError::Resource { message: "temporal selector work overflow".into() })?;
+    for member in &posterior.members {
+        visits = visits
+            .checked_add(u64::try_from(member.witnesses.entries.len()).map_err(|_| {
+                CausalError::Resource { message: "temporal selector work overflow".into() }
+            })?)
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal selector work overflow".into(),
+            })?;
+    }
+    budget
+        .charge_work(visits)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    let mut matched = None;
+    for member in &posterior.members {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal response selector" });
+        }
+        if member.outer_atom != selector.outer_atom {
+            continue;
+        }
+        for witness in &member.witnesses.entries {
+            if witness.horizon_index != selector.horizon_index
+                || witness.horizon != selector.horizon
+                || witness.completion_digest != selector.completion_digest
+            {
+                continue;
+            }
+            if matched.is_some() {
+                return Err(CausalError::Unsupported {
+                    message: "temporal response completion identity is ambiguous",
+                });
+            }
+            let atom = member.structural.atoms.get(witness.atom_index).ok_or(
+                CausalError::Unsupported {
+                    message: "temporal response completion witness has no fitted atom",
+                },
+            )?;
+            let values = match atom.value.as_ref() {
+                Some(ResponseValue::Scalar(value)) => vec![*value],
+                Some(ResponseValue::Surface { mean, .. }) if mean.len() == 1 => mean.to_vec(),
+                Some(ResponseValue::Vector(values)) if values.len() == 1 => values.to_vec(),
+                _ => {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal response completion has no point-level target",
+                    });
+                }
+            };
+            if values.iter().any(|value| !value.is_finite()) {
+                return Err(CausalError::Unsupported {
+                    message: "temporal response completion target is not finite",
+                });
+            }
+            matched = Some(values);
+        }
+    }
+    matched.ok_or(CausalError::Unsupported {
+        message: "temporal response refit omitted the original completion",
+    })
+}
+
+fn same_temporal_point_layout(
+    a: &crate::result::StructuralResponseAtom,
+    b: &crate::result::StructuralResponseAtom,
+) -> bool {
+    if a.status != b.status {
+        return false;
+    }
+    match (&a.response, &b.response) {
+        (Some(x), Some(y))
+            if x.support.status == y.support.status
+                && x.support.point_status == y.support.point_status => {}
+        _ => return false,
+    }
+    match (&a.value, &b.value) {
+        (Some(ResponseValue::Scalar(_)), Some(ResponseValue::Scalar(_))) => true,
+        (Some(ResponseValue::Vector(x)), Some(ResponseValue::Vector(y))) => x.len() == y.len(),
+        (
+            Some(ResponseValue::Surface { grid: x, dimension: dx, mean: mx }),
+            Some(ResponseValue::Surface { grid: y, dimension: dy, mean: my }),
+        ) => {
+            dx == dy
+                && mx.len() == my.len()
+                && x.len() == y.len()
+                && x.iter().zip(y.iter()).all(|(a, b)| a.to_bits() == b.to_bits())
+        }
+        _ => false,
+    }
+}
+
+fn check_temporal_response_contributors(
+    original: &StudyResult,
+    refitted: &StudyResult,
+    budget: &mut antecedent_core::TemporalBudget,
+    include_zero: bool,
+    ctx: &ExecutionContext,
+) -> Result<(), TargetRefitError> {
+    let eligible = |weight: f64| include_zero || weight > 0.0;
+    let Some(before) = &original.temporal_posterior_witnesses else {
+        return Ok(());
+    };
+    let expected = original.structural_response.as_ref().map_or(0, |mixture| {
+        mixture.atoms.iter().filter(|atom| eligible(atom.weight) && atom.value.is_some()).count()
+    });
+    let before_count = before.members.iter().filter(|member| eligible(member.outer_weight)).count();
+    if expected != before_count || expected == 0 {
+        return Err(unsupported(
+            "original result did not retain every contributing posterior member",
+            "refit with complete point-time completion witnesses",
+        ));
+    }
+    let after = refitted.temporal_posterior_witnesses.as_ref().ok_or_else(|| {
+        unsupported(
+            "refit omitted temporal response witnesses",
+            "refit with the same completion coverage",
+        )
+    })?;
+    if before_count != after.members.iter().filter(|member| eligible(member.outer_weight)).count() {
+        return Err(unsupported(
+            "refit changed the contributing posterior members",
+            "refit with the same completion coverage",
+        ));
+    }
+    let count = u64::try_from(before.members.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "posterior witness count overflow".into() })
+    })?;
+    let work = count.checked_mul(count).and_then(|n| n.checked_mul(2)).ok_or_else(|| {
+        failed(&CausalError::Resource { message: "posterior witness comparison overflow".into() })
+    })?;
+    budget
+        .charge_work(work)
+        .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+    for a in before.members.iter().filter(|member| eligible(member.outer_weight)) {
+        let point_atoms = a
+            .structural
+            .atoms
+            .iter()
+            .filter(|atom| eligible(atom.weight) && atom.value.is_some())
+            .count();
+        let captured =
+            a.witnesses.entries.iter().filter(|witness| eligible(witness.weight)).count();
+        if captured == 0 || point_atoms != captured {
+            return Err(unsupported(
+                "original member did not retain every fitted completion",
+                "refit with complete point-time completion witnesses",
+            ));
+        }
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled {
+                stage: "temporal response contributors",
+            }));
+        }
+        if before
+            .members
+            .iter()
+            .filter(|member| eligible(member.outer_weight) && member.outer_atom == a.outer_atom)
+            .count()
+            != 1
+        {
+            return Err(unsupported(
+                "ambiguous original posterior member",
+                "refit with unique member identities",
+            ));
+        }
+        let mut matches = after
+            .members
+            .iter()
+            .filter(|member| eligible(member.outer_weight) && member.outer_atom == a.outer_atom);
+        let b = matches.next().ok_or_else(|| {
+            unsupported(
+                "refit omitted a posterior member",
+                "refit with the same completion coverage",
+            )
+        })?;
+        if matches.next().is_some()
+            || a.outer_weight.to_bits() != b.outer_weight.to_bits()
+            || captured
+                != b.witnesses.entries.iter().filter(|witness| eligible(witness.weight)).count()
+        {
+            return Err(unsupported(
+                "refit changed a posterior member or its weight",
+                "refit with unique member identities and weights",
+            ));
+        }
+        let n = u64::try_from(a.witnesses.entries.len()).map_err(|_| {
+            failed(&CausalError::Resource { message: "completion witness count overflow".into() })
+        })?;
+        budget
+            .charge_work(n.checked_mul(n).and_then(|count| count.checked_mul(2)).ok_or_else(
+                || {
+                    failed(&CausalError::Resource {
+                        message: "completion witness comparison overflow".into(),
+                    })
+                },
+            )?)
+            .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+        for x in a.witnesses.entries.iter().filter(|witness| eligible(witness.weight)) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled {
+                    stage: "temporal response contributors",
+                }));
+            }
+            let same = |y: &&crate::result::TemporalResponseWitness| {
+                eligible(y.weight)
+                    && y.horizon_index == x.horizon_index
+                    && y.horizon == x.horizon
+                    && y.completion_digest == x.completion_digest
+            };
+            if a.witnesses.entries.iter().filter(same).count() != 1 {
+                return Err(unsupported(
+                    "ambiguous original completion",
+                    "refit with unique completion identities",
+                ));
+            }
+            let mut matches = b.witnesses.entries.iter().filter(same);
+            let y = matches.next().ok_or_else(|| {
+                unsupported("refit omitted a completion", "refit with the same completion coverage")
+            })?;
+            if matches.next().is_some() || x.weight.to_bits() != y.weight.to_bits() {
+                return Err(unsupported(
+                    "refit changed a completion identity or weight",
+                    "refit with the same member identities and weights",
+                ));
+            }
+            let left = a.structural.atoms.get(x.atom_index).ok_or_else(|| {
+                unsupported("original completion has no fitted atom", "refit the original program")
+            })?;
+            let right = b.structural.atoms.get(y.atom_index).ok_or_else(|| {
+                unsupported("refit completion has no fitted atom", "refit the original program")
+            })?;
+            if !same_temporal_point_layout(left, right) {
+                return Err(unsupported(
+                    "refit changed completion coordinates, support, or identification",
+                    "refit on the same supported coordinates",
+                ));
+            }
+        }
+    }
+    if original.structural_response.as_ref().and_then(|v| v.aggregation_policy)
+        != refitted.structural_response.as_ref().and_then(|v| v.aggregation_policy)
+    {
+        return Err(unsupported(
+            "refit changed the structural aggregation policy",
+            "refit under the same aggregation policy",
+        ));
+    }
+    Ok(())
+}
+
 /// Quadrant of `result`: its data classification, retained structure for multiple
 /// environments, and whether it carries a posterior.
 #[must_use]
@@ -446,6 +725,46 @@ pub fn result_refutation_target(result: &StudyResult) -> Result<RefutationTarget
         .map_err(CausalError::from)
 }
 
+/// A pooled result is a new target, not the first completed-table result.
+/// Do not carry its first-table checks forward as evidence for that target.
+pub(crate) fn reset_pooled_refutations(result: &mut StudyResult) {
+    if !result.refutations.is_empty() {
+        result.view.refutations.clear();
+        result.view.diagnostics.push(antecedent_core::Diagnostic::new(
+            "refute.imputation.withheld",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "completed-table refutations are withheld for the pooled estimate",
+        ));
+    }
+    result.authority = crate::result::RuntimeRefutationAuthority::Fresh;
+}
+
+// This is an in-process owner state, never reconstructed from serialized fields.
+// The result view invalidates it before giving a mutable reference to public
+// target/identification/report state; no recursive caller-owned query is hashed.
+pub(super) fn seal_runtime_refutations(
+    result: &mut StudyResult,
+    origin: crate::result::RuntimeRefutationOrigin,
+) -> Result<(), CausalError> {
+    if result.lowered_program_identity().is_some() {
+        result.authority =
+            crate::result::RuntimeRefutationAuthority::Sealed { origin, owner: Arc::new(()) };
+    }
+    Ok(())
+}
+
+pub(super) fn validate_runtime_refutation_proof(result: &StudyResult) -> Result<(), CausalError> {
+    match &result.authority {
+        crate::result::RuntimeRefutationAuthority::Sealed { .. } => Ok(()),
+        crate::result::RuntimeRefutationAuthority::Fresh if result.refutations.is_empty() => Ok(()),
+        _ => Err(CausalError::Conflict {
+            what: "refutations",
+            detail: "checked result was modified or reports lack an issued binding",
+        }),
+    }
+}
+
 /// Refuse refutations `result` carries that its own program did not produce, when its target
 /// is not the scalar average effect.
 ///
@@ -463,6 +782,38 @@ pub fn result_refutation_target(result: &StudyResult) -> Result<RefutationTarget
 pub(crate) fn refuse_scalar_refutations_for_result(
     result: &StudyResult,
 ) -> Result<(), TargetCertificationError> {
+    use crate::result::{RuntimeRefutationAuthority, RuntimeRefutationOrigin};
+    match &result.authority {
+        RuntimeRefutationAuthority::Invalidated => {
+            return Err(TargetCertificationError::TargetMismatch {
+                refuter: Arc::from("modified result"),
+                claim_target: "executed result".to_owned(),
+                report_target: "modified target or report vector".to_owned(),
+                next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
+            });
+        }
+        RuntimeRefutationAuthority::Fresh if !result.refutations.is_empty() => {
+            return Err(TargetCertificationError::TargetMismatch {
+                refuter: Arc::from("unissued refutation"),
+                claim_target: "executed result".to_owned(),
+                report_target: "caller-declared report".to_owned(),
+                next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
+            });
+        }
+        RuntimeRefutationAuthority::Sealed { origin: RuntimeRefutationOrigin::Route, .. }
+            if result.response().is_some()
+                && result.structural_response.is_some()
+                && !result.refutations.is_empty() =>
+        {
+            return Err(TargetCertificationError::TargetMismatch {
+                refuter: Arc::from("class response"),
+                claim_target: "whole-result target".to_owned(),
+                report_target: "per-completion route checks".to_owned(),
+                next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
+            });
+        }
+        _ => {}
+    }
     // Scope metadata is descriptive until the checked-operation authority is
     // retained and verified. A same-program stamp cannot make it authoritative.
     if let Some(report) = result.refutations.iter().find(|report| report.scope.is_some()) {
@@ -503,20 +854,30 @@ pub(crate) fn refuse_scalar_refutations_for_result(
 /// average-effect refutations for a target that is not that scalar.
 pub fn certify_result_refutations(
     result: &StudyResult,
-    reports: &[TargetRefutationReport],
+    outcome: &TargetRefutationOutcome,
 ) -> Result<TargetCertificate, TargetCertificationError> {
     refuse_scalar_refutations_for_result(result)?;
+    let owner = match &result.authority {
+        crate::result::RuntimeRefutationAuthority::Sealed { owner, .. } => Some(owner),
+        _ => None,
+    };
+    if !owner.zip(outcome.owner.as_ref()).is_some_and(|(a, b)| Arc::ptr_eq(a, b)) {
+        return Err(TargetCertificationError::TargetMismatch {
+            refuter: Arc::from("target operation"),
+            claim_target: "executed result".to_owned(),
+            report_target: "unissued, modified, or foreign target outcome".to_owned(),
+            next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
+        });
+    }
     let claim = result_refutation_target(result).map_err(|error| {
         TargetCertificationError::TargetMismatch {
-            refuter: Arc::from(reports.first().map_or("none", TargetRefutationReport::refuter)),
+            refuter: Arc::from("target operation"),
             claim_target: format!("undefined ({error})"),
-            report_target: reports
-                .first()
-                .map_or_else(String::new, |report| report.target.identity_hex()),
+            report_target: String::new(),
             next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
         }
     })?;
-    certify_target_refutations(&claim, reports)
+    certify_target_refutations(&claim, &outcome.run.reports)
 }
 
 /// Declared controls and settings of a prepared target refutation.
@@ -1051,14 +1412,34 @@ pub enum PreparedTargetData<'a> {
 }
 
 /// Plan, reports, refusals and certificate of one prepared target refutation.
+/// Readable target-native outputs. Mutable access invalidates checked authority.
 #[derive(Clone, Debug, PartialEq)]
-pub struct TargetRefutationOutcome {
+pub struct TargetRefutationOutcomeView {
     /// The plan attached to the result's lowered program.
     pub plan: TargetRefutationPlan,
     /// Reports and refusals.
     pub run: TargetRefutationRun,
     /// The reports, bound to the result's target.
     pub certificate: TargetCertificate,
+}
+
+/// A checked prepared-operation outcome. Its private owner is not deserializable.
+#[derive(Clone, Debug)]
+pub struct TargetRefutationOutcome {
+    view: TargetRefutationOutcomeView,
+    owner: Option<Arc<()>>,
+}
+impl std::ops::Deref for TargetRefutationOutcome {
+    type Target = TargetRefutationOutcomeView;
+    fn deref(&self) -> &Self::Target {
+        &self.view
+    }
+}
+impl std::ops::DerefMut for TargetRefutationOutcome {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.owner = None;
+        &mut self.view
+    }
 }
 
 /// Run the target-native suite of `result` through `prepared`.
@@ -1085,6 +1466,8 @@ pub fn refute_prepared_target(
     options: &TargetRefitOptions,
     ctx: &ExecutionContext,
 ) -> Result<TargetRefutationOutcome, CausalError> {
+    let checked = checked_refutation_input(result, data, ctx)?;
+    let owner = Arc::clone(&checked.owner);
     let target = result_refutation_target(result)?;
     let (_, _, original) = result_target_values(result)?;
     // An attribution has no treatment; its stability refuters never read one, so the
@@ -1120,6 +1503,10 @@ pub fn refute_prepared_target(
         result,
         data,
         target: target.clone(),
+        member: None,
+        temporal_budget: prepared.study().temporal_validation_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        }),
         original,
         treatment,
         outcome: result.outcome,
@@ -1131,7 +1518,98 @@ pub fn refute_prepared_target(
     let run = run_target_plan(&plan, &refit, config, ctx)?;
     let certificate = certify_target_refutations(&target, &run.reports)
         .map_err(|error| CausalError::Compile { message: error.to_string() })?;
-    Ok(TargetRefutationOutcome { plan, run, certificate })
+    Ok(TargetRefutationOutcome {
+        view: TargetRefutationOutcomeView { plan, run, certificate },
+        owner: Some(owner),
+    })
+}
+
+// Run a scoped member's actual level target through full-program refits. The
+// selector comes from the point-time witness retained by this same operation.
+pub(super) fn refute_temporal_response_member(
+    prepared: &PreparedStudy,
+    result: &StudyResult,
+    data: PreparedTargetData<'_>,
+    outer_atom: u64,
+    witness: &crate::result::TemporalResponseWitness,
+    suite: TargetSuite,
+    config: &TargetRefutationConfig,
+    checked: &CheckedRefutationInput<'_>,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(antecedent_validate::RefutationScope, TargetRefutationRun), CausalError> {
+    if !matches!(&result.authority, crate::result::RuntimeRefutationAuthority::Sealed { owner, .. } if Arc::ptr_eq(owner, &checked.owner))
+    {
+        return Err(CausalError::Conflict {
+            what: "result",
+            detail: "the checked refutation input belongs to another result",
+        });
+    }
+    let source = result.lowered_program_identity().ok_or(CausalError::Unsupported {
+        message: "scoped temporal refutation requires the producing lowered program",
+    })?;
+    let lowered = prepared.plan().lowered().ok_or(CausalError::Unsupported {
+        message: "scoped temporal refutation requires a lowered prepared program",
+    })?;
+    if lowered.semantic_identity() != Some(source) {
+        return Err(CausalError::Conflict {
+            what: "program",
+            detail: "the result and scoped refit have different lowered programs",
+        });
+    }
+    let selector = TemporalResponseMemberSelector {
+        outer_atom,
+        horizon_index: witness.horizon_index,
+        horizon: witness.horizon,
+        completion_digest: witness.completion_digest,
+    };
+    let original = temporal_response_member_values(result, &selector, budget, ctx)?;
+    let prefix = format!(
+        "scope:v1:temporal_class_completion:{}:{}:{}:{}",
+        outer_atom,
+        witness.horizon_index,
+        witness.horizon,
+        antecedent_core::identity::to_hex(&witness.completion_digest)
+    );
+    let labels = (0..original.len()).map(|i| format!("{prefix}|coordinate[{i}]"));
+    let target = RefutationTarget::new(
+        TargetFamily::TemporalEffect,
+        result_quadrant(result),
+        labels,
+        *source.as_bytes(),
+    )
+    .map_err(CausalError::from)?;
+    let treatment = result.treatment.ok_or(CausalError::Unsupported {
+        message: "scoped temporal response requires a treatment",
+    })?;
+    let plan = TargetRefutationPlan::for_target(target.clone(), suite);
+    let refit = PreparedRefit {
+        prepared,
+        result,
+        data,
+        target: target.clone(),
+        member: Some(selector),
+        temporal_budget: budget.clone(),
+        original,
+        treatment,
+        outcome: result.outcome,
+        options: TargetRefitOptions::default(),
+        replicates: config.replicates,
+        alpha: config.alpha,
+        curve: std::cell::OnceCell::new(),
+    };
+    let run = run_target_plan(&plan, &refit, config, ctx)?;
+    // Checked target certification also rejects any report naming another target.
+    certify_target_refutations(&target, &run.reports)
+        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+    let scope = antecedent_validate::RefutationScope::TemporalClassCompletion {
+        outer_atom,
+        horizon_index: witness.horizon_index,
+        horizon: witness.horizon,
+        completion_digest: witness.completion_digest,
+        target,
+    };
+    Ok((scope, run))
 }
 
 impl PreparedStudy {
@@ -1160,6 +1638,321 @@ impl PreparedStudy {
     }
 }
 
+// Compare caller-supplied observations against the immutable input actually
+// retained by this execution. Content scanning is chunked, cancellable and
+// admitted; schema strings are compared in bounded chunks.
+fn same_bytes(a: &[u8], b: &[u8], ctx: &ExecutionContext) -> Result<bool, CausalError> {
+    if a.len() != b.len() {
+        return Ok(false);
+    }
+    for (a, b) in a.chunks(4096).zip(b.chunks(4096)) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "refutation input identity" });
+        }
+        if a != b {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn same_schema(
+    a: &antecedent_core::CausalSchema,
+    b: &antecedent_core::CausalSchema,
+    ctx: &ExecutionContext,
+) -> Result<bool, CausalError> {
+    if a.len() != b.len() {
+        return Ok(false);
+    }
+    for (x, y) in a.variables().iter().zip(b.variables()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "refutation input identity" });
+        }
+        if x.id != y.id
+            || x.value_type != y.value_type
+            || x.role_hints != y.role_hints
+            || x.category_domain != y.category_domain
+            || x.measurement.noisy != y.measurement.noisy
+            || !same_bytes(x.name.as_bytes(), y.name.as_bytes(), ctx)?
+        {
+            return Ok(false);
+        }
+        for (left, right) in
+            [(&x.unit, &y.unit), (&x.measurement.description, &y.measurement.description)]
+        {
+            match (left, right) {
+                (None, None) => {}
+                (Some(left), Some(right))
+                    if same_bytes(left.as_bytes(), right.as_bytes(), ctx)? => {}
+                _ => return Ok(false),
+            }
+        }
+    }
+    Ok(true)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ExecutedInputKind {
+    Tabular,
+    Temporal,
+    Event,
+    Panel,
+    MultiEnv,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExecutedInputPart {
+    schema: antecedent_core::CausalSchema,
+    digest: [u8; 32],
+    time: Option<antecedent_data::TimeIndex>,
+    unit_id: Option<u32>,
+}
+
+#[derive(Debug)]
+struct ExecutedInputParts {
+    parts: Vec<ExecutedInputPart>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
+#[derive(Clone, Debug)]
+enum ExecutedInputStorage {
+    Single(ExecutedInputPart),
+    Segmented(Arc<ExecutedInputParts>),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExecutedInputIdentity {
+    kind: ExecutedInputKind,
+    storage: ExecutedInputStorage,
+}
+impl ExecutedInputIdentity {
+    fn parts(&self) -> &[ExecutedInputPart] {
+        match &self.storage {
+            ExecutedInputStorage::Single(part) => std::slice::from_ref(part),
+            ExecutedInputStorage::Segmented(parts) => &parts.parts,
+        }
+    }
+}
+
+fn input_digest(
+    storage: &antecedent_data::OwnedColumnarStorage,
+    ctx: &ExecutionContext,
+) -> Result<[u8; 32], CausalError> {
+    storage.content_digest_with_context(ctx).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "refutation input identity" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })
+}
+
+pub(crate) fn executed_input_identity(
+    data: &DataInput,
+    ctx: &ExecutionContext,
+) -> Result<ExecutedInputIdentity, CausalError> {
+    let part = |storage: &antecedent_data::OwnedColumnarStorage,
+                time: Option<antecedent_data::TimeIndex>,
+                unit_id: Option<u32>|
+     -> Result<ExecutedInputPart, CausalError> {
+        Ok(ExecutedInputPart {
+            schema: storage.schema().clone(),
+            digest: input_digest(storage, ctx)?,
+            time,
+            unit_id,
+        })
+    };
+    let (kind, storage) = match data {
+        DataInput::Tabular(table) => (
+            ExecutedInputKind::Tabular,
+            ExecutedInputStorage::Single(part(table.storage(), None, None)?),
+        ),
+        DataInput::Temporal(series) => (
+            ExecutedInputKind::Temporal,
+            ExecutedInputStorage::Single(part(
+                series.storage(),
+                Some(series.time_index().clone()),
+                None,
+            )?),
+        ),
+        DataInput::Event(series) => (
+            ExecutedInputKind::Event,
+            ExecutedInputStorage::Single(part(
+                series.storage(),
+                Some(series.time_index().clone()),
+                None,
+            )?),
+        ),
+        DataInput::Panel(panel) => {
+            let count = panel.units().len();
+            let bytes = u64::try_from(count)
+                .ok()
+                .and_then(|n| n.checked_mul(256))
+                .and_then(|n| n.checked_add(512))
+                .ok_or_else(|| CausalError::Resource {
+                    message: "input identity size overflow".into(),
+                })?;
+            let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    CausalError::Cancelled { stage: "refutation input identity" }
+                }
+                other => CausalError::Resource { message: other.to_string() },
+            })?;
+            let mut parts = Vec::new();
+            parts
+                .try_reserve_exact(count)
+                .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+            for unit in panel.units() {
+                parts.push(part(
+                    unit.series.storage(),
+                    Some(unit.series.time_index().clone()),
+                    Some(unit.unit_id),
+                )?);
+            }
+            (
+                ExecutedInputKind::Panel,
+                ExecutedInputStorage::Segmented(Arc::new(ExecutedInputParts {
+                    parts,
+                    _lease: lease,
+                })),
+            )
+        }
+        DataInput::MultiEnv(multi) => {
+            let count = multi.environments().len();
+            let bytes = u64::try_from(count)
+                .ok()
+                .and_then(|n| n.checked_mul(256))
+                .and_then(|n| n.checked_add(512))
+                .ok_or_else(|| CausalError::Resource {
+                    message: "input identity size overflow".into(),
+                })?;
+            let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                antecedent_core::execution::AdmissionError::Cancelled => {
+                    CausalError::Cancelled { stage: "refutation input identity" }
+                }
+                other => CausalError::Resource { message: other.to_string() },
+            })?;
+            let mut parts = Vec::new();
+            parts
+                .try_reserve_exact(count)
+                .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+            for series in multi.environments() {
+                parts.push(part(series.storage(), Some(series.time_index().clone()), None)?);
+            }
+            (
+                ExecutedInputKind::MultiEnv,
+                ExecutedInputStorage::Segmented(Arc::new(ExecutedInputParts {
+                    parts,
+                    _lease: lease,
+                })),
+            )
+        }
+    };
+    Ok(ExecutedInputIdentity { kind, storage })
+}
+
+fn same_part(
+    part: &ExecutedInputPart,
+    storage: &antecedent_data::OwnedColumnarStorage,
+    time: Option<&antecedent_data::TimeIndex>,
+    unit_id: Option<u32>,
+    ctx: &ExecutionContext,
+) -> Result<bool, CausalError> {
+    Ok(part.unit_id == unit_id
+        && part.time.as_ref() == time
+        && same_schema(&part.schema, storage.schema(), ctx)?
+        && part.digest == input_digest(storage, ctx)?)
+}
+
+fn same_executed_input(
+    original: &ExecutedInputIdentity,
+    supplied: PreparedTargetData<'_>,
+    ctx: &ExecutionContext,
+) -> Result<bool, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "refutation input identity" });
+    }
+    match (original.kind, supplied) {
+        (ExecutedInputKind::Tabular, PreparedTargetData::Tabular(table)) => {
+            Ok(original.parts().len() == 1
+                && same_part(&original.parts()[0], table.storage(), None, None, ctx)?)
+        }
+        (
+            ExecutedInputKind::Temporal | ExecutedInputKind::Event,
+            PreparedTargetData::Series(series),
+        ) => Ok(original.parts().len() == 1
+            && same_part(
+                &original.parts()[0],
+                series.storage(),
+                Some(series.time_index()),
+                None,
+                ctx,
+            )?),
+        (ExecutedInputKind::Panel, PreparedTargetData::Panel(panel)) => {
+            if original.parts().len() != panel.units().len() {
+                return Ok(false);
+            }
+            for (part, unit) in original.parts().iter().zip(panel.units()) {
+                if !same_part(
+                    part,
+                    unit.series.storage(),
+                    Some(unit.series.time_index()),
+                    Some(unit.unit_id),
+                    ctx,
+                )? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        (ExecutedInputKind::MultiEnv, PreparedTargetData::MultiEnv(multi)) => {
+            if original.parts().len() != multi.environments().len() {
+                return Ok(false);
+            }
+            for (part, series) in original.parts().iter().zip(multi.environments()) {
+                if !same_part(part, series.storage(), Some(series.time_index()), None, ctx)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// Borrow-scoped capability issued only after comparing actual execution input.
+pub(super) struct CheckedRefutationInput<'a> {
+    owner: Arc<()>,
+    _result: std::marker::PhantomData<&'a StudyResult>,
+}
+
+pub(super) fn checked_refutation_input<'a>(
+    result: &'a StudyResult,
+    data: PreparedTargetData<'_>,
+    ctx: &ExecutionContext,
+) -> Result<CheckedRefutationInput<'a>, CausalError> {
+    validate_runtime_refutation_proof(result)?;
+    let owner = match &result.authority {
+        crate::result::RuntimeRefutationAuthority::Sealed { owner, .. } => Arc::clone(owner),
+        _ => {
+            return Err(CausalError::Conflict {
+                what: "result",
+                detail: "target refutation requires an unmodified engine-produced result",
+            });
+        }
+    };
+    let actual = result.executed_input.as_ref().ok_or(CausalError::Conflict {
+        what: "data",
+        detail: "the executed observations were not retained for target refutation",
+    })?;
+    if !same_executed_input(actual, data, ctx)? {
+        return Err(CausalError::Conflict {
+            what: "data",
+            detail: "the refit observations differ from those that produced the result",
+        });
+    }
+    Ok(CheckedRefutationInput { owner, _result: std::marker::PhantomData })
+}
+
 /// Data of one refit, owned.
 enum Modal {
     Tabular(TabularData),
@@ -1179,6 +1972,8 @@ struct PreparedRefit<'a> {
     result: &'a StudyResult,
     data: PreparedTargetData<'a>,
     target: RefutationTarget,
+    member: Option<TemporalResponseMemberSelector>,
+    temporal_budget: antecedent_core::TemporalBudget,
     original: Vec<f64>,
     treatment: VariableId,
     outcome: VariableId,
@@ -1663,7 +2458,7 @@ impl PreparedRefit<'_> {
             Modal::MultiEnv(data) => self.prepared.estimate_multi_env(data, ctx),
         }
         .map_err(|error| failed(&error))?;
-        self.read_back(&refitted)
+        self.read_back(&refitted, ctx)
     }
 
     fn reestimate_materialised_series(
@@ -1676,7 +2471,7 @@ impl PreparedRefit<'_> {
             .prepared
             .estimate_series_with_provenance(data, provenance, ctx)
             .map_err(|error| failed(&error))?;
-        self.read_back(&result)
+        self.read_back(&result, ctx)
     }
 
     fn reestimate_gathered_series(
@@ -1700,11 +2495,36 @@ impl PreparedRefit<'_> {
             .prepared
             .estimate_series_with_provenance(data, Some(&provenance), ctx)
             .map_err(|error| failed(&error))?;
-        self.read_back(&result)
+        self.read_back(&result, ctx)
     }
 
     /// The refitted target vector, in the original coordinate order.
-    fn read_back(&self, refitted: &StudyResult) -> Result<Vec<f64>, TargetRefitError> {
+    fn read_back(
+        &self,
+        refitted: &StudyResult,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let mut budget = self.temporal_budget.clone();
+        check_temporal_response_contributors(
+            self.result,
+            refitted,
+            &mut budget,
+            self.member.is_some(),
+            ctx,
+        )?;
+        if let Some(selector) = &self.member {
+            let values = temporal_response_member_values(refitted, selector, &mut budget, ctx)
+                .map_err(|error| match error {
+                    CausalError::Cancelled { .. } | CausalError::Resource { .. } => failed(&error),
+                    _ => unsupported(error.to_string(), "refit the original completion"),
+                })?;
+            if values.len() != self.target.labels().len() {
+                return Err(TargetRefitError::Failed(ValidationError::estimation_msg(
+                    "the refitted completion reports a different target dimension",
+                )));
+            }
+            return Ok(values);
+        }
         let (family, labels, values) =
             result_target_values(refitted).map_err(|error| failed(&error))?;
         if family != self.target.family() || labels.as_slice() != self.target.labels() {
@@ -2281,7 +3101,7 @@ impl PreparedRefit<'_> {
                 "a route that admits an extra declared covariate",
             )
         })?;
-        self.read_back(&refitted)
+        self.read_back(&refitted, ctx)
     }
 
     fn tabular_refit(
@@ -4193,6 +5013,14 @@ impl TargetRefit for PreparedRefit<'_> {
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
+        if self.result.temporal_posterior_witnesses.is_some()
+            && matches!(perturbation, TargetPerturbation::RandomCommonCause { .. })
+        {
+            return Err(unsupported(
+                "the added common cause changes completion identity",
+                "a scoped projection that maps the augmented graph to the original completion",
+            ));
+        }
         match self.data {
             PreparedTargetData::Tabular(data) => self.tabular_refit(data, perturbation, rng, ctx),
             PreparedTargetData::Series(data) => self.series_refit(data, perturbation, rng, ctx),

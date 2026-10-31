@@ -19,6 +19,9 @@ const CHUNK: usize = 64 * 1024;
 struct Encoder {
     hasher: blake3::Hasher,
     buf: Vec<u8>,
+    cancellation: Option<antecedent_core::execution::CancellationToken>,
+    direct: bool,
+    stopped: bool,
     /// Hasher `update` calls, observed by the bulk-hashing test.
     #[cfg(test)]
     updates: usize,
@@ -29,8 +32,32 @@ impl Encoder {
         Self {
             hasher: blake3::Hasher::new_derive_key("antecedent.data.storage.v1"),
             buf: Vec::with_capacity(CHUNK),
+            cancellation: None,
+            direct: false,
+            stopped: false,
             #[cfg(test)]
             updates: 0,
+        }
+    }
+
+    fn new_direct(cancellation: antecedent_core::execution::CancellationToken) -> Self {
+        Self {
+            hasher: blake3::Hasher::new_derive_key("antecedent.data.storage.v1"),
+            buf: Vec::new(),
+            cancellation: Some(cancellation),
+            direct: true,
+            stopped: false,
+            #[cfg(test)]
+            updates: 0,
+        }
+    }
+
+    fn poll(&mut self) -> bool {
+        if self.stopped || self.cancellation.as_ref().is_some_and(|token| token.is_cancelled()) {
+            self.stopped = true;
+            false
+        } else {
+            true
         }
     }
 
@@ -52,19 +79,46 @@ impl Encoder {
     }
 
     fn put(&mut self, bytes: &[u8]) {
-        if self.buf.len() + bytes.len() > CHUNK {
-            self.flush();
-        }
-        if bytes.len() >= CHUNK {
-            self.update(bytes);
-        } else {
-            self.buf.extend_from_slice(bytes);
+        for chunk in bytes.chunks(CHUNK) {
+            if !self.poll() {
+                return;
+            }
+            if self.direct {
+                self.update(chunk);
+                continue;
+            }
+            if self.buf.len() + chunk.len() > CHUNK {
+                self.flush();
+            }
+            if chunk.len() >= CHUNK {
+                self.update(chunk);
+            } else {
+                self.buf.extend_from_slice(chunk);
+            }
         }
     }
 
     /// Stage fixed-width little-endian words without one hasher call per value.
     fn words<const W: usize, T: Copy>(&mut self, values: &[T], to_le: impl Fn(T) -> [u8; W]) {
         for chunk in values.chunks(CHUNK / W) {
+            if !self.poll() {
+                return;
+            }
+            if self.direct {
+                // A fixed stack buffer retains bulk hashing without charging a
+                // per-result heap allocation or changing the canonical stream.
+                let mut bytes = [0u8; 4096];
+                for group in chunk.chunks(4096 / W) {
+                    if !self.poll() {
+                        return;
+                    }
+                    for (slot, &value) in bytes.chunks_exact_mut(W).zip(group) {
+                        slot.copy_from_slice(&to_le(value));
+                    }
+                    self.update(&bytes[..group.len() * W]);
+                }
+                continue;
+            }
             if self.buf.len() + chunk.len() * W > CHUNK {
                 self.flush();
             }
@@ -135,6 +189,9 @@ impl Encoder {
                 self.put(&c.domain.id.raw().to_le_bytes());
                 self.len(c.domain.levels.len());
                 for level in c.domain.levels.iter() {
+                    if !self.poll() {
+                        return;
+                    }
                     self.string(&level.label);
                 }
                 self.byte(u8::from(c.domain.ordered));
@@ -177,6 +234,42 @@ pub(crate) fn storage_digest(
     encode_storage(columns, row_count, mask, weights).finish()
 }
 
+/// Hash a supplied immutable storage under its actual operation context. The
+/// The direct stream uses no heap staging buffer and polls cancellation per chunk.
+pub(crate) fn storage_digest_with_context(
+    columns: &[OwnedColumn],
+    row_count: usize,
+    mask: Option<&ValidityBitmap>,
+    weights: Option<&[f64]>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<[u8; 32], antecedent_core::execution::AdmissionError> {
+    use antecedent_core::execution::AdmissionError;
+    if ctx.cancellation.is_cancelled() {
+        return Err(AdmissionError::Cancelled);
+    }
+    let mut encoder = Encoder::new_direct(ctx.cancellation.clone());
+    encoder.len(row_count);
+    encoder.len(columns.len());
+    for column in columns {
+        if !encoder.poll() {
+            return Err(AdmissionError::Cancelled);
+        }
+        encoder.column(column.as_view());
+    }
+    encoder.byte(u8::from(mask.is_some()));
+    if let Some(mask) = mask {
+        encoder.bitmap(mask);
+    }
+    encoder.byte(u8::from(weights.is_some()));
+    if let Some(weights) = weights {
+        encoder.floats(weights);
+    }
+    if !encoder.poll() {
+        return Err(AdmissionError::Cancelled);
+    }
+    Ok(encoder.finish())
+}
+
 fn encode_storage(
     columns: &[OwnedColumn],
     row_count: usize,
@@ -209,6 +302,28 @@ mod tests {
     };
     use antecedent_core::{CategoryDomainId, VariableId};
     use std::sync::Arc;
+
+    #[test]
+    fn context_digest_matches_legacy_bytes_and_honors_cancellation() {
+        use crate::TableView;
+        let data = crate::testing::float_series(300, 2);
+        let storage = data.storage();
+        let expected = storage_digest(
+            storage.columns(),
+            storage.row_count(),
+            storage.analysis_mask(),
+            storage.weights(),
+        );
+        let ctx = antecedent_core::ExecutionContext::for_tests(17);
+        assert_eq!(storage.content_digest_with_context(&ctx).unwrap(), expected);
+        let again = crate::testing::float_series(300, 2);
+        let cancelled = antecedent_core::ExecutionContext::for_tests(17);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            again.storage().content_digest_with_context(&cancelled),
+            Err(antecedent_core::execution::AdmissionError::Cancelled)
+        ));
+    }
 
     fn hash(column: OwnedColumn) -> [u8; 32] {
         storage_digest(&[column], 2, None, None)

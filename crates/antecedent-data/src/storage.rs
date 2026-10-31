@@ -132,6 +132,31 @@ impl OwnedColumnarStorage {
         })
     }
 
+    /// Compute or reuse the content identity with the caller's admission and cancellation.
+    ///
+    /// # Errors
+    /// Cancellation while streaming the storage contents.
+    pub fn content_digest_with_context(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<[u8; 32], antecedent_core::execution::AdmissionError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_core::execution::AdmissionError::Cancelled);
+        }
+        if let Some(digest) = self.content_digest.get() {
+            return Ok(*digest);
+        }
+        let digest = crate::content_identity::storage_digest_with_context(
+            &self.columns,
+            self.row_count,
+            self.analysis_mask.as_ref(),
+            self.weights.as_deref(),
+            ctx,
+        )?;
+        let _ = self.content_digest.set(digest);
+        Ok(digest)
+    }
+
     /// Whether the digest has been computed yet (laziness probe).
     #[cfg(test)]
     pub(crate) fn digest_is_computed(&self) -> bool {

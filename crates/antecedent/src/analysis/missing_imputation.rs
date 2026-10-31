@@ -433,6 +433,7 @@ where
     let mut missing = missing_data::report(MissingRoute::Static, true, covariates, accounting);
     missing.imputation = Some(report);
     result.extras.missing_data = Some(missing);
+    crate::analysis::target_validation::reset_pooled_refutations(&mut result);
     Ok(result)
 }
 

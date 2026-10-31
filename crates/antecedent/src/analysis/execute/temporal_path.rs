@@ -2214,6 +2214,8 @@ impl super::Study {
             diagnostics: Vec::new(),
             observation_atoms: Vec::new(),
             witness_sites: Vec::new(),
+            checked_witnesses: Vec::new(),
+            checked_witness_leases: Vec::new(),
         };
         let mut class_weights = TemporalClassWeights::new(self.declared.class_prior.as_ref());
         for (horizon_index, &horizon) in temporal.horizons.iter().enumerate() {
@@ -2230,6 +2232,29 @@ impl super::Study {
             run.diagnostics.push(temporal_class_envelope_diagnostic(envelope, self.graph.class()));
             let weights = class_weights.for_envelope(&bundle.envelope)?;
             run.assembly.begin_horizon(envelope);
+            if self.retain_response_witnesses {
+                // Fund the potential witness entries, growth copy, lease vector and
+                // shared owner before either vector may allocate.
+                let count = u64::try_from(envelope.cases.len()).map_err(|_| CausalError::Resource {
+                    message: "class response witness count overflow".into(),
+                })?;
+                let existing = u64::try_from(run.checked_witnesses.len()).map_err(|_| CausalError::Resource { message: "class response witness count overflow".into() })?;
+                let owned_bytes = count.checked_mul(256).and_then(|n| n.checked_add(256)).ok_or_else(|| CausalError::Resource { message: "class response witness bytes overflow".into() })?;
+                let transient_bytes = count.checked_add(existing).and_then(|n| n.checked_mul(256)).and_then(|n| n.checked_add(256)).ok_or_else(|| CausalError::Resource { message: "class response witness growth overflow".into() })?;
+                if owned_bytes > budget.limits().max_bytes || transient_bytes > budget.limits().max_bytes {
+                    return Err(CausalError::Resource { message: "class response witness byte limit".into() });
+                }
+                let admit = |bytes| ctx.acquire_admission(0, bytes).map_err(|error| match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => CausalError::Cancelled { stage: "class response witnesses" },
+                    other => CausalError::Resource { message: other.to_string() },
+                });
+                let lease = admit(owned_bytes)?;
+                let transient = admit(transient_bytes)?;
+                run.checked_witnesses.try_reserve_exact(envelope.cases.len()).map_err(|error| CausalError::Resource { message: error.to_string() })?;
+                run.checked_witness_leases.try_reserve_exact(1).map_err(|error| CausalError::Resource { message: error.to_string() })?;
+                drop(transient);
+                run.checked_witness_leases.push(lease);
+            }
             let mut fits = ClassResponseHorizonFits::default();
             for (case_index, (case, indexer)) in
                 envelope.cases.iter().zip(bundle.envelope.indexers.iter()).enumerate()
@@ -2238,6 +2263,7 @@ impl super::Study {
                     &sweep,
                     &mut run,
                     &mut fits,
+                    budget,
                     ClassResponseSite {
                         horizon_index,
                         horizon,
@@ -2261,6 +2287,7 @@ impl super::Study {
         sweep: &ClassResponseSweep<'_>,
         run: &mut ClassResponseRun,
         fits: &mut ClassResponseHorizonFits,
+        budget: &mut antecedent_core::TemporalBudget,
         site: ClassResponseSite<'_>,
     ) -> Result<(), CausalError> {
         let ClassResponseSweep { data, query, temporal, .. } = *sweep;
@@ -2334,6 +2361,43 @@ impl super::Study {
             horizon,
             response,
         )?;
+        if self.retain_response_witnesses {
+            if sweep.ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "class response witnesses" });
+            }
+            let nodes = match &case.graph {
+                antecedent_identify::TemporalCompletionGraph::Dag(graph) => graph.node_count(),
+                antecedent_identify::TemporalCompletionGraph::Mag(graph) => graph.node_count(),
+            };
+            let nodes = u64::try_from(nodes).map_err(|_| CausalError::Resource { message: "completion digest size overflow".into() })?;
+            // First fund and perform a bounded edge count. Every subsequent
+            // successor scan visits at most all nodes and both adjacency entries
+            // of each marked edge; there are at most edges + 1 scans.
+            let initial = nodes.checked_mul(nodes).and_then(|n| n.checked_add(nodes)).and_then(|n| n.checked_add(1))
+                .ok_or_else(|| CausalError::Resource { message: "completion digest work overflow".into() })?;
+            budget.charge_work(initial).map_err(|error| CausalError::Resource { message: error.to_string() })?;
+            let mut edges = 0u64;
+            let mut count_edge = || -> Result<(), CausalError> {
+                if sweep.ctx.cancellation.is_cancelled() { return Err(CausalError::Cancelled { stage: "class response witnesses" }); }
+                edges = edges.checked_add(1).ok_or_else(|| CausalError::Resource { message: "completion edge count overflow".into() })?;
+                Ok(())
+            };
+            match &case.graph {
+                antecedent_identify::TemporalCompletionGraph::Dag(graph) => for _ in graph.edges() { count_edge()?; },
+                antecedent_identify::TemporalCompletionGraph::Mag(graph) => for _ in graph.edges_lazy() { count_edge()?; },
+            }
+            let scan = edges.checked_mul(2).and_then(|e| e.checked_add(nodes)).and_then(|n| n.checked_add(1))
+                .ok_or_else(|| CausalError::Resource { message: "completion digest work overflow".into() })?;
+            let work = scan.checked_mul(edges.checked_add(1).ok_or_else(|| CausalError::Resource { message: "completion digest work overflow".into() })?)
+                .and_then(|w| nodes.checked_mul(nodes).and_then(|n| w.checked_add(n)))
+                .ok_or_else(|| CausalError::Resource { message: "completion digest work overflow".into() })?;
+            budget.charge_work(work).map_err(|error| CausalError::Resource { message: error.to_string() })?;
+            let digest = case.graph.digest_without_allocation(&|| sweep.ctx.cancellation.is_cancelled())
+                .ok_or(CausalError::Cancelled { stage: "class response witnesses" })?;
+            run.checked_witnesses.push(crate::result::TemporalResponseWitness {
+                horizon_index, horizon, atom_index, weight, completion_digest: digest,
+            });
+        }
         if !matches!(self.settings.refute, RefuteSuite::None)
             && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
         {
@@ -2464,6 +2528,8 @@ impl super::Study {
             mut diagnostics,
             observation_atoms,
             witness_sites,
+            checked_witnesses,
+            checked_witness_leases,
         } = run;
         // A class intervention level's cheap/full suite is the per-completion,
         // per-horizon Pulse-witness refuter state (unlicensed).
@@ -2561,6 +2627,11 @@ impl super::Study {
             estimate_provenance: None,
         });
         result.predictive_checks = predictive_checks;
+        if self.retain_response_witnesses {
+            result.temporal_response_witnesses = Some(Arc::new(crate::result::TemporalResponseWitnessSet {
+                entries: checked_witnesses, _leases: checked_witness_leases,
+            }));
+        }
         Ok(result)
     }
 
@@ -7721,6 +7792,8 @@ struct ClassResponseRun {
     /// Pulse witnesses of the evaluated completions, kept when an intervention level
     /// runs its cheap/full refuter state.
     witness_sites: Vec<super::temporal_response_refutation::PulseWitnessSite>,
+    checked_witnesses: Vec<crate::result::TemporalResponseWitness>,
+    checked_witness_leases: Vec<antecedent_core::execution::AdmissionLease>,
 }
 
 /// Completions given the same estimand, indexer, status and assumptions run

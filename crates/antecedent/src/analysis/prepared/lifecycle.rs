@@ -355,7 +355,7 @@ impl PreparedStudy {
             )
         });
         if let Ok(result) = &mut observed.result {
-            result.performance.native_execution.clone_from(&observed.facts);
+            result.view.performance.native_execution.clone_from(&observed.facts);
         }
         observed.result
     }
@@ -436,7 +436,7 @@ impl PreparedStudy {
         self.replace_study(refreshed);
         self.score_table = scores;
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     /// Install a click's rebound operation. Out of line so the refresh frame
@@ -537,6 +537,11 @@ impl PreparedStudy {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.ensure_schema_compatible(data)?;
+        let _checked = crate::analysis::target_validation::checked_refutation_input(
+            prior,
+            crate::analysis::target_validation::PreparedTargetData::Tabular(data),
+            ctx,
+        )?;
         if let CausalQuery::Mediation(query) = &self.analysis.query {
             return self.refute_mediation(prior, data, suite, query, ctx);
         }
@@ -603,7 +608,7 @@ impl PreparedStudy {
 
         let mut out = prior.clone();
         out.refutations = reports;
-        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
         out.diagnostics.extend(na_diagnostics);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
@@ -681,10 +686,10 @@ impl PreparedStudy {
         )?;
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
         let mut out = prior.clone();
-        out.refutations = validated.refutations;
-        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.refutations);
-        out.predictive_checks = validated.predictive_checks;
-        out.posterior = validated.posterior;
+        out.refutations = validated.view.refutations;
+        crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
+        out.predictive_checks = validated.view.predictive_checks;
+        out.posterior = validated.view.posterior;
         // A suite whose cell executes unlicensed (the Bayesian intervention-level
         // refuter state) must not inherit the licensed status of the estimate.
         let suite_cell = crate::support::support_cell_named(
@@ -740,7 +745,12 @@ impl PreparedStudy {
         } else {
             None
         };
-        // The second click ran this handle's own program on its own result.
+        // Only a checked same-execution second click may replace an issued report
+        // vector. Validate the supplied prior before issuing the new binding.
+        crate::analysis::target_validation::validate_runtime_refutation_proof(prior)?;
+        if same_execution {
+            out.authority = crate::result::RuntimeRefutationAuthority::Fresh;
+        }
         crate::analysis::target_validation::stamp_route_refutations(&mut out);
         Ok(out)
     }
@@ -854,7 +864,7 @@ impl PreparedStudy {
                 input.clone(),
                 ctx,
             )?;
-            return self.stamp(&input, result);
+            return self.stamp(&input, result, ctx);
         }
         let mut refit_study = None;
         if provenance.is_some() && crate::analysis::functional_validation::requested(&self.analysis)
@@ -894,7 +904,7 @@ impl PreparedStudy {
             &self.analysis,
             &mut result,
         );
-        self.stamp(&input, result)
+        self.stamp(&input, result, ctx)
     }
 
     /// The series click under a declared multiple imputation: the retained operation runs on
@@ -985,10 +995,10 @@ impl PreparedStudy {
                 input.clone(),
                 ctx,
             )?;
-            return self.stamp(&input, result);
+            return self.stamp(&input, result, ctx);
         }
         let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
-        self.stamp(&input, result)
+        self.stamp(&input, result, ctx)
     }
 
     /// Replace retained panel data and re-estimate without re-identifying.
@@ -1023,7 +1033,7 @@ impl PreparedStudy {
         let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     /// Re-estimate a prepared multi-environment temporal analysis (no re-identify).
@@ -1048,10 +1058,10 @@ impl PreparedStudy {
                 input.clone(),
                 ctx,
             )?;
-            return self.stamp(&input, result);
+            return self.stamp(&input, result, ctx);
         }
         let result = self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?;
-        self.stamp(&input, result)
+        self.stamp(&input, result, ctx)
     }
 
     /// Replace retained multi-environment data and re-estimate without re-identifying.
@@ -1086,7 +1096,7 @@ impl PreparedStudy {
         let result = refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?;
         self.replace_study(refreshed);
         let data = self.analysis.data.clone();
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     fn ensure_multi_env_compatible(
@@ -1199,7 +1209,7 @@ impl PreparedStudy {
         // changed input, so nothing is invalidated.
         let snapshot_after = self.contract().ok().map(|contract| contract.identities.data_snapshot);
         if snapshot_before.is_some() && snapshot_before == snapshot_after {
-            return self.stamp(&data, result);
+            return self.stamp(&data, result, ctx);
         }
         // A refreshed series is a new observation period of the same declared study: the
         // graph, query, history, horizon, cadence and initial law are unchanged (the schema
@@ -1216,7 +1226,7 @@ impl PreparedStudy {
             false,
             "series period replaced on refresh",
         );
-        self.stamp(&data, result)
+        self.stamp(&data, result, ctx)
     }
 
     /// The prepared temporal products each refreshed period invalidated, one log entry per

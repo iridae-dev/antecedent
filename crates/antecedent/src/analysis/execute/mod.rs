@@ -190,6 +190,10 @@ pub struct Study {
     pub(crate) interference: Option<super::builder::InterferenceSpec>,
     /// Shared fold assignment / covariate design when this study is part of a batch.
     pub(crate) shared_batch_design: Option<Arc<super::batch::SharedBatchDesign>>,
+    /// Internal request to retain point-time class completion witnesses for checked refits.
+    pub(crate) retain_response_witnesses: bool,
+    /// Shared operational work budget of the checked temporal validation.
+    pub(crate) temporal_validation_budget: Option<antecedent_core::TemporalBudget>,
     /// Per-click declarations a rebinding may replace.
     pub(crate) declared: StudyDeclarations,
     /// Inference, refutation and resampling choices of this analysis.

@@ -156,7 +156,7 @@ impl PreparedStudy {
                 input.clone(),
                 ctx,
             )?;
-            return self.stamp(&input, result);
+            return self.stamp(&input, result, ctx);
         }
         // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
         // which plan it was for and, for a rank refusal, which columns are dependent on the
@@ -169,7 +169,7 @@ impl PreparedStudy {
             .map_err(|error| self.name_stats_refusal(data, error, ctx))
         });
         if let Ok(result) = &mut observed.result {
-            result.performance.native_execution.clone_from(&observed.facts);
+            result.view.performance.native_execution.clone_from(&observed.facts);
         }
         observed.result
     }
@@ -230,6 +230,23 @@ impl PreparedStudy {
                 self.estimate_click(table, shared.cloned(), ctx, &mut inner)
             },
         )?;
+        // Pooling reuses a completed-table result; its reports and owner do not
+        // certify the pooled estimate or the original incomplete data.
+        if !result.refutations.is_empty() {
+            result.view.refutations.clear();
+            result.view.diagnostics.push(antecedent_core::Diagnostic::new(
+                "refute.imputation.withheld",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "completed-table refutations are withheld for the pooled estimate",
+            ));
+        }
+        result.executed_input = Some(crate::analysis::target_validation::executed_input_identity(
+            &DataInput::Tabular(data.clone()),
+            ctx,
+        )?);
+        result.authority = crate::result::RuntimeRefutationAuthority::Fresh;
+        crate::analysis::target_validation::stamp_route_refutations(&mut result);
         if !notes.defers_contract() {
             result.executed_contract = Some(self.executed_contract(
                 &DataInput::Tabular(data.clone()),
@@ -290,7 +307,7 @@ impl PreparedStudy {
         )?;
         notes.rebound = rebound.map(Rebound::Dispatch);
         notes.scores = click_scores;
-        self.stamp_deferrable(&click_analysis.data, result, notes.defers_contract())
+        self.stamp_deferrable(&click_analysis.data, result, notes.defers_contract(), ctx)
     }
 
     /// Rebind the row-bound dispatch receipts to `data`. Boxed and built out

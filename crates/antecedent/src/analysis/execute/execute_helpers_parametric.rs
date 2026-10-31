@@ -995,7 +995,7 @@ fn finish_identified_execute_with_context(
     // executed query (certificates, artifacts) needs its bindings.
     result.population_registry.clone_from(&context.population_registry);
     if !is_quantile {
-        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
     }
     if let Some(data) = tabular_data {
         super::helpers::attach_tiered_evalue_for_cell(
@@ -1004,7 +1004,7 @@ fn finish_identified_execute_with_context(
             args.outcome,
             is_quantile,
             context.tiered.as_ref(),
-            &mut result.diagnostics,
+            &mut result.view.diagnostics,
         );
     }
     if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) = context.support_status

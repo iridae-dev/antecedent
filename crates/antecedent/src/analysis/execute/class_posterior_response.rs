@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::atom_mix::{ScalarRefuterMix, append_unidentified_atoms, finish_atom_refutations};
+use super::atom_mix::append_unidentified_atoms;
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::response_path::{
     graph_posterior_response_supported, mix_response_values, mix_support_reports,
@@ -15,7 +15,7 @@ use super::{
     EstimationWorkspace, EstimatorId, ExecutionContext, GraphPosterior, IdentificationResult,
     IdentificationStatus, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
     IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, OverlapPolicy,
-    PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional,
+    PhysicalExecutionPlan, PosteriorMassSummary, RefuteSuite, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, Study,
     StudyResult, TableView, TabularData, VariableId, bayesian_gcomp, elapsed_ns,
     identification_status_ok_for_case, identify_cached_diagnostic, provenance_ids,
@@ -38,7 +38,14 @@ struct ClassAtomResponseEval {
     atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
     point_weights: Vec<f64>,
     scores_expected: bool,
-    plugin_levels: Vec<(f64, IdentifiedEstimand, f64, antecedent_core::AssumptionSet)>,
+    plugin_levels: Vec<(
+        f64,
+        [u8; 32],
+        IdentificationStatus,
+        IdentifiedEstimand,
+        f64,
+        antecedent_core::AssumptionSet,
+    )>,
 }
 
 impl super::Study {
@@ -110,6 +117,10 @@ impl super::Study {
                 identified: &identified,
                 evals: &evals,
                 mixed: &mixed,
+                source: physical
+                    .lowered()
+                    .and_then(|p| p.semantic_identity())
+                    .map(|id| *id.as_bytes()),
                 estimator_id,
                 treatment,
                 outcome,
@@ -295,6 +306,7 @@ impl super::Study {
             identified,
             evals,
             mixed,
+            source,
             estimator_id,
             treatment,
             outcome,
@@ -319,6 +331,8 @@ impl super::Study {
                 identified,
                 evals,
                 (treatment, outcome),
+                query,
+                source,
                 ctx,
                 AtomRefutationPolicy {
                     aggregation: mixed.policy,
@@ -353,6 +367,7 @@ struct ClassResponseRefuteInput<'a> {
     identified: &'a CachedGraphPosteriorIdentification,
     evals: &'a [ClassAtomResponseEval],
     mixed: &'a MixedClassPosteriorResponse,
+    source: Option<[u8; 32]>,
     estimator_id: EstimatorId,
     treatment: VariableId,
     outcome: VariableId,
@@ -377,8 +392,13 @@ fn evaluate_class_atom_response_frequentist(
     query: &ResponseQuery,
     atom: &CachedClassPosteriorAtomIdentification,
     options: &antecedent_estimate::ContinuousResponseOptions,
-    _ctx: &ExecutionContext,
+    ctx: &ExecutionContext,
 ) -> Result<ClassAtomResponseEval, CausalError> {
+    // The response estimator reads column validity, not the table analysis mask.
+    // Materialize that mask for the point as well as every subsequent refit.
+    let (selected, _selection_lease) =
+        level_refit_masked_data(data, ctx).map_err(CausalError::from)?;
+    let data = selected.as_ref().unwrap_or(data);
     let mut weighted = Vec::new();
     let mut atom_scores = Vec::new();
     let mut primary_estimand = None;
@@ -430,6 +450,8 @@ fn evaluate_class_atom_response_frequentist(
         if let Some(scalar) = atom_plugin_scalar(&response) {
             plugin_levels.push((
                 case.weight,
+                case.completion_digest,
+                case.status,
                 estimand.clone(),
                 scalar,
                 response.assumptions.clone(),
@@ -473,6 +495,9 @@ fn evaluate_class_atom_response_bayesian(
             ));
         }
     };
+    let (selected, _selection_lease) =
+        level_refit_masked_data(data, ctx).map_err(CausalError::from)?;
+    let data = selected.as_ref().unwrap_or(data);
     let mut weighted = Vec::new();
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
@@ -521,6 +546,8 @@ fn evaluate_class_atom_response_bayesian(
             // point. Posterior uncertainty remains attached to the response itself.
             plugin_levels.push((
                 case.weight,
+                case.completion_digest,
+                case.status,
                 estimand.clone(),
                 scalar,
                 response.assumptions.clone(),
@@ -943,21 +970,365 @@ fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {
     }
 }
 
+/// Refit the same intervention *level* and response procedure on perturbed rows.
+#[derive(Clone, Copy)]
+struct StaticResponseLevelRefit<'a> {
+    study: &'a Study,
+    query: &'a ResponseQuery,
+    estimand: &'a IdentifiedEstimand,
+    status: IdentificationStatus,
+    assumptions: &'a antecedent_core::AssumptionSet,
+    operational: Option<&'a std::cell::RefCell<Option<antecedent_validate::ValidationError>>>,
+}
+
+impl std::fmt::Debug for StaticResponseLevelRefit<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StaticResponseLevelRefit").finish_non_exhaustive()
+    }
+}
+
+/// Convert an analysis mask into column validity for the response estimator,
+/// which reads column validity but does not consume the table analysis mask.
+/// The admission covers copied float buffers, validity maps and storage metadata.
+fn level_refit_masked_data(
+    data: &TabularData,
+    ctx: &ExecutionContext,
+) -> Result<
+    (Option<TabularData>, Option<antecedent_core::execution::AdmissionLease>),
+    antecedent_validate::ValidationError,
+> {
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
+    use antecedent_validate::ValidationError;
+    let Some(mask) = data.storage().analysis_mask() else {
+        return Ok((None, None));
+    };
+    if ctx.cancellation.is_cancelled() {
+        return Err(ValidationError::Cancelled);
+    }
+    let rows = u64::try_from(data.row_count()).map_err(|_| ValidationError::Resource {
+        message: "level-refit row count overflow".into(),
+    })?;
+    let cols = u64::try_from(data.storage().columns().len()).map_err(|_| {
+        ValidationError::Resource { message: "level-refit column count overflow".into() }
+    })?;
+    let bytes = rows
+        .checked_mul(cols)
+        .and_then(|v| v.checked_mul(16))
+        .and_then(|v| rows.checked_mul(8).and_then(|r| v.checked_add(r)))
+        .and_then(|v| cols.checked_mul(512).and_then(|c| v.checked_add(c)))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| ValidationError::Resource {
+            message: "level-refit mask admission overflow".into(),
+        })?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ValidationError::Cancelled,
+        other => ValidationError::Resource { message: other.to_string() },
+    })?;
+    let mut columns = Vec::with_capacity(data.storage().columns().len());
+    for column in data.storage().columns() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ValidationError::Cancelled);
+        }
+        let original = column.as_view().validity();
+        let mut keep = Vec::with_capacity(data.row_count());
+        for row in 0..data.row_count() {
+            if row % 256 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ValidationError::Cancelled);
+            }
+            keep.push(mask.is_valid(row) && original.is_valid(row));
+        }
+        let validity = ValidityBitmap::from_bools(&keep);
+        let selected = match column.clone() {
+            OwnedColumn::Float64(column) => {
+                OwnedColumn::Float64(Float64Column::new(column.id, column.values, validity)?)
+            }
+            OwnedColumn::Int64(mut column) => {
+                column.validity = validity;
+                OwnedColumn::Int64(column)
+            }
+            OwnedColumn::Boolean(mut column) => {
+                column.validity = validity;
+                OwnedColumn::Boolean(column)
+            }
+            // The response estimator cannot coerce these types; keep their
+            // payloads and metadata intact rather than rewriting them.
+            OwnedColumn::Categorical(column) => OwnedColumn::Categorical(column),
+            OwnedColumn::Timestamp(column) => OwnedColumn::Timestamp(column),
+            OwnedColumn::FixedVector(column) => OwnedColumn::FixedVector(column),
+        };
+        columns.push(selected);
+    }
+    let storage = OwnedColumnarStorage::try_new(
+        data.storage().schema().clone(),
+        columns,
+        None,
+        data.storage().weights().map(Arc::from),
+    )?;
+    Ok((Some(TabularData::new(storage)), Some(lease)))
+}
+
+impl StaticResponseLevelRefit<'_> {
+    fn refit_inner(
+        &self,
+        data: &TabularData,
+        extras: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, antecedent_validate::ValidationError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(antecedent_validate::ValidationError::Cancelled);
+        }
+        if !extras.is_empty() {
+            return Err(antecedent_validate::ValidationError::NotApplicable {
+                message: "additional nuisance variables are not licensed for this intervention-level refit",
+            });
+        }
+        let (selected, _selection_lease) = level_refit_masked_data(data, ctx)?;
+        let data = selected.as_ref().unwrap_or(data);
+        let mut estimator =
+            ContinuousResponseEstimator::new(Arc::clone(&self.estimand.adjustment_set));
+        estimator.options = self.study.response_options.clone().unwrap_or_default();
+        let response = match &self.study.settings.inference {
+            InferenceMode::Frequentist => estimator.estimate_identified(
+                data,
+                self.query,
+                self.status,
+                self.assumptions.clone(),
+            ),
+            InferenceMode::Bayesian(config) => {
+                let mut bayes = bayesian_gcomp(config, ctx);
+                bayes.prior.clone_from(&config.prior);
+                estimator.estimate_bayesian(
+                    data,
+                    self.query,
+                    self.status,
+                    self.assumptions.clone(),
+                    &bayes,
+                    ctx,
+                )
+            }
+        }
+        .map_err(antecedent_validate::ValidationError::from)?;
+        let value = atom_plugin_scalar(&response).ok_or_else(|| {
+            antecedent_validate::ValidationError::estimation_msg(
+                "intervention-level refit did not produce a finite scalar",
+            )
+        })?;
+        Ok(EffectEstimate::new(
+            value,
+            f64::NAN,
+            self.assumptions.clone(),
+            OverlapPolicy::ExplicitOverride,
+        ))
+    }
+}
+
+impl antecedent_validate::common::EffectRefit for StaticResponseLevelRefit<'_> {
+    fn static_bootstrap_uses_witness_columns(&self) -> bool {
+        true
+    }
+
+    fn refit(
+        &self,
+        data: &TabularData,
+        extras: &[VariableId],
+        ctx: &ExecutionContext,
+    ) -> Result<EffectEstimate, antecedent_validate::ValidationError> {
+        let result = self.refit_inner(data, extras, ctx);
+        if let (Err(error), Some(latch)) = (&result, self.operational) {
+            let classified = CausalError::from(error.clone());
+            if matches!(classified, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
+                *latch.borrow_mut() = Some(error.clone());
+            }
+        }
+        result
+    }
+}
+
+/// Drop each adjustment column while refitting the same level on one fixed
+/// complete-case population. The generic GraphRefuter cannot do this through
+/// EffectRefit, whose trait does not receive the reduced estimand.
+fn level_adjustment_sensitivity(
+    refitter: &StaticResponseLevelRefit<'_>,
+    data: &TabularData,
+    original: &EffectEstimate,
+    treatment: VariableId,
+    outcome: VariableId,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError> {
+    use antecedent_validate::common::EffectRefit;
+    use antecedent_validate::{RefutationReport, ValidationError};
+    let adjustments = &refitter.estimand.adjustment_set;
+    if !refitter.estimand.is_adjustment_shaped() {
+        return Err(ValidationError::NotApplicable {
+            message: "adjustment drop requires an adjustment-shaped estimand",
+        });
+    }
+    if adjustments.is_empty() {
+        return Ok(RefutationReport::new(
+            "adjustment.drop_covariate",
+            original.ate,
+            original.ate,
+            0.0,
+            false,
+            true,
+            None,
+            0,
+        ));
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(ValidationError::Cancelled);
+    }
+    let n = u64::try_from(data.row_count()).map_err(|_| ValidationError::Resource {
+        message: "level adjustment row count overflow".into(),
+    })?;
+    let columns = u64::try_from(data.storage().columns().len()).map_err(|_| {
+        ValidationError::Resource { message: "level adjustment column count overflow".into() }
+    })?;
+    let adjusted = u64::try_from(adjustments.len()).map_err(|_| ValidationError::Resource {
+        message: "level adjustment count overflow".into(),
+    })?;
+    let bytes = n
+        .checked_mul(40)
+        .and_then(|v| columns.checked_mul(512).and_then(|c| v.checked_add(c)))
+        .and_then(|v| adjusted.checked_mul(64).and_then(|a| v.checked_add(a)))
+        .and_then(|v| v.checked_add(4096))
+        .ok_or_else(|| ValidationError::Resource {
+            message: "level adjustment scratch admission overflow".into(),
+        })?;
+    let _scratch = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => ValidationError::Cancelled,
+        other => ValidationError::Resource { message: other.to_string() },
+    })?;
+    let mut ids = vec![treatment, outcome];
+    for &id in adjustments.iter() {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    let mut mask = vec![true; data.row_count()];
+    for id in ids {
+        let column = data.column(id)?;
+        for (row, keep) in mask.iter_mut().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(ValidationError::Cancelled);
+            }
+            let finite = match column {
+                antecedent_data::ColumnView::Float64(values) => values.values[row].is_finite(),
+                antecedent_data::ColumnView::Int64(_) | antecedent_data::ColumnView::Boolean(_) => {
+                    true
+                }
+                _ => {
+                    return Err(ValidationError::NotApplicable {
+                        message: "adjustment drop requires numeric fitting columns",
+                    });
+                }
+            };
+            *keep &= column.validity().is_valid(row) && finite;
+        }
+    }
+    if let Some(existing) = data.storage().analysis_mask() {
+        for (row, keep) in mask.iter_mut().enumerate() {
+            if row % 256 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ValidationError::Cancelled);
+            }
+            *keep &= existing.is_valid(row);
+        }
+    }
+    let numeric = |id| -> Result<Vec<f64>, ValidationError> {
+        let column = data.column(id)?;
+        let mut values = Vec::with_capacity(data.row_count());
+        for (row, &keep) in mask.iter().enumerate() {
+            if row % 256 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ValidationError::Cancelled);
+            }
+            if !keep {
+                continue;
+            }
+            let value = match column {
+                antecedent_data::ColumnView::Float64(c) => c.values[row],
+                antecedent_data::ColumnView::Int64(c) => c.values[row] as f64,
+                antecedent_data::ColumnView::Boolean(c) => f64::from(c.values[row]),
+                _ => {
+                    return Err(ValidationError::NotApplicable {
+                        message: "adjustment drop requires numeric treatment and outcome",
+                    });
+                }
+            };
+            values.push(value);
+        }
+        Ok(values)
+    };
+    let sd_t = antecedent_stats::sample_std(&numeric(treatment)?);
+    let sd_y = antecedent_stats::sample_std(&numeric(outcome)?);
+    if !(sd_t.is_finite() && sd_t > 0.0 && sd_y.is_finite() && sd_y > 0.0) {
+        return Err(ValidationError::NotApplicable {
+            message: "adjustment drop requires non-degenerate treatment and outcome",
+        });
+    }
+    let fixed = data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&mask))?;
+    let centre = refitter.refit(&fixed, &[], ctx)?.ate;
+    let floor = 1e-3 * (sd_y / sd_t);
+    let mut worst = 0.0_f64;
+    let mut worst_value = centre;
+    let mut worst_dropped = adjustments[0];
+    for (index, &dropped) in adjustments.iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(ValidationError::Cancelled);
+        }
+        let remaining: Vec<_> = adjustments
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &v)| (i != index).then_some(v))
+            .collect();
+        let reduced = IdentifiedEstimand::new(
+            Arc::clone(&refitter.estimand.method),
+            remaining.into(),
+            Arc::clone(&refitter.estimand.instruments),
+            Arc::clone(&refitter.estimand.mediators),
+            refitter.estimand.functional,
+            refitter.estimand.rd_design,
+        );
+        let altered = StaticResponseLevelRefit { estimand: &reduced, ..*refitter };
+        let value = altered.refit(&fixed, &[], ctx)?.ate;
+        let delta = (value - centre).abs() / centre.abs().max(floor);
+        if delta >= worst {
+            worst = delta;
+            worst_value = value;
+            worst_dropped = dropped;
+        }
+    }
+    let passed = worst < 0.5;
+    Ok(RefutationReport::new("adjustment.drop_covariate", original.ate, worst_value, worst,
+        false, passed, (!passed).then(|| Arc::from(format!("relative intervention-level change {worst} exceeded 0.5 after dropping {worst_dropped:?}"))),
+        u32::try_from(adjustments.len()).unwrap_or(u32::MAX)))
+}
+
 fn plugin_level_on_class_response_atoms(
     study: &Study,
     data: &TabularData,
     identified: &CachedGraphPosteriorIdentification,
     evals: &[ClassAtomResponseEval],
     (treatment, outcome): (VariableId, VariableId),
+    query: &ResponseQuery,
+    source: Option<[u8; 32]>,
     ctx: &ExecutionContext,
     refutation: AtomRefutationPolicy<'_>,
 ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
     let AtomRefutationPolicy { aggregation: policy, estimator } = refutation;
     let suite = study.settings.refute;
     let custom = &study.declared.custom_validators[..];
-    let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+    let source = source.ok_or_else(|| CausalError::Compile {
+        message: "static completion refutation requires its lowered program identity".into(),
+    })?;
+    let mut ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+    if let ResponseFunctional::InterventionResponse { interventions, .. } = &query.functional {
+        if let [action] = interventions.as_ref() {
+            ate_query.active = action.clone();
+        }
+    }
+    ate_query.target_population = query.target_population.clone();
     let mut refute_ws = EstimationWorkspace::default();
-    let mut per_atom = Vec::new();
+    let mut scoped_reports = Vec::new();
     let mut diagnostics = Vec::new();
     let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
     for eval in evals {
@@ -971,68 +1342,178 @@ fn plugin_level_on_class_response_atoms(
             continue;
         }
         let plugins: Vec<_> =
-            eval.plugin_levels.iter().filter(|(weight, _, _, _)| *weight > 0.0).collect();
-        let raw: Vec<f64> = plugins.iter().map(|(weight, _, _, _)| *weight).collect();
+            eval.plugin_levels.iter().filter(|(weight, _, _, _, _, _)| *weight > 0.0).collect();
         let available: Vec<f64> =
-            eval.plugin_levels.iter().map(|(weight, _, _, _)| *weight).collect();
-        // Refute the same inner mixture as the point, not a successful subset.
-        let complete =
-            super::atom_mix::nested_complete_weights(atom_weight, &eval.point_weights, &available);
+            eval.plugin_levels.iter().map(|(weight, _, _, _, _, _)| *weight).collect();
+        // Incomplete coverage cannot certify the whole mixture; the available
+        // completion reports remain useful, explicitly scoped evidence.
         if matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-            && complete.is_none()
+            && super::atom_mix::nested_complete_weights(
+                atom_weight,
+                &eval.point_weights,
+                &available,
+            )
+            .is_none()
         {
-            return Ok((
-                Vec::new(),
-                vec![Diagnostic::new(
-                    "refute.class_response.incomplete_completions",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Warning,
-                    "aggregate refutation withheld because a point-contributing completion has no scalar refuter input",
-                )],
+            diagnostics.push(Diagnostic::new(
+                "refute.class_response.incomplete_completions", DiagnosticKind::Scientific,
+                DiagnosticSeverity::Warning,
+                "completion reports cover only available refuter inputs and do not certify the aggregate",
             ));
         }
-        let nested = if matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean) {
-            complete
-        } else {
-            super::atom_mix::nested_completion_weights(atom_weight, &raw)
-        };
-        let Some(nested) = nested else {
-            continue;
-        };
-        for ((_, estimand, scalar, assumptions), weight) in plugins.into_iter().zip(nested) {
-            if weight <= 0.0 {
-                continue;
-            }
+        let inner_scale = eval.point_weights.iter().copied().fold(0.0_f64, f64::max);
+        let inner_total = eval.point_weights.iter().map(|w| w / inner_scale).sum::<f64>();
+        for (completion_weight, completion_digest, status, estimand, scalar, assumptions) in plugins
+        {
             let estimate = EffectEstimate::new(
                 *scalar,
                 f64::NAN,
                 assumptions.clone(),
                 OverlapPolicy::ExplicitOverride,
             );
-            let (reports, notes) = RefutationRun {
+            let operational = std::cell::RefCell::new(None);
+            let refitter = StaticResponseLevelRefit {
+                study,
+                query,
+                estimand,
+                status: *status,
+                assumptions,
+                operational: Some(&operational),
+            };
+            let problem = antecedent_validate::RefutationProblem::new(
                 data,
                 estimand,
-                query: &ate_query,
-                estimate: &estimate,
-                suite,
-                estimator,
-                custom,
-                temporal: None,
+                &ate_query,
+                &estimate,
+                Some(estimator),
+                None,
+            )
+            .with_effect_refit(&refitter);
+            let mut validation = match suite {
+                RefuteSuite::None => antecedent_validate::ValidationSuite::new(),
+                RefuteSuite::Cheap | RefuteSuite::PlaceboAndRcc => {
+                    antecedent_validate::ValidationSuite::overlap_only()
+                }
+                RefuteSuite::Full => antecedent_validate::ValidationSuite::new()
+                    .with(antecedent_validate::ValidatorId::Overlap)
+                    .with(antecedent_validate::ValidatorId::OverlapRule)
+                    .with(antecedent_validate::ValidatorId::Bootstrap)
+                    .with(antecedent_validate::ValidatorId::DataSubset),
+            };
+            for validator in custom {
+                validation = validation.with_custom(Arc::clone(validator));
             }
-            .plugin_level(&mut refute_ws, ctx)?;
-            diagnostics.extend(notes);
-            per_atom.push((weight, reports));
+            let outcome_result = validation.run(&problem, &mut refute_ws, ctx);
+            if let Some(error) = operational.borrow_mut().take() {
+                return Err(CausalError::from(error));
+            }
+            let outcomes = outcome_result.map_err(CausalError::from)?;
+            diagnostics.extend(super::validator_not_applicable_diagnostics(&outcomes));
+            let label = format!(
+                "scope:v1:static_class_completion:{}:{}|level",
+                eval.key,
+                antecedent_core::identity::to_hex(completion_digest)
+            );
+            let target = antecedent_validate::RefutationTarget::new(
+                antecedent_validate::TargetFamily::WorldValued,
+                antecedent_validate::TargetQuadrant {
+                    temporal: false,
+                    bayesian: study.settings.inference.is_bayesian(),
+                },
+                [label],
+                source,
+            )
+            .map_err(CausalError::from)?;
+            let scope = antecedent_validate::RefutationScope::StaticClassCompletion {
+                outer_atom: eval.key,
+                completion_digest: *completion_digest,
+                target,
+            };
+            let mut reports = antecedent_validate::ValidationSuite::reports_only(&outcomes);
+            if matches!(suite, RefuteSuite::Full) {
+                match level_adjustment_sensitivity(
+                    &refitter, data, &estimate, treatment, outcome, ctx,
+                ) {
+                    Ok(report) => reports.push(report),
+                    Err(antecedent_validate::ValidationError::NotApplicable { message }) => {
+                        let mut diagnostic = Diagnostic::new(
+                            "refute.validator.not_applicable",
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Info,
+                            message,
+                        );
+                        diagnostic.fields =
+                            Arc::from([(Arc::from("validator"), Arc::from("graph"))]);
+                        diagnostics.push(diagnostic);
+                    }
+                    Err(error) => {
+                        let reason = error.to_string();
+                        let causal = CausalError::from(error);
+                        if matches!(
+                            causal,
+                            CausalError::Cancelled { .. } | CausalError::Resource { .. }
+                        ) {
+                            return Err(causal);
+                        }
+                        let mut diagnostic = Diagnostic::new(
+                            "refute.validator.failed",
+                            DiagnosticKind::Scientific,
+                            DiagnosticSeverity::Warning,
+                            format!("validator graph could not compute a verdict: {reason}"),
+                        );
+                        diagnostic.fields = Arc::from([
+                            (Arc::from("validator"), Arc::from("graph")),
+                            (Arc::from("reason"), Arc::from(reason)),
+                        ]);
+                        diagnostics.push(diagnostic);
+                    }
+                }
+            }
+            for report in &mut reports {
+                if report.scope.as_ref().is_some_and(|existing| existing != &scope) {
+                    return Err(CausalError::Compile {
+                        message:
+                            "validator report scope disagrees with its actual class completion"
+                                .into(),
+                    });
+                }
+                report.scope = Some(scope.clone());
+            }
+            if !reports.is_empty() {
+                let mut provenance = Diagnostic::new(
+                    "refute.class_response.completion_weight",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    "point-producer completion weights are descriptive and do not certify an aggregate",
+                );
+                let conditional_weight = if inner_scale.is_finite()
+                    && inner_scale > 0.0
+                    && inner_total.is_finite()
+                    && inner_total > 0.0
+                    && eval.point_weights.iter().all(|weight| weight.is_finite() && *weight >= 0.0)
+                {
+                    ((*completion_weight / inner_scale) / inner_total).to_string()
+                } else {
+                    "unavailable".to_owned()
+                };
+                provenance.fields = Arc::from([
+                    (Arc::from("outer_atom"), Arc::from(eval.key.to_string())),
+                    (
+                        Arc::from("completion_digest"),
+                        Arc::from(antecedent_core::identity::to_hex(completion_digest)),
+                    ),
+                    (Arc::from("outer_graph_weight"), Arc::from(atom_weight.to_string())),
+                    (Arc::from("completion_weight"), Arc::from(completion_weight.to_string())),
+                    (Arc::from("within_graph_weight"), Arc::from(conditional_weight)),
+                ]);
+                diagnostics.push(provenance);
+            }
+            scoped_reports.extend(reports);
         }
     }
-    let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
-    Ok(finish_atom_refutations(
-        per_atom,
-        diagnostics,
-        mix_scalar,
-        ScalarRefuterMix::Effect,
-        None,
-        false,
-    ))
+    // Each report is a completion-level result. Do not reduce it into an
+    // apparently authoritative whole-target pass.
+    Ok((scoped_reports, diagnostics))
 }
 
 #[cfg(test)]
@@ -1239,6 +1720,390 @@ mod nested_weight_tests {
     }
 
     #[test]
+    fn intervention_level_refit_uses_requested_set_and_shift() {
+        use antecedent_validate::common::EffectRefit;
+        let (_, evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        // Distinct doses identify the unpenalized cubic target spline. Its basis
+        // evaluates outside the observed domain at the endpoint, so the shift
+        // oracle uses the endpoint-clamped dose, not linear extrapolation.
+        let x: Vec<f64> = (0..100).map(|i| i as f64 / 25.0).collect();
+        let max_x = x.last().copied().unwrap();
+        let shift_expected = 10.0 + 2.0 * x.iter().map(|v| (v + 1.0).min(max_x)).sum::<f64>() / x.len() as f64;
+        let y: Vec<f64> = x.iter().map(|v| 10.0 + 2.0 * v).collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let ctx = ExecutionContext::for_tests(1);
+        for (action, expected) in [
+            (Intervention::set(treatment, Value::f64(2.0)), 14.0),
+            (Intervention::shift(treatment, Value::f64(1.0)), shift_expected),
+        ] {
+            let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome,
+                interventions: Arc::from([action]),
+            });
+            let study = Study::tabular(data.clone())
+                .graph(dag.clone())
+                .query(query.clone())
+                .refute(RefuteSuite::None)
+                .build()
+                .unwrap();
+            let refit = StaticResponseLevelRefit {
+                study: &study,
+                query: &query,
+                estimand: evals[1].estimand.as_ref().unwrap(),
+                status: IdentificationStatus::NonparametricallyIdentified,
+                assumptions: &assumptions,
+                operational: None,
+            };
+            let estimate = refit.refit(&data, &[], &ctx).unwrap();
+            assert!((estimate.ate - expected).abs() < 1e-5, "{} != {expected}", estimate.ate);
+            assert!((estimate.ate - 2.0).abs() > 10.0, "not the unit contrast");
+        }
+    }
+
+    #[test]
+    fn level_refit_observes_analysis_mask_and_releases_its_admission() {
+        use antecedent_validate::common::EffectRefit;
+        let (_, evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, v)| if i < 50 { 10.0 + 2.0 * v } else { 100.0 + 2.0 * v })
+            .collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let flags: Vec<bool> = (0..100).map(|i| i < 50).collect();
+        let masked =
+            data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&flags)).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+        });
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let refitter = StaticResponseLevelRefit {
+            study: &study,
+            query: &query,
+            estimand: evals[1].estimand.as_ref().unwrap(),
+            status: IdentificationStatus::NonparametricallyIdentified,
+            assumptions: &assumptions,
+            operational: None,
+        };
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let before = pool.available().bytes();
+        let result = refitter.refit(&masked, &[], &ctx).unwrap();
+        assert!((result.ate - 14.0).abs() < 1e-5);
+        let (cache, _, _, _) = fixture();
+        let mut atom = cache.class_atoms.iter().find(|atom| atom.key == 3).unwrap().clone();
+        atom.cases = Arc::from([crate::analysis::prepared::CachedClassPosteriorCase {
+            completion_digest: [4; 32],
+            weight: 1.0,
+            status: IdentificationStatus::NonparametricallyIdentified,
+            identification: Arc::new(atom.identification.clone()),
+            estimand: Some((*refitter.estimand).clone()),
+        }]);
+        let point = evaluate_class_atom_response_frequentist(
+            &study,
+            &masked,
+            &query,
+            &atom,
+            &antecedent_estimate::ContinuousResponseOptions::default(),
+            &ctx,
+        )
+        .unwrap();
+        let point_value = atom_plugin_scalar(point.response.as_ref().unwrap()).unwrap();
+        assert!(
+            (point_value - result.ate).abs() < 1e-8,
+            "masked point and refit must use identical observations"
+        );
+        assert_eq!(pool.available().bytes(), before);
+        let latch = std::cell::RefCell::new(None);
+        let limited_refitter = StaticResponseLevelRefit { operational: Some(&latch), ..refitter };
+        let limited = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 0));
+        assert!(matches!(
+            limited_refitter.refit(&masked, &[], &limited),
+            Err(antecedent_validate::ValidationError::Resource { .. })
+        ));
+        assert!(matches!(
+            latch.borrow().as_ref(),
+            Some(antecedent_validate::ValidationError::Resource { .. })
+        ));
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            refitter.refit(&masked, &[], &ctx),
+            Err(antecedent_validate::ValidationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn full_suite_bootstrap_refits_sampled_levels_on_selected_rows() {
+        use antecedent_validate::common::EffectRefit;
+        let (_, evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
+        let y: Vec<f64> = x.iter().enumerate().map(|(i, v)| {
+            10.0 + 2.0 * v + (i % 7) as f64 * 0.1 + if i < 50 { 0.0 } else { 1000.0 }
+        }).collect();
+        let data = TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let flags: Vec<bool> = (0..100).map(|i| i < 50).collect();
+        let masked = data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&flags)).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome, interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+        });
+        let study = Study::tabular(data).graph(dag).query(query.clone()).refute(RefuteSuite::None).build().unwrap();
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let refitter = StaticResponseLevelRefit {
+            study: &study, query: &query, estimand: evals[1].estimand.as_ref().unwrap(),
+            status: IdentificationStatus::NonparametricallyIdentified, assumptions: &assumptions, operational: None,
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let original = refitter.refit(&masked, &[], &ctx).unwrap();
+        let witness = antecedent_core::AverageEffectQuery::binary_ate(treatment, outcome);
+        let problem = antecedent_validate::RefutationProblem::new(&masked, refitter.estimand, &witness, &original, Some("linear.adjustment.ate"), None).with_effect_refit(&refitter);
+        let mut workspace = antecedent_estimate::EstimationWorkspace::default();
+        let outcomes = antecedent_validate::ValidationSuite::plugin_level_full().run(&problem, &mut workspace, &ctx).unwrap();
+        let report = outcomes.iter().find_map(|outcome| match outcome {
+            antecedent_validate::ValidationOutcome::Report(report) if report.refuter.as_ref() == "bootstrap.ci_coverage" => Some(report),
+            _ => None,
+        }).expect("static level bootstrap report");
+        assert_eq!(report.replicates, 200);
+        assert!(report.comparison > 0.0, "sampled levels must vary");
+        assert!((13.0..16.0).contains(&report.refuted_ate), "masked-out outcomes must not enter draws: {report:?}");
+    }
+
+    #[test]
+    fn adjustment_drop_refits_the_level_with_the_reduced_adjustment() {
+        let (_, evals, _, _) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let z_id = VariableId::from_raw(2);
+        let z: Vec<f64> = (0..100).map(|i| (i % 2) as f64).collect();
+        let x: Vec<f64> = (0..100).map(|i| 0.5 * z[i] + 0.2 * ((i % 5) as f64 - 2.0)).collect();
+        let y: Vec<f64> = (0..100).map(|i| 10.0 + 2.0 * x[i] + 5.0 * z[i]).collect();
+        let data = TabularData::from_f64_columns([
+            ("t", x.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(0.5))]),
+        });
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let base = evals[1].estimand.as_ref().unwrap();
+        let estimand = IdentifiedEstimand::new(
+            Arc::clone(&base.method),
+            Arc::from([z_id]),
+            Arc::clone(&base.instruments),
+            Arc::clone(&base.mediators),
+            base.functional,
+            base.rd_design,
+        );
+        let assumptions = antecedent_core::AssumptionSet::default();
+        let refitter = StaticResponseLevelRefit {
+            study: &study,
+            query: &query,
+            estimand: &estimand,
+            status: IdentificationStatus::NonparametricallyIdentified,
+            assumptions: &assumptions,
+            operational: None,
+        };
+        let original = antecedent_validate::common::EffectRefit::refit(
+            &refitter,
+            &data,
+            &[],
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        let report = level_adjustment_sensitivity(
+            &refitter,
+            &data,
+            &original,
+            treatment,
+            outcome,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert!(
+            (report.refuted_ate - original.ate).abs() > 0.1,
+            "dropping z must actually change the level"
+        );
+        assert!(report.comparison > 0.0);
+    }
+
+    struct LevelRefitValidator;
+    impl antecedent_validate::CustomEffectValidator for LevelRefitValidator {
+        fn name(&self) -> &str {
+            "test.level_refit"
+        }
+        fn validate(
+            &self,
+            problem: &antecedent_validate::RefutationProblem<'_>,
+            ctx: &ExecutionContext,
+        ) -> Result<antecedent_validate::RefutationReport, antecedent_validate::ValidationError>
+        {
+            let refit = problem.effect_refit.ok_or(
+                antecedent_validate::ValidationError::NotApplicable {
+                    message: "missing level refit",
+                },
+            )?;
+            let value = refit.refit(problem.data, &[], ctx)?.ate;
+            Ok(antecedent_validate::RefutationReport::new(
+                self.name(),
+                problem.original.ate,
+                value,
+                1.0,
+                true,
+                true,
+                None,
+                0,
+            ))
+        }
+    }
+
+    #[test]
+    fn completion_reports_refit_the_level_and_keep_distinct_scopes() {
+        let (cache, mut evals, _, dag) = fixture();
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
+        let y: Vec<f64> = x.iter().map(|v| 10.0 + 2.0 * v).collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+        });
+        for eval in &mut evals {
+            eval.response.as_mut().unwrap().estimate =
+                ResponseIdentification::PointIdentified(ResponseValue::Scalar(14.0));
+            eval.plugin_levels = eval
+                .point_weights
+                .iter()
+                .enumerate()
+                .map(|(index, weight)| {
+                    (
+                        *weight,
+                        [eval.key as u8 + index as u8; 32],
+                        eval.status,
+                        eval.estimand.as_ref().unwrap().clone(),
+                        14.0,
+                        antecedent_core::AssumptionSet::default(),
+                    )
+                })
+                .collect();
+        }
+        let study = Study::tabular(data.clone())
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .custom_validators(vec![Arc::new(LevelRefitValidator)])
+            .build()
+            .unwrap();
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 100, 0.95).unwrap();
+        let (reports, notes) = study
+            .refute_class_graph_posterior_response(
+                ClassResponseRefuteInput {
+                    data: &data,
+                    query: &query,
+                    identified: &cache,
+                    evals: &evals,
+                    mixed: &mixed,
+                    source: Some([3; 32]),
+                    estimator_id: EstimatorId::LinearAdjustmentAte,
+                    treatment,
+                    outcome,
+                },
+                &mut Vec::new(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(
+            notes
+                .iter()
+                .filter(|d| d.code.as_ref() == "refute.class_response.completion_weight")
+                .count(),
+            4
+        );
+        assert_eq!(reports.len(), 4); // one + three completions; zero-weight graph is excluded.
+        let mut seen = std::collections::HashSet::new();
+        for report in &reports {
+            assert!((report.original_ate - 14.0).abs() < 1e-12);
+            assert!((report.refuted_ate - 14.0).abs() < 1e-5);
+            let Some(antecedent_validate::RefutationScope::StaticClassCompletion {
+                outer_atom,
+                completion_digest,
+                target,
+            }) = &report.scope
+            else {
+                panic!("completion scope")
+            };
+            assert!(seen.insert((*outer_atom, *completion_digest)));
+            assert_eq!(target.family(), antecedent_validate::TargetFamily::WorldValued);
+            assert_eq!(target.source(), &[3; 32]);
+            let prefix = format!(
+                "scope:v1:static_class_completion:{}:{}|",
+                outer_atom,
+                antecedent_core::identity::to_hex(completion_digest)
+            );
+            assert!(target.labels().iter().all(|label| label.starts_with(&prefix)));
+        }
+        // Missing one completion does not promote the available subset to a
+        // whole-target verdict or erase its scoped reports.
+        evals[2].plugin_levels.pop();
+        let mixed = mix_class_posterior_responses(&cache, &evals, 0.0, &query, 100, 0.95).unwrap();
+        let (partial, notes) = study
+            .refute_class_graph_posterior_response(
+                ClassResponseRefuteInput {
+                    data: &data,
+                    query: &query,
+                    identified: &cache,
+                    evals: &evals,
+                    mixed: &mixed,
+                    source: Some([3; 32]),
+                    estimator_id: EstimatorId::LinearAdjustmentAte,
+                    treatment,
+                    outcome,
+                },
+                &mut Vec::new(),
+                &ExecutionContext::for_tests(1),
+            )
+            .unwrap();
+        assert_eq!(partial.len(), 3);
+        assert!(partial.iter().all(|r| matches!(
+            &r.scope,
+            Some(antecedent_validate::RefutationScope::StaticClassCompletion { .. })
+        )));
+        assert!(
+            notes.iter().any(|d| d.code.as_ref() == "refute.class_response.incomplete_completions")
+        );
+    }
+
+    #[test]
     fn scalar_refuter_dispatch_runs_complete_nested_inputs() {
         let (cache, mut evals, query, dag) = fixture();
         for eval in &mut evals {
@@ -1248,6 +2113,8 @@ mod nested_weight_tests {
                 .map(|weight| {
                     (
                         *weight,
+                        [eval.key as u8; 32],
+                        eval.status,
                         eval.estimand.as_ref().unwrap().clone(),
                         match &eval.response.as_ref().unwrap().estimate {
                             ResponseIdentification::PointIdentified(ResponseValue::Scalar(
@@ -1281,6 +2148,7 @@ mod nested_weight_tests {
                     identified: &cache,
                     evals: &evals,
                     mixed: &mixed,
+                    source: Some([3; 32]),
                     estimator_id: EstimatorId::LinearAdjustmentAte,
                     treatment: VariableId::from_raw(0),
                     outcome: VariableId::from_raw(1),
@@ -1294,15 +2162,13 @@ mod nested_weight_tests {
                 .iter()
                 .any(|d| d.code.as_ref() == "refute.class_response.incomplete_completions")
         );
-        assert!(
-            !reports.is_empty(),
-            "the complete route must produce a numeric mixed report: {notes:?}"
-        );
+        assert!(!reports.is_empty(), "the complete route must produce scoped reports: {notes:?}");
         for report in &reports {
-            assert!(
-                (report.original_ate - 3.0).abs() < 1e-12,
-                "the refuter must preserve the nested graph-weighted original"
-            );
+            assert!(matches!(report.original_ate, 0.0 | 6.0));
+            assert!(matches!(
+                &report.scope,
+                Some(antecedent_validate::RefutationScope::StaticClassCompletion { .. })
+            ));
         }
     }
 
@@ -1330,6 +2196,7 @@ mod nested_weight_tests {
                     identified: &cache,
                     evals: &evals,
                     mixed: &mixed,
+                    source: Some([3; 32]),
                     estimator_id: EstimatorId::LinearAdjustmentAte,
                     treatment: VariableId::from_raw(0),
                     outcome: VariableId::from_raw(1),

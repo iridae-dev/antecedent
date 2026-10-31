@@ -171,7 +171,7 @@ fn bayesian_exact_dag_posterior_effect_envelope() {
         .build()
         .unwrap();
     let result = analysis.run(&ctx).unwrap();
-    let post = result.posterior.expect("mixture posterior");
+    let post = result.posterior.as_ref().expect("mixture posterior");
     assert!((0.0..=1.0).contains(&post.unidentified_mass));
     let eq = post.effect_column().unwrap();
     // Atoms either adjust for z (effect 2) or not (the unadjusted contrast 3 * (0.75 - 0.25) + 2

@@ -3476,14 +3476,14 @@ impl super::Study {
                 })?
                 .clone();
             slices.push(slice);
-            for mut report in result.refutations {
+            for mut report in result.view.refutations {
                 report.refuter = Arc::from(format!("horizon.{horizon}.{}", report.refuter));
                 refutations.push(report);
             }
-            predictive_checks.extend(result.predictive_checks);
-            diagnostics.extend(result.diagnostics);
+            predictive_checks.extend(result.view.predictive_checks);
+            diagnostics.extend(result.view.diagnostics);
             if first.is_none() {
-                first = Some((result.identification, result.estimand));
+                first = Some((result.view.identification, result.view.estimand));
             }
         }
         let (mut identification, estimand) = first.ok_or_else(|| CausalError::Compile {

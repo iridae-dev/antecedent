@@ -43,7 +43,7 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, complete_case_rows, forced_refit_estimator,
+    RefutationProblem, RefutationReport, admit_cells, complete_case_rows, forced_refit_estimator,
     full_sample_refit_ate, linear_estimator_no_bootstrap, map_drawn_problem_replicates,
     map_drawn_replicates, refit_effect_shared, with_resampled_rows,
 };
@@ -392,7 +392,7 @@ impl BootstrapRefute {
                 }
             }
         }
-        if problem.effect_refit.is_some() {
+        if problem.effect_refit.is_some() && problem.temporal.is_some() {
             return self.refute_composed(problem, ctx);
         }
         if let Some(temporal) = problem.temporal.filter(|t| t.panel.is_none()) {
@@ -400,6 +400,22 @@ impl BootstrapRefute {
                 return self.refute_temporal_series(problem, &temporal, time, workspace, ctx);
             }
         }
+        if let Some(refit) = problem.effect_refit {
+            if !refit.static_bootstrap_uses_witness_columns()
+                || !matches!(problem.query.target_population, TargetPopulation::AllObserved)
+            {
+                return Err(ValidationError::NotApplicable {
+                    message: "static refitter does not declare an all-observed witness-column bootstrap",
+                });
+            }
+        }
+        // A static custom refitter rebuilds a whole table for each serial draw.
+        // Fund its row maps, validity masks and gathered columns before creating them.
+        let _static_refit_scratch = if problem.temporal.is_none() && problem.effect_refit.is_some() {
+            let width = resample_ids.len().checked_mul(4).and_then(|v| v.checked_add(8))
+                .ok_or_else(|| ValidationError::Resource { message: "bootstrap scratch size overflow".into() })?;
+            admit_cells(Some(ctx), n, width)?
+        } else { None };
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.
         let (keep, valid) = complete_case_rows(problem.data, &resample_ids)?;
@@ -415,6 +431,7 @@ impl BootstrapRefute {
         // ATT/ATC re-filter treatment labels after the table rebuild, and temporal
         // designs need the lag indexer, so those stay on the table path.
         let use_design = problem.temporal.is_none()
+            && problem.effect_refit.is_none()
             && matches!(problem.query.target_population, TargetPopulation::AllObserved);
         if use_design {
             let estimator = forced_refit_estimator(&self.estimator);

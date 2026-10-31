@@ -229,6 +229,9 @@ fn audit_identification_inputs(study: &Study) {
         latency_mode: _,
         interference: _,
         shared_batch_design: _,
+        // Operational evidence capture does not change the statistical program.
+        retain_response_witnesses: _,
+        temporal_validation_budget: _,
         // The product of identification, not an input to it.
         identification: _,
     } = study;

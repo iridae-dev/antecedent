@@ -256,6 +256,7 @@ impl StudyResult {
         query: &antecedent_core::CausalQuery,
         registry: Option<&antecedent_core::PopulationRegistry>,
     ) -> Result<antecedent_io::StaticResultWire, CausalError> {
+        crate::analysis::target_validation::validate_runtime_refutation_proof(self)?;
         use antecedent_core::{CausalQuery, Intervention};
         let compile = |message: &str| CausalError::Compile { message: message.into() };
         let hard = |intervention: &Intervention| match intervention {

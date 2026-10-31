@@ -1768,7 +1768,7 @@ fn manufacturing_dbn_envelope_composed_prior_conflict() {
         .build()
         .unwrap();
     let result = analysis.run(&ctx).unwrap();
-    let post = result.posterior.expect("DBN mixture posterior");
+    let post = result.posterior.as_ref().expect("DBN mixture posterior");
     assert_close(
         "composed prior mean",
         post.summaries.mean[post.effect_column().unwrap()],

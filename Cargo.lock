@@ -454,6 +454,7 @@ dependencies = [
  "antecedent-identify",
  "antecedent-io-core",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-prob",
  "antecedent-stats",
  "serde",

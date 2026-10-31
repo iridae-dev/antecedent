@@ -20,7 +20,6 @@ use super::{
     VariableId, identification_status_ok_for_case, provenance_ids,
     push_graph_posterior_structural_aggregation_diagnostic, resolve_posterior_status,
     resolve_structural_aggregation, scalar_identified_set, select_estimand,
-    shared_circular_block_mixture_se, temporal_class_block_span,
 };
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
 
@@ -40,7 +39,9 @@ impl super::Study {
         let class_tag = temporal_class_posterior_tag(gp.atom_kind())?;
         let (treatment, outcome) = response_primary_pair(&query.functional)?;
         let vars = data.schema().variables().iter().map(|variable| variable.id).collect::<Vec<_>>();
-        let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let budget = self.temporal_validation_budget.clone().unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
         let inputs = ClassPosteriorInputs { data, gp, query, vars: &vars, ctx, budget: &budget };
         let mapped = self.run_temporal_class_posterior_atoms(&inputs, physical)?;
         let ClassPosteriorFold {
@@ -51,7 +52,15 @@ impl super::Study {
             unidentified_mass,
             any_partial,
             primary,
-        } = fold_temporal_class_posterior_atoms(mapped);
+            retained_witnesses,
+        } = fold_temporal_class_posterior_atoms(
+            mapped,
+            self.retain_response_witnesses
+                || !matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty(),
+            &mut budget.clone(),
+            ctx,
+        )?;
         let (identification, estimand) = primary.ok_or_else(|| CausalError::Compile {
             message: "temporal class graph-posterior response has no evaluable identified atom"
                 .into(),
@@ -106,7 +115,7 @@ impl super::Study {
         // Same identified-execute tail as the class response. The posterior
         // keeps its provenance strings, refutations, and the study bootstrap
         // count (the class band's `Some(count)` write). No envelope certificate.
-        Ok(self.finish_class_response_tail(super::temporal_path::ClassResponseTail {
+        let mut result = self.finish_class_response_tail(super::temporal_path::ClassResponseTail {
             physical,
             identification,
             estimand,
@@ -127,7 +136,9 @@ impl super::Study {
                 "estimate.temporal_class_graph_posterior_response",
                 aggregation_policy.as_str(),
             )),
-        }))
+        });
+        result.temporal_posterior_witnesses = retained_witnesses;
+        Ok(result)
     }
 
     /// Whether the prepared handle retains an identification for this posterior.
@@ -188,6 +199,9 @@ impl super::Study {
             let mut atom_study = self.clone();
             atom_study.graph_posterior = None;
             atom_study.graph = Arc::new(graph);
+            atom_study.retain_response_witnesses = self.retain_response_witnesses
+                || !matches!(self.settings.refute, RefuteSuite::None)
+                || !self.declared.custom_validators.is_empty();
             atom_study.settings.refute = RefuteSuite::None;
             atom_study.declared.custom_validators.clear();
             atom_study.identification =
@@ -257,13 +271,8 @@ impl super::Study {
             },
         );
         let graph_dependent = identification.status == IdentificationStatus::GraphDependent;
-        let uncertainty = if weighted.len() == 1 {
-            first.uncertainty.clone()
-        } else if let (true, Some(ResponseValue::Scalar(value))) = (mixable, conditional.as_ref()) {
-            self.pooled_class_posterior_uncertainty(inputs, weighted, first, *value)?
-        } else {
-            ResponseUncertainty::None
-        };
+        let uncertainty =
+            if weighted.len() == 1 { first.uncertainty.clone() } else { ResponseUncertainty::None };
         let mut assumptions = first.assumptions.clone();
         for (_, _, response) in weighted.iter().skip(1) {
             assumptions.extend_unique(&response.assumptions.entries);
@@ -305,42 +314,6 @@ impl super::Study {
         })
     }
 
-    /// The pooled scalar intervention-response uncertainty: a joint
-    /// circular-block bootstrap over the atoms (the value is the pulse
-    /// effect), matching the temporal class effect path; point-only when no
-    /// block SE is available.
-    fn pooled_class_posterior_uncertainty(
-        &self,
-        inputs: &ClassPosteriorInputs<'_>,
-        weighted: &[(u64, f64, CausalResponse)],
-        first: &CausalResponse,
-        value: f64,
-    ) -> Result<ResponseUncertainty, CausalError> {
-        let ClassPosteriorInputs { data, gp, query, vars, ctx, budget } = *inputs;
-        Ok(
-            match temporal_class_response_pooled_block_se(
-                self, data, gp, vars, query, weighted, budget, ctx,
-            )? {
-                Some(se) => {
-                    let level = match &first.uncertainty {
-                        ResponseUncertainty::Scalar { level, .. } => *level,
-                        _ => 0.95,
-                    };
-                    let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
-                    ResponseUncertainty::Scalar {
-                        standard_error: se,
-                        level,
-                        lower: value - z * se,
-                        upper: value + z * se,
-                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                        draws: None,
-                    }
-                }
-                None => ResponseUncertainty::None,
-            },
-        )
-    }
-
     /// Runs the Pulse-witness refutation suite for an `InterventionResponse`
     /// when the study refutes, otherwise notes that scalar refuters are skipped.
     fn refute_temporal_class_posterior_response(
@@ -351,6 +324,17 @@ impl super::Study {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<Vec<antecedent_validate::RefutationReport>, CausalError> {
         let ClassPosteriorInputs { data, gp, query, vars, ctx, budget } = *inputs;
+        if matches!(self.settings.refute, RefuteSuite::None)
+            && !self.declared.custom_validators.is_empty()
+            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. })
+        {
+            diagnostics.push(Diagnostic::new(
+                "refute.temporal_response.custom_unavailable", DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "scalar custom validators do not check temporal response levels; no custom report was produced",
+            ));
+            return Ok(Vec::new());
+        }
         let is_intervention =
             matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
         let (refutations, refute_diags) = if is_intervention
@@ -518,6 +502,7 @@ struct ClassPosteriorFold {
     unidentified_mass: f64,
     any_partial: bool,
     primary: Option<(IdentificationResult, IdentifiedEstimand)>,
+    retained_witnesses: Option<Arc<crate::result::TemporalPosteriorWitnessSet>>,
 }
 
 /// The mixed class posterior response with the products the structural
@@ -532,7 +517,43 @@ struct ClassPosteriorMix {
 
 /// Folds each atom's class response into a structural atom, classifying it as
 /// unidentified, unevaluable or contributing.
-fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> ClassPosteriorFold {
+fn fold_temporal_class_posterior_atoms(
+    mapped: Vec<ClassPosteriorAtomRun>,
+    capture: bool,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<ClassPosteriorFold, CausalError> {
+    let lease = if capture {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "posterior response witnesses" });
+        }
+        let count = u64::try_from(mapped.len()).map_err(|_| CausalError::Resource {
+            message: "posterior witness count overflow".into(),
+        })?;
+        budget
+            .charge_work(count)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        let bytes = count.checked_mul(512).and_then(|n| n.checked_add(4096)).ok_or_else(|| {
+            CausalError::Resource { message: "posterior witness bytes overflow".into() }
+        })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "posterior witness byte limit".into() });
+        }
+        Some(ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "posterior response witnesses" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?)
+    } else {
+        None
+    };
+    let mut members = Vec::new();
+    if capture {
+        members
+            .try_reserve_exact(mapped.len())
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    }
     let mut fold = ClassPosteriorFold {
         weighted: Vec::new(),
         atoms: Vec::new(),
@@ -541,6 +562,7 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
         unidentified_mass: 0.0,
         any_partial: false,
         primary: None,
+        retained_witnesses: None,
     };
     for (key, weight, outcome) in mapped {
         match outcome {
@@ -548,8 +570,8 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                 fold.unidentified_mass += weight;
                 fold.atoms.push(bare_class_atom(key, weight, IdentificationStatus::NotIdentified));
             }
-            Some(Ok(result)) => {
-                let Some(response) = result.payload.into_response() else {
+            Some(Ok(mut result)) => {
+                let Some(response) = std::mem::take(&mut result.payload).into_response() else {
                     fold.failed_mass += weight;
                     fold.atoms.push(bare_class_atom(key, weight, result.identification.status));
                     continue;
@@ -564,6 +586,20 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                     });
                     continue;
                 };
+                if capture {
+                    if let (Some(witnesses), Some(structural)) = (
+                        result.temporal_response_witnesses.take(),
+                        result.structural_response.take(),
+                    ) {
+                        members.push(crate::result::TemporalPosteriorWitnessMember {
+                            outer_atom: key,
+                            outer_weight: weight,
+                            witnesses,
+                            structural,
+                            _resources: std::mem::take(&mut result.retained_resources),
+                        });
+                    }
+                }
                 fold.any_partial |= matches!(value, ResponseValue::Envelope(_))
                     || matches!(
                         result.identification.status,
@@ -575,17 +611,22 @@ fn fold_temporal_class_posterior_atoms(mapped: Vec<ClassPosteriorAtomRun>) -> Cl
                 if fold.primary.is_none() {
                     fold.primary = Some((result.identification.clone(), result.estimand.clone()));
                 }
-                fold.contributing.push(result.estimand);
+                let status = result.identification.status;
+                fold.contributing.push(result.view.estimand);
                 fold.atoms.push(StructuralResponseAtom {
                     response: Some(response.clone()),
                     value: Some(value),
-                    ..bare_class_atom(key, weight, result.identification.status)
+                    ..bare_class_atom(key, weight, status)
                 });
                 fold.weighted.push((key, weight, response));
             }
         }
     }
-    fold
+    if let Some(lease) = lease {
+        fold.retained_witnesses =
+            Some(Arc::new(crate::result::TemporalPosteriorWitnessSet { members, _lease: lease }));
+    }
+    Ok(fold)
 }
 
 /// The status-ladder estimate of the mixed class response: per-atom values
@@ -696,93 +737,6 @@ fn union_identified_values(values: &[&ResponseValue]) -> Option<antecedent_core:
         });
     }
     envelope
-}
-
-/// Joint circular-block bootstrap SE for a scalar temporal `InterventionResponse` pooled over the
-/// class-posterior atoms. The scalar intervention-response value is the pulse effect at the horizon
-/// (`response_pulse_witness`), so each contributing atom is reconstructed into its pulse
-/// `TemporalAtomDesign` exactly as the envelope refuter does, and the atoms are resampled jointly on
-/// their shared time window — the same block-bootstrap the temporal class effect path uses. Returns
-/// `None` (leaving the aggregate point-only) unless a Frequentist bootstrap is requested, the
-/// functional is `InterventionResponse`, and at least two designs reconstruct. The estimator SE
-/// this reports must be calibrated before it is trusted.
-fn temporal_class_response_pooled_block_se(
-    study: &Study,
-    data: &TimeSeriesData,
-    gp: &GraphPosterior,
-    vars: &[VariableId],
-    query: &ResponseQuery,
-    weighted: &[(u64, f64, CausalResponse)],
-    budget: &antecedent_core::TemporalBudget,
-    ctx: &ExecutionContext,
-) -> Result<Option<f64>, CausalError> {
-    if !study.settings.inference.is_frequentist() || study.settings.bootstrap_replicates == 0 {
-        return Ok(None);
-    }
-    if !matches!(query.functional, antecedent_core::ResponseFunctional::InterventionResponse { .. })
-    {
-        return Ok(None);
-    }
-    let pulse = response_pulse_witness(query)?;
-    let _lag_masks = gp.lag_masks().ok_or_else(|| CausalError::Compile {
-        message: "temporal class posterior missing per-atom lag masks".into(),
-    })?;
-    let _max_lag = gp.max_lag().ok_or_else(|| CausalError::Compile {
-        message: "temporal class posterior missing max_lag".into(),
-    })?;
-    let mut budget = budget.clone();
-    let mut designs = Vec::new();
-    let mut weights = Vec::new();
-    let mut indexers = Vec::new();
-    for (key, weight, _) in weighted {
-        let i = usize::try_from(*key).map_err(|_| CausalError::Compile {
-            message: "temporal class graph-posterior response SE: atom key overflow".into(),
-        })?;
-        let Some(bundle) =
-            identify_posterior_atom_pulse(study, (gp, vars), i, &pulse, &mut budget, ctx)?
-        else {
-            continue;
-        };
-        for (case, indexer) in
-            bundle.envelope.envelope.cases.iter().zip(bundle.envelope.indexers.iter())
-        {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                continue;
-            }
-            let Ok(estimand) = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
-            else {
-                continue;
-            };
-            let Ok(design) = TemporalAtomDesign::linear(
-                data,
-                &estimand,
-                &pulse,
-                indexer,
-                study.declared.split.as_ref(),
-                ctx,
-            ) else {
-                continue;
-            };
-            designs.push(design);
-            weights.push(*weight * case.weight.0);
-            indexers.push(indexer.clone());
-        }
-    }
-    if designs.len() < 2 {
-        return Ok(None);
-    }
-    let design_refs: Vec<&TemporalAtomDesign> = designs.iter().collect();
-    let block = shared_circular_block_mixture_se(
-        &design_refs,
-        &weights,
-        temporal_class_block_span(indexers.iter()),
-        study.settings.bootstrap_replicates,
-        0x9E3D_7A11,
-        ctx,
-    );
-    Ok(block.se.is_finite().then_some(block.se))
 }
 
 /// The class envelope of a posterior atom's reconstructed graph for the Pulse
@@ -967,4 +921,29 @@ fn refute_temporal_class_graph_posterior_intervention(
         ),
     );
     Ok((reports, notes))
+}
+
+#[cfg(test)]
+mod response_shape_tests {
+    use super::*;
+
+    #[test]
+    fn singleton_class_envelopes_mix_as_surfaces_not_scalar_effects() {
+        let envelope = antecedent_core::ResponseEnvelope {
+            grid: Arc::from([1.0]),
+            dimension: 1,
+            lower: Arc::from([12.0]),
+            upper: Arc::from([12.0]),
+        };
+        let first = collapse_singleton_envelope(ResponseValue::Envelope(envelope.clone()));
+        let second = collapse_singleton_envelope(ResponseValue::Envelope(envelope));
+        let mixed = mix_response_values(&[(0.25, &first), (0.75, &second)]).unwrap();
+        match mixed {
+            ResponseValue::Surface { dimension, mean, .. } => {
+                assert_eq!(dimension, 1);
+                assert_eq!(mean.as_ref(), &[12.0]);
+            }
+            other => panic!("singleton response level must retain its surface shape: {other:?}"),
+        }
+    }
 }

@@ -1145,6 +1145,94 @@ fn temporal_class_graph_posterior_intervention_response_cheap_and_full_mix_atom_
 }
 
 #[test]
+fn temporal_class_response_refuters_check_levels_and_shift_with_intercept() {
+    fn data(intercept: f64) -> TimeSeriesData {
+        let n = 240usize;
+        let mut t = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        let mut z = vec![0.0; n];
+        for i in 0..n {
+            let x = i as f64;
+            t[i] = f64::from(u8::from((x * 1.31).sin() > 0.0));
+            z[i] = (x * 0.19).sin();
+            if i > 0 { y[i] = intercept + 2.0 * t[i - 1] + 0.01 * (x * 0.73).cos(); }
+        }
+        TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())], 1).unwrap()
+    }
+    fn execute(offset: f64, kind: GraphPosteriorAtomKind) -> antecedent::StudyResult {
+        let gp = if kind == GraphPosteriorAtomKind::Pag {
+            class_posterior(kind, &[1.0], &[visible_pag_contemp()], &[lag_bit(3, 0, 1)])
+        } else { class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()]) };
+        Study::series(data(offset)).graph_posterior(gp).query(intervention_response())
+            .refute(RefuteSuite::Cheap).bootstrap_replicates(0).build().unwrap()
+            .run(&ExecutionContext::for_tests(1)).unwrap()
+    }
+    for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
+        let base = execute(10.0, kind);
+        let shifted = execute(15.0, kind);
+        assert!(!base.refutations.is_empty(), "{kind:?}: missing level reports");
+        assert_eq!(base.refutations.len(), shifted.refutations.len());
+        for (a, b) in base.refutations.iter().zip(&shifted.refutations) {
+            assert!((a.original_ate - 12.0).abs() < 0.1, "{kind:?}: {}", a.original_ate);
+            assert!((b.original_ate - a.original_ate - 5.0).abs() < 1e-6);
+            assert!((a.original_ate - 2.0).abs() > 5.0, "the report used the pulse contrast");
+        }
+    }
+}
+
+#[test]
+fn temporal_class_completion_reports_cannot_certify_whole_after_scope_mutation() {
+    // In the first graph z at the treatment time is a parent of both t and
+    // the subsequent y; the second has only t -> y. Both responses identify,
+    // but they require different adjustment functionals.
+    let posterior = class_posterior(
+        GraphPosteriorAtomKind::Cpdag,
+        &[0.5, 0.5],
+        &[z_confounds_t_contemp(), 0],
+        &[identified_lag_mask(), t_to_y_lag_mask()],
+    );
+    let mut result = Study::series(disagreeing_series())
+        .graph_posterior(posterior)
+        .query(intervention_response()).refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0).build().unwrap().run(&ExecutionContext::for_tests(1)).unwrap();
+    assert!(has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms),
+        "expected different identified functionals; diagnostics: {:?}", result.diagnostics);
+    assert_eq!(result.structural_response.as_ref().unwrap().atoms.iter().filter(|atom| atom.value.is_some()).count(), 2,
+        "both graph points must be retained");
+    assert!(result.refutations.iter().any(|report| report.scope.is_some()), "expected scoped completion reports; diagnostics: {:?}", result.diagnostics);
+    // Mutable access invalidates the private checked owner, even if a caller
+    // removes every scope descriptor from the public view.
+    for report in &mut result.refutations { report.scope = None; }
+    assert!(result.analysis_result_wire(&intervention_response()).is_err());
+}
+
+#[test]
+fn temporal_class_level_does_not_accept_scalar_custom_validator() {
+    use antecedent_validate::{CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError};
+    struct ScalarOnly;
+    impl CustomEffectValidator for ScalarOnly {
+        fn name(&self) -> &str { "scalar_only" }
+        fn validate(&self, _: &RefutationProblem<'_>, _: &ExecutionContext) -> Result<RefutationReport, ValidationError> {
+            panic!("a scalar callback cannot validate a response level")
+        }
+    }
+    let gp = class_posterior(GraphPosteriorAtomKind::Cpdag, &[1.0], &[0], &[identified_lag_mask()]);
+    let result = Study::series(series()).graph_posterior(gp).query(intervention_response())
+        .refute(RefuteSuite::None).custom_validators(vec![std::sync::Arc::new(ScalarOnly)]).build();
+    assert!(result.is_err());
+}
+
+#[test]
+fn temporal_class_level_validation_honors_pre_cancelled_context() {
+    let gp = class_posterior(GraphPosteriorAtomKind::Cpdag, &[1.0], &[0], &[identified_lag_mask()]);
+    let study = Study::series(series()).graph_posterior(gp).query(intervention_response())
+        .refute(RefuteSuite::Cheap).bootstrap_replicates(0).build().unwrap();
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    assert!(matches!(study.run(&ctx), Err(antecedent::CausalError::Cancelled { .. })));
+}
+
+#[test]
 fn capped_temporal_class_posterior_does_not_claim_full_class_scope() {
     let gp = class_posterior(
         GraphPosteriorAtomKind::Cpdag,

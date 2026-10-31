@@ -198,7 +198,7 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
     assert_eq!(envelope.lower.len(), 1);
     assert!((envelope.lower[0] - expected_lo).abs() < tol, "lower={}", envelope.lower[0]);
     assert!((envelope.upper[0] - expected_hi).abs() < tol, "upper={}", envelope.upper[0]);
-    let structural = result.structural_response.expect("completion metadata");
+    let structural = result.structural_response.as_ref().expect("completion metadata");
     assert_eq!(
         structural.weight_basis,
         antecedent::result::StructuralWeightBasis::CompletionEnumeration
@@ -207,7 +207,7 @@ fn incomplete_joint_envelope_preserves_distinct_adjustments_and_caps() {
         structural.conditional_on_identified.is_none(),
         "completion enumeration must not publish a probability-weighted causal summary"
     );
-    let bounds = structural.identified_set.expect("identified set");
+    let bounds = structural.identified_set.as_ref().expect("identified set");
     assert!((bounds.lower[0] - expected_lo).abs() < tol);
     assert!((bounds.upper[0] - expected_hi).abs() < tol);
 }

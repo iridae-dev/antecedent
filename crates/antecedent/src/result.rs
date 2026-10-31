@@ -663,6 +663,12 @@ pub struct RowWeightsBinding {
 }
 
 impl StudyResult {
+    pub(crate) fn invalidate_authority(&mut self) {
+        if matches!(&self.authority, RuntimeRefutationAuthority::Sealed { .. }) {
+            self.authority = RuntimeRefutationAuthority::Invalidated;
+        }
+    }
+
     /// Reservation held with this result's retained output, when accounted by its engine.
     /// This is admitted capacity, not a measurement of process resident memory.
     #[must_use]
@@ -1452,21 +1458,119 @@ impl ResultPayload {
     }
 }
 
+// A point-time completion witness. `atom_index` addresses the actual structural
+// response produced by this fit; its full digest is independent of enumeration order.
+#[derive(Clone, Debug)]
+pub(crate) struct TemporalResponseWitness {
+    pub(crate) horizon_index: usize,
+    pub(crate) horizon: u32,
+    pub(crate) atom_index: usize,
+    pub(crate) weight: f64,
+    pub(crate) completion_digest: [u8; 32],
+}
+
+#[derive(Debug)]
+pub(crate) struct TemporalResponseWitnessSet {
+    pub(crate) entries: Vec<TemporalResponseWitness>,
+    pub(crate) _leases: Vec<antecedent_core::execution::AdmissionLease>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TemporalPosteriorWitnessMember {
+    pub(crate) outer_atom: u64,
+    pub(crate) outer_weight: f64,
+    pub(crate) witnesses: Arc<TemporalResponseWitnessSet>,
+    pub(crate) structural: StructuralResponseMixture,
+    pub(crate) _resources: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TemporalPosteriorWitnessSet {
+    pub(crate) members: Vec<TemporalPosteriorWitnessMember>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+// Private runtime evidence, installed only by the scoped target operation after it
+// has completed its own refits. The selector and original result binding are part
+// of the digest, so editing a public report invalidates the marker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RuntimeRefutationOrigin {
+    Route,
+    WholeTarget,
+    ScopedCompletion,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum RuntimeRefutationAuthority {
+    Fresh,
+    Sealed { origin: RuntimeRefutationOrigin, owner: Arc<()> },
+    Invalidated,
+}
+
+/// Caller-readable result fields. Mutable access invalidates checked authority.
+#[derive(Clone, Debug)]
+pub struct StudyResultView {
+    /// Logical program and data classification.
+    pub logical_plan: LogicalAnalysisPlanRecord,
+    /// Physical plan record.
+    pub physical_plan: PhysicalExecutionPlanRecord,
+    /// Execution performance and backend facts.
+    pub performance: ExecutionPerformanceRecord,
+    /// Full identification result.
+    pub identification: IdentificationResult,
+    /// Complete identification certificate, when supplied.
+    pub certificate: Option<AnalysisIdentification>,
+    /// The estimand used for the fit.
+    pub estimand: IdentifiedEstimand,
+    /// Structural atom and mass result.
+    pub structural_response: Option<StructuralResponseMixture>,
+    /// Bayesian posterior, when present.
+    pub posterior: Option<CausalPosterior>,
+    /// Refutation reports.
+    pub refutations: Vec<RefutationReport>,
+    /// Predictive check reports.
+    pub predictive_checks: Vec<PredictiveCheckReport>,
+    /// Diagnostics.
+    pub diagnostics: Vec<Diagnostic>,
+    /// Scientific provenance.
+    pub provenance: ProvenanceGraph,
+    /// Declared structure source.
+    pub structure_source: crate::support::StructureSource,
+    /// Treatment variable, if applicable.
+    pub treatment: Option<VariableId>,
+    /// Outcome variable.
+    pub outcome: VariableId,
+    /// Population bindings.
+    pub population_registry: Option<antecedent_core::PopulationRegistry>,
+}
+
+impl std::ops::Deref for StudyResult {
+    type Target = StudyResultView;
+    fn deref(&self) -> &Self::Target {
+        &self.view
+    }
+}
+
+impl std::ops::DerefMut for StudyResult {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.invalidate_authority();
+        &mut self.view
+    }
+}
+
 /// End-to-end analysis result.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct StudyResult {
     pub(crate) retained_resources: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
-    /// Logical plan record.
-    pub logical_plan: LogicalAnalysisPlanRecord,
-    /// Physical plan record.
-    pub physical_plan: PhysicalExecutionPlanRecord,
-    /// Full identification artifact.
-    pub identification: IdentificationResult,
-    /// Complete identification certificate, when supplied by the execution path.
-    pub certificate: Option<AnalysisIdentification>,
-    /// Primary estimand used for estimation.
-    pub estimand: IdentifiedEstimand,
+    // The actual immutable input passed to the executed operation, not a caller's later declaration.
+    pub(crate) executed_input: Option<crate::analysis::target_validation::ExecutedInputIdentity>,
+    pub(crate) temporal_response_witnesses: Option<Arc<TemporalResponseWitnessSet>>,
+    pub(crate) temporal_posterior_witnesses: Option<Arc<TemporalPosteriorWitnessSet>>,
+    // An operation-issued digest of the checked scope, target and report body. This
+    // private marker must never be reconstructed from portable descriptors.
+    pub(crate) authority: RuntimeRefutationAuthority,
+    pub(crate) view: StudyResultView,
     /// Point estimate + uncertainty (frequentist, or Bayesian posterior mean summary).
     ///
     /// For [`CausalQuery::Distribution`](antecedent_core::CausalQuery::Distribution) this holds the
@@ -1476,8 +1580,6 @@ pub struct StudyResult {
     /// [`InterventionalDistributionEstimate::atom_uncertainty`], and a binary outcome's
     /// mean interval is [`InterventionalDistributionEstimate::mean_interval`].
     pub(crate) estimate: PrimaryEstimate,
-    /// Structural atom/mass result for class-aware or graph-posterior responses.
-    pub structural_response: Option<StructuralResponseMixture>,
     /// The typed answer the query family published beside the scalar estimate.
     ///
     /// Read it through [`Self::response`], [`Self::distribution`] and the other
@@ -1485,19 +1587,9 @@ pub struct StudyResult {
     /// the atom [`Self::structural_response`] accompany any family and stay
     /// outside it.
     pub(crate) payload: ResultPayload,
-    /// Bayesian posterior when `InferenceMode::Bayesian` was used.
-    pub posterior: Option<CausalPosterior>,
-    /// Refutation reports (may be empty).
-    pub refutations: Vec<RefutationReport>,
-    /// Prior/posterior predictive check reports (Bayesian path; may be empty).
-    pub predictive_checks: Vec<PredictiveCheckReport>,
     /// Posterior predictive replicates retained at fit time when the study declared bounds
     /// for them; read through [`Self::predictive_replicates`].
     pub(crate) predictive_replicates: Option<Arc<crate::analysis::RetainedPredictiveReplicates>>,
-    /// Diagnostics.
-    pub diagnostics: Vec<Diagnostic>,
-    /// Provenance.
-    pub provenance: ProvenanceGraph,
     /// Support-matrix evidence contract that produced this result.
     ///
     /// `licensed` and `allowed_unlicensed` both yield a successful study.
@@ -1505,22 +1597,10 @@ pub struct StudyResult {
     /// [`crate::support::CellStatus::Licensed`]. `None` when the query is not on
     /// the public axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
-    /// How the caller supplied structure. Graph-posterior mixtures are never a
-    /// single adjustment set, even when every identified atom happens to agree.
-    pub structure_source: crate::support::StructureSource,
-    /// Performance record.
-    pub performance: ExecutionPerformanceRecord,
-    /// Treatment variable.
-    pub treatment: Option<VariableId>,
-    /// Outcome variable.
-    pub outcome: VariableId,
     /// Prepared contract this result was executed under, stamped by the
     /// [`crate::PreparedStudy`] entry point that produced it. `None` for
     /// results no prepared handle executed; those cannot be exported as claims.
     pub(crate) executed_contract: Option<ExecutedContract>,
-    /// Population bindings in force, when the query names a predicate or a
-    /// custom target distribution. Encoding the query needs them.
-    pub population_registry: Option<antecedent_core::PopulationRegistry>,
     /// Identity of the lowered program whose dispatch produced this result.
     pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
     /// The producing program's scientific data and uncertainty classification.
@@ -1569,6 +1649,7 @@ impl StudyResult {
     /// Mutable estimate, for tests that deliberately construct a tampered or edge-case result.
     #[doc(hidden)]
     pub fn estimate_mut(&mut self) -> &mut PrimaryEstimate {
+        self.invalidate_authority();
         &mut self.estimate
     }
 
