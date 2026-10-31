@@ -26,7 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::identity::CanonicalWriter;
 
-use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
+use crate::evidence_ledger::{EvidenceKey, EvidenceLedger, Overlap, evidence_key};
 use crate::interface_contract::{
     CalibrationStatus, ConsumedPort, ContractOperation, DependenceRequirement, EvidenceBasis,
     InterfaceContract, PortFacts,
@@ -830,9 +830,11 @@ fn check_declared_independence(decl: &MechanismCompositionDeclaration, c: &mut C
             "state why the estimates are independent (disjoint, independently generated evidence)",
         );
     }
-    let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
+    let mut seen: BTreeMap<EvidenceKey<'_>, &str> = BTreeMap::new();
     for m in &decl.mechanisms {
-        if let Some(first) = seen.insert(m.evidence_id.as_str(), m.output.variable_id.as_str()) {
+        if let Some(first) =
+            seen.insert(evidence_key(&m.evidence_id), m.output.variable_id.as_str())
+        {
             c.compare(
                 "posterior_dependence",
                 "mechanism_composition.posterior_dependence_shared_evidence_declared_independent",
@@ -949,7 +951,7 @@ impl MechanismDeclaration {
     #[must_use]
     pub fn interface_contract(&self, basis: &MechanismInterfaceBasis) -> InterfaceContract {
         let evidence = basis.evidence.clone().unwrap_or_else(|| {
-            SourceId::from_hex(&self.evidence_id).map_or(EvidenceBasis::Undeclared, |id| {
+            evidence_key(&self.evidence_id).source().map_or(EvidenceBasis::Undeclared, |id| {
                 EvidenceBasis::Declared(BTreeSet::from([id]))
             })
         });
@@ -1019,12 +1021,12 @@ pub fn check_declared_independence_against_ledger(
     for (position, first) in decl.mechanisms.iter().enumerate() {
         for second in &decl.mechanisms[position + 1..] {
             let subject = format!("{}|{}", first.output.variable_id, second.output.variable_id);
-            let overlap = if first.evidence_id == second.evidence_id {
+            let a = evidence_key(&first.evidence_id);
+            let b = evidence_key(&second.evidence_id);
+            let overlap = if a == b {
                 Some(Overlap::SharedObservations { shared: 1 })
             } else {
-                SourceId::from_hex(&first.evidence_id)
-                    .zip(SourceId::from_hex(&second.evidence_id))
-                    .and_then(|(a, b)| ledger.overlap(a, b).ok())
+                a.source().zip(b.source()).and_then(|(a, b)| ledger.overlap(a, b).ok())
             };
             match overlap {
                 Some(Overlap::Independent) => {}
@@ -1490,6 +1492,56 @@ mod tests {
         assert_eq!(
             details(check_mechanism_composition(&independent)),
             ["mechanism_composition.posterior_dependence_shared_evidence_declared_independent"]
+        );
+    }
+
+    #[test]
+    fn independence_and_interface_evidence_use_the_same_source_key() {
+        let lower = "ab".repeat(32);
+        let upper = lower.to_uppercase();
+        for (left, right) in [
+            ("data:shared".to_owned(), " data:shared ".to_owned()),
+            (lower.clone(), upper.clone()),
+            (lower.clone(), format!(" {upper} ")),
+        ] {
+            let mut declaration = decl();
+            declaration.dependence = DependenceDeclaration::IndependentByDesign {
+                justification: "disjoint trials".into(),
+            };
+            declaration.mechanisms[0].evidence_id = left;
+            declaration.mechanisms[1].evidence_id = right;
+            assert!(details(check_mechanism_composition(&declaration)).iter().any(|detail|
+                detail == "mechanism_composition.posterior_dependence_shared_evidence_declared_independent"
+            ));
+            let errors =
+                check_declared_independence_against_ledger(&declaration, &EvidenceLedger::new())
+                    .unwrap_err();
+            assert!(errors.iter().any(|error| error.detail == "mechanism_composition.posterior_dependence_shared_evidence_declared_independent"));
+        }
+        for (left, right) in [("Site", "site"), ("site x", "site  x")] {
+            let mut declaration = decl();
+            declaration.dependence = DependenceDeclaration::IndependentByDesign {
+                justification: "disjoint trials".into(),
+            };
+            declaration.mechanisms[0].evidence_id = left.into();
+            declaration.mechanisms[1].evidence_id = right.into();
+            assert!(check_mechanism_composition(&declaration).is_ok());
+        }
+        let mut mechanism = decl().mechanisms.remove(0);
+        mechanism.evidence_id = format!(" {upper} ");
+        let mut basis = MechanismInterfaceBasis::new(
+            PortFacts::new(crate::interface_contract::SupportDomain::Real),
+            [ContractOperation::Mean],
+        );
+        let source = evidence_key(&lower).source().unwrap();
+        assert_eq!(
+            mechanism.interface_contract(&basis).produces[0].evidence,
+            EvidenceBasis::Declared(BTreeSet::from([source]))
+        );
+        basis.evidence = Some(EvidenceBasis::Undeclared);
+        assert_eq!(
+            mechanism.interface_contract(&basis).produces[0].evidence,
+            EvidenceBasis::Undeclared
         );
     }
 

@@ -57,7 +57,7 @@
 use std::collections::BTreeSet;
 
 use crate::ExternalRefusal;
-use crate::evidence_ledger::{EvidenceLedger, Overlap, SourceId};
+use crate::evidence_ledger::{EvidenceKey, EvidenceLedger, Overlap, evidence_key};
 use antecedent_core::named_variants;
 
 /// Stage reported by every refusal of this module.
@@ -417,14 +417,34 @@ fn validate(request: &PropagationRequest) -> Result<(), ExternalRefusal> {
     Ok(())
 }
 
+fn remember_shared<'a>(
+    shared: &mut std::collections::BTreeMap<EvidenceKey<'a>, &'a str>,
+    label: &'a str,
+) {
+    shared
+        .entry(evidence_key(label))
+        .and_modify(|first| *first = (*first).min(label))
+        .or_insert(label);
+}
 fn shared_evidence(inputs: &[PropagationInput]) -> Vec<String> {
-    let mut shared = BTreeSet::new();
-    for (position, input) in inputs.iter().enumerate() {
-        if inputs[position + 1..].iter().any(|other| other.evidence_id == input.evidence_id) {
-            shared.insert(input.evidence_id.clone());
-        }
+    let mut groups = std::collections::BTreeMap::<EvidenceKey<'_>, (&str, bool)>::new();
+    for input in inputs {
+        let label = input.evidence_id.as_str();
+        groups
+            .entry(evidence_key(label))
+            .and_modify(|(first, duplicate)| {
+                *first = (*first).min(label);
+                *duplicate = true;
+            })
+            .or_insert((label, false));
     }
-    shared.into_iter().collect()
+    let mut shared: Vec<_> = groups
+        .into_values()
+        .filter(|(_, duplicate)| *duplicate)
+        .map(|(label, _)| label.to_owned())
+        .collect();
+    shared.sort();
+    shared
 }
 
 /// The alignment identity every input shares, or the refusal that says why
@@ -683,22 +703,24 @@ fn ledger_shared_evidence(
     inputs: &[PropagationInput],
     ledger: &EvidenceLedger,
 ) -> (Vec<String>, Option<String>) {
-    let mut shared = BTreeSet::new();
+    let mut shared = std::collections::BTreeMap::new();
     let mut unresolved: Option<String> = None;
     for (position, input) in inputs.iter().enumerate() {
         for other in &inputs[position + 1..] {
-            if other.evidence_id == input.evidence_id {
-                shared.insert(input.evidence_id.clone());
+            let a = evidence_key(&input.evidence_id);
+            let b = evidence_key(&other.evidence_id);
+            if a == b {
+                remember_shared(&mut shared, &input.evidence_id);
+                remember_shared(&mut shared, &other.evidence_id);
                 continue;
             }
-            let ids =
-                SourceId::from_hex(&input.evidence_id).zip(SourceId::from_hex(&other.evidence_id));
+            let ids = a.source().zip(b.source());
             let overlap = ids.and_then(|(a, b)| ledger.overlap(a, b).ok());
             match overlap {
                 Some(Overlap::Independent) => {}
                 Some(Overlap::SharedObservations { .. }) => {
-                    shared.insert(input.evidence_id.clone());
-                    shared.insert(other.evidence_id.clone());
+                    remember_shared(&mut shared, &input.evidence_id);
+                    remember_shared(&mut shared, &other.evidence_id);
                 }
                 Some(Overlap::Unknown { .. }) | None => {
                     unresolved.get_or_insert_with(|| format!("{}|{}", input.id, other.id));
@@ -706,7 +728,9 @@ fn ledger_shared_evidence(
             }
         }
     }
-    (shared.into_iter().collect(), unresolved)
+    let mut labels: Vec<_> = shared.into_values().map(str::to_owned).collect();
+    labels.sort();
+    (labels, unresolved)
 }
 
 #[allow(
@@ -1358,6 +1382,71 @@ mod tests {
             RequestedReading::Point,
         );
         assert_eq!(detail(&unknown).0, "sampling_dependence_unknown");
+    }
+
+    #[test]
+    fn evidence_aliases_cannot_license_independence_and_reports_are_stable() {
+        let lower = "ab".repeat(32);
+        let upper = lower.to_uppercase();
+        for aliases in [
+            vec!["snapshot_1".to_owned(), " snapshot_1 ".to_owned()],
+            vec![lower.clone(), upper.clone(), format!(" {upper} ")],
+        ] {
+            let inputs: Vec<_> = aliases
+                .iter()
+                .enumerate()
+                .map(|(i, label)| input(&format!("input:{i}"), label, InputAlignment::MomentsOnly))
+                .collect();
+            let independent = request(
+                PropagationOperation::Sum,
+                inputs.clone(),
+                PropagationDependence::DeclaredIndependent,
+                RequestedReading::Point,
+            );
+            assert_eq!(
+                detail(&independent).1,
+                "joint_law_propagation.shared_evidence_declared_independent"
+            );
+            let ledger = EvidenceLedger::new();
+            let refusal = check_propagation_with_ledger(&independent, &ledger).unwrap_err();
+            assert_eq!(
+                refusal.detail,
+                "joint_law_propagation.shared_evidence_declared_independent"
+            );
+            let mut covariance = request(
+                PropagationOperation::Sum,
+                inputs,
+                PropagationDependence::Covariance { id: "cov".into() },
+                RequestedReading::Point,
+            );
+            let expected = vec![aliases.iter().min().unwrap().clone()];
+            assert_eq!(check_propagation(&covariance).unwrap().shared_evidence, expected);
+            covariance.inputs.reverse();
+            assert_eq!(check_propagation(&covariance).unwrap().shared_evidence, expected);
+            assert_eq!(
+                check_propagation_with_ledger(&covariance, &ledger).unwrap().shared_evidence,
+                expected
+            );
+        }
+        for (left, right) in [("Site", "site"), ("site x", "site  x"), ("deadbeef", "DEADBEEF")] {
+            let distinct = request(
+                PropagationOperation::Sum,
+                vec![
+                    input("a", left, InputAlignment::MomentsOnly),
+                    input("b", right, InputAlignment::MomentsOnly),
+                ],
+                PropagationDependence::DeclaredIndependent,
+                RequestedReading::Point,
+            );
+            assert!(
+                check_propagation(&distinct).is_ok(),
+                "opaque names remain case and internal-space sensitive"
+            );
+            assert!(
+                check_propagation_with_ledger(&distinct, &EvidenceLedger::new()).is_err(),
+                "unregistered sources remain unknown to a ledger"
+            );
+        }
     }
 
     #[test]

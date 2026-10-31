@@ -315,3 +315,11 @@ parent, optionally weakening positive domain labels to Unknown; it cannot change
 the target, value, evidence, reasoning, units, execution, or calibration. Declined
 domains are recorded in the receipt. Use a prepared Study retarget workflow to
 compute a different question.
+
+Independence checks now compare evidence identifiers consistently: surrounding
+whitespace is ignored, and 64-character hexadecimal source IDs are compared as
+digests regardless of letter case. Other opaque labels retain their case and
+internal whitespace. Equal keys cannot license independence, even if the source
+is absent from a supplied ledger; distinct unregistered keys remain unknown to
+ledger-backed checks. Original labels and stored plan identities keep their
+spelling. Shared-evidence reports use one deterministic original label per key.

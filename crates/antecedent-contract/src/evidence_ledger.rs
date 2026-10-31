@@ -48,3 +48,22 @@ pub use source::{
     EffectiveObservations, EvidenceSource, Lineage, ObservationBasis, SourceDeclaration,
     SourceKind, SourceStatus, TransportIdentity,
 };
+
+/// Borrowed comparison key for evidence labels; serialized spelling stays unchanged.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub(crate) enum EvidenceKey<'a> {
+    Source(SourceId),
+    Opaque(&'a str),
+}
+impl EvidenceKey<'_> {
+    pub(crate) fn source(self) -> Option<SourceId> {
+        match self {
+            Self::Source(id) => Some(id),
+            Self::Opaque(_) => None,
+        }
+    }
+}
+pub(crate) fn evidence_key(text: &str) -> EvidenceKey<'_> {
+    let text = text.trim();
+    SourceId::from_hex(text).map_or(EvidenceKey::Opaque(text), EvidenceKey::Source)
+}
