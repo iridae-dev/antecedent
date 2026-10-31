@@ -353,3 +353,13 @@ source identity, preserving the domain and version through serialization. Other
 generic opaque identities remain supported. Neither a hash nor a caller-supplied
 version tag authenticates its origin; transported-model verification checks its
 own model identity. Reissue legacy mechanism receipts from retained premises.
+
+Scientific worlds may describe actions on an outcome or conditioning coordinate
+when that has a scientific meaning, including an action on a past outcome in a
+temporal world. The declaration alone does not establish execution support.
+The randomized joint world-mean route now refuses static hard assignments to its
+measured outcome, including assignments inside sequences: it estimates observed
+arm outcomes and cannot validate those deterministic target assignments. Its
+existing restriction to unconditional targets still applies. Other randomized
+arm-to-world mappings remain caller-attested, and this guard does not authenticate
+that codebook or establish support for temporal execution.

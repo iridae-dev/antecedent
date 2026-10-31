@@ -178,6 +178,68 @@ fn execution_failure(ctx: &ExecutionContext, error: impl std::fmt::Display) -> J
         failure(error)
     }
 }
+// The randomized estimator consumes measured arm outcomes. It cannot verify or
+// execute a static hard assignment to that same measured outcome: such a world
+// has a deterministic outcome rather than the supplied arm's empirical mean.
+fn reject_randomized_static_outcome_clamps(
+    worlds: &[antecedent_core::InterventionWorld],
+    ctx: &ExecutionContext,
+) -> Result<(), JointPanelError> {
+    fn hard_sets(
+        intervention: &antecedent_core::Intervention,
+        outcome: VariableId,
+        ctx: &ExecutionContext,
+        depth: usize,
+    ) -> Result<bool, JointPanelError> {
+        check_cancel(ctx)?;
+        // Bound stack use independently of source-provided sequence nesting.
+        if depth > 64 {
+            return Err(JointPanelError::Unsupported(
+                "randomized outcome-action inspection exceeds the supported nesting depth".into(),
+            ));
+        }
+        match intervention {
+            antecedent_core::Intervention::Set { variable, .. } => Ok(*variable == outcome),
+            antecedent_core::Intervention::Sequence(sequence) => {
+                for step in sequence.steps.iter() {
+                    if hard_sets(&step.intervention, outcome, ctx, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            antecedent_core::Intervention::Shift { .. }
+            | antecedent_core::Intervention::Stochastic { .. }
+            | antecedent_core::Intervention::Soft { .. }
+            | antecedent_core::Intervention::Transform { .. }
+            | antecedent_core::Intervention::Assign { .. } => Ok(false),
+            // Intervention is non-exhaustive outside core. New kinds are refused
+            // until their deterministic-outcome semantics are reviewed here.
+            _ => Err(JointPanelError::Unsupported(
+                "randomized outcome-action inspection does not support this intervention kind"
+                    .into(),
+            )),
+        }
+    }
+    for world in worlds {
+        check_cancel(ctx)?;
+        if !world.time().is_static() {
+            continue;
+        }
+        let outcome = world.binding().outcome().outcome();
+        if let Some(actions) = world.action().at_decision_interventions() {
+            for action in actions {
+                if hard_sets(action, outcome, ctx, 0)? {
+                    return Err(JointPanelError::Unsupported(
+                        "randomized world-mean execution cannot validate a static hard assignment to its measured outcome; use a deterministic outcome-world evaluator".into(),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn execute_world_recipe(
     recipe: &JointDesignRecipe,
     inference: &JointDesignInference,
@@ -253,6 +315,9 @@ impl PreparedJointDesign {
             return Err(failure(
                 "joint-design target changes the source population, sampling unit, outcome measurement, terminal aggregation horizon or conditioning without a supported translation",
             ));
+        }
+        if matches!(&proof.recipe, JointDesignRecipe::Randomized { .. }) {
+            reject_randomized_static_outcome_clamps(worlds, ctx)?;
         }
         match &proof.recipe {
             JointDesignRecipe::Randomized { design, .. }
@@ -1001,3 +1066,7 @@ impl PreparedJointDesign {
 
 #[cfg(test)]
 pub(crate) use native::{gaussian_longitudinal_chain_fixture, native_experiment_fixtures};
+
+#[cfg(test)]
+#[path = "designs/randomized_outcome_guard_tests.rs"]
+mod randomized_outcome_guard_tests;
