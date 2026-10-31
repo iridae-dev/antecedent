@@ -117,22 +117,16 @@ impl CrossfitPlan {
     pub(crate) fn run<N>(
         &self,
         empty: Option<&'static str>,
-        mut poll: impl FnMut(usize) -> Result<(), EstimationError>,
-        mut fit_nuisance: impl FnMut(FoldRows<'_>) -> Result<N, EstimationError>,
-        mut score: impl FnMut(FoldRows<'_>, N) -> Result<(), EstimationError>,
+        poll: impl FnMut(usize) -> Result<(), EstimationError>,
+        fit_nuisance: impl FnMut(FoldRows<'_>) -> Result<N, EstimationError>,
+        score: impl FnMut(FoldRows<'_>, N) -> Result<(), EstimationError>,
     ) -> Result<(), EstimationError> {
-        for fold in 0..self.folds() {
-            poll(fold)?;
-            let rows = self.rows(fold);
-            if let Some(message) = empty {
-                if rows.train.is_empty() || rows.valid.is_empty() {
-                    return Err(EstimationError::data_msg(message));
-                }
-            }
-            let nuisance = fit_nuisance(rows)?;
-            score(rows, nuisance)?;
-        }
-        Ok(())
+        self.0.run(
+            empty.map(|message| move || EstimationError::data_msg(message)),
+            poll,
+            fit_nuisance,
+            score,
+        )
     }
 
     /// Fit folds on leased workers and consume their results in fold order on the caller,
@@ -149,19 +143,12 @@ impl CrossfitPlan {
         ctx: &antecedent_core::ExecutionContext,
         window: usize,
         produce: impl Fn(FoldRows<'_>, &antecedent_core::ExecutionContext) -> Result<T, E> + Sync,
-        mut consume: impl FnMut(usize, T) -> Result<(), E>,
+        consume: impl FnMut(usize, T) -> Result<(), E>,
     ) -> Result<
         antecedent_core::execution::PipelineReceipt,
         antecedent_core::execution::MapExecutionError<E>,
     > {
-        ctx.pipeline_indexed(
-            self.folds(),
-            window,
-            |fold, inner| produce(self.rows(fold), inner),
-            |fold, value| {
-                consume(fold, value).map(|()| antecedent_core::execution::PipelineStep::Continue)
-            },
-        )
+        self.0.pipeline_folds(ctx, window, produce, consume)
     }
 
     /// Release the fold ids.

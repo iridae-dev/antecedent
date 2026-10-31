@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod aipw_crossfit;
 pub mod auto;
 pub mod bayesian_basis;
 pub mod bayesian_basis_regression;

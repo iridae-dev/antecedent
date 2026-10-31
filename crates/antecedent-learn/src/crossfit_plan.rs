@@ -76,6 +76,63 @@ impl CrossfitPlan {
         FoldRows { fold, train: &self.train[fold], valid: &self.valid[fold] }
     }
 
+    /// The sequential cross-fit engine: for each fold in order, `poll` (cancellation), refuse
+    /// an empty train or validation side with `empty` when given, `fit_nuisance` on the
+    /// training rows, then `score` the validation rows with that nuisance.
+    ///
+    /// # Errors
+    ///
+    /// The first error of `poll`, an empty fold, `fit_nuisance` or `score`.
+    pub fn run<N, E>(
+        &self,
+        empty: Option<impl Fn() -> E>,
+        mut poll: impl FnMut(usize) -> Result<(), E>,
+        mut fit_nuisance: impl FnMut(FoldRows<'_>) -> Result<N, E>,
+        mut score: impl FnMut(FoldRows<'_>, N) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for fold in 0..self.folds() {
+            poll(fold)?;
+            let rows = self.rows(fold);
+            if let Some(refuse) = &empty {
+                if rows.train.is_empty() || rows.valid.is_empty() {
+                    return Err(refuse());
+                }
+            }
+            let nuisance = fit_nuisance(rows)?;
+            score(rows, nuisance)?;
+        }
+        Ok(())
+    }
+
+    /// Fit folds on leased workers and consume their results in fold order on the caller,
+    /// with at most `window` fold results alive (being produced, waiting, or being consumed).
+    ///
+    /// A consumer that stalls stops the fold fits after `window` folds instead of letting
+    /// every fold's nuisance output pile up. The lowest-fold error wins.
+    ///
+    /// # Errors
+    ///
+    /// The error of the lowest failing fold or of `consume`, or a cancellation.
+    pub fn pipeline_folds<T: Send, E: Send>(
+        &self,
+        ctx: &antecedent_core::ExecutionContext,
+        window: usize,
+        produce: impl Fn(FoldRows<'_>, &antecedent_core::ExecutionContext) -> Result<T, E> + Sync,
+        mut consume: impl FnMut(usize, T) -> Result<(), E>,
+    ) -> Result<
+        antecedent_core::execution::PipelineReceipt,
+        antecedent_core::execution::MapExecutionError<E>,
+    > {
+        ctx.pipeline_indexed(
+            self.folds(),
+            window,
+            |fold, inner| produce(self.rows(fold), inner),
+            |fold, value| {
+                consume(fold, value).map(|()| antecedent_core::execution::PipelineStep::Continue)
+            },
+        )
+    }
+
     /// Release the fold ids.
     #[must_use]
     pub fn into_fold_ids(self) -> Vec<u32> {

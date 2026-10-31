@@ -7,9 +7,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// Level above which an indicator value is read as the treated arm.
-const TREATED_THRESHOLD: f64 = 0.5;
-
 /// The arm a binary treatment indicator places a row in.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum TreatmentArm {
@@ -23,7 +20,11 @@ impl TreatmentArm {
     /// The arm of a validated indicator value: values above one half are treated.
     #[must_use]
     pub fn of(indicator: f64) -> Self {
-        if indicator > TREATED_THRESHOLD { Self::Treated } else { Self::Control }
+        if antecedent_core::treatment_indicator::is_treated_indicator(indicator) {
+            Self::Treated
+        } else {
+            Self::Control
+        }
     }
 
     /// The arm of a value that must be exactly `0.0` or `1.0`; any other value (including

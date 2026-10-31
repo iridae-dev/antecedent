@@ -83,6 +83,7 @@ pub mod search_budget;
 pub mod temporal;
 pub mod text;
 pub mod tolerance;
+pub mod treatment_indicator;
 pub mod value;
 pub mod value_expr;
 

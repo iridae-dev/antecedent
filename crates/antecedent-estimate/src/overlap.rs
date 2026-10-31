@@ -14,17 +14,9 @@ use crate::error::{EstimationError, ExactF64, RefusalFields};
 /// much target mass sits where a default fit would have re-weighted.
 pub(crate) const DEFAULT_PROPENSITY_CLIP: f64 = 0.01;
 
-/// Clamp one propensity into `[clip, 1 − clip]`.
-///
-/// This is the only propensity clip. `clip` is used as given (no `1e-6` floor). Callers that
-/// hold an [`OverlapPolicy`] have already required `clip ∈ (0, 0.5)`.
-pub(crate) fn clip_propensity(score: f64, clip: f64) -> f64 {
-    debug_assert!(
-        clip.is_finite() && clip > 0.0 && clip < 0.5,
-        "propensity clip must lie in (0, 0.5)"
-    );
-    score.clamp(clip, 1.0 - clip)
-}
+// Clamp one propensity into `[clip, 1 − clip]`. This is the only propensity clip; it is
+// defined with the cross-fit nuisance computation and re-exported here.
+pub(crate) use antecedent_learn::aipw_crossfit::clip_propensity;
 
 /// Overlap / positivity handling.
 #[derive(Clone, Copy, Debug, PartialEq)]
