@@ -110,7 +110,7 @@ impl SurvivalQuery {
     /// finite and positive, a cumulative-incidence target cause is not a
     /// positive event code, delayed entry is combined with known censoring
     /// under a non-marginal observation assumption, or a supplied known
-    /// censoring schedule is malformed.
+    /// censoring schedule is malformed or its probability columns overlap entry.
     pub fn validate(&self) -> Result<(), QueryError> {
         if self.duration == self.event
             || self.duration == self.treatment
@@ -143,10 +143,12 @@ impl SurvivalQuery {
                 || !known.minimum_probability.is_finite()
                 || !(0.0..=1.0).contains(&known.minimum_probability)
                 || known.minimum_probability == 0.0
-                || known
-                    .columns
-                    .iter()
-                    .any(|id| *id == self.duration || *id == self.event || *id == self.treatment)
+                || known.columns.iter().any(|id| {
+                    *id == self.duration
+                        || *id == self.event
+                        || *id == self.treatment
+                        || self.delayed_entry == Some(*id)
+                })
                 || known
                     .columns
                     .iter()
@@ -215,5 +217,35 @@ mod tests {
         assert!(q.validate().is_err());
         q.observation_assumption = ObservationAssumption::IndependentGiven(Arc::from([]));
         assert!(q.validate().is_ok());
+    }
+
+    #[test]
+    fn known_censoring_columns_cannot_alias_survival_input_columns() {
+        let mut q = query();
+        q.delayed_entry = Some(VariableId::from_raw(3));
+        q.known_censoring = Some(KnownCensoringSurvival {
+            times: Arc::from([0.0, 1.0, 2.0]),
+            columns: Arc::from([
+                VariableId::from_raw(4),
+                VariableId::from_raw(5),
+                VariableId::from_raw(6),
+            ]),
+            minimum_probability: 0.01,
+        });
+        assert!(q.validate().is_ok());
+        for alias in [q.duration, q.event, q.treatment, q.delayed_entry.unwrap()] {
+            q.known_censoring.as_mut().unwrap().columns =
+                Arc::from([VariableId::from_raw(4), alias, VariableId::from_raw(6)]);
+            assert!(matches!(
+                q.validate(),
+                Err(QueryError::InvalidSurvival(SurvivalFault::KnownCensoring))
+            ));
+        }
+        q.known_censoring.as_mut().unwrap().columns =
+            Arc::from([VariableId::from_raw(4), VariableId::from_raw(4), VariableId::from_raw(6)]);
+        assert!(matches!(
+            q.validate(),
+            Err(QueryError::InvalidSurvival(SurvivalFault::KnownCensoring))
+        ));
     }
 }

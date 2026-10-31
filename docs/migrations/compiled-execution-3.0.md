@@ -323,3 +323,13 @@ internal whitespace. Equal keys cannot license independence, even if the source
 is absent from a supplied ledger; distinct unregistered keys remain unknown to
 ledger-backed checks. Original labels and stored plan identities keep their
 spelling. Shared-evidence reports use one deterministic original label per key.
+
+Counterfactual queries now leave the default control unresolved when the active
+world is empty or its first intervention has several targets. Supply an explicit
+control in these cases; `with_control_level` alone cannot choose the target.
+Omitted legacy wire controls follow the same rule. A unique first target still
+defaults to its zero level. Explicit natural-world and partial-baseline controls
+remain representable, with executor-specific contrast requirements checked by
+the selected route. Fully encoded legacy controls are treated as explicit.
+Known censoring probability columns must also be distinct from delayed-entry
+columns, as they already must be from duration, event and treatment columns.

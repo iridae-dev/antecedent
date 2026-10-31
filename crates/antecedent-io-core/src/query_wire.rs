@@ -3085,6 +3085,50 @@ mod tests {
     }
 
     #[test]
+    fn counterfactual_omitted_control_keeps_natural_world_explicit() {
+        use antecedent_core::{CausalQuery, CounterfactualQuery, Intervention, Value, VariableId};
+        let v = VariableId::from_raw;
+        let set = |variable, level| Intervention::set(v(variable), Value::f64(level));
+        let natural = CausalQuery::Counterfactual(
+            CounterfactualQuery::new(v(2), Vec::<Intervention>::new()).with_control(set(1, 0.0)),
+        );
+        let explicit = causal_query_to_wire(&natural).unwrap();
+        assert_eq!(causal_query_from_wire(&explicit).unwrap(), natural);
+        let mut omitted = explicit;
+        let CausalQueryWire::Counterfactual { control, .. } = &mut omitted else {
+            panic!("counterfactual wire")
+        };
+        *control = None;
+        assert!(causal_query_from_wire(&omitted).is_err());
+        let unique = CausalQuery::Counterfactual(CounterfactualQuery::new(v(2), [set(1, 1.0)]));
+        let mut omitted = causal_query_to_wire(&unique).unwrap();
+        let CausalQueryWire::Counterfactual { control, .. } = &mut omitted else {
+            panic!("counterfactual wire")
+        };
+        *control = None;
+        assert_eq!(causal_query_from_wire(&omitted).unwrap(), unique);
+        let multi = CausalQuery::Counterfactual(
+            CounterfactualQuery::new(
+                v(2),
+                [Intervention::sequence(InterventionSequence::new(vec![
+                    SequencedIntervention::new(set(0, 1.0), TemporalPolicy::pulse(0)),
+                    SequencedIntervention::new(set(1, 1.0), TemporalPolicy::pulse(0)),
+                ]))],
+            )
+            .with_control(set(0, 0.0))
+            .with_nested(true),
+        );
+        let mut omitted = causal_query_to_wire(&multi).unwrap();
+        // An encoded variable-0 baseline is explicit and remains meaningful.
+        assert_eq!(causal_query_from_wire(&omitted).unwrap(), multi);
+        let CausalQueryWire::Counterfactual { control, .. } = &mut omitted else {
+            panic!("counterfactual wire")
+        };
+        *control = None;
+        assert!(causal_query_from_wire(&omitted).is_err());
+    }
+
+    #[test]
     fn all_intervention_variants_round_trip() {
         let t = VariableId::from_raw(0);
         let y = VariableId::from_raw(1);
