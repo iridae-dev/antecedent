@@ -106,6 +106,58 @@ impl From<antecedent_stats::adaptive_inference::AdaptiveInferenceError> for Choi
     }
 }
 
+impl ChoiceRefusal {
+    /// Registered refusal code (`parity/reason_codes.toml`).
+    #[must_use]
+    pub fn registered_code(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) | Self::Inference(_) => "choice_evidence_invalid",
+            Self::ParameterizationMismatch(_)
+            | Self::MeaningMismatch(_)
+            | Self::PopulationMismatch(_) => "choice_evidence_scope_mismatch",
+            Self::OverlappingObservations(_) => "choice_evidence_overlap",
+            Self::Conflict(..) => "choice_evidence_conflict",
+        }
+    }
+
+    /// Stable machine-readable reason.
+    #[must_use]
+    pub fn reason_code(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) => "choice_evidence.invalid_declaration",
+            Self::ParameterizationMismatch(_) => "choice_evidence.parameterization_mismatch",
+            Self::MeaningMismatch(_) => "choice_evidence.meaning_mismatch",
+            Self::PopulationMismatch(_) => "choice_evidence.population_mismatch",
+            Self::OverlappingObservations(_) => "choice_evidence.overlapping_observations",
+            Self::Conflict(..) => "choice_evidence.conflict",
+            Self::Inference(_) => "choice_evidence.inference_refused",
+        }
+    }
+
+    /// The next thing to try; every refusal names one.
+    #[must_use]
+    pub fn next_attempt(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) | Self::Inference(_) => "correct the declaration named in the message",
+            Self::ParameterizationMismatch(_) => {
+                "re-express the source over the target's ordered option set, or omit it"
+            }
+            Self::MeaningMismatch(_) => {
+                "use evidence of the same choice meaning; stated and observed choices are not exchangeable"
+            }
+            Self::PopulationMismatch(_) => {
+                "declare a transfer rationale and a discount, or use evidence from the target population"
+            }
+            Self::OverlappingObservations(_) => {
+                "count each observation set once: drop the repeated source or the repeated observations"
+            }
+            Self::Conflict(..) => {
+                "inspect the source, lower its discount, or accept the conflict under the report policy"
+            }
+        }
+    }
+}
+
 /// Retained choice evidence: the counts a source contributed, not its posterior.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RetainedChoiceEvidence {

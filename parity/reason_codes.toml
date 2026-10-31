@@ -942,3 +942,25 @@ meaning = "The requested joint normal table exceeds its admitted work or table-s
 id = "execution_resource_limit"
 applies_to = ["runtime_refusal"]
 meaning = "The execution could not obtain the shared worker or memory resources needed to run; no scientific conclusion follows from the refusal."
+
+# Choice evidence (licensed evidence-to-decision lifecycle for repeated categorical choices).
+[[code]]
+id = "choice_evidence_scope_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "Retained choice evidence does not describe the target: its ordered option set, the meaning of its choices (stated or observed) or its population differs, and no transfer with a discount was declared. Nothing is carried across; the refusal names the source."
+
+[[code]]
+id = "choice_evidence_overlap"
+applies_to = ["runtime_refusal"]
+meaning = "The same observation identity would be counted more than once, as two sources or as a source and the observations being conditioned on. The refusal names the identity."
+
+[[code]]
+id = "choice_evidence_conflict"
+applies_to = ["runtime_refusal"]
+meaning = "A source of choice evidence conflicts with the remaining evidence beyond the screening threshold and the policy refuses conflict. The diagnostic is a screen with unmeasured calibration."
+
+[[code]]
+id = "choice_evidence_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A choice-evidence declaration is not well formed, or the inference family refused its shape or size: fewer than two distinct options, a Dirichlet shape below one, a discount outside [0, 1], misaligned counts, or a study beyond the supported size. The refusal names the field."
+
