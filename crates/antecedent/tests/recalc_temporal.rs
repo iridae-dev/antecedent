@@ -419,8 +419,9 @@ fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
     let (result, work) =
         count_static_work(|| execute_temporal_with_receipt(&mut session, &confounded, &ctx()));
     assert!(
-        format!("{:?}", result.as_ref().err())
-            .contains("temporal_initial_shift.source_scope: requires a DAG with selection only at root S0"),
+        format!("{:?}", result.as_ref().err()).contains(
+            "temporal_initial_shift.source_scope: requires a DAG with selection only at root S0"
+        ),
         "the actual checked whole-sequence proof must reject latent action/outcome confounding: {:?}",
         result.as_ref().err()
     );
@@ -433,6 +434,12 @@ fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
 
 #[cfg(feature = "calibration-internal")]
 #[test]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "percentile indices are bounded by the 20 retained draws"
+)]
 fn temporal_history_closed_candidate_replays_whole_unit_identities_without_coverage_claim() {
     use antecedent_estimate::temporal_dependent_interval::{
         DependentIntervalConfig, IntervalMethod,
@@ -452,13 +459,27 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     assert_eq!(result.units, 640);
     assert_eq!(result.calibration, "unmeasured");
     assert_eq!(result.replicates.len(), 20);
-    // The point, each bootstrap draw and each delete-one jackknife unit (the acceleration of
-    // the percentile endpoints) rebuild one source joint and two sequence mechanisms.
+    // A percentile interval uses the original panel and each paired whole-unit draw;
+    // unlike BCa, it does not fit delete-one jackknife panels.
     assert_eq!(
         work.factor_builds,
-        3 * (1 + 20 + 640),
-        "one actual source joint and two sequence mechanisms for the point, each paired unit draw and each jackknife unit"
+        3 * (1 + u64::try_from(config.replicates).unwrap()),
+        "one source joint and two sequence mechanisms for the point and each paired unit draw"
     );
+    let mut points = result.replicates.iter().filter_map(|r| r.point).collect::<Vec<_>>();
+    assert_eq!(points.len() + result.failed, config.replicates);
+    assert!(points.len() >= 2);
+    points.sort_by(f64::total_cmp);
+    // Type-7 percentile endpoints, evaluated directly from the retained draws.
+    let percentile = |p: f64| {
+        let position = p * (points.len() - 1) as f64;
+        let lo = position.floor() as usize;
+        let hi = position.ceil() as usize;
+        points[lo] + (points[hi] - points[lo]) * (position - lo as f64)
+    };
+    let tail = (1.0 - config.level) / 2.0;
+    close(result.lower, percentile(tail));
+    close(result.upper, percentile(1.0 - tail));
     let replay = session.candidate_interval_internal(&config, &ctx()).unwrap();
     assert_eq!(result, replay);
     let mut relabeled = r.clone();
