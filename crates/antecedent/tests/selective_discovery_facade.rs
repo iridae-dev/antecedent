@@ -18,8 +18,8 @@ use antecedent::analysis::selective_discovery::{
     request_selection_diagram, revalidate_after_discovery,
 };
 use antecedent_contract::composition_verification::{
-    CompositionGraph, CompositionNode, DependencyKind, NodeKind, NumericalCause, Revalidation,
-    WithdrawalKind,
+    CompositionGraph, CompositionNode, DependencyKind, NodeKind, NumericalCause, PriorAuthority,
+    Revalidation, WithdrawalKind,
 };
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap};
 use antecedent_core::recalc::{
@@ -407,13 +407,50 @@ fn a_changed_structure_recomputes_and_a_changed_completion_reaches_the_anchor() 
         "a completion is recorded as a declaration, not a discovery"
     );
 
-    // A different discovered structure: recompute with a changed structure.
+    // The collider is fully oriented, while the chain retains unresolved edges.
+    // The graph declaration changes as well as its structure, so the earlier
+    // claims lose their authority until the new premises have been accepted.
     let before = claim_graph(&run(&collider(), &data), None);
     let after = claim_graph(&class, None);
+    let before_graph = before.node("discovery.graph").unwrap();
+    let after_graph = after.node("discovery.graph").unwrap();
+    assert!(before_graph.assumptions.contains(&"unresolved_edges=0".to_owned()));
+    assert!(after_graph.assumptions.contains(&"equivalence_class_not_a_single_graph".to_owned()));
     let result = revalidate_after_discovery(&before, &after).unwrap();
     let graph = result.claim("discovery.graph").unwrap();
     assert!(graph.numerical.iter().any(|r| matches!(r.cause, NumericalCause::StructureChanged)));
-    assert_eq!(result.claim("decision").unwrap().class, Revalidation::Recompute);
+    assert_eq!(result.claim("discovery.data").unwrap().class, Revalidation::StillValid);
+    for key in ["discovery.graph"].into_iter().chain(DOWNSTREAM) {
+        let claim = result.claim(key).unwrap();
+        assert_eq!(claim.class, Revalidation::Withdrawn, "{key}");
+        assert_eq!(claim.authority, PriorAuthority::NotRetained, "{key}");
+        assert!(
+            claim.withdrawals.iter().any(|withdrawal| {
+                withdrawal.kind == WithdrawalKind::Retired
+                    && withdrawal.origin == "discovery.graph"
+                    && withdrawal.detail == "assumptions_changed"
+            }),
+            "{key}: {:?}",
+            claim.withdrawals
+        );
+    }
+
+    // A changed fully oriented collider with the same declared assumptions
+    // requires recomputation, without retiring the prior scientific premises.
+    let alternative =
+        oracle_contract("dsep:collider", vec![vec![], vec![], vec![0, 1, 3], vec![]], 4);
+    let after = claim_graph(&run(&alternative, &data), None);
+    assert_eq!(before_graph.assumptions, after.node("discovery.graph").unwrap().assumptions);
+    let result = revalidate_after_discovery(&before, &after).unwrap();
+    let graph = result.claim("discovery.graph").unwrap();
+    assert!(graph.numerical.iter().any(|r| matches!(r.cause, NumericalCause::StructureChanged)));
+    assert_eq!(result.claim("discovery.data").unwrap().class, Revalidation::StillValid);
+    for key in ["discovery.graph"].into_iter().chain(DOWNSTREAM) {
+        let claim = result.claim(key).unwrap();
+        assert_eq!(claim.class, Revalidation::Recompute, "{key}");
+        assert_eq!(claim.authority, PriorAuthority::NotRetained, "{key}");
+        assert!(claim.withdrawals.is_empty(), "{key}: {:?}", claim.withdrawals);
+    }
 }
 
 #[test]
