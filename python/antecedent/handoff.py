@@ -193,6 +193,8 @@ class AdjustmentHandoff:
         Offset k selects row origin+k. Boundary rows are trimmed, never wrapped.
         ``origins`` identifies retained rows relative to the input series; separate
         subjects must be aligned separately to avoid crossing panel boundaries.
+        Missing outcomes remain NaN for exceedance functionals, leaving missing-data
+        handling to the caller just as for raw outcomes.
         """
         if layout not in ("econml", "named"):
             raise _refuse(
@@ -262,12 +264,20 @@ class AdjustmentHandoff:
             functional = coerce_outcome_functional(self.outcome_functional)
             if functional is not None:
                 y = np.asarray(cols["Y"])
-                if functional["kind"] == "exceedance":
-                    cols["Y"] = (y > float(cast(float, functional["threshold"]))).astype(float)
-                elif functional["kind"] == "exceedance_grid":
-                    cols["Y"] = np.column_stack(
-                        [(y > c).astype(float) for c in cast(list[float], functional["thresholds"])]
-                    )
+                if functional["kind"] in ("exceedance", "exceedance_grid"):
+                    # NaN compares false to every threshold, but an unknown outcome
+                    # is not a known non-event. Preserve it for the caller.
+                    missing_y = np.not_equal(y, y)
+
+                    def event(threshold: float) -> np.ndarray:
+                        return np.where(missing_y, np.nan, (y > threshold).astype(float))
+
+                    if functional["kind"] == "exceedance":
+                        cols["Y"] = event(float(cast(float, functional["threshold"])))
+                    else:
+                        cols["Y"] = np.column_stack(
+                            [event(c) for c in cast(list[float], functional["thresholds"])]
+                        )
         if self.target_weights is not None:
             weights = np.asarray(self.target_weights, dtype=float)
             if (

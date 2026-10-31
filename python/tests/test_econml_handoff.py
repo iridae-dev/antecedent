@@ -6,6 +6,7 @@ import antecedent
 import numpy as np
 import pytest
 from antecedent.outcomes import require_success
+from antecedent.query import Exceedance, ExceedanceGrid
 
 from _repo_text import REPO_ROOT, load_json
 
@@ -646,3 +647,46 @@ def test_attach_refusals_are_typed_with_reason_codes_and_remedies() -> None:
         "attested_not_reverifiable",
     )
     assert isinstance(error, CausalUnsupportedError)
+
+
+@pytest.mark.parametrize("layout,key", [("econml", "Y"), ("named", "outcome")])
+@pytest.mark.parametrize(
+    "functional, expected",
+    [
+        ({"kind": "exceedance", "threshold": 1.0}, [0.0, np.nan, 0.0, 1.0]),
+        (
+            {"kind": "exceedance_grid", "thresholds": [0.0, 1.0]},
+            [[0.0, 0.0], [np.nan, np.nan], [1.0, 0.0], [1.0, 1.0]],
+        ),
+        (Exceedance(1.0), [0.0, np.nan, 0.0, 1.0]),
+        (ExceedanceGrid([0.0, 1.0]), [[0.0, 0.0], [np.nan, np.nan], [1.0, 0.0], [1.0, 1.0]]),
+    ],
+)
+def test_handoff_exceedance_preserves_missing_aligned_outcomes(layout, key, functional, expected):
+    spec = antecedent.handoff.AdjustmentHandoff(
+        treatment="t",
+        outcome="y",
+        confounders=(),
+        identifier="backdoor.adjustment",
+        status="Identified",
+        temporal=True,
+        outcome_offset=1,
+        outcome_functional=functional,
+    )
+    data = {"t": np.arange(5), "y": np.array([np.nan, 0.0, np.nan, 1.0, 2.0])}
+    cols = spec.columns(data, layout=layout)
+    np.testing.assert_array_equal(cols["origins"], [0, 1, 2, 3])
+    np.testing.assert_equal(cols[key], expected)
+
+
+def test_handoff_mean_keeps_missing_outcomes():
+    spec = antecedent.handoff.AdjustmentHandoff(
+        treatment="t",
+        outcome="y",
+        confounders=(),
+        identifier="backdoor.adjustment",
+        status="Identified",
+        outcome_functional="mean",
+    )
+    cols = spec.columns({"t": [0, 1], "y": [np.nan, 2.0]})
+    np.testing.assert_equal(cols["Y"], [np.nan, 2.0])
