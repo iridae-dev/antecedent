@@ -480,6 +480,11 @@ impl PreparedCompositionHandle {
         self.inner.plan_identity_hex()
     }
 
+    /// Encoding version of the prepared plan identity.
+    fn plan_identity_version(&self) -> u64 {
+        self.inner.plan_identity_version()
+    }
+
     /// The family the composition executes in.
     fn family(&self) -> &'static str {
         family_name(self.inner.family())
@@ -775,6 +780,7 @@ fn receipt_json(receipt: &TransportedMechanismReceipt) -> Json {
         "route": receipt.route,
         "identity": receipt.identity,
         "source_plan_identity": receipt.source_plan_identity,
+        "source_plan_identity_version": receipt.source_plan_identity_version,
         "source_population": receipt.source_population,
         "target_population": receipt.target_population,
         "target_regime": receipt.target_regime,

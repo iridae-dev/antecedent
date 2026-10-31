@@ -162,6 +162,10 @@ fn inspection_json(handle: &DiscretizedCompositionHandle) -> Json {
         "variables": variables,
         "identity": bridge.identity_hex(),
         "source_plan_identity": source,
+        "source_plan_identity_version": match &handle.held {
+            Held::Prepared(prepared) => Some(prepared.source_plan_identity_version()),
+            Held::Consumed { .. } => None,
+        },
     })
 }
 

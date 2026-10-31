@@ -205,6 +205,7 @@ class PreparedDiscretizedComposition(ScientificResult):
     calibration: str
     error_scope: str
     source_plan_identity: str | None
+    source_plan_identity_version: int | None = None
     _handle: Any = field(repr=False, compare=False, default=None)
 
     @classmethod
@@ -228,6 +229,7 @@ class PreparedDiscretizedComposition(ScientificResult):
             calibration=str(info["calibration"]),
             error_scope=str(info["error_scope"]),
             source_plan_identity=info["source_plan_identity"],
+            source_plan_identity_version=info.get("source_plan_identity_version"),
             _handle=handle,
         )
 

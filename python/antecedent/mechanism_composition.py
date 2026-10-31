@@ -961,6 +961,7 @@ class PreparedMechanismComposition(ScientificResult):
     variables: tuple[str, ...]
     declared_mechanisms: tuple[str, ...]
     _handle: Any = field(repr=False, compare=False)
+    plan_identity_version: int | None = None
     _scope: Mapping[str, Any] | None = field(default=None, repr=False, compare=False)
 
     def interval(self) -> None:
@@ -1237,6 +1238,7 @@ def _query_wire(
 def _prepared(handle: Any, scope: Mapping[str, Any] | None = None) -> PreparedMechanismComposition:
     return PreparedMechanismComposition(
         plan_identity=handle.plan_identity(),
+        plan_identity_version=handle.plan_identity_version(),
         family=handle.family(),
         variables=tuple(handle.variables()),
         declared_mechanisms=tuple(handle.declared_mechanisms()),
@@ -1468,6 +1470,7 @@ class MechanismTransportReceipt:
     support: str
     inference: str
     assumptions: tuple[str, ...]
+    source_plan_identity_version: int | None = None
 
     @property
     def transported_variables(self) -> tuple[str, ...]:
@@ -1483,9 +1486,16 @@ class MechanismTransportReceipt:
         """The shared :class:`antecedent.transported_response.TransportReceipt` of this route."""
         from .transported_response import TransportReceipt
 
+        if (
+            type(self.source_plan_identity_version) is not int
+            or self.source_plan_identity_version != 2
+        ):
+            raise CausalValueError(
+                "unknown or legacy mechanism plan identity version; reissue from source premises"
+            )
         return TransportReceipt(
             route="mechanism",
-            source_identity=self.source_plan_identity,
+            source_identity=f"antecedent.mechanism_plan.v2:{self.source_plan_identity}",
             source_populations=(self.source_population,),
             target_population=self.target_population,
             transport_identities=(self.identity,),
@@ -1500,6 +1510,7 @@ def _receipt_of(wire: Mapping[str, Any]) -> MechanismTransportReceipt:
         route=str(wire["route"]),
         identity=str(wire["identity"]),
         source_plan_identity=str(wire["source_plan_identity"]),
+        source_plan_identity_version=wire.get("source_plan_identity_version"),
         source_population=str(wire["source_population"]),
         target_population=str(wire["target_population"]),
         target_regime=str(wire["target_regime"]),

@@ -145,7 +145,9 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
     );
     near(result.absolute_error, (result.value - result.closed_form).abs());
     // The four-cell grid is genuinely coarse (observed gap 0.62 of 33.05, bound 0.76) but close.
-    assert!(result.absolute_error > 1e-3 && result.absolute_error < 0.05 * result.closed_form.abs());
+    assert!(
+        result.absolute_error > 1e-3 && result.absolute_error < 0.05 * result.closed_form.abs()
+    );
     assert!(result.error_bound.is_finite() && result.error_bound >= 0.0);
     assert!(result.absolute_error <= result.error_bound + 1e-9);
     assert_eq!(result.inference, BRIDGE_INFERENCE);
@@ -165,6 +167,7 @@ fn a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() {
     assert_eq!(inspection.variables.len(), 3);
     assert!(inspection.variables.iter().all(|(_, levels, _)| *levels == 4));
     assert_eq!(inspection.source_plan_identity, prepared.plan_identity_hex());
+    assert_eq!(inspection.source_plan_identity_version, prepared.plan_identity_version());
 }
 
 #[test]

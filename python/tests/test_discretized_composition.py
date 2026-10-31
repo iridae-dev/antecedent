@@ -66,6 +66,7 @@ def test_a_discretized_contrast_carries_its_closed_form_and_a_computed_bound() -
     assert len(bridged.variables) == 3
     assert all(v.levels == 4 for v in bridged.variables)
     assert bridged.source_plan_identity == composition.plan_identity
+    assert bridged.source_plan_identity_version == composition.plan_identity_version == 2
     # The same plan can be declared per variable.
     named = dc.discretize(composition, {"X": 4, "M": 4, "Y": 4})
     assert named.identity == bridged.identity
@@ -84,6 +85,7 @@ def test_a_refresh_keeps_the_plan_and_recomputes_the_grid_the_bound_and_the_iden
     assert refreshed.identity != bridged.identity
     # The plan identity covers declarations (coordinates, provenance ids), not numbers.
     assert refreshed.source_plan_identity == bridged.source_plan_identity
+    assert refreshed.source_plan_identity_version == bridged.source_plan_identity_version
     assert refreshed.variable("M").level_values != bridged.variable("M").level_values
     values = refreshed.variable("X").level_values
     result = require_success(refreshed.mean_contrast(top_minus_bottom()))
@@ -134,6 +136,7 @@ def test_an_export_is_re_derived_by_a_consumer_from_the_carried_premises() -> No
     assert consumed.identity == bridged.identity
     assert consumed.variable("M").level_values == bridged.variable("M").level_values
     assert consumed.source_plan_identity is None
+    assert consumed.source_plan_identity_version is None
     # A consumed model contrasts and refreshes like the prepared one.
     again = require_success(consumed.mean_contrast(top_minus_bottom()))
     assert again.value == require_success(bridged.mean_contrast(top_minus_bottom())).value

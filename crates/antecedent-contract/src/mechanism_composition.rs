@@ -40,7 +40,7 @@ pub const MECHANISM_VALUE_FUNCTIONAL: &str = "realization";
 /// Stage reported by every refusal of this module.
 pub const MECHANISM_COMPOSITION_STAGE: &str = "compose";
 /// Version of the plan identity encoding.
-pub const MECHANISM_PLAN_IDENTITY_VERSION: u64 = 1;
+pub const MECHANISM_PLAN_IDENTITY_VERSION: u64 = 2;
 
 /// Where a mechanism came from.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -181,11 +181,15 @@ pub struct PlannedParent {
     pub units: String,
     /// Scale or transform.
     pub transform_id: String,
+    /// Versioned complete semantic coordinate, excluding the display label.
+    pub semantic_identity: String,
 }
 
 /// One mechanism in plain coordinates, ready to be bound to its numbers.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlannedMechanism {
+    /// Versioned complete output semantic coordinate, excluding the display label.
+    pub semantic_identity: String,
     /// Stable variable identity.
     pub variable_id: String,
     /// Units produced.
@@ -573,11 +577,39 @@ fn check_latents(by_var: &BTreeMap<&str, &MechanismDeclaration>, c: &mut Collect
     }
 }
 
+// Encode the same label-independent dimensions compared by require_same_coordinate,
+// using explicit stable role tags rather than Debug formatting.
+fn plan_quantity_identity(q: &ScientificQuantity) -> String {
+    use crate::quantity::QuantityRole;
+    let mut w = CanonicalWriter::new("antecedent.mechanism_plan_quantity.v2");
+    w.text(&q.variable_id)
+        .word(match q.role {
+            QuantityRole::Treatment => 1,
+            QuantityRole::Outcome => 2,
+            QuantityRole::Covariate => 3,
+            QuantityRole::Mediator => 4,
+            QuantityRole::Selection => 5,
+            QuantityRole::Utility => 6,
+        })
+        .text(&q.units)
+        .text(&q.population_id)
+        .text(&q.regime_id)
+        .word(u64::from(q.horizon))
+        .text(&q.functional_id)
+        .text(&q.transform_id)
+        .word(q.conditioning.len() as u64);
+    for condition in &q.conditioning {
+        w.text(&condition.variable_id).text(&condition.value_id);
+    }
+    w.finish_hex()
+}
+
 fn canonical_mechanism(m: &MechanismDeclaration) -> PlannedMechanism {
     let mut parents: Vec<PlannedParent> = m
         .parents
         .iter()
         .map(|p| PlannedParent {
+            semantic_identity: plan_quantity_identity(p),
             variable_id: p.variable_id.clone(),
             units: p.units.clone(),
             transform_id: p.transform_id.clone(),
@@ -592,6 +624,7 @@ fn canonical_mechanism(m: &MechanismDeclaration) -> PlannedMechanism {
     }
     latents.sort_by(|a, b| a.latent_id.cmp(&b.latent_id));
     PlannedMechanism {
+        semantic_identity: plan_quantity_identity(&m.output),
         variable_id: m.output.variable_id.clone(),
         units: m.output.units.clone(),
         transform_id: m.output.transform_id.clone(),
@@ -1170,7 +1203,8 @@ impl MechanismCompositionPlan {
             .word(u64::from(self.admit_declared_mechanisms))
             .word(self.mechanisms.len() as u64);
         for m in &self.mechanisms {
-            w.text(&m.variable_id)
+            w.text(&m.semantic_identity)
+                .text(&m.variable_id)
                 .text(&m.units)
                 .text(&m.transform_id)
                 .text(&m.population_id)
@@ -1184,7 +1218,10 @@ impl MechanismCompositionPlan {
                 .text(&m.evidence_id)
                 .word(m.parents.len() as u64);
             for p in &m.parents {
-                w.text(&p.variable_id).text(&p.units).text(&p.transform_id);
+                w.text(&p.semantic_identity)
+                    .text(&p.variable_id)
+                    .text(&p.units)
+                    .text(&p.transform_id);
             }
             w.word(m.conditioning_variable_ids.len() as u64);
             for c in &m.conditioning_variable_ids {
@@ -1346,6 +1383,75 @@ mod tests {
             check_mechanism_composition(&edited).unwrap().identity_hex(),
             plan.identity_hex()
         );
+    }
+
+    #[test]
+    fn v2_binds_quantity_coordinates_omitted_by_legacy_plan() {
+        let baseline = check_mechanism_composition(&decl()).unwrap();
+        for change in 0..2 {
+            let mut d = decl();
+            // Keep the producer and each consumer of x coherent.
+            for m in &mut d.mechanisms {
+                if m.output.variable_id == "x" {
+                    if change == 0 {
+                        m.output.role = QuantityRole::Covariate;
+                    } else {
+                        m.output.horizon = 3;
+                    }
+                }
+                for p in &mut m.parents {
+                    if p.variable_id == "x" {
+                        if change == 0 {
+                            p.role = QuantityRole::Covariate;
+                        } else {
+                            p.horizon = 3;
+                        }
+                    }
+                }
+            }
+            let changed = check_mechanism_composition(&d).unwrap();
+            assert_ne!(baseline.identity_hex(), changed.identity_hex());
+            // The previous projection omitted exactly the altered coordinates.
+            let erase = |mut plan: MechanismCompositionPlan| {
+                for m in &mut plan.mechanisms {
+                    m.semantic_identity.clear();
+                    for p in &mut m.parents {
+                        p.semantic_identity.clear();
+                    }
+                }
+                plan
+            };
+            assert_eq!(erase(baseline.clone()), erase(changed));
+        }
+    }
+
+    #[test]
+    fn plan_quantity_identity_covers_nonlabel_coordinates() {
+        let base = q("x", QuantityRole::Treatment);
+        let baseline = plan_quantity_identity(&base);
+        let mut rename = base.clone();
+        rename.variable_name = "another label".into();
+        assert_eq!(baseline, plan_quantity_identity(&rename));
+        for kind in 0..8 {
+            let mut changed = base.clone();
+            match kind {
+                0 => changed.variable_id = "other".into(),
+                1 => changed.role = QuantityRole::Covariate,
+                2 => changed.units = "m".into(),
+                3 => changed.population_id = "other-population".into(),
+                4 => changed.regime_id = "other-regime".into(),
+                5 => changed.horizon = 2,
+                6 => changed.functional_id = "other-functional".into(),
+                _ => changed.conditioning.push(crate::quantity::QuantityCondition {
+                    variable_id: "z".into(),
+                    value_id: "1".into(),
+                }),
+            }
+            assert_ne!(baseline, plan_quantity_identity(&changed));
+        }
+        let mut changed = base.clone();
+        changed.transform_id = "log".into();
+        assert_ne!(baseline, plan_quantity_identity(&changed));
     }
 
     #[test]

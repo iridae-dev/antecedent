@@ -600,6 +600,12 @@ impl PreparedMechanismComposition {
         self.plan.identity_hex()
     }
 
+    /// Version of the semantic plan identity encoding.
+    #[must_use]
+    pub const fn plan_identity_version(&self) -> u64 {
+        antecedent_contract::mechanism_composition::MECHANISM_PLAN_IDENTITY_VERSION
+    }
+
     /// The family the composition executes in.
     #[must_use]
     pub fn family(&self) -> MechanismFamily {

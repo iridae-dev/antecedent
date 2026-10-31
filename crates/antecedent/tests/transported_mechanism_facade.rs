@@ -259,6 +259,7 @@ fn carried_and_refitted_components_give_the_hand_computed_law_and_a_typed_receip
     assert_eq!(receipt.identity, transported.identity_hex());
     assert_eq!(receipt.identity.len(), 64);
     assert_eq!(receipt.source_plan_identity, source.plan_identity_hex());
+    assert_eq!(receipt.source_plan_identity_version, source.plan_identity_version());
     assert_eq!(receipt.source_population, "pop");
     assert_eq!(receipt.target_population, "clinic_b");
     assert_eq!(receipt.selection_targets, vec!["M".to_owned()]);

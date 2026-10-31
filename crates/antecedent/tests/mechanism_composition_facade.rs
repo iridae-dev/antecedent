@@ -259,6 +259,7 @@ fn listing_order_does_not_change_the_plan_or_the_law_and_sampling_is_determinist
     request.edges.reverse();
     let backward = StudyBuilder::mechanism_composition(request, &ctx()).unwrap();
     assert_eq!(forward.plan_identity_hex(), backward.plan_identity_hex());
+    assert_eq!(forward.plan_identity_version(), 2);
     assert_eq!(
         forward.intervention_law(&[("X", 2.0)]).unwrap(),
         backward.intervention_law(&[("X", 2.0)]).unwrap()

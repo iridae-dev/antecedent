@@ -16,6 +16,7 @@ decide what the truth is.
 from __future__ import annotations
 
 import dataclasses
+import json
 
 import numpy as np
 import pytest
@@ -202,6 +203,7 @@ def test_carried_and_refitted_components_give_the_path_algebra_law(source_gcm, t
     assert receipt.route == "mechanism"
     assert transported.identity == receipt.identity and len(receipt.identity) == 64
     assert receipt.source_plan_identity == source.plan_identity
+    assert receipt.source_plan_identity_version == source.plan_identity_version == 2
     assert receipt.source_population == "pop" and receipt.target_population == "clinic_b"
     assert receipt.selection_targets == ("M",)
     assert receipt.transported_variables == ("X", "Y")
@@ -214,8 +216,21 @@ def test_carried_and_refitted_components_give_the_path_algebra_law(source_gcm, t
     assert receipt.support == "extrapolative" and receipt.inference == "point_only"
     assert receipt.uncertainty_scope == SCOPE
     assert transported.native_target_data is False
+    raw = json.loads(transported._handle.receipt_json())
+    assert raw.pop("source_plan_identity_version") == 2
+    legacy = mc._receipt_of(raw)
+    assert legacy.source_plan_identity_version is None
+    with pytest.raises(ValueError, match="unknown or legacy mechanism plan identity version"):
+        legacy.as_transport_receipt()
     shared = receipt.as_transport_receipt()
     assert shared.route == "mechanism" and shared.transport_identities == (receipt.identity,)
+    assert shared.source_identity == f"antecedent.mechanism_plan.v2:{source.plan_identity}"
+    for version in (None, 1, 3, 2.0, True, "2"):
+        with pytest.raises(ValueError, match="unknown or legacy mechanism plan identity version"):
+            dataclasses.replace(
+                receipt, source_plan_identity_version=version
+            ).as_transport_receipt()
+    assert type(shared)._from_wire(shared._wire()).source_identity == shared.source_identity
 
     # The value is the target structural system's, not the source's.
     ate = mc.MeanContrast.ate("Y", "X", 1.0, 0.0)

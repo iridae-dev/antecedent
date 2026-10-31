@@ -123,6 +123,8 @@ pub struct TransportedMechanismReceipt {
     pub identity: String,
     /// Plan identity of the prepared composition the mechanisms were carried from.
     pub source_plan_identity: String,
+    /// Version of the source plan's semantic identity encoding.
+    pub source_plan_identity_version: u64,
     /// Population the mechanisms were fitted in.
     pub source_population: String,
     /// Population the composition is about.
@@ -336,6 +338,7 @@ impl PreparedMechanismComposition {
             route: MECHANISM_TRANSPORT_ROUTE,
             identity,
             source_plan_identity: self.plan_identity_hex(),
+            source_plan_identity_version: self.plan_identity_version(),
             source_population: source_context.population,
             target_population: declaration.target_population_id.clone(),
             target_regime: declaration.target_regime_id.clone(),

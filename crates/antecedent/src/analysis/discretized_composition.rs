@@ -138,6 +138,8 @@ pub struct DiscretizedCompositionInspection {
     pub identity: String,
     /// Identity of the source composition's plan (hex) at discretization.
     pub source_plan_identity: String,
+    /// Version of the source plan's semantic identity encoding.
+    pub source_plan_identity_version: u64,
 }
 
 /// A composition discretized into an executable finite model.
@@ -146,6 +148,7 @@ pub struct PreparedDiscretizedComposition {
     plan: DiscretizationPlan,
     bridge: DiscretizedLinearGaussian,
     source_plan_identity: String,
+    source_plan_identity_version: u64,
 }
 
 impl PreparedMechanismComposition {
@@ -168,6 +171,7 @@ impl PreparedMechanismComposition {
             plan: plan.clone(),
             bridge,
             source_plan_identity: self.plan_identity_hex(),
+            source_plan_identity_version: self.plan_identity_version(),
         })
     }
 }
@@ -196,6 +200,12 @@ impl PreparedDiscretizedComposition {
     #[must_use]
     pub fn source_plan_identity(&self) -> &str {
         &self.source_plan_identity
+    }
+
+    /// Version of the source plan identity encoding.
+    #[must_use]
+    pub const fn source_plan_identity_version(&self) -> u64 {
+        self.source_plan_identity_version
     }
 
     /// Evaluate a contrast on the discretized model beside the closed-form
@@ -266,6 +276,7 @@ impl PreparedDiscretizedComposition {
             variables,
             identity: self.bridge.identity_hex(),
             source_plan_identity: self.source_plan_identity.clone(),
+            source_plan_identity_version: self.source_plan_identity_version,
         }
     }
 }

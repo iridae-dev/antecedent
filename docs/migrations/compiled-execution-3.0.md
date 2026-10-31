@@ -333,3 +333,23 @@ remain representable, with executor-specific contrast requirements checked by
 the selected route. Fully encoded legacy controls are treated as explicit.
 Known censoring probability columns must also be distinct from delayed-entry
 columns, as they already must be from duration, event and treatment columns.
+
+Mechanism plan identities now use encoding version 2 and bind every semantic
+output and parent coordinate, including causal role, horizon, functional and
+conditioning. Display labels remain excluded. Rust and Python prepared handles,
+mechanism transport receipts and prepared discretization inspection expose the
+version beside the plan hash. Consumed discretization artifacts expose neither
+source plan hash nor version; their separate premises-based verification remains
+in place. Composition artifact encoding and its premises digest are unchanged.
+
+Recompile retained declarations to obtain current plan identities. Previously
+persisted raw hashes cannot be classified by encoding version; do not relabel
+them as version 2. Rust callers constructing `PlannedParent`, `PlannedMechanism`,
+`TransportedMechanismReceipt` or `DiscretizedCompositionInspection` literals must
+provide their new fields. Legacy Python receipt records remain inspectable, but
+conversion to a shared transport receipt requires the current version. That
+conversion now carries `antecedent.mechanism_plan.v2:<hex>` as the generic opaque
+source identity, preserving the domain and version through serialization. Other
+generic opaque identities remain supported. Neither a hash nor a caller-supplied
+version tag authenticates its origin; transported-model verification checks its
+own model identity. Reissue legacy mechanism receipts from retained premises.
