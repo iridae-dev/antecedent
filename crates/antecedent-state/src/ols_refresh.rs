@@ -155,10 +155,27 @@ fn add_to_stats(stats: &mut LinearOlsSuffStats, row: &RefreshRow) -> Result<(), 
     if !row.live() {
         return Ok(());
     }
-    for _ in 0..row.count {
-        stats.append_row(&row.x, row.y)?;
+    if row.count == 1 {
+        return stats.append_row(&row.x, row.y);
     }
-    Ok(())
+    // Build a repeated-row summary using Chan merges. A power-of-two summary
+    // doubles at most 31 times; combining the selected bits takes at most 32
+    // merges. Stage it separately so a refused merge leaves `stats` unchanged.
+    let mut power = LinearOlsSuffStats::new(stats.ncols())?;
+    power.append_row(&row.x, row.y)?;
+    let mut repeated = LinearOlsSuffStats::new(stats.ncols())?;
+    let mut remaining = row.count;
+    while remaining != 0 {
+        if remaining & 1 != 0 {
+            repeated.merge(&power)?;
+        }
+        remaining >>= 1;
+        if remaining != 0 {
+            let duplicate = power.clone();
+            power.merge(&duplicate)?;
+        }
+    }
+    stats.merge(&repeated)
 }
 
 /// Everything a summary holds, derived from `rows` alone.

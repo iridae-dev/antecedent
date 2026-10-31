@@ -115,6 +115,62 @@ fn integer_count_weights_equal_row_repetition() {
 }
 
 #[test]
+fn a_weighted_row_matches_actual_small_repetition() {
+    let mut repeated_row = RefreshRow::new(0, vec![1.0, 0.3], 1.7);
+    repeated_row.count = 13;
+    let weighted = OlsRefresh::from_rows("weighted", 2, vec![repeated_row]).unwrap();
+    let expanded = OlsRefresh::from_rows(
+        "expanded",
+        2,
+        (0..13).map(|id| RefreshRow::new(id, vec![1.0, 0.3], 1.7)).collect(),
+    )
+    .unwrap();
+    let a = weighted.snapshot();
+    let b = expanded.snapshot();
+    assert_eq!(a.n, b.n);
+    for (x, y) in a.xtx.iter().zip(&b.xtx) {
+        close(*x, *y, "xtx");
+    }
+    for (x, y) in a.xty.iter().zip(&b.xty) {
+        close(*x, *y, "xty");
+    }
+    close(a.yty, b.yty, "yty");
+    weighted.check_against_fresh().unwrap();
+}
+
+#[test]
+fn maximum_count_is_bounded_and_survives_refresh_mutations() {
+    let mut item = RefreshRow::new(1, vec![1.0, 2.0], 3.0);
+    item.count = u32::MAX;
+    let mut fit = OlsRefresh::new("counts", 2).unwrap();
+    fit.append_row("counts", &item).unwrap();
+    let n = u64::from(u32::MAX);
+    let expected = f64::from(u32::MAX);
+    let snapshot = fit.snapshot();
+    assert_eq!(snapshot.n, n);
+    assert_eq!(snapshot.ledger.effective_n, n);
+    assert_eq!(snapshot.xtx, vec![expected, 2.0 * expected, 2.0 * expected, 4.0 * expected]);
+    assert_eq!(snapshot.xty, vec![3.0 * expected, 6.0 * expected]);
+    assert_eq!(snapshot.yty, 9.0 * expected);
+    fit.check_against_fresh().unwrap();
+
+    fit.set_mask(1, true).unwrap();
+    assert_eq!(fit.snapshot().n, 0);
+    fit.set_mask(1, false).unwrap();
+    assert_eq!(fit.snapshot().n, n);
+    fit.set_count(1, 0).unwrap();
+    assert_eq!(fit.snapshot().n, 0);
+    fit.set_count(1, u32::MAX).unwrap();
+    fit.append_window("counts", &[RefreshRow::new(2, vec![1.0, 0.0], 1.0)]).unwrap();
+    assert_eq!(fit.snapshot().n, n + 1);
+    assert_eq!(fit.ledger().effective_n, n + 1);
+    fit.check_against_fresh().unwrap();
+    fit.evict_row(1).unwrap();
+    assert_eq!(fit.snapshot().n, 1);
+    fit.check_against_fresh().unwrap();
+}
+
+#[test]
 fn a_fractional_weight_is_refused_and_leaves_the_result_unchanged() {
     let mut fit = full();
     let before = fit.snapshot();
