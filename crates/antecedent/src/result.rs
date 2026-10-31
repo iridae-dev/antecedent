@@ -248,6 +248,9 @@ pub struct SyntheticDidEstimate {
     pub randomization_null_effect: Option<f64>,
     /// Absolute synthetic-DiD contrast for every candidate treated unit.
     pub randomization_statistics: Arc<[(Arc<str>, f64)]>,
+    /// Rounding tolerance within which a candidate ties the observed statistic; absent means
+    /// strict ranking.
+    pub randomization_ranking_tolerance: Option<f64>,
 }
 
 /// Local fuzzy-discontinuity or regression-kink ratio with fixed-bandwidth inference.

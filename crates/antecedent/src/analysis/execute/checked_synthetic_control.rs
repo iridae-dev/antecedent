@@ -462,6 +462,10 @@ impl CheckedSyntheticControlOperation {
             randomization_null_effect: randomization
                 .as_ref()
                 .map(|_| self.query.sharp_null_effect.unwrap_or(0.0)),
+            randomization_ranking_tolerance: randomization
+                .as_ref()
+                .map(|test| test.ranking_tolerance)
+                .filter(|tolerance| *tolerance > 0.0),
             randomization_statistics: randomization.map_or_else(
                 || Arc::from([]),
                 |test| {

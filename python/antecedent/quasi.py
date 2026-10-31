@@ -704,6 +704,7 @@ class SyntheticDifferenceInDifferencesEstimate:
     randomization_p_value: float | None = None
     randomization_null_effect: float | None = None
     randomization_statistics: tuple[tuple[str, float], ...] = ()
+    randomization_ranking_tolerance: float | None = None
     uncertainty: str = "point_only"
     design: str = "balanced_panel_synthetic_difference_in_differences"
     assumptions: tuple[str, ...] = (

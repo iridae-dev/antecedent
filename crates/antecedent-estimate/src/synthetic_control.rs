@@ -29,6 +29,12 @@ pub struct SyntheticUnitRandomizationTest {
     pub statistics: Vec<(String, f64)>,
     /// Exact two-sided finite-assignment tail fraction under the sharp null.
     pub p_value: f64,
+    /// Absolute rounding tolerance within which a statistic ties the observed one.
+    ///
+    /// Zero ranks strictly. A positive value counts every assignment whose statistic is
+    /// within it of the observed statistic as at least as extreme, so the tail fraction
+    /// is never below the strict one.
+    pub ranking_tolerance: f64,
 }
 
 /// Ridge outcome-model correction to the simplex synthetic-control contrast.
@@ -638,6 +644,7 @@ pub fn exact_synthetic_unit_randomization_test(
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
         statistics,
+        ranking_tolerance: 0.0,
     })
 }
 
@@ -680,6 +687,7 @@ pub fn exact_augmented_synthetic_unit_randomization_test(
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
         statistics,
+        ranking_tolerance: 0.0,
     })
 }
 
@@ -1107,6 +1115,19 @@ pub struct SyntheticDidFit {
     pub n_pre_periods: usize,
     /// Number of post-periods.
     pub n_post_periods: usize,
+    /// Forward rounding bound on `effect`: the floating-point accumulation error of the
+    /// contrast, from the magnitudes of the terms it sums and the weight-sum residuals.
+    pub rounding_bound: f64,
+}
+
+/// Forward rounding bound for a contrast summing `terms` floating-point products whose
+/// absolute magnitudes total `magnitude`.
+///
+/// Each operation adds at most one relative rounding of `f64::EPSILON / 2`; the factor
+/// below is `f64::EPSILON` per operation, twice that, with a fixed allowance for the
+/// divisions, weight products and the subtraction of a sharp-null effect.
+fn accumulation_bound(terms: usize, magnitude: f64) -> f64 {
+    (terms as f64 + 8.0) * f64::EPSILON * magnitude
 }
 
 /// Fit unit and time simplex weights without claiming interval calibration.
@@ -1222,7 +1243,29 @@ pub fn fit_synthetic_did(
         })
         .sum();
     let estimate = (treated_post_mean - treated_pre_weighted) - (donor_post_mean - donor_joint_pre);
-    if !estimate.is_finite() || !pre_rmse.is_finite() {
+    let outcome_scale = values.iter().fold(0.0_f64, |scale, value| scale.max(value.abs()));
+    let weight_residual = (unit_weights.iter().sum::<f64>() - 1.0).abs()
+        + (time_weights.iter().sum::<f64>() - 1.0).abs();
+    let magnitude = treated_post_mean.abs()
+        + pre.iter().zip(&time_weights).map(|(p, w)| (treated[p] * w).abs()).sum::<f64>()
+        + donors
+            .iter()
+            .zip(&unit_weights)
+            .map(|((_, observed), weight)| {
+                let post_mean = post.iter().map(|p| observed[p]).sum::<f64>() / post.len() as f64;
+                weight.abs() * post_mean.abs()
+                    + pre
+                        .iter()
+                        .zip(&time_weights)
+                        .map(|(p, time_weight)| (weight * time_weight * observed[p]).abs())
+                        .sum::<f64>()
+            })
+            .sum::<f64>();
+    let rounding_bound = accumulation_bound(
+        donors.len() * (pre.len() + post.len()) + pre.len() + post.len(),
+        magnitude,
+    ) + weight_residual * outcome_scale;
+    if !estimate.is_finite() || !pre_rmse.is_finite() || !rounding_bound.is_finite() {
         return Err(String::from("synthetic DiD estimate overflowed finite precision"));
     }
     let weights = donors
@@ -1239,6 +1282,7 @@ pub fn fit_synthetic_did(
         n_donors: donors.len(),
         n_pre_periods: n_pre,
         n_post_periods: n_post,
+        rounding_bound,
     })
 }
 
@@ -1258,8 +1302,10 @@ pub fn exact_synthetic_did_unit_randomization_test(
     fit_synthetic_did(outcome, units, periods, treated_unit, intervention_period)?;
     let candidates: BTreeSet<&str> = units.iter().map(String::as_str).collect();
     let mut statistics = Vec::with_capacity(candidates.len());
+    let mut ranking_tolerance = 0.0_f64;
     for candidate in candidates {
         let fit = fit_synthetic_did(outcome, units, periods, candidate, intervention_period)?;
+        ranking_tolerance = ranking_tolerance.max(fit.rounding_bound);
         statistics.push((candidate.to_string(), fit.effect.abs()));
     }
     let observed = statistics
@@ -1269,10 +1315,17 @@ pub fn exact_synthetic_did_unit_randomization_test(
             "treated unit is absent from exact synthetic DiD randomization distribution".to_string()
         })?
         .1;
-    let extreme = statistics.iter().filter(|(_, statistic)| *statistic >= observed).count();
+    // Mathematically tied assignments differ only by arithmetic noise, so every statistic
+    // within the accumulated rounding bound of the observed one counts as at least as
+    // extreme. The tail fraction is therefore never below the strict one.
+    let extreme = statistics
+        .iter()
+        .filter(|(_, statistic)| *statistic >= observed - ranking_tolerance)
+        .count();
     Ok(SyntheticUnitRandomizationTest {
         p_value: extreme as f64 / statistics.len() as f64,
         statistics,
+        ranking_tolerance,
     })
 }
 

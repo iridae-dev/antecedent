@@ -165,6 +165,7 @@ pub struct SyntheticDidSection {
     pub randomization_p_value: Option<f64>,
     pub randomization_null_effect: Option<f64>,
     pub randomization_statistics: Vec<(String, f64)>,
+    pub randomization_ranking_tolerance: Option<f64>,
 }
 
 impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
@@ -189,6 +190,7 @@ impl From<&antecedent::SyntheticDidEstimate> for SyntheticDidSection {
                 .iter()
                 .map(|(unit, statistic)| (unit.to_string(), *statistic))
                 .collect(),
+            randomization_ranking_tolerance: value.randomization_ranking_tolerance,
         }
     }
 }

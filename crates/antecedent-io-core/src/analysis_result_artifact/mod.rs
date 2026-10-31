@@ -676,6 +676,10 @@ pub struct SyntheticDidWire {
     /// Absolute synthetic-DiD contrast for every candidate treated unit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub randomization_statistics: Vec<(String, f64)>,
+    /// Rounding tolerance within which a candidate ties the observed statistic. Absent means
+    /// strict ranking, the only rule earlier artifacts used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub randomization_ranking_tolerance: Option<f64>,
 }
 
 /// Retained local ratio result and its fixed-bandwidth normal interval.

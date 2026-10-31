@@ -342,6 +342,7 @@ impl From<&SyntheticDidEstimate> for SyntheticDidWire {
             randomization_p_value: fit.randomization_p_value,
             randomization_null_effect: fit.randomization_null_effect,
             randomization_statistics: unit_values(&fit.randomization_statistics),
+            randomization_ranking_tolerance: fit.randomization_ranking_tolerance,
         }
     }
 }

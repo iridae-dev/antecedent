@@ -552,6 +552,7 @@ class SyntheticDidSection:
     randomization_p_value: float | None
     randomization_null_effect: float | None
     randomization_statistics: list[tuple[str, float]]
+    randomization_ranking_tolerance: float | None
 
 class LocalPolynomialRatioSection:
     effect: float

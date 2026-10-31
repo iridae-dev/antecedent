@@ -470,6 +470,7 @@ pub(super) fn validate_result(
             || (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() > 1e-8
             || (!query.uniform_unit_randomization
                 && (fit.uncertainty != "point_only_no_interval"
+                    || fit.randomization_ranking_tolerance.is_some()
                     || fit.randomization_p_value.is_some()
                     || fit.randomization_null_effect.is_some()
                     || !fit.randomization_statistics.is_empty()))
@@ -499,15 +500,19 @@ pub(super) fn validate_result(
                         .randomization_statistics
                         .iter()
                         .any(|(_, statistic)| !statistic.is_finite() || *statistic < 0.0)
+                    || fit
+                        .randomization_ranking_tolerance
+                        .is_some_and(|tolerance| !tolerance.is_finite() || tolerance <= 0.0)
                     || fit.randomization_p_value
                         != fit
                             .randomization_statistics
                             .iter()
                             .find(|(unit, _)| unit == &query.treated_unit)
                             .map(|(_, observed)| {
+                                let tolerance = fit.randomization_ranking_tolerance.unwrap_or(0.0);
                                 fit.randomization_statistics
                                     .iter()
-                                    .filter(|(_, statistic)| statistic >= observed)
+                                    .filter(|(_, statistic)| *statistic >= observed - tolerance)
                                     .count() as f64
                                     / fit.randomization_statistics.len() as f64
                             })))

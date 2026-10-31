@@ -745,6 +745,7 @@ def _synthetic_did_from_raw(raw: Any) -> SyntheticDifferenceInDifferencesEstimat
         randomization_statistics=tuple(
             (str(unit), float(statistic)) for unit, statistic in section.randomization_statistics
         ),
+        randomization_ranking_tolerance=section.randomization_ranking_tolerance,
         uncertainty=(
             section.uncertainty if section.randomization_p_value is not None else "point_only"
         ),
