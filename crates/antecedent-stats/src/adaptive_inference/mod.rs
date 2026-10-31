@@ -60,6 +60,7 @@
 pub mod beta_bernoulli;
 pub mod capacity;
 pub mod confidence_sequence;
+pub mod dirichlet_choice;
 pub mod group_sequential;
 pub mod historical_prior;
 pub mod participant_posterior;
@@ -78,6 +79,7 @@ pub use beta_bernoulli::{
     BetaPosterior, EXACT_BETA_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
     probability_exceeds, probability_superior, regularized_incomplete_beta,
 };
+pub use dirichlet_choice::{DirichletPosterior, MAX_CHOICE_COUNT, MAX_CHOICE_OPTIONS};
 pub use capacity::{
     CapacityError, MAX_RETAINED_LOOKS, MAX_SIMULATION_MEMORY_BYTES, MAX_SIMULATION_WORK,
     ResourceBudget, ResourceReceipt,
