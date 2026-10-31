@@ -1155,17 +1155,31 @@ fn temporal_class_response_refuters_check_levels_and_shift_with_intercept() {
             let x = i as f64;
             t[i] = f64::from(u8::from((x * 1.31).sin() > 0.0));
             z[i] = (x * 0.19).sin();
-            if i > 0 { y[i] = intercept + 2.0 * t[i - 1] + 0.01 * (x * 0.73).cos(); }
+            if i > 0 {
+                y[i] = intercept + 2.0 * t[i - 1] + 0.01 * (x * 0.73).cos();
+            }
         }
-        TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())], 1).unwrap()
+        TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+            1,
+        )
+        .unwrap()
     }
     fn execute(offset: f64, kind: GraphPosteriorAtomKind) -> antecedent::StudyResult {
         let gp = if kind == GraphPosteriorAtomKind::Pag {
             class_posterior(kind, &[1.0], &[visible_pag_contemp()], &[lag_bit(3, 0, 1)])
-        } else { class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()]) };
-        Study::series(data(offset)).graph_posterior(gp).query(intervention_response())
-            .refute(RefuteSuite::Cheap).bootstrap_replicates(0).build().unwrap()
-            .run(&ExecutionContext::for_tests(1)).unwrap()
+        } else {
+            class_posterior(kind, &[1.0], &[0], &[identified_lag_mask()])
+        };
+        Study::series(data(offset))
+            .graph_posterior(gp)
+            .query(intervention_response())
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(1))
+            .unwrap()
     }
     for kind in [GraphPosteriorAtomKind::Cpdag, GraphPosteriorAtomKind::Pag] {
         let base = execute(10.0, kind);
@@ -1193,40 +1207,81 @@ fn temporal_class_completion_reports_cannot_certify_whole_after_scope_mutation()
     );
     let mut result = Study::series(disagreeing_series())
         .graph_posterior(posterior)
-        .query(intervention_response()).refute(RefuteSuite::Cheap)
-        .bootstrap_replicates(0).build().unwrap().run(&ExecutionContext::for_tests(1)).unwrap();
-    assert!(has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms),
-        "expected different identified functionals; diagnostics: {:?}", result.diagnostics);
-    assert_eq!(result.structural_response.as_ref().unwrap().atoms.iter().filter(|atom| atom.value.is_some()).count(), 2,
-        "both graph points must be retained");
-    assert!(result.refutations.iter().any(|report| report.scope.is_some()), "expected scoped completion reports; diagnostics: {:?}", result.diagnostics);
+        .query(intervention_response())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap();
+    assert!(
+        has_policy(&result, StructuralAggregationPolicy::GraphDependentAtoms),
+        "expected different identified functionals; diagnostics: {:?}",
+        result.diagnostics
+    );
+    assert_eq!(
+        result
+            .structural_response
+            .as_ref()
+            .unwrap()
+            .atoms
+            .iter()
+            .filter(|atom| atom.value.is_some())
+            .count(),
+        2,
+        "both graph points must be retained"
+    );
+    assert!(
+        result.refutations.iter().any(|report| report.scope.is_some()),
+        "expected scoped completion reports; diagnostics: {:?}",
+        result.diagnostics
+    );
     // Mutable access invalidates the private checked owner, even if a caller
     // removes every scope descriptor from the public view.
-    for report in &mut result.refutations { report.scope = None; }
+    for report in &mut result.refutations {
+        report.scope = None;
+    }
     assert!(result.analysis_result_wire(&intervention_response()).is_err());
 }
 
 #[test]
 fn temporal_class_level_does_not_accept_scalar_custom_validator() {
-    use antecedent_validate::{CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError};
+    use antecedent_validate::{
+        CustomEffectValidator, RefutationProblem, RefutationReport, ValidationError,
+    };
     struct ScalarOnly;
     impl CustomEffectValidator for ScalarOnly {
-        fn name(&self) -> &str { "scalar_only" }
-        fn validate(&self, _: &RefutationProblem<'_>, _: &ExecutionContext) -> Result<RefutationReport, ValidationError> {
+        fn name(&self) -> &str {
+            "scalar_only"
+        }
+        fn validate(
+            &self,
+            _: &RefutationProblem<'_>,
+            _: &ExecutionContext,
+        ) -> Result<RefutationReport, ValidationError> {
             panic!("a scalar callback cannot validate a response level")
         }
     }
     let gp = class_posterior(GraphPosteriorAtomKind::Cpdag, &[1.0], &[0], &[identified_lag_mask()]);
-    let result = Study::series(series()).graph_posterior(gp).query(intervention_response())
-        .refute(RefuteSuite::None).custom_validators(vec![std::sync::Arc::new(ScalarOnly)]).build();
+    let result = Study::series(series())
+        .graph_posterior(gp)
+        .query(intervention_response())
+        .refute(RefuteSuite::None)
+        .custom_validators(vec![std::sync::Arc::new(ScalarOnly)])
+        .build();
     assert!(result.is_err());
 }
 
 #[test]
 fn temporal_class_level_validation_honors_pre_cancelled_context() {
     let gp = class_posterior(GraphPosteriorAtomKind::Cpdag, &[1.0], &[0], &[identified_lag_mask()]);
-    let study = Study::series(series()).graph_posterior(gp).query(intervention_response())
-        .refute(RefuteSuite::Cheap).bootstrap_replicates(0).build().unwrap();
+    let study = Study::series(series())
+        .graph_posterior(gp)
+        .query(intervention_response())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
     let ctx = ExecutionContext::for_tests(1);
     ctx.cancellation.cancel();
     assert!(matches!(study.run(&ctx), Err(antecedent::CausalError::Cancelled { .. })));
@@ -1254,4 +1309,59 @@ fn capped_temporal_class_posterior_does_not_claim_full_class_scope() {
     assert!(mixture.truncated_atoms > 0);
     assert!(!mixture.full_mass_scope);
     assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
+}
+
+#[test]
+fn zero_mass_graph_at_envelope_endpoint_keeps_its_completion_level_checks() {
+    use antecedent_validate::RefutationScope;
+
+    // The two known distinct adjustment routes from disagreeing_posterior are
+    // retained as set members even when the first graph has no posterior mass.
+    let posterior = class_posterior(
+        GraphPosteriorAtomKind::Cpdag,
+        &[0.0, 1.0],
+        &[z_confounds_t_contemp(), 0],
+        &[identified_lag_mask(), t_to_y_lag_mask()],
+    );
+    let result = Study::series(disagreeing_series())
+        .graph_posterior(posterior)
+        .query(intervention_response())
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(1))
+        .unwrap();
+    let mixture = result.structural_response.as_ref().unwrap();
+    let zero = mixture
+        .atoms
+        .iter()
+        .find(|atom| atom.weight == 0.0 && atom.value.is_some())
+        .expect("the zero-mass graph must retain its fitted point");
+    let positive = mixture
+        .atoms
+        .iter()
+        .find(|atom| atom.weight > 0.0 && atom.value.is_some())
+        .expect("the positive-mass graph must retain its fitted point");
+    let level = |value: &ResponseValue| match value {
+        ResponseValue::Scalar(x) => *x,
+        ResponseValue::Surface { mean, .. } if mean.len() == 1 => mean[0],
+        other => panic!("expected a one-coordinate level, got {other:?}"),
+    };
+    let zero_level = level(zero.value.as_ref().unwrap());
+    let positive_level = level(positive.value.as_ref().unwrap());
+    assert!(
+        (zero_level - positive_level).abs() > 1e-6,
+        "the fixture must distinguish the two graphs"
+    );
+    let envelope =
+        mixture.identified_set.as_ref().expect("the graph-dependent point set is retained");
+    assert_eq!(envelope.lower.len(), 1);
+    assert!((envelope.lower[0] - zero_level.min(positive_level)).abs() < 1e-8);
+    assert!((envelope.upper[0] - zero_level.max(positive_level)).abs() < 1e-8);
+    assert!(result.refutations.iter().any(|report| {
+        matches!(&report.scope, Some(RefutationScope::TemporalClassCompletion { outer_atom, .. })
+            if *outer_atom == zero.graph_key)
+            && (report.original_ate - zero_level).abs() < 1e-8
+    }), "the endpoint from the zero-mass graph must have a scoped level check");
 }

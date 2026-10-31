@@ -5058,3 +5058,139 @@ fn sample_sd(values: &[f64]) -> f64 {
     let mean = finite.iter().sum::<f64>() / n;
     (finite.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
 }
+
+#[cfg(test)]
+mod temporal_contributor_order_tests {
+    use super::*;
+    use crate::{RefuteSuite, Study};
+    use antecedent_core::{
+        CausalQuery, Intervention, ResponseFunctional, ResponseQuery, TemporalPolicy,
+        TemporalResponseSpec, Value, VariableId,
+    };
+    use antecedent_data::TimeSeriesData;
+    use antecedent_discovery::adjacency_mask::set_edge;
+    use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
+    use antecedent_prob::InferenceDiagnostics;
+    use std::sync::Arc;
+
+    fn result(ctx: &ExecutionContext) -> StudyResult {
+        let n = 300;
+        let (mut t, mut y, mut z) = (vec![0.; n], vec![0.; n], vec![0.; n]);
+        for i in 0..n {
+            let s = i as f64;
+            let r = (s * 0.29).sin();
+            z[i] = 0.4 * r + (s * 0.13).cos() + 0.3 * (s * 1.7).sin();
+            t[i] = 0.3 + 0.5 * r + 0.2 * z[i] + 0.4 * (s * 2.3).cos();
+            if i > 0 {
+                y[i] = 1. + 2. * t[i - 1] + 0.6 * z[i - 1] + 0.1 * (s * 0.77).sin();
+            }
+        }
+        let data = TimeSeriesData::from_f64_columns(
+            [("t", t.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+            1,
+        )
+        .unwrap();
+        let adj = set_edge(0, 3, 2, 0, true).to_word().unwrap();
+        let posterior = GraphPosterior::from_atoms(
+            3,
+            vec![0.5, 0.5],
+            vec![adj, 0],
+            vec![0.; 9],
+            vec![0.; 9],
+            SamplingSummary {
+                ess: 1.,
+                diagnostics: InferenceDiagnostics::analytic("contributor_order"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Cpdag)
+        .with_lagged_marginals(1, vec![0.; 9])
+        .unwrap()
+        .with_lag_masks(vec![(1 << 1) | (1 << 7), 1 << 1])
+        .unwrap();
+        let query = CausalQuery::Response(
+            ResponseQuery::new(ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(1),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(0),
+                    Value::f64(1.),
+                )]),
+            })
+            .with_temporal(
+                TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap(),
+            ),
+        );
+        Study::series(data)
+            .graph_posterior(posterior)
+            .query(query)
+            .refute(RefuteSuite::Cheap)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(ctx)
+            .unwrap()
+    }
+
+    fn copied_member(
+        m: &crate::result::TemporalPosteriorWitnessMember,
+    ) -> crate::result::TemporalPosteriorWitnessMember {
+        crate::result::TemporalPosteriorWitnessMember {
+            outer_atom: m.outer_atom,
+            outer_weight: m.outer_weight,
+            witnesses: Arc::clone(&m.witnesses),
+            structural: m.structural.clone(),
+            _resources: m._resources.clone(),
+        }
+    }
+
+    #[test]
+    fn contributor_matching_is_keyed_not_enumeration_order() {
+        let ctx = ExecutionContext::for_tests(1);
+        let original = result(&ctx);
+        let source = original.temporal_posterior_witnesses.as_ref().unwrap();
+        assert!(source.members.len() >= 2);
+        let mut reordered = original.clone();
+        let mut members: Vec<_> = source.members.iter().map(copied_member).collect();
+        members.reverse();
+        for member in &mut members {
+            let mut entries = member.witnesses.entries.clone();
+            entries.reverse();
+            member.witnesses = Arc::new(crate::result::TemporalResponseWitnessSet {
+                entries,
+                _leases: Vec::new(),
+            });
+        }
+        reordered.temporal_posterior_witnesses =
+            Some(Arc::new(crate::result::TemporalPosteriorWitnessSet {
+                members,
+                _lease: ctx.acquire_admission(0, 0).unwrap(),
+            }));
+        let compare = |other: &StudyResult| {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            check_temporal_response_contributors(&original, other, &mut budget, true, &ctx)
+        };
+        assert!(compare(&reordered).is_ok());
+        let mut missing = original.clone();
+        missing.temporal_posterior_witnesses =
+            Some(Arc::new(crate::result::TemporalPosteriorWitnessSet {
+                members: source.members.iter().skip(1).map(copied_member).collect(),
+                _lease: ctx.acquire_admission(0, 0).unwrap(),
+            }));
+        assert!(compare(&missing).is_err());
+        let mut changed = original.clone();
+        let mut members: Vec<_> = source.members.iter().map(copied_member).collect();
+        let mut entries = members[0].witnesses.entries.clone();
+        assert!(!entries.is_empty());
+        entries[0].completion_digest[0] ^= 1;
+        members[0].witnesses =
+            Arc::new(crate::result::TemporalResponseWitnessSet { entries, _leases: Vec::new() });
+        changed.temporal_posterior_witnesses =
+            Some(Arc::new(crate::result::TemporalPosteriorWitnessSet {
+                members,
+                _lease: ctx.acquire_admission(0, 0).unwrap(),
+            }));
+        assert!(compare(&changed).is_err());
+    }
+}
