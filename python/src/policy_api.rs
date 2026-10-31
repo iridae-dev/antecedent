@@ -322,7 +322,7 @@ fn evaluate_binary_policy_doubly_robust(
     if costs.iter().chain(&reference_costs).any(|cost| !cost.is_finite() || *cost < 0.0) {
         return Err(crate::value_err("policy costs must be finite and non-negative"));
     }
-    let propensity = p.as_slice().map(<[f64]>::to_vec).unwrap_or_default();
+    let propensity = p.iter().copied().collect::<Vec<_>>();
     let (mu0, mu1) = (mu0.to_vec(), mu1.to_vec());
     let scores = detach_catch(py, move || {
         antecedent_estimate::policy_value::evaluate_policy_value_scores(

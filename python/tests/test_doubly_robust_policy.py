@@ -44,6 +44,69 @@ def test_doubly_robust_policy_value_recovers_known_truth_and_score_se():
     assert result.support_status == "unlicensed_point_utility"
 
 
+def test_native_doubly_robust_policy_accepts_strided_propensities():
+    from antecedent import _native
+
+    # Positive and negative strides must keep the logical row order. The
+    # nonconstant vector and imperfect nuisance predictions make a row-order
+    # mistake visible in the scores rather than only in propensity extrema.
+    storage = np.array(
+        [0.2, 9.0, 0.3, 9.0, 0.4, 9.0, 0.5, 9.0, 0.6, 9.0, 0.7, 9.0, 0.8, 9.0, 0.9, 9.0]
+    )
+    outcome = np.array([6.0, 3.0, 8.0, 2.0, 4.0, 9.0, 7.0, 5.0])
+    assignment = [True, False] * 4
+    actions = [True, True, False, False] * 2
+    mu0 = np.arange(8, dtype=float) * 0.1
+    mu1 = mu0 + 1.0
+    for propensity in (storage[::2], storage[::2][::-1]):
+        assert not propensity.flags.c_contiguous
+        actual = _native.evaluate_binary_policy_doubly_robust(
+            outcome,
+            assignment,
+            actions,
+            propensity,
+            mu0,
+            mu1,
+        )
+        expected = _native.evaluate_binary_policy_doubly_robust(
+            outcome,
+            assignment,
+            actions,
+            propensity.copy(),
+            mu0,
+            mu1,
+        )
+        assert actual == pytest.approx(expected)
+
+
+def test_strided_propensity_preserves_public_values_and_invalid_input_checks():
+    base = np.array(
+        [0.2, 99.0, 0.3, 99.0, 0.4, 99.0, 0.5, 99.0, 0.6, 99.0, 0.7, 99.0, 0.8, 99.0, 0.9, 99.0]
+    )
+    view = base[::2][::-1]
+    assert _call(propensity=view) == _call(propensity=view.copy())
+
+    from antecedent import _native
+
+    outcome = np.arange(8, dtype=float)
+    assignment = [True, False] * 4
+    actions = [True] * 8
+    mu = np.zeros(8)
+    for invalid in (np.array([0.5, 0.0] * 8)[1::2], np.array([0.5, np.nan] * 8)[1::2]):
+        with pytest.raises(ValueError, match="propensities"):
+            _native.evaluate_binary_policy_doubly_robust(
+                outcome, assignment, actions, invalid, mu, mu
+            )
+    with pytest.raises(ValueError, match="propensity must be scalar or one value per row"):
+        _native.evaluate_binary_policy_doubly_robust(
+            outcome, assignment, actions, base[::4], mu, mu
+        )
+    with pytest.raises((TypeError, ValueError)):
+        _native.evaluate_binary_policy_doubly_robust(
+            outcome, assignment, actions, base.reshape(4, 4), mu, mu
+        )
+
+
 def test_doubly_robust_policy_supports_caller_declared_cross_fitting():
     result = _call(
         training_subject_ids=None,
