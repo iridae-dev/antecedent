@@ -287,6 +287,7 @@ pub fn distribution_change_blocks(
     refit: Option<&PopulationRefit<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     let (baseline_store, comparison_store) = if let Some(refit) = refit {
@@ -331,7 +332,7 @@ pub fn distribution_change_blocks(
     )?;
 
     let n_nodes = graph_model.n_nodes();
-    let n_samples = options.n_samples.max(1);
+    let n_samples = options.n_samples;
     let mut is_player = vec![false; n_nodes];
     for node in &players_dense {
         is_player[node.as_usize()] = true;
@@ -510,7 +511,7 @@ impl CachedOutcomeLawPayoff for BlockSwapPayoff {
         )?;
         let start = self.outcome.as_usize() * n;
         let (mean, variance) = antecedent_stats::mean_var(&self.values_buf[start..start + n]);
-        Ok((mean, variance.max(1e-12)))
+        Ok((mean, variance))
     }
 }
 

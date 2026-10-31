@@ -37,7 +37,7 @@ pub use crate::change_common::DifferenceMeasure;
 pub struct DistributionChangeOptions {
     /// Difference measure on the outcome samples.
     pub measure: DifferenceMeasure,
-    /// Samples drawn per coalition evaluation.
+    /// Draws per coalition: at least one for means, two for variance or Gaussian KL.
     pub n_samples: usize,
     /// RNG seed for sampling.
     pub seed: u64,
@@ -66,6 +66,7 @@ pub fn distribution_change(
     options: &DistributionChangeOptions,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     distribution_change_on_populations(
@@ -126,6 +127,7 @@ pub(crate) fn distribution_change_with_fit_uncertainty(
             "fit-uncertainty bootstrap needs >= 2 replicates and a level in (0, 1)",
         ));
     }
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     let mut point = distribution_change_on_populations(
@@ -354,6 +356,7 @@ pub fn distribution_change_with_row_weights(
     comparison_weights: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     if baseline_weights.len() != baseline_data.row_count()
@@ -400,6 +403,7 @@ pub fn distribution_change_with_frequency_weights(
     comparison_counts: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     validate_distribution_change_query(query)?;
     let (baseline_data, comparison_data) = resolve_change_populations(data, query)?;
     if baseline_counts.len() != baseline_data.row_count()
@@ -842,6 +846,61 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let model = CompiledCausalModel::compile(g).unwrap();
         (model, data)
+    }
+
+    #[test]
+    fn sampled_distribution_counts_follow_the_measure() {
+        let (model, data) = two_period_chain_with_noise();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(1),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = |measure, n_samples| DistributionChangeOptions { measure, n_samples, seed: 3 };
+        for measure in [
+            DifferenceMeasure::MeanDiff,
+            DifferenceMeasure::VarianceDiff,
+            DifferenceMeasure::GaussianKl,
+        ] {
+            assert!(matches!(
+                distribution_change(&model, &data, &query, &opts(measure, 0), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+            assert!(matches!(
+                crate::latent_blocks::distribution_change_blocks(
+                    &model,
+                    &data,
+                    &query,
+                    &opts(measure, 0),
+                    &[],
+                    None,
+                    &ctx
+                ),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            distribution_change(&model, &data, &query, &opts(DifferenceMeasure::MeanDiff, 1), &ctx)
+                .is_ok()
+        );
+        for measure in [DifferenceMeasure::VarianceDiff, DifferenceMeasure::GaussianKl] {
+            assert!(matches!(
+                distribution_change(&model, &data, &query, &opts(measure, 1), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            distribution_change(
+                &model,
+                &data,
+                &query,
+                &opts(DifferenceMeasure::VarianceDiff, 2),
+                &ctx
+            )
+            .is_ok()
+        );
     }
 
     /// The row bootstrap reports estimation uncertainty the permutation-sampling standard error

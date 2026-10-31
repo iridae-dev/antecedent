@@ -58,7 +58,7 @@ const STRUCTURE_CACHE_CAP: usize = 64;
 pub struct StructureChangeOptions {
     /// Difference measure on the outcome samples.
     pub measure: DifferenceMeasure,
-    /// Samples drawn per coalition evaluation.
+    /// Draws per coalition: at least one for means, two for variance or Gaussian KL.
     pub n_samples: usize,
     /// RNG seed for sampling.
     pub seed: u64,
@@ -128,6 +128,7 @@ fn structure_change_impl(
     refit: Option<&crate::distribution_change::PopulationRefit<'_>>,
     ctx: &ExecutionContext,
 ) -> Result<ChangeAttributionResult, AttributionError> {
+    crate::change_common::validate_change_sample_count(options.measure, options.n_samples)?;
     query.validate()?;
     require_structure_components(
         query.components,
@@ -670,6 +671,58 @@ mod tests {
         let baseline = CompiledCausalModel::compile(g0).unwrap();
         let comparison = CompiledCausalModel::compile(g1).unwrap();
         (baseline, comparison, data)
+    }
+
+    #[test]
+    fn sampled_structure_counts_follow_the_measure() {
+        let (baseline, comparison, data) = parent_swap_fixture();
+        let query = ChangeAttributionQuery::new(
+            VariableId::from_raw(2),
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+        )
+        .with_components(AttributionComponents::Structure)
+        .with_allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() });
+        let ctx = ExecutionContext::for_tests(1);
+        let opts = |measure, n_samples| StructureChangeOptions { measure, n_samples, seed: 5 };
+        for measure in [
+            DifferenceMeasure::MeanDiff,
+            DifferenceMeasure::VarianceDiff,
+            DifferenceMeasure::GaussianKl,
+        ] {
+            assert!(matches!(
+                structure_change(&baseline, &comparison, &data, &query, &opts(measure, 0), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            structure_change(
+                &baseline,
+                &comparison,
+                &data,
+                &query,
+                &opts(DifferenceMeasure::MeanDiff, 1),
+                &ctx
+            )
+            .is_ok()
+        );
+        for measure in [DifferenceMeasure::VarianceDiff, DifferenceMeasure::GaussianKl] {
+            assert!(matches!(
+                structure_change(&baseline, &comparison, &data, &query, &opts(measure, 1), &ctx),
+                Err(AttributionError::InvalidInput { .. })
+            ));
+        }
+        assert!(
+            structure_change(
+                &baseline,
+                &comparison,
+                &data,
+                &query,
+                &opts(DifferenceMeasure::VarianceDiff, 2),
+                &ctx
+            )
+            .is_ok()
+        );
     }
 
     #[test]

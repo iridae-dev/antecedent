@@ -91,6 +91,18 @@ pub fn distribution_change_robust_with_refit(
     robust_impl(graph_model, data, query, options, Some(refit), ctx)
 }
 
+fn robust_samples_per_eval(all_linear: bool, n_samples: usize) -> Result<usize, AttributionError> {
+    if all_linear {
+        Ok(1)
+    } else {
+        crate::change_common::validate_change_sample_count(
+            crate::change_common::DifferenceMeasure::MeanDiff,
+            n_samples,
+        )?;
+        Ok(n_samples)
+    }
+}
+
 fn robust_impl(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
@@ -152,13 +164,13 @@ fn robust_impl(
         &query.allocation,
         "distribution_change_robust currently supports Shapley allocation",
     )?;
-    // `n_samples` is the budget the caller declared for each coalition. The
-    // linear payoff does not draw, but a declared budget past the ceiling is
-    // still refused, the same rule `distribution_change` uses.
+    // Linear composition performs no outcome draws; still bound coalition work.
+    // The nonlinear path uses the declared count and requires at least one draw.
+    let samples_per_eval = robust_samples_per_eval(all_linear, options.n_samples)?;
     crate::shapley::check_coalition_sample_budget(
         players.len(),
         &query.allocation,
-        options.n_samples.max(1),
+        samples_per_eval,
     )?;
 
     let (v0, v_full, estimate) = if all_linear {
@@ -464,7 +476,6 @@ fn admit_payoff_scratch(
 ) -> Result<antecedent_core::execution::AdmissionLease, AttributionError> {
     let holders = usize::try_from(ctx.parallelism.max_threads.get()).unwrap_or(usize::MAX);
     let bytes = n_samples
-        .max(1)
         .checked_mul(n_nodes.saturating_add(1))
         .and_then(|cells| cells.checked_mul(size_of::<f64>()))
         .and_then(|bytes| bytes.checked_mul(holders.max(1)))
@@ -489,7 +500,6 @@ impl<'a> RobustMechanismPayoff<'a> {
     ) -> Self {
         let McSampling { n_samples, seed } = sampling;
         let n_nodes = template.n_nodes();
-        let n_samples = n_samples.max(1);
         let mut node_player = vec![None; n_nodes];
         for (i, comp) in players.iter().enumerate() {
             if let Some(dense) = template.dense_of(comp.variable()) {
@@ -797,8 +807,10 @@ mod tests {
         let refused = run(Some((DifferenceMeasure::GaussianKl, 10, 1))).unwrap_err();
         assert!(matches!(refused, AttributionError::Unsupported { .. }), "{refused:?}");
         let plain = run(None).unwrap();
-        let sampled = run(Some((DifferenceMeasure::MeanDiff, 1_000, 9))).unwrap();
-        assert_eq!(plain.total_change.to_bits(), sampled.total_change.to_bits());
+        for n in [0, 1, 1_000, usize::MAX] {
+            let sampled = run(Some((DifferenceMeasure::MeanDiff, n, 9))).unwrap();
+            assert_eq!(plain.total_change.to_bits(), sampled.total_change.to_bits());
+        }
     }
 
     /// Swapping a zero-effect root from a constant to a Gaussian family must not change
@@ -836,6 +848,17 @@ mod tests {
         let unchanged_x = payoff.value(&Coalition::empty()).unwrap();
         let changed_x_only = payoff.value(&Coalition::from_bits(1)).unwrap();
         assert_eq!(unchanged_x.to_bits(), changed_x_only.to_bits());
+    }
+
+    #[test]
+    fn robust_sample_budget_respects_the_selected_path() {
+        assert_eq!(robust_samples_per_eval(true, 0).unwrap(), 1);
+        assert_eq!(robust_samples_per_eval(true, usize::MAX).unwrap(), 1);
+        assert!(matches!(
+            robust_samples_per_eval(false, 0),
+            Err(AttributionError::InvalidInput { .. })
+        ));
+        assert_eq!(robust_samples_per_eval(false, 1).unwrap(), 1);
     }
 
     /// `X -> Y`, `Y = X²` exactly (zero-noise quadratic mechanism), `X`'s mean held
@@ -890,6 +913,16 @@ mod tests {
         ];
         let outcome = DenseNodeId::from_raw(1);
         let ctx = ExecutionContext::for_tests(7);
+        let mut one_draw = RobustMechanismPayoff::new(
+            template.clone(),
+            baseline.clone(),
+            comparison.clone(),
+            &players,
+            outcome,
+            McSampling { n_samples: 1, seed: 11 },
+            &ctx,
+        );
+        assert!(one_draw.value(&Coalition::empty()).unwrap().is_finite());
         let mut payoff = RobustMechanismPayoff::new(
             template,
             baseline,
@@ -936,13 +969,29 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, AttributionError::Unsupported { .. }), "{err:?}");
 
+        // This exact linear path makes no draws, even when a huge draw count
+        // is supplied through the builder. Its coalition-work ceiling still applies.
+        let result = ChangeAttribution::new()
+            .outcome(outcome)
+            .baseline(baseline.clone())
+            .comparison(comparison.clone())
+            .allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() })
+            .robust(true)
+            .with_sampling(DifferenceMeasure::MeanDiff, usize::MAX, 1)
+            .run(&model, &data, &ctx)
+            .unwrap();
+        assert!((result.total_change - 2.0).abs() < 1e-12);
+        assert_eq!(result.budget.samples, 0);
+
         let err = ChangeAttribution::new()
             .outcome(outcome)
             .baseline(baseline)
             .comparison(comparison)
-            .allocation(AllocationMethod::Shapley { approximation: ShapleyConfig::exact() })
+            .allocation(AllocationMethod::Shapley {
+                approximation: ShapleyConfig::exact().with_sample_budget(3),
+            })
             .robust(true)
-            .with_sampling(DifferenceMeasure::MeanDiff, 30_000_000, 1)
+            .with_sampling(DifferenceMeasure::MeanDiff, 0, 1)
             .run(&model, &data, &ctx)
             .unwrap_err();
         assert!(matches!(err, AttributionError::SizeLimit { .. }), "{err:?}");
