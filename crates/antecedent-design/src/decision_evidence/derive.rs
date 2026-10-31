@@ -286,6 +286,27 @@ pub fn derive(
     quantity: &DerivedQuantity,
 ) -> Result<DerivedResult, EvidenceRefusal> {
     let bridge = check_request(evidence, request)?;
+    // Bounds on differences alone do not bound either arm mean. A nonlinear
+    // function of arm means therefore cannot be recovered from such bounds.
+    if matches!(evidence.exposure, Exposure::BoundedSpillover { .. })
+        && !expr::is_affine(&quantity.expr)
+    {
+        return Err(EvidenceRefusal::Invalid(
+            "nonlinear quantities require bounds on arm means, not only spillover bias in contrasts".into(),
+        ));
+    }
+    // Adjusted contrasts preserve differences, but uncentered adjusted arm
+    // means need not estimate the original arm means used by nonlinear functions.
+    if evidence
+        .adjustments
+        .iter()
+        .any(|a| matches!(a.kind, super::AdjustmentKind::FixedCuped { .. }))
+        && !expr::is_affine(&quantity.expr)
+    {
+        return Err(EvidenceRefusal::Invalid(
+            "nonlinear quantities require arm means restored to the original outcome scale after adjustment".into(),
+        ));
+    }
     let n = quantity.inputs.len();
     let bad = |m: String| Err(EvidenceRefusal::Invalid(m));
     let mut max_input = 0usize;
@@ -626,8 +647,8 @@ pub enum Verdict {
         /// Preferred action name.
         action: String,
     },
-    /// Sampling resolves the decision at every admissible assumption, but the preferred action
-    /// changes inside the declared assumption range.
+    /// The sampled interval favors different actions at vertices of the declared range.
+    /// Intermediate assumption values may still leave the decision unresolved.
     AssumptionDependent {
         /// Assumptions the preference depends on.
         assumption_ids: Vec<String>,
@@ -693,7 +714,10 @@ pub fn decide(
             derived.sampling_at_vertices.iter().collect()
         };
         let sides: Vec<Option<bool>> = intervals.iter().map(|s| side(s.lower, s.upper)).collect();
-        if sides.is_empty() || sides.iter().any(Option::is_none) {
+        if derived.assumption_range.as_ref().is_some_and(|r| !r.exact)
+            || sides.is_empty()
+            || sides.iter().any(Option::is_none)
+        {
             Verdict::Unresolved { reasons: vec![UnresolvedReason::SamplingStraddlesThreshold] }
         } else {
             let all_true = sides.iter().all(|s| *s == Some(true));
@@ -922,11 +946,15 @@ pub(super) mod tests {
                 bias_bounds: vec![0.1, 0.5, 0.0],
             },
         );
-        let r = derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).unwrap();
-        let range = r.assumption_range.unwrap();
-        assert_eq!(range.dimensions, 2);
-        assert!(range.assumption_ids.contains(&"a.spill".to_owned()));
-        assert!(range.lower < 3.2 && range.upper > 3.2);
+        assert!(derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).is_err());
+        let linear = DerivedQuantity {
+            name: "frequency".into(),
+            units: "u".into(),
+            expr: UtilityExpr::Input(0),
+            inputs: vec![InputBinding::Measured("frequency".into())],
+        };
+        let range = derive(&ev, &request(), &linear).unwrap().assumption_range.unwrap();
+        assert!(range.lower < 0.2 && range.upper > 0.2);
     }
 
     #[test]
@@ -970,6 +998,53 @@ pub(super) mod tests {
         )
         .unwrap();
         assert!(matches!(r.verdict, Verdict::Unresolved { .. }));
+    }
+
+    #[test]
+    fn rejects_indefinite_joint_covariance() {
+        let ev = evidence(1.0, no_interference());
+        let invalid = vec![1.0, 0.9, 0.9, 0.9, 1.0, -0.9, 0.9, -0.9, 1.0];
+        assert!(JointExperimentEvidence::new(
+            ev.evidence_id, ev.population_id, (ev.treated_regime_id, ev.control_regime_id),
+            ev.horizon, ev.components, (ev.treated_means, ev.control_means),
+            Dependence::Joint { treated: invalid.clone(), control: invalid }, ev.design,
+            ev.adjustments, ev.exposure,
+        ).is_err());
+    }
+
+    #[test]
+    fn nonlinear_bound_and_adjustment_do_not_license_decisions() {
+        let mut ev = evidence(0.05, no_interference());
+        ev.adjustments.push(ComponentAdjustment {
+            component: "frequency".into(),
+            kind: AdjustmentKind::FixedCuped { covariate: "pre".into(), coefficient: 1.0 },
+        });
+        assert!(derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).is_err());
+    }
+
+    #[test]
+    fn repeated_assumed_input_cannot_use_vertices_to_claim_robustness() {
+        let ev = evidence(0.05, no_interference());
+        let q = DerivedQuantity {
+            name: "square".into(),
+            units: "u".into(),
+            expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0)),
+            inputs: vec![InputBinding::Assumed {
+                lower: -1.0,
+                upper: 1.0,
+                assumption_id: "a".into(),
+                shared_across_arms: false,
+            }],
+        };
+        let f = DecisionFrame {
+            treated_action: "t".into(),
+            control_action: "c".into(),
+            threshold: 0.1,
+        };
+        assert!(matches!(
+            decide(&ev, &request(), &q, &f).unwrap().verdict,
+            Verdict::Unresolved { .. }
+        ));
     }
 
     #[test]

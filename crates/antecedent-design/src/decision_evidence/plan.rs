@@ -120,13 +120,14 @@ pub fn plan_evidence(
     for c in candidates {
         match c {
             Candidate::MoreUnits { additional_units_per_arm, cost, .. } => {
-                let value = base
-                    .derived
-                    .sampling
-                    .as_ref()
+                let value = (if base.derived.assumption_range.is_some() {
+                    None
+                } else {
+                    base.derived.sampling.as_ref()
+                })
                     .ok_or_else(|| {
                         EvidenceRefusal::Invalid(
-                            "planning more units needs a sampling interval, which this quantity does not have".into(),
+                            "planning more units needs a sampling interval without an unresolved assumption range".into(),
                         )
                     })
                     .map(|s| more_units(evidence, s.estimate, s.standard_error, frame, *additional_units_per_arm, *cost));
@@ -142,6 +143,17 @@ pub fn plan_evidence(
                 for b in &mut q.inputs {
                     if let InputBinding::Assumed { lower, upper, assumption_id: id, .. } = b {
                         if id == assumption_id {
+                            if !narrowed.0.is_finite()
+                                || !narrowed.1.is_finite()
+                                || narrowed.0 < *lower
+                                || narrowed.1 > *upper
+                                || narrowed.0 > narrowed.1
+                            {
+                                return Err(EvidenceRefusal::Invalid(format!(
+                                    "candidate `{}` must narrow the existing assumption range",
+                                    c.id()
+                                )));
+                            }
                             (*lower, *upper) = *narrowed;
                             touched = true;
                         }

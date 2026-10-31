@@ -63,7 +63,7 @@ impl StageDigests {
         adj.text(&premise).text(&evidence.adjustment_identity());
         let adjustment = adj.finish_hex();
         let mut est = CanonicalWriter::new("antecedent.decision_evidence.stage.estimate.v1");
-        est.text(&adjustment).text(&evidence.evidence_id);
+        est.text(&adjustment).text(&evidence.estimate_identity());
         let estimate = est.finish_hex();
         let mut der = CanonicalWriter::new("antecedent.decision_evidence.stage.derived.v1");
         der.text(&estimate).text(&quantity.identity());
@@ -194,6 +194,21 @@ mod tests {
 
     fn frame(threshold: f64) -> DecisionFrame {
         DecisionFrame { treated_action: "ship".into(), control_action: "hold".into(), threshold }
+    }
+
+    #[test]
+    fn revised_estimate_with_same_evidence_id_invalidates_downstream() {
+        let a = evidence(1.0, no_interference());
+        let mut b = a.clone();
+        b.treated_means[0] += 1.0;
+        let q = margin(super::super::InputBinding::Measured("cost".into()));
+        let receipt = reuse_receipt(
+            &StageDigests::of(&a, &q, &frame(0.0)),
+            &StageDigests::of(&b, &q, &frame(0.0)),
+        );
+        assert_eq!(receipt.status(Stage::Adjustment), StageStatus::Reused);
+        assert_eq!(receipt.status(Stage::Estimate), StageStatus::Invalidated);
+        assert_eq!(receipt.status(Stage::Decision), StageStatus::Invalidated);
     }
 
     #[test]

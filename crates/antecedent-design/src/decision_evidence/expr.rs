@@ -21,6 +21,21 @@ pub(super) fn has_kink(expr: &UtilityExpr) -> bool {
     }
 }
 
+/// Conservative structural check for an affine expression.
+pub(super) fn is_affine(expr: &UtilityExpr) -> bool {
+    fn degree(e: &UtilityExpr) -> usize {
+        match e {
+            UtilityExpr::Const(_) => 0,
+            UtilityExpr::Input(_) => 1,
+            UtilityExpr::Neg(a) => degree(a),
+            UtilityExpr::Add(a, b) | UtilityExpr::Sub(a, b) => degree(a).max(degree(b)),
+            UtilityExpr::Mul(a, b) => degree(a).saturating_add(degree(b)),
+            UtilityExpr::Min(..) | UtilityExpr::Max(..) => 2,
+        }
+    }
+    degree(expr) <= 1
+}
+
 /// Whether every input is read at most once and the tree has no kink, so the function is
 /// multilinear in its inputs and its extremes over a box sit at the box's vertices.
 pub(super) fn is_multilinear(expr: &UtilityExpr) -> bool {

@@ -11,7 +11,7 @@ Rust: `antecedent::decision_evidence`. Python: `antecedent.decision_evidence`.
 | Compile | `compile_joint_experiment` | the unit of analysis, which adjustments the design admits, and the identification and statistical obligations, before anything is fitted | that any obligation holds |
 | Estimate | `JointExperimentEvidence` | the arm means of several outcomes of one experiment with the covariance of their estimators, the design, the exposure assumption | a joint law when only marginals were estimated |
 | Derive | `derive`, `DerivedQuantity` | a function of the outcomes in the decision contract's own `UtilityExpr` language: a delta-method sampling interval and, separately, the range over declared assumptions | a support license or a calibrated interval; the components' precision does not transfer to a nonlinear function of them |
-| Decide | `decide`, `DecisionFrame` | `robust`, `assumption_dependent` or `unresolved`, and what is unresolved | a probability; an assumption range is never turned into one |
+| Decide | `decide`, `DecisionFrame` | `robust`, `assumption_dependent` or `unresolved`, and what is unresolved; assumption-dependent classifications can include unresolved intermediate values | a probability; an assumption range is never turned into one |
 | Plan | `plan_evidence` | what additional units or a narrowed assumption would do to the decision | one ranking across kinds that are not comparable |
 
 ## Design-aware precision adjustment
@@ -43,7 +43,7 @@ A statistical interval needs at least 30 independently assigned units in each ar
 
 ## Interference and scope boundaries
 
-Between-unit exposure must be declared: `no_between_unit_interference` (an assumption, not a finding), `bounded_spillover` (a per-outcome bound on the bias of the contrast, which enters as an assumption range), or `unspecified` (refused). A request for another population, contrast or horizon is refused with its next attempt. A deployment-policy quantity is refused unless a structural bridge assumption is declared and is then reported as an assumption of the answer.
+Between-unit exposure must be declared: `no_between_unit_interference` (an assumption, not a finding), `bounded_spillover` (a per-outcome bound on the bias of the contrast, which enters as an assumption range), or `unspecified` (refused). Bounds on component contrasts do not determine nonlinear functions of arm means, so those combinations are refused. Nonlinear quantities with fixed CUPED adjustment are also refused until arm means are restored to the original outcome scale. A request for another population, contrast or horizon is refused with its next attempt. A deployment-policy quantity is refused unless a structural bridge assumption is declared and is then reported as an assumption of the answer.
 
 ## Reuse and withdrawal
 
@@ -58,7 +58,7 @@ Stage digests chain (premise, adjustment, estimate, derived quantity, decision).
 
 ## Planning
 
-`MoreUnits` candidates are valued with the existing Normal-Normal `FutureStudyProgram`. The belief is centered on the current contrast with the delta-method variance, and the per-unit variance is implied by the current number of independent units. This is a declared planning model, not a calibrated posterior. `ResolveAssumption` candidates re-run the decision with the declared narrower range; they are best cases, not expectations. The two kinds are reported side by side.
+`MoreUnits` candidates without an outstanding assumption range are valued with the existing Normal-Normal `FutureStudyProgram`; candidates with such a range are refused rather than evaluated at its midpoint. The belief is centered on the current contrast with the delta-method variance, and the per-unit variance is implied by the current number of independent units. This is a declared planning model, not a calibrated posterior. `ResolveAssumption` candidates re-run the decision with the declared narrower range; they are best cases, not expectations. The two kinds are reported side by side.
 
 ## Maintained example
 

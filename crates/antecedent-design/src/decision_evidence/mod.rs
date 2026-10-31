@@ -417,6 +417,34 @@ impl JointExperimentEvidence {
             if m.len() != expected || m.iter().any(|v| !v.is_finite()) {
                 return false;
             }
+            // A symmetric matrix can satisfy every pairwise correlation bound and
+            // still have a negative eigenvalue. Check positive semidefiniteness by
+            // a tolerance-aware LDL decomposition before using it as covariance.
+            if full {
+                let scale = (0..k).map(|i| m[i * k + i].abs()).fold(0.0_f64, f64::max);
+                let tolerance = scale * 1e-10;
+                let mut l = vec![0.0; k * k];
+                let mut d = vec![0.0; k];
+                for i in 0..k {
+                    let pivot = m[i * k + i]
+                        - (0..i).map(|j| l[i * k + j] * l[i * k + j] * d[j]).sum::<f64>();
+                    if pivot < -tolerance {
+                        return false;
+                    }
+                    d[i] = pivot.max(0.0);
+                    for row in i + 1..k {
+                        let residual = m[row * k + i]
+                            - (0..i).map(|j| l[row * k + j] * l[i * k + j] * d[j]).sum::<f64>();
+                        if d[i] <= tolerance {
+                            if residual.abs() > tolerance {
+                                return false;
+                            }
+                        } else {
+                            l[row * k + i] = residual / d[i];
+                        }
+                    }
+                }
+            }
             (0..k).all(|i| {
                 let d = m[if full { i * k + i } else { i }];
                 d >= 0.0
@@ -437,9 +465,7 @@ impl JointExperimentEvidence {
             }
         };
         if !ok {
-            return invalid(
-                "covariances must be finite, symmetric, with nonnegative variances and |covariance| <= sqrt(variance product)",
-            );
+            return invalid("covariances must be finite, symmetric and positive semidefinite");
         }
         if !matches!(design.assignment_design.as_str(), "cluster" | "complete") {
             return Err(EvidenceRefusal::UnsupportedAssignmentDesign(design.assignment_design));
@@ -679,6 +705,19 @@ impl JointExperimentEvidence {
         w.text(&self.evidence_id)
             .text(&self.scientific_identity())
             .text(&self.adjustment_identity());
+        w.word(self.design.treated_units as u64)
+            .word(self.design.control_units as u64)
+            .word(self.design.outcome_rows as u64)
+            .reals(&self.treated_means)
+            .reals(&self.control_means);
+        match &self.dependence {
+            Dependence::Joint { treated, control } => {
+                w.word(0).reals(treated).reals(control);
+            }
+            Dependence::MarginalsOnly { treated, control } => {
+                w.word(1).reals(treated).reals(control);
+            }
+        }
         w.finish_hex()
     }
 }
