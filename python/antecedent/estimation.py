@@ -446,15 +446,19 @@ def _wrap_prepared_response(
     if reports:
         import math
 
+        scoped_checks = execution is not None and getattr(
+            execution, "response_checks_are_scoped", lambda: False
+        )()
         validation = ResponseValidationView(
+            whole_target=not scoped_checks,
             checks=tuple(
                 ResponseValidationCheck(
                     id=name,
                     status="passed" if passed else "failed",
                     statistic=float(refuted) if math.isfinite(refuted) else None,
                     threshold=None,
-                    detail=failure
-                    or ("informative check" if informative else "uninformative check"),
+                    detail=("completion-level check; " if scoped_checks else "")
+                    + (failure or ("informative check" if informative else "uninformative check")),
                 )
                 for name, passed, informative, _original, refuted, failure in reports
             )

@@ -215,7 +215,7 @@ impl PyPreparedAnalysis {
                         .map_err(py_err)?;
                     Ok::<_, PyErr>((study, result))
                 })?;
-            result.performance.bytes_borrowed = borrowed_bytes;
+            result.set_borrowed_input_bytes(borrowed_bytes);
             let mapped = map(&names, &result, &study, &ctx)?;
             Ok((mapped, result, Arc::new(unstaged(study))))
         })?;

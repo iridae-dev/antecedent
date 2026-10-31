@@ -71,12 +71,21 @@ fn prepared(data: &TabularData, graph: &Dag, ctx: &ExecutionContext) -> antecede
 }
 
 fn checked_outcome(
-    prepared: &antecedent::PreparedStudy, result: &antecedent::StudyResult,
-    data: &TabularData, ctx: &ExecutionContext,
+    prepared: &antecedent::PreparedStudy,
+    result: &antecedent::StudyResult,
+    data: &TabularData,
+    ctx: &ExecutionContext,
 ) -> antecedent::analysis::target_validation::TargetRefutationOutcome {
-    refute_prepared_target(prepared, result, PreparedTargetData::Tabular(data), TargetSuite::Placebo,
+    refute_prepared_target(
+        prepared,
+        result,
+        PreparedTargetData::Tabular(data),
+        TargetSuite::Placebo,
         &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
-        &TargetRefitOptions::default(), ctx).unwrap()
+        &TargetRefitOptions::default(),
+        ctx,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -191,14 +200,22 @@ fn modifying_the_published_target_invalidates_the_runtime_report_binding() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let outcome = checked_outcome(&prepared, &result, &data, &ctx);
     assert!(certify_result_refutations(&result, &outcome).is_ok());
+    let mut accounted = result.clone();
+    accounted.set_borrowed_input_bytes(Some(4096));
+    assert_eq!(accounted.performance.bytes_borrowed, Some(4096));
+    assert!(certify_result_refutations(&accounted, &outcome).is_ok());
     let mut changed_effect = result.clone();
     changed_effect.estimate_mut().as_effect_mut().unwrap().ate += 1.0;
+    changed_effect.set_borrowed_input_bytes(Some(4096));
     assert!(certify_result_refutations(&changed_effect, &outcome).is_err());
     let mut changed_query = result.clone();
     let mut query = query();
     query.functional = ResponseFunctional::PointDerivative {
-        outcome: VariableId::from_raw(2), treatment: VariableId::from_raw(0),
-        at: 3.0, order: 1, scale: DerivativeScale::Identity,
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at: 3.0,
+        order: 1,
+        scale: DerivativeScale::Identity,
     };
     changed_query.identification.query = CausalQuery::Response(query);
     assert!(certify_result_refutations(&changed_query, &outcome).is_err());
@@ -222,7 +239,10 @@ fn a_caller_forged_same_program_stamp_is_not_a_route_report() {
     own.stamp_producer(program);
     native.refutations.push(own);
     assert!(native.claim(&contract, &ctx).is_err());
-    assert!(matches!(certify_result_refutations(&native, &outcome), Err(TargetCertificationError::TargetMismatch { .. })));
+    assert!(matches!(
+        certify_result_refutations(&native, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
 
     // Stamped by another program: refused, like an unstamped scalar report.
     let mut foreign = clean.clone();
@@ -245,14 +265,20 @@ fn descriptive_scope_cannot_certify_even_when_program_and_target_match() {
     let contract = prepared.contract().unwrap();
     let target = result_refutation_target(&result).unwrap();
     let program = *result.lowered_program_identity().unwrap().as_bytes();
-    let mut report = RefutationReport::new("target.subset_stability", 2.0, 2.0, 0.9, true, true, None, 8);
+    let mut report =
+        RefutationReport::new("target.subset_stability", 2.0, 2.0, 0.9, true, true, None, 8);
     report.scope = Some(antecedent_validate::RefutationScope::WholeTarget { target });
     report.stamp_producer(program);
     result.refutations.push(report);
-    assert!(matches!(certify_result_refutations(&result, &outcome),
-        Err(TargetCertificationError::TargetMismatch { .. })));
+    assert!(matches!(
+        certify_result_refutations(&result, &outcome),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
     let error = result.claim(&contract, &ctx).unwrap_err();
-    assert!(error.to_string().contains("modified") || error.to_string().contains("refutation"), "{error}");
+    assert!(
+        error.to_string().contains("modified") || error.to_string().contains("refutation"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -282,7 +308,9 @@ fn a_report_on_another_program_does_not_certify_the_result() {
     )
     .unwrap();
     let mut moved = outcome.clone();
-    for report in &mut moved.run.reports { report.target = elsewhere.clone(); }
+    for report in &mut moved.run.reports {
+        report.target = elsewhere.clone();
+    }
     assert!(matches!(
         certify_result_refutations(&result, &moved),
         Err(TargetCertificationError::TargetMismatch { .. })
@@ -303,14 +331,27 @@ fn checked_outcome_binds_actual_data_and_rejects_mutation() {
     assert!(certify_result_refutations(&result, &modified).is_err());
     assert!(certify_result_refutations(&result, &outcome).is_ok());
     let (different, _) = fixture(301);
-    let refused = refute_prepared_target(&prepared, &result, PreparedTargetData::Tabular(&different),
-        TargetSuite::Placebo, &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
-        &TargetRefitOptions::default(), &ctx);
+    let refused = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&different),
+        TargetSuite::Placebo,
+        &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(),
+        &ctx,
+    );
     assert!(matches!(refused, Err(antecedent::CausalError::Conflict { what: "data", .. })));
     let cancelled = ExecutionContext::for_tests(67);
     cancelled.cancellation.cancel();
-    let refused = refute_prepared_target(&prepared, &result, PreparedTargetData::Tabular(&equivalent),
-        TargetSuite::Placebo, &TargetRefutationConfig::default(), &TargetRefitOptions::default(), &cancelled);
+    let refused = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&equivalent),
+        TargetSuite::Placebo,
+        &TargetRefutationConfig::default(),
+        &TargetRefitOptions::default(),
+        &cancelled,
+    );
     assert!(matches!(refused, Err(antecedent::CausalError::Cancelled { .. })));
 }
 

@@ -54,6 +54,8 @@ pub enum ContractReason {
     DataSnapshotLinearFitMomentsRank,
     /// `data_snapshot.observation`.
     DataSnapshotObservation,
+    /// Legacy unscoped refutations require independent replay.
+    DependenciesRefutationReplay,
     /// Scoped refutation proof requires independent replay.
     DependenciesScopedRefutationReplay,
     /// `dependencies.checked_admg_graph_posterior_response_operation`.
@@ -459,6 +461,7 @@ impl ContractReason {
             Self::DataSnapshotLinearFitMoments => "data_snapshot.linear_fit_moments",
             Self::DataSnapshotLinearFitMomentsRank => "data_snapshot.linear_fit_moments_rank",
             Self::DataSnapshotObservation => "data_snapshot.observation",
+            Self::DependenciesRefutationReplay => "dependencies.refutation_replay",
             Self::DependenciesScopedRefutationReplay => "dependencies.scoped_refutation_replay",
             Self::DependenciesCheckedAdmgGraphPosteriorResponseOperation => {
                 "dependencies.checked_admg_graph_posterior_response_operation"
@@ -813,7 +816,8 @@ impl ContractReason {
     pub const fn omitted_when_encoding(self) -> bool {
         matches!(
             self,
-            Self::DependenciesScopedRefutationReplay
+            Self::DependenciesRefutationReplay
+                | Self::DependenciesScopedRefutationReplay
                 | Self::DependenciesCheckedGlmOperation
                 | Self::DependenciesCheckedRdOperation
                 | Self::DependenciesCheckedPropensityOperation
@@ -924,6 +928,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DataSnapshotLinearFitMoments,
     ContractReason::DataSnapshotLinearFitMomentsRank,
     ContractReason::DataSnapshotObservation,
+    ContractReason::DependenciesRefutationReplay,
     ContractReason::DependenciesScopedRefutationReplay,
     ContractReason::DependenciesCheckedAdmgGraphPosteriorResponseOperation,
     ContractReason::DependenciesCheckedAttributionOperation,
@@ -1192,6 +1197,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.linear_fit_sufficient_statistics",
     "dependencies.nested_counterfactual_fit_moments",
     "dependencies.nested_counterfactual_fit_rank",
+    "dependencies.refutation_replay",
     "dependencies.scoped_refutation_replay",
     "distribution.atom_count",
     "distribution.atom_probability",

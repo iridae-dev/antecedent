@@ -4071,8 +4071,10 @@ impl PreparedRefit<'_> {
         }
         if k == 1 {
             let posterior = result.posterior.as_ref()?;
-            let n = posterior.draws.n_draws;
-            return posterior.draws.values.get(..n).map(<[f64]>::to_vec);
+            // Posterior columns may put nuisance coefficients before the effect.
+            // Read the declared effect, never the first column by position.
+            let effect = posterior.effect_column()?;
+            return posterior.draws.column(effect).ok().map(<[f64]>::to_vec);
         }
         None
     }
@@ -4089,6 +4091,21 @@ impl PreparedRefit<'_> {
                 "prepare the study with Bayesian inference",
             ));
         };
+        // The static response derivative posterior is a Rubin row-weight
+        // bootstrap. Its disclosure is attached by the estimator itself; it
+        // has no coefficient prior whose scale can be perturbed. A successful
+        // rerun at another unused scale is not prior-sensitivity evidence.
+        if self.result.response().is_some_and(|response| {
+            response.assumptions.entries.iter().any(|record| {
+                matches!(&record.source, antecedent_core::AssumptionSource::AlgorithmDefault { algorithm }
+                    if algorithm.as_ref() == "response.bayesian.derivative")
+            })
+        }) {
+            return Err(unsupported(
+                "the Rubin Bayesian-bootstrap derivative does not use a coefficient prior",
+                "use a posterior route with an actually varied coefficient prior",
+            ));
+        }
         let baseline = self.target_draws(self.result).ok_or_else(|| {
             unsupported(
                 "the result retains no posterior draws of its whole target",

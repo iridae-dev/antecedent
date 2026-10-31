@@ -8,6 +8,7 @@ import pytest
 from antecedent import validation as v
 from antecedent.errors import (
     CausalCancelledError,
+    CausalEstimateError,
     CausalResourceError,
     CausalTypeError,
     CausalValueError,
@@ -122,24 +123,46 @@ def test_temporal_refits_use_retained_native_modality_and_explicit_dependence_co
     assert result.inspect().next_actions
 
 
-def test_posterior_and_derivative_controls_refit_the_original_inference_declaration():
+def test_conjugate_posterior_controls_refit_the_original_inference_declaration():
     study = ant.reconfigure(
-        _static(), inference=ant.Bayesian(n_draws=40, prior_scale=10, backend="conjugate")
+        _static(),
+        query=ant.AverageEffect("x", "y"),
+        estimator_config=None,
+        inference=ant.Bayesian(n_draws=40, prior_scale=10, backend="conjugate"),
     )
     checks = v.TargetRefutationSpec(
-        replicates=12,
-        prior_scale_factors=(0.5, 2.0),
-        prior_shift_tolerance=0.75,
-        derivative_step=0.2,
-        derivative_tolerance=0.15,
-        linearity_tolerance=0.3,
+        replicates=12, prior_scale_factors=(0.5, 2.0), prior_shift_tolerance=0.75
     )
     report = require_success(v.refute_target(study, checks=checks))
     assert "bayesian" in report.target.quadrant
     reports = _reports(report)
     assert reports["target.prior_sensitivity"].original[0] == pytest.approx(2, abs=0.2)
     assert "target.posterior_predictive" in reports
+    assert report.calibration == "unmeasured"
+
+
+def test_bayesian_derivative_reports_unsupported_conjugate_and_checks_compatible_route():
+    checks = v.TargetRefutationSpec(
+        replicates=12, derivative_step=0.2, derivative_tolerance=0.15,
+        linearity_tolerance=0.3,
+    )
+    unsupported = ant.reconfigure(
+        _static(), inference=ant.Bayesian(n_draws=40, prior_scale=10, backend="conjugate")
+    )
+    with pytest.raises(CausalEstimateError, match="Rubin Bayesian bootstrap"):
+        require_success(v.refute_target(unsupported, checks=checks))
+
+    # The default compatibility declaration executes a Rubin row-weight
+    # posterior. It supports derivative checks but has no coefficient prior.
+    compatible = ant.reconfigure(_static(), inference=ant.Bayesian(n_draws=40))
+    report = require_success(v.refute_target(compatible, checks=checks))
+    reports = _reports(report)
     assert reports["target.finite_difference_consistency"].passed
+    assert "target.prior_sensitivity" not in reports
+    assert any(
+        item.refuter == "target.prior_sensitivity" and "does not use a coefficient prior" in item.reason
+        for item in report.refused
+    )
     assert report.calibration == "unmeasured"
 
 

@@ -103,6 +103,14 @@ pub(super) fn overlay_prepared_score_functional(
         CausalQuery::ConditionalEffect(q) => &q.inner.outcome_functional,
         _ => return Ok(()),
     };
+    // This private adapter is called only on the result just produced by the
+    // current prepared execution. Never use it to restore a caller-mutated result.
+    if matches!(&result.authority, crate::result::RuntimeRefutationAuthority::Invalidated) {
+        return Err(CausalError::Conflict {
+            what: "result",
+            detail: "score functional overlay cannot issue authority for a modified result",
+        });
+    }
     let effect = result.estimate.as_effect().cloned().ok_or_else(|| CausalError::Compile {
         message: "score functional overlay requires an effect estimate".into(),
     })?;
@@ -139,7 +147,19 @@ pub(super) fn overlay_prepared_score_functional(
     }
     result.estimate = crate::PrimaryEstimate::Effect(estimate);
     result.rebind_interval(result.posterior.is_some());
-    result.diagnostics.extend(diagnostics);
+    // Reports on the pre-overlay estimate cannot certify this new target.
+    // The outer prepared boundary issues a fresh owner after the overlay.
+    if !result.view.refutations.is_empty() {
+        result.view.refutations.clear();
+        result.view.diagnostics.push(antecedent_core::Diagnostic::new(
+            "refute.score_functional.withheld",
+            antecedent_core::DiagnosticKind::Scientific,
+            antecedent_core::DiagnosticSeverity::Info,
+            "refutations of the pre-overlay estimate are withheld for the score-derived target",
+        ));
+    }
+    result.view.diagnostics.extend(diagnostics);
+    result.authority = crate::result::RuntimeRefutationAuthority::Fresh;
     Ok(())
 }
 

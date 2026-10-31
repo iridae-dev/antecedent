@@ -669,6 +669,28 @@ impl StudyResult {
         }
     }
 
+    /// Record bytes borrowed from host-owned input buffers during ingestion.
+    ///
+    /// This is host performance accounting; it does not alter the executed target,
+    /// scientific result, or checked refutation authority.
+    pub fn set_borrowed_input_bytes(&mut self, bytes: Option<u64>) {
+        self.view.performance.bytes_borrowed = bytes;
+    }
+
+    /// Whether the response's retained checks describe individual completions
+    /// rather than establishing a verdict for the whole response.
+    #[must_use]
+    pub fn response_checks_are_scoped(&self) -> bool {
+        use RuntimeRefutationAuthority::Sealed;
+        use RuntimeRefutationOrigin::{Route, ScopedCompletion};
+        if self.refutations.is_empty() || self.response().is_none() {
+            return false;
+        }
+        matches!(&self.authority, Sealed { origin: ScopedCompletion, .. })
+            || (matches!(&self.authority, Sealed { origin: Route, .. })
+                && self.structural_response.is_some())
+    }
+
     /// Reservation held with this result's retained output, when accounted by its engine.
     /// This is admitted capacity, not a measurement of process resident memory.
     #[must_use]

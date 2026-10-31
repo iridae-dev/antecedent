@@ -1,0 +1,3 @@
+# Portable refutation replay
+
+Analysis-result artifacts with legacy unscoped refutation reports remain decodable and inspectable, and their historical report encoding is unchanged. They no longer obtain authoritative claim acceptance merely from rehashed report data: independent consumption reports `dependencies.refutation_replay` until the refutation has a real checked replay implementation. Scoped reports continue to report `dependencies.scoped_refutation_replay`. A scope can be removed from a report without leaving a distinguishable legacy wire shape, so scope metadata or a public digest alone cannot establish that a check ran. Report-free claims retain their existing verification path. This restriction does not assert that old reports are false.

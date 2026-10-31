@@ -1310,6 +1310,10 @@ def _execution_slots(execution: Any | None) -> ReasoningSlots | None:
     """
     if execution is None or not execution.has_execution_contract():
         return None
+    # Completion-level response checks are inspectable but cannot be sealed as
+    # whole-result evidence. Keep the native result without inventing a claim.
+    if getattr(execution, "response_checks_are_scoped", lambda: False)():
+        return None
     # Capture the native contract and scientific evidence once, at execution.
     # Inspection reads these immutable presentation records; it never exports an
     # artifact or reaches back into the native execution to materialize a payload.

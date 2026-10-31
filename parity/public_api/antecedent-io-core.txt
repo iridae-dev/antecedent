@@ -17314,6 +17314,7 @@ pub variant antecedent_io_core::ContractReason::DependenciesFunctionalEffectResp
 pub variant antecedent_io_core::ContractReason::DependenciesLinearFitSufficientStatistics
 pub variant antecedent_io_core::ContractReason::DependenciesNestedCounterfactualFitMoments
 pub variant antecedent_io_core::ContractReason::DependenciesNestedCounterfactualFitRank
+pub variant antecedent_io_core::ContractReason::DependenciesRefutationReplay
 pub variant antecedent_io_core::ContractReason::DependenciesScopedRefutationReplay
 pub variant antecedent_io_core::ContractReason::DistributionAtomCount
 pub variant antecedent_io_core::ContractReason::DistributionAtomProbability

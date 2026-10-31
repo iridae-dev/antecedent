@@ -145,6 +145,11 @@ impl PyPreparedAnalysis {
         self.last.as_ref().is_some_and(|result| result.executed_contract().is_some())
     }
 
+    /// Whether retained response checks describe completions rather than the whole result.
+    fn response_checks_are_scoped(&self) -> bool {
+        self.last.as_ref().is_some_and(|result| result.response_checks_are_scoped())
+    }
+
     /// Capture native contract and evidence at the explicit execution boundary.
     /// Posterior draw payloads and response values are not serialized into this record.
     #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]

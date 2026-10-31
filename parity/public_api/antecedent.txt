@@ -13824,10 +13824,12 @@ pub fn <antecedent::StudyResult>::fn quasi_rollout(&self) -> core::option::Optio
 pub fn <antecedent::StudyResult>::fn randomized_effect(&self) -> core::option::Option<&antecedent::RandomizedEffectEstimate>
 pub fn <antecedent::StudyResult>::fn reported_interval_bindings(&self, bayesian: bool) -> alloc::vec::Vec<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::fn response(&self) -> core::option::Option<&antecedent_core::response::CausalResponse>
+pub fn <antecedent::StudyResult>::fn response_checks_are_scoped(&self) -> bool
 pub fn <antecedent::StudyResult>::fn retained_admitted_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent::StudyResult>::fn retarget_population(&self) -> core::option::Option<antecedent_core::query::target::TargetPopulation>
 pub fn <antecedent::StudyResult>::fn route_diagnostics(&self) -> alloc::vec::Vec<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent::StudyResult>::fn sequential_contrast(&self) -> core::option::Option<&antecedent::SequentialContrastEstimate>
+pub fn <antecedent::StudyResult>::fn set_borrowed_input_bytes(&mut self, bytes: core::option::Option<u64>)
 pub fn <antecedent::StudyResult>::fn simulation(&self) -> core::option::Option<&antecedent::SimulationPayload>
 pub fn <antecedent::StudyResult>::fn simultaneous_band_binding(&self, bayesian: bool) -> core::option::Option<antecedent::result::IntervalBinding>
 pub fn <antecedent::StudyResult>::fn static_result_wire(&self, query: &antecedent_core::query::variants::CausalQuery, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>) -> core::result::Result<antecedent_io_core::causal_artifact::StaticResultWire, antecedent::CausalError>

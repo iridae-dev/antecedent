@@ -19,14 +19,14 @@
 use std::sync::Arc;
 
 use antecedent::{
-    BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode, LocalPolynomialRatioQuery,
-    RefuteSuite, Study, StudyResult,
+    BayesianConfig, CausalError, EstimatorId, IdentifierId, InferenceMode,
+    LocalPolynomialRatioQuery, RefuteSuite, Study, StudyResult,
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ChangeAttributionQuery, ConditionalEffectQuery,
     DeclaredSamplingDesign, ExecutionContext, Intervention, MediationContrast, MediationQuery,
-    ObservationAssumption, PolicyValueQuery, PopulationSelector, SurvivalFunctional,
-    SurvivalQuery, Value, VariableId,
+    ObservationAssumption, PolicyValueQuery, PopulationSelector, SurvivalFunctional, SurvivalQuery,
+    Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
@@ -43,7 +43,8 @@ const DEPENDENT: [DeclaredSamplingDesign; 2] =
     [DeclaredSamplingDesign::ClusteredPanel, DeclaredSamplingDesign::DependentTimeSeries];
 
 fn assert_refused(what: &str, error: Option<CausalError>, phrase: &str) {
-    let error = error.unwrap_or_else(|| panic!("{what}: published a number for a declaration it ignores"));
+    let error =
+        error.unwrap_or_else(|| panic!("{what}: published a number for a declaration it ignores"));
     assert_eq!(error.reason_code(), Some("option_not_applicable"), "{what}: {error}");
     let text = error.to_string();
     assert!(text.contains(phrase), "{what}: {text}");
@@ -84,7 +85,10 @@ fn mediation_dag() -> Dag {
     graph
 }
 
-fn mediation(replicates: u32, design: Option<DeclaredSamplingDesign>) -> Result<StudyResult, CausalError> {
+fn mediation(
+    replicates: u32,
+    design: Option<DeclaredSamplingDesign>,
+) -> Result<StudyResult, CausalError> {
     let mut query =
         MediationQuery::binary(v(0), v(2), Arc::from([v(1)]), MediationContrast::NaturalDirect);
     query.control = Intervention::set(v(0), Value::f64(0.0));
@@ -103,8 +107,8 @@ fn mediation(replicates: u32, design: Option<DeclaredSamplingDesign>) -> Result<
 
 #[test]
 fn the_mediation_bootstrap_refits_independent_subjects_and_refuses_a_declared_dependence() {
-    let effect = mediation(20, Some(DeclaredSamplingDesign::IndependentSubjectTrajectories))
-        .unwrap();
+    let effect =
+        mediation(20, Some(DeclaredSamplingDesign::IndependentSubjectTrajectories)).unwrap();
     let effect = effect.estimate().as_effect().unwrap();
     assert!((effect.ate - 3.0).abs() < 1e-3, "{}", effect.ate);
     assert!(effect.uncertainty.bootstrap.se.is_some_and(|se| se > 0.0));
@@ -202,7 +206,10 @@ fn the_fuzzy_ratio_recovers_the_jump_and_refuses_a_declared_clustered_or_serial_
     );
 }
 
-fn sharp(replicates: u32, design: Option<DeclaredSamplingDesign>) -> Result<StudyResult, CausalError> {
+fn sharp(
+    replicates: u32,
+    design: Option<DeclaredSamplingDesign>,
+) -> Result<StudyResult, CausalError> {
     sharp_weighted(replicates, design, None)
 }
 
@@ -244,7 +251,7 @@ fn sharp_weighted(
 
 #[test]
 fn the_sharp_discontinuity_recovers_the_jump_and_refuses_a_declared_dependence_with_or_without_a_bootstrap()
-{
+ {
     for replicates in [0, 20] {
         let result = sharp(replicates, None).unwrap();
         let effect = result.estimate().as_effect().unwrap();
@@ -275,7 +282,10 @@ fn the_sharp_discontinuity_refuses_observation_weights_instead_of_answering_unwe
 // Randomized survival: two arms with identical durations and events have identical curves.
 // ---------------------------------------------------------------------------------------------
 
-fn survival(replicates: u32, design: Option<DeclaredSamplingDesign>) -> Result<StudyResult, CausalError> {
+fn survival(
+    replicates: u32,
+    design: Option<DeclaredSamplingDesign>,
+) -> Result<StudyResult, CausalError> {
     // 60 subjects per arm with the same durations and events in both arms.
     let base_duration: Vec<f64> = (0..60).map(|i| 1.0 + ((i * 7) % 11) as f64 / 3.0).collect();
     let base_event: Vec<f64> = (0..60).map(|i| f64::from(u8::from(i % 4 != 0))).collect();
@@ -328,7 +338,14 @@ fn the_survival_subject_bootstrap_refuses_a_declared_clustered_or_serial_design(
     }
     // Without a bootstrap the contrast is a point value with no interval to understate.
     for design in DEPENDENT {
-        assert!(survival(0, Some(design)).unwrap().survival().unwrap().rmst_difference_interval.is_none());
+        assert!(
+            survival(0, Some(design))
+                .unwrap()
+                .survival()
+                .unwrap()
+                .rmst_difference_interval
+                .is_none()
+        );
     }
 }
 
@@ -412,10 +429,9 @@ fn the_policy_value_matches_its_hand_score_and_refuses_weights_and_declared_depe
         );
     }
     // Observation weights on the table: uneven, and the constant one.
-    for weights in [
-        (0..POLICY_ROWS).map(|i| 1.0 + (i % 4) as f64).collect::<Vec<_>>(),
-        vec![1.0; POLICY_ROWS],
-    ] {
+    for weights in
+        [(0..POLICY_ROWS).map(|i| 1.0 + (i % 4) as f64).collect::<Vec<_>>(), vec![1.0; POLICY_ROWS]]
+    {
         let error = policy_study(Some(weights), None).0.err().expect("weights were ignored");
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
         let text = error.to_string();
@@ -445,7 +461,11 @@ fn a_bayesian_static_route_refuses_a_declared_clustered_or_serial_design() {
     run(None).unwrap();
     run(Some(DeclaredSamplingDesign::IndependentSubjectTrajectories)).unwrap();
     for design in DEPENDENT {
-        assert_refused(&format!("bayesian {design:?}"), run(Some(design)).err(), "rows are independent");
+        assert_refused(
+            &format!("bayesian {design:?}"),
+            run(Some(design)).err(),
+            "rows are independent",
+        );
     }
 }
 
@@ -488,7 +508,10 @@ fn a_three_level_treatment_is_refused_by_the_conditional_effect_instead_of_read_
         .expect("a three-level treatment was read as a dose (slope 2 against a contrast of 1)");
     assert_eq!(error.reason_code(), Some("treatment_level_undeclared"), "{error}");
     let text = error.to_string();
-    assert!(text.contains("observed treatment levels: 0 (40 rows), 1 (40 rows), 2 (40 rows)"), "{text}");
+    assert!(
+        text.contains("observed treatment levels: 0 (40 rows), 1 (40 rows), 2 (40 rows)"),
+        "{text}"
+    );
     assert!(text.contains("Next attempt"), "{text}");
 }
 
@@ -500,9 +523,8 @@ fn a_three_level_treatment_is_refused_by_the_conditional_effect_instead_of_read_
 fn the_attribution_bootstrap_refuses_a_declared_clustered_panel() {
     let n = 200usize;
     let x: Vec<f64> = (0..n).map(|i| (((i % (n / 2)) * 29) % 31) as f64 / 31.0).collect();
-    let y: Vec<f64> = (0..n)
-        .map(|i| 1.0 + if i < n / 2 { 0.0 } else { 3.0 } + 2.0 * x[i])
-        .collect();
+    let y: Vec<f64> =
+        (0..n).map(|i| 1.0 + if i < n / 2 { 0.0 } else { 3.0 } + 2.0 * x[i]).collect();
     let data = TabularData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())]).unwrap();
     let mut graph = Dag::with_variables(2);
     edges(&mut graph, &[(0, 1)]);
@@ -670,7 +692,8 @@ fn multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_
             ("control", "low"),
         )
     };
-    let outcome: Vec<f64> = (0..n).map(|i| [0.0, 2.0, 5.0][arm[i]] + 0.1 * (i % 2) as f64).collect();
+    let outcome: Vec<f64> =
+        (0..n).map(|i| [0.0, 2.0, 5.0][arm[i]] + 0.1 * (i % 2) as f64).collect();
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
     let run = |query: RandomizedEffectQuery| {
         Study::tabular(data.clone()).query(query).build().and_then(|study| study.run(&ctx()))
@@ -767,7 +790,7 @@ fn the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_o
 
 #[test]
 fn a_static_structure_search_refuses_a_declared_clustered_or_serial_design_instead_of_testing_rows_as_independent()
-{
+ {
     use antecedent::DiscoverySpec;
     use antecedent::discovery::{BayesianDiscoverParams, StaticDiscoverParams};
     use antecedent::discovery_defaults::resolve_ci;
@@ -802,16 +825,22 @@ fn a_static_structure_search_refuses_a_declared_clustered_or_serial_design_inste
     };
     let specs = [
         ("pc", DiscoverySpec::pc(params, "parcorr")),
-        ("exact_dag_posterior", DiscoverySpec::exact_dag_posterior(BayesianDiscoverParams::default())),
+        (
+            "exact_dag_posterior",
+            DiscoverySpec::exact_dag_posterior(BayesianDiscoverParams::default()),
+        ),
     ];
     for (name, spec) in specs {
         let run = |design: Option<DeclaredSamplingDesign>| {
-            let builder = Study::tabular(data.clone()).discovery(spec.clone(), vec![v(0), v(1), v(2)]);
+            let builder =
+                Study::tabular(data.clone()).discovery(spec.clone(), vec![v(0), v(1), v(2)]);
             let builder = match design {
                 Some(design) => builder.sampling_design(design),
                 None => builder,
             };
-            builder.build().and_then(|study| antecedent::CompiledExecution::run(&study, &ctx()).map(|_| ()))
+            builder
+                .build()
+                .and_then(|study| antecedent::CompiledExecution::run(&study, &ctx()).map(|_| ()))
         };
         run(None).unwrap_or_else(|error| panic!("{name}: {error}"));
         run(Some(DeclaredSamplingDesign::IndependentSubjectTrajectories))
@@ -888,15 +917,33 @@ fn a_gaussian_glm_adjustment_fits_the_complete_rows_when_an_outcome_is_missing()
 fn a_policy_value_refuses_a_missing_outcome_instead_of_dropping_the_row() {
     let n = POLICY_ROWS;
     let assignment: Vec<bool> = (0..n).map(|i| i % 2 == 1).collect();
-    let mut outcomes: Vec<f64> = (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + (i % 5) as f64 / 10.0).collect();
+    let mut outcomes: Vec<f64> =
+        (0..n).map(|i| 1.0 + 2.0 * f64::from(assignment[i]) + (i % 5) as f64 / 10.0).collect();
     outcomes[5] = f64::NAN;
     let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
     let query = PolicyValueQuery {
-        outcome: v(0), assignment: assignment.into(), propensity: Arc::from([0.5]), actions: (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>().into(),
-        reference: vec![false; n].into(), mu0: vec![1.0; n].into(), mu1: vec![3.0; n].into(), costs: Arc::from([0.0]), reference_costs: Arc::from([0.0]),
-        evaluation_subject_ids: (0..n).map(|i| Arc::<str>::from(format!("e{i}"))).collect::<Vec<_>>().into(),
-        disjoint_training_subjects: false, crossfit_fold_ownership_valid: true, global_constraints_present: false, multi_action: None,
-        uplift_bins: Arc::from([]), uplift_bin_count: 0, uplift_training_subject_ids: Arc::from([]), regret: None };
+        outcome: v(0),
+        assignment: assignment.into(),
+        propensity: Arc::from([0.5]),
+        actions: (0..n).map(|i| i % 3 == 0).collect::<Vec<_>>().into(),
+        reference: vec![false; n].into(),
+        mu0: vec![1.0; n].into(),
+        mu1: vec![3.0; n].into(),
+        costs: Arc::from([0.0]),
+        reference_costs: Arc::from([0.0]),
+        evaluation_subject_ids: (0..n)
+            .map(|i| Arc::<str>::from(format!("e{i}")))
+            .collect::<Vec<_>>()
+            .into(),
+        disjoint_training_subjects: false,
+        crossfit_fold_ownership_valid: true,
+        global_constraints_present: false,
+        multi_action: None,
+        uplift_bins: Arc::from([]),
+        uplift_bin_count: 0,
+        uplift_training_subject_ids: Arc::from([]),
+        regret: None,
+    };
     // The per-row predictions, propensities and actions are aligned with the outcome rows, so a
     // row cannot be dropped without shifting them: the missing outcome is refused.
     let error = Study::tabular(data)
@@ -905,7 +952,10 @@ fn a_policy_value_refuses_a_missing_outcome_instead_of_dropping_the_row() {
         .and_then(|study| study.run(&ctx()))
         .err()
         .expect("a row with a missing outcome was scored");
-    assert!(error.to_string().contains("outcomes, predictions, propensities, or costs are invalid"), "{error}");
+    assert!(
+        error.to_string().contains("outcomes, predictions, propensities, or costs are invalid"),
+        "{error}"
+    );
 }
 
 /// The augmented two-period panel reads each subject's change between two columns. Its only
@@ -956,9 +1006,11 @@ fn the_augmented_panel_resample_refuses_a_declared_dependent_series() {
     let fit = point.panel_did().unwrap();
     assert!((fit.effect - 1.5).abs() < 1e-12, "{}", fit.effect);
     assert_eq!(fit.uncertainty.as_ref(), "point_only_no_standard_error");
-    for design in
-        [None, Some(DeclaredSamplingDesign::IndependentSubjectTrajectories), Some(DeclaredSamplingDesign::ClusteredPanel)]
-    {
+    for design in [
+        None,
+        Some(DeclaredSamplingDesign::IndependentSubjectTrajectories),
+        Some(DeclaredSamplingDesign::ClusteredPanel),
+    ] {
         let resampled = run(true, design).unwrap();
         let fit = resampled.panel_did().unwrap();
         assert!((fit.effect - 1.5).abs() < 1e-12, "{design:?}: {}", fit.effect);
@@ -969,4 +1021,54 @@ fn the_augmented_panel_resample_refuses_a_declared_dependent_series() {
         run(true, Some(DeclaredSamplingDesign::DependentTimeSeries)).err(),
         "dependent_time_series",
     );
+}
+
+#[test]
+fn prepared_quantile_score_result_keeps_its_execution_authority() {
+    use antecedent_core::OutcomeFunctional;
+    let make_data = |shift: f64| {
+        let n = 200usize;
+        let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+        let z: Vec<f64> = (0..n).map(|i| ((i / 3) % 2) as f64).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| (1.0 + shift) * t[i] + 0.5 * z[i] + ((i * 7) % 11) as f64 / 11.0)
+            .collect();
+        TabularData::from_f64_columns([
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap()
+    };
+    let mut graph = Dag::with_variables(3);
+    edges(&mut graph, &[(2, 0), (2, 1), (0, 1)]);
+    let query = AverageEffectQuery::with_levels(v(0), v(1), 0.0, 1.0)
+        .with_outcome_functional(OutcomeFunctional::quantile(0.5));
+    let original = make_data(0.0);
+    let context = ctx();
+    let prepared = Study::tabular(original.clone())
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .estimator(antecedent_estimate::AipwAte::new().with_bootstrap_replicates(0))
+        .build()
+        .unwrap()
+        .prepare(&context)
+        .unwrap();
+    let result = prepared.estimate(&original, &context).unwrap();
+    assert!((result.effect() - 1.0).abs() < 5e-3, "{}", result.effect());
+    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "estimate.functional.quantile"));
+    prepared.execution_record_with_quantity_labels(&result, &context, None).unwrap();
+    let mut changed = result.clone();
+    changed.estimate_mut().as_effect_mut().unwrap().ate += 1.0;
+    assert!(prepared.execution_record_with_quantity_labels(&changed, &context, None).is_err());
+    let changed_data = make_data(0.4);
+    let rebound = prepared
+        .rebind_data(changed_data.clone(), &context)
+        .unwrap()
+        .materialize(&context)
+        .unwrap();
+    let refreshed = rebound.estimate_retained(&context).unwrap();
+    assert!((refreshed.effect() - 1.4).abs() < 5e-3, "{}", refreshed.effect());
+    rebound.execution_record_with_quantity_labels(&refreshed, &context, None).unwrap();
 }

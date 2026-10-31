@@ -83,6 +83,11 @@ pub(in crate::contract_section) fn contract_unresolved(
     limits: &ReplayLimits,
 ) -> Vec<ContractReason> {
     let mut unresolved = verify_stored_payloads(contract);
+    // An unscoped historical report and a scoped report with its scope removed
+    // are indistinguishable. Neither is proof that the refuter ran.
+    if body.refutations.iter().any(|report| report.scope.is_none()) {
+        unresolved.push(ContractReason::DependenciesRefutationReplay);
+    }
     // Serialized scope metadata does not independently replay the scoped check.
     if body.refutations.iter().any(|report| report.scope.is_some()) {
         unresolved.push(ContractReason::DependenciesScopedRefutationReplay);

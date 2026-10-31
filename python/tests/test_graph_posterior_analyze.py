@@ -204,6 +204,10 @@ def test_admg_graph_posterior_ate_and_intervention_response():
     assert response.evidence_status == "licensed"
     assert response.response is not None
     assert response.response.values[0][0] == pytest.approx(3.0, abs=1e-9)  # E[y | do(t=1)] = 1 + 2
+    assert response.validation is not None
+    assert response.validation.checks  # completion-level checks remain inspectable
+    assert response.validation.passed is None  # they do not certify the whole response
+    assert response.reasoning is None  # no whole-result claim was issued
 
 
 def test_dbn_posterior_temporal_response_curve_and_intervention():

@@ -414,7 +414,13 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
 fn dag_average_effect_vertical_path_is_independently_accepted() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(80, 41);
-    let built = study(data.clone(), dag, query);
+    let built = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
     let inspected = built.inspect().unwrap();
     assert!(matches!(inspected.reasoning.identification, SlotAvailability::Unavailable { .. }));
     let prepared = built.prepare(&ctx).unwrap();
@@ -678,10 +684,11 @@ fn consume_rehashes_identification_product_from_stored_payloads() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "rehash", &ctx).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{:?}",
-        consumed.acceptance.unresolved
+    assert!(!consumed.body.refutations.is_empty());
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.as_ref(),
+        &[std::sync::Arc::<str>::from("dependencies.refutation_replay")]
     );
     assert!(consumed.contract.as_ref().unwrap().identification_product.is_some());
     assert_eq!(
@@ -715,7 +722,15 @@ fn execution_identity_follows_the_estimate_context() {
 fn execution_identity_is_advertised_and_bound() {
     let ctx = ExecutionContext::for_tests(3);
     let (data, dag, query) = confounded_scm(48, 63);
-    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "execution", &ctx).unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
@@ -875,6 +890,7 @@ fn consume_licensed_family(
         sealed_operation
             || matches!(
                 reason.as_ref(),
+                "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay" |
                 "dependencies.fitted_counterfactual_mechanisms"
                     // The portable result is readable and preserves the posterior
                     // claim, but does not carry joint factor draws for replay.
@@ -885,6 +901,19 @@ fn consume_licensed_family(
                     | "dependencies.linear_fit_sufficient_statistics"
             )
     };
+    let has_unscoped = consumed.body.refutations.iter().any(|report| report.scope.is_none());
+    let has_scoped = consumed.body.refutations.iter().any(|report| report.scope.is_some());
+    for (present, reason) in [
+        (has_unscoped, "dependencies.refutation_replay"),
+        (has_scoped, "dependencies.scoped_refutation_replay"),
+    ] {
+        assert_eq!(
+            consumed.acceptance.unresolved.iter().any(|item| item.as_ref() == reason),
+            present,
+            "unexpected replay obligation: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
     let known_nonportable_dependency =
         consumed.acceptance.unresolved.iter().any(named_nonportable_dependency);
     if known_nonportable_dependency {
@@ -942,7 +971,10 @@ fn licensed_family_conditional_effect_frequentist_consumes() {
     assert_eq!(consumed.body.estimate, Some(result.effect()));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation")]
+        &[
+            std::sync::Arc::<str>::from("dependencies.refutation_replay"),
+            std::sync::Arc::<str>::from("dependencies.checked_conditional_effect_operation")
+        ]
     );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -1035,7 +1067,10 @@ fn licensed_family_mediation_frequentist_consumes() {
     assert_eq!(consumed.body.estimate, Some(result.estimate().as_effect().unwrap().ate));
     assert_eq!(
         consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from("dependencies.checked_mediation_operation")]
+        &[
+            std::sync::Arc::<str>::from("dependencies.refutation_replay"),
+            std::sync::Arc::<str>::from("dependencies.checked_mediation_operation")
+        ]
     );
     let labels: std::collections::HashMap<_, _> =
         executed_functional_labels(&consumed.contract.as_ref().unwrap().target.query)
@@ -2112,7 +2147,13 @@ fn composition_artifact_reload_in_separate_process() {
 
     let ctx = ExecutionContext::for_tests(41);
     let (data, dag, query) = confounded_scm(80, 41);
-    let built = study(data.clone(), dag, query);
+    let built = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
     let prepared = built.prepare(&ctx).unwrap();
     let contract = prepared.contract().unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
@@ -3344,12 +3385,19 @@ fn consume_gp_series(
     let consumed = consume_analysis_result(&bytes).unwrap();
     // The artifact is readable, but an independent consumer cannot replay the
     // sealed temporal graph-posterior operation without its retained atom proofs.
-    assert_eq!(
-        consumed.acceptance.unresolved.as_ref(),
-        &[std::sync::Arc::<str>::from(
-            "dependencies.checked_temporal_graph_posterior_effect_operation"
-        )]
-    );
+    let mut expected = vec![std::sync::Arc::<str>::from(
+        "dependencies.checked_temporal_graph_posterior_effect_operation",
+    )];
+    if consumed.body.refutations.iter().any(|report| report.scope.is_none()) {
+        expected.push(std::sync::Arc::from("dependencies.refutation_replay"));
+    }
+    if consumed.body.refutations.iter().any(|report| report.scope.is_some()) {
+        expected.push(std::sync::Arc::from("dependencies.scoped_refutation_replay"));
+    }
+    let mut unresolved = consumed.acceptance.unresolved.to_vec();
+    expected.sort();
+    unresolved.sort();
+    assert_eq!(unresolved, expected);
     assert!(!consumed.acceptance.accepts_as_verified_program());
     assert_eq!(consumed.contract.as_ref().unwrap().graph_class.as_str(), "TemporalDag");
     result
@@ -4672,7 +4720,15 @@ fn rewrite_contract_section(
 fn claim_handoff_sender_restricted_forward_preserves_losses() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, dag, query) = confounded_scm(80, 41);
-    let prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let contract = prepared.contract().unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let claim = result.claim(&contract, &ctx).unwrap();
@@ -6767,7 +6823,7 @@ fn a_tampered_verified_artifact_is_refused() {
         .query(query)
         .estimator(EstimatorId::Aipw)
         .bootstrap_replicates(0)
-        .refute(RefuteSuite::Full)
+        .refute(RefuteSuite::None)
         .build()
         .unwrap()
         .prepare(&ctx)
@@ -6775,6 +6831,7 @@ fn a_tampered_verified_artifact_is_refused() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     let bytes = prepared.encode_contracted_result(&result, "orig", &ctx).unwrap();
     let original = consume_analysis_result(&bytes).unwrap();
+    assert!(original.body.refutations.is_empty());
     assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
     let section = original.contract.clone().unwrap();
     let names = original.header.variable_names.clone();
@@ -7139,4 +7196,138 @@ fn cheap_validation_uses_the_executed_base_snapshot_without_losing_full_identity
             .iter()
             .all(|b| b.key.validation.is_empty())
     );
+}
+
+#[test]
+fn resealed_scope_erasure_cannot_promote_a_completion_report_to_checked_support() {
+    use antecedent_io_core::analysis_wire::{RefutationScopeWire, RefutationTargetWire};
+    let ctx = ExecutionContext::for_tests(7);
+    let (data, dag, query) = confounded_scm(200, 7);
+    let prepared = Study::tabular(data.clone())
+        .graph(dag)
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let bytes = prepared.encode_contracted_result(&result, "report-free", &ctx).unwrap();
+    let original = consume_analysis_result(&bytes).unwrap();
+    assert!(original.body.refutations.is_empty());
+    assert!(original.acceptance.accepts_as_claim(), "{:?}", original.acceptance.unresolved);
+    let names = original.header.variable_names.clone();
+    let mut body = original.body.clone();
+    let mut section = original.contract.clone().unwrap();
+    let digest = [9_u8; 32];
+    let source = section.identities.program;
+    let labels = vec![format!(
+        "scope:v1:static_class_completion:3:{}|level",
+        antecedent_core::identity::to_hex(&digest)
+    )];
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text("world_valued").text("static.frequentist").texts(&labels).bytes(&source);
+    body.refutations.push(antecedent_io::RefutationReportWire {
+        refuter: "overlap.assessment".into(),
+        original_ate: 2.0,
+        refuted_ate: 2.0,
+        comparison: 0.0,
+        informative: true,
+        passed: true,
+        failure_condition: None,
+        replicates: 0,
+        scope: Some(RefutationScopeWire::StaticClassCompletion {
+            outer_atom: 3,
+            completion_digest: digest,
+            target: RefutationTargetWire {
+                version: 1,
+                family: "world_valued".into(),
+                temporal: false,
+                bayesian: false,
+                labels,
+                source,
+                identity: writer.finish(),
+            },
+        }),
+    });
+    // The source report has valid descriptive metadata, but is not independent replay.
+    antecedent_io_core::analysis_wire::validate_refutation_scope(
+        body.refutations[0].scope.as_ref().unwrap(),
+    )
+    .unwrap();
+    let reseal = |section: &mut antecedent_io::AnalysisResultContractWire,
+                  body: &antecedent_io::AnalysisResultWire| {
+        let empirical = antecedent_io::support_empirical(&body.refutations, &body.diagnostics)
+            .unwrap_or_else(|| "unavailable:not_evaluated".into());
+        if let Some(slot) = section.reasoning.support.value.as_mut() {
+            slot.empirical = empirical;
+        }
+        let domains = antecedent_io::claim_domains_of_section(
+            section.reasoning.support.value.as_ref(),
+            &section.reasoning.identification,
+        );
+        let claim = section.claim.as_mut().unwrap();
+        claim.identification_domain = domains.identification;
+        claim.support_domain = domains.support;
+        claim.evaluated_domain = domains.evaluated;
+        section.seal = antecedent_io::contract_seal(
+            &section.identities,
+            &section.reasoning,
+            &section.graph_class,
+            &section.structure_source,
+            section.identifier.as_deref(),
+            section.estimator.as_deref(),
+        )
+        .unwrap();
+        let claim = section.claim.as_mut().unwrap();
+        claim.claim_id = *antecedent_io::claim_digest(&antecedent_io::ClaimIdentityWire::new(
+            section.seal,
+            claim,
+            antecedent_io::result_digest(body).unwrap(),
+        ))
+        .unwrap()
+        .as_bytes();
+    };
+    reseal(&mut section, &body);
+    let scoped = consume_analysis_result(&rewrite_contract_section(
+        &body,
+        names.clone(),
+        "scoped",
+        &section,
+    ))
+    .unwrap();
+    assert!(!scoped.acceptance.accepts_as_claim());
+    assert!(
+        scoped
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|r| r.as_ref() == "dependencies.scoped_refutation_replay")
+    );
+
+    // Rehash every public claim/contract field after deleting the scope and
+    // recomputing the now-apparent whole-result support and claim domains.
+    body.refutations[0].scope = None;
+    reseal(&mut section, &body);
+    let legacy_shape = rewrite_contract_section(&body, names, "scope-erased", &section);
+    let consumed = consume_analysis_result(&legacy_shape).unwrap();
+    assert!(!consumed.acceptance.accepts_as_claim());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|r| r.as_ref() == "dependencies.refutation_replay"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    assert!(!consumed.acceptance.unresolved.iter().any(|r| matches!(
+        r.as_ref(),
+        "contract.seal" | "claim.id" | "reasoning.support.empirical" | "claim.domains"
+    )));
+    assert_eq!(consumed.body.refutations[0].scope, None);
+    assert!(consumed.acceptance.supported_operations.iter().any(|op| op.as_ref() == "read_body"));
 }

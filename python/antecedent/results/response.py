@@ -208,9 +208,12 @@ class ResponseValidationView(ResultModel):
     """Curve-legal checks, including explicit scalar-refuter skips."""
 
     checks: Sequence[ResponseValidationCheck] = ()
+    whole_target: bool = True
 
     @property
-    def passed(self) -> bool:
+    def passed(self) -> bool | None:
+        if not self.whole_target:
+            return None
         return not any(check.status == "failed" for check in self.checks)
 
     @property
