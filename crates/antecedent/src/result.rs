@@ -92,7 +92,9 @@ pub struct RandomizedEffectEstimate {
     )]
     pub multi_arm_values: Arc<[(Arc<str>, f64, f64, usize)]>,
     /// Design variance or conservative bound as labeled by `uncertainty`;
-    /// switchback uses an independent-sequence sandwich estimate.
+    /// for Bernoulli HT this observed-arm estimator is conservative in randomization
+    /// expectation and need not exceed the true variance for every assignment.
+    /// Switchback uses an independent-sequence sandwich estimate.
     pub variance_upper_bound: f64,
     /// Primary contrast SE when a calibrated pointwise interval is reported.
     pub standard_error: Option<f64>,

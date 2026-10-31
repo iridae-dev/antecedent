@@ -127,7 +127,7 @@ impl RandomizedMethod {
             (Self::FixedCuped, false) => {
                 "bernoulli_fixed_cuped_ht_conservative_variance_no_interval"
             }
-            (Self::Bernoulli, false) => "bernoulli_ht_design_variance_no_interval",
+            (Self::Bernoulli, false) => "bernoulli_ht_conservative_variance_no_interval",
             (Self::Complete, false) => "complete_neyman_variance_upper_bound_no_interval",
             (Self::Cluster, false) => "cluster_neyman_variance_upper_bound_no_interval",
             (Self::Stratified, false) => "stratified_neyman_variance_upper_bound_no_interval",
@@ -180,7 +180,7 @@ impl RandomizedMethod {
                 "Horvitz-Thompson ITT on outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient; observed-arm upper-bound estimator is conservative in randomization expectation; no interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Bernoulli, false) => {
-                "Horvitz-Thompson ITT with Bernoulli design variance; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
+                "Horvitz-Thompson ITT with an observed-arm variance estimator conservative in randomization expectation; no confidence interval: the score interval needs 30 observed and 40 expected rows in each arm and assignment probabilities from 0.2 through 0.8"
             }
             (Self::Complete, false) => {
                 "Complete-randomization difference in means with Neyman conservative variance estimate; no confidence interval: the normal interval needs 30 observed rows in each arm and the small-arm Student interval at least 2 observed rows in each arm, 100 rows in all and positive variance"
@@ -624,15 +624,15 @@ fn fit_multi_arm(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<Tria
 
 fn fit_bernoulli(query: &RandomizedEffectQuery, outcomes: &[f64]) -> TrialFit {
     let n = outcomes.len();
-    let cuped = query.fixed_cuped.is_some();
     let mut effect_sum = 0.0;
     let mut variance_sum = 0.0;
     let mut control_units = 0;
     let mut treatment_units = 0;
-    // With a fixed pre-assignment adjustment, E[observed y² / assignment²]
-    // equals Y(1)²/p + Y(0)²/(1-p). This exceeds the Bernoulli
-    // variance by (Y(1)-Y(0))² for each unit. No interval follows
-    // from the random bound estimate without calibration.
+    // E[observed y² / assignment²] = Y(1)²/p + Y(0)²/(1-p).
+    // Its excess over the Bernoulli HT design variance is (Y(1)-Y(0))²
+    // per unit, including when y is adjusted by fixed pre-assignment CUPED.
+    // This is conservative in assignment expectation, not for every realized
+    // assignment. The separately gated score interval does not use this bound.
     for ((&y, &treated), &p) in outcomes
         .iter()
         .zip(query.realized_assignment.iter())
@@ -641,15 +641,11 @@ fn fit_bernoulli(query: &RandomizedEffectQuery, outcomes: &[f64]) -> TrialFit {
         if treated {
             treatment_units += 1;
             effect_sum += y / p;
-            variance_sum += if cuped { y * y / (p * p) } else { y * y * (1.0 - p) / (p * p) };
+            variance_sum += y * y / (p * p);
         } else {
             control_units += 1;
             effect_sum -= y / (1.0 - p);
-            variance_sum += if cuped {
-                y * y / ((1.0 - p) * (1.0 - p))
-            } else {
-                y * y * p / ((1.0 - p) * (1.0 - p))
-            };
+            variance_sum += y * y / ((1.0 - p) * (1.0 - p));
         }
     }
     let assignments =
@@ -1115,6 +1111,119 @@ fn fit_sampling_weighted(
         weight_sum: weights.iter().sum(),
     });
     Ok(out)
+}
+
+#[cfg(test)]
+mod bernoulli_bound_tests {
+    use super::fit_bernoulli;
+    use antecedent_core::{RandomizedEffectQuery, VariableId};
+    use std::sync::Arc;
+
+    // Enumerate the actual independent Bernoulli law, and compare the mean of
+    // published values to a separate potential-outcome formula. Also compute
+    // the HT assignment variance directly from the 2^n possible point values.
+    fn check_assignment_law(y1: &[f64], y0: &[f64], p: &[f64], cuped: Option<(&[f64], f64)>) {
+        let n = y1.len();
+        let mut mean = 0.0;
+        let mut second = 0.0;
+        let mut average_bound = 0.0;
+        for mask in 0..(1_usize << n) {
+            let assignment: Vec<bool> = (0..n).map(|i| mask & (1 << i) != 0).collect();
+            let mass =
+                (0..n).map(|i| if assignment[i] { p[i] } else { 1.0 - p[i] }).product::<f64>();
+            let adjusted: Vec<f64> = (0..n)
+                .map(|i| {
+                    let observed = if assignment[i] { y1[i] } else { y0[i] };
+                    observed - cuped.map_or(0.0, |(x, coefficient)| coefficient * x[i])
+                })
+                .collect();
+            let ids: Vec<Arc<str>> = (0..n).map(|i| Arc::from(format!("unit{i}"))).collect();
+            let mut query = RandomizedEffectQuery::bernoulli_itt(
+                VariableId::from_raw(0),
+                assignment,
+                p.to_vec(),
+                ids.clone(),
+                ids,
+                ("control", "treated"),
+            );
+            if let Some((_, coefficient)) = cuped {
+                query = query.with_fixed_cuped(VariableId::from_raw(1), coefficient);
+            }
+            let fit = fit_bernoulli(&query, &adjusted);
+            mean += mass * fit.effect;
+            second += mass * fit.effect * fit.effect;
+            average_bound += mass * fit.variance;
+        }
+        let adjusted_potential = |y: &[f64], i: usize| y[i] - cuped.map_or(0.0, |(x, c)| c * x[i]);
+        let denominator = (n * n) as f64;
+        let true_variance = (0..n)
+            .map(|i| {
+                let a = adjusted_potential(y1, i);
+                let b = adjusted_potential(y0, i);
+                p[i] * (1.0 - p[i]) * (a / p[i] + b / (1.0 - p[i])).powi(2)
+            })
+            .sum::<f64>()
+            / denominator;
+        let analytic_bound = (0..n)
+            .map(|i| {
+                let a = adjusted_potential(y1, i);
+                let b = adjusted_potential(y0, i);
+                a * a / p[i] + b * b / (1.0 - p[i])
+            })
+            .sum::<f64>()
+            / denominator;
+        let gap = (0..n).map(|i| (y1[i] - y0[i]).powi(2)).sum::<f64>() / denominator;
+        assert!((second - mean * mean - true_variance).abs() < 1e-10);
+        assert!((average_bound - analytic_bound).abs() < 1e-10);
+        assert!((average_bound - true_variance - gap).abs() < 1e-10);
+    }
+
+    #[test]
+    fn bernoulli_interval_stays_on_the_independent_score_variance() {
+        let n = 80;
+        let assignments: Vec<bool> = (0..n).map(|i| i % 2 == 0).collect();
+        let outcomes: Vec<f64> = (0..n).map(|i| (i % 7) as f64 + 1.0).collect();
+        let ids: Vec<Arc<str>> = (0..n).map(|i| Arc::from(format!("unit{i}"))).collect();
+        let query = RandomizedEffectQuery::bernoulli_itt(
+            VariableId::from_raw(0),
+            assignments.clone(),
+            vec![0.5; n],
+            ids.clone(),
+            ids,
+            ("control", "treated"),
+        );
+        let fit = fit_bernoulli(&query, &outcomes);
+        let scores: Vec<f64> = outcomes
+            .iter()
+            .zip(assignments)
+            .map(|(y, treated)| if treated { 2.0 * y } else { -2.0 * y })
+            .collect();
+        let mean = scores.iter().sum::<f64>() / n as f64;
+        let score_variance =
+            scores.iter().map(|score| (score - mean).powi(2)).sum::<f64>() / (n * (n - 1)) as f64;
+        assert!((fit.effect - mean).abs() < 1e-12);
+        assert!((fit.interval_standard_error.unwrap() - score_variance.sqrt()).abs() < 1e-12);
+        assert!(fit.interval_95.is_some());
+    }
+
+    #[test]
+    fn bernoulli_ht_bound_is_conservative_in_assignment_expectation() {
+        let equal = [10.0; 4];
+        let p = [0.5; 4];
+        check_assignment_law(&equal, &equal, &p, None);
+        // Each unit's HT score is ±20: Var(mean) = 400/n.
+        let variance =
+            p.iter().map(|p| p * (1.0 - p) * (10.0 / p + 10.0 / (1.0 - p)).powi(2)).sum::<f64>()
+                / 16.0;
+        assert!((variance - 400.0 / 4.0).abs() < 1e-12);
+
+        let y1 = [4.0, -1.0, 3.0, 9.0];
+        let y0 = [1.0, 2.0, -2.0, 5.0];
+        let p = [0.2, 0.35, 0.6, 0.8];
+        check_assignment_law(&y1, &y0, &p, None);
+        let x = [1.0, -2.0, 0.5, 3.0];
+        check_assignment_law(&y1, &y0, &p, Some((&x, 1.25)));
+    }
 }
 
 #[cfg(test)]

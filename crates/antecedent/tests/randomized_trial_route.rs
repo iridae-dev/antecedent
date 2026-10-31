@@ -497,7 +497,9 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
 
     let estimate = result.randomized_effect().unwrap();
     assert_eq!(estimate.effect, 3.0);
-    assert_eq!(estimate.variance_upper_bound, 3.25);
+    // For p = 1/2 the observed-arm conservative estimator is 4 Σy² / n².
+    let expected_bound = outcomes.iter().map(|y| y * y).sum::<f64>() / 4.0;
+    assert_eq!(estimate.variance_upper_bound, expected_bound);
     assert_eq!(result.interval().as_ref().unwrap().method, antecedent_core::IntervalMethod::None);
     assert_eq!(
         estimate.assignment_units.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
@@ -512,6 +514,50 @@ fn graphless_bernoulli_itt_runs_and_retains_design_units() {
 
     let prepared =
         Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let prepared_result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(prepared_result.randomized_effect().unwrap().effect, 3.0);
+    assert_eq!(prepared_result.randomized_effect().unwrap().variance_upper_bound, expected_bound);
+    let bytes = prepared
+        .encode_contracted_result(&prepared_result, "bernoulli-conservative-bound", &ctx)
+        .unwrap();
+    let (mut container, header, current) =
+        antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(
+        current.randomized_effect.as_ref().unwrap().uncertainty,
+        "bernoulli_ht_conservative_variance_no_interval"
+    );
+    assert_eq!(current.randomized_effect.as_ref().unwrap().variance, expected_bound);
+    // An old point-only record remains inspectable with its old label and value,
+    // but the same stale record cannot be emitted by the current encoder.
+    let mut legacy = current;
+    let old_fit = legacy.randomized_effect.as_mut().unwrap();
+    old_fit.uncertainty = "bernoulli_ht_design_variance_no_interval".into();
+    old_fit.variance = 3.25;
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &legacy,
+            header.variable_names.clone(),
+            "old-bound-new-export"
+        )
+        .is_err()
+    );
+    let body_index =
+        container.sections.iter().position(|s| s.id == "analysis_result.body").unwrap();
+    let (descriptor, section) = antecedent_io::pack_section_shared(
+        "analysis_result.body",
+        "application/cbor",
+        antecedent_io::to_cbor(&legacy).unwrap().into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    container.sections[body_index] = section;
+    container.manifest.sections[body_index] = descriptor;
+    let mut old_bytes = Vec::new();
+    container.write_to(&mut old_bytes).unwrap();
+    let (_, _, old_body) = antecedent_io::decode_analysis_result_artifact(&old_bytes).unwrap();
+    let old_fit = old_body.randomized_effect.unwrap();
+    assert_eq!(old_fit.uncertainty, "bernoulli_ht_design_variance_no_interval");
+    assert_eq!(old_fit.variance, 3.25);
+
     let refreshed = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(refreshed.randomized_effect().unwrap().effect, 3.0);
     assert_eq!(refreshed.treatment, None);

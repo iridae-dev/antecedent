@@ -149,7 +149,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         ),
         crate::RandomizationDesignWire::Bernoulli => (
             "bernoulli",
-            "bernoulli_ht_design_variance_no_interval",
+            "bernoulli_ht_conservative_variance_no_interval",
             Some("bernoulli_ht_score_normal_interval"),
         ),
         crate::RandomizationDesignWire::Complete { .. } => (
@@ -506,6 +506,13 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
     } else {
         point_uncertainty
     };
+    // Old point-only artifacts retain their original label and numeric variance on
+    // decode only. The old quantity is not reinterpreted as the corrected bound;
+    // current exports must carry the new conservative-estimator label.
+    let legacy_bernoulli_point = allow_legacy_graphless_missing
+        && !has_interval
+        && expected_uncertainty == "bernoulli_ht_conservative_variance_no_interval"
+        && randomized.uncertainty == "bernoulli_ht_design_variance_no_interval";
     let z95 = if matches!(query.design, crate::RandomizationDesignWire::Switchback) {
         antecedent_stats::student_t_ppf(0.975, (block_counts.len() - 1) as f64)
     } else {
@@ -620,6 +627,7 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             allow_legacy_graphless_missing,
         )
         || (randomized.uncertainty != expected_uncertainty
+            && !legacy_bernoulli_point
             && !sampling_weighted_uncertainty(&randomized.uncertainty, &query.design, has_interval))
         || !extra_intervals_valid
         || !multi_arm_intervals_valid
@@ -2506,14 +2514,17 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     // replacement: squared shares times the within-arm variance of each query plus squared donated
     // shares times that of each used donor.
     let variances_ok = fit.query_variances.len() == fit.donor_variances.len()
-        && fit.query_variances.iter().chain(&fit.donor_variances).all(|v| v.is_finite() && *v >= 0.0)
+        && fit
+            .query_variances
+            .iter()
+            .chain(&fit.donor_variances)
+            .all(|v| v.is_finite() && *v >= 0.0)
         && (fit.query_variances.is_empty() || fit.query_variances.len() == pairs)
         && (fit.query_variances.is_empty() == fit.standard_error.is_none());
     if !variances_ok {
         return fail("invalid history match variance estimates");
     }
-    let expected = if fit.query_variances.is_empty() || fit.pair_weights.iter().any(|w| *w <= 0.0)
-    {
+    let expected = if fit.query_variances.is_empty() || fit.pair_weights.iter().any(|w| *w <= 0.0) {
         None
     } else {
         let mut variance = 0.0_f64;
@@ -2522,9 +2533,8 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
         for k in 0..pairs {
             let share = fit.pair_weights[k] / total;
             variance += share * share * fit.query_variances[k];
-            let entry = donated
-                .entry(fit.matched_donors[k])
-                .or_insert((0.0, fit.donor_variances[k]));
+            let entry =
+                donated.entry(fit.matched_donors[k]).or_insert((0.0, fit.donor_variances[k]));
             if entry.1 != fit.donor_variances[k] {
                 return fail("history match donor variance differs between its pairs");
             }
@@ -2555,11 +2565,7 @@ fn validate_history_match_serial(
 ) -> Result<(), IoError> {
     let fail = |message: &str| Err(IoError::Convert(message.into()));
     let pairs = fit.matched_queries.len();
-    let reported = (
-        fit.serial_standard_error,
-        fit.interval_lower,
-        fit.interval_upper,
-    );
+    let reported = (fit.serial_standard_error, fit.interval_lower, fit.interval_upper);
     if fit.pair_periods.is_empty() {
         return if reported == (None, None, None) && fit.serial_bandwidth == 0 {
             Ok(())
@@ -2595,7 +2601,8 @@ fn validate_history_match_serial(
         let weight = 1.0 - lag as f64 / (bandwidth as f64 + 1.0);
         let Ok(step) = i64::try_from(lag) else { continue };
         for (index, label) in labels.iter().enumerate() {
-            if let Some(earlier) = label.checked_sub(step).and_then(|p| labels.binary_search(&p).ok())
+            if let Some(earlier) =
+                label.checked_sub(step).and_then(|p| labels.binary_search(&p).ok())
             {
                 meat += 2.0 * weight * residual[index] * residual[earlier];
             }
