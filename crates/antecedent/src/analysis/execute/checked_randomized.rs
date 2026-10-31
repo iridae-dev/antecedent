@@ -258,10 +258,11 @@ impl CheckedRandomizedOperation {
             None => small_arm
                 .map_or_else(|| method.diagnostic(interval_published), |(_, (_, text))| text),
         };
-        let exact_test = self
-            .query
-            .exact_randomization_test
-            .then(|| exact_randomization_test(&self.query, outcomes, fit.effect));
+        let exact_test = if self.query.exact_randomization_test {
+            Some(exact_randomization_test(&self.query, outcomes, ctx)?)
+        } else {
+            None
+        };
         let mut estimate = EffectEstimate::new(
             fit.effect,
             fit.interval_standard_error.unwrap_or(f64::NAN),

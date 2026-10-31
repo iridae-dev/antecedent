@@ -1065,8 +1065,7 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
     let [lower, upper] = fit.interval_95.expect("complete randomization publishes its interval");
     // Neyman: difference of arm means, sqrt(s1^2/n1 + s0^2/n0), normal 95% interval.
     let moments = |want: bool| {
-        let ys: Vec<f64> =
-            (0..n).filter(|&i| assignment[i] == want).map(|i| outcomes[i]).collect();
+        let ys: Vec<f64> = (0..n).filter(|&i| assignment[i] == want).map(|i| outcomes[i]).collect();
         let m = ys.len() as f64;
         let mean = ys.iter().sum::<f64>() / m;
         (mean, ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (m - 1.0) / m)
@@ -1078,4 +1077,38 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
     assert!((lower - (effect - 1.959_963_984_540_054 * se)).abs() < 1e-9, "{lower}");
     assert!((upper - (effect + 1.959_963_984_540_054 * se)).abs() < 1e-9, "{upper}");
     assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Licensed));
+}
+
+#[test]
+fn fisher_large_scale_includes_the_observed_allocation() {
+    let outcomes = [
+        -7.199619291182174,
+        -6.495018842300632,
+        -9.402742742215064,
+        -7413320277575814.0,
+        -0.43013958293997245,
+    ];
+    let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Complete { treated_units: 2 },
+        VariableId::from_raw(0),
+        [false, false, true, true, false],
+        [0.4; 5],
+        ["u0", "u1", "u2", "u3", "u4"].map(Arc::<str>::from),
+        ["y0", "y1", "y2", "y3", "y4"].map(Arc::<str>::from),
+        ("control", "treated"),
+    )
+    .with_exact_randomization_test();
+    let ctx = ExecutionContext::for_tests(61);
+    let result = Study::tabular(data.clone())
+        .query(query)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let effect = result.randomized_effect().unwrap();
+    assert_eq!(effect.randomization_allocations, Some(10));
+    assert!(effect.randomization_p_value.unwrap() >= 0.1);
 }

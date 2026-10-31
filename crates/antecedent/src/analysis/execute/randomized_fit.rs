@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{Arc, CausalError, EstimatorId, TableView, TabularData};
-use antecedent_core::{RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand};
+use antecedent_core::{
+    ExecutionContext, RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand,
+};
 use std::collections::BTreeMap;
 
 /// Labeled action values of a multi-arm design: label, value, variance bound, support.
@@ -891,12 +893,33 @@ pub(super) fn randomization_test_is_exhaustive(query: &RandomizedEffectQuery) ->
 pub(super) fn exact_randomization_test(
     query: &RandomizedEffectQuery,
     outcomes: &[f64],
-    effect: f64,
-) -> (f64, u64) {
+    ctx: &ExecutionContext,
+) -> Result<(f64, u64), CausalError> {
     let RandomizationDesign::Complete { treated_units } = &query.design else {
         unreachable!("validated exact test requires complete randomization")
     };
-    fisher_p_value(outcomes, *treated_units, effect)
+    fisher_p_value(outcomes, *treated_units, &query.realized_assignment, ctx)
+}
+
+// Both arms are summed in original row order, regardless of allocation generation order.
+fn allocation_contrast(
+    outcomes: &[f64],
+    assigned: &[bool],
+    treated: usize,
+    ctx: &ExecutionContext,
+) -> Result<f64, CausalError> {
+    let (mut treated_sum, mut control_sum) = (0.0, 0.0);
+    for (i, (&outcome, &is_treated)) in outcomes.iter().zip(assigned).enumerate() {
+        if i % 4096 == 0 && ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "randomization_test" });
+        }
+        if is_treated {
+            treated_sum += outcome;
+        } else {
+            control_sum += outcome;
+        }
+    }
+    Ok(treated_sum / treated as f64 - control_sum / (outcomes.len() - treated) as f64)
 }
 
 /// [`exact_randomization_test`] over `treated` treated units of `outcomes.len()`.
@@ -904,26 +927,54 @@ pub(super) fn exact_randomization_test(
     clippy::cast_possible_truncation,
     reason = "the sampled position is below the unit count, which is a usize"
 )]
-fn fisher_p_value(outcomes: &[f64], treated: usize, effect: f64) -> (f64, u64) {
+fn fisher_p_value(
+    outcomes: &[f64],
+    treated: usize,
+    realized: &[bool],
+    ctx: &ExecutionContext,
+) -> Result<(f64, u64), CausalError> {
     let n = outcomes.len();
     let k = treated;
-    let observed = effect.abs();
-    let total = outcomes.iter().sum::<f64>();
-    let contrast_of =
-        |treated_sum: f64| treated_sum / k as f64 - (total - treated_sum) / (n - k) as f64;
-    let at_least_observed = |treated_sum: f64| contrast_of(treated_sum).abs() + 1e-12 >= observed;
-    if let Some(allocations) = binomial_within(n, k, EXHAUSTIVE_ALLOCATION_LIMIT) {
-        // Every k-subset in lexicographic order; the treated sum accumulates in index order.
+    let observed = allocation_contrast(outcomes, realized, k, ctx)?.abs();
+    let exhaustive = binomial_within(n, k, EXHAUSTIVE_ALLOCATION_LIMIT);
+    // Reserve the mask and the selected path's index buffer before allocating either.
+    let index_count = if exhaustive.is_some() { k } else { n };
+    let bytes = n
+        .checked_mul(size_of::<bool>())
+        .and_then(|mask| {
+            index_count
+                .checked_mul(size_of::<usize>())
+                .and_then(|indices| mask.checked_add(indices))
+        })
+        .and_then(|bytes| u64::try_from(bytes).ok())
+        .ok_or_else(|| CausalError::Resource {
+            message: "randomization test scratch size overflow".to_owned(),
+        })?;
+    let _scratch = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "randomization_test" }
+        }
+        other => CausalError::Resource {
+            message: format!("randomization test scratch admission refused: {other}"),
+        },
+    })?;
+    let mut assigned = vec![false; n];
+    if let Some(allocations) = exhaustive {
         let mut chosen: Vec<usize> = (0..k).collect();
         let mut extreme = 0_u64;
         let mut count = 0_u64;
         loop {
-            let treated_sum = chosen.iter().map(|&i| outcomes[i]).sum::<f64>();
+            for &i in &chosen {
+                assigned[i] = true;
+            }
+            let contrast = allocation_contrast(outcomes, &assigned, k, ctx)?;
+            for &i in &chosen {
+                assigned[i] = false;
+            }
             count += 1;
-            if at_least_observed(treated_sum) {
+            if contrast.abs() + 1e-12 >= observed {
                 extreme += 1;
             }
-            // Advance to the next combination.
             let mut position = k;
             while position > 0 && chosen[position - 1] == n - k + position - 1 {
                 position -= 1;
@@ -937,28 +988,35 @@ fn fisher_p_value(outcomes: &[f64], treated: usize, effect: f64) -> (f64, u64) {
             }
         }
         debug_assert_eq!(u128::from(count), allocations);
-        return (extreme as f64 / count as f64, count);
+        return Ok((extreme as f64 / count as f64, count));
     }
     let mut rng = antecedent_core::CausalRng::from_seed(
         RANDOMIZATION_TEST_SEED ^ ((n as u64) << 32) ^ k as u64,
     );
     let mut order: Vec<usize> = (0..n).collect();
-    // The observed allocation is one of the allocations, so it always counts.
     let mut extreme = 1_u64;
     for _ in 0..MONTE_CARLO_ALLOCATIONS {
-        // Partial Fisher-Yates: the first k entries are a uniform k-subset whatever the
-        // permutation held before.
+        // Partial Fisher-Yates samples a uniform subset, independent of the previous order.
         for i in 0..k {
+            if i % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "randomization_test" });
+            }
             let j = i + (rng.next_u64() % (n - i) as u64) as usize;
             order.swap(i, j);
         }
-        let treated_sum = order[..k].iter().map(|&i| outcomes[i]).sum::<f64>();
-        if at_least_observed(treated_sum) {
+        for &i in &order[..k] {
+            assigned[i] = true;
+        }
+        let contrast = allocation_contrast(outcomes, &assigned, k, ctx)?;
+        for &i in &order[..k] {
+            assigned[i] = false;
+        }
+        if contrast.abs() + 1e-12 >= observed {
             extreme += 1;
         }
     }
     let allocations = MONTE_CARLO_ALLOCATIONS + 1;
-    (extreme as f64 / allocations as f64, allocations)
+    Ok((extreme as f64 / allocations as f64, allocations))
 }
 
 /// Smallest assignment probability; `two_sided` folds each Bernoulli
@@ -1046,13 +1104,8 @@ fn fit_sampling_weighted(
 
 #[cfg(test)]
 mod fisher_tests {
-    use super::{MONTE_CARLO_ALLOCATIONS, binomial_within, fisher_p_value};
-
-    fn contrast(outcomes: &[f64], treated: &[usize]) -> f64 {
-        let total: f64 = outcomes.iter().sum();
-        let sum: f64 = treated.iter().map(|&i| outcomes[i]).sum();
-        sum / treated.len() as f64 - (total - sum) / (outcomes.len() - treated.len()) as f64
-    }
+    use super::{MONTE_CARLO_ALLOCATIONS, allocation_contrast, binomial_within, fisher_p_value};
+    use antecedent_core::ExecutionContext;
 
     #[test]
     fn binomial_stops_at_the_limit() {
@@ -1064,19 +1117,107 @@ mod fisher_tests {
     #[test]
     fn small_designs_are_enumerated_exactly() {
         let outcomes = [1.0, 2.0, 3.0, 10.0, 11.0, 12.0];
-        let observed = contrast(&outcomes, &[3, 4, 5]);
-        let (p, allocations) = fisher_p_value(&outcomes, 3, observed);
+        let assigned = [false, false, false, true, true, true];
+        let (p, allocations) =
+            fisher_p_value(&outcomes, 3, &assigned, &ExecutionContext::for_tests(42)).unwrap();
         assert_eq!(allocations, 20);
-        // Only the observed split and its mirror are as extreme.
         assert!((p - 2.0 / 20.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn observed_allocation_is_included_despite_rounding() {
+        // The former total-minus-treated calculation gives every allocation a smaller
+        // absolute statistic than the separately summed observed arms (and p = 0).
+        let outcomes = [
+            -7.199619291182174,
+            -6.495018842300632,
+            -9.402742742215064,
+            -7413320277575814.0,
+            -0.43013958293997245,
+        ];
+        let assigned = [false, false, true, true, false];
+        let ctx = ExecutionContext::for_tests(42);
+        let (p, count) = fisher_p_value(&outcomes, 2, &assigned, &ctx).unwrap();
+        assert_eq!(count, 10);
+        assert!(p >= 1.0 / count as f64);
+        // Different sample orders of the same subset must build the same mask and statistic.
+        let mut mask = [false; 5];
+        for i in [3, 2] {
+            mask[i] = true;
+        }
+        assert_eq!(
+            allocation_contrast(&outcomes, &assigned, 2, &ctx).unwrap(),
+            allocation_contrast(&outcomes, &mask, 2, &ctx).unwrap()
+        );
     }
 
     #[test]
     fn large_designs_use_a_deterministic_monte_carlo_p_value() {
         let outcomes: Vec<f64> = (0..40).map(|i| f64::from(i % 7) + 0.1 * f64::from(i)).collect();
-        let (p, allocations) = fisher_p_value(&outcomes, 20, 0.25);
+        let assigned: Vec<bool> = (0..40).map(|i| i < 20).collect();
+        let ctx = ExecutionContext::for_tests(42);
+        let (p, allocations) = fisher_p_value(&outcomes, 20, &assigned, &ctx).unwrap();
         assert_eq!(allocations, MONTE_CARLO_ALLOCATIONS + 1);
         assert!(p > 0.0 && p <= 1.0);
-        assert_eq!(fisher_p_value(&outcomes, 20, 0.25), (p, allocations));
+        assert_eq!(fisher_p_value(&outcomes, 20, &assigned, &ctx).unwrap(), (p, allocations));
+    }
+
+    #[test]
+    fn fisher_scratch_is_admitted_and_released() {
+        use antecedent_core::execution::AdmissionPool;
+        let bytes = (4 * size_of::<bool>() + 2 * size_of::<usize>()) as u64;
+        let tight = AdmissionPool::fixed(1, bytes - 1);
+        let ctx = ExecutionContext::for_tests(42).with_admission(tight.clone());
+        assert!(matches!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx),
+            Err(super::CausalError::Resource { .. })
+        ));
+        assert_eq!(tight.available().bytes(), bytes - 1);
+
+        let pool = AdmissionPool::fixed(1, bytes);
+        let ctx = ExecutionContext::for_tests(42).with_admission(pool.clone());
+        assert!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx).is_ok()
+        );
+        assert_eq!(pool.available().bytes(), bytes);
+        let mut cancelled = ExecutionContext::for_tests(42).with_admission(pool.clone());
+        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        assert!(matches!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &cancelled),
+            Err(super::CausalError::Cancelled { .. })
+        ));
+        assert_eq!(pool.available().bytes(), bytes);
+
+        // Monte Carlo owns a full n-entry shuffle buffer, not a k-entry subset.
+        let n = 40;
+        let mc_bytes = (n * (size_of::<bool>() + size_of::<usize>())) as u64;
+        let tight = AdmissionPool::fixed(1, mc_bytes - 1);
+        let ctx = ExecutionContext::for_tests(42).with_admission(tight.clone());
+        let realized: Vec<bool> = (0..n).map(|i| i < n / 2).collect();
+        assert!(matches!(
+            fisher_p_value(&vec![1.0; n], n / 2, &realized, &ctx),
+            Err(super::CausalError::Resource { .. })
+        ));
+        assert_eq!(tight.available().bytes(), mc_bytes - 1);
+    }
+
+    #[test]
+    fn fisher_respects_cancelled_context() {
+        let ctx = ExecutionContext::for_tests(42);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            fisher_p_value(&[1.0, 2.0], 1, &[true, false], &ctx),
+            Err(super::CausalError::Cancelled { stage: "randomization_test" })
+        ));
+
+        // The second observation occurs inside the first long row scan.
+        let mut ctx = ExecutionContext::for_tests(42);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        let outcomes = vec![1.0; 8192];
+        let assigned = vec![false; 8192];
+        assert!(matches!(
+            allocation_contrast(&outcomes, &assigned, 1, &ctx),
+            Err(super::CausalError::Cancelled { stage: "randomization_test" })
+        ));
     }
 }
