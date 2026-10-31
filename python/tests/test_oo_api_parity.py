@@ -233,7 +233,9 @@ def test_antecedent_state_append_data():
 
     ver, qid = state.register_average_effect(0, 1)
     assert ver >= state.version - 1
-    state.refresh_results([(qid, 1, 8)])
+    computed_at = state.version
+    computed = [(qid, 1, 8)]
+    state.refresh_results_at(computed_at, computed)
     assert state.stale_query_count() == 0
 
     v_rep = state.replace_data(names, cols)
@@ -241,7 +243,9 @@ def test_antecedent_state_append_data():
     assert len(state.batch_ids()) == 1
     # Replace invalidates registered query results until explicit refresh (ADR 0016).
     assert state.stale_query_count() >= 1
-    state.refresh_results([(qid, 1, 8)])
+    computed_at = state.version
+    computed = [(qid, 1, 8)]
+    state.refresh_results_at(computed_at, computed)
     assert state.stale_query_count() == 0
 
 
@@ -274,7 +278,9 @@ def test_antecedent_state_ols_append_matches_full_recompute():
     assert np.allclose(beta_inc, beta_full, rtol=0, atol=1e-9)
 
     _, qid = state.register_average_effect(0, 1)
-    state.refresh_results([(qid, 2, 16)])
+    computed_at = state.version
+    computed = [(qid, 2, 16)]
+    state.refresh_results_at(computed_at, computed)
     assert state.stale_query_count() == 0
     # Append data must not auto-refresh results.
     state.append_data(["t", "y"], [y[:5], y[5:10]])

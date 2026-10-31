@@ -53,6 +53,45 @@ def _state_with_query(cache_bytes: int = 1 << 20) -> tuple[CausalState, int]:
     return state, query
 
 
+def test_versioned_fingerprint_refresh_is_atomic_and_rejects_stale_computation():
+    state, query = _state_with_query()
+    computed_at = state.version
+    computed = [(query, 7, 16)]
+    state.append_data(*_batch())
+    current = state.version
+    with pytest.raises(CausalStateError, match="stale commit"):
+        state.refresh_results_at(computed_at, computed)
+    assert state.version == current
+    assert state.stale_queries() == [query]
+
+    with pytest.raises(CausalStateError, match="query 99"):
+        state.refresh_results_at(current, [*computed, (99, 8, 16)])
+    assert state.version == current
+    assert state.stale_queries() == [query]
+    with pytest.raises(ValueError, match="does not fit in 32 bits"):
+        state.refresh_results_at(current, [(1 << 32, 7, 16)])
+    assert state.stale_queries() == [query]
+
+    computed_at = state.version
+    computed = [(query, 9, 16)]
+    state.refresh_results_at(computed_at, computed)
+    assert state.stale_queries() == []
+    with pytest.raises(CausalStateError, match="capture the state version"):
+        state.refresh_results(computed)
+    assert state.stale_queries() == []
+
+
+def test_versioned_bare_refresh_cannot_replace_a_lineage_bound_result():
+    state, query = _state_with_query()
+    publish_recomputed_results(state, state.version, [(query, _identities(_study()), 16)])
+    state.add_constraint("changed", 7)
+    current = state.version
+    with pytest.raises(CausalStateError, match="published with a lineage"):
+        state.refresh_results_at(current, [(query, 9, 16)])
+    assert state.version == current
+    assert state.stale_queries() == [query]
+
+
 def test_lineage_fingerprint_covers_every_identity_layer():
     first = _identities(_study())
     again = _identities(_study())

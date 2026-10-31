@@ -413,6 +413,22 @@ impl PyCausalState {
         Ok(())
     }
 
+    /// Publish bare fingerprints at the version captured before recomputation.
+    /// Stale versions, unknown queries and lineage-bound refreshes are refused atomically.
+    fn refresh_results_at(
+        &mut self,
+        expected_version: u64,
+        entries: Vec<(u64, u64, u64)>,
+    ) -> PyResult<()> {
+        let mapped = entries
+            .into_iter()
+            .map(|(query, fingerprint, bytes)| Ok((query_id_of(query)?, fingerprint, bytes)))
+            .collect::<PyResult<Vec<_>>>()?;
+        self.inner
+            .refresh_results_at(StateVersion::from_raw(expected_version), &mapped)
+            .map_err(py_err)
+    }
+
     /// Ensure an OLS sufficient-stat slot exists with `ncols` predictors.
     /// Publish recomputed results at `expected_version`, binding each query to the
     /// identity layers it was recomputed under: `(query_id, identities, bytes)`.
@@ -617,7 +633,8 @@ pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyRes
         let q = state.inner.queries.register(CausalQuery::AverageEffect(
             AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
         ));
-        let _ = state.inner.refresh_results(&[(q, 1, 16)]);
+        let computed_at = state.inner.version;
+        state.inner.refresh_results_at(computed_at, &[(q, 1, 16)]).map_err(py_err)?;
         for i in 0..n_appends {
             let id: Arc<str> = Arc::from(format!("synth{i}"));
             state.retained.insert(
