@@ -300,7 +300,7 @@ pub(crate) fn propensity_fit_error(error: antecedent_stats::StatsError) -> Estim
 /// inverse-probability weight. With a clip they cannot occur; without one the user asked for
 /// no floor, so the fit is refused instead of silently flooring at a hidden constant.
 pub(crate) fn require_interior_propensities(scores: &[f64]) -> Result<(), EstimationError> {
-    if scores.iter().any(|&e| !(e > 0.0 && e < 1.0)) {
+    if !antecedent_learn::dr_replay::propensities_are_interior(scores) {
         return Err(EstimationError::OverlapWithFields {
             message: "a fitted propensity is 0 or 1 (or not finite) and no clip is set;                       the inverse-probability weight is infinite — set an overlap clip",
             fields: Box::new(crate::overlap::propensity_score_fields(scores)),
@@ -628,18 +628,8 @@ pub(crate) fn trim_retained_rows(
     raw_scores: &[f64],
     trim: Option<f64>,
 ) -> Result<Option<Vec<usize>>, EstimationError> {
-    let Some(t) = trim else { return Ok(None) };
-    let retained: Vec<usize> = raw_scores
-        .iter()
-        .enumerate()
-        .filter_map(|(i, &p)| (p >= t && p <= 1.0 - t).then_some(i))
-        .collect();
-    if retained.is_empty() {
-        return Err(EstimationError::data_msg(
-            "overlap trim removed every row; no common-support units remain",
-        ));
-    }
-    Ok(Some(retained))
+    antecedent_learn::dr_replay::trim_retained_rows(raw_scores, trim)
+        .map_err(EstimationError::data_msg)
 }
 
 /// Restrict `(treatment, outcome, features)` to `retained` rows (`features` row-major with

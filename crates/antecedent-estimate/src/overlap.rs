@@ -65,6 +65,20 @@ impl OverlapPolicy {
         }
     }
 
+    /// The bounds this policy applies as the learner layer's replay declares them, or `None`
+    /// for [`Self::ExplicitOverride`], which has no propensity-based overlap to replay.
+    #[must_use]
+    pub const fn replay_overlap(self) -> Option<antecedent_learn::dr_replay::DrOverlap> {
+        match self.bounds() {
+            Some((clip, trim)) => Some(antecedent_learn::dr_replay::DrOverlap {
+                clip,
+                trim,
+                declared: self.is_declared(),
+            }),
+            None => None,
+        }
+    }
+
     /// Whether the caller declared this policy rather than receiving the default.
     #[must_use]
     pub const fn is_declared(self) -> bool {

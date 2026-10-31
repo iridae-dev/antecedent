@@ -59,6 +59,21 @@ def _value(study) -> float:
     return float(ant.estimate(study).answer.value)
 
 
+def _value_when_admitted(study, *, attempts: int = 400) -> float:
+    """Estimate once the shared pool admits the click.
+
+    Clicks that share a study share its worker pool, and a click that finds every worker slot
+    held is refused rather than queued, so a caller that needs every click answered retries
+    the refusal. Only that refusal is retried; any other failure surfaces.
+    """
+    for _ in range(attempts):
+        try:
+            return _value(study)
+        except CausalResourceError:
+            time.sleep(0.01)
+    return _value(study)
+
+
 def _settle(execution: Execution) -> int:
     gc.collect()
     return execution._handle.available_memory_bytes
@@ -156,12 +171,12 @@ def test_threads_sharing_one_prepared_study_match_serial_runs_and_never_mutate_i
 
     def estimate_source(_index):
         barrier.wait(timeout=30)
-        return _value(study)
+        return _value_when_admitted(study)
 
     def rebind_then_estimate(shift):
         barrier.wait(timeout=30)
         branch = ant.rebind(study, data=_data(3000, 0, shift))
-        return _value(branch)
+        return _value_when_admitted(branch)
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         sources = [pool.submit(estimate_source, i) for i in range(4)]

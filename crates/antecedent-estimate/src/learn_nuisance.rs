@@ -17,7 +17,6 @@ use antecedent_learn::{
     PredictionTask, TargetView, cross_fit_with_folds_weighted, resolve_for,
 };
 
-use crate::arm::TreatmentArm;
 use crate::crossfit_plan::{FoldIdErrors, FoldSource, derive_fold_ids};
 use crate::error::EstimationError;
 
@@ -267,9 +266,7 @@ pub(crate) fn retained_fold_ids(
 fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     // Preparation validates binary values with its numerical tolerance. Match the
     // executing fold classifier so accepted near-zero/near-one values retain their arms.
-    if treatment.iter().any(|&value| !TreatmentArm::is_treated_indicator(value))
-        && treatment.iter().any(|&value| TreatmentArm::is_treated_indicator(value))
-    {
+    if antecedent_learn::dr_replay::both_arms_populated(treatment) {
         return Ok(());
     }
     Err(crate::util::refuse(

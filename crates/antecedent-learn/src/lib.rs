@@ -17,6 +17,7 @@ pub mod categorical;
 mod coefficient;
 pub mod crossfit;
 pub mod crossfit_plan;
+pub mod dr_replay;
 pub mod nested_markov_bayesian;
 pub use categorical::FiniteJoint;
 mod dense;

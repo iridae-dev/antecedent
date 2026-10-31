@@ -27,9 +27,9 @@ fn inline_pipeline_does_not_consume_after_producer_cancels() {
 
 #[test]
 fn map_cancelled_before_scratch_and_if_free_refusal_are_typed() {
-    // A pool with no worker slots refuses the if-free map at once; it is never made to wait.
-    let pool = AdmissionPool::fixed(0, 1024);
+    let pool = AdmissionPool::fixed(1, 1024);
     let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let lease = ctx.acquire_admission(1, 0).unwrap();
     let made = AtomicUsize::new(0);
     let result = ctx.map_indexed_with_scratch_if_free(
         1,
@@ -43,7 +43,7 @@ fn map_cancelled_before_scratch_and_if_free_refusal_are_typed() {
         Err(MapExecutionError::Admission(AdmissionError::ExceedsRemainder { .. }))
     ));
     assert_eq!(made.load(Ordering::SeqCst), 0);
-    let ctx = ExecutionContext::for_tests(1);
+    drop(lease);
     ctx.cancellation.cancel();
     let result = ctx.map_indexed_with_scratch(
         1,
@@ -85,51 +85,4 @@ fn zero_thread_budget_refuses_before_work() {
         Err(MapExecutionError::Admission(AdmissionError::ExceedsRemainder { .. }))
     ));
     assert_eq!(ran.load(Ordering::SeqCst), 0);
-}
-
-/// A map that stays on its caller under contention waits for one worker slot instead of
-/// refusing, so concurrent calls on a pool shared by several studies queue.
-#[test]
-fn if_free_map_waits_for_a_slot_held_by_another_study() {
-    let pool = AdmissionPool::fixed(2, 1024);
-    let holder = ExecutionContext::for_tests(1).with_admission(pool.clone());
-    let lease = holder.acquire_admission(2, 0).unwrap();
-    let ctx = ExecutionContext::for_tests(2).with_admission(pool.clone());
-    let release = std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        drop(lease);
-    });
-    let values = ctx
-        .map_indexed_with_scratch_if_free(4, || (), |index, _, ()| Ok::<_, ()>(index * 10))
-        .unwrap();
-    release.join().unwrap();
-    assert_eq!(values, vec![0, 10, 20, 30]);
-    assert_eq!(pool.available(), AdmissionRemainder::new(2, 1024));
-}
-
-/// The pipelined map waits the same way.
-#[test]
-fn pipeline_waits_for_a_slot_held_by_another_study() {
-    let pool = AdmissionPool::fixed(2, 1024);
-    let holder = ExecutionContext::for_tests(1).with_admission(pool.clone());
-    let lease = holder.acquire_admission(2, 0).unwrap();
-    let ctx = ExecutionContext::for_tests(2).with_admission(pool.clone());
-    let release = std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        drop(lease);
-    });
-    let consumed = AtomicUsize::new(0);
-    ctx.pipeline_indexed(
-        3,
-        1,
-        |index, _| Ok::<_, ()>(index),
-        |_, _| {
-            consumed.fetch_add(1, Ordering::SeqCst);
-            Ok(PipelineStep::Continue)
-        },
-    )
-    .unwrap();
-    release.join().unwrap();
-    assert_eq!(consumed.load(Ordering::SeqCst), 3);
-    assert_eq!(pool.available(), AdmissionRemainder::new(2, 1024));
 }

@@ -689,7 +689,11 @@ pub(crate) fn finish_dml(
     let row_weights = problem.sampling_weights.as_ref().map(|s| &*s.weights);
     let weight_of = |i: usize| row_weights.map_or(1.0, |w| w[i]);
     let mass: f64 = rows.iter().map(|&i| weight_of(i)).sum();
-    let ate = rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass;
+    let ate = if row_weights.is_none() {
+        antecedent_learn::dr_replay::retained_mean(phi, &rows)
+    } else {
+        rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass
+    };
     // Embed the retained-population ratio influence in the original row universe.
     let mut influence = vec![0.0; n];
     for &i in &rows {

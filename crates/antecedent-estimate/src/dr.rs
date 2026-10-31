@@ -1000,6 +1000,207 @@ mod tests {
         assert!(effect.heterogeneity.cate_se.is_none());
     }
 
+    /// A confounded table with one or two adjustment covariates (variable ids 2 and 3).
+    fn replay_scm(n: usize, seed: u64, two: bool) -> (TabularData, IdentifiedEstimand) {
+        let mut rng =
+            ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0x77u64);
+        let (mut z, mut w, mut t, mut y) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            let zi = standard_normal(&mut rng);
+            let wi = standard_normal(&mut rng);
+            let second = if two { wi } else { 0.0 };
+            let p = antecedent_kernels::sigmoid(-0.3 + 1.2 * zi + 0.4 * second);
+            let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
+            z[i] = zi;
+            w[i] = wi;
+            t[i] = ti;
+            y[i] = (1.0 + zi) * ti + 0.4 * zi + 0.3 * second + standard_normal(&mut rng) * 0.4;
+        }
+        let mut b = CausalSchemaBuilder::new();
+        let mut add = |name: &str, hint: RoleHint| {
+            b.add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+        };
+        add("t", RoleHint::TreatmentCandidate);
+        add("y", RoleHint::OutcomeCandidate);
+        add("z", RoleHint::Context);
+        if two {
+            add("w", RoleHint::Context);
+        }
+        let schema = b.build().unwrap();
+        let column = |id: u32, values: Vec<f64>| {
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(id),
+                    Arc::from(values),
+                    ValidityBitmap::all_valid(n),
+                )
+                .unwrap(),
+            )
+        };
+        let mut cols = vec![column(0, t), column(1, y), column(2, z)];
+        let mut adjustment = vec![VariableId::from_raw(2)];
+        if two {
+            cols.push(column(3, w));
+            adjustment.push(VariableId::from_raw(3));
+        }
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        (
+            TabularData::new(storage),
+            IdentifiedEstimand::backdoor(
+                "backdoor.adjustment",
+                Arc::from(adjustment),
+                ExprId::from_raw(0),
+            ),
+        )
+    }
+
+    struct ReplayCase {
+        folds: usize,
+        seed: u64,
+        two: bool,
+        overlap: OverlapPolicy,
+        outcome: Option<LearnerSpec>,
+    }
+
+    fn bits(values: &[f64]) -> Vec<u64> {
+        values.iter().map(|v| v.to_bits()).collect()
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one parity sweep over the declared cases, each compared field by field"
+    )]
+    fn the_learner_layer_replay_reproduces_the_fit_bit_for_bit() {
+        use antecedent_learn::dr_replay::{DrReplayInput, DrReplaySpec, replay_dr_ate};
+
+        let none_none = OverlapPolicy::RequireDiagnostics { clip: None, trim: None };
+        let cases = [
+            ReplayCase { folds: 2, seed: 1, two: false, overlap: none_none, outcome: None },
+            ReplayCase {
+                folds: 3,
+                seed: 7,
+                two: true,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: None },
+                outcome: Some(LearnerSpec::Linear(LinearSpec {})),
+            },
+            ReplayCase {
+                folds: 4,
+                seed: 1,
+                two: false,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.02), trim: Some(0.3) },
+                outcome: None,
+            },
+            ReplayCase {
+                folds: 3,
+                seed: 7,
+                two: true,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: None, trim: Some(0.2) },
+                outcome: None,
+            },
+            ReplayCase {
+                folds: 4,
+                seed: 7,
+                two: false,
+                overlap: OverlapPolicy::Default,
+                outcome: None,
+            },
+            ReplayCase {
+                folds: 2,
+                seed: 7,
+                two: true,
+                overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: Some(0.2) },
+                outcome: None,
+            },
+        ];
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        for (index, case) in cases.iter().enumerate() {
+            let label = format!("case {index}");
+            let (data, estimand) = replay_scm(300, 11 + case.seed, case.two);
+            let mut learner = DrLearner::new().with_folds(case.folds).with_overlap(case.overlap);
+            if let Some(outcome) = case.outcome {
+                learner = learner.with_outcome(outcome);
+            }
+            let problem = learner.prepare(&data, &estimand, &query).unwrap();
+            let ctx = ExecutionContext::for_tests(case.seed);
+            let effect = learner.fit(&problem, &ctx, AssumptionSet::new()).unwrap();
+
+            let covariates: Vec<&[f64]> = problem.covariates.iter().map(|c| &c[..]).collect();
+            let row_ids: Vec<u64> = problem.row_index.iter().map(|id| id.get()).collect();
+            let replay = replay_dr_ate(
+                DrReplayInput {
+                    treatment: &problem.treatment,
+                    outcome: &problem.outcome,
+                    covariates: &covariates,
+                    row_ids: &row_ids,
+                    intercept: true,
+                },
+                DrReplaySpec {
+                    folds: learner.folds,
+                    seed: ctx.rng.master_seed(),
+                    outcome: learner.outcome,
+                    treatment: learner.treatment,
+                    final_learner: learner.final_learner,
+                    overlap: learner.overlap.replay_overlap().unwrap(),
+                    active_level_above_control: problem.treatment_levels.active
+                        > problem.treatment_levels.control,
+                },
+                &ExecutionContext::for_tests(case.seed),
+            )
+            .unwrap();
+
+            assert_eq!(effect.ate.to_bits(), replay.ate.to_bits(), "{label}: ate");
+            let cate = effect.heterogeneity.cate.as_ref().expect("cate");
+            assert_eq!(bits(cate), bits(&replay.cate), "{label}: cate");
+
+            let nuisance = cached_aipw_nuisances(
+                &problem,
+                learner.outcome,
+                learner.treatment,
+                learner.folds,
+                &ctx,
+            )
+            .unwrap();
+            assert_eq!(replay.fold_ids, nuisance.3.fold_assignment, "{label}: folds");
+            assert_eq!(bits(&replay.raw_propensity), bits(&nuisance.2), "{label}: raw propensity");
+            let marginal =
+                crate::dml::aipw_marginal_from_nuisance(&problem, &nuisance, AssumptionSet::new())
+                    .unwrap();
+            assert_eq!(bits(&replay.phi), bits(&marginal.phi), "{label}: scores");
+            assert_eq!(bits(&replay.propensity), bits(&marginal.ehat), "{label}: propensity");
+            let retained = trim_retained_rows(&nuisance.2, trim_of(problem.overlap)).unwrap();
+            assert_eq!(replay.retained, retained, "{label}: retained rows");
+            assert_eq!(replay.retained.is_some(), trim_of(problem.overlap).is_some());
+            if index == 2 {
+                let kept = replay.retained.as_ref().expect("a trim was declared");
+                assert!(kept.len() < problem.nrows, "{label}: the trim must drop rows");
+            }
+
+            let model = effect.heterogeneity.fitted_effect.as_ref().expect("fitted effect");
+            let features: Vec<u32> = problem.adjustment_set.iter().map(|v| v.raw()).collect();
+            assert_eq!(model.features, features, "{label}: feature order");
+            assert_eq!(model.intercept, replay.intercept, "{label}: intercept");
+            assert_eq!(Some(&model.predictor), replay.predictor.as_ref(), "{label}: predictor");
+            assert_eq!(model.support, replay.support, "{label}: support box");
+            assert!(model.support.is_some(), "{label}: support");
+            let rebuilt = replay.fitted_effect(features).unwrap().expect("portable");
+            assert_eq!(&rebuilt, model.as_ref(), "{label}: retained model");
+
+            let mut provenance = replay.nuisance_provenance.clone();
+            provenance.push(replay.final_provenance.clone());
+            assert_eq!(effect.crossfit.learner_provenance, provenance, "{label}: provenance");
+        }
+    }
+
     #[test]
     fn linear_cate_se_is_hc0_on_the_retained_rows() {
         // Design [1 | z] on 6 rows; the regression uses rows 1..=4 only. With the hand-coded
