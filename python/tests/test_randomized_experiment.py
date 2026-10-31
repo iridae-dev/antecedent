@@ -217,6 +217,9 @@ def test_randomized_effect_runs_in_the_retained_analysis_lifecycle():
     assert result.randomized_effect.effect == pytest.approx(2.0)
     assert result.randomized_effect.assignment_units == tuple(f"account-{i}" for i in range(8))
     assert result.randomized_effect.uncertainty == "bernoulli_ht_conservative_variance_no_interval"
+    # Four observed outcomes are 2, each with inverse arm probability 2.
+    # The eight-unit HT variance estimator is (4 * 4**2) / 8**2 = 1.
+    assert result.randomized_effect.variance_upper_bound == pytest.approx(1.0, abs=1e-12)
     assert result.evidence_status == "off_axis"
 
 
