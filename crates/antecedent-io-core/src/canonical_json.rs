@@ -83,11 +83,77 @@ fn write(
     Ok(())
 }
 
+// serde_json represents an integer outside i64/u64 as f64. Reject its raw
+// integer token before parsing, since rounding would merge different inputs.
+// Strings (including escaped quotes) are skipped; malformed numeric tokens
+// and other syntax are diagnosed by serde_json. Decimal/exponent tokens retain
+// the existing f64 path.
+fn reject_out_of_range_integer_tokens(json: &str) -> Result<(), IoError> {
+    let bytes = json.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => {
+                i += 1;
+                while i < bytes.len() {
+                    match bytes[i] {
+                        b'\\' => i = i.saturating_add(2),
+                        b'"' => {
+                            i += 1;
+                            break;
+                        }
+                        _ => i += 1,
+                    }
+                }
+            }
+            b'-' | b'0'..=b'9' => {
+                let start = i;
+                i += 1;
+                while i < bytes.len()
+                    && !matches!(
+                        bytes[i],
+                        b' ' | b'\t' | b'\r' | b'\n' | b',' | b':' | b'[' | b']' | b'{' | b'}'
+                    )
+                {
+                    i += 1;
+                }
+                let token = &bytes[start..i];
+                let digits = token.strip_prefix(b"-").unwrap_or(token);
+                let boundary = start == 0
+                    || matches!(
+                        bytes[start - 1],
+                        b' ' | b'\t' | b'\r' | b'\n' | b',' | b':' | b'[' | b'{'
+                    );
+                let integer = boundary
+                    && !digits.is_empty()
+                    && digits.iter().all(u8::is_ascii_digit)
+                    && (digits.len() == 1 || digits[0] != b'0');
+                if integer {
+                    // The token contains only ASCII digits and an optional leading minus.
+                    let token = &json[start..i];
+                    let valid = if token.starts_with('-') {
+                        token.parse::<i64>().is_ok()
+                    } else {
+                        token.parse::<u64>().is_ok()
+                    };
+                    if !valid {
+                        return Err(IoError::Convert(
+                            "canonical JSON integer is outside i64/u64 range".into(),
+                        ));
+                    }
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    Ok(())
+}
+
 /// Digest of `json` under `domain`, as 64 lowercase hex characters.
 ///
 /// # Errors
-/// A blank domain, an oversized or unparseable document, a non-finite number
-/// or excessive nesting refuses.
+/// A blank domain, an oversized or unparseable document, a non-finite number,
+/// excessive nesting, or an integer outside i64/u64 refuses.
 pub fn canonical_json_digest(domain: &str, json: &str) -> Result<String, IoError> {
     canonical_json_digest_with(domain, json, &CanonicalJsonLimits::default())
 }
@@ -104,13 +170,16 @@ pub fn canonical_json_digest_with(
     if json.len() > limits.max_bytes {
         return Err(IoError::TooLarge);
     }
+    reject_out_of_range_integer_tokens(json)?;
     let value: Value = serde_json::from_str(json)
         .map_err(|error| IoError::Convert(format!("canonical JSON is invalid: {error}")))?;
     canonical_json_value_digest_with(domain, &value, limits)
 }
 
 /// [`canonical_json_digest`] of a value already parsed, so a Rust caller digests
-/// what a host language would digest from the same document.
+/// what a host language would digest from the same document. A value parsed
+/// elsewhere may already have lost the distinction between out-of-range integers;
+/// use [`canonical_json_digest`] for raw JSON text.
 ///
 /// # Errors
 /// A blank domain, a non-finite number or excessive nesting refuses.
@@ -153,6 +222,38 @@ mod tests {
         assert_ne!(
             canonical_json_digest("d", r#"{"a":"1"}"#).unwrap(),
             canonical_json_digest("d", r#"{"a":1}"#).unwrap()
+        );
+    }
+
+    #[test]
+    fn raw_integer_range_is_checked_before_parsing_and_valid_encoding_is_unchanged() {
+        for json in ["18446744073709551616", "18446744073709551617", "-9223372036854775809"] {
+            assert!(canonical_json_digest("d", json).is_err(), "{json}");
+        }
+        for json in ["1-2", "--1", "1+2", "01", "+18446744073709551616"] {
+            assert!(
+                matches!(
+                    canonical_json_digest("d", json),
+                    Err(IoError::Convert(message)) if message.starts_with("canonical JSON is invalid:")
+                ),
+                "{json}"
+            );
+        }
+        for json in ["-0", "1.0", "1e4", "-1E-3", r#"{"α":-0.0}"#] {
+            assert!(canonical_json_digest("d", json).is_ok(), "{json}");
+        }
+        // A literal in a string is not a number, even after an escaped quote.
+        assert!(canonical_json_digest("d", r#"{"s":"\\\"18446744073709551616"}"#).is_ok());
+        let input = r#"{"a":[-9223372036854775808,18446744073709551615,1.5]}"#;
+        let mut original = CanonicalWriter::new("d");
+        original.word(7).word(1).text("a").word(6).word(3);
+        original.word(2).word(u64::from_le_bytes(i64::MIN.to_le_bytes()));
+        original.word(3).word(u64::MAX);
+        original.word(4).real(1.5);
+        assert_eq!(canonical_json_digest("d", input).unwrap(), original.finish_hex());
+        assert_ne!(
+            canonical_json_digest("d", "18446744073709551615").unwrap(),
+            canonical_json_digest("d", "18446744073709551616.0").unwrap()
         );
     }
 

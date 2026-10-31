@@ -47,7 +47,7 @@ def _array_form(array: np.ndarray) -> dict[str, Any]:
     arrays share a form only when they hold the same values at the same dtype
     and shape. Object arrays are canonical only when every element is.
     """
-    if array.dtype.kind == "f" and array.size and not np.isfinite(array).all():
+    if array.dtype.kind in "fc" and array.size and not np.isfinite(array).all():
         raise ValueError(_NON_FINITE)
     if array.dtype.kind == "O":
         return {
@@ -87,7 +87,9 @@ def _foreign_table(item: Any) -> dict[str, Any] | None:
     """
     module = type(item).__module__.split(".")[0]
     if module == "pandas" and hasattr(item, "columns") and hasattr(item, "to_numpy"):
-        names = [str(name) for name in item.columns]
+        if any(not isinstance(name, str) for name in item.columns):
+            raise TypeError("table column names must be strings for canonical digests")
+        names = list(item.columns)
         if len(set(names)) != len(names):
             raise TypeError("a table with repeated column names has no canonical form")
         index = item.index
@@ -115,20 +117,30 @@ def _plain(item: Any) -> Any:
     if isinstance(item, np.ndarray):
         return _array_form(item)
     if isinstance(item, np.generic):
+        if item.dtype.kind == "V":
+            raise TypeError("a structured scalar has no canonical form; pass its columns")
         value = item.item()
-        if isinstance(value, float):
-            return _reject_non_finite(value)
-        return value
+        # Some extended-precision scalars return another NumPy scalar from item().
+        # Refuse instead of recursing forever or passing an unchecked object to JSON.
+        if isinstance(value, np.generic):
+            raise TypeError(f"{type(item).__name__} has no canonical scalar form")
+        return _plain(value)
     if isinstance(item, Mapping):
-        reserved = {_ARRAY_KEY, _TABLE_KEY}.intersection(map(str, item))
+        if any(not isinstance(key, str) for key in item):
+            raise TypeError("mapping keys must be strings for canonical digests")
+        reserved = {_ARRAY_KEY, _TABLE_KEY}.intersection(item)
         if reserved:
             raise TypeError(f"mapping key {sorted(reserved)[0]!r} is reserved for digests")
-        return {str(key): _plain(value) for key, value in item.items()}
+        return {key: _plain(value) for key, value in item.items()}
     if isinstance(item, (tuple, list)):
         return [_plain(value) for value in item]
     if isinstance(item, float):
         return _reject_non_finite(item)
-    if isinstance(item, (str, int, bool)) or item is None:
+    if isinstance(item, int) and not isinstance(item, bool):
+        if item < -(1 << 63) or item > (1 << 64) - 1:
+            raise ValueError("canonical digest integer is outside i64/u64 range")
+        return item
+    if isinstance(item, (str, bool)) or item is None:
         return item
     table = _foreign_table(item)
     if table is not None:
@@ -142,8 +154,11 @@ def canonical_digest(domain: str, value: Any) -> str:
     """Rust's canonical BLAKE3 digest (64 hex characters) of ``value`` under ``domain``.
 
     ``value`` is mappings, sequences, scalars, NumPy arrays and column tables
-    (pandas, Arrow), finite numbers only. A value outside that vocabulary
-    raises :class:`TypeError`. Arrays and tables enter by dtype, shape and the
+    (pandas, Arrow), string mapping keys and table column names, and finite numbers.
+    Integers must fit
+    signed or unsigned 64-bit range. Unsupported types raise :class:`TypeError`;
+    non-finite or out-of-range numbers raise :class:`ValueError`.
+    Arrays and tables enter by dtype, shape and the
     digest of their bytes, so a large dataset is hashed in full, never by its
     ``repr``.
     """
