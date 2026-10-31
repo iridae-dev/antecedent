@@ -1532,10 +1532,13 @@ fn spill_with(
     if u64::try_from(frame.len()).ok() != Some(result.charges.spill_bytes) {
         return Err(WeightedCapacityError::Spill(SpillFault::PayloadLayout));
     }
-    let receipt =
-        spill_file::commit_frame::<WeightedCapacityError>(&spill.path, frame, write, || {
-            check_cancelled(cancellation)
-        })?;
+    let receipt = spill_file::commit_frame::<WeightedCapacityError>(
+        &spill.path,
+        spill_file::Publication::ReplaceExisting,
+        frame,
+        write,
+        || check_cancelled(cancellation),
+    )?;
     Ok(SpilledCapacity {
         control: result.control,
         retention: result.retention,
@@ -3000,6 +3003,16 @@ mod tests {
         assert_eq!(dir.entries(), vec!["cancelled.spill".to_owned()]);
         finished.handle.remove().expect("remove");
         assert!(dir.entries().is_empty());
+    }
+
+    #[test]
+    fn an_explicit_spill_target_can_replace_an_existing_file() {
+        let (x, y, weights) = design();
+        let dir = TempDir::new("replace-target");
+        std::fs::write(dir.join("target.spill"), b"old target").unwrap();
+        let spilled = spill_of(&x, &y, &weights, &disk_options(1, &dir, "target.spill")).unwrap();
+        read_spilled_summary(&spilled.handle).expect("replacement is a complete verified summary");
+        assert_eq!(dir.entries(), vec!["target.spill"]);
     }
 
     #[test]

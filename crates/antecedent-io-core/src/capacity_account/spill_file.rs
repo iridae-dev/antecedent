@@ -6,10 +6,10 @@
 //! the digest, and refuses a changed or truncated file with a typed
 //! [`SpillFault`].
 //!
-//! A frame is written to a temporary name in the target directory, flushed to
-//! disk, renamed over the target, and read back. The temporary file is removed
-//! on every error, and so is the target when the read-back disagrees, so no
-//! partial file stays behind.
+//! A frame is written to an exclusively created temporary file (mode 0600 on
+//! Unix), flushed to disk, published atomically, and read back. The caller selects
+//! replacement or exclusive publication. Cleanup guards remove temporary and
+//! newly published files on failure; filesystem cleanup itself is best effort.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -225,16 +225,27 @@ fn temp_name(target: &Path) -> Result<PathBuf, IoFail> {
     Ok(target.with_file_name(temp))
 }
 
+/// How the caller authorizes publishing the completed frame.
+#[derive(Clone, Copy)]
+pub(super) enum Publication {
+    /// Replace the caller's explicitly named spill target.
+    ReplaceExisting,
+    /// Refuse a target that already exists, including a symlink or directory.
+    /// Uses an atomic same-directory hard link before removing the temporary name.
+    CreateNew,
+}
+
 /// Write `frame` to `target` all or nothing, then read it back.
 ///
-/// `write` stores the frame in the temporary file. `before_rename` runs once
+/// `write` stores the frame in the temporary file. `before_publish` runs once
 /// the temporary file is complete and can stop the commit. The frame buffer is
 /// dropped before the read-back so the two are never resident together.
 pub(super) fn commit_frame<E>(
     target: &Path,
+    publication: Publication,
     frame: Vec<u8>,
     write: impl FnOnce(&mut File, &[u8]) -> io::Result<()>,
-    before_rename: impl FnOnce() -> Result<(), E>,
+    before_publish: impl FnOnce() -> Result<(), E>,
 ) -> Result<FrameReceipt, E>
 where
     E: From<IoFail> + From<SpillFault> + From<AllocFail>,
@@ -242,21 +253,31 @@ where
     let digest = frame_digest(&frame)?;
     let frame_bytes = frame.len() as u64;
     let temp = temp_name(target)?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp)
-        .map_err(io_fail("create the temporary spill file"))?;
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&temp).map_err(io_fail("create the temporary spill file"))?;
     let mut cleanup = Cleanup(Some(temp.clone()));
     write(&mut file, &frame).map_err(io_fail("write the spill file"))?;
     file.flush().map_err(io_fail("flush the spill file"))?;
     file.sync_all().map_err(io_fail("sync the spill file"))?;
     drop(file);
     drop(frame);
-    before_rename()?;
-    fs::rename(&temp, target).map_err(io_fail("move the spill file into place"))?;
-    cleanup.disarm();
+    before_publish()?;
+    match publication {
+        Publication::ReplaceExisting => fs::rename(&temp, target),
+        Publication::CreateNew => fs::hard_link(&temp, target),
+    }
+    .map_err(io_fail("move the spill file into place"))?;
     let mut published = Cleanup(Some(target.to_path_buf()));
+    if matches!(publication, Publication::CreateNew) {
+        fs::remove_file(&temp).map_err(io_fail("remove the temporary spill file"))?;
+    }
+    cleanup.disarm();
     read_verified::<E>(target, Declared { frame_bytes, digest })?;
     published.disarm();
     Ok(FrameReceipt { frame_bytes, digest })

@@ -597,9 +597,10 @@ impl CapacityAccount {
     /// resident bytes, and switch to disk-backed output.
     ///
     /// Entry `n` is written to `entry-n.spill` as a digest-checked frame, by a
-    /// temporary name that is renamed into place and read back. The account is
-    /// unchanged and every file this call wrote is removed when any entry
-    /// fails. `directory` has to exist. Reservations must be released first.
+    /// temporary name that is published without replacing existing paths and
+    /// read back. Publication requires same-directory hard links. The account is
+    /// unchanged on failure; rollback only removes files this call created.
+    /// `directory` has to exist. Reservations must be released first.
     ///
     /// # Errors
     ///
@@ -795,6 +796,7 @@ impl SpillDirectory {
         let path = directory.join(format!("entry-{id}.spill"));
         let receipt = spill_file::commit_frame::<CapacityError>(
             &path,
+            spill_file::Publication::CreateNew,
             frame,
             spill_file::write_whole,
             || Ok(()),
@@ -1059,6 +1061,80 @@ mod tests {
         ));
         std::fs::write(&file, &original).expect("restore");
         assert_eq!(account.read_disk_artifact(id).expect("restored"), vec![9; 16]);
+    }
+
+    #[test]
+    fn a_failed_disk_spill_preserves_existing_caller_files() {
+        let dir = TempDir::new("existing-file-rollback");
+        let mut account = CapacityAccount::new(64);
+        let first = account.admit(AccountedKind::Cache, payload(&[1, 2])).unwrap();
+        let second = account.admit(AccountedKind::Scores, payload(&[3, 4])).unwrap();
+        let existing = dir.0.join(format!("entry-{first}.spill"));
+        std::fs::write(&existing, b"caller-owned data").unwrap();
+        std::fs::create_dir(dir.0.join(format!("entry-{second}.spill"))).unwrap();
+        let before = dir.entries();
+        assert!(account.retain_disk_backed(&dir.0).is_err());
+        assert_eq!(std::fs::read(&existing).expect("preserve caller's file"), b"caller-owned data");
+        assert_eq!(dir.entries(), before);
+        assert_eq!(account.retention(), OutputRetention::FullReusable);
+        assert_eq!(account.resident_bytes().unwrap(), 4);
+        assert_eq!(&*account.stored_bytes(first).unwrap(), &[1, 2]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn disk_spill_permissions_are_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        // Set the umask only in a child process; parallel tests keep their own
+        // process-wide creation policy. No unsafe umask manipulation is needed.
+        if std::env::var_os("ANTECEDENT_SPILL_PRIVATE_MODE_CHILD").is_none() {
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg("umask 000; exec \"$@\"")
+                .arg("spill-permissions-test")
+                .arg(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "capacity_account::tests::disk_spill_permissions_are_owner_only",
+                    "--test-threads=1",
+                ])
+                .env("ANTECEDENT_SPILL_PRIVATE_MODE_CHILD", "1")
+                .output()
+                .expect("start isolated permission test");
+            assert!(
+                output.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        let dir = TempDir::new("private-mode");
+        std::fs::set_permissions(&dir.0, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut frame = spill_file::begin_frame(2).unwrap();
+        frame.extend_from_slice(&[1, 2]);
+        spill_file::seal_frame(&mut frame);
+        spill_file::commit_frame::<CapacityError>(
+            &dir.0.join("creation-probe.spill"),
+            spill_file::Publication::CreateNew,
+            frame,
+            |file, bytes| {
+                // The file is private before any payload is written, including
+                // while it still has its temporary name.
+                assert_eq!(file.metadata()?.permissions().mode() & 0o777, 0o600);
+                spill_file::write_whole(file, bytes)
+            },
+            || Ok(()),
+        )
+        .unwrap();
+        let mut account = CapacityAccount::new(64);
+        let id = account.admit(AccountedKind::Cache, payload(&[1, 2])).unwrap();
+        account.retain_disk_backed(&dir.0).unwrap();
+        let mode = std::fs::metadata(dir.0.join(format!("entry-{id}.spill")))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
     }
 
     #[test]
