@@ -217,6 +217,14 @@ fn response_values(result: &antecedent::StudyResult) -> Vec<f64> {
     }
 }
 
+// Diagnostic display of actual completion outputs; enumeration weights here
+// identify atoms, not a probability distribution over causal graphs.
+fn response_atoms(result: &antecedent::StudyResult) -> Vec<(u64, f64, &Option<ResponseValue>)> {
+    result.structural_response.as_ref().map_or_else(Vec::new, |mixture| {
+        mixture.atoms.iter().map(|atom| (atom.graph_key, atom.weight, &atom.value)).collect()
+    })
+}
+
 fn assert_envelope_diagnostic(
     result: &antecedent::StudyResult,
     section: &serde_json::Value,
@@ -273,6 +281,57 @@ fn run_prepared(
     (fresh, click, refreshed)
 }
 
+// On this fixture the two DAG completions respectively adjust for z and do
+// not adjust. Calculate both targets from the original contingency counts.
+fn count_derived_intervention_targets(pin: &serde_json::Value, level: f64) -> [f64; 2] {
+    let cells = pin["contingency_table"].as_array().unwrap();
+    let total: f64 = cells.iter().map(|cell| cell["count"].as_f64().unwrap()).sum();
+    let mut adjusted = 0.0;
+    let mut exposed_count = 0.0;
+    let mut exposed_outcome_sum = 0.0;
+    for z in [0.0, 1.0] {
+        let (mut z_count, mut selected_count, mut selected_outcome_sum) = (0.0, 0.0, 0.0);
+        for cell in cells {
+            if cell["z"].as_f64().unwrap() != z {
+                continue;
+            }
+            let count = cell["count"].as_f64().unwrap();
+            z_count += count;
+            if cell["t"].as_f64().unwrap() == level {
+                selected_count += count;
+                selected_outcome_sum += count * cell["y"].as_f64().unwrap();
+            }
+        }
+        assert!(selected_count > 0.0);
+        adjusted += (z_count / total) * (selected_outcome_sum / selected_count);
+        exposed_count += selected_count;
+        exposed_outcome_sum += selected_outcome_sum;
+    }
+    let unadjusted = exposed_outcome_sum / exposed_count;
+    let mut targets = [adjusted, unadjusted];
+    targets.sort_by(f64::total_cmp);
+    targets
+}
+
+fn assert_intervention_atoms_match_counts(
+    result: &antecedent::StudyResult,
+    targets: [f64; 2],
+    label: &str,
+) {
+    let mut actual: Vec<f64> = response_atoms(result)
+        .iter()
+        .filter_map(|(_, _, value)| match value {
+            Some(ResponseValue::Scalar(value)) => Some(*value),
+            _ => None,
+        })
+        .collect();
+    actual.sort_by(f64::total_cmp);
+    assert_eq!(actual.len(), targets.len(), "{label}: {:?}", response_atoms(result));
+    for (value, target) in actual.iter().zip(targets) {
+        assert!((value - target).abs() < 1e-5, "{label}: {value} vs count-derived {target}");
+    }
+}
+
 #[test]
 fn class_aware_intervention_pins_against_ate_envelope() {
     let pin = pin();
@@ -296,9 +355,12 @@ fn class_aware_intervention_pins_against_ate_envelope() {
         }
         let section = &pin[class];
         let ate = section["ate_contrast"].as_f64().unwrap();
-        let do0 = section["intervention"]["do_0"].as_f64().unwrap();
-        let do1 = section["intervention"]["do_1"].as_f64().unwrap();
-        let tol = section["intervention"]["absolute_tolerance"].as_f64().unwrap();
+        let low_targets = count_derived_intervention_targets(&pin, 0.0);
+        let high_targets = count_derived_intervention_targets(&pin, 1.0);
+        let do0 = (low_targets[0] + low_targets[1]) / 2.0;
+        let do1 = (high_targets[0] + high_targets[1]) / 2.0;
+        assert!((do0 - 0.17).abs() < 1e-12);
+        assert!((do1 - 0.63).abs() < 1e-12);
         let identifier = section["identification"]["identifier"].as_str().unwrap();
         let estimator = section["intervention"]["estimator"].as_str().unwrap();
         for accepted in [false, true] {
@@ -309,7 +371,14 @@ fn class_aware_intervention_pins_against_ate_envelope() {
             for result in [&fresh, &click, &refreshed] {
                 assert_eq!(format!("{:?}", result.identification.status), "PartiallyIdentified");
                 assert_envelope_diagnostic(result, section, class);
-                assert!((response_values(result)[0] - do1).abs() < tol, "{class} do(1)");
+                let actual = response_values(result)[0];
+                assert!(
+                    (actual - do1).abs() < 1e-5,
+                    "{class} accepted={accepted} do(1): actual={actual:.17} count-derived={do1:.17} delta={:.17e} atoms={:?}",
+                    actual - do1,
+                    response_atoms(result)
+                );
+                assert_intervention_atoms_match_counts(result, high_targets, "do(1)");
             }
             // A one-shot class response executes its retained prepared plan, so the
             // fresh result reports the identification it reused from that plan.
@@ -322,13 +391,8 @@ fn class_aware_intervention_pins_against_ate_envelope() {
                 .unwrap();
             let lo = response_values(&low)[0];
             let hi = response_values(&fresh)[0];
-            assert!((lo - do0).abs() < tol, "{class} do(0) {lo}");
-            // The pins above are recorded outputs; the counts determine the same numbers. The
-            // two completions give do(1) = 0.6 (adjust for z: (0.5 + 0.7) / 2) and 0.66
-            // (no adjustment: 330 / 500), do(0) = 0.2 and 0.14, so the equal-mass mixture is
-            // 0.63 and 0.17 up to the response smoothing (4e-7).
-            assert!((hi - 0.63).abs() < 1e-5, "{class} do(1) {hi} against the count-derived 0.63");
-            assert!((lo - 0.17).abs() < 1e-5, "{class} do(0) {lo} against the count-derived 0.17");
+            assert!((lo - do0).abs() < 1e-5, "{class} do(0) {lo} vs {do0}");
+            assert_intervention_atoms_match_counts(&low, low_targets, "do(0)");
             assert!(
                 (hi - lo - ate).abs()
                     < section["intervention"]["contrast_tolerance"].as_f64().unwrap(),
@@ -390,13 +454,19 @@ fn class_aware_curve_regression_pins_on_continuous_t() {
                 assert_eq!(values.len(), 2);
                 assert!(
                     (values[0] - expected[0]).abs() < mean_tol,
-                    "{class} curve[0] {}",
-                    values[0]
+                    "{class} accepted={accepted} curve[0]: actual={:.17} expected={:.17} delta={:.17e} tolerance={mean_tol:.17e}; all_actual={values:?} all_expected={expected:?} atoms={:?}",
+                    values[0],
+                    expected[0],
+                    values[0] - expected[0],
+                    response_atoms(result)
                 );
                 assert!(
                     (values[1] - expected[1]).abs() < mean_tol,
-                    "{class} curve[1] {}",
-                    values[1]
+                    "{class} accepted={accepted} curve[1]: actual={:.17} expected={:.17} delta={:.17e} tolerance={mean_tol:.17e}; all_actual={values:?} all_expected={expected:?} atoms={:?}",
+                    values[1],
+                    expected[1],
+                    values[1] - expected[1],
+                    response_atoms(result)
                 );
                 // Out-of-support grid: the result must say so rather than be read as an effect.
                 assert_eq!(
@@ -664,8 +734,7 @@ fn surface_mean(value: &Option<ResponseValue>) -> Vec<f64> {
 /// The two completion curves of the class, ordered `[unadjusted, adjusted]` by their
 /// first level (the unadjusted completion absorbs the confounding of `z`).
 fn completion_curves(result: &antecedent::StudyResult) -> [Vec<f64>; 2] {
-    let mixture =
-        result.structural_response.as_ref().expect("the class publishes its completions");
+    let mixture = result.structural_response.as_ref().expect("the class publishes its completions");
     let mut curves: Vec<Vec<f64>> =
         mixture.atoms.iter().map(|atom| surface_mean(&atom.value)).collect();
     assert_eq!(curves.len(), 2);

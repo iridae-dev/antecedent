@@ -10,9 +10,10 @@ that adjust for `Z` identify `E[Y|do(T=t)] = 0.20 + 0.40 t`. The unadjusted
 completion identifies `0.14` and `0.66`. Equal weights therefore pin ATE
 contrasts `0.46` (CPDAG) and `0.44` (PAG).
 
-Intervention g-computation recovers those levels up to the additive-GAM
-plug-in. The recorded `do(0)` / `do(1)` values are output pins of that
-estimator, and `do(1) − do(0)` is checked against the ATE contrast.
+Intervention g-computation is checked against both completion laws computed
+directly from the contingency counts, including the diagnostic means 0.17 and
+0.63. The recorded `do(0)` / `do(1)` fields are historical estimator output
+pins, not the oracle for those checks. The contrast is also checked against ATE.
 
 Kennedy-DR is singular on this binary treatment, so it is not the discrete
 pin.
@@ -24,6 +25,12 @@ The two-point grid is `[0, 1]`, which lies outside the observed treatment
 support `[0.1, 0.9]`; the result reports `OutsideEmpiricalSupport` for both
 coordinates. The recorded means are regression pins of that extrapolation, not
 accuracy evidence, and their contrast is not compared with AverageEffect.
+
+The current means record the fixed-penalty joint GAM solve. A controlled
+comparison with its existing iterative fallback reproduced the previous means
+only on the iterative path; both paths passed the independent controls below.
+The numerical regression tolerance remains `1e-10`, and the Python consumer
+disables relative tolerance for this check.
 
 Three separate checks carry the evidence instead:
 

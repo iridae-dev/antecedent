@@ -25,6 +25,26 @@ def _expand_contingency(pin: dict[str, Any]) -> dict[str, np.ndarray]:
     return {name: np.asarray(column, dtype=np.float64) for name, column in values.items()}
 
 
+def _count_derived_intervention_targets(pin: dict[str, Any], level: float) -> tuple[float, float]:
+    """The z-adjusted and unadjusted completion targets from the original counts."""
+    cells = pin["contingency_table"]
+    total = sum(float(cell["count"]) for cell in cells)
+    adjusted = 0.0
+    selected_count = 0.0
+    selected_outcome_sum = 0.0
+    for z in (0.0, 1.0):
+        stratum = [cell for cell in cells if float(cell["z"]) == z]
+        treated = [cell for cell in stratum if float(cell["t"]) == level]
+        z_count = sum(float(cell["count"]) for cell in stratum)
+        t_count = sum(float(cell["count"]) for cell in treated)
+        y_sum = sum(float(cell["count"]) * float(cell["y"]) for cell in treated)
+        assert t_count > 0.0
+        adjusted += z_count / total * y_sum / t_count
+        selected_count += t_count
+        selected_outcome_sum += y_sum
+    return adjusted, selected_outcome_sum / selected_count
+
+
 def _continuous_linear(pin: dict[str, Any]) -> dict[str, np.ndarray]:
     n = int(pin["continuous"]["n"])
     z = np.array([0.0 if i % 2 == 0 else 1.0 for i in range(n)], dtype=np.float64)
@@ -119,15 +139,31 @@ def test_class_aware_intervention_pins(accepted: bool, class_name: str) -> None:
     click = require_success(antecedent.estimate(prepared))
     assert prepared.structure_source == ("accepted" if accepted else "explicit")
     assert prepared.evidence_status == "licensed"
-    tol = section["intervention"]["absolute_tolerance"]
+    # Both graph completions identify their own target. Their equal-weight mean
+    # here is a fixture calculation, not a probability distribution over graphs.
+    high_targets = _count_derived_intervention_targets(_PIN, 1.0)
+    low_targets = _count_derived_intervention_targets(_PIN, 0.0)
+    assert high_targets == pytest.approx((0.6, 0.66), abs=1e-12, rel=0)
+    assert low_targets == pytest.approx((0.2, 0.14), abs=1e-12, rel=0)
+    high_mean = sum(high_targets) / 2.0
+    low_mean = sum(low_targets) / 2.0
     assert high.evidence_status == low.evidence_status == click.evidence_status == "licensed"
     assert high.identification.status == section["identification"]["status"]
-    assert float(_values(high)[0]) == pytest.approx(section["intervention"]["do_1"], abs=tol)
-    assert float(_values(low)[0]) == pytest.approx(section["intervention"]["do_0"], abs=tol)
+    assert float(_values(high)[0]) == pytest.approx(high_mean, abs=1e-5, rel=0)
+    assert float(_values(low)[0]) == pytest.approx(low_mean, abs=1e-5, rel=0)
     assert float(_values(high)[0]) - float(_values(low)[0]) == pytest.approx(
-        section["ate_contrast"], abs=section["intervention"]["contrast_tolerance"]
+        section["ate_contrast"], abs=section["intervention"]["contrast_tolerance"], rel=0
     )
-    assert float(_values(click)[0]) == pytest.approx(section["intervention"]["do_1"], abs=tol)
+    assert float(_values(click)[0]) == pytest.approx(high_mean, abs=1e-5, rel=0)
+    for result, targets in ((high, high_targets), (low, low_targets), (click, high_targets)):
+        # Each end of this two-completion identified set is an actual atom;
+        # check both, rather than letting an average conceal offsetting errors.
+        envelope = result.envelope
+        assert envelope is not None
+        assert envelope.weight_basis == "completion_enumeration"
+        assert envelope.completion_count == 2
+        assert envelope.lower[0][0] == pytest.approx(min(targets), abs=1e-5, rel=0)
+        assert envelope.upper[0][0] == pytest.approx(max(targets), abs=1e-5, rel=0)
 
 
 @pytest.mark.parametrize("accepted", [False, True], ids=["explicit", "accepted"])
@@ -170,7 +206,7 @@ def test_class_aware_curve_pins(accepted: bool, class_name: str) -> None:
         # Regression pin of the extrapolated levels: grid [0, 1] lies outside the observed
         # treatment support [0.1, 0.9]. It is not accuracy evidence, and the contrast is not
         # compared with AverageEffect (a different functional; see the next test).
-        assert values == pytest.approx(expected, abs=section["curve"]["absolute_tolerance"])
+        assert values == pytest.approx(expected, rel=0, abs=section["curve"]["absolute_tolerance"])
         assert result.response is not None
 
 
