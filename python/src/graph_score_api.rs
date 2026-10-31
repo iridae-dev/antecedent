@@ -44,6 +44,7 @@ pub struct PyGraphScoreCache {
 #[pymethods]
 impl PyGraphScoreCache {
     /// One equal-length column per graph node; the family is `gaussian_bic` or `laplace_bic`.
+    /// Both return -BIC/2, counting intercept, parent coefficients, and fitted variance or scale.
     #[new]
     #[pyo3(signature = (columns, *, family="gaussian_bic", byte_budget=None))]
     fn new(columns: Vec<Vec<f64>>, family: &str, byte_budget: Option<u64>) -> PyResult<Self> {

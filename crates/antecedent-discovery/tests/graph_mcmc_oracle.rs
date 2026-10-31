@@ -449,7 +449,7 @@ fn dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel() {
         let rss = naive_rss(&design, &value(0, node));
         let n = rows as f64;
         -0.5 * n * (1.0 + (2.0 * std::f64::consts::PI).ln() + (rss / n).ln())
-            - 0.5 * (parents.len() + 1) as f64 * n.ln()
+            - 0.5 * (parents.len() + 2) as f64 * n.ln()
     };
     let datasets: Vec<TimeSeriesData> = units.iter().map(|u| time_series(u)).collect();
     for (prior, edge_p) in
@@ -528,7 +528,10 @@ fn graph_mcmc_fixture_records_exact_target_and_the_retained_generator() {
     let oracle = &fixture["oracle"];
     assert_eq!(oracle["generator_retained"], true);
     assert_eq!(oracle["generator"], "conformance/discovery/graph_mcmc_exact/reference_exact.py");
-    assert_eq!(oracle["environment_lock"], "conformance/discovery/graph_mcmc_exact/reference_exact.py.lock");
+    assert_eq!(
+        oracle["environment_lock"],
+        "conformance/discovery/graph_mcmc_exact/reference_exact.py.lock"
+    );
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     assert!(root.join(oracle["generator"].as_str().unwrap()).is_file());
     assert!(root.join(oracle["environment_lock"].as_str().unwrap()).is_file());
@@ -536,13 +539,7 @@ fn graph_mcmc_fixture_records_exact_target_and_the_retained_generator() {
     let historical = &fixture["historical_oracle"];
     assert_eq!(historical["generator_retained"], false);
     assert_eq!(historical["packages"]["numpy"]["version"], "2.1.3");
-    assert_eq!(
-        historical["generation_location"],
-        "temporary external harness; not retained"
-    );
-    assert_eq!(
-        historical["packages"]["numpy"]["metadata_sha256"].as_str().unwrap().len(),
-        64
-    );
+    assert_eq!(historical["generation_location"], "temporary external harness; not retained");
+    assert_eq!(historical["packages"]["numpy"]["metadata_sha256"].as_str().unwrap().len(), 64);
     assert_eq!(fixture["cases"][0]["targets"]["uniform_all_dags"]["n_dags"], 25);
 }

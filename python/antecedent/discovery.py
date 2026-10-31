@@ -1046,8 +1046,9 @@ class ExactDagMarginals:
     """Exact edge marginals of the Gaussian-BIC DAG posterior of 7 to 15 variables.
 
     ``edge_marginal_matrix()[i][j]`` is ``P(i -> j)``, exact for the BIC pseudo-posterior with the
-    uniform edge prior (no sampling error). ``log_evidence`` is the log normalizing constant
-    ``log sum_G exp(BIC(G))``. Above six variables the graphs themselves cannot be listed, so
+    uniform edge prior (no sampling error). ``log_evidence`` is the log pseudo-posterior
+    normalizer ``log sum_G exp(score(G))``, with Gaussian score equal to -BIC/2 including
+    the fitted residual variances; it is not an exact marginal likelihood. Above six variables the graphs themselves cannot be listed, so
     the graph-level outputs of :class:`GraphPosterior` (atoms, weights, the MAP graph, the
     mixture over graphs that ``analyze`` uses) do not exist; asking for one is refused rather than
     approximated. Use ``OrderMcmc`` or ``StructureMcmc`` for atoms.

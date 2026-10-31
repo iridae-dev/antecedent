@@ -635,14 +635,14 @@ def _chain_columns(n: int = 60) -> list[np.ndarray]:
 
 
 def _gaussian_bic(columns: list[np.ndarray], node: int, parents: tuple[int, ...]) -> float:
-    """-n/2 (1 + ln 2pi + ln sigma^2) - (k/2) ln n, sigma^2 = SSE/n of OLS on intercept+parents."""
+    """-n/2 (1 + ln 2pi + ln sigma^2) - (k/2) ln n, sigma^2 = SSE/n; k counts intercept, parents and variance."""
     y = columns[node]
     n = len(y)
     design = np.column_stack([np.ones(n), *[columns[p] for p in parents]])
     beta, *_ = np.linalg.lstsq(design, y, rcond=None)
     sigma2 = float(np.sum((y - design @ beta) ** 2)) / n
     return -0.5 * n * (1.0 + math.log(2.0 * math.pi) + math.log(sigma2)) - (
-        0.5 * (len(parents) + 1) * math.log(n)
+        0.5 * (len(parents) + 2) * math.log(n)
     )
 
 

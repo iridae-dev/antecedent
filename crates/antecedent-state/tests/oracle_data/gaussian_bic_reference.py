@@ -6,7 +6,7 @@
 
 Regenerate with:  uv run --script gaussian_bic_reference.py > gaussian_bic_reference.json
 
-The score is -n/2 (1 + ln 2 pi + ln(RSS/n)) - (k/2) ln n with k = |Pa| + 1 and RSS the residual
+The score is -n/2 (1 + ln 2 pi + ln(RSS/n)) - (k/2) ln n with k = |Pa| + 2 and RSS the residual
 sum of squares of the node regressed on an intercept and its parents.  RSS is obtained by
 solving the normal equations exactly (multiprecision LU), so it is the true value for the
 stored binary64 columns.  Columns are stored in the JSON.  Repository-authored
@@ -44,7 +44,7 @@ def bic(cols, node, parents):
     r = y - X * beta
     rss = sum(v * v for v in r)
     s2 = rss / n
-    return float(-mp.mpf(n) / 2 * (1 + mp.log(2 * mp.pi) + mp.log(s2)) - mp.mpf(k) / 2 * mp.log(n)), float(rss)
+    return float(-mp.mpf(n) / 2 * (1 + mp.log(2 * mp.pi) + mp.log(s2)) - mp.mpf(k + 1) / 2 * mp.log(n)), float(rss)
 
 
 cases = []

@@ -14,7 +14,8 @@ use crate::error::StateError;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub enum GraphScoreFamily {
-    /// Gaussian BIC local score (intercept + linear parents, σ² MLE = SSE/n).
+    /// Gaussian -BIC/2 local score (intercept + linear parents + fitted variance;
+    /// σ² MLE = SSE/n).
     GaussianBic,
     /// Laplace-noise BIC local score: intercept + linear parents fitted by least absolute
     /// deviations, scale `b` the mean absolute residual, `k = |Pa| + 2` parameters. Unlike the
@@ -307,8 +308,8 @@ fn sorted_parents(parents: &[u32], node: u32) -> Result<Arc<[u32]>, StateError> 
 }
 
 /// Gaussian BIC local score (higher is better):
-/// `-n/2 · (1 + ln(2π) + ln(σ²)) − (k/2) · ln(n)` with `k = |Pa| + 1` (intercept)
-/// and `σ² = SSE / n` from OLS of the node on intercept + parents.
+/// `-n/2 · (1 + ln(2π) + ln(σ²)) − (k/2) · ln(n)` with `k = |Pa| + 2`
+/// (intercept and fitted variance), and `σ² = SSE / n` from OLS.
 #[cfg(test)]
 fn gaussian_bic_local(
     data: &GraphScoreData,
@@ -414,7 +415,7 @@ fn gaussian_bic_from_gram(
             rss = refined;
         }
     }
-    bic_from_rss(rss, n, parents.len() + 1)
+    bic_from_rss(rss, n, parents.len() + 2)
 }
 
 /// Residual fraction of the outcome's centered sum of squares below which the Gram Schur
@@ -993,13 +994,13 @@ mod tests {
         assert!((delta - edge_delta).abs() < 1e-8, "delta {delta} vs closed form {edge_delta}");
     }
 
-    /// Independent reference for the intercept-only Gaussian BIC (`k = 1`): the population variance
+    /// Independent reference for the intercept-only Gaussian BIC (`k = 2`): the population variance
     /// of the column and the definition `l_max - (k/2) ln n`.
     fn reference_bic_no_parent(y: &[f64]) -> f64 {
         let n_f = y.len() as f64;
         let ybar = y.iter().sum::<f64>() / n_f;
         let sigma2 = y.iter().map(|yi| (yi - ybar) * (yi - ybar)).sum::<f64>() / n_f;
-        -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * n_f.ln()
+        -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - n_f.ln()
     }
 
     /// Independent reference for the Gaussian BIC of a simple linear regression.
@@ -1027,8 +1028,23 @@ mod tests {
             })
             .sum();
         let sigma2 = sse / n_f;
-        let k_f = 2.0; // slope + intercept
+        let k_f = 3.0; // slope + intercept + residual variance
         -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * k_f * n_f.ln()
+    }
+
+    #[test]
+    fn gaussian_score_counts_the_fitted_variance_once_per_node() {
+        let data = chain_data();
+        let n = data.n_rows as f64;
+        let y = data.col(1);
+        let mean = y.iter().sum::<f64>() / n;
+        let variance = y.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / n;
+        let likelihood = -0.5 * n * (1.0 + (2.0 * std::f64::consts::PI).ln() + variance.ln());
+        let score = gaussian_bic_local(&data, 1, &[]).unwrap();
+        assert!((score - (likelihood - n.ln())).abs() < 1e-9);
+        // The previous coefficient-only convention omitted this variance penalty.
+        let coefficient_only = likelihood - 0.5 * n.ln();
+        assert!((coefficient_only - score - 0.5 * n.ln()).abs() < 1e-9);
     }
 
     #[test]
@@ -1042,12 +1058,12 @@ mod tests {
         let expected = reference_bic_one_parent(&x, &y);
         assert!((got - expected).abs() < 1e-9, "one-parent BIC: got {got}, closed form {expected}");
 
-        // Intercept-only: sigma2 is the population variance of y and k = 1.
+        // Intercept-only: sigma2 is the population variance of y and k = 2.
         let ybar = y.iter().sum::<f64>() / n as f64;
         let sigma2 = y.iter().map(|yi| (yi - ybar) * (yi - ybar)).sum::<f64>() / n as f64;
         let n_f = n as f64;
         let expected_empty =
-            -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - 0.5 * n_f.ln();
+            -0.5 * n_f * (1.0 + (2.0 * std::f64::consts::PI).ln() + sigma2.ln()) - n_f.ln();
         let got_empty = gaussian_bic_local(&data, 1, &[]).unwrap();
         assert!(
             (got_empty - expected_empty).abs() < 1e-9,
@@ -1068,7 +1084,7 @@ mod tests {
         let data = chain_data();
         let n_f = data.n_rows as f64;
         let loglik = |parents: &[u32]| {
-            let k = parents.len() as f64 + 1.0;
+            let k = parents.len() as f64 + 2.0;
             gaussian_bic_local(&data, 2, parents).unwrap() + 0.5 * k * n_f.ln()
         };
         let nested = loglik(&[1u32]);

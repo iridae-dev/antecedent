@@ -7,7 +7,7 @@
 Regenerate with:  python3 state_incremental_particle_graph_score_reference.py > state_incremental_particle_graph_score_reference.json
 
 The local score of node y given parents P on n rows is
-    -n/2 (1 + ln(2 pi) + ln(RSS/n)) - (|P| + 1)/2 ln n
+    -n/2 (1 + ln(2 pi) + ln(RSS/n)) - (|P| + 2)/2 ln n
 where RSS is the residual sum of squares of y on an intercept and P.  Every column is a dyadic
 rational, so RSS is computed with Fractions: the columns are centered by their exact means, the
 normal equations of the centered parents are solved exactly, and RSS = S_yy - S_yP S_PP^-1 S_Py.
@@ -75,7 +75,7 @@ def score(cols, node, parents):
     r = rss(cols, node, parents)
     if r == 0:
         return None
-    k = len(parents) + 1
+    k = len(parents) + 2
     val = -mpf(n) / 2 * (1 + log(2 * pi) + log(mpf(r.numerator) / mpf(r.denominator) / n)) - mpf(k) / 2 * log(n)
     return mp.nstr(val, 40)
 

@@ -283,7 +283,7 @@ fn local_bic(cols: &[Vec<f64>], node: usize, parents: &[usize]) -> f64 {
         .sum();
     let nf = n as f64;
     -0.5 * nf * (1.0 + (2.0 * std::f64::consts::PI).ln() + (sse / nf).ln())
-        - 0.5 * q as f64 * nf.ln()
+        - 0.5 * (q + 1) as f64 * nf.ln()
 }
 
 /// Exact edge marginals of the uniform-prior Gaussian-BIC posterior restricted to DAGs whose

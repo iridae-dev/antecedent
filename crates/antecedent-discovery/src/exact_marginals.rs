@@ -68,8 +68,10 @@ pub struct ExactDagMarginals {
     pub n_vars: usize,
     /// `P(i → j)`, row-major `from * n_vars + to`, zero on the diagonal.
     pub edge_marginals: Arc<[f64]>,
-    /// Natural logarithm of the normalizing constant `Σ_G exp(BIC(G) + log prior(G))` over the
-    /// constraint-valid DAGs with a finite score.
+    /// Natural logarithm of the pseudo-posterior normalizer
+    /// `Σ_G exp(score(G) + log prior(G))` over constraint-valid DAGs with a finite score.
+    /// The Gaussian score is -BIC/2 and counts each fitted residual variance. This is
+    /// not an exact marginal likelihood.
     pub log_evidence: f64,
 }
 

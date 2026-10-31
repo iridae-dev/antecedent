@@ -103,7 +103,7 @@ def local_score(cols, node, parents):
         rss = syy - sum(beta[a] * b[a] for a in range(k))
     else:
         rss = syy
-    return -mpf(n) / 2 * (1 + log(2 * pi) + log(rss / n)) - mpf(len(parents) + 1) / 2 * log(n)
+    return -mpf(n) / 2 * (1 + log(2 * pi) + log(rss / n)) - mpf(len(parents) + 2) / 2 * log(n)
 
 
 def acyclic(parent_sets):

@@ -7,7 +7,7 @@
 Regenerate with:  uv run --script exact_marginals_reference.py > exact_marginals_reference.json
 
 Every labelled DAG on 4 or 5 nodes is enumerated.  The local score of a node with parent set Pa is
-    -n/2 (1 + ln 2 pi + ln(RSS / n)) - (|Pa| + 1)/2 ln n,
+    -n/2 (1 + ln 2 pi + ln(RSS / n)) - (|Pa| + 2)/2 ln n,
 RSS the residual sum of squares of the least-squares fit on an intercept and the parents, evaluated at
 60 digits from the data (3-decimal values, so exactly representable as read).  The graph prior is
 uniform over the valid DAGs, or independent Bernoulli(p) on every ordered pair that is not forbidden
@@ -53,7 +53,7 @@ def local_score(cols, node, parents):
         rss = syy - sum(beta[a] * b[a] for a in range(k))
     else:
         rss = syy
-    return -mpf(n) / 2 * (1 + log(2 * pi) + log(rss / n)) - mpf(len(parents) + 1) / 2 * log(n)
+    return -mpf(n) / 2 * (1 + log(2 * pi) + log(rss / n)) - mpf(len(parents) + 2) / 2 * log(n)
 
 
 def acyclic(parent_sets):

@@ -508,6 +508,33 @@ impl DiscoverySpec {
         if uses_ges(&self.method) {
             writer.text("ges.schedule.insert-delete.v2");
         }
+        fn uses_dag_bic(method: &DiscoveryMethod) -> bool {
+            match method {
+                DiscoveryMethod::Ges { .. }
+                | DiscoveryMethod::ExactDagPosterior
+                | DiscoveryMethod::ExactDagMarginals
+                | DiscoveryMethod::OrderMcmc { .. }
+                | DiscoveryMethod::StructureMcmc
+                | DiscoveryMethod::CiScreenedPosterior { .. }
+                | DiscoveryMethod::DbnPosterior { .. } => true,
+                DiscoveryMethod::ClassPosterior { base }
+                | DiscoveryMethod::BootstrapStability { base, .. } => uses_dag_bic(base),
+                _ => false,
+            }
+        }
+        let gaussian_score = match &self.search {
+            SearchParams::Static(_) => uses_ges(&self.method),
+            SearchParams::Bayesian(params) => {
+                params.score_family == antecedent_state::GraphScoreFamily::GaussianBic
+            }
+            SearchParams::Screened { bayesian, .. } => {
+                bayesian.score_family == antecedent_state::GraphScoreFamily::GaussianBic
+            }
+            SearchParams::Temporal(_) => false,
+        };
+        if gaussian_score && uses_dag_bic(&self.method) {
+            writer.text("antecedent.discovery.gaussian_bic.coefficients_and_variance.v2");
+        }
         match &self.regimes {
             Some(assignment) => {
                 writer.word(1).word(assignment.regimes.len() as u64);
@@ -2543,6 +2570,62 @@ mod ges_schedule_identity_tests {
             max_subset: None,
             knowledge: Default::default(),
         }
+    }
+
+    fn historical_bayesian_configuration(params: &BayesianDiscoverParams) -> [u8; 32] {
+        let mut writer = CanonicalWriter::new("antecedent.discovery_configuration");
+        writer
+            .text("none")
+            .text("bayesian")
+            .text(&format!("{:?}", params.prior))
+            .text(&format!("{:?}", params.score_family))
+            .word(0)
+            .opt_word(None)
+            .opt_text(None);
+        writer.finish()
+    }
+
+    #[test]
+    fn gaussian_score_revision_changes_only_affected_configuration_identities() {
+        let gaussian = BayesianDiscoverParams::default();
+        let old = historical_bayesian_configuration(&gaussian);
+        let dag = DiscoverySpec::exact_dag_posterior(gaussian.clone());
+        let current = dag.configuration();
+        assert_ne!(current, old);
+        let variables: Arc<[VariableId]> =
+            Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]);
+        let query = dag.query(variables).unwrap();
+        assert!(dag.check_query(&query).is_ok());
+        let mut historical = query;
+        historical.bounds.configuration = old;
+        assert!(dag.check_query(&historical).is_err());
+        assert_eq!(dag.clone().equivalence_classes().configuration(), current);
+        assert_eq!(DiscoverySpec::exact_dag_marginals(gaussian.clone()).configuration(), current);
+        let mut laplace = gaussian.clone();
+        laplace.score_family = antecedent_state::GraphScoreFamily::LaplaceBic;
+        let laplace_old = historical_bayesian_configuration(&laplace);
+        assert_eq!(
+            DiscoverySpec::order_mcmc(laplace, GraphMcmcSchedule::default(), false).configuration(),
+            laplace_old
+        );
+        // The PAG score uses a distinct multivariate implementation.
+        assert_eq!(DiscoverySpec::exact_pag_posterior(gaussian).configuration(), old);
+        let ges_params = params();
+        let mut old_ges = CanonicalWriter::new("antecedent.discovery_configuration");
+        old_ges
+            .text("parcorr")
+            .text("static")
+            .text(&format!("{:?}", ges_params.fdr))
+            .word(u64::from(ges_params.screen_pc))
+            .opt_word(ges_params.max_subset.map(|value| value as u64))
+            .word(0) // empty background knowledge
+            .text("ges.schedule.insert-delete.v2")
+            .word(0) // no regime assignment
+            .opt_word(None)
+            .opt_text(None);
+        let ges = DiscoverySpec::ges(ges_params, "parcorr");
+        assert_ne!(ges.configuration(), old_ges.finish());
+        assert_eq!(ges.clone().bootstrap_stability(5).configuration(), ges.configuration());
     }
 
     #[test]
