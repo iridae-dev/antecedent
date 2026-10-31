@@ -2279,6 +2279,11 @@ pub struct ProgramIdentityWire {
     /// Checked linear-Gaussian shared-exogenous natural direct effect operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checked_nested_counterfactual: Option<CheckedNestedCounterfactualWire>,
+    /// Checked semantic lowering of a cross-fitted doubly-robust learner average effect.
+    /// Older artifacts and executions outside the supported operation omit it and cannot be
+    /// independently replayed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_dr_lowering: Option<crate::CheckedDrLoweringWire>,
     /// Per-atom checked programs and the mixing rule of a functional effect or
     /// interventional distribution answered over a graph posterior. Such a result is
     /// answered per atom and mixed, so it has no single program; this carries what each
@@ -3308,6 +3313,7 @@ mod tests {
                 checked_linear_adjustment_lowering: None,
                 checked_functional_response_grid: None,
                 checked_nested_counterfactual: None,
+                checked_dr_lowering: None,
                 graph_posterior_programs: None,
                 structure_provenance: None,
             })

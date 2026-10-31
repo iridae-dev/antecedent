@@ -353,6 +353,7 @@ fn contract_for(
         checked_linear_adjustment_lowering: None,
         checked_functional_response_grid: None,
         checked_nested_counterfactual: None,
+        checked_dr_lowering: None,
         graph_posterior_programs: None,
         structure_provenance: None,
     };
@@ -2088,5 +2089,1012 @@ fn graphless_calibration_validation_is_bound_to_checked_route_and_no_suite() {
         basis.key.query = "Unknown".into();
         basis.key.structure = "fixed".into();
         assert!(super::verify::calibration_basis_matches_contract(&contract, &basis));
+    }
+}
+
+/// Replay of a declared cross-fitted doubly-robust fit from a full-source witness.
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "the tables are small synthetic columns built from small indices; copies are compared exactly"
+)]
+mod dr_replay {
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+
+    use antecedent_core::{CancellationToken, ExecutionContext};
+    use antecedent_learn::dr_replay::{DrOverlap, DrReplayInput, DrReplaySpec, replay_dr_ate};
+    use antecedent_learn::{
+        ElasticNetSpec, LearnerSpec, LinearSpec, LogisticSpec, PredictionMap, RidgeSpec,
+    };
+
+    use super::super::dr_replay::{DrReplayRefusal, SourceReplayBounds, verify_checked_dr_replay};
+    use super::super::verify::{
+        verify_contract_against_body_with_source, verify_contract_for_encoding_with_source,
+    };
+    use super::*;
+    use crate::contract_wire::{
+        CHECKED_DR_LOWERING_FORMAT, CHECKED_DR_PROCEDURE, CheckedDrLoweringWire, CheckedLearnerWire,
+    };
+    use crate::identity::{DataPartitionIdentityWire, data_snapshot_digest};
+    use crate::source_witness::{
+        SOURCE_WITNESS_FORMAT, SourceColumnWire, SourceWitnessError, SourceWitnessLimits,
+        SourceWitnessWire,
+    };
+
+    const SEED: u64 = 11;
+    const ROWS: usize = 60;
+    const MISMATCH: &str = "dependencies.checked_dr_replay_mismatch";
+    const SOURCE: &str = "dependencies.checked_dr_replay_source";
+    const UNSUPPORTED: &str = "dependencies.checked_dr_replay_unsupported";
+    const RESOURCE: &str = "dependencies.checked_dr_replay_resource";
+    const OPERATION: &str = "dependencies.checked_estimator_operation";
+
+    const LINEAR: LearnerSpec = LearnerSpec::Linear(LinearSpec {});
+    const LOGISTIC: LearnerSpec = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
+
+    /// What a case is built from: columns in dense id order (treatment 0, outcome 1, then
+    /// the rest), and the adjustment ids among them.
+    struct CaseSpec {
+        names: Vec<&'static str>,
+        columns: Vec<Vec<f64>>,
+        adjustment: Vec<u32>,
+        outcome: LearnerSpec,
+        folds: usize,
+    }
+
+    /// A consistent doubly-robust contract, its body and its witness.
+    #[derive(Clone)]
+    struct Case {
+        header: AnalysisResultHeader,
+        body: AnalysisResultWire,
+        contract: AnalysisResultContractWire,
+        witness: SourceWitnessWire,
+    }
+
+    fn arm(i: usize) -> f64 {
+        f64::from(u8::from(i % 2 == 0))
+    }
+
+    fn covariate(i: usize) -> f64 {
+        ((i * 7) % 13) as f64 / 13.0
+    }
+
+    /// `y = 1.5 + 2 t - 0.75 z`, exactly linear with a constant propensity design, so the
+    /// average effect is exactly 2 whatever the folds. With `scatter` a deterministic
+    /// residual is added, so the fit depends on the folds.
+    fn linear_table(scatter: bool) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        let t: Vec<f64> = (0..ROWS).map(arm).collect();
+        let z: Vec<f64> = (0..ROWS).map(covariate).collect();
+        let y: Vec<f64> = (0..ROWS)
+            .map(|i| {
+                let residual = if scatter { ((i * i) % 7) as f64 * 0.1 } else { 0.0 };
+                1.5 + 2.0 * t[i] - 0.75 * z[i] + residual
+            })
+            .collect();
+        (t, y, z)
+    }
+
+    fn witness_of(columns: &[Vec<f64>]) -> SourceWitnessWire {
+        SourceWitnessWire {
+            format: SOURCE_WITNESS_FORMAT,
+            row_count: columns[0].len() as u64,
+            columns: columns
+                .iter()
+                .enumerate()
+                .map(|(index, values)| SourceColumnWire {
+                    variable: u32::try_from(index).unwrap(),
+                    values: values.clone(),
+                })
+                .collect(),
+        }
+    }
+
+    fn names_of(spec: &[&str]) -> Vec<String> {
+        spec.iter().map(|name| (*name).to_owned()).collect()
+    }
+
+    fn content_of(witness: &SourceWitnessWire, names: &[String]) -> [u8; 32] {
+        witness.to_storage(names, &SourceWitnessLimits::default()).unwrap().content_digest()
+    }
+
+    fn lowering_of(spec: &CaseSpec) -> CheckedDrLoweringWire {
+        CheckedDrLoweringWire {
+            format: CHECKED_DR_LOWERING_FORMAT,
+            treatment: 0,
+            outcome: 1,
+            adjustment: spec.adjustment.clone(),
+            population: "all_observed".into(),
+            procedure: CHECKED_DR_PROCEDURE.into(),
+            folds: spec.folds as u64,
+            outcome_learner: CheckedLearnerWire::from_spec(spec.outcome).unwrap(),
+            treatment_learner: CheckedLearnerWire::from_spec(LOGISTIC).unwrap(),
+            final_learner: CheckedLearnerWire::from_spec(LINEAR).unwrap(),
+            overlap_clip_bits: Some(0.01_f64.to_bits()),
+            overlap_trim_bits: None,
+            overlap_declared: false,
+            active_level_above_control: true,
+            intercept: true,
+        }
+    }
+
+    /// Recompute every digest a forger can compute: the program and the snapshot identity, the
+    /// seal and the claim.
+    fn reseal(contract: &mut AnalysisResultContractWire, body: &AnalysisResultWire) {
+        contract.identities.program =
+            *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
+        contract.identities.data_snapshot =
+            *data_snapshot_digest(contract.data_snapshot.as_ref().unwrap()).unwrap().as_bytes();
+        if let Some(claim) = contract.claim.as_mut() {
+            claim.value_bits = body.estimate.map(f64::to_bits);
+        }
+        seal_claim(contract, body);
+    }
+
+    /// Bind `witness` as the snapshot's table and reseal.
+    fn bind_snapshot(case: &mut Case, witness: &SourceWitnessWire) {
+        let content = content_of(witness, &case.header.variable_names);
+        let snapshot = case.contract.data_snapshot.as_mut().unwrap();
+        snapshot.row_count = witness.row_count;
+        snapshot.partitions = vec![DataPartitionIdentityWire {
+            content,
+            row_count: witness.row_count,
+            unit_id: None,
+            regularity: None,
+        }];
+        reseal(&mut case.contract, &case.body);
+    }
+
+    fn build(spec: &CaseSpec) -> Case {
+        let names = names_of(&spec.names);
+        let witness = witness_of(&spec.columns);
+        let lowering = lowering_of(spec);
+        let covariates: Vec<&[f64]> =
+            spec.adjustment.iter().map(|&id| spec.columns[id as usize].as_slice()).collect();
+        let row_ids: Vec<u64> = (0..ROWS as u64).collect();
+        // The producer stand-in: the same replay, run once, publishes what a body reports.
+        let replay = replay_dr_ate(
+            DrReplayInput {
+                treatment: &spec.columns[0],
+                outcome: &spec.columns[1],
+                covariates: &covariates,
+                row_ids: &row_ids,
+                intercept: true,
+            },
+            DrReplaySpec {
+                folds: spec.folds,
+                seed: SEED,
+                outcome: spec.outcome,
+                treatment: LOGISTIC,
+                final_learner: LINEAR,
+                overlap: DrOverlap { clip: Some(0.01), trim: None, declared: false },
+                active_level_above_control: true,
+            },
+            &ExecutionContext::for_tests(SEED),
+        )
+        .unwrap();
+        let (mut body, target, _) = fixture_body();
+        body.estimate = Some(replay.ate);
+        body.standard_error = Some(replay.standard_error).filter(|se| se.is_finite() && *se > 0.0);
+        body.cate_se = replay.cate_se.clone().map(Arc::from);
+        body.cate = Some(Arc::from(replay.cate.clone()));
+        body.fitted_effect = replay.fitted_effect(spec.adjustment.clone()).unwrap().map(Arc::new);
+        body.crossfit_folds = Some(spec.folds);
+        body.crossfit_seed = Some(SEED);
+        body.identification.estimands.push(crate::IdentifiedEstimandWire {
+            method: "backdoor.adjustment".into(),
+            adjustment_set: spec.adjustment.clone(),
+            instruments: Vec::new(),
+            mediators: Vec::new(),
+            functional: 0,
+            rd_design: None,
+        });
+        let mut contract = contract_for(target, &body);
+        contract.estimator = Some("dr.learner".into());
+        let program = contract.program.as_mut().unwrap();
+        program.commitments.estimator = Some("dr.learner".into());
+        program.commitments.resolved_estimator = Some("dr.learner".into());
+        program.checked_dr_lowering = Some(lowering);
+        let mut case = Case {
+            header: AnalysisResultHeader { variable_names: names },
+            body,
+            contract,
+            witness: witness.clone(),
+        };
+        bind_snapshot(&mut case, &witness);
+        case
+    }
+
+    fn standard() -> Case {
+        let (t, y, z) = linear_table(true);
+        build(&CaseSpec {
+            names: vec!["t", "y", "z"],
+            columns: vec![t, y, z],
+            adjustment: vec![2],
+            outcome: LINEAR,
+            folds: 4,
+        })
+    }
+
+    fn lowering(case: &mut Case) -> &mut CheckedDrLoweringWire {
+        case.contract.program.as_mut().unwrap().checked_dr_lowering.as_mut().unwrap()
+    }
+
+    fn replay(case: &Case) -> Result<(), DrReplayRefusal> {
+        verify_checked_dr_replay(
+            &case.header,
+            &case.body,
+            &case.contract,
+            &case.witness,
+            &SourceReplayBounds::default(),
+        )
+    }
+
+    fn reasons(case: &Case, source: Option<&SourceWitnessWire>) -> BTreeSet<String> {
+        verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            source,
+            &SourceReplayBounds::default(),
+        )
+        .iter()
+        .map(|reason| reason.to_string())
+        .collect()
+    }
+
+    fn set(items: &[&str]) -> BTreeSet<String> {
+        items.iter().map(|item| (*item).to_owned()).collect()
+    }
+
+    /// Reasons a tampered case adds over the untouched one, with its own witness.
+    fn added(baseline: &Case, tampered: &Case) -> BTreeSet<String> {
+        let before = reasons(baseline, Some(&baseline.witness));
+        reasons(tampered, Some(&tampered.witness)).difference(&before).cloned().collect()
+    }
+
+    fn bump(value: f64) -> f64 {
+        f64::from_bits(value.to_bits() + 1)
+    }
+
+    #[test]
+    fn a_replay_that_reproduces_the_body_clears_the_estimator_operation_and_nothing_else() {
+        let case = standard();
+        assert_eq!(replay(&case), Ok(()));
+        let compact = reasons(&case, None);
+        assert!(compact.contains(OPERATION), "{compact:?}");
+        let replayed = reasons(&case, Some(&case.witness));
+        assert!(!replayed.contains(OPERATION), "{replayed:?}");
+        let cleared: BTreeSet<String> = compact.difference(&replayed).cloned().collect();
+        assert_eq!(cleared, set(&[OPERATION]));
+        assert!(replayed.is_subset(&compact), "{replayed:?}");
+        for reason in [MISMATCH, SOURCE, UNSUPPORTED, RESOURCE] {
+            assert!(!replayed.contains(reason), "{reason}");
+        }
+    }
+
+    #[test]
+    fn without_a_source_a_declared_lowering_changes_nothing() {
+        let case = standard();
+        let mut undeclared = case.clone();
+        undeclared.contract.program.as_mut().unwrap().checked_dr_lowering = None;
+        reseal(&mut undeclared.contract, &undeclared.body);
+        assert!(reasons(&undeclared, None).contains(OPERATION));
+        // Same reasons from the legacy entry point, whatever the lowering says.
+        let header = &case.header;
+        let legacy: BTreeSet<String> =
+            verify_contract_against_body(header, &case.body, &case.contract)
+                .iter()
+                .map(|reason| reason.to_string())
+                .collect();
+        assert_eq!(legacy, reasons(&case, None));
+        // A source is ignored when the contract declares nothing to replay with it.
+        assert_eq!(reasons(&undeclared, Some(&undeclared.witness)), reasons(&undeclared, None));
+    }
+
+    #[test]
+    fn an_exactly_linear_table_gives_the_effect_the_reference_computes_and_a_wrong_value_is_refused()
+     {
+        let case = build(&CaseSpec {
+            names: vec!["t", "y", "z"],
+            columns: {
+                let (t, y, z) = linear_table(false);
+                vec![t, y, z]
+            },
+            adjustment: vec![2],
+            outcome: LINEAR,
+            folds: 4,
+        });
+        // Independent reference: the outcome is exactly linear in (t, z), so every
+        // doubly-robust score equals 2, and the final-stage least-squares line through
+        // identical scores is the constant 2 whatever the folds and the propensity are.
+        let published = case.body.estimate.unwrap();
+        assert!((published - 2.0).abs() <= 1e-9, "{published}");
+        let (t, y, z) = linear_table(false);
+        let sum_z: f64 = z.iter().sum();
+        let sum_zz: f64 = z.iter().map(|v| v * v).sum();
+        let n = ROWS as f64;
+        assert_eq!((y.len(), t.len()), (ROWS, ROWS));
+        let scores = vec![2.0; ROWS];
+        let sum_s: f64 = scores.iter().sum();
+        let sum_zs: f64 = z.iter().zip(&scores).map(|(a, b)| a * b).sum();
+        let slope = (n * sum_zs - sum_z * sum_s) / (n * sum_zz - sum_z * sum_z);
+        let intercept = (sum_s - slope * sum_z) / n;
+        for (index, value) in case.body.cate.as_ref().unwrap().iter().enumerate() {
+            let line = intercept + slope * z[index];
+            assert!((value - line).abs() <= 1e-9, "row {index}: {value} vs {line}");
+        }
+        assert_eq!(replay(&case), Ok(()));
+        // A verifier that always agreed would accept these.
+        let mut wrong = case.clone();
+        wrong.body.estimate = Some(published + 1e-7);
+        assert_eq!(replay(&wrong), Err(DrReplayRefusal::Mismatch("the point estimate")));
+        let mut wrong = case;
+        wrong.body.estimate = Some(2.0 + 1e-3);
+        assert_eq!(replay(&wrong), Err(DrReplayRefusal::Mismatch("the point estimate")));
+    }
+
+    #[test]
+    fn an_intercept_only_design_matches_the_fold_means_computed_by_hand() {
+        let n = 60;
+        let t: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 5 < 2))).collect();
+        let y: Vec<f64> =
+            (0..n).map(|i| ((i * i) % 7) as f64 + 2.0 * t[i] + 0.25 * (i % 3) as f64).collect();
+        let case = build(&CaseSpec {
+            names: vec!["t", "y"],
+            columns: vec![t.clone(), y.clone()],
+            adjustment: Vec::new(),
+            outcome: LINEAR,
+            folds: 3,
+        });
+        assert_eq!(replay(&case), Ok(()));
+        // The fold assignment is the planner's; everything after it is computed here from
+        // the witnessed columns with plain means.
+        let row_ids: Vec<u64> = (0..n as u64).collect();
+        let none: [&[f64]; 0] = [];
+        let folds = replay_dr_ate(
+            DrReplayInput {
+                treatment: &t,
+                outcome: &y,
+                covariates: &none,
+                row_ids: &row_ids,
+                intercept: true,
+            },
+            DrReplaySpec {
+                folds: 3,
+                seed: SEED,
+                outcome: LINEAR,
+                treatment: LOGISTIC,
+                final_learner: LINEAR,
+                overlap: DrOverlap { clip: Some(0.01), trim: None, declared: false },
+                active_level_above_control: true,
+            },
+            &ExecutionContext::for_tests(SEED),
+        )
+        .unwrap()
+        .fold_ids;
+        let mean = |keep: &dyn Fn(usize) -> bool, values: &[f64]| {
+            let picked: Vec<f64> = (0..n).filter(|&j| keep(j)).map(|j| values[j]).collect();
+            picked.iter().sum::<f64>() / picked.len() as f64
+        };
+        let mut scores = Vec::new();
+        for i in 0..n {
+            let train = |j: usize| folds[j] != folds[i];
+            let m0 = mean(&|j| train(j) && t[j] < 0.5, &y);
+            let m1 = mean(&|j| train(j) && t[j] > 0.5, &y);
+            let e = mean(&train, &t);
+            scores
+                .push((m1 - m0) + t[i] * (y[i] - m1) / e - (1.0 - t[i]) * (y[i] - m0) / (1.0 - e));
+        }
+        let reference = scores.iter().sum::<f64>() / n as f64;
+        // Independent standard error: the influence of the mean is `(phi - mean) n / n`, and its
+        // iid standard error is the sample standard deviation over the square root of n.
+        let influence: Vec<f64> =
+            scores.iter().map(|s| (s - reference) * n as f64 / n as f64).collect();
+        let centre = influence.iter().sum::<f64>() / n as f64;
+        let variance =
+            influence.iter().map(|v| (v - centre) * (v - centre)).sum::<f64>() / (n as f64 - 1.0);
+        let reference_error = (variance / n as f64).sqrt();
+        let reported_error = case.body.standard_error.unwrap();
+        assert!(
+            (reported_error - reference_error).abs() <= 1e-6 * reference_error,
+            "{reported_error} vs {reference_error}"
+        );
+        let published = case.body.estimate.unwrap();
+        // The unpenalized logistic MLE of an intercept is the treated fraction to ~1e-8.
+        assert!((published - reference).abs() <= 1e-6, "{published} vs {reference}");
+        let mut wrong = case;
+        wrong.body.estimate = Some(reference + 1e-3);
+        assert_eq!(replay(&wrong), Err(DrReplayRefusal::Mismatch("the point estimate")));
+    }
+
+    /// Edit the witnessed columns three ways: left unsealed, the snapshot no longer binds the
+    /// table; with the snapshot digest recomputed, the table binds but the body no longer
+    /// follows from it.
+    fn edited_source(edit: impl Fn(&mut Vec<Vec<f64>>)) -> (Case, Case) {
+        let base = standard();
+        let mut columns: Vec<Vec<f64>> =
+            base.witness.columns.iter().map(|column| column.values.clone()).collect();
+        edit(&mut columns);
+        let edited = witness_of(&columns);
+        let mut unsealed = base.clone();
+        unsealed.witness = edited.clone();
+        let mut sealed = base;
+        bind_snapshot(&mut sealed, &edited);
+        sealed.witness = edited;
+        (unsealed, sealed)
+    }
+
+    fn assert_edit_is_refused(edit: impl Fn(&mut Vec<Vec<f64>>)) {
+        let baseline = standard();
+        let (unsealed, sealed) = edited_source(edit);
+        assert_eq!(
+            replay(&unsealed),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch("content digest")))
+        );
+        assert_eq!(added(&baseline, &unsealed), set(&[SOURCE, OPERATION]));
+        assert!(
+            matches!(replay(&sealed), Err(DrReplayRefusal::Mismatch(_))),
+            "{:?}",
+            replay(&sealed)
+        );
+        assert_eq!(added(&baseline, &sealed), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn the_published_standard_error_is_the_iid_error_of_the_score_influence() {
+        let case = standard();
+        // Independent formula, written out: scores from the replay, influence
+        // `(phi - mean) n / kept` with every row kept, sample standard deviation / sqrt(n).
+        let (t, y, z) = linear_table(true);
+        let row_ids: Vec<u64> = (0..ROWS as u64).collect();
+        let phi = replay_dr_ate(
+            DrReplayInput {
+                treatment: &t,
+                outcome: &y,
+                covariates: &[z.as_slice()],
+                row_ids: &row_ids,
+                intercept: true,
+            },
+            DrReplaySpec {
+                folds: 4,
+                seed: SEED,
+                outcome: LINEAR,
+                treatment: LOGISTIC,
+                final_learner: LINEAR,
+                overlap: DrOverlap { clip: Some(0.01), trim: None, declared: false },
+                active_level_above_control: true,
+            },
+            &ExecutionContext::for_tests(SEED),
+        )
+        .unwrap()
+        .phi;
+        let n = ROWS as f64;
+        let mean = phi.iter().sum::<f64>() / n;
+        let influence: Vec<f64> = phi.iter().map(|p| (p - mean) * n / n).collect();
+        let centre = influence.iter().sum::<f64>() / n;
+        let variance =
+            influence.iter().map(|v| (v - centre) * (v - centre)).sum::<f64>() / (n - 1.0);
+        let reference = (variance / n).sqrt();
+        let published = case.body.standard_error.unwrap();
+        assert!(reference > 0.0 && (published - reference).abs() <= 1e-9 * reference);
+        assert_eq!(replay(&case), Ok(()));
+    }
+
+    #[test]
+    fn a_tampered_or_missing_standard_error_is_refused_after_the_claim_is_resealed() {
+        let baseline = standard();
+        let published = baseline.body.standard_error.unwrap();
+        let mut tampered = baseline.clone();
+        tampered.body.standard_error = Some(bump(published));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the standard error")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        let mut missing = baseline.clone();
+        missing.body.standard_error = None;
+        reseal(&mut missing.contract, &missing.body);
+        assert_eq!(replay(&missing), Err(DrReplayRefusal::Mismatch("the standard error")));
+        // Pointwise errors the replay produces must be published unchanged.
+        let mut stripped = baseline;
+        stripped.body.cate_se = None;
+        reseal(&mut stripped.contract, &stripped.body);
+        assert_eq!(
+            replay(&stripped),
+            Err(DrReplayRefusal::Mismatch("the pointwise CATE standard errors"))
+        );
+    }
+
+    #[test]
+    fn a_tampered_pointwise_cate_standard_error_is_refused() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        let mut errors = baseline.body.cate_se.as_ref().unwrap().to_vec();
+        errors[2] = bump(errors[2]);
+        tampered.body.cate_se = Some(Arc::from(errors));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(
+            replay(&tampered),
+            Err(DrReplayRefusal::Mismatch("the pointwise CATE standard errors"))
+        );
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_body_publishing_an_interval_or_covariance_is_not_cleared() {
+        let baseline = standard();
+        // The route publishes a standard error only; an interval has no replay here.
+        let mut interval = baseline.clone();
+        interval.body.interval_lower = Some(1.0);
+        interval.body.interval_upper = Some(3.0);
+        reseal(&mut interval.contract, &interval.body);
+        assert!(matches!(replay(&interval), Err(DrReplayRefusal::Unsupported(_))));
+        let published = reasons(&interval, Some(&interval.witness));
+        assert!(published.contains(UNSUPPORTED) && published.contains(OPERATION), "{published:?}");
+        let mut covariance = baseline;
+        covariance.body.joint_covariance =
+            Some(crate::JointCovarianceWire { dim: 1, values: vec![0.5] });
+        reseal(&mut covariance.contract, &covariance.body);
+        assert!(matches!(replay(&covariance), Err(DrReplayRefusal::Unsupported(_))));
+    }
+
+    #[test]
+    fn one_changed_outcome_value_is_refused() {
+        assert_edit_is_refused(|columns| columns[1][17] += 0.5);
+    }
+
+    #[test]
+    fn one_changed_treatment_value_is_refused() {
+        assert_edit_is_refused(|columns| columns[0][4] = 1.0 - columns[0][4]);
+    }
+
+    #[test]
+    fn one_changed_covariate_value_is_refused() {
+        assert_edit_is_refused(|columns| columns[2][9] += 0.25);
+    }
+
+    #[test]
+    fn swapped_rows_are_refused() {
+        assert_edit_is_refused(|columns| {
+            for column in columns.iter_mut() {
+                column.swap(3, 40);
+            }
+        });
+    }
+
+    #[test]
+    fn a_non_binary_treatment_value_is_unsupported_not_a_mismatch() {
+        let baseline = standard();
+        let (_, mut sealed) = edited_source(|columns| columns[0][4] = 2.0);
+        assert_eq!(
+            replay(&sealed),
+            Err(DrReplayRefusal::Unsupported("the witnessed treatment is not exactly 0 or 1"))
+        );
+        assert_eq!(added(&baseline, &sealed), set(&[UNSUPPORTED, OPERATION]));
+        sealed.witness.columns[0].values[4] = 0.5;
+        assert!(matches!(replay(&sealed), Err(DrReplayRefusal::Source(_))));
+    }
+
+    #[test]
+    fn an_unused_extra_column_is_carried_and_a_dropped_column_is_refused() {
+        let (t, y, z) = linear_table(true);
+        let spare: Vec<f64> = (0..ROWS).map(|i| (i % 5) as f64).collect();
+        let case = build(&CaseSpec {
+            names: vec!["t", "y", "z", "spare"],
+            columns: vec![t, y, z, spare],
+            adjustment: vec![2],
+            outcome: LINEAR,
+            folds: 4,
+        });
+        assert_eq!(replay(&case), Ok(()));
+        let replayed = reasons(&case, Some(&case.witness));
+        assert!(!replayed.contains(OPERATION), "{replayed:?}");
+        // The same table without its last column: fewer columns than variable names.
+        let mut dropped = case.clone();
+        dropped.witness.columns.pop();
+        assert!(matches!(
+            replay(&dropped),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Malformed(_)))
+        ));
+        // Even renamed to fit, the narrower table is not the snapshotted one.
+        dropped.header.variable_names.pop();
+        assert_eq!(
+            replay(&dropped),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch("content digest")))
+        );
+        assert_eq!(added(&case, &dropped), set(&[SOURCE, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_point_estimate_is_refused_after_every_digest_is_recomputed() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        tampered.body.estimate = Some(bump(baseline.body.estimate.unwrap()));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the point estimate")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_cate_vector_is_refused_after_every_digest_is_recomputed() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        let mut cate = baseline.body.cate.as_ref().unwrap().to_vec();
+        cate[7] = bump(cate[7]);
+        tampered.body.cate = Some(Arc::from(cate));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the CATE vector")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    fn edited_model(edit: impl Fn(&mut antecedent_learn::FittedEffect)) -> (Case, Case) {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        edit(Arc::make_mut(tampered.body.fitted_effect.as_mut().unwrap()));
+        reseal(&mut tampered.contract, &tampered.body);
+        (baseline, tampered)
+    }
+
+    #[test]
+    fn a_tampered_predictor_coefficient_is_refused() {
+        let (baseline, tampered) = edited_model(|model| {
+            let PredictionMap::Linear { coefficients, .. } = &mut model.predictor.model else {
+                panic!("the final stage is linear");
+            };
+            coefficients[1] = bump(coefficients[1]);
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_intercept_coefficient_is_refused() {
+        let (baseline, tampered) = edited_model(|model| {
+            let PredictionMap::Linear { coefficients, .. } = &mut model.predictor.model else {
+                panic!("the final stage is linear");
+            };
+            coefficients[0] += 1e-6;
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_feature_schema_is_refused() {
+        let (baseline, tampered) = edited_model(|model| model.features = vec![0]);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        // The same model with no intercept column, kept internally consistent.
+        let (baseline, tampered) = edited_model(|model| {
+            model.intercept = false;
+            model.predictor.columns -= 1;
+            if let PredictionMap::Linear { coefficients, .. } = &mut model.predictor.model {
+                coefficients.remove(0);
+            }
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_support_box_is_refused() {
+        let (baseline, tampered) = edited_model(|model| {
+            model.support.as_mut().unwrap().ranges[0].lo -= 1.0;
+        });
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the fitted effect model")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        let (baseline, tampered) = edited_model(|model| {
+            model.support.as_mut().unwrap().rows -= 1;
+        });
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_recorded_seed_is_refused() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        tampered.body.crossfit_seed = Some(SEED + 1);
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Mismatch(_))));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_tampered_declared_fold_count_is_refused_even_when_the_record_agrees() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).folds = 3;
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(
+            replay(&tampered),
+            Err(DrReplayRefusal::Mismatch(
+                "the body's cross-fit record differs from the declared fold count"
+            ))
+        );
+        // A forger who also rewrites the record still faces the replay.
+        tampered.body.crossfit_folds = Some(3);
+        reseal(&mut tampered.contract, &tampered.body);
+        assert_eq!(replay(&tampered), Err(DrReplayRefusal::Mismatch("the point estimate")));
+        assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+    }
+
+    #[test]
+    fn a_wrong_learner_in_the_declaration_is_refused() {
+        let baseline = standard();
+        for wrong in [
+            LearnerSpec::Ridge(RidgeSpec { lambda: 3.0 }),
+            LearnerSpec::ElasticNet(ElasticNetSpec { l1_ratio: 0.5, lambda: 0.25 }),
+        ] {
+            let mut tampered = baseline.clone();
+            lowering(&mut tampered).outcome_learner = CheckedLearnerWire::from_spec(wrong).unwrap();
+            reseal(&mut tampered.contract, &tampered.body);
+            assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Mismatch(_))), "{wrong:?}");
+            assert_eq!(added(&baseline, &tampered), set(&[MISMATCH, OPERATION]));
+        }
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).final_learner = CheckedLearnerWire::from_spec(LOGISTIC).unwrap();
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(replay(&tampered).is_err());
+    }
+
+    #[test]
+    fn a_changed_overlap_or_role_in_the_declaration_is_refused() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        // The standard fixture's propensities all lie inside any admissible trim band, so a
+        // declared trim changes no number: the replay is numerical and reproduces the claim.
+        lowering(&mut tampered).overlap_trim_bits = Some(0.2_f64.to_bits());
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(replay(&tampered).is_ok());
+        // A clip outside (0, 0.5) is a malformed declaration.
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).overlap_clip_bits = Some(0.75_f64.to_bits());
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Lowering(_))));
+        assert_eq!(added(&baseline, &tampered), set(&["program.checked_dr_lowering", OPERATION]));
+        // A role that is not the contract's query is a binding fault.
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).outcome = 5;
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Binding(_))));
+        assert_eq!(added(&baseline, &tampered), set(&["program.checked_dr_binding", OPERATION]));
+    }
+
+    #[test]
+    fn a_declaration_outside_the_supported_operation_is_not_replayed() {
+        let baseline = standard();
+        let mut tampered = baseline.clone();
+        lowering(&mut tampered).intercept = false;
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Unsupported(_))));
+        assert_eq!(added(&baseline, &tampered), set(&[UNSUPPORTED, OPERATION]));
+        // A snapshot that is not a plain table is outside the operation as well.
+        let mut tampered = baseline.clone();
+        tampered.contract.data_snapshot.as_mut().unwrap().sampling_design =
+            Some("stratified".into());
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Unsupported(_))));
+        let faults: Vec<Box<dyn Fn(&mut CheckedDrLoweringWire)>> = vec![
+            Box::new(|declared: &mut CheckedDrLoweringWire| declared.folds = 1),
+            Box::new(|declared: &mut CheckedDrLoweringWire| declared.procedure = "other".into()),
+            Box::new(|declared: &mut CheckedDrLoweringWire| {
+                declared.outcome_learner.kind = "forest".into();
+            }),
+            Box::new(|declared: &mut CheckedDrLoweringWire| declared.adjustment = vec![2, 2]),
+        ];
+        for fault in &faults {
+            let mut tampered = baseline.clone();
+            fault(lowering(&mut tampered));
+            reseal(&mut tampered.contract, &tampered.body);
+            assert!(matches!(replay(&tampered), Err(DrReplayRefusal::Lowering(_))));
+        }
+    }
+
+    #[test]
+    fn an_oversize_witness_is_refused_before_any_fit() {
+        let case = standard();
+        let bounds = SourceReplayBounds {
+            witness: SourceWitnessLimits { max_bytes: 64, ..SourceWitnessLimits::default() },
+            ..SourceReplayBounds::default()
+        };
+        let outcome = verify_checked_dr_replay(
+            &case.header,
+            &case.body,
+            &case.contract,
+            &case.witness,
+            &bounds,
+        );
+        assert_eq!(outcome, Err(DrReplayRefusal::Source(SourceWitnessError::TooLarge)));
+        let (_, fits) = antecedent_learn::fit_counts::count_resolved_fits(|| {
+            verify_checked_dr_replay(
+                &case.header,
+                &case.body,
+                &case.contract,
+                &case.witness,
+                &bounds,
+            )
+        });
+        assert_eq!(fits, 0);
+        let published = verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            Some(&case.witness),
+            &bounds,
+        );
+        assert!(published.iter().any(|reason| reason.as_ref() == SOURCE));
+        assert!(published.iter().any(|reason| reason.as_ref() == OPERATION));
+    }
+
+    #[test]
+    fn a_cancelled_replay_is_cancelled_and_never_success_or_mismatch() {
+        let case = standard();
+        let token = CancellationToken::new();
+        token.cancel();
+        let bounds = SourceReplayBounds { cancellation: token, ..SourceReplayBounds::default() };
+        let run = |bounds: &SourceReplayBounds| {
+            verify_checked_dr_replay(
+                &case.header,
+                &case.body,
+                &case.contract,
+                &case.witness,
+                bounds,
+            )
+        };
+        assert_eq!(run(&bounds), Err(DrReplayRefusal::Cancelled));
+        let published = verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            Some(&case.witness),
+            &bounds,
+        );
+        assert!(published.iter().any(|reason| reason.as_ref() == RESOURCE));
+        assert!(published.iter().any(|reason| reason.as_ref() == OPERATION));
+        assert!(!published.iter().any(|reason| reason.as_ref() == MISMATCH));
+        // Cancelled while the fits run: the replay's own cancellation is not a mismatch.
+        let mid_run = SourceReplayBounds {
+            cancellation: CancellationToken::cancel_after_checks(1),
+            ..SourceReplayBounds::default()
+        };
+        assert_eq!(run(&mid_run), Err(DrReplayRefusal::Cancelled));
+    }
+
+    #[test]
+    fn a_refused_working_memory_bound_is_a_resource_refusal() {
+        let case = standard();
+        let bounds = SourceReplayBounds { memory_bytes: 1024, ..SourceReplayBounds::default() };
+        let outcome = verify_checked_dr_replay(
+            &case.header,
+            &case.body,
+            &case.contract,
+            &case.witness,
+            &bounds,
+        );
+        assert!(matches!(outcome, Err(DrReplayRefusal::Resource(_))), "{outcome:?}");
+        let published = verify_contract_against_body_with_source(
+            &case.header,
+            &case.body,
+            &case.contract,
+            Some(&case.witness),
+            &bounds,
+        );
+        assert!(published.iter().any(|reason| reason.as_ref() == RESOURCE));
+        assert!(!published.iter().any(|reason| reason.as_ref() == MISMATCH));
+    }
+
+    #[test]
+    fn the_encoder_applies_the_same_replay_to_the_source_it_embeds() {
+        let case = standard();
+        let encoded = |case: &Case, source: Option<&SourceWitnessWire>| -> Vec<String> {
+            verify_contract_for_encoding_with_source(
+                &case.header,
+                &case.body,
+                &case.contract,
+                source,
+            )
+            .iter()
+            .map(|reason| reason.to_string())
+            .collect()
+        };
+        assert!(!encoded(&case, Some(&case.witness)).iter().any(|r| r == MISMATCH || r == SOURCE));
+        // A producer-side export of a body its source does not produce is refused.
+        let mut tampered = case.clone();
+        tampered.body.estimate = Some(bump(case.body.estimate.unwrap()));
+        reseal(&mut tampered.contract, &tampered.body);
+        assert!(encoded(&tampered, Some(&tampered.witness)).iter().any(|r| r == MISMATCH));
+        // Without a source the producer encodes exactly as it always did: the same verdict as
+        // the untouched case.
+        assert_eq!(encoded(&tampered, None), encoded(&case, None));
+    }
+
+    #[test]
+    fn the_learner_wire_form_round_trips_and_covers_only_deterministic_learners() {
+        for spec in [
+            LINEAR,
+            LOGISTIC,
+            LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.125 }),
+            LearnerSpec::Ridge(RidgeSpec { lambda: 1.0 }),
+            LearnerSpec::ElasticNet(ElasticNetSpec { l1_ratio: 0.25, lambda: 2.0 }),
+        ] {
+            let wire = CheckedLearnerWire::from_spec(spec).unwrap();
+            assert_eq!(wire.to_spec(), Some(spec));
+            assert_eq!(to_cbor(&wire).unwrap(), to_cbor(&wire.clone()).unwrap());
+        }
+        assert_eq!(CheckedLearnerWire::from_spec(LearnerSpec::Auto), None);
+        let ridge =
+            CheckedLearnerWire::from_spec(LearnerSpec::Ridge(RidgeSpec::default())).unwrap();
+        for malformed in [
+            CheckedLearnerWire { kind: "ridge".into(), parameters: Vec::new() },
+            CheckedLearnerWire { kind: "linear".into(), parameters: vec![1] },
+            CheckedLearnerWire { kind: "forest".into(), parameters: ridge.parameters.clone() },
+        ] {
+            assert_eq!(malformed.to_spec(), None);
+        }
+    }
+
+    #[test]
+    fn every_declared_setting_is_part_of_the_program_identity() {
+        let case = standard();
+        let program = case.contract.program.as_ref().unwrap();
+        let original = program_digest(program).unwrap();
+        type Edit = Box<dyn Fn(&mut CheckedDrLoweringWire)>;
+        let edits: Vec<Edit> = vec![
+            Box::new(|l: &mut CheckedDrLoweringWire| l.treatment += 5),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.outcome += 5),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.adjustment.push(9)),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.population = "treated".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.procedure = "other".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.folds += 1),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.outcome_learner.parameters.push(1)),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.treatment_learner.kind = "ridge".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.final_learner.kind = "ridge".into()),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.overlap_clip_bits = None),
+            Box::new(|l: &mut CheckedDrLoweringWire| {
+                l.overlap_trim_bits = Some(0.1_f64.to_bits());
+            }),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.overlap_declared = true),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.active_level_above_control = false),
+            Box::new(|l: &mut CheckedDrLoweringWire| l.intercept = false),
+        ];
+        for (index, edit) in edits.iter().enumerate() {
+            let mut changed = program.clone();
+            edit(changed.checked_dr_lowering.as_mut().unwrap());
+            assert_ne!(program_digest(&changed).unwrap(), original, "edit {index}");
+        }
+        // A program without a declaration serializes exactly as it always did.
+        let mut legacy = program.clone();
+        legacy.checked_dr_lowering = None;
+        let bytes = to_cbor(&legacy).unwrap();
+        assert!(!bytes.windows(b"checked_dr_lowering".len()).any(|w| w == b"checked_dr_lowering"));
+        let decoded: ProgramIdentityWire = crate::from_cbor(&bytes).unwrap();
+        assert_eq!(decoded.checked_dr_lowering, None);
+        let declared = to_cbor(program).unwrap();
+        let round: ProgramIdentityWire = crate::from_cbor(&declared).unwrap();
+        assert_eq!(round.checked_dr_lowering, program.checked_dr_lowering);
+        // Unknown fields of the declaration are refused.
+        let mut text = to_cbor(program.checked_dr_lowering.as_ref().unwrap()).unwrap();
+        let at = text.windows(b"intercept".len()).position(|w| w == b"intercept").unwrap();
+        text[at] = b'x';
+        assert!(crate::from_cbor::<CheckedDrLoweringWire>(&text).is_err());
+    }
+
+    #[test]
+    fn the_new_reason_spellings_are_registered() {
+        for (reason, spelling) in [
+            (ContractReason::DependenciesCheckedDrReplayMismatch, MISMATCH),
+            (ContractReason::DependenciesCheckedDrReplaySource, SOURCE),
+            (ContractReason::DependenciesCheckedDrReplayUnsupported, UNSUPPORTED),
+            (ContractReason::DependenciesCheckedDrReplayResource, RESOURCE),
+            (ContractReason::ProgramCheckedDrLowering, "program.checked_dr_lowering"),
+            (ContractReason::ProgramCheckedDrBinding, "program.checked_dr_binding"),
+        ] {
+            assert_eq!(reason.as_str(), spelling);
+            assert!(!reason.omitted_when_encoding(), "{spelling}");
+        }
+        assert_eq!(
+            DrReplayRefusal::Cancelled.reason(),
+            ContractReason::DependenciesCheckedDrReplayResource
+        );
     }
 }

@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use antecedent_core::IdentityDomain;
 
+use super::dr_replay::{SourceReplay, SourceReplayBounds, SourceWitnessState, replay_if_declared};
 use super::{AnalysisResultContractWire, ClaimSectionWire};
 use crate::contract_reason::{ContractReason, publish_reasons};
 use crate::distribution_replay::ReplayLimits;
@@ -76,11 +77,49 @@ pub fn verify_contract_against_body_within(
     publish_reasons(contract_unresolved(header, body, contract, limits))
 }
 
+/// [`verify_contract_against_body`] with the full-source witness the artifact carries, or
+/// `None` for a compact artifact.
+///
+/// With no source the result is exactly that of [`verify_contract_against_body`]. A contract
+/// that declares a checked doubly-robust lowering clears the missing-estimator-operation
+/// reason only when the source replays the fit and reproduces the body; a source that cannot
+/// be used, a replay that differs from the body and a replay stopped by `bounds` each publish
+/// their own reason beside it. A source is ignored for a contract that declares no such
+/// lowering.
+#[must_use]
+pub fn verify_contract_against_body_with_source(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    source: Option<&crate::SourceWitnessWire>,
+    bounds: &SourceReplayBounds,
+) -> Vec<Arc<str>> {
+    let source =
+        source.map(|witness| SourceReplay { state: SourceWitnessState::Present(witness), bounds });
+    publish_reasons(contract_unresolved_with_source(
+        header,
+        body,
+        contract,
+        &ReplayLimits::default(),
+        source.as_ref(),
+    ))
+}
+
 pub(in crate::contract_section) fn contract_unresolved(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
     limits: &ReplayLimits,
+) -> Vec<ContractReason> {
+    contract_unresolved_with_source(header, body, contract, limits, None)
+}
+
+pub(in crate::contract_section) fn contract_unresolved_with_source(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    limits: &ReplayLimits,
+    source: Option<&SourceReplay<'_>>,
 ) -> Vec<ContractReason> {
     let mut unresolved = verify_stored_payloads(contract);
     // An unscoped historical report and a scoped report with its scope removed
@@ -151,7 +190,14 @@ pub(in crate::contract_section) fn contract_unresolved(
     note_functional_and_nested_replay(contract, body, &mut unresolved, limits);
     verify_graph_posterior_mixture(contract, body, &mut unresolved);
     note_published_claim(header, body, contract, &mut unresolved);
-    note_checked_estimator_operation(contract, body, &mut unresolved);
+    let replayed = match replay_if_declared(header, body, contract, source) {
+        Ok(replayed) => replayed,
+        Err(refusal) => {
+            unresolved.push(refusal.reason());
+            false
+        }
+    };
+    note_checked_estimator_operation(contract, body, &mut unresolved, replayed);
     unresolved
 }
 
@@ -162,6 +208,7 @@ fn note_checked_estimator_operation(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
     unresolved: &mut Vec<ContractReason>,
+    dr_replayed: bool,
 ) {
     let supported = contract.program.as_ref().is_some_and(|program| {
         let resolved = program.commitments.resolved_estimator.as_deref();
@@ -191,6 +238,11 @@ fn note_checked_estimator_operation(
             }
             (Some("aipw"), CausalQueryWire::AverageEffect { .. }) => {
                 program.checked_aipw_lowering.is_some() && contract.checked_aipw_rows.is_some()
+            }
+            // The declared cross-fitted fit is a portable operation only once the source
+            // witness has replayed it and reproduced the body.
+            (Some("dr.learner"), CausalQueryWire::AverageEffect { .. }) => {
+                program.checked_dr_lowering.is_some() && dr_replayed
             }
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
@@ -306,6 +358,7 @@ pub(in crate::contract_section) fn note_checked_program_targets(
         [
             program.functional_program.is_some(),
             program.checked_aipw_lowering.is_some(),
+            program.checked_dr_lowering.is_some(),
             program.checked_frontdoor_lowering.is_some(),
             program.checked_iv_lowering.is_some(),
             program.checked_linear_adjustment_lowering.is_some(),
@@ -1200,14 +1253,30 @@ pub(in crate::contract_section) fn note_published_claim(
 /// replay dependencies. Independent consumption receives the unfiltered
 /// refusals from [`verify_contract_against_body`]. A malformed present payload
 /// remains fatal.
-pub(crate) fn verify_contract_for_encoding(
+///
+/// An encoder that is also given the source witness it will embed passes it as `source`: the
+/// same replay a consumer runs decides whether the body is reproduced, under the default
+/// bounds. With `None` the verification is that of a compact artifact.
+pub(crate) fn verify_contract_for_encoding_with_source(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
+    source: Option<&crate::SourceWitnessWire>,
 ) -> Vec<Arc<str>> {
+    let bounds = SourceReplayBounds::default();
+    let source = source.map(|witness| SourceReplay {
+        state: SourceWitnessState::Present(witness),
+        bounds: &bounds,
+    });
     publish_reasons(producer_encoding_unresolved(
         contract,
-        contract_unresolved(header, body, contract, &ReplayLimits::default()),
+        contract_unresolved_with_source(
+            header,
+            body,
+            contract,
+            &ReplayLimits::default(),
+            source.as_ref(),
+        ),
     ))
 }
 

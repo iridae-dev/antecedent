@@ -358,6 +358,7 @@ pub(super) fn program_payloads(
     let lowerings =
         program_wire::ProgramLowerings::bind(binding, study, resolved_estimator, &mut commitments)?;
     let functional_program = program_wire::functional_program(binding, study, cached, selected)?;
+    let checked_dr_lowering = program_wire::dr_lowering(study, cached, binding, selected);
     let program = ProgramIdentityWire {
         format: IDENTITY_FORMAT,
         target: *target_digest.as_bytes(),
@@ -373,6 +374,7 @@ pub(super) fn program_payloads(
         checked_linear_adjustment_lowering: lowerings.linear_adjustment,
         checked_functional_response_grid: lowerings.functional_response_grid,
         checked_nested_counterfactual: lowerings.nested_counterfactual,
+        checked_dr_lowering,
         graph_posterior_programs,
         structure_provenance: study
             .structure_provenance()

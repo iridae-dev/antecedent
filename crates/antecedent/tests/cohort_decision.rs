@@ -56,8 +56,15 @@ fn columns(effect: f64) -> Vec<(String, Vec<f64>)> {
     vec![("t".into(), t), ("y".into(), y), ("z".into(), z)]
 }
 
-/// The exported analysis result and the in-process fitted effect of a DR-learner fit.
+/// The exported analysis result and the in-process fitted effect of a DR-learner fit. The
+/// export carries the full source table, so a consumer replays the fit and verifies the
+/// parent claim.
 fn fit(effect: f64) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
+    fit_exported(effect, true)
+}
+
+/// The same fit, exported with the full source table or compact.
+fn fit_exported(effect: f64, with_source: bool) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
     let columns = columns(effect);
     let borrowed: Vec<(&str, &[f64])> =
         columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
@@ -87,7 +94,11 @@ fn fit(effect: f64) -> (Vec<u8>, antecedent_estimate::FittedEffect) {
         .expect("a DR-learner fit retains its portable CATE map")
         .as_ref()
         .clone();
-    let bytes = prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap();
+    let bytes = if with_source {
+        prepared.encode_contracted_result_with_source(&result, &data, "dr-fit", &ctx()).unwrap()
+    } else {
+        prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    };
     (bytes, fitted)
 }
 
@@ -161,6 +172,31 @@ fn producer_to_cohort_to_affine_contract_matches_the_hand_calculation() {
     assert_eq!(source.model().parent().claim_id, model.parent_claim());
     // No standard error is carried for a portable (non-linear-covariance) model.
     assert!(source.uncalibrated_standard_error().is_none());
+}
+
+#[test]
+fn a_compact_export_of_the_same_fit_is_not_a_verified_parent() {
+    let (compact, _) = fit_exported(2.0, false);
+    let consumed = antecedent_io::consume_analysis_result(&compact).unwrap();
+    assert!(!consumed.acceptance.accepts_as_claim());
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
+    match FittedEffectModel::load(&compact) {
+        Err(refusal) => assert_eq!(refusal.detail, "cohort_decision.parent_not_verified"),
+        Ok(_) => panic!("a compact export must not be a verified parent"),
+    }
+    // The full-source export of the same fit is.
+    let (sourced, _) = fit_exported(2.0, true);
+    let consumed = antecedent_io::consume_analysis_result(&sourced).unwrap();
+    assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+    assert!(FittedEffectModel::load(&sourced).is_ok());
 }
 
 #[test]

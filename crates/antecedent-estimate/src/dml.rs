@@ -695,10 +695,15 @@ pub(crate) fn finish_dml(
         rows.iter().map(|&i| weight_of(i) * phi[i]).sum::<f64>() / mass
     };
     // Embed the retained-population ratio influence in the original row universe.
-    let mut influence = vec![0.0; n];
-    for &i in &rows {
-        influence[i] = weight_of(i) * (phi[i] - ate) * n as f64 / mass;
-    }
+    let influence = if row_weights.is_none() {
+        antecedent_learn::dr_replay::retained_influence(phi, &rows, ate)
+    } else {
+        let mut influence = vec![0.0; n];
+        for &i in &rows {
+            influence[i] = weight_of(i) * (phi[i] - ate) * n as f64 / mass;
+        }
+        influence
+    };
     let se = iid_se(&influence);
     let report = OverlapReport::from_propensities(
         raw_e,

@@ -192,7 +192,22 @@ fn verify_path_specific_coordinate(
         .encode_contracted_result(&refreshed, &format!("path-specific-{coordinate}"), &ctx)
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    if bayesian {
+    let refuted = validation != "none";
+    let replay = "dependencies.refutation_replay";
+    if refuted {
+        // The refutation suite adds only the replay obligation, which a compact artifact cannot
+        // discharge; the verifier lists it first.
+        let reasons: Vec<&str> =
+            consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect();
+        let expected: Vec<&str> = if bayesian {
+            vec![replay, "dependencies.functional_effect_posterior_draws"]
+        } else {
+            vec![replay]
+        };
+        assert_eq!(reasons, expected, "{coordinate}");
+        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+    } else if bayesian {
         assert_eq!(consumed.acceptance.unresolved.len(), 1, "{coordinate} precise refusal");
         assert!(
             consumed.acceptance.unresolved.iter().any(|reason| {

@@ -1508,8 +1508,9 @@ pub fn encode_analysis_result_artifact_with_contract_and_source(
     if let Some(contract) = contract {
         crate::validate_contract_section(contract)?;
         let header = AnalysisResultHeader { variable_names: variable_names.clone() };
-        let unresolved =
-            crate::contract_section::verify_contract_for_encoding(&header, result, contract);
+        let unresolved = crate::contract_section::verify_contract_for_encoding_with_source(
+            &header, result, contract, source,
+        );
         if !unresolved.is_empty() {
             return Err(IoError::Convert(format!(
                 "contract does not verify against analysis_result body: {}",

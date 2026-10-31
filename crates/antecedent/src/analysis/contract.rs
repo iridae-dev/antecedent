@@ -1228,8 +1228,13 @@ impl PreparedStudy {
     /// The witness carries every column of `data`, including columns the
     /// analysis did not use, and may expose sensitive rows to anyone who can
     /// read the artifact. Only an explicit call embeds it: the default export
-    /// stays compact. The section only carries and binds the source; it does
-    /// not change what a consumer accepts or leaves unresolved.
+    /// stays compact. The section carries and binds the source. For a
+    /// cross-fitted DR-learner execution that declares a replayable operation
+    /// it is also what lets a consumer replay the fit: the export itself runs
+    /// that replay and fails when it does not reproduce the result, and a
+    /// consumer that replays it successfully no longer reports the missing
+    /// estimator operation. For every other execution it does not change what
+    /// a consumer accepts or leaves unresolved.
     ///
     /// `data` must be the table the contract's data snapshot records: its
     /// storage content digest must equal the snapshot's single partition

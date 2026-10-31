@@ -56,8 +56,14 @@ fn columns(effect: f64) -> Vec<(String, Vec<f64>)> {
     vec![("t".into(), t), ("y".into(), y), ("z".into(), z)]
 }
 
-/// The exported contracted result of a DR-learner fit.
+/// The exported contracted result of a DR-learner fit, carrying the full source table so a
+/// consumer replays the fit and verifies the parent claim.
 fn fit(effect: f64) -> Vec<u8> {
+    fit_exported(effect, true)
+}
+
+/// The same fit, exported with the full source table or compact.
+fn fit_exported(effect: f64, with_source: bool) -> Vec<u8> {
     let columns = columns(effect);
     let borrowed: Vec<(&str, &[f64])> =
         columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
@@ -77,7 +83,11 @@ fn fit(effect: f64) -> Vec<u8> {
         .unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    if with_source {
+        prepared.encode_contracted_result_with_source(&result, &data, "dr-fit", &ctx()).unwrap()
+    } else {
+        prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    }
 }
 
 fn cohort(population: &str) -> CohortBinding {
@@ -254,4 +264,13 @@ fn a_sealed_cohort_query_replays_under_its_identity_and_follows_the_fitted_model
         inverse_query::consume(&other_bytes, Some(artifact.identity())).unwrap_err().to_string(),
         "reason=inverse_functional_unsupported: functional_inverse_query.wrong_contract: premises digest differs from the consumer's retained identity"
     );
+}
+
+#[test]
+fn a_compact_export_of_the_same_fit_is_not_a_verified_parent_of_a_cohort_source() {
+    match FittedEffectModel::load(&fit_exported(2.0, false)) {
+        Err(refusal) => assert_eq!(refusal.detail, "cohort_decision.parent_not_verified"),
+        Ok(_) => panic!("a compact export must not be a verified parent"),
+    }
+    assert!(FittedEffectModel::load(&fit_exported(2.0, true)).is_ok());
 }

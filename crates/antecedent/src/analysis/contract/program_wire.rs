@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::CausalQuery;
+use antecedent_core::{CausalQuery, Intervention, TargetPopulation, Value, VariableId};
 use antecedent_io::{
     CheckedAipwLoweringWire, CheckedFrontDoorLoweringWire, CheckedFunctionalResponseGridWire,
     CheckedFunctionalResponseMemberWire, CheckedIvLoweringWire,
@@ -26,8 +26,11 @@ use crate::support::StructureSource;
 
 use super::super::execute::Study;
 use super::super::prepared::CheckedProgramBinding;
-use super::{data_schema, io_err, overlap_policy_tag};
+use super::{DataInput, data_schema, io_err, missing_data, overlap_policy_tag};
 use antecedent_identify::IdentificationResult;
+use antecedent_io_core::{
+    CHECKED_DR_LOWERING_FORMAT, CHECKED_DR_PROCEDURE, CheckedDrLoweringWire, CheckedLearnerWire,
+};
 
 /// The estimator and query a checked binding is only valid for.
 ///
@@ -140,6 +143,113 @@ impl ProgramLowerings {
         }
         Ok(lowerings)
     }
+}
+
+/// The estimator a DR-learner study executes: the configured one verbatim, or the default
+/// one with the study's declared overlap policy, exactly as the static executor builds it.
+///
+/// A configured estimator owns its overlap policy, so a study that also declares a different
+/// one has no single executed configuration.
+fn executed_dr_learner(study: &Study) -> Option<antecedent_estimate::DrLearner> {
+    use crate::estimator_spec::EstimatorSpec;
+    let declared_overlap = study.declared.overlap_policy;
+    match study.declared.estimator_spec.as_deref() {
+        Some(EstimatorSpec::DrLearner(config)) => {
+            if declared_overlap.is_some_and(|policy| policy != config.overlap) {
+                return None;
+            }
+            Some((**config).clone())
+        }
+        Some(EstimatorSpec::Default(EstimatorId::DrLearner)) | None
+            if study.declared.estimator == Some(EstimatorId::DrLearner) =>
+        {
+            let mut learner = antecedent_estimate::DrLearner::new();
+            if let Some(policy) = declared_overlap {
+                learner.overlap = policy;
+            }
+            Some(learner)
+        }
+        _ => None,
+    }
+}
+
+/// Whether `intervention` assigns exactly `level` to `variable`.
+fn assigns_level(intervention: &Intervention, variable: VariableId, level: f64) -> bool {
+    matches!(
+        intervention,
+        Intervention::Set { variable: assigned, value: Value::Float64(value), .. }
+            if *assigned == variable && value.to_bits() == level.to_bits()
+    )
+}
+
+/// The declaration of a cross-fitted DR-learner execution an independent verifier can replay
+/// from the complete source table, or `None` for every execution outside that operation.
+///
+/// Supported: a plain tabular study over an explicit or accepted DAG, frequentist, with an
+/// all-observed mean contrast of a treatment coded exactly 0/1 and no effect modifiers, no
+/// declared sampling design, participants, population registry or missing-data policy, and a
+/// configured estimator that is unweighted, declares no independence units and uses only
+/// learners with a canonical wire form. The settings are read from the executed estimator
+/// ([`executed_dr_learner`]) and the identified estimand the executor selects, never from
+/// defaults; the master seed of the fold plan is an execution fact the result body records.
+pub(super) fn dr_lowering(
+    study: &Study,
+    cached: Option<&IdentificationResult>,
+    binding: CheckedProgramBinding<'_>,
+    selected: Option<EstimatorId>,
+) -> Option<CheckedDrLoweringWire> {
+    if selected != Some(EstimatorId::DrLearner) || !matches!(binding, CheckedProgramBinding::None) {
+        return None;
+    }
+    let CausalQuery::AverageEffect(query) = &study.query else { return None };
+    let declared = &study.declared;
+    if !matches!(study.data, DataInput::Tabular(_))
+        || study.graph.class() != GraphClass::Dag
+        || !matches!(study.structure_source, StructureSource::Explicit | StructureSource::Accepted)
+        || !matches!(study.settings.inference, InferenceMode::Frequentist)
+        || !matches!(query.target_population, TargetPopulation::AllObserved)
+        || !query.outcome_functional.is_mean()
+        || !query.effect_modifiers.is_empty()
+        || !assigns_level(&query.control, query.treatment, 0.0)
+        || !assigns_level(&query.active, query.treatment, 1.0)
+        || missing_data::policy_wire(study).is_some()
+        || declared.sampling_design.is_some()
+        || declared.participants.is_some()
+        || declared.population_registry.is_some()
+        || declared.tiered.is_some()
+        || study.interference.is_some()
+    {
+        return None;
+    }
+    let learner = executed_dr_learner(study)?;
+    if learner.units.spec.is_some() || learner.sampling_weights.is_some() {
+        return None;
+    }
+    let overlap = learner.overlap.replay_overlap()?;
+    let estimand = crate::strategy_table::select_estimand(cached?, EstimatorId::DrLearner).ok()?;
+    if !estimand.is_adjustment_shaped()
+        || !estimand.instruments.is_empty()
+        || !estimand.mediators.is_empty()
+    {
+        return None;
+    }
+    Some(CheckedDrLoweringWire {
+        format: CHECKED_DR_LOWERING_FORMAT,
+        treatment: query.treatment.raw(),
+        outcome: query.outcome.raw(),
+        adjustment: estimand.adjustment_set.iter().map(|id| id.raw()).collect(),
+        population: "all_observed".into(),
+        procedure: CHECKED_DR_PROCEDURE.into(),
+        folds: u64::try_from(learner.folds).ok()?,
+        outcome_learner: CheckedLearnerWire::from_spec(learner.outcome)?,
+        treatment_learner: CheckedLearnerWire::from_spec(learner.treatment)?,
+        final_learner: CheckedLearnerWire::from_spec(learner.final_learner)?,
+        overlap_clip_bits: overlap.clip.map(f64::to_bits),
+        overlap_trim_bits: overlap.trim.map(f64::to_bits),
+        overlap_declared: overlap.declared,
+        active_level_above_control: true,
+        intercept: true,
+    })
 }
 
 fn se_lag(se_kind: antecedent_estimate::AnalyticSeKind) -> Option<u64> {

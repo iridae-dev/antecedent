@@ -22,6 +22,7 @@
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionError;
 use antecedent_core::treatment_indicator::is_treated_indicator;
+use antecedent_stats::{SandwichKind, coefficient_covariance, iid_se};
 use thiserror::Error;
 
 use crate::aipw_crossfit::{
@@ -29,7 +30,7 @@ use crate::aipw_crossfit::{
     cross_fit_aipw_nuisances, design_for_spec,
 };
 use crate::crossfit_plan::crossfit_fold_plan;
-use crate::design::{RowSelection, TargetView};
+use crate::design::{DesignView, RowSelection, TargetView};
 use crate::error::LearnError;
 use crate::fitted_effect::{EffectSupport, FittedEffect, FittedEffectError};
 use crate::learner::{LearnerProvenance, PredictionTask};
@@ -101,6 +102,104 @@ pub fn trim_retained_rows(
 )]
 pub fn retained_mean(phi: &[f64], rows: &[usize]) -> f64 {
     rows.iter().map(|&i| phi[i]).sum::<f64>() / rows.len() as f64
+}
+
+/// The influence values of the unweighted marginal mean of `phi` over `rows`, embedded in the
+/// original row universe: `(phi[i] - ate) * n / kept` for a retained row and zero elsewhere.
+///
+/// `rows` must be non-empty and index `phi`; `ate` is [`retained_mean`] of the same rows.
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "row counts are far below 2^53, so the conversions are exact"
+)]
+pub fn retained_influence(phi: &[f64], rows: &[usize], ate: f64) -> Vec<f64> {
+    let n = phi.len();
+    let mass = rows.len() as f64;
+    let mut influence = vec![0.0; n];
+    for &i in rows {
+        influence[i] = (phi[i] - ate) * n as f64 / mass;
+    }
+    influence
+}
+
+/// The analytic standard error of the unweighted marginal mean: the iid standard error of its
+/// influence values.
+#[must_use]
+pub fn retained_standard_error(phi: &[f64], rows: &[usize], ate: f64) -> f64 {
+    iid_se(&retained_influence(phi, rows, ate))
+}
+
+/// HC0 sandwich standard errors of a linear CATE regression of orthogonal scores.
+///
+/// The regression uses `rows` (the retained common-support rows; all rows when `None`) and the
+/// covariance is the stats crate's HC0 `(X'X)^-1 sum e^2 x x' (X'X)^-1`, evaluated at every
+/// row's features. Penalized or nonlinear finals are not this OLS map, so they return `None`
+/// instead of an invented interval. `weights` are the sampling weights of a weighted fit.
+#[must_use]
+pub fn linear_cate_pointwise_se(
+    spec: LearnerSpec,
+    x: DesignView<'_>,
+    phi: &[f64],
+    cate: &[f64],
+    rows: Option<&[usize]>,
+    weights: Option<&[f64]>,
+) -> Option<Vec<f64>> {
+    if !matches!(spec, LearnerSpec::Linear(_)) {
+        return None;
+    }
+    let n = x.nrows();
+    let p = x.ncols();
+    if n == 0 || p == 0 || phi.len() != n || cate.len() != n {
+        return None;
+    }
+    let mut design = vec![0.0; n.saturating_mul(p)];
+    for c in 0..p {
+        for r in 0..n {
+            design[c * n + r] = x.get(r, c).ok()?;
+        }
+    }
+    let all_rows: Vec<usize>;
+    let used: &[usize] = if let Some(rows) = rows {
+        rows
+    } else {
+        all_rows = (0..n).collect();
+        &all_rows
+    };
+    let m = used.len();
+    let mut sub = vec![0.0; m * p];
+    for c in 0..p {
+        for (k, &r) in used.iter().enumerate() {
+            sub[c * m + k] = design[c * n + r];
+        }
+    }
+    let mut residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
+    if let Some(weights) = weights {
+        for (k, &r) in used.iter().enumerate() {
+            let root = weights[r].sqrt();
+            residuals[k] *= root;
+            for c in 0..p {
+                sub[c * m + k] *= root;
+            }
+        }
+    }
+    let cov = coefficient_covariance(&sub, m, p, &residuals, SandwichKind::Hc0).ok()?;
+    let mut se = vec![0.0; n];
+    for i in 0..n {
+        let mut v = 0.0;
+        for j in 0..p {
+            let mut cj = 0.0;
+            for k in 0..p {
+                cj += cov[j * p + k] * design[k * n + i];
+            }
+            v += design[j * n + i] * cj;
+        }
+        if !(v.is_finite() && v >= 0.0) {
+            return None;
+        }
+        se[i] = v.sqrt();
+    }
+    Some(se)
 }
 
 /// Overlap handling of the replay: the propensity clip and trim bounds of the producer's
@@ -224,8 +323,12 @@ pub struct DrReplay {
     pub fold_ids: Vec<u16>,
     /// The rows of the common-support band, or `None` when no trim is declared.
     pub retained: Option<Vec<usize>>,
+    /// The analytic standard error of [`Self::ate`] ([`retained_standard_error`]).
+    pub standard_error: f64,
     /// The final model's prediction for every row.
     pub cate: Vec<f64>,
+    /// Pointwise HC0 standard errors of the CATE for a linear final stage, else `None`.
+    pub cate_se: Option<Vec<f64>>,
     /// The final model as a portable predictor, or `None` for a learner without a codec.
     pub predictor: Option<PortablePredictor>,
     /// The box of the covariates over the rows the final model was fitted on, or `None` when
@@ -488,6 +591,7 @@ pub fn replay_dr_ate(
         return Err(DrReplayError::Overlap("the average effect requires two retained rows"));
     }
     let ate = retained_mean(&phi, rows);
+    let standard_error = retained_standard_error(&phi, rows, ate);
 
     check_cancelled(ctx)?;
     let factory =
@@ -519,6 +623,8 @@ pub fn replay_dr_ate(
     let fitted = factory.fit(fit_view, TargetView::new(&phi), None, ctx).map_err(learn_error)?;
     let mut cate = vec![0.0; nrows];
     fitted.predict(view, &mut cate, ctx).map_err(learn_error)?;
+    let cate_se =
+        linear_cate_pointwise_se(spec.final_learner, view, &phi, &cate, retained.as_deref(), None);
     let predictor = match fitted.portable() {
         Ok(predictor) => Some(predictor),
         Err(LearnError::Unsupported { .. }) => None,
@@ -532,6 +638,8 @@ pub fn replay_dr_ate(
         raw_propensity,
         propensity,
         phi,
+        standard_error,
+        cate_se,
         fold_ids: treat.fold_assignment.clone(),
         retained,
         cate,

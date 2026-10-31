@@ -47,7 +47,8 @@ fn columns(effect: f64) -> Vec<(String, Vec<f64>)> {
     vec![("t".into(), t), ("y".into(), y), ("z".into(), z)]
 }
 
-/// The exported analysis result of a DR-learner fit.
+/// The exported analysis result of a DR-learner fit, carrying the full source table so a
+/// consumer replays the fit and verifies the parent claim.
 fn fit(effect: f64) -> Vec<u8> {
     let columns = columns(effect);
     let borrowed: Vec<(&str, &[f64])> =
@@ -68,7 +69,7 @@ fn fit(effect: f64) -> Vec<u8> {
         .unwrap();
     let prepared = study.prepare(&ctx()).unwrap();
     let result = prepared.estimate(&data, &ctx()).unwrap();
-    prepared.encode_contracted_result(&result, "dr-fit", &ctx()).unwrap()
+    prepared.encode_contracted_result_with_source(&result, &data, "dr-fit", &ctx()).unwrap()
 }
 
 fn cohort_of(population: &str, z: &[f64], w: &[f64]) -> CohortBinding {

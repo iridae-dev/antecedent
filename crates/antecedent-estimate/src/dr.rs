@@ -626,13 +626,8 @@ fn pointwise_profile_results(
     Ok(output)
 }
 
-/// HC0 sandwich SEs for a linear CATE regression of orthogonal scores.
-///
-/// The regression uses `rows` (the retained common-support rows; all rows when `None`) and the
-/// covariance is the stats crate's HC0 `(XᵀX)⁻¹ Σ e² x xᵀ (XᵀX)⁻¹`, evaluated at every row's
-/// features. Cross-fitting plus Neyman orthogonality of φ makes first-stage estimation
-/// second-order. Penalized or nonlinear finals are not this OLS map, so they return `None`
-/// instead of an invented interval.
+/// HC0 sandwich SEs for a linear CATE regression of orthogonal scores, from the single
+/// definition in the learner layer (shared with the replay).
 fn linear_cate_pointwise_se(
     spec: LearnerSpec,
     x: antecedent_learn::DesignView<'_>,
@@ -641,61 +636,8 @@ fn linear_cate_pointwise_se(
     rows: Option<&[usize]>,
     weights: Option<&[f64]>,
 ) -> Option<Arc<[f64]>> {
-    if !matches!(spec, LearnerSpec::Linear(_)) {
-        return None;
-    }
-    let n = x.nrows();
-    let p = x.ncols();
-    if n == 0 || p == 0 || phi.len() != n || cate.len() != n {
-        return None;
-    }
-    let mut design = vec![0.0; n.saturating_mul(p)];
-    for c in 0..p {
-        for r in 0..n {
-            design[c * n + r] = x.get(r, c).ok()?;
-        }
-    }
-    let all_rows: Vec<usize>;
-    let used: &[usize] = if let Some(rows) = rows {
-        rows
-    } else {
-        all_rows = (0..n).collect();
-        &all_rows
-    };
-    let m = used.len();
-    let mut sub = vec![0.0; m * p];
-    for c in 0..p {
-        for (k, &r) in used.iter().enumerate() {
-            sub[c * m + k] = design[c * n + r];
-        }
-    }
-    let mut residuals: Vec<f64> = used.iter().map(|&r| phi[r] - cate[r]).collect();
-    if let Some(weights) = weights {
-        for (k, &r) in used.iter().enumerate() {
-            let root = weights[r].sqrt();
-            residuals[k] *= root;
-            for c in 0..p {
-                sub[c * m + k] *= root;
-            }
-        }
-    }
-    let cov = coefficient_covariance(&sub, m, p, &residuals, SandwichKind::Hc0).ok()?;
-    let mut se = vec![0.0; n];
-    for i in 0..n {
-        let mut v = 0.0;
-        for j in 0..p {
-            let mut cj = 0.0;
-            for k in 0..p {
-                cj += cov[j * p + k] * design[k * n + i];
-            }
-            v += design[j * n + i] * cj;
-        }
-        if !(v.is_finite() && v >= 0.0) {
-            return None;
-        }
-        se[i] = v.sqrt();
-    }
-    Some(Arc::from(se))
+    antecedent_learn::dr_replay::linear_cate_pointwise_se(spec, x, phi, cate, rows, weights)
+        .map(Arc::from)
 }
 
 #[cfg(test)]

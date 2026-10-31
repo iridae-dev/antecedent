@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::contract_reason::ContractReason;
 pub use crate::contract_wire::{
-    AssumptionSlotWire, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire,
+    AssumptionSlotWire, CHECKED_DR_LOWERING_FORMAT, CHECKED_DR_PROCEDURE, CheckedAipwLoweringWire,
+    CheckedAipwRowsWire, CheckedDrLoweringWire, CheckedIvLoweringWire, CheckedLearnerWire,
     IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
     SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, checked_aipw_rows_digest,
 };
@@ -444,8 +445,11 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
 
 mod consume;
 pub mod cyclic;
+mod dr_replay;
 mod replay;
 mod verify;
+
+pub use dr_replay::{DrReplayRefusal, SourceReplayBounds, verify_checked_dr_replay};
 
 pub use cyclic::{
     CYCLIC_CONTRACT_FORMAT, CYCLIC_CONTRACT_SECTION, CyclicContractPayloads, CyclicContractWire,
@@ -461,12 +465,15 @@ pub use consume::{
     OVERLAP_LIMITED_DIAGNOSTIC, accept_claim, claim_domain_statuses,
     claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
     claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, consume_analysis_result,
-    consume_analysis_result_within, contract_seal, identification_not_claimed, project_claim_host,
-    project_lossy_scalar, result_digest, support_empirical, validate_mixture_masses,
-    weight_basis_name,
+    consume_analysis_result_with_source, consume_analysis_result_within, contract_seal,
+    identification_not_claimed, project_claim_host, project_lossy_scalar, result_digest,
+    support_empirical, validate_mixture_masses, weight_basis_name,
 };
-pub(crate) use verify::verify_contract_for_encoding;
-pub use verify::{verify_contract_against_body, verify_contract_against_body_within};
+pub(crate) use verify::verify_contract_for_encoding_with_source;
+pub use verify::{
+    verify_contract_against_body, verify_contract_against_body_with_source,
+    verify_contract_against_body_within,
+};
 
 #[cfg(test)]
 mod tests;

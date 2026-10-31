@@ -2,7 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::verify::verify_contract_against_body_within;
+use super::dr_replay::{HeldSource, SourceReplayBounds, hold_source_section};
+use super::verify::contract_unresolved_with_source;
 
 use std::sync::Arc;
 
@@ -17,7 +18,7 @@ use super::{
     AnalysisResultConsumption, AnalysisResultContractWire, CONTRACT_SECTION,
     CONTRACT_SECTION_FORMAT, ClaimSectionWire, ContractIdentitiesWire,
 };
-use crate::contract_reason::ContractReason;
+use crate::contract_reason::{ContractReason, publish_reasons};
 use crate::contract_wire::{
     IdentificationSlotWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
 };
@@ -560,6 +561,32 @@ pub fn consume_analysis_result_within(
     bytes: &[u8],
     limits: &crate::distribution_replay::ReplayLimits,
 ) -> Result<AnalysisResultConsumption, IoError> {
+    consume_with_source_bounds(bytes, limits, &SourceReplayBounds::default())
+}
+
+/// [`consume_analysis_result`] with the replay of a carried full-source witness held to the
+/// caller's [`SourceReplayBounds`] instead of the defaults.
+///
+/// [`consume_analysis_result`] uses the witness the same way under the default bounds; this
+/// entry exists to bound the witness, the replay's working memory and its cancellation. An
+/// artifact without a witness, or whose contract declares no replayable operation, is consumed
+/// exactly as without one.
+///
+/// # Errors
+///
+/// As [`consume_analysis_result`].
+pub fn consume_analysis_result_with_source(
+    bytes: &[u8],
+    bounds: &SourceReplayBounds,
+) -> Result<AnalysisResultConsumption, IoError> {
+    consume_with_source_bounds(bytes, &crate::distribution_replay::ReplayLimits::default(), bounds)
+}
+
+fn consume_with_source_bounds(
+    bytes: &[u8],
+    limits: &crate::distribution_replay::ReplayLimits,
+    bounds: &SourceReplayBounds,
+) -> Result<AnalysisResultConsumption, IoError> {
     let (artifact, header, body) = crate::decode_analysis_result_artifact(bytes)?;
     let artifact_digest = payload_digest("analysis_result.bytes", bytes);
     let contract = match super::decode_analysis_result_contract(&artifact) {
@@ -580,7 +607,15 @@ pub fn consume_analysis_result_within(
             });
         }
     };
-    let acceptance = accept_contract(&header, &body, contract.as_ref(), limits);
+    // The witness is read only for a contract that declares an operation to replay with it.
+    let held: Option<HeldSource> = contract
+        .as_ref()
+        .filter(|contract| {
+            contract.program.as_ref().is_some_and(|program| program.checked_dr_lowering.is_some())
+        })
+        .and_then(|_| hold_source_section(&artifact, &bounds.witness));
+    let source = held.as_ref().map(|held| held.replay(bounds));
+    let acceptance = accept_contract(&header, &body, contract.as_ref(), limits, source.as_ref());
     Ok(AnalysisResultConsumption { header, body, contract, acceptance, artifact_digest })
 }
 
@@ -589,6 +624,7 @@ pub(in crate::contract_section) fn accept_contract(
     body: &AnalysisResultWire,
     contract: Option<&AnalysisResultContractWire>,
     limits: &crate::distribution_replay::ReplayLimits,
+    source: Option<&super::dr_replay::SourceReplay<'_>>,
 ) -> AcceptanceReport {
     let Some(contract) = contract else {
         return AcceptanceReport::new(
@@ -608,7 +644,8 @@ pub(in crate::contract_section) fn accept_contract(
             Some(Arc::from("unknown_contract_format")),
         );
     }
-    let unresolved = verify_contract_against_body_within(header, body, contract, limits);
+    let unresolved =
+        publish_reasons(contract_unresolved_with_source(header, body, contract, limits, source));
     let verified = unresolved.is_empty();
     let claim_present = contract.claim.is_some();
     let operations: Arc<[Arc<str>]> = match (verified, claim_present) {

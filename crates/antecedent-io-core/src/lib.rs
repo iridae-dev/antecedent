@@ -163,20 +163,24 @@ pub use container::{
 pub use contract_section::TargetWeightsSectionWire;
 pub use contract_section::{
     AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
-    AttestedEvidenceWire, BOOTSTRAP_LIMITED_DIAGNOSTIC, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
-    CalibrationSlotWire, CalibrationStatus, CheckedAipwLoweringWire, CheckedAipwRowsWire,
-    CheckedIvLoweringWire, ClaimDomainsWire, ClaimHostProjection, ClaimSectionWire,
-    ContractIdentitiesWire, ContractReason, IdentificationSlotWire, MCMC_LIMITED_DIAGNOSTIC,
-    OVERLAP_LIMITED_DIAGNOSTIC, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
-    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
-    checked_aipw_rows_digest, claim_domain_statuses, claim_domain_statuses_of_section,
-    claim_domains, claim_domains_of_section, claim_kind, claim_kind_name,
-    claim_kind_name_of_section, claim_kind_of_section, consume_analysis_result,
-    consume_analysis_result_within, contract_seal, decode_analysis_result_contract,
-    identification_not_claimed, project_claim_host, project_lossy_scalar, result_digest,
-    support_empirical, validate_contract_section, validate_mixture_masses,
-    verify_contract_against_body, verify_contract_against_body_within, weight_basis_name,
+    AttestedEvidenceWire, BOOTSTRAP_LIMITED_DIAGNOSTIC, CHECKED_DR_LOWERING_FORMAT,
+    CHECKED_DR_PROCEDURE, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
+    CalibrationStatus, CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedDrLoweringWire,
+    CheckedIvLoweringWire, CheckedLearnerWire, ClaimDomainsWire, ClaimHostProjection,
+    ClaimSectionWire, ContractIdentitiesWire, ContractReason, IdentificationSlotWire,
+    MCMC_LIMITED_DIAGNOSTIC, OVERLAP_LIMITED_DIAGNOSTIC, ObligationSectionWire,
+    ReasoningSectionWire, SlotSectionWire, SupportSlotWire, UncertaintyComponentWire,
+    UncertaintySlotWire, accept_claim, checked_aipw_rows_digest, claim_domain_statuses,
+    claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
+    claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, consume_analysis_result,
+    consume_analysis_result_with_source, consume_analysis_result_within, contract_seal,
+    decode_analysis_result_contract, identification_not_claimed, project_claim_host,
+    project_lossy_scalar, result_digest, support_empirical, validate_contract_section,
+    validate_mixture_masses, verify_checked_dr_replay, verify_contract_against_body,
+    verify_contract_against_body_with_source, verify_contract_against_body_within,
+    weight_basis_name,
 };
+pub use contract_section::{DrReplayRefusal, SourceReplayBounds};
 pub use contrast_wire::{ContrastBundleWire, RecordedContrastWire};
 pub use convert::{
     admg_from_wire, admg_to_wire, cpdag_from_wire, cpdag_to_wire, dag_from_wire, dag_to_wire,

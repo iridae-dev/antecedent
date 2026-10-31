@@ -321,7 +321,14 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     assert_eq!(plan.atom_kind, fixture.kind);
                     assert_eq!(plan.weights.as_ref(), fixture.posterior.weights().as_ref());
                     assert_eq!(plan.graph_keys.len(), fixture.posterior.n_graphs());
-                    assert_eq!(plan.validation, suite);
+                    // A class posterior validates through the envelope over its completions and
+                    // retains no per-atom suite in its plan.
+                    let retained_suite = if fixture.kind == GraphPosteriorAtomKind::Dag {
+                        suite
+                    } else {
+                        RefuteSuite::None
+                    };
+                    assert_eq!(plan.validation, retained_suite, "{label}");
                     assert_eq!(
                         plan.identifier,
                         if fixture.kind == GraphPosteriorAtomKind::Dag {
@@ -407,6 +414,25 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                         panic!("graph-posterior response retains its plan")
                     };
                     assert_eq!(retained.query, query);
+                    if !refreshed.refutations.is_empty() {
+                        // The route's checks describe the mixture's completions, not one
+                        // whole-result target, so a claim over this response refuses to carry
+                        // them as a verdict.
+                        let error = prepared
+                            .encode_contracted_result(
+                                &refreshed,
+                                "checked-temporal-graph-posterior-response",
+                                &ctx,
+                            )
+                            .expect_err(
+                                "route checks over a mixture are not a whole-result verdict",
+                            );
+                        assert!(
+                            error.to_string().contains("was computed on target"),
+                            "{label}: unexpected refusal: {error}"
+                        );
+                        continue;
+                    }
                     let artifact = prepared
                         .encode_contracted_result(
                             &refreshed,

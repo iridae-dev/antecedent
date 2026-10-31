@@ -110,6 +110,19 @@ pub enum ContractReason {
     DependenciesCheckedConditionalEffectOperation,
     /// `dependencies.checked_derivative_response_operation`.
     DependenciesCheckedDerivativeResponseOperation,
+    /// `dependencies.checked_dr_replay_mismatch`: the replay of the cross-fitted
+    /// doubly-robust fit from the full source did not reproduce what the artifact reports,
+    /// or could not complete the fit the artifact reports.
+    DependenciesCheckedDrReplayMismatch,
+    /// `dependencies.checked_dr_replay_resource`: the replay was cancelled or refused by its
+    /// resource bounds. Nothing was verified.
+    DependenciesCheckedDrReplayResource,
+    /// `dependencies.checked_dr_replay_source`: the artifact carries a full-source witness
+    /// the replay cannot use (malformed, over its limits, or not the snapshotted table).
+    DependenciesCheckedDrReplaySource,
+    /// `dependencies.checked_dr_replay_unsupported`: the declaration or the witnessed table lies
+    /// outside the operation the replay supports.
+    DependenciesCheckedDrReplayUnsupported,
     /// `dependencies.checked_glm_operation`.
     DependenciesCheckedGlmOperation,
     /// `dependencies.checked_graph_posterior_effect_operation`.
@@ -322,6 +335,10 @@ pub enum ContractReason {
     ProgramCheckedAipwLoweringTarget,
     /// `program.checked_aipw_uncertainty`.
     ProgramCheckedAipwUncertainty,
+    /// `program.checked_dr_binding`.
+    ProgramCheckedDrBinding,
+    /// `program.checked_dr_lowering`.
+    ProgramCheckedDrLowering,
     /// `program.checked_frontdoor_lowering`.
     ProgramCheckedFrontdoorLowering,
     /// `program.checked_frontdoor_lowering.target`.
@@ -538,6 +555,12 @@ impl ContractReason {
             Self::DependenciesCheckedConditionalEffectOperation => {
                 "dependencies.checked_conditional_effect_operation"
             }
+            Self::DependenciesCheckedDrReplayMismatch => "dependencies.checked_dr_replay_mismatch",
+            Self::DependenciesCheckedDrReplayResource => "dependencies.checked_dr_replay_resource",
+            Self::DependenciesCheckedDrReplaySource => "dependencies.checked_dr_replay_source",
+            Self::DependenciesCheckedDrReplayUnsupported => {
+                "dependencies.checked_dr_replay_unsupported"
+            }
             Self::DependenciesCheckedDerivativeResponseOperation => {
                 "dependencies.checked_derivative_response_operation"
             }
@@ -715,6 +738,8 @@ impl ContractReason {
             Self::ProgramCheckedAipwLowering => "program.checked_aipw_lowering",
             Self::ProgramCheckedAipwLoweringTarget => "program.checked_aipw_lowering.target",
             Self::ProgramCheckedAipwUncertainty => "program.checked_aipw_uncertainty",
+            Self::ProgramCheckedDrBinding => "program.checked_dr_binding",
+            Self::ProgramCheckedDrLowering => "program.checked_dr_lowering",
             Self::ProgramCheckedFrontdoorLowering => "program.checked_frontdoor_lowering",
             Self::ProgramCheckedFrontdoorLoweringTarget => {
                 "program.checked_frontdoor_lowering.target"
@@ -956,6 +981,10 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedClassGraphPosteriorEffectOperation,
     ContractReason::DependenciesCheckedConditionalEffectOperation,
     ContractReason::DependenciesCheckedDerivativeResponseOperation,
+    ContractReason::DependenciesCheckedDrReplayMismatch,
+    ContractReason::DependenciesCheckedDrReplayResource,
+    ContractReason::DependenciesCheckedDrReplaySource,
+    ContractReason::DependenciesCheckedDrReplayUnsupported,
     ContractReason::DependenciesCheckedGlmOperation,
     ContractReason::DependenciesCheckedGraphPosteriorEffectOperation,
     ContractReason::DependenciesCheckedGraphPosteriorResponseOperation,
@@ -1062,6 +1091,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::ProgramCheckedAipwLowering,
     ContractReason::ProgramCheckedAipwLoweringTarget,
     ContractReason::ProgramCheckedAipwUncertainty,
+    ContractReason::ProgramCheckedDrBinding,
+    ContractReason::ProgramCheckedDrLowering,
     ContractReason::ProgramCheckedFrontdoorLowering,
     ContractReason::ProgramCheckedFrontdoorLoweringTarget,
     ContractReason::ProgramCheckedFunctionalResponseGridTarget,
@@ -1166,6 +1197,10 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_class_graph_posterior_effect_operation",
     "dependencies.checked_conditional_effect_operation",
     "dependencies.checked_derivative_response_operation",
+    "dependencies.checked_dr_replay_mismatch",
+    "dependencies.checked_dr_replay_resource",
+    "dependencies.checked_dr_replay_source",
+    "dependencies.checked_dr_replay_unsupported",
     "dependencies.checked_estimator_operation",
     "dependencies.checked_glm_operation",
     "dependencies.checked_graph_posterior_effect_operation",
@@ -1275,6 +1310,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "program.checked_aipw_lowering",
     "program.checked_aipw_lowering.target",
     "program.checked_aipw_uncertainty",
+    "program.checked_dr_binding",
+    "program.checked_dr_lowering",
     "program.checked_frontdoor_lowering",
     "program.checked_frontdoor_lowering.target",
     "program.checked_functional_response_grid.target",
