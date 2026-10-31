@@ -1237,42 +1237,12 @@ impl CheckedAttributionOperation {
     ) -> Result<(), CausalError> {
         let draws = usize::try_from(replicates).unwrap_or(usize::MAX);
         let outcome = self.attribute_replicates(query, data, draws, false, observed, ctx)?;
-        let columns = outcome.columns();
-        let accounted: Vec<_> = columns
-            .iter()
-            .map(|(_, values)| super::gcm_bootstrap::accounting(values, outcome.failed, replicates))
-            .collect();
-        let Some(primary) = accounted.first().copied() else {
-            return Ok(());
-        };
-        answer.estimate.uncertainty.bootstrap = primary;
-        let target = columns.first().map_or("the attribution", |(name, _)| name.as_str());
-        let mut diagnostic = self.bootstrap_disclosure(
-            &format!("{target} of the fitted-model attribution"),
-            data.row_count(),
+        let diagnostic = disclose_model_bootstrap(
+            &outcome,
+            replicates,
             &mut answer.estimate,
+            |target, estimate| self.bootstrap_disclosure(target, data.row_count(), estimate),
         );
-        let fields: Vec<(String, String)> = columns
-            .iter()
-            .zip(&accounted)
-            .map(|((name, _), accounting)| {
-                (
-                    format!("bootstrap_se.{name}"),
-                    accounting
-                        .se
-                        .map_or_else(|| "unquantified".to_owned(), |se| format!("{se:.6e}")),
-                )
-            })
-            .chain([
-                ("replicates_ok".to_owned(), primary.replicates_ok.unwrap_or(0).to_string()),
-                (
-                    "replicates_failed".to_owned(),
-                    primary.replicates_failed.unwrap_or(0).to_string(),
-                ),
-                ("calibration".to_owned(), "unmeasured".to_owned()),
-            ])
-            .collect();
-        diagnostic = diagnostic.with_fields(fields);
         answer.diagnostics.push(diagnostic);
         Ok(())
     }
@@ -1349,7 +1319,7 @@ impl CheckedAttributionOperation {
             };
             match replicate {
                 Ok(values) => {
-                    if out.names.is_empty() {
+                    if out.rows.is_empty() {
                         out.names = values.iter().map(|(name, _)| name.clone()).collect();
                         admitted = Some(admit_posterior_columns(ctx, replicates, out.names.len())?);
                     } else if values.len() != out.names.len()
@@ -2527,6 +2497,56 @@ impl Replicates {
     }
 }
 
+/// Publish accounting even if no replicate established a named quantity. This keeps a
+/// requested all-failed bootstrap distinguishable from a point-only execution.
+fn disclose_model_bootstrap(
+    outcome: &Replicates,
+    requested: u32,
+    estimate: &mut EffectEstimate,
+    disclosure: impl FnOnce(&str, &mut EffectEstimate) -> Diagnostic,
+) -> Diagnostic {
+    let columns = outcome.columns();
+    let accounted: Vec<_> = columns
+        .iter()
+        .map(|(_, values)| super::gcm_bootstrap::accounting(values, outcome.failed, requested))
+        .collect();
+    let primary = accounted.first().copied().unwrap_or_else(|| {
+        let mut accounting = super::gcm_bootstrap::accounting(&[], outcome.failed, requested);
+        // Empty successful rows are successful refits, but supply no scalar SE.
+        accounting.replicates_ok = Some(u32::try_from(outcome.rows.len()).unwrap_or(u32::MAX));
+        accounting
+    });
+    estimate.uncertainty.bootstrap = primary;
+    let target = columns.first().map_or("the attribution", |(name, _)| name.as_str());
+    let mut diagnostic = disclosure(&format!("{target} of the fitted-model attribution"), estimate);
+    if columns.is_empty() && !outcome.rows.is_empty() {
+        diagnostic.severity = DiagnosticSeverity::Warning;
+        diagnostic.message = format!(
+            "fitted-model attribution bootstrap: {} refits completed without a named quantity, \
+             {} refits failed; no standard error is published. Calibration is unmeasured.",
+            outcome.rows.len(),
+            outcome.failed,
+        )
+        .into();
+    }
+    let fields: Vec<(String, String)> = columns
+        .iter()
+        .zip(&accounted)
+        .map(|((name, _), accounting)| {
+            (
+                format!("bootstrap_se.{name}"),
+                accounting.se.map_or_else(|| "unquantified".to_owned(), |se| format!("{se:.6e}")),
+            )
+        })
+        .chain([
+            ("replicates_ok".to_owned(), primary.replicates_ok.unwrap_or(0).to_string()),
+            ("replicates_failed".to_owned(), primary.replicates_failed.unwrap_or(0).to_string()),
+            ("calibration".to_owned(), "unmeasured".to_owned()),
+        ])
+        .collect();
+    diagnostic.with_fields(fields)
+}
+
 /// Lease `draws * columns` posterior values on the pool before the columns are filled.
 fn admit_posterior_columns(
     ctx: &ExecutionContext,
@@ -2769,6 +2789,102 @@ mod bayesian_checked_attribution_tests {
     use antecedent_core::{AnomalyAttributionQuery, CausalQuery, PopulationSelector, VariableId};
     use antecedent_data::TabularData;
     use antecedent_graph::DenseNodeId;
+
+    #[test]
+    fn fitted_model_bootstrap_discloses_all_failed_and_preserves_point() {
+        let outcome = Replicates { names: vec![], rows: vec![], failed: 4 };
+        let mut estimate = EffectEstimate::new(
+            7.0,
+            f64::NAN,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let diagnostic =
+            disclose_model_bootstrap(&outcome, 4, &mut estimate, |target, estimate| {
+                super::super::gcm_bootstrap::bootstrap_diagnostic(
+                    target,
+                    &estimate.uncertainty.bootstrap,
+                )
+            });
+        let accounting = estimate.uncertainty.bootstrap;
+        assert_eq!(estimate.ate, 7.0);
+        assert_eq!(accounting.replicates_ok, Some(0));
+        assert_eq!(accounting.replicates_failed, Some(4));
+        assert!(accounting.se.is_none());
+        assert_eq!(diagnostic.code.as_ref(), "gcm.frequentist_bootstrap");
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+        assert!(diagnostic.message.contains("no standard error"));
+        assert!(
+            diagnostic
+                .fields
+                .iter()
+                .any(|(k, v)| k.as_ref() == "replicates_failed" && v.as_ref() == "4")
+        );
+        assert!(!diagnostic.fields.iter().any(|(k, _)| k.starts_with("bootstrap_se.")));
+        let point_only = EffectEstimate::new(
+            7.0,
+            f64::NAN,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        assert_eq!(point_only.uncertainty.bootstrap.replicates_ok, None);
+        assert_eq!(point_only.uncertainty.bootstrap.replicates_failed, None);
+    }
+
+    #[test]
+    fn fitted_model_bootstrap_counts_empty_successes_and_named_controls() {
+        let mut estimate = EffectEstimate::new(
+            7.0,
+            f64::NAN,
+            antecedent_core::AssumptionSet::default(),
+            OverlapPolicy::ExplicitOverride,
+        );
+        let empty = Replicates { names: vec![], rows: vec![vec![], vec![]], failed: 1 };
+        let diagnostic = disclose_model_bootstrap(&empty, 3, &mut estimate, |target, estimate| {
+            super::super::gcm_bootstrap::bootstrap_diagnostic(
+                target,
+                &estimate.uncertainty.bootstrap,
+            )
+        });
+        assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(2));
+        assert_eq!(estimate.uncertainty.bootstrap.replicates_failed, Some(1));
+        assert!(estimate.uncertainty.bootstrap.se.is_none());
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+        assert!(diagnostic.message.contains("without a named quantity"));
+        assert!(!diagnostic.message.contains("too few replicates succeeded"));
+
+        let success = Replicates {
+            names: vec!["total_change".into()],
+            rows: vec![vec![1.0], vec![2.0], vec![3.0]],
+            failed: 0,
+        };
+        let diagnostic =
+            disclose_model_bootstrap(&success, 3, &mut estimate, |target, estimate| {
+                super::super::gcm_bootstrap::bootstrap_diagnostic(
+                    target,
+                    &estimate.uncertainty.bootstrap,
+                )
+            });
+        assert_eq!(estimate.ate, 7.0);
+        assert_eq!(estimate.uncertainty.bootstrap.se, Some(1.0));
+        assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(3));
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Info);
+        assert!(diagnostic.fields.iter().any(|(k, _)| k.as_ref() == "bootstrap_se.total_change"));
+
+        let partial =
+            Replicates { names: vec!["total_change".into()], rows: vec![vec![1.0]], failed: 3 };
+        let diagnostic =
+            disclose_model_bootstrap(&partial, 4, &mut estimate, |target, estimate| {
+                super::super::gcm_bootstrap::bootstrap_diagnostic(
+                    target,
+                    &estimate.uncertainty.bootstrap,
+                )
+            });
+        assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(1));
+        assert_eq!(estimate.uncertainty.bootstrap.replicates_failed, Some(3));
+        assert!(estimate.uncertainty.bootstrap.se.is_none());
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+    }
 
     fn context() -> ExecutionContext {
         ExecutionContext::for_tests(0xBA71_5EED)
