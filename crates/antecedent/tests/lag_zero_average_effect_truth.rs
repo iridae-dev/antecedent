@@ -263,7 +263,7 @@ fn bare(name: &str) -> &str {
 
 fn assert_cell(
     result: &StudyResult,
-    inference: &InferenceMode,
+    _inference: &InferenceMode,
     suite: RefuteSuite,
     truth: &Truth,
     contract_key: &str,

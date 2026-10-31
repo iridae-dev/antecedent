@@ -369,7 +369,7 @@ fn counterfactual_dag_validation_executes_from_the_retained_plan_without_the_bui
                 let builder =
                     counterfactual_builder(data.clone(), accepted, bayesian, suite, 1.5, 0.0);
                 let study = builder.clone().build().unwrap();
-                let mut prepared = study.prepare(&ctx).unwrap();
+                let prepared = study.prepare(&ctx).unwrap();
                 drop(builder);
                 drop(study);
                 let RetainedOperation::Counterfactual(plan) = prepared.retained_operation() else {
@@ -404,7 +404,7 @@ fn nested_dag_validation_executes_from_the_retained_plan_without_the_builder() {
                 let coordinate = format!("accepted={accepted} bayesian={bayesian} {suite:?}");
                 let builder = nested_builder(data.clone(), accepted, bayesian, suite);
                 let study = builder.clone().build().unwrap();
-                let mut prepared = study.prepare(&ctx).unwrap();
+                let prepared = study.prepare(&ctx).unwrap();
                 drop(builder);
                 drop(study);
                 let RetainedOperation::NestedCounterfactual(plan) = prepared.retained_operation()

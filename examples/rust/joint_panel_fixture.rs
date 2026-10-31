@@ -363,7 +363,7 @@ pub fn source_lag_zero_departing(departure: LagZeroDeparture) -> PanelData {
     let units: Vec<_> = (0..LAG_ZERO_GROUPS)
         .map(|group| {
             let intercept = truth.group_sd * stream.normal();
-            let mut dose = |stream: &mut FixtureStream| {
+            let dose = |stream: &mut FixtureStream| {
                 if stream.uniform() < 0.25 { 0.0 } else { 10.0 * stream.uniform() }
             };
             let a: Vec<f64> = (0..LAG_ZERO_PERIODS).map(|_| dose(&mut stream)).collect();

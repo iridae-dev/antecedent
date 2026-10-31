@@ -3453,13 +3453,10 @@ mod temporal_admg_compiler_fixture {
         reason = "test scaffolding builds small fixtures and one scenario is kept in one body"
     )]
 
-    use antecedent::support::CellStatus;
-    use antecedent::{
-        AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study, StudyResult,
-    };
+    use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};
     use antecedent_core::{
-        CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, Lag,
-        ResponseFunctional as F, ResponseIdentification, ResponseQuery, ResponseValue,
+        CausalQuery, DerivativeScale, DerivativeWeighting, Lag, ResponseFunctional as F,
+        ResponseIdentification, ResponseQuery, ResponseValue,
         TemporalPolicy, TemporalResponseSpec, VariableId,
     };
     use antecedent_data::TimeSeriesData;

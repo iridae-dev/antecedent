@@ -121,11 +121,6 @@ fn graph() -> antecedent_graph::Dag {
     g
 }
 
-fn refusal(error: &CausalError) -> String {
-    assert_eq!(error.reason_code(), Some("missing_policy_not_applicable"), "{error}");
-    error.to_string()
-}
-
 fn report_of(result: &StudyResult) -> &ImputationReport {
     let missing = result.missing_data().as_ref().expect("a missing-data report");
     assert_eq!(missing.policy().name(), "multiple_imputation");

@@ -20,7 +20,7 @@ use antecedent_core::{
     CausalQuery, ContinuousDomain, ExecutionContext, GridSpec, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseValue, VariableId,
 };
-use antecedent_data::{TableView, TabularData};
+use antecedent_data::TabularData;
 use antecedent_discovery::adjacency_mask::{
     AdjacencyMask, adjacency_mask_from_admg, adjacency_mask_from_cpdag, adjacency_masks_from_pag,
     set_edge,

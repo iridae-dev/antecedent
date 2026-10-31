@@ -853,7 +853,7 @@ fn prepared_body() {
     };
     let first = study(labels(0));
     let one_shot = first.run(&ctx()).unwrap();
-    let mut prepared = first.prepare(&ctx()).unwrap();
+    let prepared = first.prepare(&ctx()).unwrap();
     let data = reference_table(&reference, true);
     let result = prepared.estimate(&data, &ctx()).unwrap();
     let (a, b) = (one_shot.estimate().as_effect().unwrap(), result.estimate().as_effect().unwrap());
@@ -866,7 +866,7 @@ fn prepared_body() {
     assert_eq!(error.reason_code(), Some("score_table_unavailable"), "{error}");
     // Two results that differ only in the declared labels never share an identity.
     let other = study(labels(1));
-    let mut other_prepared = other.prepare(&ctx()).unwrap();
+    let other_prepared = other.prepare(&ctx()).unwrap();
     let other_result = other_prepared.estimate(&data, &ctx()).unwrap();
     let (stamp, other_stamp) = (
         result.executed_contract().expect("a prepared result is stamped"),

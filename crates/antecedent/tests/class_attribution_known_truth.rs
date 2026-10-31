@@ -1029,7 +1029,7 @@ fn graph_posterior_attribution_known_truth() {
 /// Run the retained plan with the builder gone.
 fn retained_run(case: &Case<'_>, accepted: bool, inference: &InferenceMode) -> StudyResult {
     let builder = study_of(case, accepted, inference, RefuteSuite::None);
-    let mut prepared = builder.prepare(&ctx()).unwrap();
+    let prepared = builder.prepare(&ctx()).unwrap();
     assert!(
         matches!(prepared.retained_operation(), RetainedOperation::ClassAttribution),
         "{}: a sealed class attribution",
@@ -1070,7 +1070,7 @@ fn class_attribution_executes_from_retained_plan_after_builder_is_dropped() {
 /// A graph posterior run from the retained plan with the builder gone.
 fn retained_posterior_run(case: &Case<'_>, inference: &InferenceMode) -> StudyResult {
     let builder = study_of(case, false, inference, RefuteSuite::None);
-    let mut prepared = builder.prepare(&ctx()).unwrap();
+    let prepared = builder.prepare(&ctx()).unwrap();
     // The plan carries the lowered program of the posterior attribution.
     let program = prepared.plan().lowered_program_identity();
     drop(builder);

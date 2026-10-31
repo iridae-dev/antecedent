@@ -16,9 +16,9 @@
 use std::sync::Arc;
 
 use antecedent::support::CellStatus;
-use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
+use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, IdentificationStatus, Lag,
+    CausalQuery, DerivativeScale, DerivativeWeighting, ExecutionContext, IdentificationStatus,
     ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, TemporalPolicy,
     TemporalResponseSpec, VariableId,
 };

@@ -25,7 +25,7 @@ use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, SamplingSummary, adjacency_mask_from_admg,
     adjacency_mask_from_cpdag, set_edge,
 };
-use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Pag};
+use antecedent_graph::{Admg, Cpdag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 use std::sync::Arc;
 
@@ -98,14 +98,6 @@ fn admg(edges: &[(u32, u32)], bidirected: &[(u32, u32)]) -> Admg {
     }
     g
 }
-fn dag(edges: &[(u32, u32)]) -> Dag {
-    let mut g = Dag::with_variables(3);
-    for &(a, b) in edges {
-        g.insert_directed(node(a), node(b)).unwrap();
-    }
-    g
-}
-
 struct Posterior {
     kind: &'static str,
     graphs: GraphPosterior,

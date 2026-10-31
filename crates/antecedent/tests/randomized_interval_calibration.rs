@@ -376,7 +376,6 @@ fn student_quantile_975(df: f64) -> f64 {
 fn the_scored_intervals_equal_their_hand_computed_constructions() {
     let n = 300;
     let nf = n as f64;
-    let u = units(n);
 
     // Complete randomization, 150 treated: difference in means, Neyman variance, z = 1.96.
     let (assigned, y) = simulated(n, Adjustment::Score, Assignment::Complete(150), 7);

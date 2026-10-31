@@ -30,9 +30,8 @@ use antecedent::{
     BayesianConfig, InferenceMode, PanelDidQuery, PreparedSmoothedDose, Study, StudyBuilder,
     consume_smoothed_dose_artifact,
 };
-use antecedent_core::{DeclaredSamplingDesign, DiscoverQuery, SyntheticControlQuery, VariableId};
+use antecedent_core::{DiscoverQuery, SyntheticControlQuery, VariableId};
 use antecedent_data::TabularData;
-use antecedent_estimate::rollout_resampling::DesignEffectKind;
 use antecedent_estimate::smoothed_dose::SmoothedDoseInput;
 use antecedent_identify::TransportIdentifier;
 use antecedent_io::smoothed_dose_artifact::SmoothedDoseConsumeLimits;

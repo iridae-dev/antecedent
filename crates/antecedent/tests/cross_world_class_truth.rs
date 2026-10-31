@@ -365,7 +365,7 @@ fn class_cross_world_effects_execute_from_the_retained_plan_without_the_builder(
                 );
                 let (builder, data) = (case.build)(accepted, bayesian, RefuteSuite::None);
                 let study = builder.clone().build().unwrap();
-                let mut prepared = study.prepare(&ctx).unwrap();
+                let prepared = study.prepare(&ctx).unwrap();
                 drop(builder);
                 drop(study);
                 assert!(
@@ -555,7 +555,7 @@ fn class_cross_world_validation_executes_from_the_retained_plan_without_the_buil
                     );
                     let (builder, data) = (case.build)(accepted, bayesian, suite);
                     let study = builder.clone().build().unwrap();
-                    let mut prepared = study.prepare(&ctx).unwrap();
+                    let prepared = study.prepare(&ctx).unwrap();
                     drop(builder);
                     drop(study);
                     assert!(
