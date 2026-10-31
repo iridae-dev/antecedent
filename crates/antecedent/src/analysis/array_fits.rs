@@ -25,7 +25,10 @@ use antecedent_core::{
     execution::{AdmissionError, AdmissionLease},
 };
 use antecedent_estimate::EstimationError;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 
 use crate::error::CausalError;
 
@@ -34,6 +37,7 @@ use crate::error::CausalError;
 pub struct ArrayFit {
     artifact: Arc<ArrayFitArtifactWire>,
     encoding: Arc<Mutex<Option<Arc<RetainedArrayFitEncoding>>>>,
+    encoding_ready: Arc<AtomicBool>,
 }
 
 /// An explicitly materialized encoding with the exact native byte reservation retained.
@@ -66,6 +70,7 @@ impl ArrayFit {
         Ok(Self {
             artifact: Arc::new(ArrayFitArtifactWire::seal(request)?),
             encoding: Arc::default(),
+            encoding_ready: Arc::default(),
         })
     }
 
@@ -78,6 +83,7 @@ impl ArrayFit {
         Ok(Self {
             artifact: Arc::new(ArrayFitArtifactWire::consume_typed(bytes, limits)?),
             encoding: Arc::default(),
+            encoding_ready: Arc::default(),
         })
     }
 
@@ -104,6 +110,7 @@ impl ArrayFit {
                 bytes, limits, expected,
             )?),
             encoding: Arc::default(),
+            encoding_ready: Arc::default(),
         })
     }
 
@@ -173,13 +180,14 @@ impl ArrayFit {
         }
         let encoded = Arc::new(RetainedArrayFitEncoding { bytes: encoding, _lease: lease });
         *cache = Some(Arc::clone(&encoded));
+        self.encoding_ready.store(true, Ordering::Release);
         Ok(encoded)
     }
 
     /// Whether an explicit native encoding is retained.
     #[must_use]
     pub fn has_encoding(&self) -> bool {
-        self.encoding.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_some()
+        self.encoding_ready.load(Ordering::Acquire)
     }
 
     /// The estimator id.
@@ -315,11 +323,25 @@ mod native_owner_regression {
         .unwrap()
     }
     #[test]
+    fn encoding_status_never_waits_for_the_encoding_lock() {
+        let fit = product();
+        let branch = fit.clone();
+        let guard = fit.encoding.lock().unwrap();
+        let (send, receive) = std::sync::mpsc::channel();
+        let thread = std::thread::spawn(move || send.send(branch.has_encoding()).unwrap());
+        let observed = receive.recv_timeout(std::time::Duration::from_secs(2));
+        drop(guard);
+        thread.join().unwrap();
+        assert!(!observed.unwrap());
+    }
+
+    #[test]
     fn cloned_products_share_native_arrays_and_exact_encoding_lease_until_last_owner() {
         let fit = product();
         let branch = fit.clone();
         assert!(Arc::ptr_eq(&fit.artifact, &branch.artifact));
         assert!(Arc::ptr_eq(&fit.encoding, &branch.encoding));
+        assert!(Arc::ptr_eq(&fit.encoding_ready, &branch.encoding_ready));
         assert!(!fit.has_encoding());
         let zero = ExecutionContext::for_tests(13).with_memory_limit(Some(0));
         assert!(matches!(fit.encoded_with_context(&zero), Err(ArrayFitError::Admission(_))));
@@ -327,6 +349,8 @@ mod native_owner_regression {
         let pool = AdmissionPool::fixed(1, 1_000_000);
         let ctx = ExecutionContext::for_tests(13).with_admission(pool.clone());
         let encoded = fit.encoded_with_context(&ctx).unwrap();
+        assert!(fit.has_encoding());
+        assert!(branch.has_encoding());
         let retained = branch.encoded_with_context(&ctx).unwrap();
         assert!(Arc::ptr_eq(&encoded, &retained));
         let length = u64::try_from(encoded.bytes().len()).unwrap();

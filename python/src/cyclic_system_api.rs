@@ -1374,8 +1374,10 @@ impl PyPreparedCyclicSystem {
         contract_json(&contract)
     }
 
-    fn inspect(&self) -> PyResult<String> {
-        let inspected = self.inner.inspect().map_err(|e| crate::value_err(e.to_string()))?;
+    fn inspect(&self, py: Python<'_>) -> PyResult<String> {
+        let inspected = crate::detach_catch(py, || {
+            self.inner.inspect().map_err(|e| crate::value_err(e.to_string()))
+        })?;
         Ok(serde_json::json!({"identity":inspected.identity,"fits_performed":inspected.fits_performed,"solve_blocks":inspected.solve_blocks,"execution_plans":inspected.execution_plans}).to_string())
     }
     #[pyo3(signature=(rows_json, observations, *, max_bytes=None, cancel=None))]

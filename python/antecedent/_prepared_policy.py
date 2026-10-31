@@ -2,6 +2,14 @@
 
 Preparation parses and lowers programs, validates their dependency order and owns
 observations. Mechanism fitting and Monte Carlo sampling occur only on execution.
+Unchanged-data forks share the actual fit; rebinding observations starts a new one.
+The execution seed affects policy draws, while mechanism selection uses fixed folds.
+Concurrent executions share one fit and can cancel while waiting. While a progress
+observer for that fit is running, attempts to materialize the same fit raise
+CausalStateError and can be retried after the observer returns. A waiting
+caller receives that error if it checks while an observer remains outstanding; if
+the observer has finished and the fit is ready, the caller receives the fit.
+This applies across threads because callback ancestry is not available across them.
 """
 
 from __future__ import annotations

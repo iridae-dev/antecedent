@@ -40,6 +40,29 @@ def test_policy_preparation_defers_fit_and_forks_share_actual_native_fit():
     assert first.value.preparation.program_compilations == 1
 
 
+def test_policy_fit_is_shared_across_execution_seeds():
+    progress = []
+
+    def observe(fraction, stage):
+        if stage == "policy_fit":
+            progress.append(fraction)
+
+    study = ac.prepare(
+        observations(),
+        query=question(),
+        graph=[("x", "y")],
+        execution=Execution(seed=1, on_progress=observe),
+    )
+    assert ac.estimate(study).accepted
+    assert progress == [0.0, 1.0]
+    branch = study._engine._branch(Execution(seed=2, on_progress=observe))
+    assert branch._native.fit_materialized
+    assert branch.estimate().accepted
+    # Selection's folds use a fixed seed; execution seed affects later draws,
+    # so a seed-only branch retains the actual fitted model without refitting.
+    assert progress == [0.0, 1.0]
+
+
 def test_policy_owned_rows_and_pure_data_branch():
     rows = observations()
     baseline = ac.prepare(rows, query=question(), graph=[("x", "y")])
@@ -110,7 +133,9 @@ def test_policy_fit_resource_limit_remains_an_operational_exception():
     study = ac.prepare(observations(), query=question(), graph=[("x", "y")])
     # Bind a strict run context after input admission, so the fit itself is checked.
     branch = study._engine._branch(Execution(limits=ResourceLimits(memory_bytes=0)))
-    with pytest.raises(CausalResourceError, match=r"admission wait of 0ns ended before the budget had room"):
+    with pytest.raises(
+        CausalResourceError, match=r"admission wait of 0ns ended before the budget had room"
+    ):
         branch.estimate()
 
 
@@ -118,7 +143,10 @@ def test_policy_program_export_does_not_claim_a_saved_value():
     result = ac.estimate(ac.prepare(observations(), query=question(), graph=[("x", "y")]))
     artifact = result.export(quantity="program")
     assert bytes(artifact).startswith(b"ANTPOLICYPROG")
-    with pytest.raises(CausalUnsupportedError, match=r"reason=route_not_supported: this policy result exports only its retained program with quantity='prog"):
+    with pytest.raises(
+        CausalUnsupportedError,
+        match=r"reason=route_not_supported: this policy result exports only its retained program with quantity='prog",
+    ):
         result.export(quantity="value")
 
 
@@ -162,3 +190,67 @@ def test_policy_observer_scientific_error_remains_operational():
         ac.estimate(study)
     assert caught.value is original
     assert caught.value._antecedent_operational_callback
+
+
+@pytest.mark.parametrize("spawn_thread", [False, True])
+def test_progress_reentry_refuses_without_deadlock(spawn_thread):
+    # The timeout makes a regression safe even if the fit lock deadlocks again.
+    import subprocess
+    import sys
+
+    script = r"""
+import runpy, sys, threading
+scope = runpy.run_path(sys.argv[1])
+ac, Execution = scope['ac'], scope['Execution']
+from antecedent.errors import CausalStateError
+seen = []
+study = None
+def attempt():
+    try:
+        ac.estimate(study)
+    except CausalStateError as error:
+        assert 'busy invoking a progress observer' in str(error)
+        seen.append(True)
+    else:
+        raise AssertionError('reentry should refuse while observer is running')
+def progress(_fraction, stage):
+    if stage != 'policy_fit':
+        return
+    if sys.argv[2] == 'thread':
+        thread = threading.Thread(target=attempt)
+        thread.start()
+        thread.join()
+    else:
+        attempt()
+study = ac.prepare(scope['observations'](), query=scope['question'](),
+                   graph=[('x', 'y')], execution=Execution(on_progress=progress))
+assert ac.estimate(study).accepted
+assert len(seen) == 2
+assert study._engine._native.fit_materialized
+"""
+    subprocess.run(
+        [sys.executable, "-c", script, __file__, "thread" if spawn_thread else "direct"],
+        check=True,
+        timeout=30,
+    )
+
+
+def test_final_progress_failure_does_not_publish_and_can_retry():
+    failing = True
+
+    def progress(fraction, stage):
+        if failing and stage == "policy_fit" and fraction == 1.0:
+            raise RuntimeError("final observer failed")
+
+    study = ac.prepare(
+        observations(),
+        query=question(),
+        graph=[("x", "y")],
+        execution=Execution(on_progress=progress),
+    )
+    with pytest.raises(RuntimeError, match="final observer failed"):
+        ac.estimate(study)
+    assert not study._engine._native.fit_materialized
+    failing = False
+    assert ac.estimate(study).accepted
+    assert study._engine._native.fit_materialized

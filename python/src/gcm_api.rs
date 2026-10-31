@@ -1673,6 +1673,104 @@ fn rank_root_causes(
     })
 }
 
+// A single successful fit is shared across callers. The physical mutex protects
+// only state transitions; no computation or Python observer runs under it.
+enum FitState<T> {
+    Empty,
+    Fitting { observer: bool },
+    Ready(Arc<T>),
+}
+
+struct FitCache<T> {
+    state: Mutex<FitState<T>>,
+    published: AtomicBool,
+}
+
+impl<T> Default for FitCache<T> {
+    fn default() -> Self {
+        Self { state: Mutex::new(FitState::Empty), published: AtomicBool::new(false) }
+    }
+}
+
+struct FitOwner<'a, T>(&'a FitCache<T>);
+impl<T> Drop for FitOwner<'_, T> {
+    fn drop(&mut self) {
+        let mut state = self.0.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if matches!(*state, FitState::Fitting { .. }) {
+            *state = FitState::Empty;
+        }
+    }
+}
+
+impl<T> FitCache<T> {
+    fn materialize(
+        &self,
+        ctx: &ExecutionContext,
+        fit: impl FnOnce() -> PyResult<T>,
+        has_observer: bool,
+        mut observe: impl FnMut(f64),
+        mut on_wait: impl FnMut(),
+    ) -> PyResult<Arc<T>> {
+        let cancelled = || py_err(antecedent::CausalError::Cancelled { stage: "policy_fit" });
+        loop {
+            if ctx.cancellation.is_cancelled() {
+                return Err(cancelled());
+            }
+            let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if ctx.cancellation.is_cancelled() {
+                return Err(cancelled());
+            }
+            match &*state {
+                FitState::Ready(value) => return Ok(Arc::clone(value)),
+                FitState::Empty => {
+                    *state = FitState::Fitting { observer: false };
+                    break;
+                }
+                FitState::Fitting { observer: true } => {
+                    return Err(crate::CausalStateError::new_err(
+                        "policy fit is busy invoking a progress observer; retry after it returns",
+                    ));
+                }
+                FitState::Fitting { observer: false } => {}
+            }
+            drop(state);
+            on_wait();
+            std::thread::park_timeout(std::time::Duration::from_millis(5));
+        }
+        let _owner = FitOwner(self);
+        let mut report = |fraction| -> PyResult<()> {
+            if !has_observer {
+                return if ctx.cancellation.is_cancelled() { Err(cancelled()) } else { Ok(()) };
+            }
+            {
+                let mut state =
+                    self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                *state = FitState::Fitting { observer: true };
+            }
+            observe(fraction);
+            {
+                let mut state =
+                    self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                *state = FitState::Fitting { observer: false };
+            }
+            if ctx.cancellation.is_cancelled() {
+                return Err(cancelled());
+            }
+            Ok(())
+        };
+        report(0.0)?;
+        let value = Arc::new(fit()?);
+        report(1.0)?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        *state = FitState::Ready(Arc::clone(&value));
+        self.published.store(true, Ordering::Release);
+        Ok(value)
+    }
+}
+
 struct PolicyMaterialization {
     fitted: Arc<FittedGcm>,
     _retention: antecedent_core::execution::AdmissionLease,
@@ -1688,8 +1786,7 @@ pub(crate) struct PyPreparedPolicyAnalysis {
     graph: Dag,
     selection: Arc<Selection>,
     template: antecedent::gcm::PreparedPolicy,
-    fitted: Arc<Mutex<Option<Arc<PolicyMaterialization>>>>,
-    fit_published: Arc<AtomicBool>,
+    fitted: Arc<FitCache<PolicyMaterialization>>,
 }
 
 #[pymethods]
@@ -1730,8 +1827,7 @@ impl PyPreparedPolicyAnalysis {
                 graph,
                 selection: Arc::new(selection),
                 template,
-                fitted: Arc::new(Mutex::new(None)),
-                fit_published: Arc::new(AtomicBool::new(false)),
+                fitted: Arc::new(FitCache::default()),
             })
         })
     }
@@ -1751,8 +1847,7 @@ impl PyPreparedPolicyAnalysis {
             graph: self.graph.clone(),
             selection: Arc::clone(&self.selection),
             template: self.template.clone(),
-            fitted: Arc::new(Mutex::new(None)),
-            fit_published: Arc::new(AtomicBool::new(false)),
+            fitted: Arc::new(FitCache::default()),
         })
     }
 
@@ -1794,7 +1889,7 @@ impl PyPreparedPolicyAnalysis {
 
     #[getter]
     fn fit_materialized(&self) -> bool {
-        self.fit_published.load(Ordering::Acquire)
+        self.fitted.published.load(Ordering::Acquire)
     }
 
     #[pyo3(signature = (seed=1, threads=None))]
@@ -1816,43 +1911,43 @@ impl PyPreparedPolicyAnalysis {
             let _check = ctx
                 .acquire_admission_bounded(0, 0, std::time::Duration::ZERO)
                 .map_err(admission_error)?;
-            let mut slot =
-                self.fitted.lock().map_err(|_| crate::value_err("policy fit lock poisoned"))?;
-            if let Some(fitted) = slot.as_ref() {
-                return Ok(Arc::clone(fitted));
-            }
-            let bytes = (self.data.row_count() as u64)
-                .checked_mul(self.names.len() as u64)
-                .and_then(|cells| cells.checked_mul(8))
-                .ok_or_else(|| {
-                    crate::CausalResourceError::new_err("policy fit workspace overflow")
-                })?;
-            let _workspace = ctx
-                .acquire_admission_bounded(0, bytes, std::time::Duration::ZERO)
-                .map_err(admission_error)?;
-            if let Some(progress) = &ctx.progress {
-                progress.report(0.0, "policy_fit");
-            }
-            let selection = if self.selection.is_standard() {
-                None
-            } else {
-                Some((&self.selection.registry, &self.selection.options))
-            };
-            let fitted =
-                antecedent::gcm::fit_gcm_polled(self.graph.clone(), &self.data, selection, &ctx)
+            self.fitted.materialize(
+                &ctx,
+                || {
+                    let bytes = (self.data.row_count() as u64)
+                        .checked_mul(self.names.len() as u64)
+                        .and_then(|cells| cells.checked_mul(8))
+                        .ok_or_else(|| {
+                            crate::CausalResourceError::new_err("policy fit workspace overflow")
+                        })?;
+                    let workspace = ctx
+                        .acquire_admission_bounded(0, bytes, std::time::Duration::ZERO)
+                        .map_err(admission_error)?;
+                    let selection = if self.selection.is_standard() {
+                        None
+                    } else {
+                        Some((&self.selection.registry, &self.selection.options))
+                    };
+                    let fitted = antecedent::gcm::fit_gcm_polled(
+                        self.graph.clone(),
+                        &self.data,
+                        selection,
+                        &ctx,
+                    )
                     .map_err(py_err)?;
-            // Failed/cancelled execution must not publish a reusable fit.
-            if let Some(progress) = &ctx.progress {
-                progress.report(1.0, "policy_fit");
-            }
-            let _completed = ctx
-                .acquire_admission_bounded(0, 0, std::time::Duration::ZERO)
-                .map_err(admission_error)?;
-            let fitted = Arc::new(fitted);
-            let retained = Arc::new(PolicyMaterialization { fitted, _retention: _workspace });
-            *slot = Some(Arc::clone(&retained));
-            self.fit_published.store(true, Ordering::Release);
-            Ok(retained)
+                    let _completed = ctx
+                        .acquire_admission_bounded(0, 0, std::time::Duration::ZERO)
+                        .map_err(admission_error)?;
+                    Ok(PolicyMaterialization { fitted: Arc::new(fitted), _retention: workspace })
+                },
+                ctx.progress.is_some(),
+                |fraction| {
+                    if let Some(progress) = &ctx.progress {
+                        progress.report(fraction, "policy_fit");
+                    }
+                },
+                || {},
+            )
         })?;
         let program = self.selection.program()?.with_prefit(Arc::clone(&fitted.fitted), &self.data);
         let model = PyFittedGcm {
@@ -1901,4 +1996,274 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(attribute_paths, m)?)?;
     m.add_function(wrap_pyfunction!(rank_root_causes, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod fit_cache_tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    // Run blocking coordination in a child so even a broken lock protocol or a
+    // panic in scoped threads cannot wedge the main test process indefinitely.
+    fn watchdog(name: &str) -> bool {
+        const CHILD: &str = "ANTECEDENT_S20_FIT_CACHE_TEST_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            return false;
+        }
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg(format!("gcm_api::fit_cache_tests::{name}"))
+            .arg("--nocapture")
+            .env(CHILD, "1")
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                assert!(status.success(), "isolated test {name} failed: {status}");
+                return true;
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!("isolated test {name} timed out");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
+    #[test]
+    fn queued_waiter_refuses_when_observer_begins() {
+        if watchdog("queued_waiter_refuses_when_observer_begins") {
+            return;
+        }
+        Python::initialize();
+        let cache = Arc::new(FitCache::<usize>::default());
+        let (fitting_tx, fitting_rx) = mpsc::channel();
+        let (finish_tx, finish_rx) = mpsc::channel();
+        let (observer_tx, observer_rx) = mpsc::channel();
+        let (observer_release_tx, observer_release_rx) = mpsc::channel();
+        let (waiting_tx, waiting_rx) = mpsc::channel();
+        let (result_tx, result_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let first_cache = Arc::clone(&cache);
+            let first = scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(4);
+                first_cache.materialize(
+                    &ctx,
+                    || {
+                        fitting_tx.send(()).unwrap();
+                        finish_rx.recv().unwrap();
+                        Ok(17)
+                    },
+                    true,
+                    |fraction| {
+                        if fraction == 1.0 {
+                            observer_tx.send(()).unwrap();
+                            observer_release_rx.recv().unwrap();
+                        }
+                    },
+                    || {},
+                )
+            });
+            fitting_rx.recv().unwrap();
+            let waiter_cache = Arc::clone(&cache);
+            let waiter = scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(5);
+                let mut notify = Some(waiting_tx);
+                let result = waiter_cache.materialize(
+                    &ctx,
+                    || panic!("unexpected refit"),
+                    false,
+                    |_| {},
+                    || {
+                        if let Some(sender) = notify.take() {
+                            sender.send(()).unwrap();
+                        }
+                    },
+                );
+                let typed = result.is_err_and(|error| {
+                    Python::attach(|py| error.is_instance_of::<crate::CausalStateError>(py))
+                });
+                result_tx.send(typed).unwrap();
+            });
+            waiting_rx.recv().unwrap();
+            finish_tx.send(()).unwrap();
+            observer_rx.recv().unwrap();
+            let refused_before_callback_returns =
+                result_rx.recv_timeout(std::time::Duration::from_secs(2));
+            observer_release_tx.send(()).unwrap();
+            assert!(refused_before_callback_returns.unwrap());
+            first.join().unwrap().unwrap();
+            waiter.join().unwrap();
+        });
+    }
+
+    #[test]
+    fn waiter_receives_published_fit_after_observer_finishes() {
+        if watchdog("waiter_receives_published_fit_after_observer_finishes") {
+            return;
+        }
+        Python::initialize();
+        let cache = Arc::new(FitCache::<usize>::default());
+        let (fitting_tx, fitting_rx) = mpsc::channel();
+        let (finish_tx, finish_rx) = mpsc::channel();
+        let (waiting_tx, waiting_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        let (observer_tx, observer_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let first_cache = Arc::clone(&cache);
+            let first = scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(6);
+                first_cache.materialize(
+                    &ctx,
+                    || {
+                        fitting_tx.send(()).unwrap();
+                        finish_rx.recv().unwrap();
+                        Ok(31)
+                    },
+                    true,
+                    |fraction| {
+                        if fraction == 1.0 {
+                            observer_tx.send(()).unwrap();
+                        }
+                    },
+                    || {},
+                )
+            });
+            fitting_rx.recv().unwrap();
+            let waiter_cache = Arc::clone(&cache);
+            let waiter = scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(7);
+                let mut wait_gate = Some((waiting_tx, resume_rx));
+                waiter_cache.materialize(
+                    &ctx,
+                    || panic!("unexpected refit"),
+                    false,
+                    |_| {},
+                    || {
+                        if let Some((sender, receiver)) = wait_gate.take() {
+                            sender.send(()).unwrap();
+                            receiver.recv().unwrap();
+                        }
+                    },
+                )
+            });
+            waiting_rx.recv().unwrap();
+            finish_tx.send(()).unwrap();
+            observer_rx.recv().unwrap();
+            let first = first.join().unwrap().unwrap();
+            resume_tx.send(()).unwrap();
+            let waiter = waiter.join().unwrap().unwrap();
+            assert!(Arc::ptr_eq(&first, &waiter));
+            assert_eq!(*waiter, 31);
+        });
+    }
+
+    #[test]
+    fn panicked_fit_releases_owner_for_retry() {
+        if watchdog("panicked_fit_releases_owner_for_retry") {
+            return;
+        }
+        Python::initialize();
+        let cache = Arc::new(FitCache::<usize>::default());
+        let ctx = ExecutionContext::for_tests(8);
+        let first = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = cache.materialize(&ctx, || panic!("injected fit panic"), false, |_| {}, || {});
+        }));
+        assert!(first.is_err());
+        assert!(!cache.published.load(Ordering::Acquire));
+        let retry_cache = Arc::clone(&cache);
+        let (sender, receiver) = mpsc::channel();
+        let thread = std::thread::spawn(move || {
+            let ctx = ExecutionContext::for_tests(9);
+            let result = retry_cache.materialize(&ctx, || Ok(44), false, |_| {}, || {});
+            sender.send(result.map(|value| *value)).unwrap();
+        });
+        let retried = receiver.recv_timeout(std::time::Duration::from_secs(2));
+        assert_eq!(retried.unwrap().unwrap(), 44);
+        thread.join().unwrap();
+        assert!(cache.published.load(Ordering::Acquire));
+    }
+
+    #[test]
+    fn concurrent_callers_share_one_fit_and_queued_cancellation_is_prompt() {
+        if watchdog("concurrent_callers_share_one_fit_and_queued_cancellation_is_prompt") {
+            return;
+        }
+        Python::initialize();
+        let cache = Arc::new(FitCache::<usize>::default());
+        let ctx = ExecutionContext::for_tests(1);
+        let waiting_ctx = ExecutionContext::for_tests(2);
+        let cancel_ctx = waiting_ctx.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (waiting_tx, waiting_rx) = mpsc::channel();
+        let (cancel_waiting_tx, cancel_waiting_rx) = mpsc::channel();
+        let (cancel_result_tx, cancel_result_rx) = mpsc::channel();
+        std::thread::scope(|scope| {
+            let first_cache = Arc::clone(&cache);
+            let first = scope.spawn(move || {
+                first_cache.materialize(
+                    &ctx,
+                    || {
+                        entered_tx.send(()).unwrap();
+                        release_rx.recv().unwrap();
+                        Ok(42)
+                    },
+                    false,
+                    |_| {},
+                    || {},
+                )
+            });
+            entered_rx.recv().unwrap();
+            let second_cache = Arc::clone(&cache);
+            let second = scope.spawn(move || {
+                let ctx = ExecutionContext::for_tests(3);
+                let mut notify = Some(waiting_tx);
+                second_cache.materialize(
+                    &ctx,
+                    || panic!("second caller refit"),
+                    false,
+                    |_| {},
+                    || {
+                        if let Some(sender) = notify.take() {
+                            sender.send(()).unwrap();
+                        }
+                    },
+                )
+            });
+            waiting_rx.recv().unwrap();
+            let third_cache = Arc::clone(&cache);
+            let third = scope.spawn(move || {
+                let mut notify = Some(cancel_waiting_tx);
+                let result = third_cache.materialize(
+                    &waiting_ctx,
+                    || panic!("cancelled caller refit"),
+                    false,
+                    |_| {},
+                    || {
+                        if let Some(sender) = notify.take() {
+                            sender.send(()).unwrap();
+                        }
+                    },
+                );
+                let typed = result.is_err_and(|error| {
+                    Python::attach(|py| error.is_instance_of::<crate::CausalCancelledError>(py))
+                });
+                cancel_result_tx.send(typed).unwrap();
+            });
+            cancel_waiting_rx.recv().unwrap();
+            cancel_ctx.cancellation.cancel();
+            let cancelled_before_release =
+                cancel_result_rx.recv_timeout(std::time::Duration::from_secs(2));
+            release_tx.send(()).unwrap();
+            assert!(cancelled_before_release.unwrap());
+            let first = first.join().unwrap().unwrap();
+            let second = second.join().unwrap().unwrap();
+            third.join().unwrap();
+            assert!(Arc::ptr_eq(&first, &second));
+            assert_eq!(*first, 42);
+        });
+    }
 }
