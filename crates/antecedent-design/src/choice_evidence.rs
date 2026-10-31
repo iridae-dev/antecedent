@@ -24,7 +24,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::CausalRng;
+use antecedent_core::{CanonicalWriter, CausalRng};
 use antecedent_kernels::rng::sample_gamma;
 use antecedent_stats::adaptive_inference::{DirichletPosterior, MAX_CHOICE_COUNT};
 use antecedent_stats::special::ln_gamma;
@@ -263,21 +263,12 @@ impl QualifiedPrior {
     /// Stable identity of the prior.
     #[must_use]
     pub fn digest(&self) -> String {
-        let mut h = blake3::Hasher::new();
-        h.update(b"choice_prior.v1");
-        for o in &self.frame.options {
-            h.update(o.as_bytes());
-            h.update(&[0]);
+        let mut w = CanonicalWriter::new("antecedent.choice_evidence.prior.v1");
+        w.texts(&self.frame.options).text(&self.frame.population).reals(&self.alpha);
+        for source in &self.sources {
+            w.text(&source.observation_id).real(source.discount);
         }
-        h.update(self.frame.population.as_bytes());
-        for a in &self.alpha {
-            h.update(&a.to_bits().to_le_bytes());
-        }
-        for s in &self.sources {
-            h.update(s.observation_id.as_bytes());
-            h.update(&s.discount.to_bits().to_le_bytes());
-        }
-        h.finalize().to_hex().to_string()
+        w.finish_hex()
     }
 }
 
@@ -430,19 +421,15 @@ pub fn update(
         return Err(ChoiceRefusal::ParameterizationMismatch("observations".into()));
     }
     let posterior = DirichletPosterior::from_counts(&prior.alpha, &observations.counts)?;
-    let mut h = blake3::Hasher::new();
-    h.update(prior.digest().as_bytes());
-    h.update(observations.observation_id.as_bytes());
-    for c in &observations.counts {
-        h.update(&c.to_bits().to_le_bytes());
-    }
+    let mut w = CanonicalWriter::new("antecedent.choice_evidence.inference.v1");
+    w.text(&prior.digest()).text(&observations.observation_id).reals(&observations.counts);
     Ok(ChoiceInference {
         frame: prior.frame.clone(),
         mean: posterior.mean(),
         probability_best: posterior.best_option_probabilities(cancelled)?,
         expected_loss: posterior.expected_losses(cancelled)?,
         observations: observations.counts.iter().sum(),
-        lineage: h.finalize().to_hex().to_string(),
+        lineage: w.finish_hex(),
         posterior,
         statements: vec![MEANING_STATEMENT],
     })
@@ -727,6 +714,93 @@ pub fn rank_studies(
     Ok(rows)
 }
 
+/// Declared next-study ranking inputs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RankingRequest {
+    /// Value of each option when chosen, per unit share.
+    pub values: Vec<f64>,
+    /// Candidate studies.
+    pub candidates: Vec<StudyCandidate>,
+    /// Seed for the Monte Carlo fallback.
+    pub seed: u64,
+}
+
+/// One pass through the lifecycle; each stage after the prior is optional.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LifecycleRequest {
+    /// Target frame.
+    pub frame: ChoiceFrame,
+    /// Initial Dirichlet shapes.
+    pub initial: Vec<f64>,
+    /// Retained evidence used as prior.
+    pub sources: Vec<SourceUse>,
+    /// Conflict handling.
+    pub conflict_policy: ConflictPolicy,
+    /// New observations, if any.
+    pub observations: Option<ChoiceObservations>,
+    /// Sequential rule evaluated at the current posterior.
+    pub rule: Option<SequentialRule>,
+    /// Next-study ranking.
+    pub ranking: Option<RankingRequest>,
+}
+
+/// Every stage that was requested.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LifecycleResult {
+    /// The qualified prior.
+    pub prior: QualifiedPrior,
+    /// The inference after the observations.
+    pub inference: Option<ChoiceInference>,
+    /// The sequential look.
+    pub look: Option<LookOutcome>,
+    /// The ranked studies.
+    pub ranking: Option<Vec<StudyRank>>,
+    /// What the sequential look guarantees, when one was evaluated.
+    pub stopping_statement: Option<&'static str>,
+}
+
+/// Qualified prior, supported observations, licensed inference, decision evaluation and
+/// next-study ranking in one call. A later stage needs the observations: asking for a look or a
+/// ranking without them is refused.
+///
+/// # Errors
+/// The first stage's refusal.
+pub fn evaluate_lifecycle(
+    request: &LifecycleRequest,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<LifecycleResult, ChoiceRefusal> {
+    let prior =
+        qualify_prior(&request.frame, &request.initial, &request.sources, request.conflict_policy)?;
+    let Some(observations) = &request.observations else {
+        if request.rule.is_some() || request.ranking.is_some() {
+            return Err(ChoiceRefusal::Invalid(
+                "a sequential look or a ranking needs observations to condition on".into(),
+            ));
+        }
+        return Ok(LifecycleResult {
+            prior,
+            inference: None,
+            look: None,
+            ranking: None,
+            stopping_statement: None,
+        });
+    };
+    let inference = update(&prior, observations, cancelled)?;
+    let look = request.rule.as_ref().map(|r| r.evaluate(&inference)).transpose()?;
+    let ranking = request
+        .ranking
+        .as_ref()
+        .map(|r| rank_studies(&inference, &r.values, &r.candidates, r.seed))
+        .transpose()?;
+    Ok(LifecycleResult {
+        prior,
+        stopping_statement: look.as_ref().map(|_| STOPPING_STATEMENT),
+        inference: Some(inference),
+        look,
+        ranking,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -944,5 +1018,40 @@ mod tests {
         assert_eq!(rule.evaluate(&stuck).unwrap(), LookOutcome::BudgetExhausted);
         let bad = SequentialRule { min_probability_best: 0.4, ..rule };
         assert!(bad.evaluate(&early).is_err());
+    }
+
+    #[test]
+    fn lifecycle_runs_prior_to_ranking_and_refuses_orphan_stages() {
+        let request = LifecycleRequest {
+            frame: frame("p"),
+            initial: vec![1.0; 3],
+            sources: vec![source("s", "p", [20.0, 12.0, 8.0], "o1")],
+            conflict_policy: ConflictPolicy::Report,
+            observations: Some(ChoiceObservations {
+                counts: vec![14.0, 9.0, 7.0],
+                observation_id: "o2".into(),
+            }),
+            rule: Some(SequentialRule {
+                min_probability_best: 0.95,
+                max_expected_loss: 0.05,
+                min_observations: 10.0,
+                max_observations: 500.0,
+                allocation_floor: 0.05,
+            }),
+            ranking: Some(RankingRequest {
+                values: vec![1.0, 1.0, 1.0],
+                candidates: vec![StudyCandidate {
+                    label: "wave".into(),
+                    observations: 40,
+                    cost: 0.0,
+                }],
+                seed: 3,
+            }),
+        };
+        let out = evaluate_lifecycle(&request, &never).unwrap();
+        assert!(out.inference.is_some() && out.look.is_some() && out.stopping_statement.is_some());
+        assert_eq!(out.ranking.unwrap().len(), 1);
+        let orphan = LifecycleRequest { observations: None, ..request };
+        assert!(matches!(evaluate_lifecycle(&orphan, &never), Err(ChoiceRefusal::Invalid(_))));
     }
 }

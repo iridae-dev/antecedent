@@ -130,6 +130,7 @@ nav:
   - Evidence and composition:
     - External evidence and study synthesis: evidence-ledger.md
     - Experimental evidence for decisions: decision-evidence.md
+    - Categorical-choice evidence to decision: choice-evidence.md
     - Measurement models: measurement-models.md
     - Scientific bridges: scientific-bridges.md
     - Compose sources into a decision: composition.md

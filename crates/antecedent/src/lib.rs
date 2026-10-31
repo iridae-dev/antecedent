@@ -52,6 +52,7 @@ pub mod accepted;
 pub mod analysis;
 pub mod bootstrap_retention;
 pub mod callback_plan;
+pub mod choice_evidence;
 pub mod class_prior;
 pub mod counterfactual_id;
 pub mod cross_world;

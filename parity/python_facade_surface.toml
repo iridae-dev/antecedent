@@ -3075,3 +3075,9 @@ rust = "antecedent::decision_evidence::evidence_from_compiled_adaptive_regime"
 kind = "fn"
 status = "internal"
 reason = "Python rebinds adaptive-regime evidence to its native source during artifact replay."
+
+[[entry]]
+rust = "antecedent::choice_evidence::evaluate_lifecycle"
+kind = "fn"
+status = "bound"
+python = "antecedent.choice_evidence.evaluate"
