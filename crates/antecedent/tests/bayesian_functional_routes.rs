@@ -736,7 +736,9 @@ fn mixture_gp() -> GraphPosterior {
     .unwrap()
 }
 
-fn mixture_data(n: usize) -> TabularData {
+/// Treatment, outcome and confounder columns of the known-truth mixture: `y = slope * t + 2 z`
+/// plus a deterministic symmetric disturbance, with `z` and `t` positively associated.
+fn mixture_columns(n: usize, slope: f64) -> [Vec<f64>; 3] {
     let mut treatment = Vec::with_capacity(n);
     let mut outcome = Vec::with_capacity(n);
     let mut confounder = Vec::with_capacity(n);
@@ -746,16 +748,24 @@ fn mixture_data(n: usize) -> TabularData {
                 let epsilon = if row % 2 == 0 { -0.2 } else { 0.2 };
                 treatment.push(t);
                 confounder.push(z);
-                outcome.push(2.0 * t + 2.0 * z + epsilon);
+                outcome.push(slope * t + 2.0 * z + epsilon);
             }
         }
     }
+    [treatment, outcome, confounder]
+}
+
+fn mixture_table(columns: &[Vec<f64>; 3]) -> TabularData {
     TabularData::from_f64_columns([
-        ("t", treatment.as_slice()),
-        ("y", outcome.as_slice()),
-        ("z", confounder.as_slice()),
+        ("t", columns[0].as_slice()),
+        ("y", columns[1].as_slice()),
+        ("z", columns[2].as_slice()),
     ])
     .unwrap()
+}
+
+fn mixture_data(n: usize) -> TabularData {
+    mixture_table(&mixture_columns(n, 2.0))
 }
 
 #[test]
@@ -1612,4 +1622,160 @@ fn derivative_response_refuses_a_transferred_prior_without_a_mapping() {
         Ok(study) => study.run(&ctx).expect_err("an unmapped transfer must not run"),
     };
     assert!(error.to_string().contains("response-specific mapping"), "{error}");
+}
+
+/// Solve `a x = b` for a small dense system by Gaussian elimination with partial pivoting.
+fn solve_small(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
+    let n = b.len();
+    for col in 0..n {
+        let pivot = (col..n).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).unwrap();
+        a.swap(col, pivot);
+        b.swap(col, pivot);
+        for row in (col + 1)..n {
+            let factor = a[row][col] / a[col][col];
+            for k in col..n {
+                a[row][k] -= factor * a[col][k];
+            }
+            b[row] -= factor * b[col];
+        }
+    }
+    let mut x = vec![0.0; n];
+    for row in (0..n).rev() {
+        let tail: f64 = ((row + 1)..n).map(|k| a[row][k] * x[k]).sum();
+        x[row] = (b[row] - tail) / a[row][row];
+    }
+    x
+}
+
+/// Posterior mean of the coefficients of a conjugate normal-inverse-gamma regression whose prior
+/// is `beta | sigma^2 ~ N(m0, sigma^2 diag(v0))`: `(V0^-1 + X'X)^-1 (V0^-1 m0 + X'y)`. The
+/// inverse-gamma hyperparameters do not enter the posterior mean of `beta`.
+fn conjugate_posterior_mean(design: &[Vec<f64>], y: &[f64], m0: &[f64], v0: &[f64]) -> Vec<f64> {
+    let p = m0.len();
+    let mut normal = vec![vec![0.0; p]; p];
+    let mut rhs = vec![0.0; p];
+    for (row, outcome) in design.iter().zip(y) {
+        for i in 0..p {
+            rhs[i] += row[i] * outcome;
+            for j in 0..p {
+                normal[i][j] += row[i] * row[j];
+            }
+        }
+    }
+    for i in 0..p {
+        normal[i][i] += 1.0 / v0[i];
+        rhs[i] += m0[i] / v0[i];
+    }
+    solve_small(normal, rhs)
+}
+
+/// A transferred effect prior mapped onto the treatment slope reaches every atom of a graph
+/// posterior, including atoms that adjust for different sets, and each atom's posterior mean of
+/// the intervention level equals the independent conjugate calculation for its own design.
+#[test]
+fn graph_posterior_response_applies_a_mapped_transferred_prior_to_each_adjustment_set() {
+    // Source: a small sample whose treatment effect is 0.5, so its posterior is informative but not
+    // dominant over the 160 target rows, whose adjusted slope is 2 and unadjusted slope is 3.
+    let source_columns = mixture_columns(32, 0.5);
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let source = Study::tabular(mixture_table(&source_columns))
+        .graph(dag)
+        .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(4_000)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(41))
+        .unwrap();
+    let posterior = source.posterior.as_ref().unwrap();
+    let quantities = &posterior.draws.schema.quantities;
+    let effect_column = posterior.effect_column().unwrap();
+    let antecedent_prob::PosteriorQuantityKind::Effect { name: effect_name } =
+        &quantities[effect_column]
+    else {
+        panic!("the source effect column is named");
+    };
+    let residual_column = quantities
+        .iter()
+        .position(|q| matches!(q, antecedent_prob::PosteriorQuantityKind::ResidualVariance))
+        .unwrap();
+    let (source_mean, source_sd, source_sigma2) = (
+        posterior.summaries.mean[effect_column],
+        posterior.summaries.sd[effect_column],
+        posterior.summaries.mean[residual_column],
+    );
+    let bytes = antecedent::io::encode_causal_posterior_bytes(posterior, "source").unwrap();
+
+    // Target: the binary-treatment contrast is one, so the slope prior is the effect prior. Other
+    // coefficients keep the weakly informative baseline (mean 0, relative variance 100).
+    let target_columns = mixture_columns(160, 2.0);
+    let [t, y, z] = &target_columns;
+    let slope_variance = (source_sd * source_sd) / source_sigma2;
+    let level = |design: Vec<Vec<f64>>, m0: &[f64], v0: &[f64]| {
+        let beta = conjugate_posterior_mean(&design, y, m0, v0);
+        let z_mean = z.iter().sum::<f64>() / z.len() as f64;
+        match beta.len() {
+            2 => beta[0] + beta[1],
+            _ => beta[0] + beta[1] + beta[2] * z_mean,
+        }
+    };
+    let direct_design: Vec<Vec<f64>> = t.iter().map(|t| vec![1.0, *t]).collect();
+    let adjusted_design: Vec<Vec<f64>> = t.iter().zip(z).map(|(t, z)| vec![1.0, *t, *z]).collect();
+    let expected_direct =
+        level(direct_design.clone(), &[0.0, source_mean], &[100.0, slope_variance]);
+    let expected_adjusted =
+        level(adjusted_design.clone(), &[0.0, source_mean, 0.0], &[100.0, slope_variance, 100.0]);
+    let isotropic_direct = level(direct_design, &[0.0, 0.0], &[100.0, 100.0]);
+    let isotropic_adjusted = level(adjusted_design, &[0.0, 0.0, 0.0], &[100.0, 100.0, 100.0]);
+    // The transfer must be visible, or the comparison below would not tell it from no transfer.
+    assert!(
+        (expected_direct - isotropic_direct).abs() > 0.05,
+        "{expected_direct} {isotropic_direct}"
+    );
+    assert!(
+        (expected_adjusted - isotropic_adjusted).abs() > 0.05,
+        "{expected_adjusted} {isotropic_adjusted}"
+    );
+
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let config = BayesianConfig::conjugate().n_draws(4_000).prior_from_artifact(
+        bytes,
+        Some(antecedent_io::PriorMapping::EffectFunctional {
+            source_quantity: effect_name.to_string(),
+        }),
+    );
+    let result = Study::tabular(mixture_table(&target_columns))
+        .graph_posterior(mixture_gp())
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(42))
+        .unwrap();
+    let mixture = result.structural_response.as_ref().unwrap();
+    let level_of = |weight: f64| {
+        let atom = mixture.atoms.iter().find(|atom| (atom.weight - weight).abs() < 1e-12).unwrap();
+        let ResponseValue::Scalar(mean) = atom.value.as_ref().unwrap() else {
+            panic!("an intervention level is a scalar");
+        };
+        *mean
+    };
+    // Atom weights 0.5 (no adjustment) and 0.3 (adjusting for the confounder) are the two
+    // identified atoms; the 0.2 atom reverses the edge and is unidentified.
+    // The posterior sd of a level here is about 0.02, so a mean of 4,000 draws is within a few
+    // 1e-4 of the analytic posterior mean; the transfer shifts it by more than 0.05.
+    for (weight, expected) in [(0.5, expected_direct), (0.3, expected_adjusted)] {
+        let mean = level_of(weight);
+        assert!(
+            (mean - expected).abs() < 0.01,
+            "atom {weight}: posterior mean {mean} vs independent conjugate calculation {expected}"
+        );
+    }
 }
