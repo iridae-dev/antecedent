@@ -152,7 +152,12 @@ class DescriptiveComparison(ScientificResult):
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-safe form (the export body without its digest)."""
+        """JSON-safe read form of the comparison.
+
+        It is a summary, not the exported artifact: the groups are nested ``{n, mean}``
+        objects, ``gap_interval_unavailable`` is included, and the artifact's ``format`` and
+        group ``sum_squares`` are omitted. The export body is what the digest covers.
+        """
         return {
             "scale": self.scale,
             "claim": self.claim,

@@ -629,6 +629,16 @@ fn composition_input_from_means(
     let coordinates = parse_quantities(coordinates_json)?;
     let statuses = statuses.iter().map(|s| parse_support(s)).collect::<PyResult<Vec<_>>>()?;
     let requirement = parse_requirement(requirement)?;
+    if means.len() != coordinates.len() {
+        return Err(crate::value_err(format!(
+            "{} means for {} coordinates; give one mean per coordinate",
+            means.len(),
+            coordinates.len()
+        )));
+    }
+    if means.iter().any(|mean| !mean.is_finite()) {
+        return Err(crate::value_err("every mean must be finite"));
+    }
     let source = MeanSource {
         coordinates,
         means,

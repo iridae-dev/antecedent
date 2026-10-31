@@ -1206,3 +1206,10 @@ def test_equal_study_gaussian_method_uses_study_noise_and_replays_without_borrow
     assert replay.values == pytest.approx((ys.mean(), ys.var(ddof=1) / len(ys)), abs=TOL)
     error = refused(lambda: ledger.pooled_interval(outcome.result))
     assert error.code == "cell_not_licensed"
+
+
+def test_unknown_declaration_key_refused():
+    ledger = _native.EvidenceLedgerHandle()
+    declaration = {"label": "s", "kind": "experiment", "lineag": {"kind": "duplicate", "of": "x"}}
+    with pytest.raises(ValueError, match="lineag"):
+        ledger.add_source(json.dumps(declaration))

@@ -941,3 +941,26 @@ def test_the_required_factors_name_their_population_regime_axes_and_intervention
         (("x", 1.0), ("y", 0.0)),
         (("x", 1.0), ("y", 1.0)),
     }
+
+
+def test_raising_regime_property_propagates():
+    armed = []
+
+    class Regime(transport.EvidenceRegime):
+        @property
+        def selected_on(self):
+            if armed:
+                raise RuntimeError("selected_on failed")
+            return getattr(self, "_selected_on", ())
+
+        @selected_on.setter
+        def selected_on(self, value):
+            object.__setattr__(self, "_selected_on", value)
+
+    identified, _, data = fixture()
+    catalog = transport.EvidenceCatalog(
+        regimes=[Regime("obs", "target", measured=["x", "y"])]
+    )
+    armed.append(True)
+    with pytest.raises(RuntimeError, match="selected_on failed"):
+        transport.evaluate_exact(identified, catalog, data, at={"x": 1.0})

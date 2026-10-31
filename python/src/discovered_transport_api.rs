@@ -265,12 +265,10 @@ fn discovered_transport_run(
             None => Err(crate::CausalDiscoveryError::new_err(error.to_string())),
         },
         Ok(run) => {
-            let discovery = json!({
-                "report": serde_json::from_str::<Json>(&sd::report_json(&run.discovery))
-                    .unwrap_or(Json::Null),
-                "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&run.outcome))
-                    .unwrap_or(Json::Null),
-            })
+            let discovery = sd::discovery_value(
+                &sd::report_json(&run.discovery),
+                &sd::outcome_json(&run.outcome),
+            )?
             .to_string();
             match &run.transport {
                 Ok(report) => {
@@ -408,11 +406,9 @@ fn discovered_transport_estimate_run(
         }
         Ok(pair) => pair,
     };
-    let discovery = json!({
-        "report": serde_json::from_str::<Json>(&sd::report_json(&run.discovery)).unwrap_or(Json::Null),
-        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&run.outcome)).unwrap_or(Json::Null),
-    })
-    .to_string();
+    let discovery =
+        sd::discovery_value(&sd::report_json(&run.discovery), &sd::outcome_json(&run.outcome))?
+            .to_string();
     let refusal_of_run = |error: &DiscoveredTransportError| -> PyResult<Reply> {
         Ok((None, Some(refusal_of(error)?)))
     };
@@ -663,11 +659,8 @@ fn discovered_temporal_transport_estimate_run(
         }
         Ok(parts) => parts,
     };
-    let discovery_json = json!({
-        "report": serde_json::from_str::<Json>(&sd::report_json(&discovery)).unwrap_or(Json::Null),
-        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&outcome)).unwrap_or(Json::Null),
-    })
-    .to_string();
+    let discovery_json =
+        sd::discovery_value(&sd::report_json(&discovery), &sd::outcome_json(&outcome))?.to_string();
     match (transport, estimated) {
         (Err(error), _) | (Ok(_), Some(Err(error))) => {
             Ok((None, Some(refusal_of(&error)?), Some(discovery_json), None, None))

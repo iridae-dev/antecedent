@@ -24,7 +24,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
 
-use crate::measurement_model_api::{object, parse, present, real, small, text};
+use crate::measurement_model_api::{object, opt_flag, parse, present, real, small, text};
 use crate::transport_common::execution_context;
 
 pub(crate) type Refused<T> = (Option<T>, Option<String>);
@@ -76,7 +76,7 @@ fn parse_request(value: &Json) -> PyResult<AdaptiveRequest> {
             scheme: text(map, "scheme")?,
             prior_mean: real(map, "prior_mean")?,
             prior_strength: real(map, "prior_strength")?,
-            size_weighted: present(map, "size_weighted").and_then(Json::as_bool).unwrap_or(false),
+            size_weighted: opt_flag(map, "size_weighted")?.unwrap_or(false),
         },
         "confidence_sequence" => AdaptiveRequest::ConfidenceSequence {
             look,

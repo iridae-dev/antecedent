@@ -188,9 +188,33 @@ def _cast_int(arr: np.ndarray, field: str, name: str) -> tuple[int, ...]:
     return tuple(out)
 
 
+def _is_missing_scalar(value: Any) -> bool:
+    """None, NaN, ``NaT`` or ``NA``: whatever a table uses for an absent value."""
+    if value is None:
+        return True
+    try:
+        return bool(value != value)
+    except (TypeError, ValueError):
+        # ``NA`` compares to itself as ``NA``, which has no truth value.
+        return True
+
+
+def identifier_strings(values: Iterable[Any], what: str) -> tuple[str, ...]:
+    """Identifiers as text; an absent value is refused, never spelled ``nan`` or ``None``."""
+    out: list[str] = []
+    for index, value in enumerate(values):
+        if _is_missing_scalar(value):
+            raise CausalValueError(
+                f"{what} has a missing identifier at row {index}; every row needs one",
+                reason_code="invalid_argument",
+            )
+        out.append(str(value))
+    return tuple(out)
+
+
 _KIND_CAST = {
     "bool": _cast_bool,
-    "str": lambda arr, field, name: tuple(str(v) for v in arr),
+    "str": lambda arr, field, name: identifier_strings(arr, f"{field}={name!r}"),
     "float": lambda arr, field, name: tuple(float(v) for v in arr),
     "int": _cast_int,
 }

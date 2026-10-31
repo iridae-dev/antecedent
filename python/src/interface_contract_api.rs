@@ -156,7 +156,8 @@ pub(crate) fn connections_of(connections_json: &str) -> PyResult<Vec<ComponentCo
     for entry in entries {
         let parts: Vec<&str> = entry
             .as_array()
-            .map(|a| a.iter().filter_map(Json::as_str).collect())
+            .map(|a| a.iter().map(Json::as_str).collect::<Option<Vec<_>>>())
+            .unwrap_or_default()
             .unwrap_or_default();
         let [producer, produced, consumer, consumed] = parts[..] else {
             return Err(crate::value_err(

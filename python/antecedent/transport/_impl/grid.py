@@ -178,6 +178,7 @@ def _consume_response_grid(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: Any = None,
 ) -> _PreparedEngine[TransportResponseGrid]:
@@ -190,6 +191,7 @@ def _consume_response_grid(
         artifact,
         max_operations=max_operations,
         max_depth=max_depth,
+        max_support_rows=max_support_rows,
         memory_bytes=memory_bytes,
         cancel=cancel,
     )
@@ -215,7 +217,10 @@ def consume_response_grid(
 
     def consume() -> Any:
         return _consume_response_grid(
-            artifact, max_operations=limits.max_operations, max_depth=limits.max_depth
+            artifact,
+            max_operations=limits.max_operations,
+            max_depth=limits.max_depth,
+            max_support_rows=limits.max_support_rows,
         )
 
     prepared = consume() if execution is None else execution._call(consume)

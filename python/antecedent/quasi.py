@@ -369,7 +369,7 @@ class StaggeredRollout:
     anticipation: int = 0
     covariates: Sequence[str] = ()
     resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
-    replicates: int = 999
+    replicates: int | None = None
     observation: Literal["ignorable_given_cohort", "informative"] = "ignorable_given_cohort"
     attrition_shift_bound: float | None = None
 
@@ -412,7 +412,7 @@ class StaggeredRollout:
             raise CausalValueError("anticipation must be a non-negative integer")
         taken = (*fields, *((self.cluster,) if self.cluster is not None else ()))
         object.__setattr__(self, "covariates", _column_tuple(self.covariates, "covariates", taken))
-        _check_resampling(self.resampling, self.replicates)
+        _check_resampling(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -438,7 +438,7 @@ class CovariateAdjustedDiD:
         "doubly_robust"
     )
     resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
-    replicates: int = 999
+    replicates: int | None = None
 
     def __post_init__(self) -> None:
         fields = (self.outcome, self.subject, self.treated, self.post)
@@ -461,7 +461,7 @@ class CovariateAdjustedDiD:
                 "PanelDifferenceInDifferences for an unadjusted two-period panel"
             )
         object.__setattr__(self, "covariates", covariates)
-        _check_resampling(self.resampling, self.replicates)
+        _check_resampling(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -738,10 +738,10 @@ class AugmentedPanelDiD:
     #: Whole-cluster resample of the procedure (``cluster_bootstrap`` or
     #: ``cluster_multiplier``); the supplied nuisance columns are held fixed.
     resampling: Literal["cluster_bootstrap", "cluster_multiplier"] | None = None
-    replicates: int = 999
+    replicates: int | None = None
 
     def __post_init__(self) -> None:
-        _check_resampling(self.resampling, self.replicates)
+        _check_resampling(self)
         names = (
             self.outcome_pre,
             self.outcome_post,
@@ -1212,9 +1212,23 @@ def _positive_int(value: Any) -> bool:
     )
 
 
-def _check_resampling(resampling: Any, replicates: Any) -> None:
-    if resampling is not None:
-        _check_choice(resampling, "resampling", _DID_RESAMPLING)
+def _check_resampling(query: Any) -> None:
+    """Validate the resampling scheme and settle the replicate count it implies.
+
+    ``replicates`` only describes a resampling scheme: naming a count without one is refused,
+    and a scheme without a count resamples 999 times.
+    """
+    resampling, replicates = query.resampling, query.replicates
+    if resampling is None:
+        if replicates is not None:
+            raise CausalValueError(
+                "replicates only applies with resampling=; name a resampling scheme or drop it"
+            )
+        return
+    _check_choice(resampling, "resampling", _DID_RESAMPLING)
+    if replicates is None:
+        replicates = 999
+        object.__setattr__(query, "replicates", replicates)
     if not _positive_int(replicates) or replicates > 2**32 - 1:
         raise CausalValueError("replicates must be a positive integer")
 

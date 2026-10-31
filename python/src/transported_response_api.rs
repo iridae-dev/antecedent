@@ -99,13 +99,16 @@ pub(crate) fn quantity_of(text: &str, what: &str) -> PyResult<ScientificQuantity
     ScientificQuantity::try_from(wire).map_err(crate::value_err)
 }
 
-fn value_json(response: &TransportedResponse) -> Json {
+fn value_json(response: &TransportedResponse) -> PyResult<Json> {
     let coordinates: Vec<Json> = response
         .coordinates()
         .iter()
-        .map(|q| serde_json::to_value(ScientificQuantityWire::from(q)).unwrap_or(Json::Null))
-        .collect();
-    match response.value() {
+        .map(|q| {
+            serde_json::to_value(ScientificQuantityWire::from(q))
+                .map_err(|error| crate::serialization_err(error.to_string()))
+        })
+        .collect::<PyResult<_>>()?;
+    Ok(match response.value() {
         TransportedValue::Means(mean) => json!({
             "kind": "point",
             "coordinates": coordinates,
@@ -115,20 +118,21 @@ fn value_json(response: &TransportedResponse) -> Json {
             "causal_contract_id": mean.causal_contract_id,
         }),
         TransportedValue::Law(_) => json!({"kind": "law", "coordinates": coordinates}),
-    }
+    })
 }
 
 #[pymethods]
 impl TransportedResponseHandle {
     /// The receipt (route, populations, transport identities, assumptions, support label,
     /// representation, uncalibrated standard error) as JSON.
-    fn receipt_json(&self) -> String {
-        serde_json::to_string(self.inner.receipt()).unwrap_or_default()
+    fn receipt_json(&self) -> PyResult<String> {
+        serde_json::to_string(self.inner.receipt())
+            .map_err(|error| crate::serialization_err(error.to_string()))
     }
 
     /// The value (coordinates and means for a point, coordinates for a law) as JSON.
-    fn value_json(&self) -> String {
-        value_json(&self.inner).to_string()
+    fn value_json(&self) -> PyResult<String> {
+        Ok(value_json(&self.inner)?.to_string())
     }
 
     /// Canonical identity of the receipt.
@@ -254,13 +258,15 @@ fn transported_decision_evaluate(
     };
     Ok(match bound.evaluate_transported(&response.inner, demand, &policy) {
         Ok(decided) => {
+            let receipt = serde_json::to_value(decided.receipt())
+                .map_err(|error| crate::serialization_err(error.to_string()))?;
             let inner = decided.decision();
             let inspection = decided.inspect();
             (
                 Some(
                     json!({
                         "decision": crate::composition_api::supported_json(&inner.decision),
-                        "receipt": serde_json::to_value(decided.receipt()).unwrap_or(Json::Null),
+                        "receipt": receipt,
                         "assumptions": inner.assumptions,
                         "inference": inner.inference,
                         "native_target_data": inspection.native_target_data,

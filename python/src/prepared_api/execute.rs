@@ -112,7 +112,7 @@ impl PyPreparedAnalysis {
     }
 
     /// Weighted-mean retarget from the frozen score table. Does not refit.
-    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None))]
+    #[pyo3(signature = (weights, depends_on, *, seed=1, threads=None, cancel=None))]
     #[allow(
         clippy::cast_possible_truncation,
         reason = "node ids are u32 by construction (DenseNodeId), so node positions fit u32"
@@ -124,8 +124,10 @@ impl PyPreparedAnalysis {
         depends_on: Vec<String>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
+        let cancel_token = cancel.map(|c| c.inner);
         // Retarget the scores of the execution this call follows: after
         // `estimate(data)` that is the handle rebound on `data`, not the one
         // frozen at prepare.
@@ -136,7 +138,7 @@ impl PyPreparedAnalysis {
             let ctx = py_execution_context_ext(
                 seed,
                 crate::resolve_user_threads(threads),
-                None,
+                cancel_token,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
@@ -165,15 +167,17 @@ impl PyPreparedAnalysis {
     ///
     /// Refuses with `row_weights_bound_to_snapshot` unless this handle holds
     /// the data snapshot and score table the weights were bound to.
-    #[pyo3(signature = (artifact, *, seed=1, threads=None))]
+    #[pyo3(signature = (artifact, *, seed=1, threads=None, cancel=None))]
     fn reexecute_retarget(
         &mut self,
         py: Python<'_>,
         artifact: Vec<u8>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<AteAnalysisResult> {
         self.refuse_design_retarget()?;
+        let cancel_token = cancel.map(|c| c.inner);
         let bound = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let inner = Arc::clone(&bound);
         let out_names = self.names.clone();
@@ -181,7 +185,7 @@ impl PyPreparedAnalysis {
             let ctx = py_execution_context_ext(
                 seed,
                 crate::resolve_user_threads(threads),
-                None,
+                cancel_token,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );

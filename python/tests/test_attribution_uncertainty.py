@@ -129,3 +129,32 @@ def test_the_options_exclude_each_other_and_mechanism_change_has_no_posterior():
         antecedent.attribution.attribution_uncertainty(
             "mechanism_change", names, cols, EDGES, {}, posterior_draws=8
         )
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"outcome": "y", "n_samples": "5"},
+        {"outcome": "y", "baseline_end": 1.5},
+        {"outcome": "y", "baseline_end": -1},
+    ],
+)
+def test_malformed_parameters_are_refused_not_defaulted(params):
+    names, cols = _data()
+    with pytest.raises(ValueError, match="attribution parameter"):
+        antecedent.attribution.attribution_uncertainty(
+            "distribution_change", names, cols, EDGES, params, posterior_draws=8
+        )
+
+
+def test_malformed_comparison_edge_is_refused():
+    names, cols = _data()
+    with pytest.raises(ValueError, match="comparison_edges"):
+        antecedent.attribution.attribution_uncertainty(
+            "structure_change",
+            names,
+            cols,
+            EDGES,
+            {"outcome": "y", "comparison_edges": [["x", "y", 5]]},
+            posterior_draws=8,
+        )

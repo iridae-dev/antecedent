@@ -60,7 +60,7 @@ impl PyPreparedAnalysis {
                 )
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
         })
@@ -70,7 +70,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome_pre, outcome_post, propensity,
         untreated_change_prediction, treated, subjects, clusters, predictions_cross_fitted,
-        *, resampling=None, replicates=999, accepted=false, seed=1, threads=None, options=None))]
+        *, resampling=None, replicates=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_augmented_panel_did(
         py: Python<'_>,
@@ -85,13 +85,14 @@ impl PyPreparedAnalysis {
         clusters: Vec<String>,
         predictions_cross_fitted: bool,
         resampling: Option<String>,
-        replicates: u32,
+        replicates: Option<u32>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let resampling = did_resampling_scheme(resampling.as_deref())?;
+        require_resampling_for_replicates(&resampling, replicates)?;
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("augmented panel difference-in-differences")?;
         let data = req.load_columns(py, columns)?;
@@ -108,11 +109,11 @@ impl PyPreparedAnalysis {
                 predictions_cross_fitted,
             );
             let query = match resampling {
-                Some(scheme) => query.with_resampling(scheme, replicates),
+                Some(scheme) => query.with_resampling(scheme, replicates.unwrap_or(999)),
                 None => query,
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
         })
@@ -158,7 +159,7 @@ impl PyPreparedAnalysis {
                 target_period,
             );
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
         })
@@ -200,7 +201,7 @@ impl PyPreparedAnalysis {
                 cohorts,
             );
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
         })
@@ -211,7 +212,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, subjects, clusters, periods, cohorts,
         *, estimator="callaway_santanna", comparison="never_treated", nuisance="doubly_robust",
         base_period="varying", aggregation="simple", anticipation=0, covariates=Vec::new(),
-        resampling=None, replicates=999, observation="ignorable_given_cohort",
+        resampling=None, replicates=None, observation="ignorable_given_cohort",
         attrition_shift_bound=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_rollout_did(
@@ -231,7 +232,7 @@ impl PyPreparedAnalysis {
         anticipation: u32,
         covariates: Vec<String>,
         resampling: Option<String>,
-        replicates: u32,
+        replicates: Option<u32>,
         observation: &str,
         attrition_shift_bound: Option<f64>,
         accepted: bool,
@@ -246,6 +247,7 @@ impl PyPreparedAnalysis {
         let base_period = did_base_period(base_period)?;
         let aggregation = did_aggregation(aggregation)?;
         let resampling = did_resampling_scheme(resampling.as_deref())?;
+        require_resampling_for_replicates(&resampling, replicates)?;
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("heterogeneity-robust staggered difference-in-differences")?;
         let data = req.load_columns(py, columns)?;
@@ -278,11 +280,11 @@ impl PyPreparedAnalysis {
                 robust,
             );
             let query = match resampling {
-                Some(scheme) => query.with_resampling(scheme, replicates),
+                Some(scheme) => query.with_resampling(scheme, replicates.unwrap_or(999)),
                 None => query,
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
         })
@@ -291,7 +293,7 @@ impl PyPreparedAnalysis {
     /// Freeze a two-period panel DiD with parallel trends conditional on baseline covariates.
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, treated, post, subjects, clusters, covariates,
-        *, nuisance="doubly_robust", resampling=None, replicates=999,
+        *, nuisance="doubly_robust", resampling=None, replicates=None,
         accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_covariate_adjusted_did(
@@ -306,7 +308,7 @@ impl PyPreparedAnalysis {
         covariates: Vec<String>,
         nuisance: &str,
         resampling: Option<String>,
-        replicates: u32,
+        replicates: Option<u32>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -314,6 +316,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<Self> {
         let nuisance = did_nuisance_method(nuisance)?;
         let resampling = did_resampling_scheme(resampling.as_deref())?;
+        require_resampling_for_replicates(&resampling, replicates)?;
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_design("covariate-adjusted difference-in-differences")?;
         let data = req.load_columns(py, columns)?;
@@ -337,11 +340,11 @@ impl PyPreparedAnalysis {
                 nuisance,
             );
             let query = match resampling {
-                Some(scheme) => query.with_resampling(scheme, replicates),
+                Some(scheme) => query.with_resampling(scheme, replicates.unwrap_or(999)),
                 None => query,
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PanelDid(query));
             req.finish_applied(builder, false)
         })
@@ -429,7 +432,7 @@ impl PyPreparedAnalysis {
                 query
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::SyntheticControl(query));
             req.finish_applied(builder, false)
         })
@@ -502,7 +505,7 @@ impl PyPreparedAnalysis {
                 fixed_policy,
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::ContinuousDoseResponse(query));
             req.finish_applied(builder, false)
         })
@@ -567,7 +570,7 @@ impl PyPreparedAnalysis {
                 options: ratio_options,
             };
             query.validate().map_err(|error| py_err(antecedent::CausalError::rejected(error)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::LocalPolynomialRatio(query));
             req.finish_applied(builder, false)
         })
@@ -682,7 +685,7 @@ impl PyPreparedAnalysis {
                 rule_provenance: rule_provenance.as_deref().map(Arc::<str>::from),
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::LongitudinalRegime(query));
             req.finish_applied(builder, false)
         })
@@ -751,7 +754,7 @@ impl PyPreparedAnalysis {
                 ),
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::Survival(query));
             req.finish_applied(builder, false)
         })
@@ -851,7 +854,7 @@ impl PyPreparedAnalysis {
             query
                 .validate()
                 .map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             req.finish_applied(builder, false)
         })
@@ -942,7 +945,7 @@ impl PyPreparedAnalysis {
                 regret: None,
             };
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
+            refuse_unused_accepted(accepted)?;
             let builder = Study::tabular(data).query(CausalQuery::PolicyValue(query));
             req.finish_applied(builder, false)
         })
@@ -1031,6 +1034,29 @@ fn did_aggregation(name: &str) -> PyResult<antecedent_core::DidAggregation> {
         "calendar" => Ok(Aggregation::Calendar),
         other => Err(unknown_name("aggregation", other, "simple, dynamic, group, calendar")),
     }
+}
+
+/// A replicate count only describes a resampling scheme.
+fn require_resampling_for_replicates(
+    resampling: &Option<antecedent_core::DidResamplingScheme>,
+    replicates: Option<u32>,
+) -> PyResult<()> {
+    if resampling.is_none() && replicates.is_some() {
+        return Err(crate::value_err(
+            "replicates only applies with a resampling scheme; name resampling or drop replicates",
+        ));
+    }
+    Ok(())
+}
+
+/// These routes carry their own design; an accepted graph has nothing to bind to.
+fn refuse_unused_accepted(accepted: bool) -> PyResult<()> {
+    if accepted {
+        return Err(crate::value_err(
+            "accepted applies to routes that take a graph; this design route reads none",
+        ));
+    }
+    Ok(())
 }
 
 fn did_resampling_scheme(

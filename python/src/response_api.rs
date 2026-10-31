@@ -382,11 +382,15 @@ pub(crate) fn build_functional(
         }
         "point_derivative" | "elasticity" | "semi_elasticity" => {
             let (treatment, outcome) = scalar()?;
-            let point = at
-                .as_deref()
-                .and_then(|values| values.first())
-                .copied()
-                .ok_or_else(|| crate::value_err("at is required"))?;
+            let point = match at.as_deref() {
+                Some([point]) => *point,
+                Some(_) => {
+                    return Err(crate::value_err(format!(
+                        "{kind} is evaluated at one point; `at` must hold exactly one value"
+                    )));
+                }
+                None => return Err(crate::value_err("at is required")),
+            };
             Ok(ResponseFunctional::PointDerivative { outcome, treatment, at: point, order, scale })
         }
         "directional_derivative" => Ok(ResponseFunctional::DirectionalDerivative {
@@ -610,7 +614,7 @@ pub(crate) fn response_result(
             conditional
                 .or_else(|| structural.and_then(structural_weighted_values))
                 .filter(|values| values.len() == envelope.lower.len())
-                .unwrap_or_else(|| envelope.lower.to_vec())
+                .unwrap_or_default()
         };
         let scalar = if legacy_values.len() == 1 { Some(legacy_values[0]) } else { None };
         // A coordinate-free identified set (a scalar functional's bound) has no

@@ -997,3 +997,17 @@ def test_a_fresh_process_consumes_the_artifact_against_the_retained_identity(tmp
     )
     assert refused_run.returncode != 0
     assert "scientific_bridge.identity_mismatch" in refused_run.stderr
+
+
+def test_misspelled_contract_key_refused():
+    from antecedent import _native
+
+    wire = surrogate_contract().to_wire()
+    wire["correlaton"] = 0.9
+    with pytest.raises(ValueError, match="correlaton"):
+        _native.scientific_bridge_contract_identity(json.dumps(wire))
+    wire.pop("correlaton")
+    wire["assumptions"] = [wire["assumptions"][0]]
+    wire["transport"] = {"id": "t", "statement": "s", "evidence": None, "extra_scope": 1}
+    with pytest.raises(ValueError):
+        _native.scientific_bridge_contract_identity(json.dumps(wire))

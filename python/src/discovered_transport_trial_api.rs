@@ -47,13 +47,14 @@ fn options(alpha: f64) -> TrialCompatibilityOptions {
     TrialCompatibilityOptions { alpha, randomization: TrialRandomization::CompletelyRandomized }
 }
 
-fn proof_json(proof: &TrialCompatibilityProof) -> Json {
-    let mut value = serde_json::to_value(proof).unwrap_or(Json::Null);
+fn proof_json(proof: &TrialCompatibilityProof) -> Result<Json, antecedent_io::IoError> {
+    let mut value = serde_json::to_value(proof)
+        .map_err(|error| antecedent_io::IoError::Convert(error.to_string()))?;
     if let Some(map) = value.as_object_mut() {
         map.insert("retained_members".to_owned(), json!(proof.retained_members()));
         map.insert("identity".to_owned(), json!(sd::hex(&proof.identity())));
     }
-    value
+    Ok(value)
 }
 
 fn kind_label(kind: TrialConfidenceSetKind) -> &'static str {
@@ -80,6 +81,7 @@ fn set_reply(set: &TrialCompatibleTransportConfidenceSet) -> TrialWorkResult<(St
     let identity = set.identity().map_err(estimation)?;
     let (lower, upper) = set.bounds();
     let support = set.outcome_support();
+    let compatibility = proof_json(set.compatibility()).map_err(estimation)?;
     let body = json!({
         "method": set.method(),
         "kind": kind_label(set.kind()),
@@ -91,7 +93,7 @@ fn set_reply(set: &TrialCompatibleTransportConfidenceSet) -> TrialWorkResult<(St
         "execution_seed": set.execution_seed(),
         "input_identity": sd::hex(set.input_identity()),
         "identity": sd::hex(&identity),
-        "compatibility": proof_json(set.compatibility()),
+        "compatibility": compatibility,
         "estimate": set.retained_estimate().map(|e| estimate_json(e.estimate())),
     })
     .to_string();
@@ -175,13 +177,9 @@ where
         }
         Ok(pair) => pair,
     };
-    let discovery = json!({
-        "report": serde_json::from_str::<Json>(&sd::report_json(&run.discovery))
-            .unwrap_or(Json::Null),
-        "outcome": serde_json::from_str::<Json>(&sd::outcome_json(&run.outcome))
-            .unwrap_or(Json::Null),
-    })
-    .to_string();
+    let discovery =
+        sd::discovery_value(&sd::report_json(&run.discovery), &sd::outcome_json(&run.outcome))?
+            .to_string();
     match (&run.transport, result) {
         (Err(error), _) => Ok((None, Some(refusal_of(error)?), Some(discovery), None)),
         (Ok(_), Some(Ok(value))) => Ok((Some(value), None, Some(discovery), None)),
@@ -251,9 +249,10 @@ fn discovered_transport_trial_estimate_run(
                 report, query, evidence, options, ctx,
             )?;
             let bytes = estimate.export().map_err(estimation)?;
+            let compatibility = proof_json(estimate.compatibility()).map_err(estimation)?;
             let body = json!({
                 "estimate": estimate_json(estimate.estimate()),
-                "compatibility": proof_json(estimate.compatibility()),
+                "compatibility": compatibility,
             })
             .to_string();
             Ok((body, bytes))
@@ -277,11 +276,13 @@ fn verify_trial_compatible_transport_estimate_artifact(
         &ctx,
     )
     .map_err(|e| crate::value_err(e.to_string()))?;
+    let compatibility =
+        proof_json(&proof).map_err(|error| crate::serialization_err(error.to_string()))?;
     Ok(json!({
         "answer": answer_json(&verified.answer),
         "report_identity": sd::hex(&verified.report_identity),
         "members": verified.members,
-        "compatibility": proof_json(&proof),
+        "compatibility": compatibility,
     })
     .to_string())
 }

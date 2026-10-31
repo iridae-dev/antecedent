@@ -367,6 +367,7 @@ fn attribute_distribution_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
+    gcm_api::require_samples(n_samples)?;
     let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
         let y_id = input.id(&outcome)?;
@@ -411,6 +412,7 @@ fn attribute_structure_change(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
+    gcm_api::require_samples(n_samples)?;
     let input = GcmInput::load(&names, columns, baseline_edges, seed, threads)?;
     detach_catch(py, move || {
         let y_id = input.id(&outcome)?;
@@ -468,15 +470,78 @@ fn json_str(params: &serde_json::Value, key: &str) -> PyResult<String> {
         .ok_or_else(|| crate::value_err(format!("attribution parameter {key:?} is required")))
 }
 
-fn json_usize(params: &serde_json::Value, key: &str, default: usize) -> usize {
-    params[key].as_u64().and_then(|v| usize::try_from(v).ok()).unwrap_or(default)
+/// A count parameter; absent or null takes `default`, any other non-count is an error.
+fn json_usize(params: &serde_json::Value, key: &str, default: usize) -> PyResult<usize> {
+    match &params[key] {
+        serde_json::Value::Null => Ok(default),
+        value => value.as_u64().and_then(|v| usize::try_from(v).ok()).ok_or_else(|| {
+            crate::value_err(format!(
+                "attribution parameter {key:?} must be a non-negative integer"
+            ))
+        }),
+    }
 }
 
-fn json_names(params: &serde_json::Value, key: &str) -> Vec<String> {
-    params[key]
-        .as_array()
-        .map(|items| items.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
-        .unwrap_or_default()
+/// A list of names; absent or null is empty, any other shape is an error.
+fn json_names(params: &serde_json::Value, key: &str) -> PyResult<Vec<String>> {
+    match &params[key] {
+        serde_json::Value::Null => Ok(Vec::new()),
+        serde_json::Value::Array(items) => items
+            .iter()
+            .map(|item| {
+                item.as_str().map(str::to_owned).ok_or_else(|| {
+                    crate::value_err(format!("attribution parameter {key:?} must list names"))
+                })
+            })
+            .collect(),
+        _ => Err(crate::value_err(format!("attribution parameter {key:?} must be a list"))),
+    }
+}
+
+/// A finite number parameter; absent or null takes `default`, any other non-number is an error.
+fn json_f64(params: &serde_json::Value, key: &str, default: f64) -> PyResult<f64> {
+    Ok(json_opt_f64(params, key)?.unwrap_or(default))
+}
+
+fn json_opt_f64(params: &serde_json::Value, key: &str) -> PyResult<Option<f64>> {
+    match &params[key] {
+        serde_json::Value::Null => Ok(None),
+        value => match value.as_f64() {
+            Some(number) if number.is_finite() => Ok(Some(number)),
+            _ => Err(crate::value_err(format!(
+                "attribution parameter {key:?} must be a finite number"
+            ))),
+        },
+    }
+}
+
+/// A step index; absent or null takes `default`, any other non-integer is an error.
+fn json_i32(params: &serde_json::Value, key: &str, default: i32) -> PyResult<i32> {
+    match &params[key] {
+        serde_json::Value::Null => Ok(default),
+        value => value.as_i64().and_then(|v| i32::try_from(v).ok()).ok_or_else(|| {
+            crate::value_err(format!("attribution parameter {key:?} must be an integer step"))
+        }),
+    }
+}
+
+/// Edge pairs of names; a pair that is not two names is an error rather than dropped.
+fn json_edge_pairs(params: &serde_json::Value, key: &str) -> PyResult<Vec<(String, String)>> {
+    match &params[key] {
+        serde_json::Value::Null => Ok(Vec::new()),
+        serde_json::Value::Array(pairs) => pairs
+            .iter()
+            .map(|pair| match pair.as_array().map(Vec::as_slice) {
+                Some([serde_json::Value::String(from), serde_json::Value::String(to)]) => {
+                    Ok((from.clone(), to.clone()))
+                }
+                _ => Err(crate::value_err(format!(
+                    "attribution parameter {key:?} holds an edge that is not a [from, to] pair"
+                ))),
+            })
+            .collect(),
+        _ => Err(crate::value_err(format!("attribution parameter {key:?} must be a list"))),
+    }
 }
 
 /// The population change query of an attribution request.
@@ -487,16 +552,16 @@ fn change_query(
     seed: u64,
 ) -> PyResult<(ChangeAttributionQuery, usize)> {
     let outcome = schema.id_of(&json_str(params, "outcome")?).map_err(py_err)?;
-    let n_samples = json_usize(params, "n_samples", 500);
+    let n_samples = json_usize(params, "n_samples", 500)?;
     let query = ChangeAttributionQuery::new(
         outcome,
         PopulationSelector::TimeRange {
-            start: json_usize(params, "baseline_start", 0),
-            end: json_usize(params, "baseline_end", 0),
+            start: json_usize(params, "baseline_start", 0)?,
+            end: json_usize(params, "baseline_end", 0)?,
         },
         PopulationSelector::TimeRange {
-            start: json_usize(params, "comparison_start", 0),
-            end: json_usize(params, "comparison_end", 0),
+            start: json_usize(params, "comparison_start", 0)?,
+            end: json_usize(params, "comparison_end", 0)?,
         },
     )
     .with_components(components)
@@ -564,20 +629,7 @@ fn attribution_uncertainty(
             "structure_change" => {
                 let (change, n_samples) =
                     change_query(&params, &schema, AttributionComponents::Structure, seed)?;
-                let comparison_edges: Vec<(String, String)> = params["comparison_edges"]
-                    .as_array()
-                    .map(|pairs| {
-                        pairs
-                            .iter()
-                            .filter_map(|pair| {
-                                Some((
-                                    pair.get(0)?.as_str()?.to_owned(),
-                                    pair.get(1)?.as_str()?.to_owned(),
-                                ))
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let comparison_edges = json_edge_pairs(&params, "comparison_edges")?;
                 let g1 = dag_from_named_edges(&schema, &comparison_edges)?;
                 let comparison: Arc<[(VariableId, VariableId)]> = g1
                     .directed_edge_pairs_sorted()
@@ -593,11 +645,11 @@ fn attribution_uncertainty(
                 }
             }
             "paths" => AttributeTarget::Paths {
-                sources: Arc::from(ids(&json_names(&params, "sources"))?),
+                sources: Arc::from(ids(&json_names(&params, "sources")?)?),
                 outcome: schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?,
-                max_paths: json_usize(&params, "max_paths", 64),
-                max_len: json_usize(&params, "max_len", 16),
-                through: Arc::from(ids(&json_names(&params, "through"))?),
+                max_paths: json_usize(&params, "max_paths", 64)?,
+                max_len: json_usize(&params, "max_len", 16)?,
+                through: Arc::from(ids(&json_names(&params, "through")?)?),
             },
             "feature_relevance" => {
                 let outcome = schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?;
@@ -611,14 +663,14 @@ fn attribution_uncertainty(
                 AttributeTarget::FeatureRelevance {
                     outcome,
                     features: Arc::from(features),
-                    delta: params["delta"].as_f64().unwrap_or(1.0),
-                    n_samples: json_usize(&params, "n_samples", 200),
+                    delta: json_f64(&params, "delta", 1.0)?,
+                    n_samples: json_usize(&params, "n_samples", 200)?,
                     max_features,
                 }
             }
             "anomaly" => {
-                let targets = ids(&json_names(&params, "outcomes"))?;
-                let max_units = match json_usize(&params, "max_units", 0) {
+                let targets = ids(&json_names(&params, "outcomes")?)?;
+                let max_units = match json_usize(&params, "max_units", 0)? {
                     0 => input.data.row_count(),
                     given => given,
                 };
@@ -626,7 +678,7 @@ fn attribution_uncertainty(
             }
             "unit_change" => {
                 let outcome = schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?;
-                let max_units = match json_usize(&params, "max_units", 0) {
+                let max_units = match json_usize(&params, "max_units", 0)? {
                     0 => input.data.row_count(),
                     given => given,
                 };
@@ -710,10 +762,6 @@ fn attribution_uncertainty(
     })
 }
 
-fn json_f64(params: &serde_json::Value, key: &str, default: f64) -> f64 {
-    params[key].as_f64().unwrap_or(default)
-}
-
 fn mechanism_test(name: &str) -> PyResult<MechanismChangeTest> {
     Ok(match name {
         "likelihood_ratio" => MechanismChangeTest::LikelihoodRatio,
@@ -780,27 +828,35 @@ fn temporal_model_query(
         let variables = schema.len();
         let query = match kind.as_str() {
             "mechanism_change" => {
-                let targets: Vec<VariableId> = json_names(&params, "targets")
+                let targets: Vec<VariableId> = json_names(&params, "targets")?
                     .iter()
                     .map(|name| schema.id_of(name).map_err(py_err))
                     .collect::<PyResult<_>>()?;
                 let mut detection = MechanismChangeQuery::new(
                     targets,
                     PopulationSelector::TimeRange {
-                        start: json_usize(&params, "baseline_start", 0),
-                        end: json_usize(&params, "baseline_end", 0),
+                        start: json_usize(&params, "baseline_start", 0)?,
+                        end: json_usize(&params, "baseline_end", 0)?,
                     },
                     PopulationSelector::TimeRange {
-                        start: json_usize(&params, "comparison_start", 0),
-                        end: json_usize(&params, "comparison_end", 0),
+                        start: json_usize(&params, "comparison_start", 0)?,
+                        end: json_usize(&params, "comparison_end", 0)?,
                     },
-                    json_f64(&params, "significance", 0.05),
-                    json_usize(&params, "max_targets", 16),
+                    json_f64(&params, "significance", 0.05)?,
+                    json_usize(&params, "max_targets", 16)?,
                 );
-                if let Some(prior) = params["change_prior"].as_f64() {
+                if let Some(prior) = json_opt_f64(&params, "change_prior")? {
                     detection = detection.with_change_prior(prior);
                 }
-                let test = mechanism_test(params["test"].as_str().unwrap_or("likelihood_ratio"))?;
+                let test = mechanism_test(match &params["test"] {
+                    serde_json::Value::Null => "likelihood_ratio",
+                    serde_json::Value::String(name) => name.as_str(),
+                    _ => {
+                        return Err(crate::value_err(
+                            "attribution parameter \"test\" must be a name",
+                        ));
+                    }
+                })?;
                 CausalQuery::Attribute(antecedent_core::AttributeQuery::new(
                     AttributeTarget::MechanismChange { query: detection, test },
                 ))
@@ -812,20 +868,16 @@ fn temporal_model_query(
                         items
                             .iter()
                             .map(|item| {
-                                let variable = schema
-                                    .id_of(item["variable"].as_str().unwrap_or_default())
-                                    .map_err(py_err)?;
-                                let from = item["from"].as_i64().unwrap_or(0);
-                                let until = item["until"].as_i64().unwrap_or(from);
+                                let variable =
+                                    schema.id_of(&json_str(item, "variable")?).map_err(py_err)?;
+                                let from = json_i32(item, "from", 0)?;
+                                let until = json_i32(item, "until", from)?;
+                                let value = json_opt_f64(item, "value")?.ok_or_else(|| {
+                                    crate::value_err("a rollout intervention needs its value")
+                                })?;
                                 Ok(antecedent_core::SequencedIntervention::new(
-                                    Intervention::set(
-                                        variable,
-                                        Value::f64(item["value"].as_f64().unwrap_or(0.0)),
-                                    ),
-                                    TemporalPolicy::Sustained {
-                                        from: i32::try_from(from).unwrap_or(0),
-                                        until: i32::try_from(until).unwrap_or(0),
-                                    },
+                                    Intervention::set(variable, Value::f64(value)),
+                                    TemporalPolicy::Sustained { from, until },
                                 ))
                             })
                             .collect::<PyResult<Vec<_>>>()
@@ -835,8 +887,8 @@ fn temporal_model_query(
                 CausalQuery::Simulate(antecedent_core::SimulateQuery::new(
                     antecedent_core::SimulationTarget::TemporalRollout {
                         schedule: antecedent_core::InterventionSequence::new(steps),
-                        n_rows: json_usize(&params, "n_rows", 200),
-                        n_steps: json_usize(&params, "n_steps", 8),
+                        n_rows: json_usize(&params, "n_rows", 200)?,
+                        n_steps: json_usize(&params, "n_steps", 8)?,
                         window: 0,
                         history: Arc::from([]),
                         seed: params["seed"].as_u64().unwrap_or(seed),
@@ -1041,7 +1093,8 @@ fn decode_posterior_artifact(bytes: Vec<u8>) -> PyResult<PosteriorArtifact> {
 #[pyfunction]
 fn encode_posterior_artifact(artifact: &PosteriorArtifact) -> PyResult<Vec<u8>> {
     catch_ffi(|| {
-        let quantities: Vec<PosteriorQuantityWire> = if let Some(schema) = &artifact.quantity_schema {
+        let quantities: Vec<PosteriorQuantityWire> = if let Some(schema) = &artifact.quantity_schema
+        {
             schema.clone()
         } else {
             artifact.quantity_names.iter().map(|name| {
@@ -1148,7 +1201,7 @@ fn attribute_unit_change(
             .zip(result.mean_contributions.iter())
             .map(|(c, v)| (*c, *v))
             .collect();
-        let total = result.mean_contributions.iter().map(|x| x.abs()).sum();
+        let total = result.mean_contributions.iter().sum();
         Ok(gcm_api::synthetic_change_result(y_id, total, pairs, &names).with_route(route))
     })
 }
@@ -1220,6 +1273,7 @@ fn attribute_distribution_change_robust(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
+    gcm_api::require_samples(n_samples)?;
     let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
         let y_id = input.id(&outcome)?;
@@ -1237,10 +1291,11 @@ fn attribute_distribution_change_robust(
             },
             max_components: 64,
         };
-        // `RobustChangeOptions` only exposes `max_rows`; it has no `n_samples`/`seed`
-        // fields to thread through (unlike `DistributionChangeOptions`), so the fix
-        // above (Shapley `ShapleyConfig`) is the only place these two params can flow.
-        let opts = antecedent::gcm::RobustChangeOptions::default();
+        let opts = antecedent::gcm::RobustChangeOptions {
+            n_samples: n_samples.max(100),
+            seed,
+            ..antecedent::gcm::RobustChangeOptions::default()
+        };
         let target = AttributeTarget::DistributionChange {
             change: query,
             estimator: ChangeEstimator::Robust {

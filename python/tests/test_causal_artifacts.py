@@ -944,7 +944,8 @@ def test_a_model_bundle_round_trips_its_names_edges_and_mechanism_slots() -> Non
     assert slots == len(mechanisms)
     # The same declaration encodes to the same bytes; another edge set is another artifact.
     assert bytes(model.encode_model_bundle(["x", "y"], [(0, 1)], mechanisms)) == encoded
-    other = bytes(model.encode_model_bundle(["x", "y"], [], mechanisms))
+    edgeless = [("constant", 1.5, None, None), ("linear_gaussian", 0.5, [], 0.3)]
+    other = bytes(model.encode_model_bundle(["x", "y"], [], edgeless))
     assert other != encoded
     assert [tuple(edge) for edge in model.decode_model_bundle(other)[1]] == []
 

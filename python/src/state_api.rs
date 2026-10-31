@@ -106,6 +106,18 @@ struct RetainedBatch {
     columns: Vec<Vec<f64>>,
 }
 
+/// Largest dimension of a sufficient-statistics slot; the slot holds a dense square matrix.
+const MAX_STATE_DIMENSION: usize = 4096;
+
+fn require_state_dimension(dimension: usize, name: &str) -> PyResult<()> {
+    if dimension > MAX_STATE_DIMENSION {
+        return Err(crate::value_err(format!(
+            "{name} {dimension} exceeds the bound of {MAX_STATE_DIMENSION}"
+        )));
+    }
+    Ok(())
+}
+
 /// Incremental causal analysis state (versioned events, no auto-rerun).
 #[pyclass(name = "CausalState")]
 pub struct PyCausalState {
@@ -494,8 +506,18 @@ impl PyCausalState {
     }
 
     fn ols_ensure(&mut self, key: String, ncols: usize) -> PyResult<()> {
+        require_state_dimension(ncols, "ncols")?;
+        if let Some(existing) = self.inner.suff_stats.ols.get(key.as_str()) {
+            if existing.ncols() != ncols {
+                return Err(crate::value_err(format!(
+                    "ols key `{key}` already holds {} columns, not {ncols}",
+                    existing.ncols()
+                )));
+            }
+            return Ok(());
+        }
         let stats = LinearOlsSuffStats::new(ncols).map_err(py_err)?;
-        self.inner.suff_stats.ols.entry(Arc::from(key)).or_insert(stats);
+        self.inner.suff_stats.ols.insert(Arc::from(key), stats);
         Ok(())
     }
 
@@ -530,8 +552,18 @@ impl PyCausalState {
 
     /// Ensure a streaming-covariance slot of dimension `dim`.
     fn cov_ensure(&mut self, key: String, dim: usize) -> PyResult<()> {
+        require_state_dimension(dim, "dim")?;
+        if let Some(existing) = self.inner.suff_stats.cov.get(key.as_str()) {
+            if existing.dim() != dim {
+                return Err(crate::value_err(format!(
+                    "cov key `{key}` already holds dimension {}, not {dim}",
+                    existing.dim()
+                )));
+            }
+            return Ok(());
+        }
         let cov = StreamingCovariance::new(dim).map_err(py_err)?;
-        self.inner.suff_stats.cov.entry(Arc::from(key)).or_insert(cov);
+        self.inner.suff_stats.cov.insert(Arc::from(key), cov);
         Ok(())
     }
 

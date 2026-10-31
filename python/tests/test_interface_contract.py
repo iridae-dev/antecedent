@@ -444,3 +444,12 @@ def test_a_fresh_process_consumes_the_artifact_against_a_retained_identity(tmp_p
     )
     assert refused.returncode != 0
     assert "interface_contract.identity_mismatch" in refused.stderr
+
+
+def test_non_string_connection_element_refused():
+    from antecedent import _native
+
+    with pytest.raises(ValueError, match="a connection is"):
+        _native.interface_contract_check_composition("[]", json.dumps([["A", "out", 5, "B", "in"]]))
+    with pytest.raises(ValueError, match="a connection is"):
+        _native.interface_contract_check_composition("[]", json.dumps([["A", "out", 5, "in"]]))

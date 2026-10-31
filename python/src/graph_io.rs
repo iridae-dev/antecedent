@@ -44,19 +44,74 @@ fn encode_model_bundle(
             .map_err(|e| py_err(IoError::Convert(e.to_string())))?;
         }
         let schema = b.build().map_err(|e| py_err(IoError::Convert(e.to_string())))?;
-        let dag = dag_from_node_edges(u32::try_from(variable_names.len()).unwrap_or(0), edges)?;
-        let slots: Vec<MechanismSlot> = mechanisms
+        let node_count = u32::try_from(variable_names.len())
+            .map_err(|_| crate::value_err("too many variables for a model bundle"))?;
+        if mechanisms.len() != variable_names.len() {
+            return Err(crate::value_err(format!(
+                "{} mechanisms for {} variables; give one slot per variable",
+                mechanisms.len(),
+                variable_names.len()
+            )));
+        }
+        let mut parent_counts = vec![0_usize; variable_names.len()];
+        for (_, child) in &edges {
+            if let Some(count) = parent_counts.get_mut(*child as usize) {
+                *count += 1;
+            }
+        }
+        let dag = dag_from_node_edges(node_count, edges)?;
+        let finite = |value: f64, what: &str, node: usize| {
+            if value.is_finite() {
+                Ok(value)
+            } else {
+                Err(crate::value_err(format!("mechanism {node}: {what} must be finite")))
+            }
+        };
+        let slots = mechanisms
             .into_iter()
-            .map(|(kind, constant, coeffs, sigma)| match kind.as_str() {
-                "constant" => MechanismSlot::Constant { value: constant.unwrap_or(0.0) },
-                "linear_gaussian" => MechanismSlot::LinearGaussian {
-                    intercept: constant.unwrap_or(0.0),
-                    coeffs: Arc::from(coeffs.unwrap_or_default()),
-                    sigma: sigma.unwrap_or(1.0),
-                },
-                _ => MechanismSlot::Vacant,
+            .enumerate()
+            .map(|(node, (kind, constant, coeffs, sigma))| match kind.as_str() {
+                "vacant" => Ok(MechanismSlot::Vacant),
+                "constant" => {
+                    let value = constant.ok_or_else(|| {
+                        crate::value_err(format!("mechanism {node}: a constant needs its value"))
+                    })?;
+                    Ok(MechanismSlot::Constant { value: finite(value, "the value", node)? })
+                }
+                "linear_gaussian" => {
+                    let intercept = constant.ok_or_else(|| {
+                        crate::value_err(format!("mechanism {node}: an intercept is required"))
+                    })?;
+                    let coeffs = coeffs.unwrap_or_default();
+                    if coeffs.len() != parent_counts[node] {
+                        return Err(crate::value_err(format!(
+                            "mechanism {node}: {} coefficients for {} parents",
+                            coeffs.len(),
+                            parent_counts[node]
+                        )));
+                    }
+                    for coefficient in &coeffs {
+                        finite(*coefficient, "every coefficient", node)?;
+                    }
+                    let sigma = sigma.ok_or_else(|| {
+                        crate::value_err(format!("mechanism {node}: sigma is required"))
+                    })?;
+                    if !(sigma.is_finite() && sigma > 0.0) {
+                        return Err(crate::value_err(format!(
+                            "mechanism {node}: sigma must be finite and positive"
+                        )));
+                    }
+                    Ok(MechanismSlot::LinearGaussian {
+                        intercept: finite(intercept, "the intercept", node)?,
+                        coeffs: Arc::from(coeffs),
+                        sigma,
+                    })
+                }
+                other => Err(crate::value_err(format!(
+                    "mechanism {node}: unknown kind {other:?}; use vacant|constant|linear_gaussian"
+                ))),
             })
-            .collect();
+            .collect::<PyResult<Vec<MechanismSlot>>>()?;
         let store = CompiledMechanismStore { slots: slots.into() };
         antecedent::io::encode_model_bundle_bytes(&ModelBundleEncode {
             header: ModelBundleHeaderWire { model_kind: ModelKindWire::Scm, label: None },

@@ -34,7 +34,7 @@ use serde_json::{Map, Value as Json, json};
 
 use crate::adaptive_inference_api::AdaptiveInferenceHandle;
 use crate::measurement_model_api::{
-    index, list, object, parse, present, real, reals, small, text, unsigned,
+    index, list, object, opt_flag, parse, present, real, reals, small, text, unsigned,
 };
 use crate::transport_common::execution_context;
 
@@ -274,7 +274,7 @@ fn terminal_of(value: &Json) -> PyResult<ObservedTerminal> {
     let map = object(value, "observed terminal state")?;
     Ok(ObservedTerminal {
         look: index(map, "look")?,
-        rule_stopped: present(map, "rule_stopped").and_then(Json::as_bool).unwrap_or(false),
+        rule_stopped: opt_flag(map, "rule_stopped")?.unwrap_or(false),
         decision: present(map, "decision").map(|_| index(map, "decision")).transpose()?,
         estimate: real(map, "estimate")?,
     })

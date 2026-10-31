@@ -218,3 +218,19 @@ def test_policy_support_licenses_each_execution_route_separately(gcm):
     # A program reading a variable is a function, not a level.
     reads = policy_support(model, [assign("demand", 2.0 * var("price"))])
     assert reads.simulation.licensed and not reads.identification.licensed
+
+
+def test_start_beyond_horizon_refused(gcm):
+    model, _ = gcm
+    program = assign("price", maximum(10, 0.85 * lag("price", 1)))
+    with pytest.raises(ValueError, match="never act"):
+        sample_temporal_policy(
+            model,
+            [program],
+            n_rows=4,
+            n_steps=3,
+            window=1,
+            start=3,
+            history=[{"price": np.full(4, 40.0), "demand": np.zeros(4)}],
+            execution=antecedent.Execution(seed=1),
+        )

@@ -103,6 +103,26 @@ fn finish(
     }
 }
 
+/// A string member that may be absent; a present member of another type is refused.
+fn text_member(row: &Json, key: &str) -> Result<String, String> {
+    match row.get(key) {
+        None | Some(Json::Null) => Ok(String::new()),
+        Some(Json::String(value)) => Ok(value.clone()),
+        Some(_) => Err(invalid_json(format!("`{key}` must be a string"))),
+    }
+}
+
+/// A number that may be absent (read as not-a-number, which the rule refuses); a present
+/// member that is not a number is refused here.
+fn number_member(row: &Json, key: &str) -> Result<f64, String> {
+    match row.get(key) {
+        None | Some(Json::Null) => Ok(f64::NAN),
+        Some(value) => {
+            value.as_f64().ok_or_else(|| invalid_json(format!("`{key}` must be a number")))
+        }
+    }
+}
+
 macro_rules! tri {
     ($e:expr) => {
         match $e {
@@ -275,13 +295,15 @@ fn linear_moments_call(
         tri!(serde_json::from_str(inputs_json).map_err(|e| invalid_json(format!("inputs: {e}"))));
     let mut inputs = Vec::with_capacity(rows.len());
     for row in &rows {
-        let text = |key: &str| row.get(key).and_then(Json::as_str).unwrap_or("").to_owned();
-        let role_name = row.get("role").and_then(Json::as_str).unwrap_or("estimate");
+        let role_name = match row.get("role") {
+            None | Some(Json::Null) => "estimate".to_owned(),
+            Some(_) => tri!(text_member(row, "role")),
+        };
         inputs.push(MomentInput {
-            id: text("id"),
-            evidence_id: text("evidence_id"),
-            role: tri!(role(role_name)),
-            mean: row.get("mean").and_then(Json::as_f64).unwrap_or(f64::NAN),
+            id: tri!(text_member(row, "id")),
+            evidence_id: tri!(text_member(row, "evidence_id")),
+            role: tri!(role(&role_name)),
+            mean: tri!(number_member(row, "mean")),
         });
     }
     let spread = reading == RequestedReading::Spread;
@@ -340,17 +362,16 @@ fn joint_law_mixture(
     let rows: Vec<Json> = tri!(
         serde_json::from_str(components_json).map_err(|e| invalid_json(format!("components: {e}")))
     );
-    let number = |row: &Json, key: &str| row.get(key).and_then(Json::as_f64).unwrap_or(f64::NAN);
-    let components: Vec<MixtureComponent> = rows
-        .iter()
-        .map(|row| MixtureComponent {
-            id: row.get("id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            evidence_id: row.get("evidence_id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            weight: number(row, "weight"),
-            mean: number(row, "mean"),
-            variance: number(row, "variance"),
-        })
-        .collect();
+    let mut components = Vec::with_capacity(rows.len());
+    for row in &rows {
+        components.push(MixtureComponent {
+            id: tri!(text_member(row, "id")),
+            evidence_id: tri!(text_member(row, "evidence_id")),
+            weight: tri!(number_member(row, "weight")),
+            mean: tri!(number_member(row, "mean")),
+            variance: tri!(number_member(row, "variance")),
+        });
+    }
     let ctx = execution_context(0, None, cancel);
     finish(py, propagate_mixture(&components, &ctx))
 }
@@ -416,13 +437,9 @@ fn query(text: &str) -> Result<EnvelopeQueryWire, String> {
         Some("linear_variance") => {
             Ok(EnvelopeQueryWire::LinearVariance { a: number("a")?, b: number("b")? })
         }
-        Some("functional") => Ok(EnvelopeQueryWire::Functional {
-            functional: value
-                .get("functional")
-                .and_then(Json::as_str)
-                .unwrap_or_default()
-                .to_owned(),
-        }),
+        Some("functional") => {
+            Ok(EnvelopeQueryWire::Functional { functional: text_member(&value, "functional")? })
+        }
         _ => Err(invalid_json("unknown envelope query kind".to_owned())),
     }
 }
@@ -666,19 +683,31 @@ fn joint_law_mixture_exceedance(
     let rows: Vec<Json> = tri!(
         serde_json::from_str(components_json).map_err(|e| invalid_json(format!("components: {e}")))
     );
-    let components: Vec<MixtureDraws> = rows
-        .iter()
-        .map(|row| MixtureDraws {
-            id: row.get("id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            evidence_id: row.get("evidence_id").and_then(Json::as_str).unwrap_or("").to_owned(),
-            weight: row.get("weight").and_then(Json::as_f64).unwrap_or(f64::NAN),
-            draws: row
-                .get("draws")
-                .and_then(Json::as_array)
-                .map(|a| a.iter().map(|v| v.as_f64().unwrap_or(f64::NAN)).collect())
-                .unwrap_or_default(),
-        })
-        .collect();
+    let mut components = Vec::with_capacity(rows.len());
+    for row in &rows {
+        let draws = match row.get("draws") {
+            None | Some(Json::Null) => Vec::new(),
+            Some(Json::Array(items)) => {
+                let mut draws = Vec::with_capacity(items.len());
+                for item in items {
+                    draws.push(match item.as_f64() {
+                        Some(value) => value,
+                        None => {
+                            return (None, Some(invalid_json("`draws` must hold numbers".into())));
+                        }
+                    });
+                }
+                draws
+            }
+            Some(_) => return (None, Some(invalid_json("`draws` must be a list".into()))),
+        };
+        components.push(MixtureDraws {
+            id: tri!(text_member(row, "id")),
+            evidence_id: tri!(text_member(row, "evidence_id")),
+            weight: tri!(number_member(row, "weight")),
+            draws,
+        });
+    }
     let ctx = execution_context(0, None, cancel);
     finish(py, propagate_mixture_exceedance(&components, threshold, &ctx))
 }

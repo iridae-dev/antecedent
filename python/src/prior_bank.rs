@@ -452,6 +452,12 @@ fn conflict_signals_from_list(
     let Some(list) = list else {
         return Ok(vec![ConflictSignals::default(); n]);
     };
+    if list.len() != n {
+        return Err(crate::value_err(format!(
+            "conflict_signals has {} entries for {n} sources; give one entry per source",
+            list.len()
+        )));
+    }
     let mut out = Vec::with_capacity(list.len());
     for item in list.iter() {
         let d = item.cast::<PyDict>()?;
@@ -618,11 +624,21 @@ fn compose_external_priors_py<'py>(
     let srcs = sources_from_list(sources)?;
     let baseline = prior_set_from_moments(&baseline_mean, &baseline_variance)?;
 
+    if conflict_signals.is_some() && conflict.is_none() {
+        return Err(crate::value_err(
+            "conflict_signals needs a conflict policy; pass conflict or drop the signals",
+        ));
+    }
     let needs_transport = transport.is_some()
         || target_population.is_some()
         || source_populations.is_some()
         || unit_effects.is_some()
         || transport_weights.is_some();
+    if coef_index.is_some() && !needs_transport {
+        return Err(crate::value_err(
+            "coef_index selects a coefficient for transport; pass a transport argument or drop it",
+        ));
+    }
     if needs_transport {
         return compose_transport_path(
             py,

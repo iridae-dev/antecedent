@@ -1961,7 +1961,7 @@ class PreparedAnalysis:
         predictions_cross_fitted: bool,
         *,
         resampling: str | None = None,
-        replicates: int = 999,
+        replicates: int | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2040,7 +2040,7 @@ class PreparedAnalysis:
         anticipation: int = 0,
         covariates: list[str] = [],
         resampling: str | None = None,
-        replicates: int = 999,
+        replicates: int | None = None,
         observation: str = "ignorable_given_cohort",
         attrition_shift_bound: float | None = None,
         accepted: bool = False,
@@ -2061,7 +2061,7 @@ class PreparedAnalysis:
         *,
         nuisance: str = "doubly_robust",
         resampling: str | None = None,
-        replicates: int = 999,
+        replicates: int | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,
@@ -2651,6 +2651,7 @@ class PreparedAnalysis:
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = None,
     ) -> AteAnalysisResult: ...
     def refute(
         self,
@@ -2679,6 +2680,7 @@ class PreparedAnalysis:
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = None,
     ) -> AteAnalysisResult: ...
     def temporal_treatment_score(
         self,
@@ -4992,6 +4994,7 @@ class ClassicalTransportStage:
         max_operations: int = 10_000_000,
         max_depth: int = 256,
         max_support_rows: int = 1_000_000,
+        max_steps: int = 100_000,
         memory_bytes: int | None = None,
     ) -> tuple[list[list[float]], list[float], str, list[str]]: ...
     def prepare_exact(
@@ -5003,6 +5006,7 @@ class ClassicalTransportStage:
         max_operations: int = 10_000_000,
         max_depth: int = 256,
         max_support_rows: int = 1_000_000,
+        max_steps: int = 100_000,
         memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> PreparedExactStage: ...
@@ -6868,6 +6872,7 @@ def consume_exact_transport(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> PreparedExactStage: ...
@@ -6907,6 +6912,7 @@ def prepare_statistical_transport(
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     max_support_rows: int = 1_000_000,
+    max_steps: int = 100_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
     bootstrap: int = 199,
@@ -6958,6 +6964,8 @@ def prepare_transport_grid(
     max_operations: int = 10_000_000,
     max_depth: int = 256,
     max_support_rows: int = 1_000_000,
+    max_steps: int = 100_000,
+    posterior_draws: int = 199,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> PreparedTransportGridStage: ...
@@ -6966,6 +6974,7 @@ def consume_transport_grid(
     *,
     max_operations: int = 10_000_000,
     max_depth: int = 256,
+    max_support_rows: int = 1_000_000,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> PreparedTransportGridStage: ...

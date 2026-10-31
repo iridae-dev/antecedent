@@ -41,16 +41,25 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&self.inner);
         let names = self.names.clone();
         let series = self.series;
+        let borrowed_bytes = self.borrowed_bytes;
         crate::detach_catch(py, move || {
+            let resolved_threads = crate::resolve_user_threads(threads);
             let ctx = py_execution_context_ext(
                 seed,
-                crate::resolve_user_threads(threads),
+                resolved_threads,
                 None,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = inner.reconfigure_execution(&ctx).map_err(py_err)?;
-            Ok(super::finished_prepared(prepared, names, series))
+            Ok(super::finished_prepared_under(
+                prepared,
+                names,
+                series,
+                seed,
+                resolved_threads,
+                borrowed_bytes,
+            ))
         })
     }
 
@@ -69,9 +78,10 @@ impl PyPreparedAnalysis {
         let names = self.names.clone();
         let series = self.series;
         crate::detach_catch(py, move || {
+            let resolved_threads = crate::resolve_user_threads(threads);
             let ctx = py_execution_context_ext(
                 seed,
-                crate::resolve_user_threads(threads),
+                resolved_threads,
                 None,
                 None,
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
@@ -88,7 +98,7 @@ impl PyPreparedAnalysis {
                 },
             }
             .map_err(py_err)?;
-            Ok(super::finished_prepared(rebound, names, series))
+            Ok(super::finished_prepared_under(rebound, names, series, seed, resolved_threads, None))
         })
     }
 
@@ -455,8 +465,22 @@ impl PyPreparedAnalysis {
     fn rebind_validators(&mut self, validators: Bound<'_, PyAny>) -> PyResult<()> {
         let parsed = crate::callbacks::parse_validators(Some(&validators))?;
         let mut study = (*self.inner).clone();
-        study.rebind_custom_validators(parsed).map_err(py_err)?;
+        study.rebind_custom_validators(parsed.clone()).map_err(py_err)?;
+        // The study the last execution ran on carries its own frozen callbacks; a
+        // second-click refutation and a snapshot read it, so it is rebound with the
+        // same callables. Both are replaced only once both rebinds succeed.
+        let last_study = match &self.last_study {
+            Some(last) => {
+                let mut rebound = (**last).clone();
+                rebound.rebind_custom_validators(parsed).map_err(py_err)?;
+                Some(Arc::new(rebound))
+            }
+            None => None,
+        };
         self.inner = Arc::new(study);
+        if last_study.is_some() {
+            self.last_study = last_study;
+        }
         Ok(())
     }
 

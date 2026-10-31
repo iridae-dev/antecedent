@@ -222,6 +222,11 @@ fn compiled_posterior(
     Ok(posterior)
 }
 
+const DBN_DEFAULT_MAX_LAG: u32 = 1;
+const DBN_DEFAULT_CHAINS: u32 = 2;
+const DBN_DEFAULT_WARMUP: u32 = 200;
+const DBN_DEFAULT_DRAWS: u32 = 400;
+
 pub(super) fn dbn_posterior(
     supplied: Option<antecedent::discovery::GraphPosterior>,
     series: &TimeSeriesData,
@@ -233,6 +238,19 @@ pub(super) fn dbn_posterior(
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<antecedent::discovery::GraphPosterior> {
     if let Some(gp) = supplied {
+        // A supplied posterior is not fitted, so fitting options that differ from the
+        // defaults describe a search that never ran.
+        if max_lag != DBN_DEFAULT_MAX_LAG
+            || force_mcmc
+            || n_chains != DBN_DEFAULT_CHAINS
+            || n_warmup != DBN_DEFAULT_WARMUP
+            || mcmc_draws != DBN_DEFAULT_DRAWS
+        {
+            return Err(crate::value_err(
+                "max_lag, force_mcmc, n_chains, n_warmup and mcmc_draws configure the posterior \
+                 search; a supplied posterior is not fitted, so drop them",
+            ));
+        }
         return Ok(gp);
     }
     let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();

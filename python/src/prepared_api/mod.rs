@@ -292,14 +292,26 @@ fn finished_prepared(
     names: Vec<String>,
     series: bool,
 ) -> PyPreparedAnalysis {
+    finished_prepared_under(prepared, names, series, 1, 1, None)
+}
+
+/// A handle whose execution header names the controls its preparation ran under.
+fn finished_prepared_under(
+    prepared: PreparedStudy,
+    names: Vec<String>,
+    series: bool,
+    seed: u64,
+    threads: u32,
+    borrowed_bytes: Option<u64>,
+) -> PyPreparedAnalysis {
     PyPreparedAnalysis {
         inner: Arc::new(prepared),
         names,
         last: None,
         last_study: None,
-        last_seed: 1,
-        last_threads: 1,
-        borrowed_bytes: None,
+        last_seed: seed,
+        last_threads: threads,
+        borrowed_bytes,
         series,
     }
 }

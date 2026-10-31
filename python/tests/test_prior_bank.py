@@ -1032,3 +1032,31 @@ def test_mapped_posterior_transfer_refuses_identity_meaning_map_scale_and_coordi
     with pytest.raises(errors.CausalError, match="residual_variance") as scale:
         _transfer(data, expected, known_residual_variance=2.0)
     assert scale.value.reason_code == "prior_transfer_not_hydrated"
+
+
+def _single_source() -> antecedent.priors.ExternalPriorSourceSpec:
+    return antecedent.priors.ExternalPriorSourceSpec(
+        id="only",
+        mean=(1.0,),
+        variance=(1.0,),
+        weight=antecedent.priors.ExternalPriorWeight(alpha=1.0),
+    )
+
+
+def test_conflict_signals_without_policy_refused():
+    with pytest.raises(ValueError, match="conflict_signals"):
+        antecedent.priors.compose_external_priors(
+            [_single_source()],
+            baseline=([0.0], [4.0]),
+            conflict_signals=[{"p_value": 1e-9}],
+        )
+
+
+def test_conflict_signals_length_must_match_sources():
+    with pytest.raises(ValueError, match="conflict_signals"):
+        antecedent.priors.compose_external_priors(
+            [_single_source()],
+            baseline=([0.0], [4.0]),
+            conflict=antecedent.priors.ConflictPolicy(p_min=0.05, kl_scale=1.0),
+            conflict_signals=[{"p_value": 0.4}, {"p_value": 1e-9}],
+        )

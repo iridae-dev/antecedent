@@ -340,6 +340,22 @@ pub(crate) fn classify(message: &str) -> PyErr {
     ) {
         return serialization_error(message);
     }
+    // The exact evaluator's budget and cancellation errors are complete fixed messages.
+    if message == "exact evaluation cancelled" {
+        return crate::CausalCancelledError::new_err(message.to_owned());
+    }
+    if matches!(
+        message,
+        "exact domain budget exceeded"
+            | "exact cache memory/operation budget exceeded"
+            | "exact intervention coverage budget exceeded"
+            | "exact memory budget exceeded"
+            | "exact operation budget exceeded"
+            | "exact preflight budget exceeded"
+            | "exact recursion budget exceeded"
+    ) {
+        return crate::CausalResourceError::new_err(message.to_owned());
+    }
     if let Some(kind) = dotted_token(message).and_then(refusal_kind) {
         return match kind {
             Kind::Serialization => serialization_error(message),

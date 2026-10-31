@@ -958,3 +958,17 @@ def test_a_callback_is_connected_to_its_consumer_before_the_provider_ever_runs()
     assert session.invocations == 1
     with pytest.raises(CausalTypeError, match=r"consumer\ must\ be\ an\ interface_contract\.InterfaceContract"):
         session.execute_for_consumer(provider, decl, request, {"component": "x"}, "law_in")
+
+
+def test_keyboard_interrupt_in_callable_propagates():
+    calls = []
+
+    def interrupted(query, ctx):
+        calls.append(query.operation)
+        raise KeyboardInterrupt
+
+    provider = pc.FunctionProvider(identity(), interrupted)
+    session = pc.CallbackSession()
+    with pytest.raises(KeyboardInterrupt):
+        session.execute(provider, mean_only(), pc.Request(pc.Query.mean(), seed=3))
+    assert calls == ["mean"]

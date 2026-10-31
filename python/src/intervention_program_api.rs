@@ -439,6 +439,19 @@ fn with_route(
         .collect()
 }
 
+/// A sustained program must be active at some step of the rollout.
+fn check_schedule_window(start: i32, n_steps: usize) -> PyResult<()> {
+    if i32::try_from(n_steps).is_err() {
+        return Err(value_err("n_steps does not fit the schedule's step range"));
+    }
+    if i64::from(start) >= n_steps as i64 {
+        return Err(value_err(format!(
+            "start {start} is at or beyond the {n_steps}-step rollout; the program would never act"
+        )));
+    }
+    Ok(())
+}
+
 /// The program as a schedule active from step `start` to the end of the rollout.
 fn sustained_schedule(
     interventions: Vec<Intervention>,
@@ -472,6 +485,7 @@ pub(crate) fn sample_temporal_policy(
     history: Option<Vec<HashMap<String, Vec<f64>>>>,
     threads: Option<u32>,
 ) -> PyResult<Vec<GcmSampleResult>> {
+    check_schedule_window(start, n_steps)?;
     let interventions = programs_of(&fitted, policies)?;
     let history = flat_history(&initial_history(&fitted, history, n_rows)?);
     let source = fitted.source();
@@ -551,6 +565,7 @@ pub(crate) fn counterfactual_temporal_policy(
         return Err(value_err("every panel step needs the same, non-zero number of units"));
     }
     let n_steps = steps.len();
+    check_schedule_window(start, n_steps)?;
     let history = flat_history(&initial_history(&fitted, history, n_rows)?);
     let source = fitted.source();
     let (batches, route) = detach_catch(py, move || {

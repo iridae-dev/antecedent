@@ -279,7 +279,7 @@ impl PreparedTransportGridStage {
     }
 }
 #[pyfunction]
-#[pyo3(signature=(stage,catalog,data,at,*,statistical=false,estimator=None,bootstrap=crate::transport_defaults::BOOTSTRAP,coverage_level=crate::transport_defaults::COVERAGE_LEVEL,seed=1,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
+#[pyo3(signature=(stage,catalog,data,at,*,statistical=false,estimator=None,bootstrap=crate::transport_defaults::BOOTSTRAP,coverage_level=crate::transport_defaults::COVERAGE_LEVEL,seed=1,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,max_steps=100_000,posterior_draws=199,memory_bytes=None,cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_transport_grid(
     py: Python<'_>,
@@ -295,15 +295,31 @@ fn prepare_transport_grid(
     max_operations: usize,
     max_depth: usize,
     max_support_rows: usize,
+    max_steps: usize,
+    posterior_draws: u32,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedTransportGridStage> {
     let proof = stage.identified()?;
     let catalog = parse_catalog(catalog, stage.graph())?;
+    if !statistical {
+        // Bootstrap, coverage and posterior draws arrive at their defaults from every caller,
+        // so only a named estimator can be told apart from an unused control.
+        let named_estimator = match estimator {
+            None => false,
+            Some(value) => value.extract::<String>().map_or(true, |name| name != "plugin"),
+        };
+        if named_estimator {
+            return Err(error(
+                "an estimator configures a statistical grid; exact laws have no sampling \
+                 uncertainty to estimate",
+            ));
+        }
+    }
     let options = statistical.then_some(EmpiricalTableOptions {
         estimator: crate::transport_statistical_api::parse_provider(estimator)?,
         bootstrap_replicates: bootstrap,
-        posterior_draws: 199,
+        posterior_draws,
         coverage_level,
         max_joint_cells: max_support_rows,
     });
@@ -343,7 +359,7 @@ fn prepare_transport_grid(
         crate::execution_api::apply(&mut ctx);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
-            antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+            antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
             &ctx,
         ) {
             Ok(f) => f,
@@ -351,7 +367,7 @@ fn prepare_transport_grid(
                 .search_catalog(
                     &diagram,
                     &catalog,
-                    antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+                    antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
                     &ctx,
                 )
                 .map_err(error)?
@@ -385,12 +401,13 @@ fn prepare_transport_grid(
     })
 }
 #[pyfunction]
-#[pyo3(signature=(artifact,*,max_operations=10_000_000,max_depth=256,memory_bytes=None,cancel=None))]
+#[pyo3(signature=(artifact,*,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
 fn consume_transport_grid(
     py: Python<'_>,
     artifact: &[u8],
     max_operations: usize,
     max_depth: usize,
+    max_support_rows: usize,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedTransportGridStage> {
@@ -428,7 +445,7 @@ fn consume_transport_grid(
             last: Some(result),
             options,
             memory: memory_bytes,
-            max_support_rows: max_operations,
+            max_support_rows,
             seed: 0,
         })
     })

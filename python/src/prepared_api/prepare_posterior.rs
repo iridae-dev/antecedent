@@ -201,6 +201,9 @@ impl PyPreparedAnalysis {
         };
         let query = match kind.as_str() {
             "mediation" | "nested_counterfactual" => {
+                if kind == "nested_counterfactual" {
+                    req.refuse_population("a nested counterfactual query")?;
+                }
                 let mut query = static_kind_query(
                     data.schema(),
                     &kind,
@@ -259,6 +262,7 @@ impl PyPreparedAnalysis {
                 CausalQuery::Distribution(query)
             }
             "anomaly_attribution" => {
+                req.refuse_population("an anomaly attribution query")?;
                 let ids = targets
                     .iter()
                     .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
@@ -271,6 +275,7 @@ impl PyPreparedAnalysis {
                 CausalQuery::AnomalyAttribution(query)
             }
             "change_attribution" => {
+                req.refuse_population("a change attribution query")?;
                 let outcome_id =
                     crate::graph_build::schema_var_id(data.schema(), &need(&outcome, "outcome")?)?;
                 CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(

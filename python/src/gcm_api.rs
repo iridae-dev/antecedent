@@ -161,6 +161,14 @@ pub(crate) fn change_result_from_rust(
     }
 }
 
+/// Monte Carlo attribution needs at least one sample; zero would return an empty estimate.
+pub(crate) fn require_samples(n_samples: usize) -> PyResult<()> {
+    if n_samples == 0 {
+        return Err(crate::value_err("n_samples must be at least 1"));
+    }
+    Ok(())
+}
+
 pub(crate) fn synthetic_change_result(
     outcome: VariableId,
     total_change: f64,
@@ -955,6 +963,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
+        require_samples(n_samples)?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
@@ -996,7 +1005,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
-        let _ = n_samples;
+        require_samples(n_samples)?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
@@ -1014,11 +1023,15 @@ impl PyFittedGcm {
                 },
                 components: AttributionComponents::Mechanisms,
                 allocation: AllocationMethod::Shapley {
-                    approximation: ShapleyConfig::monte_carlo(200),
+                    approximation: ShapleyConfig::monte_carlo(n_samples).with_seed(seed),
                 },
                 max_components: 64,
             };
-            let opts = RobustChangeOptions::default();
+            let opts = RobustChangeOptions {
+                n_samples: n_samples.max(100),
+                seed,
+                ..RobustChangeOptions::default()
+            };
             let ctx = Self::ctx(seed, threads);
             let target = AttributeTarget::DistributionChange {
                 change: query,
@@ -1047,6 +1060,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
+        require_samples(n_samples)?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
@@ -1102,7 +1116,7 @@ impl PyFittedGcm {
                 .zip(result.mean_contributions.iter())
                 .map(|(c, v)| (*c, *v))
                 .collect();
-            let total = result.mean_contributions.iter().map(|x| x.abs()).sum();
+            let total = result.mean_contributions.iter().sum();
             Ok(synthetic_change_result(y_id, total, pairs, &names).with_route(route))
         })
     }
@@ -1450,7 +1464,8 @@ fn parse_splits(splits: &str, purge: usize) -> PyResult<ValidationSplits> {
 /// `gradient_boosted_trees`, `tree_ensembles`, `tree_ensemble_classifier`) replaces the
 /// candidate set; `constraints` narrows it per node; `splits` declares how rows are
 /// cut for the held-out scores (`shuffled`, `time_ordered` with an optional `purge`,
-/// or `clustered` by the `UnitId` column).
+/// or `clustered` by the `UnitId` column). The fit runs serially: `threads` is accepted so the
+/// call shape matches the other entry points and does not change the fit.
 #[pyfunction]
 #[pyo3(
     name = "fit_gcm",

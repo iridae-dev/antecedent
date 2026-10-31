@@ -322,7 +322,11 @@ impl PrepareOptions {
             })
             .transpose()?;
         Ok(Self {
-            data_diagnostics: item("data_diagnostics")?.map(|value| crate::data_diagnostics_api::policy_setting(&value.extract::<String>()?)).transpose()?,
+            data_diagnostics: item("data_diagnostics")?
+                .map(|value| {
+                    crate::data_diagnostics_api::policy_setting(&value.extract::<String>()?)
+                })
+                .transpose()?,
             refute,
             bootstrap,
             latency,
@@ -363,7 +367,10 @@ impl PrepareOptions {
 
     /// Apply the declared inference, moving any prior transfer onto the builder.
     pub(crate) fn apply_inference(&mut self, builder: StudyBuilder) -> PyResult<StudyBuilder> {
-        let builder = match &self.data_diagnostics { Some(policy) => builder.data_diagnostics(policy.clone()), None => builder };
+        let builder = match &self.data_diagnostics {
+            Some(policy) => builder.data_diagnostics(policy.clone()),
+            None => builder,
+        };
         let spec = &mut self.inference;
         let builder = match spec.draw_controls {
             Some(controls) => builder.draw_controls(controls),
@@ -402,6 +409,27 @@ impl PrepareOptions {
         })
     }
 
+    /// Refuse declarations a route never reads, so none is dropped silently.
+    pub(crate) fn refuse_unread_declarations(&self, route: &str) -> PyResult<()> {
+        let named: Vec<&str> = [
+            ("sampling_weights", self.sampling_weights.is_some()),
+            ("identifier", self.identifier.is_some()),
+            ("estimator", self.estimator.is_some()),
+            ("fallback", self.fallback.is_some()),
+            ("retain_joint_horizons", self.retain_joint_horizons),
+        ]
+        .into_iter()
+        .filter_map(|(name, set)| set.then_some(name))
+        .collect();
+        if named.is_empty() {
+            return Ok(());
+        }
+        Err(crate::refusal(
+            antecedent_core::reason_code!("option_not_applicable"),
+            format!("{route} reads no {}; drop them", named.join(", ")),
+        ))
+    }
+
     /// Refuse prior transfer on a route whose executor cannot hydrate a prior.
     pub(crate) fn refuse_prior_transfer(&self, route: &str) -> PyResult<()> {
         let spec = &self.inference;
@@ -428,7 +456,9 @@ impl PrepareOptions {
 
     /// Write only what the caller supplied onto the builder.
     pub(crate) fn apply(&self, mut builder: StudyBuilder) -> StudyBuilder {
-        if let Some(policy) = &self.data_diagnostics { builder = builder.data_diagnostics(policy.clone()); }
+        if let Some(policy) = &self.data_diagnostics {
+            builder = builder.data_diagnostics(policy.clone());
+        }
         if let Some(suite) = self.refute {
             builder = builder.refute(suite);
         }

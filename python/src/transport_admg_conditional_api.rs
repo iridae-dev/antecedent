@@ -114,7 +114,10 @@ fn witness_json(witness: &ConditionalWitnessRecord, names: &[String]) -> serde_j
 }
 
 /// The decision in variable names.
-fn decision_json(decision: &ConditionalTransportDecision, names: &[String]) -> serde_json::Value {
+fn decision_json(
+    decision: &ConditionalTransportDecision,
+    names: &[String],
+) -> PyResult<serde_json::Value> {
     let reduced = |q: &ClassicalTransportQuery| {
         serde_json::json!({
             "outcomes": names_of(names, &q.outcomes),
@@ -157,7 +160,8 @@ fn decision_json(decision: &ConditionalTransportDecision, names: &[String]) -> s
             // the exactly verified two-model witness.
             "candidate": proof.candidate().map(|candidate| candidate_json(candidate, names, true)),
             "witness": witness_json(proof.witness(), names),
-            "record": serde_json::to_value(proof.to_record()).unwrap_or_default(),
+            "record": serde_json::to_value(proof.to_record())
+                .map_err(|error| crate::serialization_err(error.to_string()))?,
         }),
         ConditionalTransportDecision::NotCertified(inspection) => serde_json::json!({
             "outcome": "not_certified",
@@ -182,7 +186,7 @@ fn decision_json(decision: &ConditionalTransportDecision, names: &[String]) -> s
     };
     payload["reason_code"] = decision.reason_code().into();
     payload["detail"] = decision.detail_code().into();
-    payload
+    Ok(payload)
 }
 
 fn point_json(
@@ -316,7 +320,7 @@ impl AdmgConditionalTransportStage {
     /// The decision in variable names.
     #[doc(hidden)]
     fn decision(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let mut value = decision_json(&self.decision, &self.graph.names);
+        let mut value = decision_json(&self.decision, &self.graph.names)?;
         value["identification_status"] = self.decision.identification_status().as_str().into();
         to_py_json(py, &value)
     }

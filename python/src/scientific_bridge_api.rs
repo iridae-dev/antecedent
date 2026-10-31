@@ -40,8 +40,8 @@ use serde_json::{Map, Value as Json, json};
 
 use crate::distribution_api::PyJointDistributionArtifact;
 use crate::measurement_model_api::{
-    list, member, model_json, object, opt_text, parse, parse_model, present, real, small, text,
-    texts,
+    list, member, model_json, object, opt_text, parse, parse_model, present, real,
+    reject_unknown_keys, small, text, texts,
 };
 
 // ---------------------------------------------------------------------------
@@ -219,6 +219,24 @@ fn parse_assumption(value: &Json) -> PyResult<BridgeAssumption> {
 
 pub(crate) fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
     let map = object(value, "bridge contract")?;
+    reject_unknown_keys(
+        map,
+        &[
+            "kind",
+            "source",
+            "target",
+            "source_value",
+            "target_value",
+            "evidence_scope",
+            "mapping",
+            "assumptions",
+            "transport",
+            "mapping_uncertainty",
+            "source_dependence",
+            "estimand_bridge",
+        ],
+        "a bridge contract",
+    )?;
     let name = text(map, "kind")?;
     let kind = BridgeKind::from_name(&name)
         .ok_or_else(|| crate::value_err(format!("unknown bridge kind `{name}`")))?;
@@ -228,6 +246,11 @@ pub(crate) fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
         None => None,
         Some(value) => {
             let premise = object(value, "transportability premise")?;
+            reject_unknown_keys(
+                premise,
+                &["id", "statement", "established_in", "applies_to", "evidence"],
+                "a transportability premise",
+            )?;
             Some(TransportabilityPremise {
                 id: text(premise, "id")?,
                 statement: text(premise, "statement")?,
@@ -259,6 +282,11 @@ pub(crate) fn parse_contract(value: &Json) -> PyResult<BridgeContract> {
 
 fn parse_mapping_uncertainty(value: &Json) -> PyResult<MappingUncertainty> {
     let map = object(value, "mapping uncertainty")?;
+    reject_unknown_keys(
+        map,
+        &["id", "intercept_variance", "slope_variance", "intercept_slope_covariance"],
+        "a mapping uncertainty",
+    )?;
     Ok(MappingUncertainty {
         id: text(map, "id")?,
         intercept_variance: real(map, "intercept_variance")?,
@@ -269,6 +297,7 @@ fn parse_mapping_uncertainty(value: &Json) -> PyResult<MappingUncertainty> {
 
 fn parse_source_dependence(value: &Json) -> PyResult<SourceMappingDependence> {
     let map = object(value, "source dependence")?;
+    reject_unknown_keys(map, &["kind", "evidence", "covariance"], "a source dependence")?;
     Ok(match text(map, "kind")?.as_str() {
         "independent" => SourceMappingDependence::Independent { evidence: text(map, "evidence")? },
         "slope_covariance" => SourceMappingDependence::SlopeCovariance {
@@ -283,6 +312,20 @@ fn parse_source_dependence(value: &Json) -> PyResult<SourceMappingDependence> {
 
 fn parse_exposure(value: &Json, what: &str) -> PyResult<ExposureSetting> {
     let map = object(value, what)?;
+    reject_unknown_keys(
+        map,
+        &[
+            "population_id",
+            "time_start",
+            "time_end",
+            "dose",
+            "dose_units",
+            "duration",
+            "duration_units",
+            "exposure_regime",
+        ],
+        what,
+    )?;
     Ok(ExposureSetting {
         population_id: text(map, "population_id")?,
         time_start: text(map, "time_start")?,
@@ -297,6 +340,20 @@ fn parse_exposure(value: &Json, what: &str) -> PyResult<ExposureSetting> {
 
 fn parse_estimand_bridge(value: &Json) -> PyResult<EstimandBridge> {
     let map = object(value, "estimand bridge")?;
+    reject_unknown_keys(
+        map,
+        &[
+            "id",
+            "experiment_id",
+            "experiment",
+            "target",
+            "recency_delta",
+            "recency_units",
+            "spend_delta",
+            "spend_units",
+        ],
+        "an estimand bridge",
+    )?;
     Ok(EstimandBridge {
         id: text(map, "id")?,
         experiment_id: text(map, "experiment_id")?,
@@ -387,6 +444,11 @@ fn contract_json(contract: &BridgeContract) -> Json {
 /// depends on; the reasoning slots are unavailable.
 pub(crate) fn parse_claim(value: &Json) -> PyResult<ClaimEnvelope> {
     let map = object(value, "source claim")?;
+    reject_unknown_keys(
+        map,
+        &["claim_id", "kind", "value", "units", "identities", "evaluated", "evidence", "execution"],
+        "a source claim",
+    )?;
     let kind_name = text(map, "kind")?;
     let kind = ClaimKind::from_name(&kind_name)
         .ok_or_else(|| crate::value_err(format!("unknown claim kind `{kind_name}`")))?;

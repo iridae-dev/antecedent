@@ -26,7 +26,7 @@ use crate::py_err;
 
 /// A dose target as declared from Python.
 #[derive(Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum DoseSpec {
     SmoothedCurve {
         grid: Vec<f64>,
@@ -46,7 +46,7 @@ enum DoseSpec {
 
 /// An assignment design as declared from Python.
 #[derive(Deserialize)]
-#[serde(tag = "design", rename_all = "snake_case")]
+#[serde(tag = "design", rename_all = "snake_case", deny_unknown_fields)]
 enum DesignSpec {
     TwoArm {
         assignment: Vec<bool>,

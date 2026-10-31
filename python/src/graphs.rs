@@ -85,7 +85,22 @@ fn cpdag_mark_str(edge: MarkedEdge) -> &'static str {
 ///
 /// Every constructor that builds a graph from parsed names (as opposed to
 /// user-supplied names checked elsewhere) must uphold this invariant.
+/// Node names identify nodes, so each must be non-empty and appear once.
+fn require_unique_names(names: &[String]) -> PyResult<()> {
+    let mut seen = std::collections::HashSet::with_capacity(names.len());
+    for name in names {
+        if name.is_empty() {
+            return Err(crate::value_err("node names must be non-empty"));
+        }
+        if !seen.insert(name.as_str()) {
+            return Err(crate::value_err(format!("duplicate node name {name:?}")));
+        }
+    }
+    Ok(())
+}
+
 fn check_names_len(names: &[String], node_count: usize) -> PyResult<()> {
+    require_unique_names(names)?;
     if names.len() != node_count {
         return Err(crate::value_err(format!(
             "names length {} must equal node_count {}",
@@ -222,6 +237,7 @@ impl Dag {
         names: Vec<String>,
         edges: Vec<(String, String)>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut dag = RustDag::with_variables(n);
         for (from, to) in &edges {
@@ -346,6 +362,7 @@ impl Cpdag {
         directed: Vec<(String, String)>,
         undirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Cpdag::with_variables(n);
         for (from, to) in &directed {
@@ -369,6 +386,7 @@ impl Cpdag {
         names: Vec<String>,
         edges: Vec<(String, String, String)>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Cpdag::with_variables(n);
         for (from, to, kind) in &edges {
@@ -491,6 +509,7 @@ impl Pag {
         names: Vec<String>,
         edges: Vec<(String, String, String, String)>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Pag::with_variables(n);
         for (a, b, at_a, at_b) in &edges {
@@ -643,6 +662,7 @@ impl Admg {
         directed: Vec<(String, String)>,
         bidirected: Option<Vec<(String, String)>>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let n = u32::try_from(names.len()).map_err(|_| crate::value_err("too many nodes"))?;
         let mut g = antecedent_graph::Admg::with_variables(n);
         for (from, to) in &directed {
@@ -768,6 +788,7 @@ impl TemporalDag {
         names: Vec<String>,
         edges: Vec<(String, u32, String, u32)>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let var_of = |nm: &str| -> PyResult<VariableId> {
             match names.iter().position(|n| n == nm) {
                 Some(i) => variable_id(i),
@@ -877,6 +898,7 @@ impl TemporalCpdag {
         directed: Vec<(String, u32, String, u32)>,
         undirected: Option<Vec<(String, u32, String, u32)>>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let mut g = antecedent_graph::TemporalCpdag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
             match names.iter().position(|n| n == nm) {
@@ -978,6 +1000,7 @@ impl TemporalPag {
         names: Vec<String>,
         edges: Vec<(String, u32, String, u32, String, String)>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let mut g = antecedent_graph::TemporalPag::empty();
         let var_of = |nm: &str| -> PyResult<VariableId> {
             match names.iter().position(|n| n == nm) {
@@ -1048,6 +1071,7 @@ impl TemporalAdmg {
         directed: Vec<(String, u32, String, u32)>,
         bidirected: Option<Vec<(String, u32, String, u32)>>,
     ) -> PyResult<Self> {
+        require_unique_names(&names)?;
         let var_of = |nm: &str| -> PyResult<VariableId> {
             match names.iter().position(|n| n == nm) {
                 Some(i) => variable_id(i),

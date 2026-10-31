@@ -842,7 +842,17 @@ pub(crate) fn parse_catalog(
         // Descriptor fields are optional so regime-like objects without them
         // keep today's semantics: a measured law of the whole population.
         let optional = |field: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
-            Ok(regime.getattr(field).ok().filter(|value| !value.is_none()))
+            match regime.getattr(field) {
+                Ok(value) => Ok(Some(value).filter(|value| !value.is_none())),
+                // Only a missing attribute is an absent descriptor; a property that raises
+                // is the caller's failure and must surface.
+                Err(error)
+                    if error.is_instance_of::<pyo3::exceptions::PyAttributeError>(regime.py()) =>
+                {
+                    Ok(None)
+                }
+                Err(error) => Err(error),
+            }
         };
         let study = optional("study")?.map(|v| v.extract::<String>()).transpose()?.map(Arc::from);
         let selected = match optional("selected_on")? {
@@ -1261,6 +1271,12 @@ fn estimate_network_interference(
     })?;
     let names = vec!["outcome".to_owned()];
     let batch = numeric_columns_to_batch(&names, &[crate::NumericColumn::F64(outcome)])?;
+    if matches!(assignment_kind.as_str(), "saturation" | "observed_exposure") {
+        return Err(crate::value_err(format!(
+            "assignment_kind {assignment_kind:?} needs saturation levels or exposure propensities \
+             that this entry point does not take; use bernoulli, complete or cluster"
+        )));
+    }
     let query = interference_query(
         InterferenceArgs {
             assignment_kind,

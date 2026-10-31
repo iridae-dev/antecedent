@@ -389,6 +389,15 @@ fn compile_batch_study(
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<antecedent::BatchStudy> {
+    if tiers.is_some() && !edges.is_empty() {
+        return Err(crate::value_err(
+            "a batch takes edges or tiers, not both; tiers declare the background and the \
+             edges would be dropped",
+        ));
+    }
+    if tiers.is_none() && within_tier.is_some() {
+        return Err(crate::value_err("within_tier orders the tiers; declare tiers or drop it"));
+    }
     let mut batch = if let Some(tiers) = tiers {
         let within = crate::parse_within_tier(within_tier.as_deref())?;
         let named: Vec<Vec<&str>> =

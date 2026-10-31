@@ -209,7 +209,7 @@ impl ClassicalTransportStage {
             Ok(value.to_string())
         })
     }
-    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None))]
+    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, max_steps=100_000, memory_bytes=None))]
     fn evaluate_exact(
         &self,
         py: Python<'_>,
@@ -219,6 +219,7 @@ impl ClassicalTransportStage {
         max_operations: usize,
         max_depth: usize,
         max_support_rows: usize,
+        max_steps: usize,
         memory_bytes: Option<u64>,
     ) -> PyResult<ExactStagePayload> {
         let mut prepared = self.prepare_exact(
@@ -229,12 +230,13 @@ impl ClassicalTransportStage {
             max_operations,
             max_depth,
             max_support_rows,
+            max_steps,
             memory_bytes,
             None,
         )?;
         prepared.estimate(py, None, None)
     }
-    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
+    #[pyo3(signature = (catalog, laws, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, max_steps=100_000, memory_bytes=None, cancel=None))]
     fn prepare_exact(
         &self,
         py: Python<'_>,
@@ -244,6 +246,7 @@ impl ClassicalTransportStage {
         max_operations: usize,
         max_depth: usize,
         max_support_rows: usize,
+        max_steps: usize,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<PreparedExactStage> {
@@ -268,7 +271,7 @@ impl ClassicalTransportStage {
             crate::execution_api::apply(&mut ctx);
             let functional = match proof.bind_catalog_with_context(
                 &catalog,
-                antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+                antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
                 &ctx,
             ) {
                 Ok(bound) => bound,
@@ -276,7 +279,7 @@ impl ClassicalTransportStage {
                     .search_catalog(
                         &diagram,
                         &catalog,
-                        SidLimits { steps: max_operations, depth: max_depth },
+                        SidLimits { steps: max_steps, depth: max_depth },
                         &ctx,
                     )
                     .map_err(error)?
@@ -924,12 +927,13 @@ impl PreparedExactStage {
 }
 
 #[pyfunction]
-#[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,memory_bytes=None,cancel=None))]
+#[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
 fn consume_exact_transport(
     py: Python<'_>,
     bytes: Vec<u8>,
     max_operations: usize,
     max_depth: usize,
+    max_support_rows: usize,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PreparedExactStage> {
@@ -966,7 +970,7 @@ fn consume_exact_transport(
             catalog,
             last: Some(result),
             memory_bytes,
-            max_support_rows: max_operations,
+            max_support_rows,
         })
     })
 }

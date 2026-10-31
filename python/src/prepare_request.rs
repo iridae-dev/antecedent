@@ -59,6 +59,29 @@ impl PrepareRequest {
         self.refuse_population(route)
     }
 
+    /// Refuse a selection in the options that contradicts the one named as an argument.
+    pub(super) fn refuse_conflicting_selection(
+        &self,
+        identifier: Option<antecedent::IdentifierId>,
+        estimator: Option<antecedent::EstimatorId>,
+    ) -> PyResult<()> {
+        if let (Some(named), Some(declared)) = (identifier, self.opts.identifier) {
+            if named != declared {
+                return Err(crate::value_err(format!(
+                    "identifier {named:?} contradicts the identifier {declared:?} in options"
+                )));
+            }
+        }
+        if let (Some(named), Some(declared)) = (estimator, self.opts.estimator) {
+            if named != declared {
+                return Err(crate::value_err(format!(
+                    "estimator {named:?} contradicts the estimator {declared:?} in options"
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Refuse declared sampling weights on a route that reads none of them.
     fn refuse_sampling_weights(&self) -> PyResult<()> {
         if self.opts.sampling_weights.is_none() {
@@ -221,6 +244,9 @@ impl PrepareRequest {
             Some(policy) => builder.data_diagnostics(policy.clone()),
             None => builder,
         };
+        // A selection the caller declared in the options is part of the study on every route;
+        // applying it again where `finish_with` already did is a no-op.
+        let builder = self.opts.apply_selection(builder);
         let analysis = builder.build().map_err(crate::py_err)?;
         let prepared = match analysis.prepare_deferred(ctx) {
             Ok(prepared) => prepared,

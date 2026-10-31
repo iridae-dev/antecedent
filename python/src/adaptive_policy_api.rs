@@ -13,7 +13,7 @@ use antecedent_design::adaptive_policy_search::{
     PolicyStanding, PreparedAdaptivePolicySearch, ResponseStanding, SearchStop, StandingRequest,
 };
 use pyo3::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 use crate::PyCancellationToken;
@@ -26,10 +26,72 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Largest number of simulated rows, steps or cells a rollout may allocate.
+const MAX_ROLLOUT_UNITS: u64 = 10_000_000;
+/// Largest number of values one rollout may hold across rows and nodes.
+const MAX_ROLLOUT_CELLS: u64 = 64_000_000;
+
 fn num(spec: &Value, key: &str) -> PyResult<f64> {
-    spec.get(key)
-        .and_then(Value::as_f64)
-        .ok_or_else(|| bad(format!("family field {key} is required")))
+    match spec.get(key) {
+        Some(value) => match value.as_f64() {
+            Some(number) if number.is_finite() => Ok(number),
+            _ => Err(bad(format!("field {key} must be a finite number"))),
+        },
+        None => Err(bad(format!("field {key} is required"))),
+    }
+}
+
+/// A number that may be absent; a present value of another type is an error.
+fn opt_num(spec: &Value, key: &str) -> PyResult<Option<f64>> {
+    match spec.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(_) => num(spec, key).map(Some),
+    }
+}
+
+/// A count that may be absent; a present value that is not a non-negative integer is an error.
+fn opt_count(spec: &Value, key: &str) -> PyResult<Option<u64>> {
+    match spec.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| bad(format!("field {key} must be a non-negative integer"))),
+    }
+}
+
+fn opt_size(spec: &Value, key: &str) -> PyResult<Option<usize>> {
+    opt_count(spec, key)?
+        .map(|n| usize::try_from(n).map_err(|_| bad(format!("field {key} is too large"))))
+        .transpose()
+}
+
+fn opt_flag(spec: &Value, key: &str) -> PyResult<Option<bool>> {
+    match spec.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(value)) => Ok(Some(*value)),
+        Some(_) => Err(bad(format!("field {key} must be a boolean"))),
+    }
+}
+
+fn opt_text<'a>(spec: &'a Value, key: &str) -> PyResult<Option<&'a str>> {
+    match spec.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(Some(value.as_str())),
+        Some(_) => Err(bad(format!("field {key} must be a string"))),
+    }
+}
+
+/// A rollout size bounded so a stray magnitude is refused rather than allocated.
+fn bounded_size(spec: &Value, key: &str, default: usize) -> PyResult<usize> {
+    let value = opt_count(spec, key)?;
+    match value {
+        None => Ok(default),
+        Some(n) if n <= MAX_ROLLOUT_UNITS => Ok(n as usize),
+        Some(_) => Err(crate::CausalResourceError::new_err(format!(
+            "field {key} exceeds the bound of {MAX_ROLLOUT_UNITS}"
+        ))),
+    }
 }
 
 fn pair(spec: &Value, key: &str) -> PyResult<(f64, f64)> {
@@ -54,7 +116,7 @@ fn indices(spec: &Value, key: &str) -> PyResult<Vec<usize>> {
 }
 
 fn index(spec: &Value, key: &str) -> PyResult<usize> {
-    Ok(num(spec, key)? as usize)
+    opt_size(spec, key)?.ok_or_else(|| bad(format!("field {key} is required")))
 }
 
 fn variable_of(spec: &Value, key: &str, names: &[String]) -> PyResult<VariableId> {
@@ -64,7 +126,15 @@ fn variable_of(spec: &Value, key: &str, names: &[String]) -> PyResult<VariableId
             .position(|n| n == name)
             .map(|i| VariableId::from_raw(i as u32))
             .ok_or_else(|| bad(format!("unknown variable {name:?}"))),
-        _ => Ok(VariableId::from_raw(num(spec, key)? as u32)),
+        Some(_) => {
+            let raw = u32::try_from(index(spec, key)?)
+                .map_err(|_| bad(format!("field {key} is not a variable index")))?;
+            if !names.is_empty() && raw as usize >= names.len() {
+                return Err(bad(format!("field {key} is not a variable index")));
+            }
+            Ok(VariableId::from_raw(raw))
+        }
+        None => Err(bad(format!("field {key} is required"))),
     }
 }
 
@@ -76,7 +146,7 @@ fn parse_family(spec: &Value, names: &[String]) -> PyResult<AdaptivePolicyFamily
     let mut ranges = Vec::new();
     for feature in spec.get("features").and_then(Value::as_array).map_or(&[][..], Vec::as_slice) {
         let variable = variable_of(feature, "variable", names)?;
-        features.push(match feature.get("lag").and_then(Value::as_u64) {
+        features.push(match opt_count(feature, "lag")? {
             Some(lag) if lag > 0 => PolicyFeature::Lag {
                 variable,
                 lag: u32::try_from(lag).map_err(|_| bad("lag too large"))?,
@@ -122,20 +192,98 @@ fn chance(spec: &Value, key: &str) -> PyResult<Option<ChanceBound>> {
         None => Ok(None),
         Some(v) => Ok(Some(ChanceBound {
             bound: num(v, "bound")?,
-            max_violation_probability: v
-                .get("max_violation_probability")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0),
+            max_violation_probability: opt_num(v, "max_violation_probability")?.unwrap_or(0.0),
         })),
     }
 }
 
 /// The Python response source: it owns the shared draws and returns paths.
+///
+/// The descriptive members (identity, draw counts, horizon, standing, held-out design and
+/// observable variables) are read once when the source is bound, so a method that fails or
+/// returns the wrong type is an error naming it rather than a default the search runs on.
 struct PySource {
     object: Py<PyAny>,
+    identity: String,
+    optimization_draws: usize,
+    held_out_draws: usize,
+    horizon: usize,
+    standing: ResponseStanding,
+    held_out_design: HeldOutDesign,
+    observable: Option<Vec<VariableId>>,
 }
 
 impl PySource {
+    fn bind(object: Py<PyAny>) -> PyResult<Self> {
+        let read = |method: &str, args: Vec<String>| -> PyResult<Py<PyAny>> {
+            Python::attach(|py| {
+                let tuple = pyo3::types::PyTuple::new(py, args)?;
+                let value = object.bind(py).call_method1(method, tuple).map_err(|error| {
+                    if error.is_instance_of::<pyo3::exceptions::PyKeyboardInterrupt>(py) {
+                        error
+                    } else {
+                        bad(format!("response source method {method} failed: {error}"))
+                    }
+                })?;
+                Ok(value.unbind())
+            })
+        };
+        let wrong = |method: &str, expected: &str| {
+            bad(format!("response source method {method} must return {expected}"))
+        };
+        let identity = Python::attach(|py| {
+            read("identity", Vec::new())?
+                .extract::<String>(py)
+                .map_err(|_| wrong("identity", "a string"))
+        })?;
+        let draws = |split: DrawSplit| -> PyResult<usize> {
+            Python::attach(|py| {
+                read("n_draws", vec![split_name(split).to_owned()])?
+                    .extract::<usize>(py)
+                    .map_err(|_| wrong("n_draws", "a non-negative integer"))
+            })
+        };
+        let optimization_draws = draws(DrawSplit::Optimization)?;
+        let held_out_draws = draws(DrawSplit::HeldOut)?;
+        let horizon = Python::attach(|py| {
+            read("horizon", Vec::new())?
+                .extract::<usize>(py)
+                .map_err(|_| wrong("horizon", "a non-negative integer"))
+        })?;
+        let standing = Python::attach(|py| {
+            read("standing", Vec::new())?
+                .extract::<(bool, String)>(py)
+                .map(|(identified, basis)| ResponseStanding { identified, basis })
+                .map_err(|_| wrong("standing", "an (identified, basis) pair"))
+        })?;
+        let held_out_design = Python::attach(|py| {
+            let (kind, reason) = read("heldout_design", Vec::new())?
+                .extract::<(String, String)>(py)
+                .map_err(|_| wrong("heldout_design", "a (kind, reason) pair"))?;
+            Ok::<_, PyErr>(match kind.as_str() {
+                "independent_draws" => HeldOutDesign::IndependentDraws,
+                "held_out_units" => HeldOutDesign::HeldOutUnits,
+                _ => HeldOutDesign::Unavailable(reason),
+            })
+        })?;
+        let observable = Python::attach(|py| {
+            read("observable_variables", Vec::new())?
+                .extract::<Option<Vec<u32>>>(py)
+                .map(|ids| ids.map(|ids| ids.into_iter().map(VariableId::from_raw).collect()))
+                .map_err(|_| wrong("observable_variables", "None or a list of variable indices"))
+        })?;
+        Ok(Self {
+            object,
+            identity,
+            optimization_draws,
+            held_out_draws,
+            horizon,
+            standing,
+            held_out_design,
+            observable,
+        })
+    }
+
     fn call<T>(
         &self,
         method: &str,
@@ -162,54 +310,25 @@ type RawPath = (f64, Vec<f64>, Vec<f64>, Vec<f64>);
 
 impl PolicyRolloutSource for PySource {
     fn identity(&self) -> String {
-        self.call("identity", |py| Ok(pyo3::types::PyTuple::empty(py)), |v| v.extract::<String>())
-            .unwrap_or_default()
+        self.identity.clone()
     }
     fn n_draws(&self, split: DrawSplit) -> usize {
-        self.call(
-            "n_draws",
-            |py| Ok(pyo3::types::PyTuple::new(py, [split_name(split)])?),
-            |v| v.extract::<usize>(),
-        )
-        .unwrap_or(0)
-    }
-    fn horizon(&self) -> usize {
-        self.call("horizon", |py| Ok(pyo3::types::PyTuple::empty(py)), |v| v.extract::<usize>())
-            .unwrap_or(0)
-    }
-    fn standing(&self) -> ResponseStanding {
-        self.call(
-            "standing",
-            |py| Ok(pyo3::types::PyTuple::empty(py)),
-            |v| v.extract::<(bool, String)>(),
-        )
-        .map_or_else(
-            |e| ResponseStanding { identified: false, basis: e.to_string() },
-            |(identified, basis)| ResponseStanding { identified, basis },
-        )
-    }
-    fn heldout_design(&self) -> HeldOutDesign {
-        let design = self.call(
-            "heldout_design",
-            |py| Ok(pyo3::types::PyTuple::empty(py)),
-            |v| v.extract::<(String, String)>(),
-        );
-        match design {
-            Ok((kind, _)) if kind == "independent_draws" => HeldOutDesign::IndependentDraws,
-            Ok((kind, _)) if kind == "held_out_units" => HeldOutDesign::HeldOutUnits,
-            Ok((_, reason)) => HeldOutDesign::Unavailable(reason),
-            Err(e) => HeldOutDesign::Unavailable(e.to_string()),
+        match split {
+            DrawSplit::Optimization => self.optimization_draws,
+            DrawSplit::HeldOut => self.held_out_draws,
         }
     }
+    fn horizon(&self) -> usize {
+        self.horizon
+    }
+    fn standing(&self) -> ResponseStanding {
+        self.standing.clone()
+    }
+    fn heldout_design(&self) -> HeldOutDesign {
+        self.held_out_design.clone()
+    }
     fn observable_variables(&self) -> Option<Vec<VariableId>> {
-        self.call(
-            "observable_variables",
-            |py| Ok(pyo3::types::PyTuple::empty(py)),
-            |v| v.extract::<Option<Vec<u32>>>(),
-        )
-        .ok()
-        .flatten()
-        .map(|ids| ids.into_iter().map(VariableId::from_raw).collect())
+        self.observable.clone()
     }
     fn rollout(
         &self,
@@ -313,40 +432,36 @@ fn run_config(
             None
         },
     };
-    let objective =
-        match config.get("objective").and_then(Value::as_str).unwrap_or("expected_utility") {
-            "expected_utility" => PolicyObjective::ExpectedUtility,
-            "lower_tail_mean" => {
-                PolicyObjective::LowerTailMean { alpha: num(&config, "tail_alpha")? }
-            }
-            other => {
-                return Err(bad(format!(
-                    "unknown objective {other:?}; use expected_utility|lower_tail_mean"
-                )))
-            }
-        };
+    let objective = match opt_text(config, "objective")?.unwrap_or("expected_utility") {
+        "expected_utility" => PolicyObjective::ExpectedUtility,
+        "lower_tail_mean" => PolicyObjective::LowerTailMean { alpha: num(&config, "tail_alpha")? },
+        other => {
+            return Err(bad(format!(
+                "unknown objective {other:?}; use expected_utility|lower_tail_mean"
+            )));
+        }
+    };
     let defaults = PolicySearchOptions::default();
-    let opt = |key: &str| config.get(key).and_then(Value::as_f64);
     let options = PolicySearchOptions {
-        seed: config.get("seed").and_then(Value::as_u64).unwrap_or(defaults.seed),
-        max_evaluations: opt("max_evaluations").map_or(defaults.max_evaluations, |v| v as usize),
-        population: opt("population").map_or(defaults.population, |v| v as usize),
-        elite_fraction: opt("elite_fraction").unwrap_or(defaults.elite_fraction),
-        max_generations: opt("max_generations").map_or(defaults.max_generations, |v| v as usize),
-        spread_tolerance: opt("spread_tolerance").unwrap_or(defaults.spread_tolerance),
-        polish: config.get("polish").and_then(Value::as_bool).unwrap_or(defaults.polish),
-        standing: match config.get("standing").and_then(Value::as_str).unwrap_or("fitted_model") {
+        seed: opt_count(config, "seed")?.unwrap_or(defaults.seed),
+        max_evaluations: opt_size(config, "max_evaluations")?.unwrap_or(defaults.max_evaluations),
+        population: opt_size(config, "population")?.unwrap_or(defaults.population),
+        elite_fraction: opt_num(config, "elite_fraction")?.unwrap_or(defaults.elite_fraction),
+        max_generations: opt_size(config, "max_generations")?.unwrap_or(defaults.max_generations),
+        spread_tolerance: opt_num(config, "spread_tolerance")?.unwrap_or(defaults.spread_tolerance),
+        polish: opt_flag(config, "polish")?.unwrap_or(defaults.polish),
+        standing: match opt_text(config, "standing")?.unwrap_or("fitted_model") {
             "fitted_model" => StandingRequest::FittedModel,
             "identified_policy_effect" => StandingRequest::IdentifiedPolicyEffect,
             other => return Err(bad(format!("unknown standing {other:?}"))),
         },
-        held_out: match config.get("held_out").and_then(Value::as_str).unwrap_or("preferred") {
+        held_out: match opt_text(config, "held_out")?.unwrap_or("preferred") {
             "preferred" => HeldOutRequirement::Preferred,
             "required" => HeldOutRequirement::Required,
             other => return Err(bad(format!("unknown held_out requirement {other:?}"))),
         },
     };
-    let baseline = config.get("baseline").and_then(Value::as_u64).map(|b| b as usize);
+    let baseline = opt_size(config, "baseline")?;
     let prepared = PreparedAdaptivePolicySearch::compile(
         families,
         baseline,
@@ -413,11 +528,11 @@ fn adaptive_policy_search(
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<String> {
     let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
-    run_config(&config, &[], &PySource { object: source }, cancel)
+    run_config(&config, &[], &PySource::bind(source)?, cancel)
 }
 
-fn flag(spec: &Value, key: &str, default: f64) -> f64 {
-    spec.get(key).and_then(Value::as_f64).unwrap_or(default)
+fn scalar(spec: &Value, key: &str, default: f64) -> PyResult<f64> {
+    Ok(opt_num(spec, key)?.unwrap_or(default))
 }
 
 #[pymethods]
@@ -441,13 +556,13 @@ impl crate::gcm_api::PyFittedGcm {
         let utility = spec.get("utility").cloned().unwrap_or(Value::Null);
         let stage = StageUtility {
             outcome: var("outcome")?,
-            target: flag(&utility, "target", 0.0),
-            over: flag(&utility, "over", 0.0),
-            under: flag(&utility, "under", 0.0),
-            quadratic: flag(&utility, "quadratic", 0.0),
-            action_linear: flag(&utility, "action_linear", 0.0),
-            action_quadratic: flag(&utility, "action_quadratic", 0.0),
-            discount: flag(&utility, "discount", 1.0),
+            target: scalar(&utility, "target", 0.0)?,
+            over: scalar(&utility, "over", 0.0)?,
+            under: scalar(&utility, "under", 0.0)?,
+            quadratic: scalar(&utility, "quadratic", 0.0)?,
+            action_linear: scalar(&utility, "action_linear", 0.0)?,
+            action_quadratic: scalar(&utility, "action_quadratic", 0.0)?,
+            discount: scalar(&utility, "discount", 1.0)?,
         };
         let mut initial_state = Vec::new();
         if let Some(Value::Object(map)) = spec.get("initial_state") {
@@ -471,17 +586,26 @@ impl crate::gcm_api::PyFittedGcm {
             observed.push(VariableId::from_raw(id as u32));
         }
         let design = ModelRolloutDesign {
-            horizon: flag(spec, "horizon", 0.0) as usize,
-            rows: flag(spec, "rows", 1000.0) as usize,
-            held_out_rows: flag(spec, "held_out_rows", 0.0) as usize,
-            noise_seed: spec.get("noise_seed").and_then(Value::as_u64).unwrap_or(0),
+            horizon: bounded_size(spec, "horizon", 0)?,
+            rows: bounded_size(spec, "rows", 1000)?,
+            held_out_rows: bounded_size(spec, "held_out_rows", 0)?,
+            noise_seed: opt_count(spec, "noise_seed")?.unwrap_or(0),
             initial_state,
-            unit_cost: flag(spec, "unit_cost", 0.0),
-            exposure_weight: flag(spec, "exposure_weight", 0.0),
-            decision_interval: flag(spec, "decision_interval", 1.0) as usize,
+            unit_cost: scalar(spec, "unit_cost", 0.0)?,
+            exposure_weight: scalar(spec, "exposure_weight", 0.0)?,
+            decision_interval: bounded_size(spec, "decision_interval", 1)?,
         };
-        let identified = spec.get("identified").and_then(Value::as_bool).unwrap_or(false);
-        let basis = spec.get("identification_basis").and_then(Value::as_str).unwrap_or(
+        let cells = (design.rows.max(design.held_out_rows) as u64)
+            .saturating_mul(names.len().max(1) as u64);
+        if cells > MAX_ROLLOUT_CELLS {
+            return Err(crate::CausalResourceError::new_err(format!(
+                "rows and held_out_rows over {} variables exceed the bound of \
+                 {MAX_ROLLOUT_CELLS} simulated values",
+                names.len()
+            )));
+        }
+        let identified = opt_flag(spec, "identified")?.unwrap_or(false);
+        let basis = opt_text(spec, "identification_basis")?.unwrap_or(
             "fitted structural model; identification of the policy effect not established",
         );
         let source = ModelPolicySource::new(

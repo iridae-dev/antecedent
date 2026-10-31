@@ -89,18 +89,29 @@ fn parse_coordinates(
 /// `status` keeps the serialized scenario spellings (`structurally_unidentified`,
 /// `unevaluated`); the execution statuses `unsupported_provider` and
 /// `support_failure` belong to identified scenarios whose evaluation then failed.
-fn scenario_identification_status(status: &str) -> &'static str {
-    antecedent_core::TransportOutcomeKind::from_identification_status(status)
-        .unwrap_or(antecedent_core::TransportOutcomeKind::Identified)
-        .as_str()
+fn scenario_identification_status(status: &str) -> PyResult<&'static str> {
+    use antecedent_core::TransportOutcomeKind;
+    if matches!(status, "unsupported_provider" | "support_failure") {
+        return Ok(TransportOutcomeKind::Identified.as_str());
+    }
+    TransportOutcomeKind::from_identification_status(status)
+        .map(TransportOutcomeKind::as_str)
+        .ok_or_else(|| {
+            crate::value_err(format!("unknown scenario identification status {status:?}"))
+        })
 }
 
-fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Value {
+fn report_json(report: &ScenarioSetReport, names: &[String]) -> PyResult<serde_json::Value> {
+    let statuses = report
+        .scenarios
+        .iter()
+        .map(|s| scenario_identification_status(s.status))
+        .collect::<PyResult<Vec<_>>>()?;
     let name = |v: &VariableId| names[v.as_usize()].clone();
-    serde_json::json!({
+    Ok(serde_json::json!({
         "status": "available",
         "scope": SCOPE,
-        "scenarios": report.scenarios.iter().map(|s| {
+        "scenarios": report.scenarios.iter().zip(&statuses).map(|(s, identification)| {
             let point = s.distribution.as_ref().map(|d| serde_json::json!({
                 "outcomes": d.outcomes.iter().map(name).collect::<Vec<_>>(),
                 "atoms": d.atoms.iter().map(|row| row.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),
@@ -111,7 +122,7 @@ fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Valu
                 "name": s.name.as_ref(),
                 "weight": s.weight,
                 "status": s.status,
-                "identification_status": scenario_identification_status(s.status),
+                "identification_status": identification,
                 "detail": s.detail.as_ref().map(|d| crate::transport_common::resolve_variable_ids(d, names)),
                 "point": point,
             })
@@ -148,7 +159,7 @@ fn report_json(report: &ScenarioSetReport, names: &[String]) -> serde_json::Valu
             "explored": r.explored,
             "unevaluated": r.unevaluated,
         })),
-    })
+    }))
 }
 
 /// Accept an `ExactTransportData` wrapper or a sequence of laws.
@@ -222,7 +233,7 @@ impl PreparedTransportScenariosStage {
         let ctx = execution_context(0, memory_bytes.or(self.memory_bytes), cancel);
         let inner = self.inner.clone();
         let report = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
-        let payload = report_json(&report, &self.graph.names).to_string();
+        let payload = report_json(&report, &self.graph.names)?.to_string();
         self.last = Some(report);
         Ok(payload)
     }
@@ -463,7 +474,7 @@ fn consume_transport_scenarios_artifact(
                 "transport scenario artifact names disagree with its coordinate schema",
             ));
         }
-        let mut payload = report_json(&report, &names);
+        let mut payload = report_json(&report, &names)?;
         payload["premises_digest"] = wire.premises_digest.clone().into();
         Ok(payload.to_string())
     })

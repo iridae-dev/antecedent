@@ -124,6 +124,7 @@ impl PyPreparedAnalysis {
                 identifier = identifier.or(Some(IdentifierId::RdSharp));
                 estimator_id = estimator_id.or(Some(EstimatorId::RdSharp));
             }
+            req.refuse_conflicting_selection(identifier, estimator_id)?;
             if let Some(id) = identifier {
                 builder = builder.identifier(id);
             }

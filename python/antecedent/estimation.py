@@ -38,6 +38,7 @@ from ._columns import (
     drop_columns,
     encode_identifier,
     encode_weights,
+    identifier_strings,
     resolve_estimator_identifiers,
 )
 from ._data import (
@@ -68,6 +69,7 @@ from ._study_lifecycle import guard_design, replay_declaration, retain, retain_p
 from ._table_file import coerce_table_source
 from ._temporal_design import TemporalDesignQuery
 from ._treatment_labels import TreatmentLabels
+from ._validate import count as _validate_count
 from .descriptive import Association
 from .discovery import (
     DbnPosterior,
@@ -733,9 +735,11 @@ def _panel_did_payload(
     if query.cluster is not None:
         required += (query.cluster,)
     raw = read_columns(data, required, what="panel DiD")
-    subjects = tuple(str(value) for value in raw[query.subject])
+    subjects = identifier_strings(raw[query.subject], f"subject={query.subject!r}")
     clusters = (
-        subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+        subjects
+        if query.cluster is None
+        else identifier_strings(raw[query.cluster], f"cluster={query.cluster!r}")
     )
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
@@ -794,9 +798,11 @@ def _staggered_payload(
     if query.cluster is not None:
         required += (query.cluster,)
     raw = read_columns(data, required, what="staggered DiD")
-    subjects = tuple(str(value) for value in raw[query.subject])
+    subjects = identifier_strings(raw[query.subject], f"subject={query.subject!r}")
     clusters = (
-        subjects if query.cluster is None else tuple(str(value) for value in raw[query.cluster])
+        subjects
+        if query.cluster is None
+        else identifier_strings(raw[query.cluster], f"cluster={query.cluster!r}")
     )
     if any(not value.strip() for value in (*subjects, *clusters)):
         raise CausalValueError("subject and cluster IDs must be non-empty")
@@ -820,7 +826,7 @@ def _synthetic_control_payload(
     from .quasi import _integer_column
 
     raw = read_columns(data, (query.outcome, query.unit, query.period), what="synthetic-control")
-    units = tuple(str(value) for value in raw[query.unit])
+    units = identifier_strings(raw[query.unit], f"unit={query.unit!r}")
     if any(not value.strip() for value in units):
         raise CausalValueError("unit IDs must be non-empty")
     periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
@@ -875,7 +881,10 @@ def _sequential_contrast_payload(
         fold_of_row = tuple(row % query.folds for row in range(rows))
         fold_count = query.folds
     else:
-        fold_of_row = tuple(int(fold) for fold in query.folds)
+        fold_of_row = tuple(
+            _validate_count(fold, f"folds[{index}]", minimum=0, type_error=CausalValueError)
+            for index, fold in enumerate(query.folds)
+        )
         if len(fold_of_row) != rows:
             raise CausalValueError("folds must give one fold per row of the data")
         fold_count = max(fold_of_row) + 1
@@ -1345,6 +1354,35 @@ class _PreparedEngine(Generic[ResultT]):
         refuse_transport_only_kwargs(
             query, provider=provider, inference=inference, controls=controls
         )
+        if on_refusal not in ("refuse", "describe"):
+            raise CausalValueError(
+                f"on_refusal={on_refusal!r} is not a refusal handling; use 'refuse' or 'describe'",
+                reason_code="invalid_argument",
+            )
+        if on_refusal != "describe" and evidence_candidates is not None:
+            raise CausalUnsupportedError(
+                "evidence_candidates= feed the descriptive fallback; pass on_refusal='describe' "
+                "to run it or drop the candidates",
+                reason_code="option_not_applicable",
+            )
+        if (on_refusal != "refuse" or evidence_candidates is not None) and (
+            isinstance(
+                query,
+                (
+                    PolicyProgramValue,
+                    Transport,
+                    TransportResponseGridQuery,
+                    StatisticalTransportQuery,
+                    ExactTransportQuery,
+                ),
+            )
+            or isinstance(data, (ExactTransportData, StatisticalTransportData))
+        ):
+            raise CausalUnsupportedError(
+                "on_refusal='describe' runs a descriptive fallback on a refused tabular study; "
+                "this query is bound to its own design or evidence and has no such fallback",
+                reason_code="option_not_applicable",
+            )
         if isinstance(query, PolicyProgramValue):
             from ._prepared_policy import PreparedPolicyAnalysis
 
@@ -2453,6 +2491,7 @@ class _PreparedEngine(Generic[ResultT]):
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = _UNSET,
     ) -> AnalysisResult:
         """Estimate a declared target population from frozen scores. No refit.
 
@@ -2474,6 +2513,7 @@ class _PreparedEngine(Generic[ResultT]):
             list(depends_on),
             seed=seed,
             threads=threads,
+            cancel=self._controls.cancel if cancel is _UNSET else cancel,
         )
         return _wrap_ate(raw, prepared=self)
 
@@ -2484,6 +2524,7 @@ class _PreparedEngine(Generic[ResultT]):
         *,
         seed: int = 1,
         threads: int | None = None,
+        cancel: Any = _UNSET,
     ) -> AnalysisResult:
         """Re-execute the row-weight retarget an exported contract carries.
 
@@ -2498,7 +2539,12 @@ class _PreparedEngine(Generic[ResultT]):
                 "This operation is not licensed on the prepared transport handle",
                 reason_code="option_not_applicable",
             )
-        raw = self._native.reexecute_retarget(bytes(artifact), seed=seed, threads=threads)
+        raw = self._native.reexecute_retarget(
+            bytes(artifact),
+            seed=seed,
+            threads=threads,
+            cancel=self._controls.cancel if cancel is _UNSET else cancel,
+        )
         return _wrap_ate(raw, prepared=self)
 
     def _staleness_payload(self, data: Any) -> tuple[list[str], list[Any]]:

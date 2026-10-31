@@ -684,9 +684,21 @@ type PyProvider = FnCallback<
     >,
 >;
 
+/// The first non-`Exception` raised by a provider callable (an interrupt), held until the
+/// native call returns so it can be raised in place of the refusal it was reported as.
+type Interrupt = std::sync::Arc<std::sync::Mutex<Option<PyErr>>>;
+
+fn raise_interrupt(interrupt: &Interrupt) -> PyResult<()> {
+    match interrupt.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
 fn invoke_python(
     invoke: &Py<PyAny>,
     token: &CallbackToken,
+    interrupt: &Interrupt,
     query: &CallbackQuery,
     ctx: &mut CallbackContext<'_>,
 ) -> Result<CallbackOutput, CallbackFailure> {
@@ -705,8 +717,18 @@ fn invoke_python(
     Python::attach(|py| {
         let called = invoke
             .bind(py)
-            .call1((query_text, context.to_string(), token))
-            .map_err(|error| CallbackFailure::new(format!("{}", error.value(py))))?;
+            .call1((query_text, context.to_string(), token.clone()))
+            .map_err(|error| {
+                if error.is_instance_of::<pyo3::exceptions::PyException>(py) {
+                    return CallbackFailure::new(format!("{}", error.value(py)));
+                }
+                let mut first = interrupt.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                if first.is_none() {
+                    *first = Some(error);
+                }
+                token.inner.cancel();
+                CallbackFailure::new("provider callable was interrupted")
+            })?;
         let text: String = called
             .extract()
             .map_err(|_| CallbackFailure::new("the callable must return a JSON string"))?;
@@ -724,17 +746,19 @@ fn provider_of(
     invoke: Py<PyAny>,
     state: Option<Py<PyAny>>,
     token: &CallbackToken,
+    interrupt: &Interrupt,
 ) -> PyResult<PyProvider> {
     let value = parse(identity_json, "provider identity")?;
     let identity: IdentityJson =
         serde_json::from_value(value).map_err(|error| bad("provider identity", error))?;
     let token = token.clone();
+    let interrupt = Interrupt::clone(interrupt);
     let call: Box<
         dyn FnMut(
             &CallbackQuery,
             &mut CallbackContext<'_>,
         ) -> Result<CallbackOutput, CallbackFailure>,
-    > = Box::new(move |query, ctx| invoke_python(&invoke, &token, query, ctx));
+    > = Box::new(move |query, ctx| invoke_python(&invoke, &token, &interrupt, query, ctx));
     let provider = FnCallback::new(
         ProviderObjectIdentity {
             provider_id: identity.provider_id,
@@ -945,15 +969,16 @@ impl CallbackSessionHandle {
         let request = request_of(request_json)?;
         let policy = policy_of(policy_json)?;
         let inputs = inputs_of(&self.inner, inputs_json)?;
-        let mut provider = provider_of(identity_json, invoke, state, token)?;
+        let interrupt = Interrupt::default();
+        let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
         let ctx = context_of(token);
-        Ok(
-            match self.inner.execute(&mut provider, &declaration, &request, &inputs, &policy, &ctx)
-            {
-                Ok(execution) => (Some(execution_json(&self.inner, &execution)), None),
-                Err(error) => (None, Some(error_json(&error))),
-            },
-        )
+        let outcome =
+            self.inner.execute(&mut provider, &declaration, &request, &inputs, &policy, &ctx);
+        raise_interrupt(&interrupt)?;
+        Ok(match outcome {
+            Ok(execution) => (Some(execution_json(&self.inner, &execution)), None),
+            Err(error) => (None, Some(error_json(&error))),
+        })
     }
 
     /// Check the connection of the declared callback to a consumer through the interface
@@ -983,19 +1008,22 @@ impl CallbackSessionHandle {
         let request = request_of(request_json)?;
         let policy = policy_of(policy_json)?;
         let inputs = inputs_of(&self.inner, inputs_json)?;
-        let mut provider = provider_of(identity_json, invoke, state, token)?;
+        let interrupt = Interrupt::default();
+        let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
         let ctx = context_of(token);
+        let outcome = self.inner.execute_for_consumer(
+            &mut provider,
+            &declaration,
+            &consumer,
+            consumed_port,
+            &request,
+            &inputs,
+            &policy,
+            &ctx,
+        );
+        raise_interrupt(&interrupt)?;
         Ok(
-            match self.inner.execute_for_consumer(
-                &mut provider,
-                &declaration,
-                &consumer,
-                consumed_port,
-                &request,
-                &inputs,
-                &policy,
-                &ctx,
-            ) {
+            match outcome {
                 Ok((connection, execution)) => (
                     Some(
                         json!({
@@ -1038,8 +1066,11 @@ impl CallbackSessionHandle {
         let policy = policy_of(policy_json)?;
         let inputs = inputs_of(&self.inner, inputs_json)?;
         let ctx = context_of(token);
+        let interrupt = Interrupt::default();
         let mut provider = match (identity_json, invoke) {
-            (Some(identity), Some(invoke)) => Some(provider_of(identity, invoke, state, token)?),
+            (Some(identity), Some(invoke)) => {
+                Some(provider_of(identity, invoke, state, token, &interrupt)?)
+            }
             (None, None) => None,
             _ => return Err(bad("provider", "supply both the identity and the callable")),
         };
@@ -1051,6 +1082,7 @@ impl CallbackSessionHandle {
             &policy,
             &ctx,
         );
+        raise_interrupt(&interrupt)?;
         Ok(match resumed {
             Ok(CallbackResume::Answered(execution)) => (
                 Some(

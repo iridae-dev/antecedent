@@ -603,6 +603,30 @@ impl PyPreparedAnalysis {
         let data = req.load_weighted_columns(py, columns)?;
         req.off_gil(py, move |req| {
             let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
+            refuse_foreign_design_arguments(
+                &design_kind,
+                &[
+                    ("treated_units", treated_units.is_some(), "complete"),
+                    ("blocks", blocks.as_ref().is_some_and(|v| !v.is_empty()), "stratified"),
+                    (
+                        "treated_per_row",
+                        treated_per_row.as_ref().is_some_and(|v| !v.is_empty()),
+                        "stratified",
+                    ),
+                    ("treated_clusters", treated_clusters.is_some(), "cluster"),
+                    ("periods", periods.is_some(), "switchback"),
+                    (
+                        "second_factor_assignment",
+                        second_factor_assignment.is_some(),
+                        "factorial_2x2",
+                    ),
+                    ("factorial_cell_counts", factorial_cell_counts.is_some(), "factorial_2x2"),
+                    ("second_factor_arms", second_factor_arms.is_some(), "factorial_2x2"),
+                    ("multi_arm_labels", multi_arm_labels.is_some(), "multi_arm"),
+                    ("multi_arm_assignment", multi_arm_assignment.is_some(), "multi_arm"),
+                    ("multi_arm_probabilities", multi_arm_probabilities.is_some(), "multi_arm"),
+                ],
+            )?;
             let design = match design_kind.as_str() {
                 "bernoulli" => antecedent_core::RandomizationDesign::Bernoulli,
                 "complete" => antecedent_core::RandomizationDesign::Complete {
@@ -707,4 +731,21 @@ impl PyPreparedAnalysis {
             req.finish_applied(builder, false)
         })
     }
+}
+
+/// Refuse a design argument that the chosen randomization design does not read.
+///
+/// Each entry is the argument name, whether it was supplied, and the one design that reads it.
+fn refuse_foreign_design_arguments(
+    design_kind: &str,
+    supplied: &[(&str, bool, &str)],
+) -> PyResult<()> {
+    for (name, present, reader) in supplied {
+        if *present && *reader != design_kind {
+            return Err(py_msg(format!(
+                "{name} is read only by {reader} randomization; the design_kind is {design_kind}"
+            )));
+        }
+    }
+    Ok(())
 }

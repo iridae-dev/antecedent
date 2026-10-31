@@ -63,6 +63,8 @@ class StalenessPolicy:
 
     The policy is part of the report identity: two reports under different policies never
     compare equal. :meth:`resolved` returns every field with its value and the identity.
+    ``seed`` keys the subsampling and permutation streams of the diagnostics; the seed of the
+    ``Execution`` does not reach them, so declare the stream here.
     """
 
     alpha: float | None = None

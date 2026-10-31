@@ -28,7 +28,7 @@ use pyo3::types::PyBytes;
 use serde_json::{Map, Value as Json, json};
 
 use crate::measurement_model_api::{
-    list, member, object, opt_text, parse, present, real, reals, text, texts,
+    list, member, object, opt_text, parse, present, real, reals, reject_unknown_keys, text, texts,
 };
 use crate::transport_common::execution_context;
 
@@ -104,6 +104,11 @@ fn unhex(value: &str) -> Option<Vec<u8>> {
 
 fn parse_lineage(value: &Json) -> PyResult<Lineage> {
     let map = object(value, "lineage")?;
+    reject_unknown_keys(
+        map,
+        &["kind", "of", "transform", "prior", "likelihood", "inputs"],
+        "a lineage",
+    )?;
     Ok(match text(map, "kind")?.as_str() {
         "original" => Lineage::Original,
         "duplicate" => Lineage::Duplicate { of: source_id(&text(map, "of")?)? },
@@ -125,6 +130,11 @@ fn parse_lineage(value: &Json) -> PyResult<Lineage> {
 
 fn parse_transport(value: &Json) -> PyResult<TransportIdentity> {
     let map = object(value, "transport identity")?;
+    reject_unknown_keys(
+        map,
+        &["source_populations", "target_population", "selection_diagram", "assumptions"],
+        "a transport identity",
+    )?;
     Ok(TransportIdentity {
         source_populations: texts(map, "source_populations")?,
         target_population: text(map, "target_population")?,
@@ -138,6 +148,11 @@ fn parse_transport(value: &Json) -> PyResult<TransportIdentity> {
 
 fn parse_declaration(value: &Json) -> PyResult<SourceDeclaration> {
     let map = object(value, "source declaration")?;
+    reject_unknown_keys(
+        map,
+        &["label", "kind", "lineage", "transport", "observations", "observation_ids"],
+        "a source declaration",
+    )?;
     let name = text(map, "kind")?;
     let kind = SourceKind::from_name(&name)
         .ok_or_else(|| crate::value_err(format!("unknown source kind `{name}`")))?;

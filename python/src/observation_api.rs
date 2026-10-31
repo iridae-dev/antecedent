@@ -208,6 +208,7 @@ fn prepare_observation_response(
     options: Option<Bound<'_, pyo3::types::PyDict>>,
 ) -> PyResult<crate::prepared_api::PyPreparedAnalysis> {
     let mut opts = crate::prepared_options::PrepareOptions::parse(options.as_ref())?;
+    opts.refuse_unread_declarations("an observation-corrected response")?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
     let correction = parse_correction(correction)?;

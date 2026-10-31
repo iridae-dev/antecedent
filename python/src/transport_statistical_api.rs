@@ -515,7 +515,7 @@ pub(crate) fn parse_provider(
 }
 
 #[pyfunction]
-#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, posterior_draws=199, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
+#[pyo3(signature = (stage, catalog, payload, assignments, *, max_operations=10_000_000, max_depth=256, max_support_rows=1_000_000, max_steps=100_000, memory_bytes=None, cancel=None, bootstrap=crate::transport_defaults::BOOTSTRAP, posterior_draws=199, coverage_level=crate::transport_defaults::COVERAGE_LEVEL, estimator=None, seed=1))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_statistical_transport(
     py: Python<'_>,
@@ -526,6 +526,7 @@ fn prepare_statistical_transport(
     max_operations: usize,
     max_depth: usize,
     max_support_rows: usize,
+    max_steps: usize,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
     bootstrap: u32,
@@ -545,7 +546,7 @@ fn prepare_statistical_transport(
         let ctx = execution_context(seed, memory_bytes, cancel);
         let functional = match proof.bind_catalog_with_context(
             &catalog,
-            antecedent_identify::SidLimits { steps: max_operations, depth: max_depth },
+            antecedent_identify::SidLimits { steps: max_steps, depth: max_depth },
             &ctx,
         ) {
             Ok(bound) => bound,
@@ -553,7 +554,7 @@ fn prepare_statistical_transport(
                 .search_catalog(
                     &diagram,
                     &catalog,
-                    SidLimits { steps: max_operations, depth: max_depth },
+                    SidLimits { steps: max_steps, depth: max_depth },
                     &ctx,
                 )
                 .map_err(error)?
@@ -682,7 +683,7 @@ pub(crate) fn parse_statistical_input(
         }
         let parsed = parse_sample(&sample, catalog, graph)?;
         if parsed.columns.values().any(|column| column.len() > max_support_rows) {
-            return Err(error(format!(
+            return Err(crate::CausalResourceError::new_err(format!(
                 "sample rows exceed the max_support_rows budget ({max_support_rows})"
             )));
         }

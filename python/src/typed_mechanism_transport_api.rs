@@ -13,11 +13,11 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::mechanism_composition::MechanismCompositionRefusal;
 use antecedent::analysis::typed_transported_mechanism::{
-    check_typed_invariance, fit_typed_mechanism, refit_typed_mechanism_in_target,
-    transport_typed_mechanisms, verify_typed_transport, ContrastEstimate, CrossBlock,
-    FittedMechanism, InvarianceCheck, MeanSpec, MechanismRole, MechanismSpec, ParameterDependence,
-    ResponseFamily, TypedDisposition, TypedFunctionalUncertainty, TypedTransportReceipt,
-    TypedTransportRequest, TypedTransportedComposition,
+    ContrastEstimate, CrossBlock, FittedMechanism, InvarianceCheck, MeanSpec, MechanismRole,
+    MechanismSpec, ParameterDependence, ResponseFamily, TypedDisposition,
+    TypedFunctionalUncertainty, TypedTransportReceipt, TypedTransportRequest,
+    TypedTransportedComposition, check_typed_invariance, fit_typed_mechanism,
+    refit_typed_mechanism_in_target, transport_typed_mechanisms, verify_typed_transport,
 };
 use antecedent_core::ExecutionContext;
 use antecedent_model::compose::{
@@ -26,11 +26,9 @@ use antecedent_model::compose::{
 };
 use antecedent_model::mechanism_expr::MechanismExpression;
 use pyo3::prelude::*;
-use serde_json::{json, Map, Value as Json};
+use serde_json::{Map, Value as Json, json};
 
-use crate::measurement_model_api::{
-    list, member, object, parse, real, reals, text, texts,
-};
+use crate::measurement_model_api::{list, member, object, parse, real, reals, text, texts};
 use crate::transport_common::execution_context;
 
 type Refused<T> = (Option<T>, Option<String>);
@@ -108,23 +106,24 @@ fn parse_spec(value: &Json) -> PyResult<MechanismSpec> {
     })
 }
 
-fn spec_json(spec: &MechanismSpec) -> Json {
+fn spec_json(spec: &MechanismSpec) -> PyResult<Json> {
     let mean = match &spec.mean {
         MeanSpec::Polynomial { degree, interactions } => {
             json!({"kind": "polynomial", "degree": degree, "interactions": interactions})
         }
         MeanSpec::Expression { expression, start } => json!({
             "kind": "expression",
-            "expression": serde_json::to_value(expression).unwrap_or(Json::Null),
+            "expression": serde_json::to_value(expression)
+                .map_err(|error| crate::serialization_err(error.to_string()))?,
             "start": start,
         }),
     };
-    json!({
+    Ok(json!({
         "variable": spec.variable,
         "parents": spec.parents,
         "family": spec.family.as_str(),
         "mean": mean,
-    })
+    }))
 }
 
 struct FitContext {
@@ -347,10 +346,11 @@ impl TypedMechanismFitHandle {
     }
 
     /// Specification, parameters, labels, covariance, scaling and fit provenance as JSON.
-    fn summary_json(&self) -> String {
+    fn summary_json(&self) -> PyResult<String> {
         let m = &self.inner;
-        json!({
-            "specification": spec_json(m.spec()),
+        let specification = spec_json(m.spec())?;
+        Ok(json!({
+            "specification": specification,
             "n_obs": m.n_obs(),
             "parameters": m.parameters(),
             "parameter_labels": m.parameter_labels(),
@@ -362,7 +362,7 @@ impl TypedMechanismFitHandle {
             "artifact_id": m.provenance().artifact_id,
             "evidence_id": m.provenance().evidence_id,
         })
-        .to_string()
+        .to_string())
     }
 
     /// `E[variable | parents]` at raw parent values in specification order.

@@ -277,7 +277,8 @@ impl PyFittedGcm {
 
     /// Population do-contrast of `parent` on `child`: the child's interventional mean at
     /// `mean(parent) + delta/2` minus the one at `mean(parent) - delta/2`, common random
-    /// numbers across the arms. `max_units` bounds the number of observed rows (default: all).
+    /// numbers across the arms. `max_units` is the most observed rows the contrast will accept
+    /// (default: all); a larger table is refused, not truncated.
     #[pyo3(signature = (parent, child, delta, *, max_units=None, seed=0, threads=None))]
     fn population_do_contrast(
         &self,

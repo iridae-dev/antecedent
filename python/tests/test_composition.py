@@ -748,3 +748,24 @@ def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() 
             comp.check_atom_combination([comp.StructuralAtom("graph-a")] * 2, "report_each")
         )
     assert repeated.value.detail == "composition_boundary.invalid_input"
+
+
+def test_means_length_mismatch_is_typed_error():
+    import json
+
+    from antecedent import composition as native_side
+    from antecedent._native import composition_input_from_means
+
+    quantities = [q("do(a)", "mean"), q("do(b)", "mean")]
+    with pytest.raises(ValueError, match="one mean per coordinate"):
+        composition_input_from_means(
+            "short",
+            json.dumps([item._wire() for item in quantities]),
+            [1.0],
+            ["supported", "supported"],
+            "lab",
+            "snap",
+            "contract",
+            native_side._evidence(comp.TrustEvidence.attested("lab")),
+            "unrestricted",
+        )

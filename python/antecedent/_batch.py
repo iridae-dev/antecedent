@@ -20,6 +20,7 @@ from ._estimate_helpers import (
 from ._from_raw import _wrap_ate
 from ._native import prepare_ate_batch as _prepare_ate_batch
 from ._native import prepare_cells_batch as _prepare_cells_batch
+from ._validate import count as _count
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
 from .graph import Dag, TieredBackground
@@ -177,9 +178,9 @@ class CandidateScreen:
             procedure,
             screen_fraction=float(screen_fraction),
             seed=int(seed),
-            entity_ids=None if entity_ids is None else [int(i) for i in entity_ids],
-            first=None if first is None else [int(i) for i in first],
-            second=None if second is None else [int(i) for i in second],
+            entity_ids=_exact_ids(entity_ids, "entity_ids"),
+            first=_exact_ids(first, "first"),
+            second=_exact_ids(second, "second"),
         )
         return cls(
             recorded_id,
@@ -197,14 +198,26 @@ class CandidateScreen:
         )
 
 
+def _exact_ids(
+    values: Sequence[Any] | None, what: str, *, minimum: int | None = None
+) -> list[int] | None:
+    """Identifiers as integers; a fractional or boolean value is refused, never truncated."""
+    if values is None:
+        return None
+    return [
+        _count(value, f"{what}[{index}]", minimum=minimum, type_error=CausalValueError)
+        for index, value in enumerate(values)
+    ]
+
+
 def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
     if screen is None:
         return {}
     return {
         "screen_id": screen.screen_id,
         "screen_procedure": screen.procedure,
-        "screen_rows": [int(i) for i in screen.screen_rows],
-        "estimate_rows": [int(i) for i in screen.estimate_rows],
+        "screen_rows": _exact_ids(screen.screen_rows, "screen_rows", minimum=0),
+        "estimate_rows": _exact_ids(screen.estimate_rows, "estimate_rows", minimum=0),
     }
 
 
