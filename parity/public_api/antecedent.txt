@@ -15689,6 +15689,7 @@ pub fn antecedent::cross_world::check(graph: &antecedent_graph::dag::Dag, query:
 pub fn antecedent::cross_world::consume_cross_world_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u8], expected_data_digest: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
+pub fn antecedent::decision_evidence::evidence_from_cluster_contrast(contrast: &antecedent_estimate::randomized_joint::JointClusterContrast, evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, outcome_rows: usize, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::design::preview_design_rank<A, O>(contract: &antecedent::CausalContract, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError>
 pub fn antecedent::design::rank_designs_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent_design::result::ScoredDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn antecedent::design::rank_studies_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, studies: &[antecedent_design::study_candidate::DurableStudyCandidate], report: &antecedent_design::repair::RepairReport, base_law: &[antecedent_core::ids::VariableId], query: antecedent_core::ids::QueryId, eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::StudyDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
@@ -15891,6 +15892,7 @@ pub mod antecedent::callback_plan
 pub mod antecedent::class_prior
 pub mod antecedent::counterfactual_id
 pub mod antecedent::cross_world
+pub mod antecedent::decision_evidence
 pub mod antecedent::design
 pub mod antecedent::design_posterior_model
 pub mod antecedent::discovery
@@ -19359,6 +19361,8 @@ pub use antecedent::consume_transport_scenarios_artifact = antecedent::analysis:
 pub use antecedent::consume_z_transport_artifact = antecedent::analysis::api::consume_z_transport_artifact
 pub use antecedent::coverage_records_data = antecedent_io::coverage_records_data
 pub use antecedent::cross_world::CROSS_WORLD_MAX_ROWS = antecedent_io::cross_world_artifact::CROSS_WORLD_MAX_ROWS
+pub use antecedent::decision_evidence::JointClusterContrast = antecedent_estimate::randomized_joint::JointClusterContrast
+pub use antecedent::decision_evidence::complete_cluster_joint_contrast = antecedent_estimate::randomized_joint::complete_cluster_joint_contrast
 pub use antecedent::design::AffineUtility = antecedent_design::AffineUtility
 pub use antecedent::design::AnalyticCharacteristics = antecedent_design::planning::AnalyticCharacteristics
 pub use antecedent::design::ArmComparison = antecedent_design::planning::ArmComparison
@@ -20301,6 +20305,7 @@ pub variant antecedent::EstimatorId::PropensityMatching
 pub variant antecedent::EstimatorId::PropensityStratification
 pub variant antecedent::EstimatorId::PropensityWeighting
 pub variant antecedent::EstimatorId::RandomizedAncova
+pub variant antecedent::EstimatorId::RandomizedClusterFixedCuped
 pub variant antecedent::EstimatorId::RandomizedDrPolicy
 pub variant antecedent::EstimatorId::RandomizedFixedCupedHt
 pub variant antecedent::EstimatorId::RandomizedHt

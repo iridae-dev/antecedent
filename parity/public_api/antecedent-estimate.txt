@@ -946,6 +946,7 @@ impl core::clone::Clone for antecedent_estimate::posterior_mean::ScoreNamespace
 impl core::clone::Clone for antecedent_estimate::quantile::QuantileArm
 impl core::clone::Clone for antecedent_estimate::quantile::QuantileContrast
 impl core::clone::Clone for antecedent_estimate::quantile_posterior::QuantilePosterior
+impl core::clone::Clone for antecedent_estimate::randomized_joint::JointClusterContrast
 impl core::clone::Clone for antecedent_estimate::randomized_missing::ResponderWeightedArm
 impl core::clone::Clone for antecedent_estimate::randomized_missing::ResponderWeightedItt
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::BlockedItt
@@ -2153,6 +2154,7 @@ impl core::cmp::PartialEq for antecedent_estimate::posterior_mean::PosteriorRequ
 impl core::cmp::PartialEq for antecedent_estimate::posterior_mean::ScalarNamespace
 impl core::cmp::PartialEq for antecedent_estimate::posterior_mean::ScoreNamespace
 impl core::cmp::PartialEq for antecedent_estimate::quantile_posterior::QuantilePosterior
+impl core::cmp::PartialEq for antecedent_estimate::randomized_joint::JointClusterContrast
 impl core::cmp::PartialEq for antecedent_estimate::randomized_missing::ResponderWeightedArm
 impl core::cmp::PartialEq for antecedent_estimate::randomized_missing::ResponderWeightedItt
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::BlockedItt
@@ -3404,6 +3406,7 @@ impl core::fmt::Debug for antecedent_estimate::posterior_mean::ScoreNamespace
 impl core::fmt::Debug for antecedent_estimate::quantile::QuantileArm
 impl core::fmt::Debug for antecedent_estimate::quantile::QuantileContrast
 impl core::fmt::Debug for antecedent_estimate::quantile_posterior::QuantilePosterior
+impl core::fmt::Debug for antecedent_estimate::randomized_joint::JointClusterContrast
 impl core::fmt::Debug for antecedent_estimate::randomized_missing::ResponderWeightedArm
 impl core::fmt::Debug for antecedent_estimate::randomized_missing::ResponderWeightedItt
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::BlockedItt
@@ -4899,6 +4902,7 @@ impl core::marker::Freeze for antecedent_estimate::posterior_mean::ScoreNamespac
 impl core::marker::Freeze for antecedent_estimate::quantile::QuantileArm [auto]
 impl core::marker::Freeze for antecedent_estimate::quantile::QuantileContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::quantile_posterior::QuantilePosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::randomized_joint::JointClusterContrast [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_missing::ResponderWeightedArm [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_missing::ResponderWeightedItt [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::BlockedItt [auto]
@@ -5977,6 +5981,7 @@ impl core::marker::Send for antecedent_estimate::posterior_mean::ScoreNamespace 
 impl core::marker::Send for antecedent_estimate::quantile::QuantileArm [auto]
 impl core::marker::Send for antecedent_estimate::quantile::QuantileContrast [auto]
 impl core::marker::Send for antecedent_estimate::quantile_posterior::QuantilePosterior [auto]
+impl core::marker::Send for antecedent_estimate::randomized_joint::JointClusterContrast [auto]
 impl core::marker::Send for antecedent_estimate::randomized_missing::ResponderWeightedArm [auto]
 impl core::marker::Send for antecedent_estimate::randomized_missing::ResponderWeightedItt [auto]
 impl core::marker::Send for antecedent_estimate::randomized_neyman::BlockedItt [auto]
@@ -6906,6 +6911,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::posterior_mean::
 impl core::marker::StructuralPartialEq for antecedent_estimate::posterior_mean::ScalarNamespace
 impl core::marker::StructuralPartialEq for antecedent_estimate::posterior_mean::ScoreNamespace
 impl core::marker::StructuralPartialEq for antecedent_estimate::quantile_posterior::QuantilePosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_joint::JointClusterContrast
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_missing::ResponderWeightedArm
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_missing::ResponderWeightedItt
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::BlockedItt
@@ -7948,6 +7954,7 @@ impl core::marker::Sync for antecedent_estimate::posterior_mean::ScoreNamespace 
 impl core::marker::Sync for antecedent_estimate::quantile::QuantileArm [auto]
 impl core::marker::Sync for antecedent_estimate::quantile::QuantileContrast [auto]
 impl core::marker::Sync for antecedent_estimate::quantile_posterior::QuantilePosterior [auto]
+impl core::marker::Sync for antecedent_estimate::randomized_joint::JointClusterContrast [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_missing::ResponderWeightedArm [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_missing::ResponderWeightedItt [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::BlockedItt [auto]
@@ -9027,6 +9034,7 @@ impl core::marker::Unpin for antecedent_estimate::posterior_mean::ScoreNamespace
 impl core::marker::Unpin for antecedent_estimate::quantile::QuantileArm [auto]
 impl core::marker::Unpin for antecedent_estimate::quantile::QuantileContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::quantile_posterior::QuantilePosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::randomized_joint::JointClusterContrast [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_missing::ResponderWeightedArm [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_missing::ResponderWeightedItt [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::BlockedItt [auto]
@@ -10109,6 +10117,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::posterior_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::quantile::QuantileArm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::quantile::QuantileContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::quantile_posterior::QuantilePosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_joint::JointClusterContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_missing::ResponderWeightedArm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_missing::ResponderWeightedItt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::BlockedItt [auto]
@@ -11187,6 +11196,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::posterior_mea
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::quantile::QuantileArm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::quantile::QuantileContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::quantile_posterior::QuantilePosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_joint::JointClusterContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_missing::ResponderWeightedArm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_missing::ResponderWeightedItt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::BlockedItt [auto]
@@ -12818,6 +12828,7 @@ pub const antecedent_estimate::observational_survival::DEFAULT_SURVIVAL_MIN_PROP
 pub const antecedent_estimate::quantile_posterior::MAX_QUANTILE_POSTERIOR_DRAWS: usize
 pub const antecedent_estimate::quantile_posterior::MAX_UNRESOLVED_QUANTILE_SHARE: f64
 pub const antecedent_estimate::quantile_posterior::MIN_QUANTILE_POSTERIOR_DRAWS: usize
+pub const antecedent_estimate::randomized_joint::MIN_UNITS_PER_ARM_FOR_INTERVAL: usize
 pub const antecedent_estimate::randomized_missing::OBSERVATION_PROBABILITY_FLOOR: f64
 pub const antecedent_estimate::randomized_posterior::BERNOULLI_ARM_LIKELIHOOD: &str
 pub const antecedent_estimate::randomized_posterior::GAUSSIAN_ARM_LIKELIHOOD: &str
@@ -16713,6 +16724,16 @@ pub field antecedent_estimate::quantile_posterior::QuantilePosterior::treated_cd
 pub field antecedent_estimate::quantile_posterior::QuantilePosterior::treated_draws: alloc::vec::Vec<f64>
 pub field antecedent_estimate::quantile_posterior::QuantilePosterior::treated_interval_95: [f64; 2]
 pub field antecedent_estimate::quantile_posterior::QuantilePosterior::treated_quantile_mean: f64
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::control_clusters: usize
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::control_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::control_means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::effect_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::effects: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::interval_supported: bool
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::outcomes: usize
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::treated_clusters: usize
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::treated_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::randomized_joint::JointClusterContrast::treated_means: alloc::vec::Vec<f64>
 pub field antecedent_estimate::randomized_missing::ResponderWeightedArm::assigned: usize
 pub field antecedent_estimate::randomized_missing::ResponderWeightedArm::effective_responders: f64
 pub field antecedent_estimate::randomized_missing::ResponderWeightedArm::mean: f64
@@ -19249,6 +19270,7 @@ pub fn antecedent_estimate::quantile::invert_supported_cdf(thresholds: &[f64], r
 pub fn antecedent_estimate::quantile::quantile_arm(table: &antecedent_estimate::ScoreTable, weights: core::option::Option<&[f64]>, tau: f64, arm: u32) -> core::result::Result<antecedent_estimate::quantile::QuantileArm, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::quantile::quantile_contrast(table: &antecedent_estimate::ScoreTable, weights: core::option::Option<&[f64]>, tau: f64) -> core::result::Result<antecedent_estimate::quantile::QuantileContrast, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::quantile_posterior::randomized_quantile_posterior(outcome: &[f64], treated: &[bool], thresholds: &[f64], bin_concentration: f64, tau: f64, draws: usize, seed: u64) -> core::result::Result<antecedent_estimate::quantile_posterior::QuantilePosterior, antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::randomized_joint::complete_cluster_joint_contrast(totals: &[&[f64]], assigned: &[bool], outcome_rows: usize) -> core::option::Option<antecedent_estimate::randomized_joint::JointClusterContrast>
 pub fn antecedent_estimate::randomized_missing::responder_pseudo_outcomes(outcome: &[f64], observed: &[bool], group: &[usize], covariates_colmajor: &[f64], ncov: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_missing::responder_weighted_itt(outcome: &[f64], observed: &[bool], treated: &[bool], covariates_colmajor: &[f64], ncov: usize) -> core::result::Result<antecedent_estimate::randomized_missing::ResponderWeightedItt, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_neyman::blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> core::option::Option<antecedent_estimate::randomized_neyman::BlockedItt>
@@ -19550,6 +19572,7 @@ pub mod antecedent_estimate::prepare
 pub mod antecedent_estimate::propensity
 pub mod antecedent_estimate::quantile
 pub mod antecedent_estimate::quantile_posterior
+pub mod antecedent_estimate::randomized_joint
 pub mod antecedent_estimate::randomized_missing
 pub mod antecedent_estimate::randomized_neyman
 pub mod antecedent_estimate::randomized_posterior
@@ -20412,6 +20435,7 @@ pub struct antecedent_estimate::population_aipw::PopulationAipwInterval
 pub struct antecedent_estimate::quantile::QuantileArm
 pub struct antecedent_estimate::quantile::QuantileContrast
 pub struct antecedent_estimate::quantile_posterior::QuantilePosterior
+pub struct antecedent_estimate::randomized_joint::JointClusterContrast
 pub struct antecedent_estimate::randomized_missing::ResponderWeightedArm
 pub struct antecedent_estimate::randomized_missing::ResponderWeightedItt
 pub struct antecedent_estimate::randomized_neyman::BlockedItt

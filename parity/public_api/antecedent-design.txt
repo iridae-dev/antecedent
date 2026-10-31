@@ -13,6 +13,7 @@
 #[non_exhaustive] pub enum antecedent_design::SensitivityMethod
 #[non_exhaustive] pub enum antecedent_design::StudyKind
 #[non_exhaustive] pub enum antecedent_design::adaptive_trial_transport::TrialMechanism
+#[non_exhaustive] pub enum antecedent_design::decision_evidence::EvidenceRefusal
 #[non_exhaustive] pub enum antecedent_design::decision_reliability::ReliabilityError
 #[non_exhaustive] pub enum antecedent_design::decision_transported_source::TransportedRefusal
 #[non_exhaustive] pub enum antecedent_design::design_ranking_artifact::DesignRankingArtifactError
@@ -357,6 +358,42 @@ impl core::clone::Clone for antecedent_design::decision_evaluation::ExecutionRec
 impl core::clone::Clone for antecedent_design::decision_evaluation::MissingCarrier
 impl core::clone::Clone for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::clone::Clone for antecedent_design::decision_evaluation::RetentionRecord
+impl core::clone::Clone for antecedent_design::decision_evidence::AdjustmentKind
+impl core::clone::Clone for antecedent_design::decision_evidence::AdjustmentVerdict
+impl core::clone::Clone for antecedent_design::decision_evidence::Arm
+impl core::clone::Clone for antecedent_design::decision_evidence::AssumedRange
+impl core::clone::Clone for antecedent_design::decision_evidence::Candidate
+impl core::clone::Clone for antecedent_design::decision_evidence::CompiledJointExperiment
+impl core::clone::Clone for antecedent_design::decision_evidence::CompiledObligation
+impl core::clone::Clone for antecedent_design::decision_evidence::ComponentAdjustment
+impl core::clone::Clone for antecedent_design::decision_evidence::DecisionFrame
+impl core::clone::Clone for antecedent_design::decision_evidence::DecisionResult
+impl core::clone::Clone for antecedent_design::decision_evidence::Dependence
+impl core::clone::Clone for antecedent_design::decision_evidence::DerivedQuantity
+impl core::clone::Clone for antecedent_design::decision_evidence::DerivedResult
+impl core::clone::Clone for antecedent_design::decision_evidence::DesignRecord
+impl core::clone::Clone for antecedent_design::decision_evidence::EvidenceLedger
+impl core::clone::Clone for antecedent_design::decision_evidence::EvidencePlan
+impl core::clone::Clone for antecedent_design::decision_evidence::EvidenceRefusal
+impl core::clone::Clone for antecedent_design::decision_evidence::Exposure
+impl core::clone::Clone for antecedent_design::decision_evidence::InputBinding
+impl core::clone::Clone for antecedent_design::decision_evidence::JointExperimentEvidence
+impl core::clone::Clone for antecedent_design::decision_evidence::JointExperimentSpec
+impl core::clone::Clone for antecedent_design::decision_evidence::LineageStatus
+impl core::clone::Clone for antecedent_design::decision_evidence::OutcomeComponent
+impl core::clone::Clone for antecedent_design::decision_evidence::PlanRow
+impl core::clone::Clone for antecedent_design::decision_evidence::PlanValue
+impl core::clone::Clone for antecedent_design::decision_evidence::PlanningModel
+impl core::clone::Clone for antecedent_design::decision_evidence::Request
+impl core::clone::Clone for antecedent_design::decision_evidence::ReuseReceipt
+impl core::clone::Clone for antecedent_design::decision_evidence::SamplingInterval
+impl core::clone::Clone for antecedent_design::decision_evidence::Stage
+impl core::clone::Clone for antecedent_design::decision_evidence::StageDigests
+impl core::clone::Clone for antecedent_design::decision_evidence::StageStatus
+impl core::clone::Clone for antecedent_design::decision_evidence::Standing
+impl core::clone::Clone for antecedent_design::decision_evidence::Target
+impl core::clone::Clone for antecedent_design::decision_evidence::UnresolvedReason
+impl core::clone::Clone for antecedent_design::decision_evidence::Verdict
 impl core::clone::Clone for antecedent_design::decision_reliability::BatchPlan
 impl core::clone::Clone for antecedent_design::decision_reliability::BoundKind
 impl core::clone::Clone for antecedent_design::decision_reliability::CalibrationCoordinate
@@ -927,6 +964,22 @@ impl core::cmp::Eq for antecedent_design::decision_evaluation::ExecutionRecord
 impl core::cmp::Eq for antecedent_design::decision_evaluation::MissingCarrier
 impl core::cmp::Eq for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::cmp::Eq for antecedent_design::decision_evaluation::RetentionRecord
+impl core::cmp::Eq for antecedent_design::decision_evidence::AdjustmentVerdict
+impl core::cmp::Eq for antecedent_design::decision_evidence::Arm
+impl core::cmp::Eq for antecedent_design::decision_evidence::CompiledObligation
+impl core::cmp::Eq for antecedent_design::decision_evidence::DesignRecord
+impl core::cmp::Eq for antecedent_design::decision_evidence::EvidenceLedger
+impl core::cmp::Eq for antecedent_design::decision_evidence::EvidenceRefusal
+impl core::cmp::Eq for antecedent_design::decision_evidence::LineageStatus
+impl core::cmp::Eq for antecedent_design::decision_evidence::OutcomeComponent
+impl core::cmp::Eq for antecedent_design::decision_evidence::Request
+impl core::cmp::Eq for antecedent_design::decision_evidence::ReuseReceipt
+impl core::cmp::Eq for antecedent_design::decision_evidence::Stage
+impl core::cmp::Eq for antecedent_design::decision_evidence::StageDigests
+impl core::cmp::Eq for antecedent_design::decision_evidence::StageStatus
+impl core::cmp::Eq for antecedent_design::decision_evidence::Standing
+impl core::cmp::Eq for antecedent_design::decision_evidence::Target
+impl core::cmp::Eq for antecedent_design::decision_evidence::UnresolvedReason
 impl core::cmp::Eq for antecedent_design::decision_reliability::BatchPlan
 impl core::cmp::Eq for antecedent_design::decision_reliability::BoundKind
 impl core::cmp::Eq for antecedent_design::decision_reliability::CalibrationStatus
@@ -1114,6 +1167,7 @@ impl core::cmp::Eq for antecedent_design::transported_policy::UtilityProvenance
 impl core::cmp::Ord for antecedent_design::DecisionProblemId
 impl core::cmp::Ord for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::Ord for antecedent_design::composition_bundle::NodeKind
+impl core::cmp::Ord for antecedent_design::decision_evidence::Stage
 impl core::cmp::Ord for antecedent_design::decision_reliability::StreamId
 impl core::cmp::Ord for antecedent_design::decision_reliability::StreamPurpose
 impl core::cmp::Ord for antecedent_design::sequential_evaluation::HistoryKey
@@ -1333,6 +1387,42 @@ impl core::cmp::PartialEq for antecedent_design::decision_evaluation::ExecutionR
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::MissingCarrier
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::cmp::PartialEq for antecedent_design::decision_evaluation::RetentionRecord
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::AdjustmentKind
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::AdjustmentVerdict
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Arm
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::AssumedRange
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Candidate
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::CompiledJointExperiment
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::CompiledObligation
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::ComponentAdjustment
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::DecisionFrame
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::DecisionResult
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Dependence
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::DerivedQuantity
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::DerivedResult
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::DesignRecord
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::EvidenceLedger
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::EvidencePlan
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::EvidenceRefusal
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Exposure
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::InputBinding
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::JointExperimentEvidence
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::JointExperimentSpec
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::LineageStatus
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::OutcomeComponent
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::PlanRow
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::PlanValue
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::PlanningModel
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Request
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::ReuseReceipt
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::SamplingInterval
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Stage
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::StageDigests
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::StageStatus
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Standing
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Target
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::UnresolvedReason
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::Verdict
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::BatchPlan
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::BoundKind
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::CalibrationCoordinate
@@ -1752,6 +1842,7 @@ impl core::cmp::PartialEq<str> for antecedent_design::program_search::Operationa
 impl core::cmp::PartialOrd for antecedent_design::DecisionProblemId
 impl core::cmp::PartialOrd for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::PartialOrd for antecedent_design::composition_bundle::NodeKind
+impl core::cmp::PartialOrd for antecedent_design::decision_evidence::Stage
 impl core::cmp::PartialOrd for antecedent_design::decision_reliability::StreamId
 impl core::cmp::PartialOrd for antecedent_design::decision_reliability::StreamPurpose
 impl core::cmp::PartialOrd for antecedent_design::sequential_evaluation::HistoryKey
@@ -1832,6 +1923,7 @@ impl core::default::Default for antecedent_design::composition_verifiers::Sensit
 impl core::default::Default for antecedent_design::composition_verifiers::StudyRankingVerifier
 impl core::default::Default for antecedent_design::decision_contract::AdmissibilityRules
 impl core::default::Default for antecedent_design::decision_contract::UncertaintyRequirement
+impl core::default::Default for antecedent_design::decision_evidence::EvidenceLedger
 impl core::default::Default for antecedent_design::decision_reliability::DecisionReliabilityExpectation
 impl core::default::Default for antecedent_design::decision_reliability::RankingRequest
 impl core::default::Default for antecedent_design::design_ranking_artifact::ConsumeExpectation
@@ -1862,6 +1954,7 @@ impl core::error::Error for antecedent_design::adaptive_policy_search::AdaptiveP
 impl core::error::Error for antecedent_design::composition_bundle::BundleError
 impl core::error::Error for antecedent_design::decision_evaluation::DemandSourceError
 impl core::error::Error for antecedent_design::decision_evaluation::EvaluationError
+impl core::error::Error for antecedent_design::decision_evidence::EvidenceRefusal
 impl core::error::Error for antecedent_design::decision_reliability::ReliabilityError
 impl core::error::Error for antecedent_design::decision_transported_source::TransportedRefusal
 impl core::error::Error for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
@@ -2141,6 +2234,42 @@ impl core::fmt::Debug for antecedent_design::decision_evaluation::ExecutionRecor
 impl core::fmt::Debug for antecedent_design::decision_evaluation::MissingCarrier
 impl core::fmt::Debug for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::fmt::Debug for antecedent_design::decision_evaluation::RetentionRecord
+impl core::fmt::Debug for antecedent_design::decision_evidence::AdjustmentKind
+impl core::fmt::Debug for antecedent_design::decision_evidence::AdjustmentVerdict
+impl core::fmt::Debug for antecedent_design::decision_evidence::Arm
+impl core::fmt::Debug for antecedent_design::decision_evidence::AssumedRange
+impl core::fmt::Debug for antecedent_design::decision_evidence::Candidate
+impl core::fmt::Debug for antecedent_design::decision_evidence::CompiledJointExperiment
+impl core::fmt::Debug for antecedent_design::decision_evidence::CompiledObligation
+impl core::fmt::Debug for antecedent_design::decision_evidence::ComponentAdjustment
+impl core::fmt::Debug for antecedent_design::decision_evidence::DecisionFrame
+impl core::fmt::Debug for antecedent_design::decision_evidence::DecisionResult
+impl core::fmt::Debug for antecedent_design::decision_evidence::Dependence
+impl core::fmt::Debug for antecedent_design::decision_evidence::DerivedQuantity
+impl core::fmt::Debug for antecedent_design::decision_evidence::DerivedResult
+impl core::fmt::Debug for antecedent_design::decision_evidence::DesignRecord
+impl core::fmt::Debug for antecedent_design::decision_evidence::EvidenceLedger
+impl core::fmt::Debug for antecedent_design::decision_evidence::EvidencePlan
+impl core::fmt::Debug for antecedent_design::decision_evidence::EvidenceRefusal
+impl core::fmt::Debug for antecedent_design::decision_evidence::Exposure
+impl core::fmt::Debug for antecedent_design::decision_evidence::InputBinding
+impl core::fmt::Debug for antecedent_design::decision_evidence::JointExperimentEvidence
+impl core::fmt::Debug for antecedent_design::decision_evidence::JointExperimentSpec
+impl core::fmt::Debug for antecedent_design::decision_evidence::LineageStatus
+impl core::fmt::Debug for antecedent_design::decision_evidence::OutcomeComponent
+impl core::fmt::Debug for antecedent_design::decision_evidence::PlanRow
+impl core::fmt::Debug for antecedent_design::decision_evidence::PlanValue
+impl core::fmt::Debug for antecedent_design::decision_evidence::PlanningModel
+impl core::fmt::Debug for antecedent_design::decision_evidence::Request
+impl core::fmt::Debug for antecedent_design::decision_evidence::ReuseReceipt
+impl core::fmt::Debug for antecedent_design::decision_evidence::SamplingInterval
+impl core::fmt::Debug for antecedent_design::decision_evidence::Stage
+impl core::fmt::Debug for antecedent_design::decision_evidence::StageDigests
+impl core::fmt::Debug for antecedent_design::decision_evidence::StageStatus
+impl core::fmt::Debug for antecedent_design::decision_evidence::Standing
+impl core::fmt::Debug for antecedent_design::decision_evidence::Target
+impl core::fmt::Debug for antecedent_design::decision_evidence::UnresolvedReason
+impl core::fmt::Debug for antecedent_design::decision_evidence::Verdict
 impl core::fmt::Debug for antecedent_design::decision_reliability::BatchPlan
 impl core::fmt::Debug for antecedent_design::decision_reliability::BoundKind
 impl core::fmt::Debug for antecedent_design::decision_reliability::CalibrationCoordinate
@@ -2618,6 +2747,7 @@ impl core::fmt::Display for antecedent_design::composition_bundle::BundleError
 impl core::fmt::Display for antecedent_design::decision_eval::DecisionEvalError
 impl core::fmt::Display for antecedent_design::decision_evaluation::DemandSourceError
 impl core::fmt::Display for antecedent_design::decision_evaluation::EvaluationError
+impl core::fmt::Display for antecedent_design::decision_evidence::EvidenceRefusal
 impl core::fmt::Display for antecedent_design::decision_reliability::ReliabilityError
 impl core::fmt::Display for antecedent_design::decision_transported_source::TransportedRefusal
 impl core::fmt::Display for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
@@ -2755,6 +2885,9 @@ impl core::marker::Copy for antecedent_design::decision_evaluation::ExecutionRec
 impl core::marker::Copy for antecedent_design::decision_evaluation::MissingCarrier
 impl core::marker::Copy for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::marker::Copy for antecedent_design::decision_evaluation::RetentionRecord
+impl core::marker::Copy for antecedent_design::decision_evidence::Stage
+impl core::marker::Copy for antecedent_design::decision_evidence::StageStatus
+impl core::marker::Copy for antecedent_design::decision_evidence::Standing
 impl core::marker::Copy for antecedent_design::decision_reliability::BatchPlan
 impl core::marker::Copy for antecedent_design::decision_reliability::BoundKind
 impl core::marker::Copy for antecedent_design::decision_reliability::CalibrationStatus
@@ -3155,6 +3288,42 @@ impl core::marker::Freeze for antecedent_design::decision_evaluation::ExecutionR
 impl core::marker::Freeze for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Freeze for antecedent_design::decision_evaluation::RetentionRecord [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::AdjustmentKind [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::AdjustmentVerdict [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Arm [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::AssumedRange [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Candidate [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::CompiledJointExperiment [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::CompiledObligation [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::ComponentAdjustment [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::DecisionFrame [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::DecisionResult [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Dependence [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::DerivedQuantity [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::DesignRecord [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::EvidenceLedger [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::EvidencePlan [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::EvidenceRefusal [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Exposure [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::InputBinding [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::JointExperimentEvidence [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::JointExperimentSpec [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::LineageStatus [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::OutcomeComponent [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::PlanRow [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::PlanValue [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Request [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::ReuseReceipt [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::SamplingInterval [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Stage [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::StageDigests [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::StageStatus [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Standing [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::UnresolvedReason [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::BatchPlan [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::BoundKind [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::CalibrationCoordinate [auto]
@@ -3882,6 +4051,42 @@ impl core::marker::Send for antecedent_design::decision_evaluation::ExecutionRec
 impl core::marker::Send for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Send for antecedent_design::decision_evaluation::RetentionRecord [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::AdjustmentKind [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::AdjustmentVerdict [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Arm [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::AssumedRange [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Candidate [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::CompiledJointExperiment [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::CompiledObligation [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::ComponentAdjustment [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::DecisionFrame [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::DecisionResult [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Dependence [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::DerivedQuantity [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::DesignRecord [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::EvidenceLedger [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::EvidencePlan [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::EvidenceRefusal [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Exposure [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::InputBinding [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::JointExperimentEvidence [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::JointExperimentSpec [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::LineageStatus [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::OutcomeComponent [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::PlanRow [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::PlanValue [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Request [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::ReuseReceipt [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::SamplingInterval [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Stage [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::StageDigests [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::StageStatus [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Standing [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::UnresolvedReason [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::BatchPlan [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::BoundKind [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::CalibrationCoordinate [auto]
@@ -4556,6 +4761,42 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluatio
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::MissingCarrier
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::RequestedCarrier
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evaluation::RetentionRecord
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::AdjustmentKind
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::AdjustmentVerdict
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Arm
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::AssumedRange
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Candidate
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::CompiledJointExperiment
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::CompiledObligation
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::ComponentAdjustment
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DecisionFrame
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DecisionResult
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Dependence
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DerivedQuantity
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DerivedResult
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DesignRecord
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::EvidenceLedger
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::EvidencePlan
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::EvidenceRefusal
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Exposure
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::InputBinding
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::JointExperimentEvidence
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::JointExperimentSpec
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::LineageStatus
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::OutcomeComponent
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::PlanRow
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::PlanValue
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::PlanningModel
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Request
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::ReuseReceipt
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::SamplingInterval
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Stage
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::StageDigests
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::StageStatus
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Standing
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Target
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::UnresolvedReason
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Verdict
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::BatchPlan
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::BoundKind
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::CalibrationCoordinate
@@ -5235,6 +5476,42 @@ impl core::marker::Sync for antecedent_design::decision_evaluation::ExecutionRec
 impl core::marker::Sync for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Sync for antecedent_design::decision_evaluation::RetentionRecord [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::AdjustmentKind [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::AdjustmentVerdict [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Arm [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::AssumedRange [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Candidate [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::CompiledJointExperiment [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::CompiledObligation [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::ComponentAdjustment [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::DecisionFrame [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::DecisionResult [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Dependence [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::DerivedQuantity [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::DesignRecord [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::EvidenceLedger [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::EvidencePlan [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::EvidenceRefusal [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Exposure [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::InputBinding [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::JointExperimentEvidence [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::JointExperimentSpec [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::LineageStatus [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::OutcomeComponent [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::PlanRow [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::PlanValue [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Request [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::ReuseReceipt [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::SamplingInterval [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Stage [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::StageDigests [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::StageStatus [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Standing [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::UnresolvedReason [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::BatchPlan [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::BoundKind [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::CalibrationCoordinate [auto]
@@ -5963,6 +6240,42 @@ impl core::marker::Unpin for antecedent_design::decision_evaluation::ExecutionRe
 impl core::marker::Unpin for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::marker::Unpin for antecedent_design::decision_evaluation::RetentionRecord [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::AdjustmentKind [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::AdjustmentVerdict [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Arm [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::AssumedRange [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Candidate [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::CompiledJointExperiment [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::CompiledObligation [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::ComponentAdjustment [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::DecisionFrame [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::DecisionResult [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Dependence [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::DerivedQuantity [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::DesignRecord [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::EvidenceLedger [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::EvidencePlan [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::EvidenceRefusal [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Exposure [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::InputBinding [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::JointExperimentEvidence [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::JointExperimentSpec [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::LineageStatus [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::OutcomeComponent [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::PlanRow [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::PlanValue [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Request [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::ReuseReceipt [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::SamplingInterval [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Stage [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::StageDigests [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::StageStatus [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Standing [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::UnresolvedReason [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::BatchPlan [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::BoundKind [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::CalibrationCoordinate [auto]
@@ -6690,6 +7003,42 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_eva
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evaluation::RetentionRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::AdjustmentKind [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::AdjustmentVerdict [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Arm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::AssumedRange [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Candidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::CompiledJointExperiment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::CompiledObligation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::ComponentAdjustment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DecisionFrame [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DecisionResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Dependence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DerivedQuantity [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DesignRecord [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::EvidenceLedger [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::EvidencePlan [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::EvidenceRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Exposure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::InputBinding [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::JointExperimentEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::JointExperimentSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::LineageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::OutcomeComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::PlanRow [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::PlanValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Request [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::ReuseReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::SamplingInterval [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Stage [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::StageDigests [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::StageStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Standing [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Target [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::UnresolvedReason [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Verdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::BatchPlan [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::BoundKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::CalibrationCoordinate [auto]
@@ -7407,6 +7756,42 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evalua
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::MissingCarrier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::RequestedCarrier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evaluation::RetentionRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::AdjustmentKind [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::AdjustmentVerdict [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Arm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::AssumedRange [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Candidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::CompiledJointExperiment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::CompiledObligation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::ComponentAdjustment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DecisionFrame [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DecisionResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Dependence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DerivedQuantity [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DesignRecord [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::EvidenceLedger [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::EvidencePlan [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::EvidenceRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Exposure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::InputBinding [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::JointExperimentEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::JointExperimentSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::LineageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::OutcomeComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::PlanRow [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::PlanValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Request [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::ReuseReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::SamplingInterval [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Stage [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::StageDigests [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::StageStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Standing [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Target [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::UnresolvedReason [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Verdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::BatchPlan [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::BoundKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::CalibrationCoordinate [auto]
@@ -8440,6 +8825,7 @@ pub const <antecedent_design::composition_bundle::BundleStage>::ALL: [Self; 11]
 pub const <antecedent_design::composition_bundle::EvidenceRelationship>::ALL: [Self; 5]
 pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 21]
 pub const <antecedent_design::decision_artifact::DecisionResultArtifact>::CLAIM_LINK_ID: &'static str
+pub const <antecedent_design::decision_evidence::Stage>::ALL: [Self; 5]
 pub const <antecedent_design::decision_reliability::PublishedRoute>::ALL: [Self; 4]
 pub const <antecedent_design::decision_robust_artifact::RobustResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::joint_coupling::JointCoupling>::ROWS_0_0_AND_2_2: Self
@@ -8481,6 +8867,10 @@ pub const antecedent_design::composition_verifiers::TRUST_VERIFIED: &str
 pub const antecedent_design::composition_verifiers::VERIFIABLE_KINDS: [antecedent_design::composition_bundle::NodeKind; 19]
 pub const antecedent_design::confounder_value::MAX_PRIOR_DRAWS: u64
 pub const antecedent_design::decision_artifact::MAX_DECISION_ARTIFACT_BYTES: usize
+pub const antecedent_design::decision_evidence::DELTA_METHOD_STATEMENT: &str
+pub const antecedent_design::decision_evidence::MAX_UNKNOWN_DIMENSIONS: usize
+pub const antecedent_design::decision_evidence::MIN_UNITS_PER_ARM_FOR_INTERVAL: usize
+pub const antecedent_design::decision_evidence::SEPARATION_STATEMENT: &str
 pub const antecedent_design::decision_reliability::CANDIDATE_COUNT_BANDS: [(u64, u64); 4]
 pub const antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND: &str
 pub const antecedent_design::decision_reliability::DECISION_RELIABILITY_STREAM_DOMAIN: antecedent_core::execution::rng::StreamDomain
@@ -8692,6 +9082,20 @@ pub enum antecedent_design::decision_eval::Verdict
 pub enum antecedent_design::decision_evaluation::EvaluationError
 pub enum antecedent_design::decision_evaluation::MissingCarrier
 pub enum antecedent_design::decision_evaluation::RequestedCarrier
+pub enum antecedent_design::decision_evidence::AdjustmentKind
+pub enum antecedent_design::decision_evidence::Arm
+pub enum antecedent_design::decision_evidence::Candidate
+pub enum antecedent_design::decision_evidence::Dependence
+pub enum antecedent_design::decision_evidence::Exposure
+pub enum antecedent_design::decision_evidence::InputBinding
+pub enum antecedent_design::decision_evidence::LineageStatus
+pub enum antecedent_design::decision_evidence::PlanValue
+pub enum antecedent_design::decision_evidence::Stage
+pub enum antecedent_design::decision_evidence::StageStatus
+pub enum antecedent_design::decision_evidence::Standing
+pub enum antecedent_design::decision_evidence::Target
+pub enum antecedent_design::decision_evidence::UnresolvedReason
+pub enum antecedent_design::decision_evidence::Verdict
 pub enum antecedent_design::decision_reliability::BatchPlan
 pub enum antecedent_design::decision_reliability::BoundKind
 pub enum antecedent_design::decision_reliability::CalibrationStatus
@@ -9558,6 +9962,97 @@ pub field antecedent_design::decision_evaluation::ExecutionRecord::retention: an
 pub field antecedent_design::decision_evaluation::ExecutionRecord::scratch_bytes: u64
 pub field antecedent_design::decision_evaluation::RetentionRecord::fits: usize
 pub field antecedent_design::decision_evaluation::RetentionRecord::mode: antecedent_core::execution_facts::OutputRetention
+pub field antecedent_design::decision_evidence::AdjustmentVerdict::admissible: core::result::Result<&'static str, &'static str>
+pub field antecedent_design::decision_evidence::AdjustmentVerdict::coefficient: &'static str
+pub field antecedent_design::decision_evidence::AdjustmentVerdict::strategy: &'static str
+pub field antecedent_design::decision_evidence::AssumedRange::assumption_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::decision_evidence::AssumedRange::dimensions: usize
+pub field antecedent_design::decision_evidence::AssumedRange::exact: bool
+pub field antecedent_design::decision_evidence::AssumedRange::lower: f64
+pub field antecedent_design::decision_evidence::AssumedRange::upper: f64
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::adjustment_identity: alloc::string::String
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::adjustment_verdicts: alloc::vec::Vec<antecedent_design::decision_evidence::AdjustmentVerdict>
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::obligations: alloc::vec::Vec<antecedent_design::decision_evidence::CompiledObligation>
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::scientific_identity: alloc::string::String
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::spec: antecedent_design::decision_evidence::JointExperimentSpec
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::statistical_requirements: alloc::vec::Vec<&'static str>
+pub field antecedent_design::decision_evidence::CompiledJointExperiment::unit_of_analysis: &'static str
+pub field antecedent_design::decision_evidence::CompiledObligation::id: &'static str
+pub field antecedent_design::decision_evidence::CompiledObligation::kind: antecedent_contract::evidence_obligation::EvidenceObligationKind
+pub field antecedent_design::decision_evidence::CompiledObligation::statement: &'static str
+pub field antecedent_design::decision_evidence::ComponentAdjustment::component: alloc::string::String
+pub field antecedent_design::decision_evidence::ComponentAdjustment::kind: antecedent_design::decision_evidence::AdjustmentKind
+pub field antecedent_design::decision_evidence::DecisionFrame::control_action: alloc::string::String
+pub field antecedent_design::decision_evidence::DecisionFrame::threshold: f64
+pub field antecedent_design::decision_evidence::DecisionFrame::treated_action: alloc::string::String
+pub field antecedent_design::decision_evidence::DecisionResult::derived: antecedent_design::decision_evidence::DerivedResult
+pub field antecedent_design::decision_evidence::DecisionResult::frame: antecedent_design::decision_evidence::DecisionFrame
+pub field antecedent_design::decision_evidence::DecisionResult::statement: &'static str
+pub field antecedent_design::decision_evidence::DecisionResult::verdict: antecedent_design::decision_evidence::Verdict
+pub field antecedent_design::decision_evidence::DerivedQuantity::expr: antecedent_design::UtilityExpr
+pub field antecedent_design::decision_evidence::DerivedQuantity::inputs: alloc::vec::Vec<antecedent_design::decision_evidence::InputBinding>
+pub field antecedent_design::decision_evidence::DerivedQuantity::name: alloc::string::String
+pub field antecedent_design::decision_evidence::DerivedQuantity::units: alloc::string::String
+pub field antecedent_design::decision_evidence::DerivedResult::assumption_range: core::option::Option<antecedent_design::decision_evidence::AssumedRange>
+pub field antecedent_design::decision_evidence::DerivedResult::calibration: &'static str
+pub field antecedent_design::decision_evidence::DerivedResult::contrast: core::option::Option<f64>
+pub field antecedent_design::decision_evidence::DerivedResult::control_value: core::option::Option<f64>
+pub field antecedent_design::decision_evidence::DerivedResult::interval_statement: &'static str
+pub field antecedent_design::decision_evidence::DerivedResult::license: &'static str
+pub field antecedent_design::decision_evidence::DerivedResult::name: alloc::string::String
+pub field antecedent_design::decision_evidence::DerivedResult::quantity_identity: alloc::string::String
+pub field antecedent_design::decision_evidence::DerivedResult::sampling: core::option::Option<antecedent_design::decision_evidence::SamplingInterval>
+pub field antecedent_design::decision_evidence::DerivedResult::sampling_at_vertices: alloc::vec::Vec<antecedent_design::decision_evidence::SamplingInterval>
+pub field antecedent_design::decision_evidence::DerivedResult::separation: &'static str
+pub field antecedent_design::decision_evidence::DerivedResult::standing: antecedent_design::decision_evidence::Standing
+pub field antecedent_design::decision_evidence::DerivedResult::treated_value: core::option::Option<f64>
+pub field antecedent_design::decision_evidence::DerivedResult::units: alloc::string::String
+pub field antecedent_design::decision_evidence::DerivedResult::unresolved: alloc::vec::Vec<antecedent_design::decision_evidence::UnresolvedReason>
+pub field antecedent_design::decision_evidence::DesignRecord::assignment_design: alloc::string::String
+pub field antecedent_design::decision_evidence::DesignRecord::control_units: usize
+pub field antecedent_design::decision_evidence::DesignRecord::outcome_rows: usize
+pub field antecedent_design::decision_evidence::DesignRecord::treated_units: usize
+pub field antecedent_design::decision_evidence::EvidencePlan::evsi_rows: alloc::vec::Vec<antecedent_design::decision_evidence::PlanRow>
+pub field antecedent_design::decision_evidence::EvidencePlan::model: antecedent_design::decision_evidence::PlanningModel
+pub field antecedent_design::decision_evidence::EvidencePlan::resolution_rows: alloc::vec::Vec<antecedent_design::decision_evidence::PlanRow>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::control_means: alloc::vec::Vec<f64>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::control_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::dependence: antecedent_design::decision_evidence::Dependence
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::design: antecedent_design::decision_evidence::DesignRecord
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::evidence_id: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::exposure: antecedent_design::decision_evidence::Exposure
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::horizon: u32
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::marginal_licenses: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::population_id: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::treated_means: alloc::vec::Vec<f64>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::treated_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentSpec::adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>
+pub field antecedent_design::decision_evidence::JointExperimentSpec::assignment_design: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentSpec::control_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentSpec::exposure: antecedent_design::decision_evidence::Exposure
+pub field antecedent_design::decision_evidence::JointExperimentSpec::horizon: u32
+pub field antecedent_design::decision_evidence::JointExperimentSpec::outcomes: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>
+pub field antecedent_design::decision_evidence::JointExperimentSpec::population_id: alloc::string::String
+pub field antecedent_design::decision_evidence::JointExperimentSpec::treated_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::OutcomeComponent::name: alloc::string::String
+pub field antecedent_design::decision_evidence::OutcomeComponent::units: alloc::string::String
+pub field antecedent_design::decision_evidence::OutcomeComponent::variable_id: alloc::string::String
+pub field antecedent_design::decision_evidence::PlanRow::id: alloc::string::String
+pub field antecedent_design::decision_evidence::PlanRow::kind: antecedent_contract::evidence_obligation::EvidenceObligationKind
+pub field antecedent_design::decision_evidence::PlanRow::value: antecedent_design::decision_evidence::PlanValue
+pub field antecedent_design::decision_evidence::PlanningModel::statement: &'static str
+pub field antecedent_design::decision_evidence::Request::control_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::Request::horizon: u32
+pub field antecedent_design::decision_evidence::Request::population_id: alloc::string::String
+pub field antecedent_design::decision_evidence::Request::target: antecedent_design::decision_evidence::Target
+pub field antecedent_design::decision_evidence::Request::treated_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ReuseReceipt::stages: alloc::vec::Vec<(antecedent_design::decision_evidence::Stage, antecedent_design::decision_evidence::StageStatus)>
+pub field antecedent_design::decision_evidence::SamplingInterval::estimate: f64
+pub field antecedent_design::decision_evidence::SamplingInterval::lower: f64
+pub field antecedent_design::decision_evidence::SamplingInterval::standard_error: f64
+pub field antecedent_design::decision_evidence::SamplingInterval::upper: f64
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::adaptively_generated: bool
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::candidate_set_size: u64
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::coupling: antecedent_design::decision_reliability::CandidateCoupling
@@ -11488,6 +11983,27 @@ pub fn <antecedent_design::decision_evaluation::MeanDemand<'a>>::const fn new(so
 pub fn <antecedent_design::decision_evaluation::MissingCarrier>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::decision_evaluation::RequestedCarrier>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::decision_evaluation::RetentionRecord>::const fn means_summary() -> Self
+pub fn <antecedent_design::decision_evidence::DecisionFrame>::fn rule_identity(&self) -> alloc::string::String
+pub fn <antecedent_design::decision_evidence::DerivedQuantity>::fn identity(&self) -> alloc::string::String
+pub fn <antecedent_design::decision_evidence::EvidenceLedger>::fn new() -> Self
+pub fn <antecedent_design::decision_evidence::EvidenceLedger>::fn record(&mut self, evidence_id: &str)
+pub fn <antecedent_design::decision_evidence::EvidenceLedger>::fn unsupported_parts(&self, composed_evidence_id: &str) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub fn <antecedent_design::decision_evidence::EvidenceLedger>::fn withdraw(&mut self, evidence_id: &str, reason: &str) -> bool
+pub fn <antecedent_design::decision_evidence::EvidenceRefusal>::fn next_attempt(&self) -> &'static str
+pub fn <antecedent_design::decision_evidence::EvidenceRefusal>::fn reason_code(&self) -> &'static str
+pub fn <antecedent_design::decision_evidence::EvidenceRefusal>::fn registered_code(&self) -> &'static str
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn adjustment_identity(&self) -> alloc::string::String
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn component_index(&self, name: &str) -> core::option::Option<usize>
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn estimate_identity(&self) -> alloc::string::String
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn merge_independent(&self, other: &Self, declared_independent: bool) -> core::result::Result<Self, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn new(evidence_id: impl core::convert::Into<alloc::string::String>, population_id: impl core::convert::Into<alloc::string::String>, regimes: (impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, means: (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>), dependence: antecedent_design::decision_evidence::Dependence, design: antecedent_design::decision_evidence::DesignRecord, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<Self, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn scientific_identity(&self) -> alloc::string::String
+pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn with_marginal_licenses(self, licenses: alloc::vec::Vec<core::option::Option<alloc::string::String>>) -> Self
+pub fn <antecedent_design::decision_evidence::ReuseReceipt>::fn reuses_any(&self) -> bool
+pub fn <antecedent_design::decision_evidence::ReuseReceipt>::fn status(&self, stage: antecedent_design::decision_evidence::Stage) -> antecedent_design::decision_evidence::StageStatus
+pub fn <antecedent_design::decision_evidence::Stage>::const fn name(self) -> &'static str
+pub fn <antecedent_design::decision_evidence::StageDigests>::fn digest(&self, stage: antecedent_design::decision_evidence::Stage) -> &str
+pub fn <antecedent_design::decision_evidence::StageDigests>::fn of(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame) -> Self
 pub fn <antecedent_design::decision_reliability::CalibrationCoordinate>::fn describe(&self) -> alloc::string::String
 pub fn <antecedent_design::decision_reliability::CandidateCoupling>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::decision_reliability::CandidateOrigin>::const fn as_str(self) -> &'static str
@@ -11950,6 +12466,12 @@ pub fn antecedent_design::decision_evaluation::evaluate_mean_source_admitted(con
 pub fn antecedent_design::decision_evaluation::evaluate_on_means(contract: &antecedent_design::DecisionContract, source: &antecedent_design::decision_eval::MeanSource) -> core::result::Result<antecedent_design::decision_evaluation::DemandEvaluation, antecedent_design::decision_evaluation::EvaluationError>
 pub fn antecedent_design::decision_evaluation::execute_demand(contract: &antecedent_design::DecisionContract, source: &mut dyn antecedent_design::decision_evaluation::DemandSource, budget: antecedent_design::decision_evaluation::DemandBudget, cancellation: core::option::Option<&antecedent_core::execution::cancel::CancellationToken>) -> core::result::Result<antecedent_design::decision_evaluation::ExecutedDemand, antecedent_design::decision_evaluation::EvaluationError>
 pub fn antecedent_design::decision_evaluation::execute_demand_admitted(contract: &antecedent_design::DecisionContract, source: &mut dyn antecedent_design::decision_evaluation::DemandSource, budget: antecedent_design::decision_evaluation::DemandBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_evaluation::ExecutedDemand, antecedent_design::decision_evaluation::EvaluationError>
+pub fn antecedent_design::decision_evidence::adjustment_verdicts(design: &str) -> alloc::vec::Vec<antecedent_design::decision_evidence::AdjustmentVerdict>
+pub fn antecedent_design::decision_evidence::compile_joint_experiment(spec: antecedent_design::decision_evidence::JointExperimentSpec) -> core::result::Result<antecedent_design::decision_evidence::CompiledJointExperiment, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent_design::decision_evidence::decide(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame) -> core::result::Result<antecedent_design::decision_evidence::DecisionResult, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent_design::decision_evidence::derive(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity) -> core::result::Result<antecedent_design::decision_evidence::DerivedResult, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent_design::decision_evidence::plan_evidence(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame, candidates: &[antecedent_design::decision_evidence::Candidate]) -> core::result::Result<antecedent_design::decision_evidence::EvidencePlan, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent_design::decision_evidence::reuse_receipt(previous: &antecedent_design::decision_evidence::StageDigests, current: &antecedent_design::decision_evidence::StageDigests) -> antecedent_design::decision_evidence::ReuseReceipt
 pub fn antecedent_design::decision_reliability::artifact::consume(bytes: &[u8], expected: &antecedent_design::decision_reliability::DecisionReliabilityExpectation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::DecisionReliabilityArtifact, antecedent_io_core::error::IoError>
 pub fn antecedent_design::decision_reliability::assess(draws: &antecedent_design::decision_reliability::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::DecisionDraws>, request: &antecedent_design::decision_reliability::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ReliabilityReport, antecedent_design::decision_reliability::ReliabilityError>
 pub fn antecedent_design::decision_reliability::banded_record_functional(coordinate: &antecedent_design::decision_reliability::CalibrationCoordinate) -> core::option::Option<alloc::string::String>
@@ -12073,6 +12595,7 @@ pub mod antecedent_design::decision_artifact
 pub mod antecedent_design::decision_contract
 pub mod antecedent_design::decision_eval
 pub mod antecedent_design::decision_evaluation
+pub mod antecedent_design::decision_evidence
 pub mod antecedent_design::decision_refusal
 pub mod antecedent_design::decision_reliability
 pub mod antecedent_design::decision_reliability::artifact
@@ -12373,6 +12896,29 @@ pub struct antecedent_design::decision_evaluation::ExecutionRecord
 pub struct antecedent_design::decision_evaluation::MeanDemand has private fields
 pub struct antecedent_design::decision_evaluation::MeanDemand<'a>
 pub struct antecedent_design::decision_evaluation::RetentionRecord
+pub struct antecedent_design::decision_evidence::AdjustmentVerdict
+pub struct antecedent_design::decision_evidence::AssumedRange
+pub struct antecedent_design::decision_evidence::CompiledJointExperiment
+pub struct antecedent_design::decision_evidence::CompiledObligation
+pub struct antecedent_design::decision_evidence::ComponentAdjustment
+pub struct antecedent_design::decision_evidence::DecisionFrame
+pub struct antecedent_design::decision_evidence::DecisionResult
+pub struct antecedent_design::decision_evidence::DerivedQuantity
+pub struct antecedent_design::decision_evidence::DerivedResult
+pub struct antecedent_design::decision_evidence::DesignRecord
+pub struct antecedent_design::decision_evidence::EvidenceLedger
+pub struct antecedent_design::decision_evidence::EvidenceLedger has private fields
+pub struct antecedent_design::decision_evidence::EvidencePlan
+pub struct antecedent_design::decision_evidence::JointExperimentEvidence
+pub struct antecedent_design::decision_evidence::JointExperimentSpec
+pub struct antecedent_design::decision_evidence::OutcomeComponent
+pub struct antecedent_design::decision_evidence::PlanRow
+pub struct antecedent_design::decision_evidence::PlanningModel
+pub struct antecedent_design::decision_evidence::Request
+pub struct antecedent_design::decision_evidence::ReuseReceipt
+pub struct antecedent_design::decision_evidence::SamplingInterval
+pub struct antecedent_design::decision_evidence::StageDigests
+pub struct antecedent_design::decision_evidence::StageDigests has private fields
 pub struct antecedent_design::decision_reliability::CalibrationCoordinate
 pub struct antecedent_design::decision_reliability::CandidateDraws
 pub struct antecedent_design::decision_reliability::CandidateEstimate
@@ -12852,6 +13398,7 @@ pub use antecedent_design::decision_contract::SourceRequirement = antecedent_des
 pub use antecedent_design::decision_contract::StructuralPolicy = antecedent_design::StructuralPolicy
 pub use antecedent_design::decision_contract::Tail = antecedent_design::Tail
 pub use antecedent_design::decision_contract::UtilityExpr = antecedent_design::UtilityExpr
+pub use antecedent_design::decision_evidence::UtilityExpr = antecedent_design::UtilityExpr
 pub use antecedent_design::decision_reliability::artifact::DECISION_RELIABILITY_KIND = antecedent_design::decision_reliability::DECISION_RELIABILITY_KIND
 pub use antecedent_design::decision_reliability::artifact::DecisionReliabilityArtifact = antecedent_design::decision_reliability::DecisionReliabilityArtifact
 pub use antecedent_design::decision_reliability::artifact::DecisionReliabilityExpectation = antecedent_design::decision_reliability::DecisionReliabilityExpectation
@@ -13463,6 +14010,57 @@ pub variant antecedent_design::decision_evaluation::MissingCarrier::Predictions
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Draws
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Means
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Predictions
+pub variant antecedent_design::decision_evidence::AdjustmentKind::FixedCuped { covariate: alloc::string::String, coefficient: f64 }
+pub variant antecedent_design::decision_evidence::AdjustmentKind::None
+pub variant antecedent_design::decision_evidence::Arm::Control
+pub variant antecedent_design::decision_evidence::Arm::Treated
+pub variant antecedent_design::decision_evidence::Candidate::MoreUnits { id: alloc::string::String, additional_units_per_arm: u64, cost: core::option::Option<f64> }
+pub variant antecedent_design::decision_evidence::Candidate::ResolveAssumption { id: alloc::string::String, assumption_id: alloc::string::String, narrowed: (f64, f64), cost: core::option::Option<f64> }
+pub variant antecedent_design::decision_evidence::Dependence::Joint { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
+pub variant antecedent_design::decision_evidence::Dependence::MarginalsOnly { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::AdjustmentNotAdmissible { strategy: alloc::string::String, design: alloc::string::String, reason: alloc::string::String }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::DependenceUnknown { left: alloc::string::String, right: alloc::string::String }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::DeploymentBridgeMissing
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::FrameShape
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::IncompatibleHorizon { requested: u32, available: u32 }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::IncompatibleIntervention { requested: alloc::string::String, available: alloc::string::String }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::IncompatiblePopulation { requested: alloc::string::String, available: alloc::string::String }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::InterferenceUnspecified
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::Invalid(alloc::string::String)
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::TooManyUnknowns(usize)
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::UnsupportedAssignmentDesign(alloc::string::String)
+pub variant antecedent_design::decision_evidence::Exposure::BoundedSpillover { assumption_id: alloc::string::String, bias_bounds: alloc::vec::Vec<f64> }
+pub variant antecedent_design::decision_evidence::Exposure::NoBetweenUnitInterference { assumption_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::Exposure::Unspecified
+pub variant antecedent_design::decision_evidence::InputBinding::Assumed { lower: f64, upper: f64, assumption_id: alloc::string::String, shared_across_arms: bool }
+pub variant antecedent_design::decision_evidence::InputBinding::Fixed(f64)
+pub variant antecedent_design::decision_evidence::InputBinding::Measured(alloc::string::String)
+pub variant antecedent_design::decision_evidence::InputBinding::Missing { what: alloc::string::String }
+pub variant antecedent_design::decision_evidence::LineageStatus::Active
+pub variant antecedent_design::decision_evidence::LineageStatus::Withdrawn { reason: alloc::string::String }
+pub variant antecedent_design::decision_evidence::PlanValue::Evsi { gross: f64, net: core::option::Option<f64> }
+pub variant antecedent_design::decision_evidence::PlanValue::Refused(alloc::string::String)
+pub variant antecedent_design::decision_evidence::PlanValue::Resolution { verdict: antecedent_design::decision_evidence::Verdict, resolves: bool }
+pub variant antecedent_design::decision_evidence::Stage::Adjustment
+pub variant antecedent_design::decision_evidence::Stage::Decision
+pub variant antecedent_design::decision_evidence::Stage::Derived
+pub variant antecedent_design::decision_evidence::Stage::Estimate
+pub variant antecedent_design::decision_evidence::Stage::Premise
+pub variant antecedent_design::decision_evidence::StageStatus::Invalidated
+pub variant antecedent_design::decision_evidence::StageStatus::Reused
+pub variant antecedent_design::decision_evidence::Standing::AssumptionDependent
+pub variant antecedent_design::decision_evidence::Standing::Sampled
+pub variant antecedent_design::decision_evidence::Standing::Unresolved
+pub variant antecedent_design::decision_evidence::Target::Deployment { bridge_assumption_id: core::option::Option<alloc::string::String> }
+pub variant antecedent_design::decision_evidence::Target::ExperimentalContrast
+pub variant antecedent_design::decision_evidence::UnresolvedReason::JointLawMissing
+pub variant antecedent_design::decision_evidence::UnresolvedReason::MissingInput { what: alloc::string::String }
+pub variant antecedent_design::decision_evidence::UnresolvedReason::SamplingStraddlesThreshold
+pub variant antecedent_design::decision_evidence::UnresolvedReason::SamplingUnavailable
+pub variant antecedent_design::decision_evidence::UnresolvedReason::TooFewIndependentUnits { treated: usize, control: usize, required: usize }
+pub variant antecedent_design::decision_evidence::Verdict::AssumptionDependent { assumption_ids: alloc::vec::Vec<alloc::string::String>, at_lower: alloc::string::String, at_upper: alloc::string::String }
+pub variant antecedent_design::decision_evidence::Verdict::Robust { action: alloc::string::String }
+pub variant antecedent_design::decision_evidence::Verdict::Unresolved { reasons: alloc::vec::Vec<antecedent_design::decision_evidence::UnresolvedReason> }
 pub variant antecedent_design::decision_reliability::BatchPlan::Fixed(u32)
 pub variant antecedent_design::decision_reliability::BatchPlan::SquareRoot
 pub variant antecedent_design::decision_reliability::BoundKind::GaussianExpectedMaximum
