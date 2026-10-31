@@ -100,8 +100,15 @@ impl InterventionOverlay {
     ///
     /// # Errors
     ///
-    /// [`ModelError::Unsupported`] naming the first offending dense node index.
+    /// [`ModelError::Unsupported`] naming an invalid policy or conflicting directive.
     pub fn validate(&self) -> Result<(), ModelError> {
+        // Public overlay fields can bypass `from_interventions`. Validate all policies
+        // before sampling any node, so a later bad policy cannot partially fill a batch.
+        for policy in self.stochastic.iter().flatten() {
+            policy
+                .validate()
+                .map_err(|error| ModelError::Unsupported { message: error.to_string() })?;
+        }
         // No evaluation path reads the activation mask, so a node declared inactive would be
         // evaluated as if it were active. Refuse the declaration instead of ignoring it.
         if let Some(idx) = self.active.iter().position(|a| !*a) {

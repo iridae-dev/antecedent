@@ -1052,7 +1052,8 @@ fn soft_gp_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
 ///
 /// # Errors
 ///
-/// Unsupported policy variants.
+/// Invalid policy parameters, a short output slice, or an unsupported policy variant.
+/// Refusal occurs before the output or RNG is changed.
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
@@ -1063,6 +1064,12 @@ pub fn sample_stochastic(
     rng: &mut CausalRng,
     out: &mut [f64],
 ) -> Result<(), ModelError> {
+    policy.validate().map_err(|error| ModelError::Unsupported { message: error.to_string() })?;
+    if out.len() < n_rows {
+        return Err(ModelError::Shape {
+            message: format!("stochastic policy needs {n_rows} output values, got {}", out.len()),
+        });
+    }
     match policy {
         StochasticPolicy::Bernoulli { p } => {
             for i in 0..n_rows {
@@ -1078,14 +1085,26 @@ pub fn sample_stochastic(
             Ok(())
         }
         StochasticPolicy::Categorical { probs } => {
-            let sum: f64 = probs.iter().sum::<f64>().max(f64::EPSILON);
+            let raw_sum: f64 = probs.iter().sum();
+            // Normal totals retain the existing distribution and stream. For an
+            // overflowing or subnormal total, scale by the largest positive entry
+            // before summation so normalization cannot overflow or collapse to zero.
+            let scale = if raw_sum.is_finite() && raw_sum >= f64::MIN_POSITIVE {
+                1.0
+            } else {
+                probs.iter().copied().fold(0.0_f64, f64::max)
+            };
+            let sum = if scale == 1.0 { raw_sum } else { probs.iter().map(|p| p / scale).sum() };
+            // The last positive category is the rounding fallback: a zero-mass
+            // trailing category must never be selected.
+            let fallback = probs.iter().rposition(|p| *p > 0.0).expect("validated policy") as f64;
             for i in 0..n_rows {
                 let u = rng.next_f64() * sum;
                 let mut acc = 0.0;
-                let mut chosen = (probs.len() - 1) as f64;
+                let mut chosen = fallback;
                 for (k, &p) in probs.iter().enumerate() {
-                    acc += p;
-                    if u <= acc {
+                    acc += p / scale;
+                    if u < acc {
                         chosen = k as f64;
                         break;
                     }
@@ -1154,6 +1173,126 @@ mod tests {
             .assign_and_fit(&compiled, &data, SelectionPolicy::BestScore)
             .unwrap();
         compiled.with_mechanisms(store)
+    }
+
+    #[test]
+    fn stochastic_sampler_rejects_invalid_policies_and_short_output_before_mutation() {
+        let invalid = [
+            StochasticPolicy::bernoulli(f64::NAN),
+            StochasticPolicy::bernoulli(-0.1),
+            StochasticPolicy::bernoulli(1.1),
+            StochasticPolicy::gaussian(f64::INFINITY, 1.0),
+            StochasticPolicy::gaussian(0.0, 0.0),
+            StochasticPolicy::gaussian(0.0, -1.0),
+            StochasticPolicy::gaussian(0.0, f64::NAN),
+            StochasticPolicy::categorical(Vec::<f64>::new()),
+            StochasticPolicy::categorical(vec![0.0, 0.0]),
+            StochasticPolicy::categorical(vec![1.0, -1.0]),
+            StochasticPolicy::categorical(vec![1.0, f64::NAN]),
+            StochasticPolicy::categorical(vec![1.0, f64::INFINITY]),
+        ];
+        for policy in invalid {
+            let mut rng = CausalRng::from_seed(12);
+            let before = rng.state();
+            let mut out = [7.0; 4];
+            assert!(matches!(
+                sample_stochastic(&policy, 4, &mut rng, &mut out),
+                Err(ModelError::Unsupported { .. })
+            ));
+            assert_eq!(out, [7.0; 4]);
+            assert_eq!(rng.state(), before);
+        }
+        let mut rng = CausalRng::from_seed(12);
+        let before = rng.state();
+        let mut out = [7.0; 2];
+        assert!(matches!(
+            sample_stochastic(&StochasticPolicy::bernoulli(0.5), 3, &mut rng, &mut out),
+            Err(ModelError::Shape { .. })
+        ));
+        assert_eq!(out, [7.0; 2]);
+        assert_eq!(rng.state(), before);
+    }
+
+    #[test]
+    fn stochastic_sampler_handles_valid_degenerate_and_extreme_categorical_weights() {
+        for (policy, expected) in [
+            (StochasticPolicy::bernoulli(0.0), 0.0),
+            (StochasticPolicy::bernoulli(1.0), 1.0),
+            (StochasticPolicy::categorical(vec![1e-300, 0.0]), 0.0),
+            (StochasticPolicy::categorical(vec![0.0, f64::from_bits(1)]), 1.0),
+            (StochasticPolicy::categorical(vec![0.0, 1.0, 0.0]), 1.0),
+        ] {
+            let mut rng = CausalRng::from_seed(4);
+            let mut out = [9.0; 65];
+            sample_stochastic(&policy, 64, &mut rng, &mut out).unwrap();
+            assert!(out[..64].iter().all(|&x| x == expected));
+            assert_eq!(out[64], 9.0);
+        }
+        let mut rng = CausalRng::from_seed(4);
+        let mut out = [0.0; 256];
+        sample_stochastic(&StochasticPolicy::categorical(vec![1.0, 3.0]), 256, &mut rng, &mut out)
+            .unwrap();
+        let ones = out.iter().filter(|&&x| x == 1.0).count();
+        assert!((150..=225).contains(&ones));
+        let mut rng = CausalRng::from_seed(4);
+        sample_stochastic(
+            &StochasticPolicy::categorical(vec![f64::MAX, f64::MAX, 0.0]),
+            256,
+            &mut rng,
+            &mut out,
+        )
+        .unwrap();
+        assert!(out.iter().any(|x| *x == 0.0));
+        assert!(out.iter().any(|x| *x == 1.0));
+        assert!(out.iter().all(|x| *x == 0.0 || *x == 1.0));
+        let mut rng = CausalRng::from_seed(4);
+        sample_stochastic(&StochasticPolicy::gaussian(1.0, 4.0), 256, &mut rng, &mut out).unwrap();
+        assert!(out.iter().all(|x| x.is_finite()));
+    }
+
+    #[test]
+    fn categorical_scale_extremes_match_independent_threshold_with_same_seed() {
+        let seed = 483;
+        let mut oracle_rng = CausalRng::from_seed(seed);
+        let expected: Vec<f64> =
+            (0..512).map(|_| if oracle_rng.next_f64() < 0.25 { 0.0 } else { 1.0 }).collect();
+        let weights = [
+            [1.0, 3.0],
+            [1e-300, 3e-300],
+            [f64::from_bits(1), f64::from_bits(3)],
+            [f64::MAX / 3.0, f64::MAX],
+        ];
+        for probabilities in weights {
+            let mut rng = CausalRng::from_seed(seed);
+            let mut actual = vec![0.0; expected.len()];
+            sample_stochastic(
+                &StochasticPolicy::categorical(probabilities.to_vec()),
+                actual.len(),
+                &mut rng,
+                &mut actual,
+            )
+            .unwrap();
+            assert_eq!(actual, expected, "weights {probabilities:?}");
+            assert_eq!(rng.state(), oracle_rng.state());
+        }
+    }
+
+    #[test]
+    fn manually_populated_overlay_rejects_bad_policy_before_any_node_is_sampled() {
+        let model = fitted_chain();
+        let mut overlay = InterventionOverlay::observational(model.n_nodes());
+        overlay.stochastic[1] = Some(StochasticPolicy::categorical(Vec::<f64>::new()));
+        let view = ModelView::with_overlay(&model, overlay);
+        let mut rng = CausalRng::from_seed(5);
+        let before = rng.state();
+        let mut ws = MechanismWorkspace::default();
+        let mut out = vec![7.0; 2 * model.n_nodes()];
+        assert!(matches!(
+            sample_with_overlay_into(&view, 2, &mut rng, &mut ws, &mut out),
+            Err(ModelError::Unsupported { .. })
+        ));
+        assert!(out.iter().all(|x| *x == 7.0));
+        assert_eq!(rng.state(), before);
     }
 
     #[test]
