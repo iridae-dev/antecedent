@@ -113,6 +113,12 @@ def _refutation_reports_from_raw(validation: Any) -> list[RefutationReport]:
             passed=r.passed,
             failure_condition=r.failure_condition,
             replicates=r.replicates,
+            scope_kind=getattr(r, "scope_kind", None),
+            scope_target_identity=getattr(r, "scope_target_identity", None),
+            scope_outer_atom=getattr(r, "scope_outer_atom", None),
+            scope_completion_digest=getattr(r, "scope_completion_digest", None),
+            scope_horizon_index=getattr(r, "scope_horizon_index", None),
+            scope_horizon=getattr(r, "scope_horizon", None),
         )
         for r in getattr(validation, "reports", None) or ()
     ]

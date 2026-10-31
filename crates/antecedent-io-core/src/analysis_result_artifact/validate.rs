@@ -37,6 +37,11 @@ pub(super) fn validate_result(
             return Err(IoError::Convert("fitted effect names an unknown feature".into()));
         }
     }
+    for report in &result.refutations {
+        if let Some(scope) = &report.scope {
+            crate::analysis_wire::validate_refutation_scope(scope)?;
+        }
+    }
     validate_variable_names(variable_names)?;
     validate_query_ids(&result.query, variable_names.len())?;
     if let Some(inference) = &result.interference_inference {

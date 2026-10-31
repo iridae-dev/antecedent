@@ -14,11 +14,14 @@ use antecedent_estimate::{
     BootstrapAccounting, ClipSensitivity, EffectEstimate, FirstStageDiagnostics, OverlapPolicy,
     OverlapReport, PropensityInterval,
 };
-use antecedent_validate::RefutationReport;
+use antecedent_validate::target_native::{RefutationTarget, TargetFamily, TargetQuadrant};
+use antecedent_validate::{RefutationReport, RefutationScope};
 use serde::{Deserialize, Serialize};
 
 pub use antecedent_io_core::analysis_wire::JointCovarianceWire;
-use antecedent_io_core::analysis_wire::RefutationReportWire;
+use antecedent_io_core::analysis_wire::{
+    RefutationReportWire, RefutationScopeWire, RefutationTargetWire,
+};
 
 use crate::error::IoError;
 use crate::trace::{AssumptionRecordWire, assumptions_from_wire, assumptions_to_wire};
@@ -1058,7 +1061,106 @@ fn overlap_report_from_wire(wire: OverlapReportWire) -> Result<OverlapReport, Io
     })
 }
 
-/// Encode refutation.
+fn target_to_wire(target: &RefutationTarget) -> RefutationTargetWire {
+    RefutationTargetWire {
+        version: 1,
+        family: target.family().as_str().to_owned(),
+        temporal: target.quadrant().temporal,
+        bayesian: target.quadrant().bayesian,
+        labels: target.labels().iter().map(ToString::to_string).collect(),
+        source: *target.source(),
+        identity: *target.identity(),
+    }
+}
+
+fn target_from_wire(wire: &RefutationTargetWire) -> Result<RefutationTarget, IoError> {
+    if wire.version != 1 {
+        return Err(IoError::Convert("unsupported refutation scope version".into()));
+    }
+    let family = TargetFamily::parse(&wire.family)
+        .ok_or_else(|| IoError::Convert("unknown refutation target family".into()))?;
+    let target = RefutationTarget::new(
+        family,
+        TargetQuadrant { temporal: wire.temporal, bayesian: wire.bayesian },
+        wire.labels.iter().cloned(),
+        wire.source,
+    )
+    .map_err(|error| IoError::Convert(error.to_string()))?;
+    if target.identity() != &wire.identity {
+        return Err(IoError::Convert("refutation target identity mismatch".into()));
+    }
+    Ok(target)
+}
+
+fn scope_to_wire(scope: &RefutationScope) -> RefutationScopeWire {
+    match scope {
+        RefutationScope::WholeTarget { target } => {
+            RefutationScopeWire::WholeTarget { target: target_to_wire(target) }
+        }
+        RefutationScope::TemporalClassCompletion {
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+            target,
+        } => RefutationScopeWire::TemporalClassCompletion {
+            outer_atom: *outer_atom,
+            horizon_index: *horizon_index as u64,
+            horizon: *horizon,
+            completion_digest: *completion_digest,
+            target: target_to_wire(target),
+        },
+        RefutationScope::StaticClassCompletion { outer_atom, completion_digest, target } => {
+            RefutationScopeWire::StaticClassCompletion {
+                outer_atom: *outer_atom,
+                completion_digest: *completion_digest,
+                target: target_to_wire(target),
+            }
+        }
+    }
+}
+
+fn scope_from_wire(scope: &RefutationScopeWire) -> Result<RefutationScope, IoError> {
+    antecedent_io_core::analysis_wire::validate_refutation_scope(scope)?;
+    match scope {
+        RefutationScopeWire::TemporalClassCompletion { target, .. } if !target.temporal => {
+            return Err(IoError::Convert(
+                "temporal completion scope requires a temporal target".into(),
+            ));
+        }
+        RefutationScopeWire::StaticClassCompletion { target, .. } if target.temporal => {
+            return Err(IoError::Convert("static completion scope requires a static target".into()));
+        }
+        _ => {}
+    }
+    Ok(match scope {
+        RefutationScopeWire::WholeTarget { target } => {
+            RefutationScope::WholeTarget { target: target_from_wire(target)? }
+        }
+        RefutationScopeWire::TemporalClassCompletion {
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+            target,
+        } => RefutationScope::TemporalClassCompletion {
+            outer_atom: *outer_atom,
+            horizon_index: usize::try_from(*horizon_index).map_err(|_| IoError::TooLarge)?,
+            horizon: *horizon,
+            completion_digest: *completion_digest,
+            target: target_from_wire(target)?,
+        },
+        RefutationScopeWire::StaticClassCompletion { outer_atom, completion_digest, target } => {
+            RefutationScope::StaticClassCompletion {
+                outer_atom: *outer_atom,
+                completion_digest: *completion_digest,
+                target: target_from_wire(target)?,
+            }
+        }
+    })
+}
+
+/// Encode a report's descriptive scope; this does not serialize runtime authority.
 #[must_use]
 pub fn refutation_to_wire(r: &RefutationReport) -> RefutationReportWire {
     RefutationReportWire {
@@ -1070,13 +1172,16 @@ pub fn refutation_to_wire(r: &RefutationReport) -> RefutationReportWire {
         passed: r.passed,
         failure_condition: r.failure_condition.as_ref().map(ToString::to_string),
         replicates: r.replicates,
+        scope: r.scope.as_ref().map(scope_to_wire),
     }
 }
 
-/// Decode refutation.
-#[must_use]
-pub fn refutation_from_wire(w: &RefutationReportWire) -> RefutationReport {
-    RefutationReport::new(
+/// Decode descriptive metadata without recreating runtime authority.
+///
+/// # Errors
+/// Unknown or inconsistent target identity, or a horizon index outside the native range.
+pub fn refutation_from_wire(w: &RefutationReportWire) -> Result<RefutationReport, IoError> {
+    let mut report = RefutationReport::new(
         Arc::from(w.refuter.as_str()),
         w.original_ate,
         w.refuted_ate,
@@ -1085,7 +1190,9 @@ pub fn refutation_from_wire(w: &RefutationReportWire) -> RefutationReport {
         w.passed,
         w.failure_condition.as_ref().map(|s| Arc::<str>::from(s.as_str())),
         w.replicates,
-    )
+    );
+    report.scope = w.scope.as_ref().map(scope_from_wire).transpose()?;
+    Ok(report)
 }
 
 #[cfg(test)]
@@ -1105,6 +1212,110 @@ mod tests {
     use super::*;
     use crate::trace::{AssumptionRecordWire, AssumptionTagWire};
     use antecedent_io_core::analysis_wire::*;
+
+    #[test]
+    fn refutation_scope_roundtrips_without_recreating_producer_authority() {
+        let mut report =
+            RefutationReport::new("target.subset_stability", 12.0, 12.1, 0.4, true, true, None, 30);
+        let legacy = refutation_to_wire(&report);
+        assert!(serde_json::to_value(&legacy).unwrap().get("scope").is_none());
+        let target = RefutationTarget::new(
+            TargetFamily::TemporalEffect,
+            TargetQuadrant::TEMPORAL_FREQUENTIST,
+            [format!(
+                "scope:v1:temporal_class_completion:2:0:1:{}|level",
+                antecedent_core::identity::to_hex(&[3; 32])
+            )],
+            [9; 32],
+        )
+        .unwrap();
+        report.scope = Some(RefutationScope::TemporalClassCompletion {
+            outer_atom: 2,
+            horizon_index: 0,
+            horizon: 1,
+            completion_digest: [3; 32],
+            target,
+        });
+        let wire = refutation_to_wire(&report);
+        let mut future = serde_json::to_value(&wire).unwrap();
+        future["scope"]["kind"] = serde_json::json!("future_scope");
+        assert!(serde_json::from_value::<RefutationReportWire>(future).is_err());
+        let decoded = refutation_from_wire(&wire).unwrap();
+        assert_eq!(decoded.scope, report.scope);
+        if let Some(RefutationScope::TemporalClassCompletion { target, .. }) = &decoded.scope {
+            assert_eq!(target.labels().len(), 1);
+        } else {
+            panic!("expected completion scope");
+        }
+        assert_eq!(decoded.produced_by, None);
+        let mut duplicate = wire.clone();
+        if let Some(RefutationScopeWire::TemporalClassCompletion { target, .. }) =
+            &mut duplicate.scope
+        {
+            target.labels.push(target.labels[0].clone());
+            let mut writer =
+                antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+            writer
+                .text(&target.family)
+                .text("temporal.frequentist")
+                .texts(&target.labels)
+                .bytes(&target.source);
+            target.identity = writer.finish();
+        }
+        assert!(refutation_from_wire(&duplicate).is_err());
+        let mut multi = wire.clone();
+        if let Some(RefutationScopeWire::TemporalClassCompletion { target, .. }) = &mut multi.scope
+        {
+            target.labels.push(target.labels[0].replace("|level", "|second_level"));
+            let mut writer =
+                antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+            writer
+                .text(&target.family)
+                .text("temporal.frequentist")
+                .texts(&target.labels)
+                .bytes(&target.source);
+            target.identity = writer.finish();
+        }
+        let multi = refutation_from_wire(&multi).unwrap();
+        if let Some(RefutationScope::TemporalClassCompletion { target, .. }) = multi.scope {
+            assert_eq!(target.labels().len(), 2);
+        } else {
+            panic!("expected completion scope");
+        }
+        let mut wrong_selector = wire.clone();
+        if let Some(RefutationScopeWire::TemporalClassCompletion { horizon, .. }) =
+            &mut wrong_selector.scope
+        {
+            *horizon = 2;
+        }
+        assert!(refutation_from_wire(&wrong_selector).is_err());
+        for field in 0..3 {
+            let mut changed = wire.clone();
+            if let Some(RefutationScopeWire::TemporalClassCompletion {
+                outer_atom,
+                horizon_index,
+                completion_digest,
+                ..
+            }) = &mut changed.scope
+            {
+                match field {
+                    0 => *outer_atom += 1,
+                    1 => *horizon_index += 1,
+                    _ => completion_digest[0] ^= 1,
+                }
+            }
+            assert!(refutation_from_wire(&changed).is_err());
+        }
+        let mut malformed = wire;
+        if let Some(RefutationScopeWire::TemporalClassCompletion { target, .. }) =
+            &mut malformed.scope
+        {
+            target.identity[0] ^= 1;
+        } else {
+            panic!("expected completion scope");
+        }
+        assert!(refutation_from_wire(&malformed).is_err());
+    }
 
     #[test]
     fn effect_wire_rejects_malformed_evidence_and_preserves_unbounded_values() {

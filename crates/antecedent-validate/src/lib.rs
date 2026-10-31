@@ -54,7 +54,9 @@ pub use bayesian_checks::{
     SimulationBasedCalibration, with_prior_sensitivity,
 };
 pub use bootstrap_refute::BootstrapRefute;
-pub use common::{RefutationProblem, RefutationReport, TemporalRefitContext, stack_panel_tabular};
+pub use common::{
+    RefutationProblem, RefutationReport, RefutationScope, TemporalRefitContext, stack_panel_tabular,
+};
 pub use component_sensitivity::{
     ComponentModel, MIN_MSM_REPLICATES, MediationComponent, MediationComponents, MediationPath,
     MediationPaths, MediationPosterior, MsmRefitFit, MsmWeightPeriod,
@@ -147,13 +149,13 @@ pub use vector_sensitivity::{
 };
 
 #[cfg(test)]
-mod test_support;
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod dbn_posterior_reference_tests;
 #[cfg(test)]
 mod discovery_stability_reference_tests;
+#[cfg(test)]
+mod test_support;
+#[cfg(test)]
+mod tests;
 
 /// Fit-free, context-aware data quality diagnostics.
 pub mod data_diagnostics;

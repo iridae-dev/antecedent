@@ -83,6 +83,10 @@ pub(in crate::contract_section) fn contract_unresolved(
     limits: &ReplayLimits,
 ) -> Vec<ContractReason> {
     let mut unresolved = verify_stored_payloads(contract);
+    // Serialized scope metadata does not independently replay the scoped check.
+    if body.refutations.iter().any(|report| report.scope.is_some()) {
+        unresolved.push(ContractReason::DependenciesScopedRefutationReplay);
+    }
     note_linear_fit_replay(contract, body, &mut unresolved);
     // This artifact seals one member's recorded family evidence, but does not carry
     // every other query and aligned score table needed to replay family inference.

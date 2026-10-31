@@ -451,6 +451,8 @@ impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::Observ
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::clone::Clone for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::clone::Clone for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl core::clone::Clone for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl core::clone::Clone for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl core::clone::Clone for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire
 impl core::clone::Clone for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 impl core::clone::Clone for antecedent_io_core::bound_identity::BoundIdentity
@@ -1109,6 +1111,8 @@ impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact
 impl core::cmp::Eq for antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire
 impl core::cmp::Eq for antecedent_io_core::analysis_result_artifact::ObservedWindowWire
 impl core::cmp::Eq for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl core::cmp::Eq for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl core::cmp::Eq for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl core::cmp::Eq for antecedent_io_core::bound_identity::BoundIdentity
 impl core::cmp::Eq for antecedent_io_core::bound_identity::BoundMatch
 impl core::cmp::Eq for antecedent_io_core::bound_identity::BoundRefusal
@@ -1702,6 +1706,8 @@ impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::Obse
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl core::cmp::PartialEq for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl core::cmp::PartialEq for antecedent_io_core::bound_identity::BoundIdentity
 impl core::cmp::PartialEq for antecedent_io_core::bound_identity::BoundMatch
 impl core::cmp::PartialEq for antecedent_io_core::bound_identity::BoundRefusal
@@ -2638,6 +2644,8 @@ impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::Observed
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::fmt::Debug for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::fmt::Debug for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl core::fmt::Debug for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl core::fmt::Debug for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl core::fmt::Debug for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire
 impl core::fmt::Debug for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 impl core::fmt::Debug for antecedent_io_core::bound_identity::BoundIdentity
@@ -3644,6 +3652,8 @@ impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::Obse
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Freeze for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
+impl core::marker::Freeze for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
+impl core::marker::Freeze for antecedent_io_core::analysis_wire::RefutationTargetWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire [auto]
 impl core::marker::Freeze for antecedent_io_core::bound_identity::BoundIdentity [auto]
@@ -4467,6 +4477,8 @@ impl core::marker::Send for antecedent_io_core::analysis_result_artifact::Observ
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Send for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
+impl core::marker::Send for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
+impl core::marker::Send for antecedent_io_core::analysis_wire::RefutationTargetWire [auto]
 impl core::marker::Send for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire [auto]
 impl core::marker::Send for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire [auto]
 impl core::marker::Send for antecedent_io_core::bound_identity::BoundIdentity [auto]
@@ -5286,6 +5298,8 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_a
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::bound_identity::BoundIdentity
 impl core::marker::StructuralPartialEq for antecedent_io_core::bound_identity::BoundMatch
 impl core::marker::StructuralPartialEq for antecedent_io_core::bound_identity::BoundRefusal
@@ -6065,6 +6079,8 @@ impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::Observ
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Sync for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
+impl core::marker::Sync for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
+impl core::marker::Sync for antecedent_io_core::analysis_wire::RefutationTargetWire [auto]
 impl core::marker::Sync for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire [auto]
 impl core::marker::Sync for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire [auto]
 impl core::marker::Sync for antecedent_io_core::bound_identity::BoundIdentity [auto]
@@ -6893,6 +6909,8 @@ impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::Obser
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::marker::Unpin for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
+impl core::marker::Unpin for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
+impl core::marker::Unpin for antecedent_io_core::analysis_wire::RefutationTargetWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire [auto]
 impl core::marker::Unpin for antecedent_io_core::bound_identity::BoundIdentity [auto]
@@ -7722,6 +7740,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_re
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::RefutationTargetWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::bound_identity::BoundIdentity [auto]
@@ -8549,6 +8569,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_resul
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::TemporalDesignWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::HedgeProblemWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::RefutationScopeWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::RefutationTargetWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::bound_identity::BoundIdentity [auto]
@@ -9336,6 +9358,8 @@ impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'_>
 impl serde_core::ser::Serialize for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl serde_core::ser::Serialize for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl serde_core::ser::Serialize for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl serde_core::ser::Serialize for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire
 impl serde_core::ser::Serialize for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 impl serde_core::ser::Serialize for antecedent_io_core::bridge_artifact::AssumptionWire
@@ -10072,6 +10096,8 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_resu
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::QuasiRolloutWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_wire::HedgeProblemWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_wire::RefutationScopeWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::analysis_wire::RefutationTargetWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::bridge_artifact::AssumptionWire
@@ -10777,6 +10803,7 @@ pub enum antecedent_io_core::TransportIdentificationWire
 pub enum antecedent_io_core::ValueTypeWire
 pub enum antecedent_io_core::ValueWire
 pub enum antecedent_io_core::VerdictWire
+pub enum antecedent_io_core::analysis_wire::RefutationScopeWire
 pub enum antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire
 pub enum antecedent_io_core::bound_identity::BoundMatch
 pub enum antecedent_io_core::bound_identity::CyclicSolution
@@ -11999,6 +12026,7 @@ pub field antecedent_io_core::RefutationReportWire::passed: bool
 pub field antecedent_io_core::RefutationReportWire::refuted_ate: f64
 pub field antecedent_io_core::RefutationReportWire::refuter: alloc::string::String
 pub field antecedent_io_core::RefutationReportWire::replicates: u32
+pub field antecedent_io_core::RefutationReportWire::scope: core::option::Option<antecedent_io_core::analysis_wire::RefutationScopeWire>
 pub field antecedent_io_core::ResponseEnvelopeWire::dimension: u64
 pub field antecedent_io_core::ResponseEnvelopeWire::grid: alloc::vec::Vec<f64>
 pub field antecedent_io_core::ResponseEnvelopeWire::lower: alloc::vec::Vec<f64>
@@ -12475,6 +12503,13 @@ pub field antecedent_io_core::analysis_wire::HedgeProblemWire::directed: alloc::
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::outcomes: alloc::vec::Vec<u32>
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::treatments: alloc::vec::Vec<u32>
 pub field antecedent_io_core::analysis_wire::HedgeProblemWire::variables: alloc::vec::Vec<u32>
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::bayesian: bool
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::family: alloc::string::String
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::identity: [u8; 32]
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::labels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::source: [u8; 32]
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::temporal: bool
+pub field antecedent_io_core::analysis_wire::RefutationTargetWire::version: u16
 pub field antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::columns: alloc::vec::Vec<(alloc::string::String, alloc::vec::Vec<u64>)>
 pub field antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::draws: usize
 pub field antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire::draws_explicit: bool
@@ -15297,6 +15332,7 @@ pub fn antecedent_io_core::analysis_wire::diagnostic_to_wire(d: &antecedent_core
 pub fn antecedent_io_core::analysis_wire::identification_from_wire(w: &antecedent_io_core::IdentificationResultWire) -> core::result::Result<antecedent_identify::result::IdentificationResult, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_wire::identification_to_wire(r: &antecedent_identify::result::IdentificationResult) -> core::result::Result<antecedent_io_core::IdentificationResultWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::analysis_wire::identification_to_wire_with_registry(r: &antecedent_identify::result::IdentificationResult, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>) -> core::result::Result<antecedent_io_core::IdentificationResultWire, antecedent_io_core::IoError>
+pub fn antecedent_io_core::analysis_wire::validate_refutation_scope(scope: &antecedent_io_core::analysis_wire::RefutationScopeWire) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn antecedent_io_core::artifact_codec::container_kind(bytes: &[u8]) -> core::option::Option<alloc::string::String>
 pub fn antecedent_io_core::artifact_codec::decode_container(kind: &str, max_bytes: usize, section_ids: &[&str], bytes: &[u8]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, antecedent_io_core::CodecError>
 pub fn antecedent_io_core::artifact_codec::decode_sectioned<E: antecedent_io_core::artifact_codec::ArtifactFamilyError, M: serde_core::de::DeserializeOwned>(kind: &str, max_bytes: usize, meta_section: &str, payload_sections: &[&str], supported_version: u16, bytes: &[u8]) -> core::result::Result<(M, alloc::vec::Vec<alloc::vec::Vec<u8>>), E>
@@ -15990,6 +16026,7 @@ pub struct antecedent_io_core::analysis_result_artifact::TemporalDesignWire
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire has private fields
 pub struct antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a>
 pub struct antecedent_io_core::analysis_wire::HedgeProblemWire
+pub struct antecedent_io_core::analysis_wire::RefutationTargetWire
 pub struct antecedent_io_core::bayesian_prior_recalc_artifact::BoundBayesianPriorWire
 pub struct antecedent_io_core::bound_identity::BoundIdentity
 pub struct antecedent_io_core::bound_identity::ExpectedIdentity
@@ -17277,6 +17314,7 @@ pub variant antecedent_io_core::ContractReason::DependenciesFunctionalEffectResp
 pub variant antecedent_io_core::ContractReason::DependenciesLinearFitSufficientStatistics
 pub variant antecedent_io_core::ContractReason::DependenciesNestedCounterfactualFitMoments
 pub variant antecedent_io_core::ContractReason::DependenciesNestedCounterfactualFitRank
+pub variant antecedent_io_core::ContractReason::DependenciesScopedRefutationReplay
 pub variant antecedent_io_core::ContractReason::DistributionAtomCount
 pub variant antecedent_io_core::ContractReason::DistributionAtomProbability
 pub variant antecedent_io_core::ContractReason::DistributionAtomReplayMismatch
@@ -17789,6 +17827,9 @@ pub variant antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveM
 pub variant antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError::ReplayMismatch(&'static str)
 pub variant antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError::UnsupportedSemantics(&'static str)
 pub variant antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io_core::analysis_wire::RefutationScopeWire::StaticClassCompletion { outer_atom: u64, completion_digest: [u8; 32], target: antecedent_io_core::analysis_wire::RefutationTargetWire }
+pub variant antecedent_io_core::analysis_wire::RefutationScopeWire::TemporalClassCompletion { outer_atom: u64, horizon_index: u64, horizon: u32, completion_digest: [u8; 32], target: antecedent_io_core::analysis_wire::RefutationTargetWire }
+pub variant antecedent_io_core::analysis_wire::RefutationScopeWire::WholeTarget { target: antecedent_io_core::analysis_wire::RefutationTargetWire }
 pub variant antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire::Correlation { dim: usize, matrix: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire::Gaussian { mean: alloc::vec::Vec<f64>, variance: alloc::vec::Vec<f64> }
 pub variant antecedent_io_core::bayesian_prior_recalc_artifact::BoundPriorSpecWire::InvGamma { shape: f64, scale: f64 }

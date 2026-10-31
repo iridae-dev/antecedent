@@ -593,6 +593,12 @@ class RefutationReport(ResultModel):
     passed: bool
     failure_condition: str | None
     replicates: int
+    scope_kind: str | None = None
+    scope_target_identity: str | None = None
+    scope_outer_atom: int | None = None
+    scope_completion_digest: str | None = None
+    scope_horizon_index: int | None = None
+    scope_horizon: int | None = None
 
     def __repr__(self) -> str:
         verdict = "pass" if self.passed else "fail"
@@ -606,7 +612,7 @@ class RefutationReport(ResultModel):
 
 
 class ValidationView(ResultModel):
-    passed: bool
+    passed: bool | None
     ran: bool
     count: int
     prior_predictive: PredictiveCheckReport | None = None
@@ -618,7 +624,7 @@ class ValidationView(ResultModel):
     def __repr__(self) -> str:
         if not self.ran:
             return "<ValidationView not run>"
-        verdict = "pass" if self.passed else "fail"
+        verdict = "unknown" if self.passed is None else "pass" if self.passed else "fail"
         text = f"<ValidationView {verdict} {len(self)} refuters ({len(self.failed)} failed"
         if self.uninformative:
             text += f", {len(self.uninformative)} not informative"
@@ -1198,12 +1204,21 @@ class AnalysisResult(ResultModel, ResultAPI):
         else:
             parts = [verdict, f"effect={fmt_float(effect)} ±{se_text}"]
         if self.validation.ran:
-            informative = [r for r in self.validation if r.informative or not r.passed]
-            n_passed = sum(1 for r in informative if r.passed)
-            text = f"refute={n_passed}/{len(informative)} pass"
-            if len(informative) < len(self.validation):
-                text += f" ({len(self.validation) - len(informative)} not informative)"
-            parts.append(text)
+            if self.validation.passed is None:
+                parts.append(
+                    f"refute=whole verdict unavailable ({len(self.validation)} scoped checks)"
+                )
+            else:
+                informative = [
+                    r
+                    for r in self.validation
+                    if r.scope_kind is None and (r.informative or not r.passed)
+                ]
+                n_passed = sum(1 for r in informative if r.passed)
+                text = f"refute={n_passed}/{len(informative)} pass"
+                if len(informative) < len(self.validation):
+                    text += f" ({len(self.validation) - len(informative)} not informative)"
+                parts.append(text)
         mass = self.posterior.unidentified_mass if self.posterior is not None else None
         if mass is not None and mass > 0:
             parts.append(f"unidentified_mass={fmt_pct(mass)}")

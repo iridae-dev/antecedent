@@ -157,6 +157,22 @@ def portable_evidence(
         "derivation_step_count": len(identification_wire.get("derivation") or []),
     }
     reports = [dict(r) for r in body.get("refutations") or [] if isinstance(r, Mapping)]
+    for report in reports:
+        scope = report.get("scope")
+        if isinstance(scope, Mapping):
+            report["scope_kind"] = scope.get("kind")
+            target = scope.get("target")
+            identity = target.get("identity") if isinstance(target, Mapping) else None
+            if isinstance(identity, (bytes, bytearray, list, tuple)):
+                report["scope_target_identity"] = bytes(identity).hex()
+            report["scope_outer_atom"] = scope.get("outer_atom")
+            digest = scope.get("completion_digest")
+            if isinstance(digest, (bytes, bytearray, list, tuple)):
+                report["scope_completion_digest"] = bytes(digest).hex()
+            report["scope_horizon_index"] = scope.get("horizon_index")
+            report["scope_horizon"] = scope.get("horizon")
+    # Serialized scopes are descriptive, never whole-result execution authority.
+    whole_reports = [report for report in reports if report.get("scope") is None]
 
     def field(diagnostic: Mapping[str, Any], name: str) -> str:
         for pair in diagnostic.get("fields") or []:
@@ -171,8 +187,13 @@ def portable_evidence(
     ]
     count = len(reports) + len(failures)
     ran = count > 0
+    verdict = (
+        None
+        if any(report.get("scope") is not None for report in reports)
+        else ran and not failures and all(r.get("passed") is True for r in whole_reports)
+    )
     validation = {
-        "passed": ran and not failures and all(r.get("passed") is True for r in reports),
+        "passed": verdict,
         "ran": ran,
         "count": count,
         "reports": reports,

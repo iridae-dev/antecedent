@@ -173,6 +173,11 @@ fn push_model_bundle_optional_sections(
         push_bundle_cbor_section("estimate", "estimate.v1", to_cbor(e)?, descs, sections);
     }
     if let Some(r) = input.refutations {
+        for report in r {
+            if let Some(scope) = &report.scope {
+                antecedent_io_core::analysis_wire::validate_refutation_scope(scope)?;
+            }
+        }
         push_bundle_cbor_section(
             "refutations",
             "refutations.v1",
@@ -357,7 +362,15 @@ pub fn decode_model_bundle(artifact: &EncodedArtifact) -> Result<ModelBundle, Io
     let analysis_trace = opt("analysis.trace").map(|s| from_cbor(&s.data)).transpose()?;
     let identification = opt("identification").map(|s| from_cbor(&s.data)).transpose()?;
     let estimate = opt("estimate").map(|s| from_cbor(&s.data)).transpose()?;
-    let refutations = opt("refutations").map(|s| from_cbor(&s.data)).transpose()?;
+    let refutations: Option<Vec<RefutationReportWire>> =
+        opt("refutations").map(|s| from_cbor(&s.data)).transpose()?;
+    if let Some(reports) = &refutations {
+        for report in reports {
+            if let Some(scope) = &report.scope {
+                antecedent_io_core::analysis_wire::validate_refutation_scope(scope)?;
+            }
+        }
+    }
     let logical_plan = opt("logical_plan").map(|s| from_cbor(&s.data)).transpose()?;
     let physical_plan = opt("physical_plan").map(|s| from_cbor(&s.data)).transpose()?;
     let performance = opt("performance").map(|s| from_cbor(&s.data)).transpose()?;

@@ -463,6 +463,16 @@ pub fn result_refutation_target(result: &StudyResult) -> Result<RefutationTarget
 pub(crate) fn refuse_scalar_refutations_for_result(
     result: &StudyResult,
 ) -> Result<(), TargetCertificationError> {
+    // Scope metadata is descriptive until the checked-operation authority is
+    // retained and verified. A same-program stamp cannot make it authoritative.
+    if let Some(report) = result.refutations.iter().find(|report| report.scope.is_some()) {
+        return Err(TargetCertificationError::TargetMismatch {
+            refuter: Arc::clone(&report.refuter),
+            claim_target: "whole-result target".to_owned(),
+            report_target: "unverified descriptive scope".to_owned(),
+            next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
+        });
+    }
     let family = result_target_family(result);
     if family == TargetFamily::ScalarAverageEffect {
         return Ok(());

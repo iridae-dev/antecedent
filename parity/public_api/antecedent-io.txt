@@ -9405,7 +9405,7 @@ pub fn antecedent_io::adaptive_inference_result_artifact::compute_adaptive_resul
 pub fn antecedent_io::analysis_wire::effect_estimate_from_owned_wire(w: antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_from_wire(w: &antecedent_io::EffectEstimateWire) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::effect_estimate_to_wire(e: &antecedent_estimate::effect_estimate::EffectEstimate) -> antecedent_io::EffectEstimateWire
-pub fn antecedent_io::analysis_wire::refutation_from_wire(w: &antecedent_io_core::analysis_wire::RefutationReportWire) -> antecedent_validate::common::RefutationReport
+pub fn antecedent_io::analysis_wire::refutation_from_wire(w: &antecedent_io_core::analysis_wire::RefutationReportWire) -> core::result::Result<antecedent_validate::common::RefutationReport, antecedent_io_core::error::IoError>
 pub fn antecedent_io::analysis_wire::refutation_to_wire(r: &antecedent_validate::common::RefutationReport) -> antecedent_io_core::analysis_wire::RefutationReportWire
 pub fn antecedent_io::array_fit_artifact::inspect_array_fit_header(bytes: &[u8]) -> core::result::Result<bool, antecedent_io_core::error::IoError>
 pub fn antecedent_io::bayesian_posterior_row_artifact::dose_grid_row(kind: &str, functional: antecedent_estimate::dose_grid_functional::DoseFunctional, posterior: &antecedent_estimate::dose_grid_posterior::DoseGridPosterior) -> antecedent_io_core::analysis_result_artifact::PosteriorRowWire

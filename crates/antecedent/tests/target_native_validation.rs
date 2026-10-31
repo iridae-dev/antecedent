@@ -205,6 +205,28 @@ fn a_report_the_route_produced_for_its_own_target_is_accepted() {
 }
 
 #[test]
+fn descriptive_scope_cannot_certify_even_when_program_and_target_match() {
+    let (data, graph) = fixture(300);
+    let ctx = ExecutionContext::for_tests(65);
+    let prepared = prepared(&data, &graph, &ctx);
+    let mut result = prepared.estimate(&data, &ctx).unwrap();
+    let contract = prepared.contract().unwrap();
+    let target = result_refutation_target(&result).unwrap();
+    let program = *result.lowered_program_identity().unwrap().as_bytes();
+    let mut report =
+        RefutationReport::new("target.subset_stability", 2.0, 2.0, 0.9, true, true, None, 8);
+    report.scope = Some(antecedent_validate::RefutationScope::WholeTarget { target });
+    report.stamp_producer(program);
+    result.refutations.push(report);
+    assert!(matches!(
+        certify_result_refutations(&result, &[]),
+        Err(TargetCertificationError::TargetMismatch { .. })
+    ));
+    let error = result.claim(&contract, &ctx).unwrap_err();
+    assert!(error.to_string().contains("unverified descriptive scope"), "{error}");
+}
+
+#[test]
 fn a_report_on_another_program_does_not_certify_the_result() {
     let (data, graph) = fixture(300);
     let ctx = ExecutionContext::for_tests(63);

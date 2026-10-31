@@ -80,6 +80,41 @@ impl TemporalRefitContext<'_> {
     }
 }
 
+/// Descriptive target scope of a refutation report; not execution authority.
+///
+/// A completion-level report is evidence only about that completion, even when
+/// the outer program produced it. An absent scope denotes a legacy unscoped report.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RefutationScope {
+    /// The complete target vector of the producing program.
+    WholeTarget {
+        /// Canonical target identity and coordinates.
+        target: RefutationTarget,
+    },
+    /// One temporal posterior/class completion and horizon.
+    TemporalClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Zero-based horizon coordinate.
+        horizon_index: usize,
+        /// Temporal horizon in steps.
+        horizon: u32,
+        /// Full canonical completion graph digest.
+        completion_digest: [u8; 32],
+        /// Canonical scoped level target.
+        target: RefutationTarget,
+    },
+    /// One static posterior/class completion.
+    StaticClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Full canonical completion graph digest.
+        completion_digest: [u8; 32],
+        /// Canonical scoped level target.
+        target: RefutationTarget,
+    },
+}
+
 /// Comparison of original vs refuted estimates.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -109,6 +144,8 @@ pub struct RefutationReport {
     /// built outside a compiled execution: such a report cannot certify a claim on any target
     /// other than the scalar average effect.
     pub produced_by: Option<[u8; 32]>,
+    /// Descriptive target scope, or legacy/unscoped when absent. Scope alone is not authority.
+    pub scope: Option<RefutationScope>,
 }
 
 /// Which [`RefutationReport`] fields a [`RefutationReportBuilder`] has already set.
@@ -212,6 +249,11 @@ impl RefutationReport {
     /// contributes.
     #[must_use]
     pub fn mixture_weighted(items: &[(f64, &Self)]) -> Option<Self> {
+        // A generic numeric mixture cannot synthesize authority over distinct
+        // target scopes. Scoped reports require a separately checked target mix.
+        if items.iter().any(|(weight, report)| *weight > 0.0 && report.scope.is_some()) {
+            return None;
+        }
         let first = items.iter().find(|(w, _)| *w > 0.0)?.1;
         let id = Arc::clone(&first.refuter);
         // Weights are rescaled by the largest contributing one, so masses of any magnitude
@@ -342,6 +384,7 @@ impl RefutationReportBuilder {
             failure_condition: self.failure_condition,
             replicates: self.replicates,
             produced_by: None,
+            scope: None,
         }
     }
 }

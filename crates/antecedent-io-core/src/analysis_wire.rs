@@ -192,6 +192,59 @@ pub struct DiagnosticWire {
     pub fields: Vec<(String, String)>,
 }
 
+/// Descriptive target coordinates. This wire value is not runtime authority.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RefutationTargetWire {
+    /// Scope descriptor version; this format is version 1.
+    pub version: u16,
+    /// Stable target-family name.
+    pub family: String,
+    /// Whether the target uses temporal data.
+    pub temporal: bool,
+    /// Whether the target uses Bayesian inference.
+    pub bayesian: bool,
+    /// Ordered target-coordinate labels.
+    pub labels: Vec<String>,
+    /// Source lowered-program identity.
+    pub source: [u8; 32],
+    /// Derived target identity, checked on conversion.
+    pub identity: [u8; 32],
+}
+
+/// Descriptive refutation scope. It does not attest execution or report contents.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum RefutationScopeWire {
+    /// A whole target, subject to independent authority checks.
+    WholeTarget {
+        /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+    /// A single temporal completion and horizon.
+    TemporalClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Horizon position.
+        horizon_index: u64,
+        /// Horizon in steps.
+        horizon: u32,
+        /// Full canonical completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+    /// A single static class completion.
+    StaticClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Full canonical completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+}
+
 /// Refutation report wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -212,6 +265,98 @@ pub struct RefutationReportWire {
     pub failure_condition: Option<String>,
     /// Replicates.
     pub replicates: u32,
+    /// Descriptive scope; absent in legacy records. It is not execution authority.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<RefutationScopeWire>,
+}
+
+/// Validate descriptive target metadata, without granting execution authority.
+///
+/// # Errors
+/// The target descriptor is malformed, inconsistent with its scope, or has an invalid identity.
+pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoError> {
+    let target = match scope {
+        RefutationScopeWire::WholeTarget { target }
+        | RefutationScopeWire::TemporalClassCompletion { target, .. }
+        | RefutationScopeWire::StaticClassCompletion { target, .. } => target,
+    };
+    match scope {
+        RefutationScopeWire::TemporalClassCompletion { .. } if !target.temporal => {
+            return Err(IoError::Convert(
+                "temporal completion scope requires a temporal target".into(),
+            ));
+        }
+        RefutationScopeWire::StaticClassCompletion { .. } if target.temporal => {
+            return Err(IoError::Convert("static completion scope requires a static target".into()));
+        }
+        _ => {}
+    }
+    if !matches!(scope, RefutationScopeWire::WholeTarget { .. }) {
+        let mut labels = std::collections::HashSet::with_capacity(target.labels.len());
+        if target.labels.iter().any(|label| !labels.insert(label.as_str())) {
+            return Err(IoError::Convert("refutation target repeats a coordinate label".into()));
+        }
+    }
+    let expected_scope = match scope {
+        RefutationScopeWire::WholeTarget { .. } => None,
+        RefutationScopeWire::TemporalClassCompletion {
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+            ..
+        } => Some(format!(
+            "scope:v1:temporal_class_completion:{outer_atom}:{horizon_index}:{horizon}:{}",
+            antecedent_core::identity::to_hex(completion_digest)
+        )),
+        RefutationScopeWire::StaticClassCompletion { outer_atom, completion_digest, .. } => {
+            Some(format!(
+                "scope:v1:static_class_completion:{outer_atom}:{}",
+                antecedent_core::identity::to_hex(completion_digest)
+            ))
+        }
+    };
+    if let Some(selector) = expected_scope {
+        let prefix = format!("{selector}|");
+        if target.labels.iter().any(|label| label.strip_prefix(&prefix).is_none_or(str::is_empty)) {
+            return Err(IoError::Convert(
+                "refutation completion selector is not bound to every target coordinate".into(),
+            ));
+        }
+    }
+    let valid_family = matches!(
+        target.family.as_str(),
+        "scalar_average_effect"
+            | "conditional_effect"
+            | "response_derivative"
+            | "temporal_effect"
+            | "mediation"
+            | "world_valued"
+            | "joint_contrast"
+            | "attribution"
+            | "interventional_law"
+    );
+    if target.version != 1
+        || !valid_family
+        || target.labels.is_empty()
+        || target.labels.iter().any(String::is_empty)
+        || (target.family == "scalar_average_effect" && target.labels.len() != 1)
+    {
+        return Err(IoError::Convert("invalid refutation target descriptor".into()));
+    }
+    let quadrant = match (target.temporal, target.bayesian) {
+        (false, false) => "static.frequentist",
+        (false, true) => "static.bayesian",
+        (true, false) => "temporal.frequentist",
+        (true, true) => "temporal.bayesian",
+    };
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text(&target.family).text(quadrant).texts(&target.labels).bytes(&target.source);
+    if writer.finish() != target.identity {
+        return Err(IoError::Convert("refutation target identity mismatch".into()));
+    }
+    Ok(())
 }
 
 /// The one table of identification-status spellings: `snake_case` on the analysis and

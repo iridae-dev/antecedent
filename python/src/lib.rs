@@ -33,6 +33,7 @@ include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 
 mod adaptive_inference_api;
 mod adaptive_participant_api;
+mod adaptive_policy_api;
 mod adaptive_procedure_api;
 mod array_fit_api;
 mod artifact_api;
@@ -45,7 +46,6 @@ mod bound_study_ranking_api;
 mod bounds_api;
 mod bridge;
 mod callbacks;
-mod adaptive_policy_api;
 mod candidate_screen_api;
 mod categorical_treatment_api;
 mod closed_pilot_api;
@@ -63,7 +63,7 @@ mod cpdag_scenario_api;
 mod cross_world_api;
 mod cross_world_execution_api;
 mod cyclic_system_api;
-mod external_mechanism_api;
+mod data_diagnostics_api;
 mod data_snapshot;
 mod decision_api;
 mod decision_compile_api;
@@ -91,6 +91,7 @@ mod execution_api;
 mod execution_attempt_api;
 mod experiment_api;
 mod external_api;
+mod external_mechanism_api;
 mod factorial_api;
 mod fallback_report_api;
 mod fallback_stage_api;
@@ -106,6 +107,7 @@ mod graph_falsification_api;
 mod graph_io;
 mod graph_membership_api;
 mod graph_score_api;
+mod graph_selection_api;
 mod graphs;
 mod horizon_composition_api;
 mod identification_details;
@@ -132,7 +134,6 @@ mod mechanism_composition_api;
 mod mechanism_discrepancy_api;
 mod missing_report;
 mod mixed_decision_api;
-mod graph_selection_api;
 mod mnar_sensitivity_api;
 mod msm_sensitivity_api;
 mod multi_level_treatment_api;
@@ -152,7 +153,6 @@ mod pooled_measurement_api;
 mod posterior;
 mod predictive_assessment_api;
 mod preflight_api;
-mod data_diagnostics_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
@@ -599,7 +599,7 @@ pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     identification_status: String,
     #[pyo3(get)]
-    refutation_passed: bool,
+    refutation_passed: Option<bool>,
     /// Whether any refutation validators were actually run.
     #[pyo3(get)]
     refutation_ran: bool,
@@ -934,10 +934,61 @@ struct RefutationReportView {
     /// Number of replicate estimates.
     #[pyo3(get)]
     replicates: u32,
+    /// Descriptive scope kind; absent for legacy reports.
+    #[pyo3(get)]
+    scope_kind: Option<String>,
+    /// Scoped target identity in hexadecimal.
+    #[pyo3(get)]
+    scope_target_identity: Option<String>,
+    /// Outer posterior atom key for a completion-scoped report.
+    #[pyo3(get)]
+    scope_outer_atom: Option<u64>,
+    /// Full canonical completion digest in hexadecimal.
+    #[pyo3(get)]
+    scope_completion_digest: Option<String>,
+    /// Temporal completion horizon index.
+    #[pyo3(get)]
+    scope_horizon_index: Option<usize>,
+    /// Temporal completion horizon.
+    #[pyo3(get)]
+    scope_horizon: Option<u32>,
 }
 
 impl From<&RefutationReport> for RefutationReportView {
     fn from(r: &RefutationReport) -> Self {
+        use antecedent_validate::RefutationScope;
+        let (kind, target, atom, digest, horizon_index, horizon) = match r.scope.as_ref() {
+            Some(RefutationScope::WholeTarget { target }) => {
+                (Some("whole_target"), Some(target), None, None, None, None)
+            }
+            Some(RefutationScope::TemporalClassCompletion {
+                outer_atom,
+                horizon_index,
+                horizon,
+                completion_digest,
+                target,
+            }) => (
+                Some("temporal_class_completion"),
+                Some(target),
+                Some(*outer_atom),
+                Some(completion_digest),
+                Some(*horizon_index),
+                Some(*horizon),
+            ),
+            Some(RefutationScope::StaticClassCompletion {
+                outer_atom,
+                completion_digest,
+                target,
+            }) => (
+                Some("static_class_completion"),
+                Some(target),
+                Some(*outer_atom),
+                Some(completion_digest),
+                None,
+                None,
+            ),
+            None => (None, None, None, None, None, None),
+        };
         Self {
             refuter: r.refuter.to_string(),
             original_ate: r.original_ate,
@@ -947,6 +998,12 @@ impl From<&RefutationReport> for RefutationReportView {
             passed: r.passed,
             failure_condition: r.failure_condition.as_ref().map(std::string::ToString::to_string),
             replicates: r.replicates,
+            scope_kind: kind.map(str::to_owned),
+            scope_target_identity: target.map(|target| target.identity_hex()),
+            scope_outer_atom: atom,
+            scope_completion_digest: digest.map(|digest| antecedent_core::identity::to_hex(digest)),
+            scope_horizon_index: horizon_index,
+            scope_horizon: horizon,
         }
     }
 }
@@ -1743,15 +1800,13 @@ pub(crate) struct PosteriorSection {
 /// `prior_sensitivity` are assembled separately by the Python wrapper from other raw
 /// fields, which only the static DTO carries).
 ///
-/// `passed` / `ran` follow the same aggregate rule on both DTOs: `ran` is whether any
-/// refuter ran at all, and `passed` is `ran && reports.iter().all(|r| r.passed)` —
-/// never `true` when nothing ran, matching the static `refutation_ran` /
-/// `refutation_passed` fields exactly.
+/// `ran` records whether any check ran. `passed` is absent when only descriptive
+/// scoped checks ran, because they do not establish a whole-result verdict.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct ValidationSection {
     #[pyo3(get)]
-    pub(crate) passed: bool,
+    pub(crate) passed: Option<bool>,
     #[pyo3(get)]
     pub(crate) ran: bool,
     #[pyo3(get)]
@@ -1800,7 +1855,14 @@ impl ValidationSection {
             .collect();
         let count = reports.len() + computation_failures.len();
         let ran = count > 0;
-        let passed = ran && computation_failures.is_empty() && reports.iter().all(|r| r.passed);
+        let unscoped: Vec<_> =
+            reports.iter().filter(|report| report.scope_kind.is_none()).collect();
+        let has_scoped = reports.iter().any(|report| report.scope_kind.is_some());
+        let passed = if has_scoped {
+            None
+        } else {
+            Some(ran && computation_failures.is_empty() && unscoped.iter().all(|r| r.passed))
+        };
         Self { passed, ran, count, reports, computation_failures }
     }
 }
@@ -2056,11 +2118,44 @@ mod tests {
         ]);
         let result = super::ValidationSection::from_reports(vec![], &[d]);
         assert!(result.ran);
-        assert!(!result.passed);
+        assert_eq!(result.passed, Some(false));
         assert_eq!(result.count, 1);
         assert!(result.reports.is_empty());
         assert_eq!(result.computation_failures[0].validator, "overlap");
         assert_eq!(result.computation_failures[0].reason, "singular fit");
+    }
+
+    #[test]
+    fn scoped_only_validation_has_no_whole_verdict() {
+        let target = antecedent_validate::target_native::RefutationTarget::new(
+            antecedent_validate::target_native::TargetFamily::TemporalEffect,
+            antecedent_validate::target_native::TargetQuadrant::TEMPORAL_FREQUENTIST,
+            ["completion-level"],
+            [7; 32],
+        )
+        .unwrap();
+        let mut report = antecedent_validate::RefutationReport::new(
+            "target.subset_stability",
+            12.0,
+            12.1,
+            0.5,
+            true,
+            true,
+            None,
+            30,
+        );
+        report.scope = Some(antecedent_validate::RefutationScope::TemporalClassCompletion {
+            outer_atom: 2,
+            horizon_index: 0,
+            horizon: 1,
+            completion_digest: [3; 32],
+            target,
+        });
+        let view = super::RefutationReportView::from(&report);
+        let validation = super::ValidationSection::from_reports(vec![view], &[]);
+        assert!(validation.ran);
+        assert_eq!(validation.passed, None);
+        assert_eq!(validation.count, 1);
     }
 
     /// Every refusal-shaped `CausalError` variant raises one registered reason code, taken

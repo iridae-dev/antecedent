@@ -279,6 +279,11 @@ pub(crate) fn validate_variable_names(variable_names: &[String]) -> Result<(), I
 fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Result<(), IoError> {
     match payload {
         CausalPayloadWire::StaticResult(wire) => {
+            for report in &wire.refutations {
+                if let Some(scope) = &report.scope {
+                    crate::analysis_wire::validate_refutation_scope(scope)?;
+                }
+            }
             validate_query_ids(&wire.identification.query, variable_count)?;
             let id = crate::identification_from_wire(&wire.identification)?;
             if !matches!(

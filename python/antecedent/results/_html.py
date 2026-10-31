@@ -135,7 +135,7 @@ def _refutation_table_html(validation: ValidationView) -> str:
             verdict, verdict_class = "not informative", "antecedent-ar-muted"
         rows.append(
             "<tr>"
-            f"<td>{_esc(r.refuter)}</td>"
+            f"<td>{_esc(r.refuter)}{(' (' + _esc(r.scope_kind) + ')') if r.scope_kind else ''}</td>"
             f"<td>{_esc(fmt_float(r.original_ate))}</td>"
             f"<td>{_esc(fmt_float(r.refuted_ate))}</td>"
             f"<td>{_esc(fmt_float(r.comparison))}</td>"
@@ -143,8 +143,13 @@ def _refutation_table_html(validation: ValidationView) -> str:
             "</tr>"
         )
     body = "".join(rows)
+    notice = (
+        '<div class="antecedent-ar-row antecedent-ar-muted">Whole-result verdict unavailable; checks are scoped.</div>'
+        if validation.passed is None
+        else ""
+    )
     return (
-        '<table class="antecedent-ar-table">'
+        notice + '<table class="antecedent-ar-table">'
         "<thead><tr>"
         "<th>Refuter</th><th>Original</th><th>Refuted</th><th>Comparison</th><th>Result</th>"
         "</tr></thead>"

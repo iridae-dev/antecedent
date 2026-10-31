@@ -216,7 +216,7 @@ class AteAnalysisResult:
     bootstrap_replicates_failed: int | None
     adjustment_set: list[str]
     identification_status: str
-    refutation_passed: bool
+    refutation_passed: bool | None
     refutation_ran: bool
     refutation_count: int
     refutations: list[RefutationReportView]
@@ -900,6 +900,12 @@ class RefutationReportView:
     passed: bool
     failure_condition: str | None
     replicates: int
+    scope_kind: str | None
+    scope_target_identity: str | None
+    scope_outer_atom: int | None
+    scope_completion_digest: str | None
+    scope_horizon_index: int | None
+    scope_horizon: int | None
 
 class IdentificationSection:
     """Nested identification section, shared shape on both `AteAnalysisResult` and
@@ -1034,11 +1040,9 @@ class ValidationFailureSection:
     reason: str
 
 class ValidationSection:
-    """Nested validation section. `passed`/`ran` follow the shared aggregate rule:
-    `ran` is whether any refuter ran, `passed` is `ran and all(r.passed for r in reports)`
-    — never `True` when nothing ran."""
+    """Validation results. ``passed`` is None when only scoped checks ran."""
 
-    passed: bool
+    passed: bool | None
     ran: bool
     count: int
     reports: list[RefutationReportView]

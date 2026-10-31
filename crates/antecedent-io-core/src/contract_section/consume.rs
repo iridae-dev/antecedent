@@ -274,16 +274,26 @@ pub fn support_empirical(
     refutations: &[RefutationReportWire],
     diagnostics: &[crate::DiagnosticWire],
 ) -> Option<String> {
-    let mut checks =
-        refutations.iter().filter(|report| is_support_refuter(&report.refuter)).peekable();
+    // A mixed legacy/scoped collection cannot establish a whole-result verdict.
+    let has_scoped = refutations.iter().any(|report| report.scope.is_some());
+    if has_scoped {
+        // Unscoped diagnostics cannot be safely attributed to the whole target
+        // when scoped checks are present; retain them without a whole verdict.
+        return None;
+    }
+    let mut checks = refutations
+        .iter()
+        .filter(|report| !has_scoped && is_support_refuter(&report.refuter))
+        .peekable();
     if let Some(failed) = checks.clone().find(|report| !report.passed) {
         return Some(format!("failed:{}", failed.refuter));
     }
     if let Some(area) = diagnostics.iter().find_map(|diagnostic| limited_area(&diagnostic.code)) {
         return Some(format!("limited:{area}"));
     }
-    if let Some(failed) =
-        refutations.iter().find(|report| !is_support_refuter(&report.refuter) && !report.passed)
+    if let Some(failed) = refutations
+        .iter()
+        .find(|report| !has_scoped && !is_support_refuter(&report.refuter) && !report.passed)
     {
         return Some(format!("limited:refuter.{}", failed.refuter));
     }

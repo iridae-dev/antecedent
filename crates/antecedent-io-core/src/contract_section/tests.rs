@@ -824,6 +824,7 @@ fn refutation(refuter: &str, passed: bool) -> RefutationReportWire {
         passed,
         failure_condition: None,
         replicates: 0,
+        scope: None,
     }
 }
 
@@ -1402,7 +1403,87 @@ fn resealed_domains_kind_and_support_are_rederived() {
 }
 
 #[test]
+fn legacy_refutation_cbor_and_digest_remain_unchanged() {
+    // Independent historical shape and original field order, without the new scope field.
+    #[derive(serde::Serialize)]
+    struct LegacyReport {
+        refuter: String,
+        original_ate: f64,
+        refuted_ate: f64,
+        comparison: f64,
+        informative: bool,
+        passed: bool,
+        failure_condition: Option<String>,
+        replicates: u32,
+    }
+    let legacy = LegacyReport {
+        refuter: "overlap.assessment".into(),
+        original_ate: 2.0,
+        refuted_ate: 2.0,
+        comparison: 0.0,
+        informative: true,
+        passed: true,
+        failure_condition: None,
+        replicates: 0,
+    };
+    let old = crate::to_cbor(&legacy).unwrap();
+    let current = refutation("overlap.assessment", true);
+    let new = crate::to_cbor(&current).unwrap();
+    assert_eq!(old, new);
+    assert_eq!(blake3::hash(&old), blake3::hash(&new));
+    let decoded: RefutationReportWire = crate::from_cbor(&old).unwrap();
+    assert_eq!(decoded, current);
+    assert!(decoded.scope.is_none());
+}
+
+#[test]
+fn scoped_report_requires_independent_replay_even_without_empirical_support() {
+    use crate::analysis_wire::{RefutationScopeWire, RefutationTargetWire};
+    let (mut body, target, names) = fixture_body();
+    let labels = vec!["value".to_owned()];
+    let source = [1; 32];
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text("temporal_effect").text("temporal.frequentist").texts(&labels).bytes(&source);
+    let mut report = refutation("overlap.assessment", true);
+    report.scope = Some(RefutationScopeWire::WholeTarget {
+        target: RefutationTargetWire {
+            version: 1,
+            family: "temporal_effect".into(),
+            temporal: true,
+            bayesian: false,
+            labels,
+            source,
+            identity: writer.finish(),
+        },
+    });
+    body.refutations.push(report);
+    assert_eq!(support_empirical(&body.refutations, &[]), None);
+    let contract = contract_for(target, &body);
+    let unresolved = unresolved_after(&body, &names, &contract);
+    assert!(
+        unresolved.iter().any(|reason| reason == "dependencies.scoped_refutation_replay"),
+        "{unresolved:?}"
+    );
+}
+
+#[test]
 fn support_empirical_distinguishes_pass_failure_limit_and_absence() {
+    // A serialized scope is descriptive; it does not assert whole-result support.
+    let mut scoped = refutation("overlap.assessment", true);
+    scoped.scope = Some(crate::analysis_wire::RefutationScopeWire::WholeTarget {
+        target: crate::analysis_wire::RefutationTargetWire {
+            version: 1,
+            family: "temporal_effect".into(),
+            temporal: true,
+            bayesian: false,
+            labels: vec!["value".into()],
+            source: [1; 32],
+            identity: [2; 32],
+        },
+    });
+    assert_eq!(support_empirical(&[scoped.clone()], &[]), None);
+    assert_eq!(support_empirical(&[refutation("overlap.assessment", true), scoped], &[]), None);
     assert_eq!(support_empirical(&[refutation("placebo.treatment.permute", true)], &[]), None);
     assert_eq!(
         support_empirical(&[refutation("overlap.assessment", true)], &[]).as_deref(),
