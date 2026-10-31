@@ -367,9 +367,12 @@ fn parent_adjusted_interval_binds_only_to_parent_adjustment_records() {
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        let result = study.run(&ctx).unwrap();
-        let contract = study.inspect().unwrap();
-        result.calibration_bases(&contract).unwrap().remove(0)
+        let prepared = study.prepare(&ctx).unwrap();
+        let result = prepared.estimate_retained(&ctx).unwrap();
+        let contract = prepared.contract().unwrap();
+        let basis = result.calibration_bases(&contract).unwrap().remove(0);
+        assert_eq!(basis.key.validation, "none");
+        basis
     };
     let parent = run(
         autoregressive_pulse_dag(true, false),
@@ -385,16 +388,17 @@ fn parent_adjusted_interval_binds_only_to_parent_adjustment_records() {
     same_otherwise.identification = unfolding.key.identification.clone();
     assert_eq!(same_otherwise, unfolding.key, "only the identification construction differs");
 
-    let unfolding_record = record_for(&unfolding.key, "cov.unfolding", 100, 1000);
-    let parent_record = record_for(&parent.key, "cov.parent", 100, 1000);
+    let unfolding_record =
+        record_for(&unfolding.key, "cov.unfolding.v2_validation_none", 100, 1000);
+    let parent_record = record_for(&parent.key, "cov.parent.v2_validation_none", 100, 1000);
     let slot = calibration_slot_in(&parent, &[unfolding_record]);
     assert_eq!(slot.status, "unavailable");
     assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
     let slot = calibration_slot_in(&parent, &[unfolding_record, parent_record]);
     assert_eq!(slot.status, "calibrated", "{slot:?}");
-    assert_eq!(slot.record_id.as_deref(), Some("cov.parent"));
+    assert_eq!(slot.record_id.as_deref(), Some("cov.parent.v2_validation_none"));
     let slot = calibration_slot_in(&unfolding, &[parent_record, unfolding_record]);
-    assert_eq!(slot.record_id.as_deref(), Some("cov.unfolding"));
+    assert_eq!(slot.record_id.as_deref(), Some("cov.unfolding.v2_validation_none"));
 }
 
 #[test]

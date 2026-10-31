@@ -543,7 +543,10 @@ fn temporal_admg_response_curve_graph_posterior() {
         assert_eq!(plan.validation, RefuteSuite::None);
         let result = prepared.estimate(&data, &ctx).unwrap_or_else(|e| panic!("{coordinate}: {e}"));
         for (actual, truth) in curve_means(&result).iter().zip([0.314, 0.596]) {
-            assert!((actual - truth).abs() < if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 }, "{coordinate}");
+            assert!(
+                (actual - truth).abs() < if bayesian { BAYESIAN_BOOTSTRAP_BAND } else { 1e-9 },
+                "{coordinate}"
+            );
         }
         let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, &coordinate, &ctx).unwrap();
@@ -928,8 +931,8 @@ fn response_curve_refuters_are_not_applicable_on_temporal_admg() {
         .expect("support axis"),
     );
     assert!(
-        matches!(distribution_cheap, CellStatus::Refused),
-        "distribution cheap/full is not a TemporalAdmg license: {distribution_cheap:?}"
+        matches!(distribution_cheap, CellStatus::Licensed),
+        "distribution cheap is licensed on TemporalAdmg: {distribution_cheap:?}"
     );
     let transport_on_temporal_dag = antecedent::support::classify(
         SupportCell::from_labels(
@@ -1040,7 +1043,11 @@ fn temporal_admg_projection_resamples_blocks_of_the_series() {
     let bayesian = projected_ate(&data, &temporal, (true, 0), None, &ctx).unwrap();
     let posterior = bayesian.posterior.as_ref().expect("a block Bayesian-bootstrap posterior");
     let column = posterior.effect_column().expect("an effect column");
-    assert!((posterior.summaries.mean[column] - expected).abs() < 0.01, "{}", posterior.summaries.mean[column]);
+    assert!(
+        (posterior.summaries.mean[column] - expected).abs() < 0.01,
+        "{}",
+        posterior.summaries.mean[column]
+    );
     assert!(posterior.summaries.sd[column] > 0.0);
     // A declared independent-subject or clustered-panel design refuses: a row-level draw
     // is not allowed under either, and the table carries no subject or cluster labels to
@@ -1316,7 +1323,11 @@ mod window_contrast {
         let result = study(&data, template(false), next_period(), inference, 0).run(&ctx).unwrap();
         let posterior = result.posterior.as_ref().expect("a block Bayesian-bootstrap posterior");
         let column = posterior.effect_column().expect("an effect column");
-        assert!((posterior.summaries.mean[column] - counted).abs() < 0.01, "{} vs {counted}", posterior.summaries.mean[column]);
+        assert!(
+            (posterior.summaries.mean[column] - counted).abs() < 0.01,
+            "{} vs {counted}",
+            posterior.summaries.mean[column]
+        );
         assert!(posterior.summaries.sd[column] > 0.0);
         assert!(discloses(&result));
         assert_eq!(result.support_status(), Some(CellStatus::Licensed));
@@ -1357,7 +1368,12 @@ mod window_contrast {
         let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
         let result = built.run(&ctx).unwrap();
         assert!(result.effect().is_finite());
-        assert!((result.effect() - counted_conditional(&x, &y, &w)).abs() < 1e-12, "{} vs {}", result.effect(), counted_conditional(&x, &y, &w));
+        assert!(
+            (result.effect() - counted_conditional(&x, &y, &w)).abs() < 1e-12,
+            "{} vs {}",
+            result.effect(),
+            counted_conditional(&x, &y, &w)
+        );
         assert!(discloses(&result));
         let prepared = built.prepare(&ctx).unwrap();
         let again = prepared.estimate_series(&data, &ctx).unwrap();
@@ -1381,7 +1397,12 @@ mod window_contrast {
             .run(&ctx)
             .unwrap();
         assert!(result.effect().is_finite());
-        assert!((result.effect() - counted_contrast(&x, &y, &w)).abs() < 1e-12, "{} vs {}", result.effect(), counted_contrast(&x, &y, &w));
+        assert!(
+            (result.effect() - counted_contrast(&x, &y, &w)).abs() < 1e-12,
+            "{} vs {}",
+            result.effect(),
+            counted_contrast(&x, &y, &w)
+        );
         assert!(discloses(&result));
         let built = study(&data, template(false), query, InferenceMode::Frequentist, 0);
         let prepared = built.prepare(&ctx).unwrap();

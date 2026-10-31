@@ -191,7 +191,7 @@ fn an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect() {
         (MediationContrast::NaturalIndirect, indirect),
     ] {
         let built = study(latent_free(), contrast, InferenceMode::Frequentist, 60);
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap_or_else(|e| panic!("{contrast:?}: {e}"));
         assert!((result.effect() - expected).abs() < 1e-12, "{contrast:?}: {}", result.effect());
         let components = result.payload().mediation().expect("the decomposition");
@@ -410,7 +410,7 @@ fn a_cpdag_whose_completions_agree_gives_the_counted_interventional_distribution
     }
     let ctx = ExecutionContext::for_tests(67);
     let built = distribution_study(Cpdag::from_dag(&dag));
-    assert_eq!(built.support_status(), Some(CellStatus::Refused));
+    assert_eq!(built.support_status(), Some(CellStatus::Licensed));
     let result = built.run(&ctx).unwrap();
     // P(y = 1 | do(t = 1)) = sum_m P(m | t = 1) P(y = 1 | t = 1, m).
     let expected: f64 = [0.0, 1.0].into_iter().map(|m| p_m(m, 1.0) * e_y(1.0, m)).sum();
