@@ -11,7 +11,8 @@
 //! no consumer accepts the earlier spellings, so a consumer that re-decides the
 //! derivation refuses them. The stored wire still decodes, so the content (laws, rows,
 //! plan, options) can be read and the artifact re-exported by the current producer from
-//! the same inputs.
+//! the same inputs. Catalog descriptor v1 bindings can now refuse before the
+//! historical rule-version check, because their identities require reissue too.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -53,7 +54,10 @@ fn an_earlier_observation_recovery_artifact_is_inspectable_and_refused() {
         &ctx(),
     );
     let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
-    assert!(error.contains(r#"ProofMismatch(RecoveryError { detail: InvalidDerivation"#), "{error}");
+    assert!(
+        error.contains(r#"ProofMismatch(RecoveryError { detail: InvalidDerivation"#),
+        "{error}"
+    );
 }
 
 #[test]
@@ -66,8 +70,15 @@ fn an_earlier_sampled_recovery_artifact_is_inspectable_and_refused() {
         SampledRecoveryConsumeLimits::default(),
         &ctx(),
     );
-    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
-    assert!(error.contains(r#""recovery.invalid_derivation: the stored derivation record is not reproduced""#), "{error}");
+    assert!(
+        wire.derivation
+            .margins
+            .iter()
+            .any(|margin| margin.identity.starts_with("catalog_distribution.v1|"))
+    );
+    let error =
+        format!("{:?}", outcome.err().expect("the earlier catalog binding is not accepted"));
+    assert!(error.contains("recovery.invalid_derivation: recovery formula check: a leaf's margin binding disagrees with the catalog distribution"), "{error}");
 }
 
 #[test]

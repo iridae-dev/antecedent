@@ -667,6 +667,11 @@ fn a_tampered_record_or_expression_fails_the_replay() {
     let bad = IdentificationError::InvalidDerivation { code: "mixed_search.invalid_derivation" };
     let record = derivation.to_record();
     replay(&record, derivation.arena(), &complementary()).unwrap();
+    let mut legacy = record.clone();
+    let source = legacy.steps.iter_mut().find_map(|step| step.source.as_mut()).unwrap();
+    assert!(source.starts_with("catalog_distribution.v2|"));
+    *source = source.replacen("catalog_distribution.v2|", "catalog_distribution.v1|", 1);
+    assert_eq!(replay(&legacy, derivation.arena(), &complementary()).unwrap_err(), bad);
     let mutations: Vec<Mutation> = vec![
         Box::new(|r| r.rule_set = "mixed_source_proof_rules.v0".into()),
         Box::new(|r| r.steps[0].rule = "product".into()),

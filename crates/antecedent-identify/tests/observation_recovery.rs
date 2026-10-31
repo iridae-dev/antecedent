@@ -75,7 +75,7 @@ fn a_compliant_m_graph_is_recovered_with_margins_bound_to_the_named_distribution
         };
         assert_eq!(*regime, Some(RegimeId::from_raw(7)));
         assert_eq!(arena.population(*population), POPULATION);
-        assert!(margin.identity.starts_with("catalog_distribution.v1|source_regime=7"));
+        assert!(margin.identity.starts_with("catalog_distribution.v2|source_regime=7"));
         if margin.variables.len() < observed.measured.len() {
             assert!(margin.identity.contains("projections=marginalize:"), "{}", margin.identity);
         }
@@ -610,6 +610,18 @@ fn a_tampered_record_or_arena_fails_verification() {
     margin.margins[0].identity.push('x');
     assert_eq!(
         verify(&margin, d.arena(), Some(&e_arena)).detail,
+        RecoveryDetail::InvalidDerivation
+    );
+    // Legacy descriptors remain inspectable but cannot verify as v2 leaves.
+    let mut legacy = d.record().clone();
+    assert!(legacy.margins[0].identity.starts_with("catalog_distribution.v2|"));
+    legacy.margins[0].identity = legacy.margins[0].identity.replacen(
+        "catalog_distribution.v2|",
+        "catalog_distribution.v1|",
+        1,
+    );
+    assert_eq!(
+        verify(&legacy, d.arena(), Some(&e_arena)).detail,
         RecoveryDetail::InvalidDerivation
     );
     // A premise edited.

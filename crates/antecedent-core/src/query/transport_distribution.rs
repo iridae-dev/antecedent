@@ -144,14 +144,16 @@ impl CatalogDistribution {
     ///
     /// Variable sets are sorted, values are encoded bit-exactly, and the projection
     /// trail is kept in application order (projections do not commute in general).
+    /// Version 2 length-frames each intervention value and distinguishes absent
+    /// optional text from an explicitly empty value.
     #[must_use]
     pub fn canonical_identity(&self) -> String {
-        let mut out = String::from("catalog_distribution.v1");
+        let mut out = String::from("catalog_distribution.v2");
         let mut field = |name: &str, value: &str| {
             let _ = write!(out, "|{name}={}", escape(value));
         };
         field("source_regime", &self.source_regime.raw().to_string());
-        field("study", self.study.as_deref().unwrap_or(""));
+        field("study", &optional_text(self.study.as_deref()));
         field("population", &self.population);
         field("kind", self.kind.as_str());
         field("evidence_kind", self.evidence_kind.as_str());
@@ -160,8 +162,8 @@ impl CatalogDistribution {
             &match &self.origin {
                 LawOrigin::Measured => "measured".to_owned(),
                 LawOrigin::ModelArtifact { artifact } => format!("model_artifact:{artifact}"),
-                // Additive: the measured and model-artifact spellings, and so
-                // every existing identity, are unchanged.
+                // Origin variants keep distinct prefixes. The descriptor's
+                // encoding version is independent of these field spellings.
                 LawOrigin::Recovered { derivation } => format!("recovered:{derivation}"),
             },
         );
@@ -178,7 +180,10 @@ impl CatalogDistribution {
         let mut values = self
             .intervention_values
             .iter()
-            .map(|a| format!("{}:{}", a.variable.raw(), canonical_value(&a.value)))
+            .map(|a| {
+                let value = canonical_value(&a.value);
+                format!("{}:{}:{}", a.variable.raw(), value.len(), value)
+            })
             .collect::<Vec<_>>();
         values.sort_unstable();
         field("values", &values.join(","));
@@ -193,8 +198,8 @@ impl CatalogDistribution {
             },
         );
         field("conditioned_on", &sorted(&self.conditioned_on));
-        field("snapshot", self.snapshot.as_deref().unwrap_or(""));
-        field("dataset", self.dataset.as_deref().unwrap_or(""));
+        field("snapshot", &optional_text(self.snapshot.as_deref()));
+        field("dataset", &optional_text(self.dataset.as_deref()));
         field("sampling", self.sampling.map_or("", SamplingDesign::as_str));
         field("dependence", self.dependence.map_or("", DependenceGroup::as_str));
         let trail = self
@@ -272,6 +277,13 @@ fn sorted(variables: &[VariableId]) -> String {
     raw.iter().map(u32::to_string).collect::<Vec<_>>().join(",")
 }
 
+fn optional_text(value: Option<&str>) -> String {
+    match value {
+        Some(text) => format!("some:{text}"),
+        None => "none".to_owned(),
+    }
+}
+
 fn canonical_value(value: &Value) -> String {
     match value {
         Value::Float64(v) => format!("f{:016x}", v.to_bits()),
@@ -330,6 +342,67 @@ mod tests {
             weights: None,
             dependence,
         }
+    }
+
+    #[test]
+    fn catalog_identity_frames_assignment_values_and_optional_text() {
+        let catalog = EvidenceCatalog::empty();
+        let base = regime(2, "trial", &[0, 1], &[2]);
+        let mut first = CatalogDistribution::from_regime(&catalog, &base);
+        let mut second = first.clone();
+        // Both descriptors assign the same two variables. The v1 value lists
+        // both rendered as `0:lx,1:ly,1:lz` despite different label boundaries.
+        first.intervention_values = Arc::from([
+            InterventionAssignment {
+                variable: VariableId::from_raw(0),
+                value: Value::Label(Arc::from("x,1:ly")),
+            },
+            InterventionAssignment {
+                variable: VariableId::from_raw(1),
+                value: Value::Label(Arc::from("z")),
+            },
+        ]);
+        second.intervention_values = Arc::from([
+            InterventionAssignment {
+                variable: VariableId::from_raw(0),
+                value: Value::Label(Arc::from("x")),
+            },
+            InterventionAssignment {
+                variable: VariableId::from_raw(1),
+                value: Value::Label(Arc::from("y,1:lz")),
+            },
+        ]);
+        assert_ne!(first.canonical_identity(), second.canonical_identity());
+        let mut absent = second.clone();
+        absent.study = None;
+        let mut empty = absent.clone();
+        empty.study = Some(Arc::from(""));
+        assert_ne!(absent.canonical_identity(), empty.canonical_identity());
+        absent.snapshot = None;
+        empty = absent.clone();
+        empty.snapshot = Some(Arc::from(""));
+        assert_ne!(absent.canonical_identity(), empty.canonical_identity());
+        empty = absent.clone();
+        empty.dataset = Some(Arc::from(""));
+        assert_ne!(absent.canonical_identity(), empty.canonical_identity());
+    }
+
+    #[test]
+    fn catalog_identity_retains_bitwise_float_values() {
+        let catalog = EvidenceCatalog::empty();
+        let base = regime(2, "trial", &[0], &[1]);
+        let mut negative = CatalogDistribution::from_regime(&catalog, &base);
+        negative.intervention_values = Arc::from([InterventionAssignment {
+            variable: VariableId::from_raw(0),
+            value: Value::Float64(-0.0),
+        }]);
+        let mut positive = negative.clone();
+        positive.intervention_values = Arc::from([InterventionAssignment {
+            variable: VariableId::from_raw(0),
+            value: Value::Float64(0.0),
+        }]);
+        assert_ne!(negative.intervention_values, positive.intervention_values);
+        assert_ne!(negative.canonical_identity(), positive.canonical_identity());
     }
 
     #[test]

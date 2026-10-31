@@ -193,6 +193,21 @@ fn sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() 
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let consumed = consume(&wire.export().expect("export")).expect("replays");
+    let proof = resealed(&wire, |w| {
+        let identity = &mut w.derivation.margins[0].identity;
+        assert!(identity.starts_with("catalog_distribution.v2|"));
+        *identity = identity.replacen("catalog_distribution.v2|", "catalog_distribution.v1|", 1);
+    });
+    assert!(consume(&proof).is_err());
+    let result = resealed(&wire, |w| {
+        assert!(w.result.recovered_identity.starts_with("catalog_distribution.v2|"));
+        w.result.recovered_identity = w.result.recovered_identity.replacen(
+            "catalog_distribution.v2|",
+            "catalog_distribution.v1|",
+            1,
+        );
+    });
+    assert!(consume(&result).is_err());
     assert_eq!(consumed.result.receipt.receipt_digest, f.result.receipt.receipt_digest);
     assert_eq!(consumed.result.interval, f.result.interval);
     // Backdoor truth by hand (0.6 * 0.4 + 0.4 * 0.3 = 0.36). The unadjusted contrast is

@@ -165,7 +165,7 @@ def test_prepare_exact_compiles_the_retained_derivation_after_builder_disposal()
     del builder
     plan = prepared.plan()
     assert plan["rule_version"] == "binary_observation_recovery.v1"
-    assert all(m["identity"].startswith("catalog_distribution.v1") for m in plan["margins"])
+    assert all(m["identity"].startswith("catalog_distribution.v2") for m in plan["margins"])
     result = json.loads(require_success(prepared.estimate()))
     assert result["recovered"]["origin"] == "recovered"
     assert result["recovered"]["variables"] == ["t", "y", "z"]

@@ -313,6 +313,28 @@ fn consume(wire: &RecoveryArtifactWire) -> Result<(), RecoveryArtifactError> {
 }
 
 #[test]
+fn legacy_catalog_identity_remains_inspectable_but_cannot_replay() {
+    let (bytes, _) = exported(&model());
+    let original = RecoveryArtifactWire::decode(&bytes).unwrap();
+    assert!(consume(&original).is_ok());
+    let mut proof = original.clone();
+    let identity = &mut proof.derivation.margins[0].identity;
+    assert!(identity.starts_with("catalog_distribution.v2|"));
+    *identity = identity.replacen("catalog_distribution.v2|", "catalog_distribution.v1|", 1);
+    reseal(&mut proof);
+    assert!(matches!(consume(&proof), Err(RecoveryArtifactError::ProofMismatch(_))));
+    let mut result = original;
+    assert!(result.recovered_identity.starts_with("catalog_distribution.v2|"));
+    result.recovered_identity = result.recovered_identity.replacen(
+        "catalog_distribution.v2|",
+        "catalog_distribution.v1|",
+        1,
+    );
+    reseal(&mut result);
+    assert!(matches!(consume(&result), Err(RecoveryArtifactError::RecoveredMismatch)));
+}
+
+#[test]
 fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
     use antecedent_identify::RECOVERY_RULE_VERSION;
     let (bytes, _) = exported(&model());
@@ -465,17 +487,22 @@ fn wire_structs_deny_unknown_fields() {
         other => panic!("an unknown wire field is a CBOR decode refusal, got {:?}", other.err()),
     }
     let json = serde_json::json!({"population": "p", "observed_regime": 0, "partially_observed": [], "fully_observed": [], "extra": 1});
-    let error =
-        serde_json::from_value::<antecedent_io::recovery_artifact::RecoveryQueryWire>(json)
-            .unwrap_err();
-    assert!(error.to_string().starts_with("unknown field `extra`, expected one of `population`"), "{error}");
+    let error = serde_json::from_value::<antecedent_io::recovery_artifact::RecoveryQueryWire>(json)
+        .unwrap_err();
+    assert!(
+        error.to_string().starts_with("unknown field `extra`, expected one of `population`"),
+        "{error}"
+    );
     let record =
         serde_json::to_value(RecoveryArtifactWire::decode(&bytes).unwrap().derivation).unwrap();
     let mut extra = record;
     extra["smuggled"] = serde_json::json!(1);
     let error =
         serde_json::from_value::<antecedent_identify::RecoveryDerivationRecord>(extra).unwrap_err();
-    assert!(error.to_string().starts_with("unknown field `smuggled`, expected one of `rule_version`"), "{error}");
+    assert!(
+        error.to_string().starts_with("unknown field `smuggled`, expected one of `rule_version`"),
+        "{error}"
+    );
 }
 
 /// Compatibility: any other format version is refused before the payload is
