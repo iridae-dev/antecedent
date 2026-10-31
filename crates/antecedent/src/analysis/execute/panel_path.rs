@@ -1214,7 +1214,6 @@ impl super::Study {
                 state.assumptions = atom_assumptions;
             }
         }
-        state.assembly.end_horizon(horizon_index, horizon)?;
         state.assembly.end_horizon(horizon_index, horizon)
     }
 

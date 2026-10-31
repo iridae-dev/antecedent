@@ -813,6 +813,70 @@ fn panel_class_response_covers_several_horizons() {
 }
 
 #[test]
+fn panel_class_horizon_support_tracks_each_horizons_fitted_rows() {
+    use antecedent_core::SupportStatus;
+    // A late spike is visible to the short-horizon treatment column, but lies
+    // beyond the usable rows at horizon eight. The known 5-unit dose is inside
+    // the first range and outside the second.
+    let n = 80;
+    let treatment: Vec<f64> =
+        (0..n).map(|i| if i >= n - 7 { 10.0 } else { 0.05 * (i as f64).sin() }).collect();
+    let mut outcome = vec![0.0; n];
+    for i in 2..n {
+        outcome[i] = 1.0 + 2.0 * treatment[i - 1] + 3.0 * treatment[i - 2];
+    }
+    let series = TimeSeriesData::from_f64_columns(
+        [("t", treatment.as_slice()), ("y", outcome.as_slice())],
+        1,
+    )
+    .unwrap();
+    let panel = PanelData::try_new(Arc::from([
+        PanelUnit { unit_id: 0, series: series.clone() },
+        PanelUnit { unit_id: 1, series: series.clone() },
+        PanelUnit { unit_id: 2, series },
+    ]))
+    .unwrap();
+    let mut dag = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut dag, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let t2 = ensure_lagged(&mut dag, VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+    let y = ensure_lagged(&mut dag, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    dag.insert_directed(t1, y).unwrap();
+    dag.insert_directed(t2, y).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::MeanCurve {
+        outcome: VariableId::from_raw(1),
+        treatment: ContinuousDomain::new(
+            VariableId::from_raw(0),
+            GridSpec::Values(vec![0.0, 5.0].into()),
+        ),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1, 8], TemporalPolicy::pulse(0), None).unwrap());
+    let run = |builder: antecedent::StudyBuilder| {
+        builder
+            .query(CausalQuery::Response(query.clone()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(11))
+            .unwrap()
+    };
+    let class = run(Study::panel(panel.clone()).graph(TemporalCpdag::from_temporal_dag(&dag)));
+    let reference = run(Study::panel(panel).graph(dag));
+    let actual = class.response().unwrap().support.point_status.as_deref().unwrap();
+    let expected = reference.response().unwrap().support.point_status.as_deref().unwrap();
+    assert_eq!(
+        expected,
+        &[
+            SupportStatus::Supported,
+            SupportStatus::Supported,
+            SupportStatus::Supported,
+            SupportStatus::OutsideEmpiricalSupport,
+        ]
+    );
+    assert_eq!(actual, expected, "each class cell must use its own horizon support");
+}
+
+#[test]
 fn panel_class_multi_step_sustained_uses_completion_masses() {
     let panel = PanelData::try_new(Arc::from([
         PanelUnit { unit_id: 0, series: xy_series(180, 0.1) },
