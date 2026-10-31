@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fractions import Fraction
+
 import antecedent as ant
 import numpy as np
 import pytest
@@ -50,7 +52,12 @@ def test_calibrated_complete_interval_is_retained_by_analyze_and_prepare():
     assert require_success(ant.estimate(prepared)).randomized_effect.interval_95 == fit.interval_95
 
 
-def test_bernoulli_interval_has_exact_graphless_license():
+@pytest.mark.parametrize(
+    "probabilities",
+    [0.5, Fraction(1, 2), np.float64(0.5), [0.5] * 400, np.full(400, 0.5)],
+    ids=["float", "fraction", "numpy-scalar", "list", "numpy-array"],
+)
+def test_bernoulli_interval_has_exact_graphless_license(probabilities):
     n = 400
     assignment = [i % 2 == 0 for i in range(n)]
     outcomes = np.asarray(
@@ -59,7 +66,10 @@ def test_bernoulli_interval_has_exact_graphless_license():
     result = require_success(
         ant.analyze(
             {"outcome": outcomes},
-            query=ant.experiment.RandomizedEffect("outcome", _design(assignment)),
+            query=ant.experiment.RandomizedEffect(
+                "outcome",
+                _design(assignment, randomization=interference.BernoulliAssignment(probabilities)),
+            ),
         )
     )
     fit = result.randomized_effect
@@ -95,8 +105,8 @@ def test_blocked_interval_has_exact_graphless_license():
     # Block-share weighted difference of arm means (equal blocks of 30 here).
     arm, block = np.asarray(assignment), np.asarray(blocks)
     reference = sum(
-        (block == name).mean() * (outcomes[(block == name) & arm].mean()
-        - outcomes[(block == name) & ~arm].mean())
+        (block == name).mean()
+        * (outcomes[(block == name) & arm].mean() - outcomes[(block == name) & ~arm].mean())
         for name in set(blocks)
     )
     assert fit.effect == pytest.approx(reference, abs=1e-9)
@@ -150,9 +160,7 @@ def test_factorial_three_intervals_have_exact_graphless_license():
     assert fit.factorial_interaction == pytest.approx(
         (cell(1, 1) - cell(0, 1)) - (cell(1, 0) - cell(0, 0)), abs=1e-9
     )
-    for interval, standard_error in (
-        (fit.interval_95, fit.standard_error),
-    ):
+    for interval, standard_error in ((fit.interval_95, fit.standard_error),):
         assert interval[1] - interval[0] == pytest.approx(2 * 1.959964 * standard_error, rel=1e-4)
     assert fit.support_status == "licensed"
     assert result.evidence_status == "licensed"

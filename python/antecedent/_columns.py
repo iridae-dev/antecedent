@@ -23,6 +23,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, fields, is_dataclass, replace
+from numbers import Real
 from typing import Any, TypeVar, cast, overload
 
 import numpy as np
@@ -105,6 +106,14 @@ def resolved_scalar(value: float | Sequence[float] | str) -> float | Sequence[fl
     """
     _require_resolved(value)
     return cast(float | Sequence[float], value)
+
+
+def scalar_or_values(value: float | Sequence[float]) -> list[float]:
+    """Keep a real scalar as one value; copy a sequence without changing its elements."""
+    # Name float explicitly because static typing does not model its Real registration.
+    if isinstance(value, (Real, float)):
+        return [float(value)]
+    return list(value)
 
 
 def _shown(value: Any) -> Any:

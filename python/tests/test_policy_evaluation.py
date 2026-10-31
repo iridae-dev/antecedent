@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fractions import Fraction
+
 import antecedent as ant
 import numpy as np
 import pytest
@@ -13,16 +15,28 @@ def test_top_k_policy_is_deterministic_and_respects_action_availability():
     assert policy.actions == (False, True, False, True)
 
 
-def test_binary_policy_evaluation_uses_heldout_randomized_rows_and_costs():
+@pytest.mark.parametrize(
+    "propensity,costs",
+    [
+        (0.5, 0.5),
+        (Fraction(1, 2), Fraction(1, 2)),
+        (np.float32(0.5), np.float64(0.5)),
+        ([0.5] * 4, [0.5] * 4),
+        ((0.5,) * 4, (0.5,) * 4),
+        (np.full(4, 0.5), np.full(4, 0.5)),
+    ],
+    ids=["float", "fraction", "numpy-scalar", "list", "tuple", "numpy-array"],
+)
+def test_binary_policy_evaluation_uses_heldout_randomized_rows_and_costs(propensity, costs):
     assignment = [True, False, True, False]
     outcome = 5.0 + 2.0 * np.asarray(assignment, dtype=np.float64)
-    policy = ant.policy.BinaryPolicy([True, True, False, False], costs=0.5)
+    policy = ant.policy.BinaryPolicy([True, True, False, False], costs=costs)
 
     result = ant.policy.evaluate_policy(
         {"y": outcome},
         outcome="y",
         assignment=assignment,
-        propensity=0.5,
+        propensity=propensity,
         policy=policy,
     )
 
@@ -40,7 +54,9 @@ def test_rate_capacity_respects_decimal_boundary_for_policy_and_reference(rate, 
     actions = [True] * count + [False] * (100 - count)
     policy = ant.policy.BinaryPolicy(actions, max_treatment_rate=rate)
     kwargs = dict(outcome="y", assignment=[True, False] * 50, propensity=0.5)
-    result = ant.policy.evaluate_policy({"y": [1.0] * 100}, policy=policy, reference=policy, **kwargs)
+    result = ant.policy.evaluate_policy(
+        {"y": [1.0] * 100}, policy=policy, reference=policy, **kwargs
+    )
     assert result.treatment_rate == pytest.approx(rate)
     too_low = ant.policy.BinaryPolicy(actions, max_treatment_rate=np.nextafter(rate, 0.0))
     with pytest.raises(ValueError, match="capacity"):

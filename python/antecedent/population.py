@@ -87,7 +87,7 @@ class DistributionBinding(TypedDict):
 
 
 def _row_indices(rows: Sequence[int]) -> list[int]:
-    result = []
+    result: list[int] = []
     for row in rows:
         if isinstance(row, bool) or not isinstance(row, Integral) or row < 0:
             raise CausalValueError("row indices must be non-negative integers, not boolean masks")

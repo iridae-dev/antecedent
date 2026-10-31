@@ -9,7 +9,7 @@ from typing import Literal
 
 import numpy as np
 
-from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved
+from ._columns import coerce_fields, first_seen_codes, hold_unresolved, resolved, scalar_or_values
 from ._native import estimate_ancova_effect as _estimate_ancova_effect
 from ._native import estimate_cuped_effect as _estimate_cuped_effect
 from ._native import estimate_stratified_effect as _estimate_stratified_effect
@@ -81,7 +81,9 @@ class FactorialRandomization:
             for count in self.cell_counts
         ):
             raise CausalValueError("factorial cell_counts must have four counts of at least two")
-        coerce_fields(self, second_factor_assignment=tuple(map(bool, self.second_factor_assignment)))
+        coerce_fields(
+            self, second_factor_assignment=tuple(map(bool, self.second_factor_assignment))
+        )
         coerce_fields(self, cell_counts=tuple(map(int, self.cell_counts)))
         if (
             len(self.second_factor_arms) != 2
@@ -367,7 +369,7 @@ class ExperimentDesign:
         if isinstance(self.assignment, BernoulliAssignment):
             probability = self.assignment.probabilities
             if not isinstance(probability, Real):
-                probability = tuple(probability)
+                probability = tuple(scalar_or_values(probability))
             coerce_fields(self, assignment=BernoulliAssignment(probability))
         elif isinstance(self.assignment, ClusterRandomization):
             coerce_fields(
@@ -429,10 +431,12 @@ class ExperimentDesign:
             )
         if isinstance(self.assignment, BernoulliAssignment):
             probabilities = self.assignment.probabilities
-            if not isinstance(probabilities, Real) and len(probabilities) not in (1, n):
-                raise CausalValueError(
-                    "Bernoulli probabilities must be scalar or have one value per outcome row"
-                )
+            if not isinstance(probabilities, Real):
+                probability_count = 1 if isinstance(probabilities, float) else len(probabilities)
+                if probability_count not in (1, n):
+                    raise CausalValueError(
+                        "Bernoulli probabilities must be scalar or have one value per outcome row"
+                    )
         if isinstance(self.assignment, CompleteRandomization) and self.assignment.treated >= n:
             raise CausalValueError("complete randomization treated count must be less than n")
         if isinstance(self.assignment, CompleteRandomization) and sum(realized) != (

@@ -1345,13 +1345,17 @@ def estimate_categorical_did(
     prediction column, because one propensity cannot serve two different contrasts.
     """
 
-    if not isinstance(query, (DifferenceInDifferences, PanelDifferenceInDifferences, AugmentedPanelDiD)):
+    if not isinstance(
+        query, (DifferenceInDifferences, PanelDifferenceInDifferences, AugmentedPanelDiD)
+    ):
         raise CausalValueError(
             "query must be a DifferenceInDifferences, PanelDifferenceInDifferences or AugmentedPanelDiD"
         )
     names, columns = _raw_columns(data)
     if query.treated not in names:
-        raise CausalValueError(f"required difference-in-differences column {query.treated!r} is missing")
+        raise CausalValueError(
+            f"required difference-in-differences column {query.treated!r} is missing"
+        )
     table = dict(zip(names, columns, strict=True))
     raw_group = table[query.treated]
     levels = sorted({_level_key(value) for value in raw_group})
@@ -1382,7 +1386,7 @@ def estimate_categorical_did(
     for level in levels:
         if level == reference:
             continue
-        mask = np.array([key == level or key == reference for key in group_keys])
+        mask = np.array([key in (level, reference) for key in group_keys])
         subset = {name: column[mask] for name, column in table.items()}
         subset[query.treated] = np.array([key == level for key in group_keys[mask]], dtype=bool)
         standard_error: float | None = None
@@ -1395,7 +1399,7 @@ def estimate_categorical_did(
             estimate, standard_error = fit.estimate, fit.standard_error
             level_units, reference_units = fit.treated_subjects, fit.control_subjects
         else:
-            if level not in nuisance:
+            if nuisance is None or level not in nuisance:
                 raise CausalValueError(
                     f"nuisance= has no (propensity, prediction) columns for level {level!r}",
                     reason_code="required_option_missing",

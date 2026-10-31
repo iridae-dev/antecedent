@@ -5,11 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
 from numbers import Real
-from typing import Any, Literal
+from typing import Any, Literal, Protocol, cast
 
 import numpy as np
 
-from ._columns import hold_unresolved
+from ._columns import hold_unresolved, scalar_or_values
 from ._data import as_columns
 from ._native import estimate_network_interference as _estimate_network_interference
 from ._native import (
@@ -20,6 +20,13 @@ from .errors import CausalEstimateError, CausalTypeError, CausalValueError
 from .execution import Execution, native_controls
 
 
+class _ComparableReal(Protocol):
+    """Ordering used on an already checked Real before its float conversion."""
+
+    def __gt__(self, other: float, /) -> bool: ...
+    def __lt__(self, other: float, /) -> bool: ...
+
+
 @dataclass(frozen=True, slots=True)
 class BernoulliAssignment:
     """Independent assignment with one or unit-specific probabilities."""
@@ -27,15 +34,17 @@ class BernoulliAssignment:
     probabilities: float | Sequence[float]
 
     def __post_init__(self) -> None:
-        values = (
-            [self.probabilities]
-            if isinstance(self.probabilities, Real)
-            else self.probabilities
-        )
-        if len(values) == 0 or any(not 0.0 < value < 1.0 for value in values):
+        probabilities = self.probabilities
+        if isinstance(probabilities, (Real, float)):
+            # Real supplies ordering; the cast narrows only this checked branch
+            # and retains the original value for the comparison (e.g. Fraction).
+            comparable = cast(_ComparableReal, probabilities)
+            if not 0.0 < comparable < 1.0:
+                raise CausalValueError("probabilities must be strictly between 0 and 1")
+            object.__setattr__(self, "probabilities", float(probabilities))
+            return
+        if len(probabilities) == 0 or any(not 0.0 < value < 1.0 for value in probabilities):
             raise CausalValueError("probabilities must be strictly between 0 and 1")
-        if isinstance(self.probabilities, Real):
-            object.__setattr__(self, "probabilities", float(self.probabilities))
 
 
 @dataclass(frozen=True, slots=True)
@@ -381,11 +390,7 @@ def _assignment_args(design: object) -> dict[str, Any]:
             "realized_saturation": list(design.realized_saturation),
         }
     if isinstance(design, BernoulliAssignment):
-        probabilities = (
-            [float(design.probabilities)]
-            if isinstance(design.probabilities, Real)
-            else list(design.probabilities)
-        )
+        probabilities = scalar_or_values(design.probabilities)
         return {
             "assignment_kind": "bernoulli",
             "assignment_probabilities": probabilities,

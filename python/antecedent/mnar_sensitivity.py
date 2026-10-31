@@ -307,7 +307,7 @@ def _column(values: object, name: str) -> list[Any]:
     if isinstance(values, (str, bytes)):
         raise CausalTypeError(f"{name} must be a sequence of numbers")
     if hasattr(values, "tolist"):
-        return list(values.tolist())  # type: ignore[attr-defined]
+        return list(values.tolist())
     if not isinstance(values, Sequence):
         raise CausalTypeError(f"{name} must be a sequence of numbers")
     return list(values)

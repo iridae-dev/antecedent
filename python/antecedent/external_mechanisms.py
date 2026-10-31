@@ -28,7 +28,7 @@ import inspect
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict, Unpack
 
 from . import _native
 from .errors import CausalValueError
@@ -82,6 +82,13 @@ def _sources(*callables: Callable[..., Any] | None) -> bytes:
                 "identify the implementation, for example its source or a build hash)"
             ) from error
     return "\n".join(parts).encode("utf-8")
+
+
+class _FeedbackFitPolicy(TypedDict, total=False):
+    learning_rate: float
+    score_tolerance: float
+    max_iterations: int
+    difference_step: float
 
 
 class MechanismImplementation:
@@ -413,7 +420,7 @@ class ExternalFeedbackModel:
         rows: Sequence[Mapping[str, Any]],
         *,
         resolver: Any,
-        **policy: float,
+        **policy: Unpack[_FeedbackFitPolicy],
     ) -> dict[str, Any]:
         """Fit declared scalars from known-regime rows. Needs the resolver, like replay."""
         spec = self.fit_spec(parameters, rows, **policy)

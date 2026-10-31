@@ -14,7 +14,7 @@ from typing import Any, Literal, cast
 
 import numpy as np
 
-from ._columns import resolved, resolved_opt, resolved_scalar
+from ._columns import resolved, resolved_opt, resolved_scalar, scalar_or_values
 from ._native import PreparedAnalysis as _NativePreparedAnalysis
 from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_keywords
 from .descriptive import Association
@@ -1301,22 +1301,10 @@ class _PrepareRoute:
             reference=query.reference,
             available=resolved_opt(query.available),
         )
-        propensity = (
-            [float(query.propensity)]
-            if isinstance(query.propensity, Real)
-            else list(resolved(query.propensity))
-        )
-        costs = (
-            [float(query.policy.costs)]
-            if isinstance(query.policy.costs, Real)
-            else list(query.policy.costs)
-        )
+        propensity = scalar_or_values(resolved_scalar(query.propensity))
+        costs = scalar_or_values(query.policy.costs)
         reference = query.reference or BinaryPolicy([False] * len(query.policy.actions))
-        reference_costs = (
-            [float(reference.costs)]
-            if isinstance(reference.costs, Real)
-            else list(reference.costs)
-        )
+        reference_costs = scalar_or_values(reference.costs)
         uplift_bin_ids: list[int] = []
         if query.uplift_scores is not None:
             uplift_bin_ids = [0] * len(query.policy.actions)
@@ -1510,7 +1498,7 @@ class _PrepareRoute:
             if isinstance(probabilities, Real):
                 probabilities = [float(probabilities)] * n
             else:
-                probabilities = list(probabilities)
+                probabilities = scalar_or_values(probabilities)
                 if len(probabilities) == 1:
                     probabilities *= n
         elif isinstance(assignment, CompleteRandomization):
@@ -2291,15 +2279,13 @@ class _PrepareRoute:
             contrast=query.contrast if isinstance(query, MediationEffect) else "mediated",
             control_level=query.control_level,
             active_level=query.active_level,
-            **(
-                {
-                    "extra_outcomes": list(query.also_outcomes),
-                    "joint_active": list(query.active_interventions.items()),
-                    "joint_control": list(query.control_interventions.items()),
-                }
-                if isinstance(query, Counterfactual)
-                else {}
-            ),
+            extra_outcomes=list(query.also_outcomes) if isinstance(query, Counterfactual) else [],
+            joint_active=list(query.active_interventions.items())
+            if isinstance(query, Counterfactual)
+            else [],
+            joint_control=list(query.control_interventions.items())
+            if isinstance(query, Counterfactual)
+            else [],
             accepted=self.accepted,
             **self._common(),
         )
