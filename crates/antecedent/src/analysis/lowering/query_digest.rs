@@ -28,6 +28,13 @@ pub(crate) fn query_digest(query: &CausalQuery) -> [u8; 32] {
     writer.finish()
 }
 
+/// Whether the encoded query contains a runtime callback, including nested expressions.
+pub(crate) fn has_runtime_callback(query: &CausalQuery) -> bool {
+    let mut writer = CanonicalWriter::new(QUERY_DIGEST_TAG);
+    query.encode(&mut writer);
+    writer.has_runtime_callback()
+}
+
 /// Digest of every study input identification reads: the query (with its effect
 /// modifiers), the data modality and schema variables, the structure of any graph
 /// class or the atoms and weights of a graph posterior, the tier background, the
@@ -38,6 +45,9 @@ pub(crate) fn query_digest(query: &CausalQuery) -> [u8; 32] {
 /// `None` when an input has no canonical encoding (a graph whose identity wire
 /// cannot be built). Such a study never reuses a retained product.
 pub(crate) fn retention_key(study: &Study) -> Option<[u8; 32]> {
+    if has_runtime_callback(&study.query) {
+        return None;
+    }
     let mut writer = CanonicalWriter::new(RETENTION_KEY_TAG);
     writer.bytes(&query_digest(&study.query));
     data(&mut writer, &study.data);

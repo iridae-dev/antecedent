@@ -141,6 +141,8 @@ impl Study {
         .map(|programs| {
             Ok::<_, CausalError>(Arc::new(super::RetainedPosteriorPrograms {
                 query: crate::analysis::contract_identity::canonical_query_bytes(&self.query)?,
+                runtime_query: crate::analysis::lowering::has_runtime_callback(&self.query)
+                    .then(|| self.query.clone()),
                 programs,
             }))
         })

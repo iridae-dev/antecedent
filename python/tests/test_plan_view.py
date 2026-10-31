@@ -7,6 +7,7 @@ the handle still has no result after reading it, and ``inspect()`` keeps working
 
 from __future__ import annotations
 
+import json
 import math
 
 import antecedent as ant
@@ -14,6 +15,7 @@ import numpy as np
 import pytest
 from antecedent.estimation import ProgramPlanView
 from antecedent.outcomes import require_success
+from pydantic import ValidationError
 
 
 def _table(n: int = 240) -> dict[str, np.ndarray]:
@@ -38,6 +40,66 @@ def _prepared(**options):
     )
 
 
+def _saved_plan_payload() -> dict:
+    # A saved view need not have a current native handle or callback binding.
+    return {
+        "route": "saved",
+        "family": "structural",
+        "stage": "prepared",
+        "identity": "declaration-fingerprint",
+        "depth": "complete",
+        "scientific": {
+            "target": {},
+            "plan_id": "p",
+            "data": "d",
+            "graph_class": "dag",
+            "query_variables": [],
+        },
+        "identification": {"kind": "not_claimed"},
+        "statistical": {"identity": "s", "realization": "none", "design": {}},
+        "evidence": {"identity": "e", "composition": {}},
+        "physical": {"design": {}},
+        "uncertainty": {"reading": "none", "realization": "none"},
+        "support": {},
+    }
+
+
+def test_saved_plan_identity_scope_is_explicit_and_legacy_is_unscoped() -> None:
+    payload = _saved_plan_payload()
+    legacy = ProgramPlanView.from_json(json.dumps(payload))
+    assert legacy.identity == "declaration-fingerprint"
+    assert legacy.identity_scope == "legacy_unscoped"
+    assert legacy.semantic_identity is None
+    assert (
+        ProgramPlanView.from_json(json.dumps(legacy.to_dict())).identity_scope == "legacy_unscoped"
+    )
+    assert ProgramPlanView(**payload).identity_scope == "legacy_unscoped"
+
+    semantic = ProgramPlanView.from_json(
+        json.dumps({**payload, "identity_scope": "semantic", "semantic_identity": "semantic-id"})
+    )
+    assert (semantic.identity_scope, semantic.semantic_identity) == ("semantic", "semantic-id")
+    callback = ProgramPlanView.from_json(
+        json.dumps(
+            {
+                **payload,
+                "identity_scope": "runtime_callback_declaration_only",
+                "semantic_identity": None,
+            }
+        )
+    )
+    assert callback.identity_scope == "runtime_callback_declaration_only"
+    assert callback.semantic_identity is None
+    for scope in (None, "legacy_unscoped", "runtime_callback_declaration_only"):
+        malformed = {**payload, "semantic_identity": "unattested"}
+        if scope is not None:
+            malformed["identity_scope"] = scope
+        with pytest.raises(ValidationError, match="only semantic identity scope"):
+            ProgramPlanView.from_json(json.dumps(malformed))
+    with pytest.raises(ValidationError):
+        ProgramPlanView.from_json(json.dumps({**payload, "identity_scope": "future_scope"}))
+
+
 def test_plan_view_reads_every_layer_before_any_estimate() -> None:
     prepared = _prepared()
     view = prepared.plan_view()
@@ -48,6 +110,8 @@ def test_plan_view_reads_every_layer_before_any_estimate() -> None:
     assert view.stage == "prepared"
     assert view.depth == "complete"
     assert len(view.identity) == 64
+    assert view.identity_scope == "semantic"
+    assert view.semantic_identity == view.identity
 
     assert view.scientific.plan_id
     assert set(view.scientific.query_variables) >= {"t", "y"}

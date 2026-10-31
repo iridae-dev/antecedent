@@ -299,6 +299,8 @@ fn lower_planning(program: PlanningProgram) -> Result<LoweredProgram, CausalErro
         _ => DataClassification::Tabular,
     };
     let scientific = ScientificProblem {
+        runtime_query: None,
+        identity_scope: crate::planner::lowered::ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::AssignmentContrast,
             outcome: None,

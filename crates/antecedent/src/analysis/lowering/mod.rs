@@ -50,6 +50,7 @@ pub(crate) use temporal::history_window;
 #[cfg(test)]
 pub(crate) use temporal::{contrast_frame, contrast_outcome, target_contrast};
 
+pub(crate) use query_digest::has_runtime_callback;
 use query_digest::{query_digest, retention_key};
 
 use crate::Study;

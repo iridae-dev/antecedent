@@ -1783,7 +1783,20 @@ impl PlanView {
         self.stage
     }
 
-    /// Identity of the lowered program; equal to [`LoweredProgram::identity`].
+    /// Scope of the program fingerprint. Runtime callback declarations do not
+    /// identify the live implementation or authorize reuse.
+    #[must_use]
+    pub fn identity_scope(&self) -> super::lowered::ProgramIdentityScope {
+        self.program.identity_scope()
+    }
+
+    /// Authoritative semantic identity, absent for runtime callback declarations.
+    #[must_use]
+    pub fn semantic_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.program.semantic_identity()
+    }
+
+    /// Fingerprint of the lowered program; see [`Self::identity_scope`].
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
         self.program.identity()
@@ -1904,6 +1917,8 @@ impl PlanView {
             "planned_design": self.program.planned_design(),
             "stage": self.stage.as_str(),
             "identity": self.identity().to_hex(),
+            "identity_scope": self.identity_scope().as_str(),
+            "semantic_identity": self.semantic_identity().map(|id| id.to_hex()),
             "depth": self.depth().as_str(),
             "scientific": scientific_json(self.scientific()),
             "identification": self.identification.facts(),

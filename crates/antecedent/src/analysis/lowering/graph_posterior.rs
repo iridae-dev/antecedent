@@ -117,6 +117,12 @@ pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalEr
         query_variables: &record.query_variables,
     })?;
     let scientific = ScientificProblem {
+        runtime_query: super::has_runtime_callback(&study.query).then(|| study.query.clone()),
+        identity_scope: if super::has_runtime_callback(&study.query) {
+            crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+        } else {
+            crate::planner::lowered::ProgramIdentityScope::Semantic
+        },
         target,
         plan_id: Arc::clone(&record.plan_id),
         data: record.data_classification,

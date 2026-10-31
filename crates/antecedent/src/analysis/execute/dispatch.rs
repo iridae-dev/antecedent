@@ -671,6 +671,20 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        // Validation may execute through its own refit path instead of execute_on;
+        // still reject a foreign runtime callback plan before taking that branch.
+        if crate::analysis::lowering::has_runtime_callback(&self.query)
+            || physical.lowered().is_some_and(|program| program.semantic_identity().is_none())
+        {
+            let program =
+                physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
+            if !program.accepts_live_query(&self.query) {
+                return Err(crate::compile_reason!(
+                    "route_not_lowered",
+                    "the plan belongs to a different live callback query"
+                ));
+            }
+        }
         if crate::analysis::functional_validation::requested(self) {
             return crate::analysis::functional_validation::run_validated(self, ctx);
         }
@@ -710,9 +724,14 @@ impl super::Study {
                           refresh",
             });
         }
-        let lowered =
-            physical.require_lowered(crate::analysis::lowering::expected_cell(self))?.identity();
-        let ctx = &ctx.enter_lowered_dispatch(lowered);
+        let program = physical.require_lowered(crate::analysis::lowering::expected_cell(self))?;
+        if !program.accepts_live_query(&self.query) {
+            return Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan belongs to a different live callback query"
+            ));
+        }
+        let ctx = &ctx.enter_lowered_dispatch(program.identity());
         let mut result = match data {
             DataInput::Tabular(tabular) if crate::analysis::missing_imputation::imputes(self) => {
                 crate::analysis::missing_imputation::impute_fit_pool(

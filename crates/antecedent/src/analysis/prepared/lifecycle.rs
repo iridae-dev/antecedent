@@ -102,8 +102,9 @@ impl PreparedStudy {
     ) -> Result<Self, CausalError> {
         let mut next = self.analysis.prepare_deferred_retaining(&self.plan, ctx)?;
         if self.materialized
-            && self.plan.lowered_program_identity().is_some()
-            && self.plan.lowered_program_identity() == next.plan.lowered_program_identity()
+            && self.plan.lowered_program_semantic_identity().is_some()
+            && self.plan.lowered_program_semantic_identity()
+                == next.plan.lowered_program_semantic_identity()
             && self.plan.binding() == next.plan.binding()
             && self.plan.choice.selected() == next.plan.choice.selected()
         {
@@ -482,8 +483,11 @@ impl PreparedStudy {
             .rebind(&data)?;
         let mut study = self.analysis.clone();
         study.data = DataInput::Tabular(data);
-        let diagnostics = study.data_diagnostics.as_ref()
-            .map(|policy| super::super::data_diagnostics::evaluate(&study, policy, ctx, true)).transpose()?;
+        let diagnostics = study
+            .data_diagnostics
+            .as_ref()
+            .map(|policy| super::super::data_diagnostics::evaluate(&study, policy, ctx, true))
+            .transpose()?;
         self.replace_study(study);
         self.state.data_diagnostics = diagnostics;
         self.execution = PreparedExecution::AdmgResponseCurve(operation);

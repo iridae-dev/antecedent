@@ -103,15 +103,29 @@ pub fn fnv1a_u64(bytes: &[u8]) -> u64 {
 #[derive(Clone, Debug)]
 pub struct CanonicalWriter {
     hasher: blake3::Hasher,
+    runtime_callback_seen: bool,
 }
 
 impl CanonicalWriter {
     /// Start a stream with a domain `tag` (written as length-prefixed text).
     #[must_use]
     pub fn new(tag: &str) -> Self {
-        let mut writer = Self { hasher: blake3::Hasher::new() };
+        let mut writer = Self { hasher: blake3::Hasher::new(), runtime_callback_seen: false };
         writer.text(tag);
         writer
+    }
+
+    /// Record a live callback without changing the canonical byte stream.
+    #[doc(hidden)]
+    pub fn note_runtime_callback(&mut self) {
+        self.runtime_callback_seen = true;
+    }
+
+    /// Whether encoding visited an in-process callback declaration.
+    #[must_use]
+    #[doc(hidden)]
+    pub const fn has_runtime_callback(&self) -> bool {
+        self.runtime_callback_seen
     }
 
     /// One `u64` word, little-endian.

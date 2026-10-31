@@ -306,6 +306,12 @@ impl PhysicalExecutionPlan {
         self.lowered().map(super::lowered::LoweredProgram::identity)
     }
 
+    /// Authoritative semantic identity, absent for runtime callback programs.
+    #[must_use]
+    pub fn lowered_program_semantic_identity(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.lowered().and_then(super::lowered::LoweredProgram::semantic_identity)
+    }
+
     /// The lowered program dispatch may execute, checked against the route the
     /// study classifies as now (`expected`, when it classifies as one).
     ///

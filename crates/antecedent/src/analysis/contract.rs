@@ -798,6 +798,12 @@ impl PreparedStudy {
         Ok(crate::result::ExecutedContract {
             identities: program.identities(snapshot),
             inspection_data_snapshot,
+            identity_scope: if crate::analysis::lowering::has_runtime_callback(&self.study().query)
+            {
+                crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+            } else {
+                crate::planner::lowered::ProgramIdentityScope::Semantic
+            },
             refute,
         })
     }
@@ -909,6 +915,15 @@ impl PreparedStudy {
         &self,
         result: &StudyResult,
     ) -> Result<(CausalContract, Arc<CompiledContract>), CausalError> {
+        if result.executed_contract.as_ref().is_some_and(|stamp| {
+            stamp.identity_scope
+                == crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+        }) || crate::analysis::lowering::has_runtime_callback(self.query())
+        {
+            return Err(CausalError::Unsupported {
+                message: "a runtime callback declaration cannot establish a portable result contract",
+            });
+        }
         let executed = result.executed_contract.as_ref().ok_or(CausalError::Conflict {
             what: "result",
             detail: "result was not executed by a prepared handle",

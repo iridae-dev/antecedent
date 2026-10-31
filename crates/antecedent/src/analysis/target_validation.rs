@@ -105,13 +105,11 @@ impl LoweredProgram {
         family: TargetFamily,
         labels: Vec<Arc<str>>,
     ) -> Result<RefutationTarget, CausalError> {
-        RefutationTarget::new(
-            family,
-            self.refutation_quadrant(),
-            labels,
-            *self.identity().as_bytes(),
-        )
-        .map_err(CausalError::from)
+        let identity = self.semantic_identity().ok_or(CausalError::Unsupported {
+            message: "a runtime callback declaration cannot identify an executable refutation target",
+        })?;
+        RefutationTarget::new(family, self.refutation_quadrant(), labels, *identity.as_bytes())
+            .map_err(CausalError::from)
     }
 
     /// The target-native refuter plan of this program for `family` and `labels`.
@@ -1067,7 +1065,9 @@ pub fn refute_prepared_target(
         }
     };
     if let Some(lowered) = prepared.plan().lowered() {
-        if Some(lowered.identity()) != result.lowered_program_identity() {
+        if lowered.semantic_identity().is_none()
+            || lowered.semantic_identity() != result.lowered_program_identity()
+        {
             return Err(CausalError::Conflict {
                 what: "program",
                 detail: "the result was not produced by this prepared handle's lowered program",
@@ -1480,14 +1480,17 @@ impl PreparedRefit<'_> {
             // fold an atom's confounder into the treatment slope.
             if posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag {
                 for atom in posterior.atoms().iter() {
-                    let Ok(dag) =
-                        antecedent_discovery::adjacency_mask::dag_from_adjacency_mask(atom.clone(), posterior.n_vars())
-                    else {
+                    let Ok(dag) = antecedent_discovery::adjacency_mask::dag_from_adjacency_mask(
+                        atom.clone(),
+                        posterior.n_vars(),
+                    ) else {
                         continue;
                     };
                     if let Some(outcome) = static_node(&dag, self.outcome) {
                         parents.extend(dag.parents(outcome).iter().map(|parent| {
-                            VariableId::from_raw(u32::try_from(parent.as_usize()).unwrap_or(u32::MAX))
+                            VariableId::from_raw(
+                                u32::try_from(parent.as_usize()).unwrap_or(u32::MAX),
+                            )
                         }));
                     }
                 }

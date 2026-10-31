@@ -62,6 +62,14 @@ impl StudyResult {
         ctx: &ExecutionContext,
         quantities: Option<&[antecedent_contract::ScientificQuantity]>,
     ) -> Result<(ClaimEnvelope, AnalysisResultWire), CausalError> {
+        if self.executed_contract.as_ref().is_some_and(|stamp| {
+            stamp.identity_scope
+                == crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+        }) {
+            return Err(CausalError::Unsupported {
+                message: "a runtime callback declaration cannot establish a portable claim identity",
+            });
+        }
         // A claim seals the result under the contract's identities, so the result must
         // prove which contract it ran under. An unstamped result (a plain `Study::run`, a
         // mixed-execution refutation) would be sealed under identities it never carried.

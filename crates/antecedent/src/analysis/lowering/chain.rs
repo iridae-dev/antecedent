@@ -202,6 +202,8 @@ pub(crate) fn lower_chain(
     let uncertainty = uncertainty(&plan);
     let reading = plan.reading.as_str();
     let scientific = ScientificProblem {
+        runtime_query: None,
+        identity_scope: crate::planner::lowered::ProgramIdentityScope::Semantic,
         target: ProblemTarget::QueryFunctional {
             kind: FunctionalKind::PropagatedChain,
             outcome: None,

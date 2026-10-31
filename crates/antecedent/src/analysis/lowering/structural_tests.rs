@@ -13,6 +13,9 @@ use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_graph::{Cpdag, Dag, DenseNodeId, TemporalCpdag, TemporalDag, ensure_lagged};
 
 use crate::analysis::lowering::registry::REGISTERED;
+use crate::analysis::lowering::{
+    has_runtime_callback, offer_retained_identification, plan_retained_static, retention_key,
+};
 use crate::planner::lowered::{
     FunctionalKind, LoweredProgram, LoweringDepth, ProblemTarget, UncertaintyReading,
 };
@@ -422,4 +425,155 @@ fn every_structural_cell_lowers_completely() {
         .map(|(cell, _)| cell.as_str())
         .collect();
     assert_eq!(covered, family, "a structural cell has no complete lowering");
+}
+
+#[test]
+fn runtime_callback_plans_expose_declaration_scope_and_never_reuse_proofs() {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        BatchCallback, CallbackError, CallbackImplementation, CallbackOutput, CallbackSpec,
+        SimulateQuery, SimulationTarget, ValueExpr,
+    };
+
+    #[derive(Debug)]
+    struct ConstantCallback {
+        spec: CallbackSpec,
+        value: f64,
+    }
+
+    impl BatchCallback for ConstantCallback {
+        fn spec(&self) -> &CallbackSpec {
+            &self.spec
+        }
+
+        fn call(&self, _inputs: &[&[f64]], out: &mut [f64]) -> Result<(), CallbackError> {
+            out.fill(self.value);
+            Ok(())
+        }
+    }
+
+    on_large_stack("live-callback-identities", || {
+        let spec = CallbackSpec {
+            name: "policy".into(),
+            inputs: Arc::from([]),
+            output: CallbackOutput::Real,
+            dependencies: Arc::from([]),
+            implementation: CallbackImplementation::Runtime,
+        };
+        let first: Arc<dyn BatchCallback> =
+            Arc::new(ConstantCallback { spec: spec.clone(), value: 0.0 });
+        let second: Arc<dyn BatchCallback> = Arc::new(ConstantCallback { spec, value: 1.0 });
+        let mut left = [0.0];
+        let mut right = [0.0];
+        first.call(&[], &mut left).unwrap();
+        second.call(&[], &mut right).unwrap();
+        assert_ne!(left, right);
+        let query = |callback: Arc<dyn BatchCallback>| {
+            CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::PolicyValue {
+                interventions: Arc::from([Intervention::assign(
+                    v(0),
+                    ValueExpr::callback(callback, Arc::<[ValueExpr]>::from([])),
+                )]),
+                outcome: v(1),
+                draws: 64,
+            }))
+        };
+        // A callback buried in a control sequence remains visible to the scope walk.
+        let nested = ValueExpr::Neg(Box::new(ValueExpr::callback(
+            Arc::clone(&first),
+            Arc::<[ValueExpr]>::from([]),
+        )));
+        let control = Intervention::sequence(antecedent_core::InterventionSequence::new([
+            antecedent_core::SequencedIntervention::new(
+                Intervention::assign(v(0), nested),
+                antecedent_core::TemporalPolicy::pulse(0),
+            ),
+        ]));
+        let mut counterfactual =
+            CounterfactualQuery::new(v(1), [Intervention::set(v(0), Value::f64(1.0))]);
+        counterfactual.control = control;
+        assert!(has_runtime_callback(&CausalQuery::Counterfactual(counterfactual)));
+        let counterfactual_study = |callback: Arc<dyn BatchCallback>| {
+            let intervention = Intervention::assign(
+                v(0),
+                ValueExpr::callback(callback, Arc::<[ValueExpr]>::from([])),
+            );
+            let mut study = gcm_study(
+                shifted(),
+                CausalQuery::Counterfactual(CounterfactualQuery::new(v(1), [intervention])),
+                InferenceMode::Frequentist,
+            );
+            study.settings.refute = RefuteSuite::Cheap;
+            study
+        };
+        let cf_first = counterfactual_study(Arc::clone(&first));
+        let cf_second = counterfactual_study(Arc::clone(&second));
+        assert!(crate::analysis::functional_validation::requested(&cf_second));
+        let cf_plan = cf_first.compile(&ExecutionContext::for_tests(5)).unwrap();
+        assert!(cf_second.execute(&cf_plan, &ExecutionContext::for_tests(5)).is_err());
+        let first_query = query(first);
+        let second_query = query(second);
+        assert_ne!(first_query, second_query, "live bindings differ even with identical specs");
+        let first_study = gcm_study(shifted(), first_query, InferenceMode::Frequentist);
+        let second_study = gcm_study(shifted(), second_query, InferenceMode::Frequentist);
+        let ctx = ExecutionContext::for_tests(5);
+        let first_view = first_study.plan_view(&ctx).unwrap();
+        let second_view = second_study.plan_view(&ctx).unwrap();
+        assert_eq!(first_view.identity(), second_view.identity(), "declaration fingerprints match");
+        assert_eq!(
+            first_view.identity_scope(),
+            crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+        );
+        assert!(first_view.semantic_identity().is_none());
+        assert!(second_view.semantic_identity().is_none());
+        assert_eq!(first_view.to_json()["identity_scope"], "runtime_callback_declaration_only");
+        assert!(first_view.to_json()["semantic_identity"].is_null());
+        assert!(retention_key(&first_study).is_none());
+        assert!(retention_key(&second_study).is_none());
+        let first_plan = first_study.compile(&ctx).unwrap();
+        let mut second_plan = second_study.compile(&ctx).unwrap();
+        assert!(first_study.execute(&first_plan, &ctx).is_ok());
+        assert!(second_study.execute(&first_plan, &ctx).is_err());
+        let first_owner = Arc::new(first_plan.clone());
+        let sealed =
+            crate::analysis::execute::CheckedRouteOperation::lowered(&first_study, &first_owner)
+                .unwrap();
+        assert!(sealed.require_program(&first_plan).is_ok());
+        assert!(sealed.require_program(&second_plan).is_err());
+        assert!(plan_retained_static(&second_study, &first_plan).is_none());
+        assert!(plan_retained_static(&first_study, &second_plan).is_none());
+        offer_retained_identification(&second_study, Some(&first_plan), &mut second_plan);
+        assert!(!std::ptr::eq(first_plan.lowered().unwrap(), second_plan.lowered().unwrap()));
+        // Both live policies still execute and use their own callback.
+        let policy_mean = |study: &Study| {
+            let prepared = study.prepare(&ctx).unwrap();
+            let result = prepared.estimate(&shifted(), &ctx).unwrap();
+            assert_eq!(
+                result.executed_contract().unwrap().identity_scope(),
+                crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly,
+            );
+            let mut mutated = result.clone();
+            mutated.identification.query =
+                CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([v(1)], 100));
+            let contract = prepared.contract().unwrap();
+            assert!(matches!(
+                mutated.claim(&contract, &ctx),
+                Err(crate::CausalError::Unsupported { .. })
+            ));
+            assert!(prepared.contract_for_result(&result).is_err());
+            assert!(result.lowered_program_identity().is_none());
+            assert!(crate::analysis::target_validation::result_refutation_target(&result).is_err());
+            let crate::result::ResultPayload::Simulation(payload) = result.payload() else {
+                panic!("simulation payload");
+            };
+            let crate::analysis::structure_route::SimulationOutcome::PolicyValue(value) =
+                &payload.outcome
+            else {
+                panic!("policy value");
+            };
+            value.policy_mean
+        };
+        assert!((policy_mean(&first_study) - policy_mean(&second_study)).abs() > 0.1);
+    });
 }

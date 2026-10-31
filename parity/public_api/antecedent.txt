@@ -1037,6 +1037,7 @@ impl core::clone::Clone for antecedent::planner::lowered::LoweringDepth
 impl core::clone::Clone for antecedent::planner::lowered::PhysicalLayer
 impl core::clone::Clone for antecedent::planner::lowered::PlanningProgram
 impl core::clone::Clone for antecedent::planner::lowered::ProblemTarget
+impl core::clone::Clone for antecedent::planner::lowered::ProgramIdentityScope
 impl core::clone::Clone for antecedent::planner::lowered::ScientificProblem
 impl core::clone::Clone for antecedent::planner::lowered::SimulationQuote
 impl core::clone::Clone for antecedent::planner::lowered::UncertaintyReading
@@ -1268,6 +1269,7 @@ impl core::cmp::Eq for antecedent::planner::lowered::EvidenceRole
 impl core::cmp::Eq for antecedent::planner::lowered::EvidenceSourceRef
 impl core::cmp::Eq for antecedent::planner::lowered::FunctionalKind
 impl core::cmp::Eq for antecedent::planner::lowered::LoweringDepth
+impl core::cmp::Eq for antecedent::planner::lowered::ProgramIdentityScope
 impl core::cmp::Eq for antecedent::planner::lowered::SimulationQuote
 impl core::cmp::Eq for antecedent::planner::lowered::UncertaintyReading
 impl core::cmp::Eq for antecedent::planner::lowered::WidthSource
@@ -1786,6 +1788,7 @@ impl core::cmp::PartialEq for antecedent::planner::lowered::EvsiProgram
 impl core::cmp::PartialEq for antecedent::planner::lowered::FunctionalKind
 impl core::cmp::PartialEq for antecedent::planner::lowered::LoweringDepth
 impl core::cmp::PartialEq for antecedent::planner::lowered::PlanningProgram
+impl core::cmp::PartialEq for antecedent::planner::lowered::ProgramIdentityScope
 impl core::cmp::PartialEq for antecedent::planner::lowered::SimulationQuote
 impl core::cmp::PartialEq for antecedent::planner::lowered::UncertaintyReading
 impl core::cmp::PartialEq for antecedent::planner::lowered::WidthSource
@@ -2878,6 +2881,7 @@ impl core::fmt::Debug for antecedent::planner::lowered::LoweringDepth
 impl core::fmt::Debug for antecedent::planner::lowered::PhysicalLayer
 impl core::fmt::Debug for antecedent::planner::lowered::PlanningProgram
 impl core::fmt::Debug for antecedent::planner::lowered::ProblemTarget
+impl core::fmt::Debug for antecedent::planner::lowered::ProgramIdentityScope
 impl core::fmt::Debug for antecedent::planner::lowered::ScientificProblem
 impl core::fmt::Debug for antecedent::planner::lowered::SimulationQuote
 impl core::fmt::Debug for antecedent::planner::lowered::UncertaintyReading
@@ -3195,6 +3199,7 @@ impl core::marker::Copy for antecedent::planner::lowered::EvidenceRole
 impl core::marker::Copy for antecedent::planner::lowered::EvidenceSourceRef
 impl core::marker::Copy for antecedent::planner::lowered::FunctionalKind
 impl core::marker::Copy for antecedent::planner::lowered::LoweringDepth
+impl core::marker::Copy for antecedent::planner::lowered::ProgramIdentityScope
 impl core::marker::Copy for antecedent::planner::lowered::SimulationQuote
 impl core::marker::Copy for antecedent::planner::lowered::UncertaintyReading
 impl core::marker::Copy for antecedent::planner::lowered::WidthSource
@@ -4045,6 +4050,7 @@ impl core::marker::Freeze for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::ProblemTarget [auto]
+impl core::marker::Freeze for antecedent::planner::lowered::ProgramIdentityScope [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::ScientificProblem [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::SimulationQuote [auto]
 impl core::marker::Freeze for antecedent::planner::lowered::UncertaintyReading [auto]
@@ -4949,6 +4955,7 @@ impl core::marker::Send for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Send for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Send for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Send for antecedent::planner::lowered::ProblemTarget [auto]
+impl core::marker::Send for antecedent::planner::lowered::ProgramIdentityScope [auto]
 impl core::marker::Send for antecedent::planner::lowered::ScientificProblem [auto]
 impl core::marker::Send for antecedent::planner::lowered::SimulationQuote [auto]
 impl core::marker::Send for antecedent::planner::lowered::UncertaintyReading [auto]
@@ -5489,6 +5496,7 @@ impl core::marker::StructuralPartialEq for antecedent::planner::lowered::EvsiPro
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::FunctionalKind
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::LoweringDepth
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::PlanningProgram
+impl core::marker::StructuralPartialEq for antecedent::planner::lowered::ProgramIdentityScope
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::SimulationQuote
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::UncertaintyReading
 impl core::marker::StructuralPartialEq for antecedent::planner::lowered::WidthSource
@@ -6381,6 +6389,7 @@ impl core::marker::Sync for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Sync for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Sync for antecedent::planner::lowered::ProblemTarget [auto]
+impl core::marker::Sync for antecedent::planner::lowered::ProgramIdentityScope [auto]
 impl core::marker::Sync for antecedent::planner::lowered::ScientificProblem [auto]
 impl core::marker::Sync for antecedent::planner::lowered::SimulationQuote [auto]
 impl core::marker::Sync for antecedent::planner::lowered::UncertaintyReading [auto]
@@ -7285,6 +7294,7 @@ impl core::marker::Unpin for antecedent::planner::lowered::LoweringDepth [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::ProblemTarget [auto]
+impl core::marker::Unpin for antecedent::planner::lowered::ProgramIdentityScope [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::ScientificProblem [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::SimulationQuote [auto]
 impl core::marker::Unpin for antecedent::planner::lowered::UncertaintyReading [auto]
@@ -8148,6 +8158,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::L
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::ProblemTarget [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::ProgramIdentityScope [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::ScientificProblem [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::SimulationQuote [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::planner::lowered::UncertaintyReading [auto]
@@ -9005,6 +9016,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::Lowe
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PhysicalLayer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::PlanningProgram [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::ProblemTarget [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::ProgramIdentityScope [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::ScientificProblem [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::SimulationQuote [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::planner::lowered::UncertaintyReading [auto]
@@ -9708,6 +9720,7 @@ pub enum antecedent::planner::lowered::EvidenceRole
 pub enum antecedent::planner::lowered::FunctionalKind
 pub enum antecedent::planner::lowered::LoweringDepth
 pub enum antecedent::planner::lowered::ProblemTarget
+pub enum antecedent::planner::lowered::ProgramIdentityScope
 pub enum antecedent::planner::lowered::UncertaintyReading
 pub enum antecedent::planner::lowered::WidthSource
 pub enum antecedent::planner::plan_view::GraphPosteriorCell
@@ -12956,6 +12969,7 @@ pub fn <antecedent::EvidenceLedgerSession>::fn transport_claim(&mut self, label:
 pub fn <antecedent::ExactStudyResult>::const fn distribution(&self) -> &antecedent_expr::exact_plan::ExactDistribution
 pub fn <antecedent::ExactStudyResult>::const fn identities(&self) -> &antecedent::ExactStudyIdentities
 pub fn <antecedent::ExactStudyResult>::const fn reasoning(&self) -> &antecedent_contract::reasoning::ReasoningView
+pub fn <antecedent::ExecutedContract>::const fn identity_scope(&self) -> antecedent::planner::lowered::ProgramIdentityScope
 pub fn <antecedent::FallbackPart>::const fn as_str(self) -> &'static str
 pub fn <antecedent::FamilyCovariance>::fn get(&self, a: &str, b: &str) -> core::option::Option<f64>
 pub fn <antecedent::GraphClass>::const fn as_str(self) -> &'static str
@@ -15000,6 +15014,7 @@ pub fn <antecedent::planner::LogicalAnalysisPlan>::fn validate(&self) -> core::r
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn compiled_linear_program(&self) -> core::option::Option<&antecedent::analysis::compiled_linear::CompiledLinearProgram>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn lowered(&self) -> core::option::Option<&antecedent::planner::lowered::LoweredProgram>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn lowered_program_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
+pub fn <antecedent::planner::PhysicalExecutionPlan>::fn lowered_program_semantic_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn plan_view(&self) -> core::result::Result<antecedent::planner::PlanView, antecedent::CausalError>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn static_graph(&self) -> core::option::Option<&antecedent_graph::dag::Dag>
 pub fn <antecedent::planner::PhysicalExecutionPlan>::fn static_pag(&self) -> core::option::Option<&antecedent_graph::pag::Pag>
@@ -15022,9 +15037,11 @@ pub fn <antecedent::planner::PlanView>::fn claim(&self) -> &antecedent::planner:
 pub fn <antecedent::planner::PlanView>::fn depth(&self) -> antecedent::planner::lowered::LoweringDepth
 pub fn <antecedent::planner::PlanView>::fn evidence(&self) -> &antecedent::planner::lowered::EvidenceDecisionProgram
 pub fn <antecedent::planner::PlanView>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::planner::PlanView>::fn identity_scope(&self) -> antecedent::planner::lowered::ProgramIdentityScope
 pub fn <antecedent::planner::PlanView>::fn operations(&self) -> alloc::vec::Vec<antecedent::planner::plan_view::OperationView>
 pub fn <antecedent::planner::PlanView>::fn program(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::planner::PlanView>::fn scientific(&self) -> &antecedent::planner::lowered::ScientificProblem
+pub fn <antecedent::planner::PlanView>::fn semantic_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn <antecedent::planner::PlanView>::fn statistical(&self) -> &antecedent::planner::statistical::StatisticalProgram
 pub fn <antecedent::planner::PlanView>::fn to_json(&self) -> serde_json::value::Value
 pub fn <antecedent::planner::RouteFamily>::const fn as_str(self) -> &'static str
@@ -15074,10 +15091,12 @@ pub fn <antecedent::planner::lowered::LoweredProgram>::const fn depth(&self) -> 
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn evidence(&self) -> &antecedent::planner::lowered::EvidenceDecisionProgram
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn identification_retained(&self) -> bool
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::planner::lowered::LoweredProgram>::const fn identity_scope(&self) -> antecedent::planner::lowered::ProgramIdentityScope
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn physical(&self) -> &antecedent::planner::lowered::PhysicalLayer
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn planned_design(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn route(&self) -> &'static str
 pub fn <antecedent::planner::lowered::LoweredProgram>::const fn scientific(&self) -> &antecedent::planner::lowered::ScientificProblem
+pub fn <antecedent::planner::lowered::LoweredProgram>::const fn semantic_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn <antecedent::planner::lowered::LoweredProgram>::fn propagation_chain(&self) -> core::option::Option<&antecedent::planner::lowered::ChainProgram>
 pub fn <antecedent::planner::lowered::LoweredProgram>::fn refutation_quadrant(&self) -> antecedent_validate::target_native::TargetQuadrant
 pub fn <antecedent::planner::lowered::LoweredProgram>::fn refutation_target(&self, family: antecedent_validate::target_native::TargetFamily, labels: alloc::vec::Vec<alloc::sync::Arc<str>>) -> core::result::Result<antecedent_validate::target_native::RefutationTarget, antecedent::CausalError>
@@ -15089,6 +15108,7 @@ pub fn <antecedent::planner::lowered::PhysicalLayer>::fn operators(&self) -> &[a
 pub fn <antecedent::planner::lowered::PlanningProgram>::const fn request_identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::planner::lowered::PlanningProgram>::const fn simulation(&self) -> core::option::Option<antecedent::planner::lowered::SimulationQuote>
 pub fn <antecedent::planner::lowered::PlanningProgram>::fn request(&self) -> &antecedent_design::planning::request::PlanningRequest
+pub fn <antecedent::planner::lowered::ProgramIdentityScope>::const fn as_str(self) -> &'static str
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn data(&self) -> antecedent_contract::plan::DataClassification
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn graph_class(&self) -> &'static str
 pub fn <antecedent::planner::lowered::ScientificProblem>::const fn licensed(&self) -> bool
@@ -15965,6 +15985,7 @@ pub struct antecedent::ExactStudyInspection
 pub struct antecedent::ExactStudyResult
 pub struct antecedent::ExactStudyResult has private fields
 pub struct antecedent::ExecutedContract
+pub struct antecedent::ExecutedContract has private fields
 pub struct antecedent::FallbackRequest
 pub struct antecedent::FallbackRoles
 pub struct antecedent::FallbackUnavailable
@@ -21055,6 +21076,8 @@ pub variant antecedent::planner::lowered::LoweringDepth::Complete
 pub variant antecedent::planner::lowered::ProblemTarget::QueryFunctional { kind: antecedent::planner::lowered::FunctionalKind, outcome: core::option::Option<antecedent_core::ids::VariableId>, query: [u8; 32] }
 pub variant antecedent::planner::lowered::ProblemTarget::Target(antecedent_core::scientific_target::identity::ScientificTarget)
 pub variant antecedent::planner::lowered::ProblemTarget::Targets(alloc::sync::Arc<[antecedent_core::scientific_target::identity::ScientificTarget]>)
+pub variant antecedent::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+pub variant antecedent::planner::lowered::ProgramIdentityScope::Semantic
 pub variant antecedent::planner::lowered::UncertaintyReading::Envelope
 pub variant antecedent::planner::lowered::UncertaintyReading::None
 pub variant antecedent::planner::lowered::UncertaintyReading::Posterior

@@ -448,6 +448,9 @@ impl std::panic::RefUnwindSafe for CallbackCall {}
 impl CanonicalEncode for CallbackCall {
     fn encode(&self, writer: &mut CanonicalWriter) {
         let spec = self.spec();
+        if matches!(spec.implementation, CallbackImplementation::Runtime) {
+            writer.note_runtime_callback();
+        }
         writer.text(&spec.name);
         writer.texts(spec.inputs.as_ref());
         spec.output.encode(writer);

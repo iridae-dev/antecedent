@@ -381,6 +381,12 @@ pub(super) fn assemble(
         record.identifier.as_deref().and_then(|name| name.parse::<IdentifierId>().ok());
     let estimator = record_estimator(cx);
     let scientific = ScientificProblem {
+        runtime_query: super::has_runtime_callback(&study.query).then(|| study.query.clone()),
+        identity_scope: if super::has_runtime_callback(&study.query) {
+            crate::planner::lowered::ProgramIdentityScope::RuntimeCallbackDeclarationOnly
+        } else {
+            crate::planner::lowered::ProgramIdentityScope::Semantic
+        },
         target: cell.target,
         plan_id: Arc::clone(&record.plan_id),
         data: record.data_classification,

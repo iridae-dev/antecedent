@@ -1,6 +1,8 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn <antecedent_core::CanonicalWriter>::const fn has_runtime_callback(&self) -> bool
+#[doc(hidden)] pub fn <antecedent_core::CanonicalWriter>::fn note_runtime_callback(&mut self)
 #[doc(hidden)] pub fn <antecedent_core::ExecutionContext>::fn enter_lowered_dispatch(&self, program: antecedent_core::SemanticDigest) -> Self
 #[doc(hidden)] pub fn <antecedent_core::execution::AdmissionLease>::fn observe_current(&self)
 #[doc(hidden)] pub fn <antecedent_core::execution_attempt::ObservationToken>::fn capture() -> Self

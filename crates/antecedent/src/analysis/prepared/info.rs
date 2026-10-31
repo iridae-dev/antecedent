@@ -681,7 +681,9 @@ impl PreparedStudy {
         query: &CausalQuery,
     ) -> Result<Option<&antecedent_io::GraphPosteriorProgramsWire>, CausalError> {
         self.posterior_programs.as_deref().map(|retained| {
-            if retained.query != crate::analysis::contract_identity::canonical_query_bytes(query)? {
+            if retained.query != crate::analysis::contract_identity::canonical_query_bytes(query)?
+                || retained.runtime_query.as_ref().is_some_and(|original| original != query)
+            {
                 return Err(CausalError::Compile {
                     message: "retained graph-posterior programs require their prepare-time query; re-prepare after changing the target population or query".into(),
                 });

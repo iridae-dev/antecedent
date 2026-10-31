@@ -191,6 +191,8 @@ fn scientific_problem(
         }
     };
     Ok(ScientificProblem {
+        runtime_query: None,
+        identity_scope: crate::planner::lowered::ProgramIdentityScope::Semantic,
         target,
         plan_id: Arc::from(format!("cyclic_family.{}", request.family_name())),
         data: data_classification(&payloads.observation.modality),

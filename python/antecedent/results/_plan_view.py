@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal, Self
 
-from pydantic import PrivateAttr
+from pydantic import PrivateAttr, model_validator
 
 from ._report import ResultModel
 
@@ -155,12 +155,22 @@ class PlanMixtureView(ResultModel):
 
 
 class ProgramPlanView(ResultModel):
-    """Every layer of the program a prepared handle executes."""
+    """Every layer of the program a prepared handle executes.
+
+    Runtime callback identities fingerprint declarations only; they do not identify
+    a callback binding or mutable state and cannot authorize result reuse. Older
+    views without an explicit scope use ``legacy_unscoped``: their fingerprint
+    does not attest a semantic identity, regardless of the kind of callback.
+    """
 
     route: str
     family: str
     stage: str
     identity: str
+    identity_scope: Literal["semantic", "runtime_callback_declaration_only", "legacy_unscoped"] = (
+        "legacy_unscoped"
+    )
+    semantic_identity: str | None = None
     depth: str
     cyclic_family: str | None = None
     planned_design: str | None = None
@@ -176,6 +186,12 @@ class ProgramPlanView(ResultModel):
     reuse: Mapping[str, Any] | None = None
     operations: Sequence[Mapping[str, Any]] = ()
     _operation: dict[str, Any] | None = PrivateAttr(default=None)
+
+    @model_validator(mode="after")
+    def _validate_identity_scope(self) -> Self:
+        if self.identity_scope != "semantic" and self.semantic_identity is not None:
+            raise ValueError("only semantic identity scope can carry a semantic identity")
+        return self
 
     @property
     def operation(self) -> dict[str, Any] | None:

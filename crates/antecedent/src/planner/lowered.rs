@@ -148,6 +148,26 @@ impl FunctionalKind {
     }
 }
 
+/// Authority of a lowered program fingerprint.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProgramIdentityScope {
+    /// The fingerprint identifies the portable semantic program.
+    Semantic,
+    /// A runtime callback is identified only by its declaration, not its binding or state.
+    RuntimeCallbackDeclarationOnly,
+}
+
+impl ProgramIdentityScope {
+    /// Stable scope name in plan views.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Semantic => "semantic",
+            Self::RuntimeCallbackDeclarationOnly => "runtime_callback_declaration_only",
+        }
+    }
+}
+
 /// What the scientific problem asks for.
 #[derive(Clone, Debug)]
 pub enum ProblemTarget {
@@ -158,7 +178,8 @@ pub enum ProblemTarget {
     Targets(Arc<[ScientificTarget]>),
     /// A functional that is not indexed by intervention worlds, with the digest of the query
     /// (interventions, levels, conditioning, evaluation points) that defines it, so two queries of
-    /// one kind have different identities.
+    /// one kind have different identities for semantic-scope programs. Runtime callbacks
+    /// identify their declaration only; see [`ProgramIdentityScope`].
     QueryFunctional {
         /// Kind of functional.
         kind: FunctionalKind,
@@ -173,6 +194,9 @@ pub enum ProblemTarget {
 #[derive(Clone, Debug)]
 pub struct ScientificProblem {
     pub(crate) target: ProblemTarget,
+    pub(crate) identity_scope: ProgramIdentityScope,
+    // Live callback bindings belong to the compiled plan; never encoded into its fingerprint.
+    pub(crate) runtime_query: Option<antecedent_core::CausalQuery>,
     pub(crate) plan_id: Arc<str>,
     pub(crate) data: DataClassification,
     pub(crate) graph_class: &'static str,
@@ -1027,7 +1051,31 @@ impl LoweredProgram {
         &self.claim
     }
 
-    /// Identity over layers one to four and six.
+    /// Fingerprint over layers one to four and six. For a runtime callback this
+    /// identifies only the declaration, not the callback binding, state or behavior.
+    #[must_use]
+    pub const fn identity_scope(&self) -> ProgramIdentityScope {
+        self.scientific.identity_scope
+    }
+
+    /// Whether this plan belongs to the query's live callback bindings.
+    pub(crate) fn accepts_live_query(&self, query: &antecedent_core::CausalQuery) -> bool {
+        match &self.scientific.runtime_query {
+            Some(original) => original == query,
+            None => !crate::analysis::lowering::has_runtime_callback(query),
+        }
+    }
+
+    /// Authoritative semantic identity, absent for runtime callback declarations.
+    #[must_use]
+    pub const fn semantic_identity(&self) -> Option<SemanticDigest> {
+        match self.identity_scope() {
+            ProgramIdentityScope::Semantic => Some(self.identity),
+            ProgramIdentityScope::RuntimeCallbackDeclarationOnly => None,
+        }
+    }
+
+    /// Fingerprint over layers one to four and six; see [`Self::identity_scope`].
     #[must_use]
     pub const fn identity(&self) -> SemanticDigest {
         self.identity

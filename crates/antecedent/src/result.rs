@@ -1616,7 +1616,7 @@ impl StudyResult {
         &mut self,
         program: &crate::planner::lowered::LoweredProgram,
     ) {
-        self.lowered_identity = Some(program.identity());
+        self.lowered_identity = program.semantic_identity();
         self.lowered_quadrant = Some(program.refutation_quadrant());
     }
 
@@ -1634,8 +1634,8 @@ impl StudyResult {
 
     /// Identity of the lowered program whose dispatch produced this result.
     ///
-    /// `None` for a result that no lowered dispatch produced. A prepared handle's
-    /// result carries the identity of its plan's lowered program.
+    /// `None` for a result that no lowered dispatch produced or whose runtime
+    /// callback declaration cannot identify its live implementation.
     #[must_use]
     pub const fn lowered_program_identity(&self) -> Option<antecedent_core::SemanticDigest> {
         self.lowered_identity
@@ -1817,7 +1817,8 @@ impl StudyResult {
 ///
 /// Export recompiles the contract on the handle and refuses unless every
 /// identity layer — including the data snapshot the result was computed on —
-/// matches this stamp.
+/// matches this stamp. The engine records the identity scope privately; callers
+/// inspect it with [`Self::identity_scope`] rather than constructing a stamp.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ExecutedContract {
     /// Every contract identity layer, including the executed data snapshot.
@@ -1826,8 +1827,18 @@ pub struct ExecutedContract {
     /// This is computed from the same input at execution and permits a cheap
     /// inspection to be compared without replacing the full snapshot identity.
     pub inspection_data_snapshot: antecedent_core::SemanticDigest,
+    /// Scope stamped by the prepared execution, independent of mutable result fields.
+    pub(crate) identity_scope: crate::planner::lowered::ProgramIdentityScope,
     /// Validation suite whose refutations the result carries.
     pub refute: crate::RefuteSuite,
+}
+
+impl ExecutedContract {
+    /// Scope recorded by the engine at execution, independent of mutable result fields.
+    #[must_use]
+    pub const fn identity_scope(&self) -> crate::planner::lowered::ProgramIdentityScope {
+        self.identity_scope
+    }
 }
 
 /// Nominal level of the interval a standard-error result reports.

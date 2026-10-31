@@ -184,6 +184,7 @@ pub struct PreparedStudy<S = SampledPreparedState> {
 #[derive(Clone, Debug)]
 struct RetainedPosteriorPrograms {
     query: Arc<[u8]>,
+    runtime_query: Option<antecedent_core::CausalQuery>,
     programs: antecedent_io::GraphPosteriorProgramsWire,
 }
 

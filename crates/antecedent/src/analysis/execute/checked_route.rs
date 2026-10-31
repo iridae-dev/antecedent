@@ -21,6 +21,8 @@ use crate::analysis::lowering::{RouteCell, expected_cell};
 pub(crate) struct CheckedRouteOperation {
     cell: Option<RouteCell>,
     lowered: SemanticDigest,
+    // Declaration-only fingerprints cannot authorize a different live program.
+    runtime_program: Option<Arc<crate::planner::lowered::LoweredProgram>>,
 }
 
 impl CheckedRouteOperation {
@@ -35,7 +37,14 @@ impl CheckedRouteOperation {
         physical: &Arc<PhysicalExecutionPlan>,
         cell: RouteCell,
     ) -> Result<Self, CausalError> {
-        let lowered = physical.require_lowered(Some(cell))?.identity();
+        let program = physical.require_lowered(Some(cell))?;
+        if !program.accepts_live_query(&study.query) {
+            return Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan belongs to a different live callback query"
+            ));
+        }
+        let lowered = program.identity();
         if expected_cell(study) != Some(cell) {
             return Err(crate::compile_reason!(
                 "route_not_lowered",
@@ -43,7 +52,12 @@ impl CheckedRouteOperation {
                 cell.as_str()
             ));
         }
-        Ok(Self { cell: Some(cell), lowered })
+        let runtime_program = physical
+            .lowered
+            .as_ref()
+            .filter(|program| program.semantic_identity().is_none())
+            .cloned();
+        Ok(Self { cell: Some(cell), lowered, runtime_program })
     }
 
     /// Seal `study` to whatever program `physical` carries for the route the study
@@ -61,8 +75,20 @@ impl CheckedRouteOperation {
         physical: &Arc<PhysicalExecutionPlan>,
     ) -> Result<Self, CausalError> {
         let cell = expected_cell(study);
-        let lowered = physical.require_lowered(cell)?.identity();
-        Ok(Self { cell, lowered })
+        let program = physical.require_lowered(cell)?;
+        if !program.accepts_live_query(&study.query) {
+            return Err(crate::compile_reason!(
+                "route_not_lowered",
+                "the plan belongs to a different live callback query"
+            ));
+        }
+        let lowered = program.identity();
+        let runtime_program = physical
+            .lowered
+            .as_ref()
+            .filter(|program| program.semantic_identity().is_none())
+            .cloned();
+        Ok(Self { cell, lowered, runtime_program })
     }
 
     /// Require that `physical` still carries the program this operation retained.
@@ -76,7 +102,16 @@ impl CheckedRouteOperation {
         physical: &PhysicalExecutionPlan,
     ) -> Result<(), CausalError> {
         let lowered = physical.require_lowered(self.cell)?.identity();
-        if lowered == self.lowered {
+        let same_live_program = match &self.runtime_program {
+            Some(program) => {
+                physical.lowered.as_ref().is_some_and(|current| Arc::ptr_eq(program, current))
+            }
+            None => physical
+                .lowered
+                .as_ref()
+                .is_some_and(|current| current.semantic_identity().is_some()),
+        };
+        if lowered == self.lowered && same_live_program {
             Ok(())
         } else {
             Err(crate::compile_reason!(
@@ -191,6 +226,7 @@ impl CheckedDiscoveryOperation {
 pub(crate) struct CheckedScientificRoute {
     route: CheckedRouteOperation,
     query: Arc<[u8]>,
+    runtime_query: Option<antecedent_core::CausalQuery>,
     graph: antecedent_io::GraphIdentityWire,
 }
 
@@ -207,6 +243,8 @@ impl CheckedScientificRoute {
         Ok(Self {
             route,
             query: crate::analysis::contract_identity::canonical_query_bytes(&study.query)?,
+            runtime_query: crate::analysis::lowering::has_runtime_callback(&study.query)
+                .then(|| study.query.clone()),
             graph: crate::analysis::contract::graph_identity(study)?,
         })
     }
@@ -222,6 +260,7 @@ impl CheckedScientificRoute {
     ) -> Result<(), CausalError> {
         self.require_program(plan)?;
         if self.query != crate::analysis::contract_identity::canonical_query_bytes(&study.query)?
+            || self.runtime_query.as_ref().is_some_and(|query| query != &study.query)
             || self.graph != crate::analysis::contract::graph_identity(study)?
         {
             return Err(crate::compile_reason!(
