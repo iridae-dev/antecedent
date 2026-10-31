@@ -42,7 +42,8 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
 /// `[1, z]` by the normal equations, and the augmented inverse-probability score averaged over all
 /// rows, with the propensity clipped to `[clip, 1 - clip]`.
 fn aipw_reference(data: &impl TableView, clip: f64) -> f64 {
-    let col = |i: u32| data.float64_slice(antecedent_core::VariableId::from_raw(i)).unwrap().to_vec();
+    let col =
+        |i: u32| data.float64_slice(antecedent_core::VariableId::from_raw(i)).unwrap().to_vec();
     let (t, y, z) = (col(0), col(1), col(2));
     let n = t.len();
     let logistic = |eta: f64| 1.0 / (1.0 + (-eta).exp());
@@ -184,11 +185,24 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     let artifact =
         prepared.encode_contracted_result(&refreshed, &format!("aipw-{coordinate}"), &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{coordinate} artifact dependencies: {:?}",
-        consumed.acceptance.unresolved
-    );
+    // A refutation suite adds only the refutation replay obligation, which a compact artifact
+    // cannot discharge; the same coordinate without a suite is a verified program.
+    if validation == "none" {
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "{coordinate} artifact dependencies: {:?}",
+            consumed.acceptance.unresolved
+        );
+        assert!(consumed.body.refutations.is_empty(), "{coordinate}");
+    } else {
+        assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+        assert_eq!(
+            consumed.acceptance.unresolved.iter().map(|r| r.as_ref()).collect::<Vec<&str>>(),
+            ["dependencies.refutation_replay"],
+            "{coordinate}"
+        );
+        assert!(!consumed.body.refutations.is_empty(), "{coordinate}");
+    }
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact result");
 }
 
@@ -263,10 +277,12 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
 
     let artifact = prepared.encode_contracted_result(&refreshed, "aipw-trimmed", &ctx).unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "artifact dependencies: {:?}",
-        consumed.acceptance.unresolved
+    // The cheap refutation suite adds only the refutation replay obligation, which a compact
+    // artifact cannot discharge; the checked lowering itself leaves nothing else unresolved.
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert_eq!(
+        consumed.acceptance.unresolved.iter().map(|r| r.as_ref()).collect::<Vec<&str>>(),
+        ["dependencies.refutation_replay"]
     );
     assert!(
         !consumed.acceptance.unresolved.iter().any(|key| {
@@ -352,4 +368,90 @@ fn rebind_estimate(
     let result = branch.estimate_retained(ctx)?;
     *prepared = branch;
     Ok(result)
+}
+
+/// The opt-in full-source export carries the complete table, bound to the contract's data
+/// snapshot, while the default export stays compact and a consumer reports exactly the same
+/// unresolved reasons for both. Data other than the snapshotted table is a conflict.
+#[test]
+fn full_source_export_carries_a_bound_witness_and_leaves_acceptance_unchanged() {
+    use antecedent_io_core::{
+        SOURCE_WITNESS_SECTION, SourceWitnessLimits, decode_analysis_result_artifact,
+        decode_analysis_result_contract, decode_source_witness_section, verify_source_witness,
+    };
+
+    let ctx = ExecutionContext::for_tests(73);
+    let (data, dag, query) = confounded_scm(256, 73);
+    let study = Study::tabular(data.clone())
+        .query(query)
+        .estimator(EstimatorId::Aipw)
+        .graph(dag)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap();
+    let mut prepared = study.prepare(&ctx).unwrap();
+    let result = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
+
+    let compact = prepared.encode_contracted_result(&result, "export", &ctx).unwrap();
+    let sourced =
+        prepared.encode_contracted_result_with_source(&result, &data, "export", &ctx).unwrap();
+    let limits = SourceWitnessLimits::default();
+
+    let (compact_artifact, compact_header, compact_body) =
+        decode_analysis_result_artifact(&compact).unwrap();
+    assert!(compact_artifact.sections.iter().all(|section| section.id != SOURCE_WITNESS_SECTION));
+    assert_eq!(decode_source_witness_section(&compact_artifact, &limits).unwrap(), None);
+
+    let (artifact, header, body) = decode_analysis_result_artifact(&sourced).unwrap();
+    assert_eq!(header, compact_header);
+    assert_eq!(body, compact_body);
+    let contract = decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let compact_contract = decode_analysis_result_contract(&compact_artifact).unwrap().unwrap();
+    assert_eq!(contract.seal, compact_contract.seal);
+    assert_eq!(contract.data_snapshot, compact_contract.data_snapshot);
+
+    let witness = decode_source_witness_section(&artifact, &limits).unwrap().unwrap();
+    let snapshot = contract.data_snapshot.as_ref().unwrap();
+    verify_source_witness(&witness, &header.variable_names, snapshot, &limits).unwrap();
+
+    // Independent oracle: the partition digest of the same values built with the public
+    // data constructors, and the carried cells equal the table's cells.
+    let table: Vec<Vec<f64>> = (0..3)
+        .map(|id| data.float64_slice(antecedent_core::VariableId::from_raw(id)).unwrap().to_vec())
+        .collect();
+    for (column, values) in witness.columns.iter().zip(&table) {
+        assert_eq!(&column.values, values);
+    }
+    let oracle = antecedent_data::TabularData::from_f64_columns(
+        header
+            .variable_names
+            .iter()
+            .zip(&table)
+            .map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    assert_eq!(snapshot.partitions[0].content, oracle.storage().content_digest());
+
+    let compact_consumed = consume_analysis_result(&compact).unwrap();
+    let sourced_consumed = consume_analysis_result(&sourced).unwrap();
+    assert_eq!(sourced_consumed.acceptance.unresolved, compact_consumed.acceptance.unresolved);
+    assert_eq!(
+        sourced_consumed.acceptance.accepts_as_verified_program(),
+        compact_consumed.acceptance.accepts_as_verified_program()
+    );
+
+    let mut other = table;
+    other[1][0] += 0.5;
+    let other = antecedent_data::TabularData::from_f64_columns(
+        header
+            .variable_names
+            .iter()
+            .zip(&other)
+            .map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    let error =
+        prepared.encode_contracted_result_with_source(&result, &other, "export", &ctx).unwrap_err();
+    assert!(matches!(error, antecedent::CausalError::Conflict { what: "source", .. }), "{error}");
 }

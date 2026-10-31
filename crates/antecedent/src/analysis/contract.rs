@@ -1220,6 +1220,77 @@ impl PreparedStudy {
         self.encode_contracted_result_with_quantity_labels(result, artifact_id, ctx, None)
     }
 
+    /// Encode an executed result exactly as [`Self::encode_contracted_result`]
+    /// does and additionally embed the complete original table as a
+    /// full-source witness section, so a later verifier can replay the fit from
+    /// the artifact alone.
+    ///
+    /// The witness carries every column of `data`, including columns the
+    /// analysis did not use, and may expose sensitive rows to anyone who can
+    /// read the artifact. Only an explicit call embeds it: the default export
+    /// stays compact. The section only carries and binds the source; it does
+    /// not change what a consumer accepts or leaves unresolved.
+    ///
+    /// `data` must be the table the contract's data snapshot records: its
+    /// storage content digest must equal the snapshot's single partition
+    /// digest. A table that differs is a conflict, never a silent compact
+    /// export. Only unweighted, unmasked tables of finite `Float64` columns
+    /// can be carried.
+    ///
+    /// # Errors
+    ///
+    /// [`CausalError::Unsupported`] for a study whose data is not tabular,
+    /// [`CausalError::Conflict`] when `data` is not the snapshotted table, a
+    /// serialization error for a table the witness cannot carry exactly or
+    /// that exceeds the witness limits, and the errors of
+    /// [`Self::encode_contracted_result`].
+    pub fn encode_contracted_result_with_source(
+        &self,
+        result: &StudyResult,
+        data: &antecedent_data::TabularData,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, CausalError> {
+        let (section, body) = self.execution_record_with_quantity_labels(result, ctx, None)?;
+        let snapshot = section.data_snapshot.as_ref().ok_or(CausalError::Conflict {
+            what: "data_snapshot",
+            detail: "the contract records no data snapshot to bind a source to",
+        })?;
+        if snapshot.modality != "tabular" {
+            return Err(CausalError::Unsupported {
+                message: "a full-source witness is only carried for tabular studies; this study's data modality is not tabular",
+            });
+        }
+        let [partition] = snapshot.partitions.as_slice() else {
+            return Err(CausalError::Conflict {
+                what: "data_snapshot",
+                detail: "a tabular snapshot must have exactly one partition to bind a source to",
+            });
+        };
+        if data.storage().content_digest() != partition.content {
+            return Err(CausalError::Conflict {
+                what: "source",
+                detail: "the data's content digest differs from the contract's data snapshot",
+            });
+        }
+        let witness = antecedent_io_core::SourceWitnessWire::from_storage(data.storage())
+            .map_err(|err| io_err(&antecedent_io::IoError::from(err)))?;
+        let names: Vec<String> =
+            self.schema().variables().iter().map(|variable| variable.name.to_string()).collect();
+        let artifact =
+            antecedent_io_core::encode_analysis_result_artifact_with_contract_and_source(
+                &body,
+                names,
+                artifact_id,
+                Some(&section),
+                Some(&witness),
+            )
+            .map_err(|err| io_err(&err))?;
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).map_err(|err| io_err(&err))?;
+        Ok(bytes)
+    }
+
     /// Encode an executed response with explicitly declared measurement semantics.
     /// Native response structure determines variable, regime, horizon and functional;
     /// the caller declares units, population and transform. Coordinates are included

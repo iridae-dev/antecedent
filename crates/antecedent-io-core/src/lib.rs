@@ -103,6 +103,7 @@ pub mod scientific_target_wire;
 pub mod score_wire;
 pub mod selective_discovery_artifact;
 pub mod sensitivity_artifact;
+pub mod source_witness;
 pub mod staleness_artifact;
 pub mod structure_query_wire;
 pub mod temporal_design_query_wire;
@@ -133,8 +134,10 @@ pub use analysis_result_artifact::{
     SurvivalWire, SyntheticControlWire, SyntheticDidWire, TemporalIdentificationWire,
     TemporalMediationGridWire, TemporalMediationSliceWire, TemporalMediationUncertaintyWire,
     UnitEffectIntervalsWire, UnitEffectsWire, UpliftBinWire, decode_analysis_result_artifact,
-    encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-    identified_set_interval_from_wire, identified_set_interval_to_wire,
+    decode_source_witness_section, encode_analysis_result_artifact,
+    encode_analysis_result_artifact_with_contract,
+    encode_analysis_result_artifact_with_contract_and_source, identified_set_interval_from_wire,
+    identified_set_interval_to_wire,
 };
 pub use analysis_wire::{
     DiagnosticWire, HedgeCertificateWire, IdentificationResultWire, IdentifiedEstimandWire,
@@ -322,6 +325,10 @@ pub use response_wire::{
     SupportReportWire, SupportStatusWire, TemporalResponseSpecWire, causal_response_from_wire,
     causal_response_to_wire, response_query_from_wire, response_query_to_wire,
     response_value_from_wire, response_value_to_wire,
+};
+pub use source_witness::{
+    SOURCE_WITNESS_FORMAT, SOURCE_WITNESS_SECTION, SourceColumnWire, SourceWitnessError,
+    SourceWitnessLimits, SourceWitnessWire, verify_source_witness,
 };
 pub use structure_query_wire::{
     AttributeQueryWire, AttributeTargetWire, ChangeEstimatorWire, DiscoverQueryWire,

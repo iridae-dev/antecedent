@@ -230,10 +230,7 @@ fn distribution_atoms_are_bound_to_query_and_reported_mean() {
 
     let mut result = distribution_fixture();
     result.estimate = Some(0.6);
-    refused(
-        validate_interventional_distribution(&result),
-        "atoms disagree with the reported mean",
-    );
+    refused(validate_interventional_distribution(&result), "atoms disagree with the reported mean");
 
     let mut result = distribution_fixture();
     result.interventional_distribution.as_mut().unwrap().atoms[1].probability = f64::NAN;
@@ -708,4 +705,454 @@ fn malformed_portable_family_covariance_and_bands_are_refused() {
         encode_analysis_result_artifact(&missing_contrast, names, "band-without-contrast"),
         "contrast interval requires its contrast and covariance",
     );
+}
+
+mod source_witness_cases {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        CausalSchema, CausalSchemaBuilder, MeasurementSpec, SmallRoleSet, ValueType, VariableId,
+    };
+    use antecedent_data::column::{Int64Column, ValidityBitmap};
+    use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData};
+
+    use super::*;
+    use crate::{
+        DataPartitionIdentityWire, DataSnapshotIdentityWire, SOURCE_WITNESS_FORMAT,
+        SOURCE_WITNESS_SECTION, SourceColumnWire, SourceWitnessError, SourceWitnessLimits,
+        SourceWitnessWire, verify_source_witness,
+    };
+
+    fn names(count: usize) -> Vec<String> {
+        ["x", "y", "unused", "extra"].iter().take(count).map(|name| (*name).into()).collect()
+    }
+
+    fn columns() -> Vec<Vec<f64>> {
+        vec![
+            vec![0.0, 1.0, 0.0, 1.0, 1.0],
+            vec![0.5, 2.25, -1.0, 3.5, 4.0],
+            vec![10.0, 20.0, 30.0, 40.0, 50.0],
+        ]
+    }
+
+    /// The witness written out by hand, not through `from_storage`.
+    fn witness(columns: &[Vec<f64>]) -> SourceWitnessWire {
+        SourceWitnessWire {
+            format: SOURCE_WITNESS_FORMAT,
+            row_count: columns.first().map_or(0, Vec::len) as u64,
+            columns: columns
+                .iter()
+                .enumerate()
+                .map(|(index, values)| SourceColumnWire {
+                    variable: index as u32,
+                    values: values.clone(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Snapshot whose single partition digest comes from the public data
+    /// constructors, independent of the witness code.
+    fn snapshot(names: &[String], columns: &[Vec<f64>]) -> DataSnapshotIdentityWire {
+        let data = TabularData::from_f64_columns(
+            names.iter().zip(columns).map(|(name, values)| (name.as_str(), values.as_slice())),
+        )
+        .unwrap();
+        let rows = data.storage().columns()[0].len() as u64;
+        DataSnapshotIdentityWire {
+            format: antecedent_core::IDENTITY_FORMAT,
+            observation: [7; 32],
+            modality: "tabular".into(),
+            regularity: None,
+            row_count: rows,
+            unit_count: None,
+            partitions: vec![DataPartitionIdentityWire {
+                content: data.storage().content_digest(),
+                row_count: rows,
+                unit_id: None,
+                regularity: None,
+            }],
+            interference: None,
+            distribution_factor_laws: None,
+            nested_counterfactual_fit: None,
+            linear_fit_moments: None,
+            participants: None,
+            missing: None,
+            sampling_design: None,
+        }
+    }
+
+    fn schema(count: usize) -> CausalSchema {
+        let mut builder = CausalSchemaBuilder::new();
+        for name in names(count) {
+            builder
+                .add_variable(
+                    name.as_str(),
+                    ValueType::Continuous,
+                    SmallRoleSet::empty(),
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .unwrap();
+        }
+        builder.build().unwrap()
+    }
+
+    fn float(id: u32, values: Vec<f64>) -> OwnedColumn {
+        let rows = values.len();
+        OwnedColumn::Float64(
+            Float64Column::new(
+                VariableId::from_raw(id),
+                Arc::<[f64]>::from(values),
+                ValidityBitmap::all_valid(rows),
+            )
+            .unwrap(),
+        )
+    }
+
+    fn refusal(storage: Result<OwnedColumnarStorage, antecedent_data::DataError>) -> String {
+        SourceWitnessWire::from_storage(&storage.unwrap()).unwrap_err().to_string()
+    }
+
+    #[test]
+    fn source_witness_round_trips_through_cbor_and_storage() {
+        let table = columns();
+        let data = TabularData::from_f64_columns(
+            names(3).iter().zip(&table).map(|(name, values)| (name.as_str(), values.as_slice())),
+        )
+        .unwrap();
+        let carried = SourceWitnessWire::from_storage(data.storage()).unwrap();
+        assert_eq!(carried, witness(&table));
+        let decoded: SourceWitnessWire = from_cbor(&to_cbor(&carried).unwrap()).unwrap();
+        assert_eq!(decoded, carried);
+        let rebuilt = decoded.to_storage(&names(3), &SourceWitnessLimits::default()).unwrap();
+        assert_eq!(rebuilt.content_digest(), data.storage().content_digest());
+        assert_eq!(rebuilt.columns().len(), 3);
+    }
+
+    #[test]
+    fn source_witness_from_storage_refuses_tables_it_cannot_carry_exactly() {
+        let rows = 3;
+        let plain = || vec![float(0, vec![1.0, 2.0, 3.0]), float(1, vec![4.0, 5.0, 6.0])];
+        let masked = OwnedColumnarStorage::try_new(
+            schema(2),
+            plain(),
+            Some(ValidityBitmap::all_valid(rows)),
+            None,
+        );
+        assert!(refusal(masked).contains("analysis mask"));
+        let weighted = OwnedColumnarStorage::try_new(
+            schema(2),
+            plain(),
+            None,
+            Some(Arc::<[f64]>::from(vec![1.0; rows])),
+        );
+        assert!(refusal(weighted).contains("weights"));
+        let missing = OwnedColumnarStorage::try_new(
+            schema(2),
+            vec![float(0, vec![1.0, f64::NAN, 3.0]), float(1, vec![4.0, 5.0, 6.0])],
+            None,
+            None,
+        );
+        assert!(refusal(missing).contains("invalid"));
+        let integer = OwnedColumnarStorage::try_new(
+            schema(2),
+            vec![
+                float(0, vec![1.0, 2.0, 3.0]),
+                OwnedColumn::Int64(
+                    Int64Column::new(
+                        VariableId::from_raw(1),
+                        Arc::<[i64]>::from(vec![1, 2, 3]),
+                        ValidityBitmap::all_valid(rows),
+                    )
+                    .unwrap(),
+                ),
+            ],
+            None,
+            None,
+        );
+        assert!(refusal(integer).contains("not Float64"));
+        let infinite = OwnedColumnarStorage::try_new(
+            schema(2),
+            vec![float(0, vec![1.0, f64::INFINITY, 3.0]), float(1, vec![4.0, 5.0, 6.0])],
+            None,
+            None,
+        );
+        assert!(refusal(infinite).contains("non-finite"));
+    }
+
+    #[test]
+    fn source_witness_to_storage_checks_declared_sizes_before_allocating() {
+        let one_column = |row_count: u64| SourceWitnessWire {
+            format: SOURCE_WITNESS_FORMAT,
+            row_count,
+            columns: vec![SourceColumnWire { variable: 0, values: Vec::new() }],
+        };
+        let limits = SourceWitnessLimits::default();
+        // No value is present: a size check that ran after allocation or the length
+        // check would report something other than TooLarge.
+        assert_eq!(
+            one_column(u64::MAX).to_storage(&names(1), &limits).unwrap_err(),
+            SourceWitnessError::TooLarge
+        );
+        assert_eq!(
+            one_column(limits.max_rows + 1).to_storage(&names(1), &limits).unwrap_err(),
+            SourceWitnessError::TooLarge
+        );
+        let small_bytes =
+            SourceWitnessLimits { max_bytes: 1024, max_rows: u64::MAX, max_columns: 8 };
+        assert_eq!(
+            one_column(1 << 20).to_storage(&names(1), &small_bytes).unwrap_err(),
+            SourceWitnessError::TooLarge
+        );
+        let unbounded =
+            SourceWitnessLimits { max_bytes: u64::MAX, max_rows: u64::MAX, max_columns: u64::MAX };
+        let two_columns = SourceWitnessWire {
+            format: SOURCE_WITNESS_FORMAT,
+            row_count: u64::MAX,
+            columns: (0..2)
+                .map(|variable| SourceColumnWire { variable, values: Vec::new() })
+                .collect(),
+        };
+        assert_eq!(
+            two_columns.to_storage(&names(2), &unbounded).unwrap_err(),
+            SourceWitnessError::TooLarge,
+            "rows x columns x 8 overflows u64"
+        );
+        let few_columns = SourceWitnessLimits { max_columns: 2, ..SourceWitnessLimits::default() };
+        assert_eq!(
+            witness(&columns()).to_storage(&names(3), &few_columns).unwrap_err(),
+            SourceWitnessError::TooLarge
+        );
+    }
+
+    #[test]
+    fn source_witness_to_storage_refuses_malformed_tables() {
+        let limits = SourceWitnessLimits::default();
+        let malformed = |wire: &SourceWitnessWire, count: usize| {
+            matches!(wire.to_storage(&names(count), &limits), Err(SourceWitnessError::Malformed(_)))
+        };
+        let table = columns();
+        assert!(!malformed(&witness(&table), 3));
+        let mut descending = witness(&table[..2]);
+        descending.columns[0].variable = 1;
+        descending.columns[1].variable = 0;
+        assert!(malformed(&descending, 2));
+        let mut duplicate = witness(&table[..2]);
+        duplicate.columns[1].variable = 0;
+        assert!(malformed(&duplicate, 2));
+        let mut gap = witness(&table[..2]);
+        gap.columns[1].variable = 2;
+        assert!(malformed(&gap, 2));
+        assert!(malformed(&witness(&table), 2), "names must cover exactly the columns");
+        let mut ragged = witness(&table);
+        ragged.columns[1].values.pop();
+        assert!(malformed(&ragged, 3));
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut cell = witness(&table);
+            cell.columns[2].values[1] = bad;
+            assert!(malformed(&cell, 3));
+        }
+        let mut unknown_format = witness(&table);
+        unknown_format.format = SOURCE_WITNESS_FORMAT + 1;
+        assert!(malformed(&unknown_format, 3));
+        let repeated_names = vec!["x".to_owned(); 3];
+        assert!(matches!(
+            witness(&table).to_storage(&repeated_names, &limits),
+            Err(SourceWitnessError::Malformed(_))
+        ));
+        assert!(malformed(&witness(&[]), 0), "a table without columns is not a witness");
+    }
+
+    #[test]
+    fn verify_source_witness_binds_the_exact_table() {
+        let limits = SourceWitnessLimits::default();
+        let table = columns();
+        let variables = names(3);
+        let bound = snapshot(&variables, &table);
+        verify_source_witness(&witness(&table), &variables, &bound, &limits)
+            .expect("the true table, with its unused column, verifies");
+
+        let mismatch = |wire: &SourceWitnessWire, snapshot: &DataSnapshotIdentityWire| {
+            verify_source_witness(wire, &variables, snapshot, &limits).unwrap_err()
+        };
+
+        let mut changed = table.clone();
+        changed[1][2] += 1.0;
+        assert_eq!(
+            mismatch(&witness(&changed), &bound),
+            SourceWitnessError::Mismatch("content digest")
+        );
+
+        let mut swapped = table.clone();
+        for column in &mut swapped {
+            column.swap(0, 1);
+        }
+        assert_eq!(
+            mismatch(&witness(&swapped), &bound),
+            SourceWitnessError::Mismatch("content digest")
+        );
+
+        let mut unused_changed = table.clone();
+        unused_changed[2][4] = 51.0;
+        assert_eq!(
+            mismatch(&witness(&unused_changed), &bound),
+            SourceWitnessError::Mismatch("content digest"),
+            "a column the analysis did not use is still bound"
+        );
+
+        assert!(matches!(
+            verify_source_witness(&witness(&table[..2]), &variables, &bound, &limits),
+            Err(SourceWitnessError::Malformed(_))
+        ));
+        assert!(matches!(
+            verify_source_witness(&witness(&table[..2]), &variables[..2], &bound, &limits),
+            Err(SourceWitnessError::Mismatch(_))
+        ));
+
+        let mut longer = witness(&table);
+        longer.row_count += 1;
+        assert!(verify_source_witness(&longer, &variables, &bound, &limits).is_err());
+        let mut other_rows = bound.clone();
+        other_rows.partitions[0].row_count += 1;
+        assert_eq!(
+            mismatch(&witness(&table), &other_rows),
+            SourceWitnessError::Mismatch("row count")
+        );
+
+        let mut other_digest = bound.clone();
+        other_digest.partitions[0].content[0] ^= 1;
+        assert_eq!(
+            mismatch(&witness(&table), &other_digest),
+            SourceWitnessError::Mismatch("content digest")
+        );
+
+        let mut two = bound.clone();
+        two.partitions.push(two.partitions[0].clone());
+        assert_eq!(
+            mismatch(&witness(&table), &two),
+            SourceWitnessError::Mismatch("snapshot must have exactly one partition")
+        );
+    }
+
+    fn sourced(source: Option<&SourceWitnessWire>) -> EncodedArtifact {
+        encode_analysis_result_artifact_with_contract_and_source(
+            &fixture(),
+            vec!["a".into(), "y".into()],
+            "witnessed",
+            None,
+            source,
+        )
+        .unwrap()
+    }
+
+    fn two_column_witness() -> SourceWitnessWire {
+        witness(&columns()[..2])
+    }
+
+    fn ids(artifact: &EncodedArtifact) -> Vec<&str> {
+        artifact.sections.iter().map(|section| section.id.as_str()).collect()
+    }
+
+    #[test]
+    fn delegating_encoder_adds_no_source_section() {
+        let compact = encode_analysis_result_artifact_with_contract(
+            &fixture(),
+            vec!["a".into(), "y".into()],
+            "witnessed",
+            None,
+        )
+        .unwrap();
+        assert_eq!(ids(&compact), [HEADER_SECTION, BODY_SECTION]);
+        let described: Vec<&str> =
+            compact.manifest.sections.iter().map(|section| section.id.as_str()).collect();
+        assert_eq!(described, [HEADER_SECTION, BODY_SECTION]);
+        let explicit = sourced(None);
+        assert_eq!(ids(&explicit), ids(&compact));
+        for (left, right) in explicit.sections.iter().zip(&compact.sections) {
+            assert_eq!(left.data, right.data);
+        }
+        assert_eq!(explicit.manifest.sections, compact.manifest.sections);
+        assert_eq!(
+            decode_source_witness_section(&compact, &SourceWitnessLimits::default()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn sourced_artifact_decodes_unchanged_and_carries_the_witness() {
+        let carried = two_column_witness();
+        let compact = sourced(None);
+        let artifact = sourced(Some(&carried));
+        assert_eq!(ids(&artifact), [HEADER_SECTION, BODY_SECTION, SOURCE_WITNESS_SECTION]);
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let mut compact_bytes = Vec::new();
+        compact.write_to(&mut compact_bytes).unwrap();
+
+        let (read_back, header, body) = decode_analysis_result_artifact(&bytes).unwrap();
+        let (_, compact_header, compact_body) =
+            decode_analysis_result_artifact(&compact_bytes).unwrap();
+        assert_eq!(header, compact_header);
+        assert_eq!(body, compact_body);
+        assert_eq!(
+            artifact.manifest.minimum_reader_version,
+            compact.manifest.minimum_reader_version
+        );
+        assert_eq!(
+            decode_source_witness_section(&read_back, &SourceWitnessLimits::default()).unwrap(),
+            Some(carried)
+        );
+    }
+
+    #[test]
+    fn source_section_errors_are_typed_and_checked_before_decoding() {
+        let carried = two_column_witness();
+        let limits = SourceWitnessLimits::default();
+
+        let mut duplicated = sourced(Some(&carried));
+        let extra = duplicated.sections[2].clone();
+        let descriptor = duplicated.manifest.sections[2].clone();
+        duplicated.sections.push(extra);
+        duplicated.manifest.sections.push(descriptor);
+        refused(decode_source_witness_section(&duplicated, &limits), "duplicate section");
+
+        // Bytes that are not CBOR: only a length check ahead of decoding reports the size.
+        let mut oversized = sourced(Some(&carried));
+        oversized.sections[2].data = Arc::from(vec![0xff_u8; 4096]);
+        let tight = SourceWitnessLimits { max_bytes: 1024, ..limits };
+        refused(decode_source_witness_section(&oversized, &tight), "exceeds its size limits");
+        refused(decode_source_witness_section(&oversized, &limits), "cbor error");
+
+        // Declared sizes are re-checked after decoding.
+        let artifact = sourced(Some(&carried));
+        let few_rows = SourceWitnessLimits { max_rows: 2, ..limits };
+        refused(decode_source_witness_section(&artifact, &few_rows), "exceeds its size limits");
+
+        let mut ragged_names = carried.clone();
+        ragged_names.columns.pop();
+        refused(
+            encode_analysis_result_artifact_with_contract_and_source(
+                &fixture(),
+                vec!["a".into(), "y".into()],
+                "witnessed",
+                None,
+                Some(&ragged_names),
+            ),
+            "column count differs",
+        );
+        let mut unknown = carried;
+        unknown.format = SOURCE_WITNESS_FORMAT + 1;
+        refused(
+            encode_analysis_result_artifact_with_contract_and_source(
+                &fixture(),
+                vec!["a".into(), "y".into()],
+                "witnessed",
+                None,
+                Some(&unknown),
+            ),
+            "unsupported format",
+        );
+    }
 }

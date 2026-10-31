@@ -26,6 +26,7 @@ test-util = []
 antecedent-core = { workspace = true }
 antecedent-contract = { workspace = true }
 antecedent-counterfactual = { workspace = true }
+antecedent-data = { workspace = true }
 antecedent-discovery = { workspace = true }
 antecedent-expr = { workspace = true }
 antecedent-graph = { workspace = true }

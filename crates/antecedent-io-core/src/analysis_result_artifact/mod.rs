@@ -1465,6 +1465,45 @@ pub fn encode_analysis_result_artifact_with_contract(
     artifact_id: &str,
     contract: Option<&crate::AnalysisResultContractWire>,
 ) -> Result<EncodedArtifact, IoError> {
+    encode_analysis_result_artifact_with_contract_and_source(
+        result,
+        variable_names,
+        artifact_id,
+        contract,
+        None,
+    )
+}
+
+/// Encode a composite result, optionally attaching the contract section and the
+/// full-source witness ([`crate::SOURCE_WITNESS_SECTION`]).
+///
+/// Both sections are additive and old readers ignore them; this encoder does not
+/// raise `minimum_reader_version`. With no source the output is exactly that of
+/// [`encode_analysis_result_artifact_with_contract`]. A present source is
+/// checked against the default [`crate::SourceWitnessLimits`] and against the
+/// header names, and is packed after the contract section. Binding the witness
+/// to a data-snapshot digest is the verifier's step ([`crate::verify_source_witness`]).
+///
+/// # Errors
+///
+/// Returns an error when validation, contract binding, source-witness shape or
+/// size, or CBOR encoding fails.
+pub fn encode_analysis_result_artifact_with_contract_and_source(
+    result: &AnalysisResultWire,
+    variable_names: Vec<String>,
+    artifact_id: &str,
+    contract: Option<&crate::AnalysisResultContractWire>,
+    source: Option<&crate::SourceWitnessWire>,
+) -> Result<EncodedArtifact, IoError> {
+    if let Some(source) = source {
+        source.check_declared(&crate::SourceWitnessLimits::default())?;
+        if source.columns.len() != variable_names.len() {
+            return Err(crate::SourceWitnessError::Malformed(
+                "column count differs from variable names",
+            )
+            .into());
+        }
+    }
     validate::validate_result(result, &variable_names, false)?;
     if let Some(contract) = contract {
         crate::validate_contract_section(contract)?;
@@ -1494,6 +1533,22 @@ pub fn encode_analysis_result_artifact_with_contract(
         let payload = to_cbor(contract)?;
         let (descriptor, section) = pack_section_shared(
             crate::CONTRACT_SECTION,
+            "application/cbor",
+            payload.into(),
+            CompressPolicy::Auto,
+        );
+        sections_desc.push(descriptor);
+        sections.push(section);
+    }
+    if let Some(source) = source {
+        let payload = to_cbor(source)?;
+        if u64::try_from(payload.len()).map_err(|_| crate::SourceWitnessError::TooLarge)?
+            > crate::SourceWitnessLimits::default().max_bytes
+        {
+            return Err(crate::SourceWitnessError::TooLarge.into());
+        }
+        let (descriptor, section) = pack_section_shared(
+            crate::SOURCE_WITNESS_SECTION,
             "application/cbor",
             payload.into(),
             CompressPolicy::Auto,
@@ -1541,6 +1596,38 @@ pub fn decode_analysis_result_artifact(
     let decoded_body: AnalysisResultWire = from_cbor(&body.data)?;
     validate::validate_result(&decoded_body, &decoded_header.variable_names, true)?;
     Ok((artifact, decoded_header, decoded_body))
+}
+
+/// Decode the optional full-source witness section. Missing is `Ok(None)`.
+///
+/// The section's byte length is checked against `limits.max_bytes` before any
+/// of it is decoded, and the decoded declared sizes are checked again.
+///
+/// # Errors
+///
+/// More than one section with the witness id, a section over the byte limit,
+/// invalid CBOR, an unsupported witness format or declared sizes over `limits`.
+pub fn decode_source_witness_section(
+    artifact: &EncodedArtifact,
+    limits: &crate::SourceWitnessLimits,
+) -> Result<Option<crate::SourceWitnessWire>, IoError> {
+    let mut found =
+        artifact.sections.iter().filter(|section| section.id == crate::SOURCE_WITNESS_SECTION);
+    let Some(section) = found.next() else {
+        return Ok(None);
+    };
+    if found.next().is_some() {
+        return Err(IoError::Convert(format!(
+            "duplicate section `{}`",
+            crate::SOURCE_WITNESS_SECTION
+        )));
+    }
+    if !matches!(u64::try_from(section.data.len()), Ok(bytes) if bytes <= limits.max_bytes) {
+        return Err(crate::SourceWitnessError::TooLarge.into());
+    }
+    let witness: crate::SourceWitnessWire = from_cbor(&section.data)?;
+    witness.check_declared(limits)?;
+    Ok(Some(witness))
 }
 
 mod association;
