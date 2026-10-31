@@ -210,6 +210,7 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::CorrelationPri
 impl core::clone::Clone for antecedent_stats::adaptive_inference::DecisionReport
 impl core::clone::Clone for antecedent_stats::adaptive_inference::DecisionRules
 impl core::clone::Clone for antecedent_stats::adaptive_inference::DelayMechanism
+impl core::clone::Clone for antecedent_stats::adaptive_inference::DirichletPosterior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::Estimand
 impl core::clone::Clone for antecedent_stats::adaptive_inference::EstimandStatement
 impl core::clone::Clone for antecedent_stats::adaptive_inference::EstimatorLaw
@@ -492,6 +493,7 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CorrelationP
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::DecisionReport
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::DecisionRules
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::DelayMechanism
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::DirichletPosterior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::Estimand
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::EstimandStatement
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::EstimatorLaw
@@ -816,6 +818,7 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::CorrelationPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::DecisionReport
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::DecisionRules
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::DelayMechanism
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::DirichletPosterior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::Estimand
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::EstimandStatement
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::EstimatorLaw
@@ -1249,6 +1252,7 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::CorrelationP
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::DecisionReport [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::DecisionRules [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::DelayMechanism [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::DirichletPosterior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::Estimand [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::EstimandStatement [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::EstimatorLaw [auto]
@@ -1518,6 +1522,7 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::CorrelationPri
 impl core::marker::Send for antecedent_stats::adaptive_inference::DecisionReport [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::DecisionRules [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::DelayMechanism [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::DirichletPosterior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::Estimand [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::EstimandStatement [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::EstimatorLaw [auto]
@@ -1745,6 +1750,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::DecisionReport
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::DecisionRules
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::DelayMechanism
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::DirichletPosterior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::Estimand
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::EstimandStatement
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::EstimatorLaw
@@ -2012,6 +2018,7 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::CorrelationPri
 impl core::marker::Sync for antecedent_stats::adaptive_inference::DecisionReport [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::DecisionRules [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::DelayMechanism [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::DirichletPosterior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::Estimand [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::EstimandStatement [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::EstimatorLaw [auto]
@@ -2282,6 +2289,7 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::CorrelationPr
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::DecisionReport [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::DecisionRules [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::DelayMechanism [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::DirichletPosterior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::Estimand [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::EstimandStatement [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::EstimatorLaw [auto]
@@ -2553,6 +2561,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::DecisionReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::DecisionRules [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::DelayMechanism [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::DirichletPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::Estimand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::EstimandStatement [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::EstimatorLaw [auto]
@@ -2823,6 +2832,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::DecisionReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::DecisionRules [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::DelayMechanism [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::DirichletPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::Estimand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::EstimandStatement [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::EstimatorLaw [auto]
@@ -3131,6 +3141,8 @@ pub const antecedent_stats::adaptive_inference::DERIVED_UNMEASURED: &str
 pub const antecedent_stats::adaptive_inference::EXACT_BETA_TRIALS: u64
 pub const antecedent_stats::adaptive_inference::MAX_ADAPTIVE_UNITS: usize
 pub const antecedent_stats::adaptive_inference::MAX_BANDIT_ARMS: usize
+pub const antecedent_stats::adaptive_inference::MAX_CHOICE_COUNT: u64
+pub const antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS: usize
 pub const antecedent_stats::adaptive_inference::MAX_HISTORICAL_SOURCES: usize
 pub const antecedent_stats::adaptive_inference::MAX_HISTORICAL_TRIALS: u64
 pub const antecedent_stats::adaptive_inference::MAX_INVERSION_LAWS: usize
@@ -4268,6 +4280,16 @@ pub fn <antecedent_stats::adaptive_inference::ContractGap>::fn reason_code(self)
 pub fn <antecedent_stats::adaptive_inference::CorrelationPrior>::fn is_valid(self) -> bool
 pub fn <antecedent_stats::adaptive_inference::CorrelationPrior>::fn mean(self) -> f64
 pub fn <antecedent_stats::adaptive_inference::DelayMechanism>::const fn as_str(self) -> &'static str
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn alpha(&self) -> &[f64]
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn best_option_probabilities(&self, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn expected_losses(&self, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn from_counts(prior: &[f64], counts: &[f64]) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn log_marginal_likelihood(prior: &[f64], counts: &[f64]) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn mean(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn new(alpha: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn options(&self) -> usize
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn total(&self) -> f64
+pub fn <antecedent_stats::adaptive_inference::DirichletPosterior>::fn variance(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_stats::adaptive_inference::EstimatorLaw>::fn defined_mass(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::EstimatorLaw>::fn mean(&self) -> core::option::Option<f64>
 pub fn <antecedent_stats::adaptive_inference::EstimatorLaw>::fn probability_at_most(&self, x: f64) -> f64
@@ -4667,6 +4689,7 @@ pub mod antecedent_stats::adaptive_inference
 pub mod antecedent_stats::adaptive_inference::beta_bernoulli
 pub mod antecedent_stats::adaptive_inference::capacity
 pub mod antecedent_stats::adaptive_inference::confidence_sequence
+pub mod antecedent_stats::adaptive_inference::dirichlet_choice
 pub mod antecedent_stats::adaptive_inference::group_sequential
 pub mod antecedent_stats::adaptive_inference::historical_prior
 pub mod antecedent_stats::adaptive_inference::participant_posterior
@@ -4857,6 +4880,8 @@ pub struct antecedent_stats::adaptive_inference::ContrastPosterior
 pub struct antecedent_stats::adaptive_inference::CorrelationPrior
 pub struct antecedent_stats::adaptive_inference::DecisionReport
 pub struct antecedent_stats::adaptive_inference::DecisionRules
+pub struct antecedent_stats::adaptive_inference::DirichletPosterior
+pub struct antecedent_stats::adaptive_inference::DirichletPosterior has private fields
 pub struct antecedent_stats::adaptive_inference::EstimatorLaw
 pub struct antecedent_stats::adaptive_inference::ExactPosterior
 pub struct antecedent_stats::adaptive_inference::ExposureModel
@@ -5002,6 +5027,9 @@ pub use antecedent_stats::adaptive_inference::confidence_sequence::SequenceKind 
 pub use antecedent_stats::adaptive_inference::confidence_sequence::SequenceState = antecedent_stats::adaptive_inference::SequenceState
 pub use antecedent_stats::adaptive_inference::confidence_sequence::bounded_mean_confidence_sequence = antecedent_stats::adaptive_inference::bounded_mean_confidence_sequence
 pub use antecedent_stats::adaptive_inference::contrast_bounds = antecedent_stats::adaptive_inference::confidence_sequence::contrast_bounds
+pub use antecedent_stats::adaptive_inference::dirichlet_choice::DirichletPosterior = antecedent_stats::adaptive_inference::DirichletPosterior
+pub use antecedent_stats::adaptive_inference::dirichlet_choice::MAX_CHOICE_COUNT = antecedent_stats::adaptive_inference::MAX_CHOICE_COUNT
+pub use antecedent_stats::adaptive_inference::dirichlet_choice::MAX_CHOICE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS
 pub use antecedent_stats::adaptive_inference::expected_losses = antecedent_stats::adaptive_inference::beta_bernoulli::expected_losses
 pub use antecedent_stats::adaptive_inference::group_sequential::Boundaries = antecedent_stats::adaptive_inference::Boundaries
 pub use antecedent_stats::adaptive_inference::group_sequential::MAX_LOOKS = antecedent_stats::adaptive_inference::MAX_LOOKS

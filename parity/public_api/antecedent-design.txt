@@ -13,6 +13,7 @@
 #[non_exhaustive] pub enum antecedent_design::SensitivityMethod
 #[non_exhaustive] pub enum antecedent_design::StudyKind
 #[non_exhaustive] pub enum antecedent_design::adaptive_trial_transport::TrialMechanism
+#[non_exhaustive] pub enum antecedent_design::choice_evidence::ChoiceRefusal
 #[non_exhaustive] pub enum antecedent_design::decision_evidence::EvidenceRefusal
 #[non_exhaustive] pub enum antecedent_design::decision_reliability::ReliabilityError
 #[non_exhaustive] pub enum antecedent_design::decision_transported_source::TransportedRefusal
@@ -253,6 +254,24 @@ impl core::clone::Clone for antecedent_design::adaptive_trial_transport::Adaptiv
 impl core::clone::Clone for antecedent_design::adaptive_trial_transport::StratumArmCell
 impl core::clone::Clone for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::clone::Clone for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
+impl core::clone::Clone for antecedent_design::choice_evidence::ChoiceFrame
+impl core::clone::Clone for antecedent_design::choice_evidence::ChoiceInference
+impl core::clone::Clone for antecedent_design::choice_evidence::ChoiceMeaning
+impl core::clone::Clone for antecedent_design::choice_evidence::ChoiceObservations
+impl core::clone::Clone for antecedent_design::choice_evidence::ChoiceRefusal
+impl core::clone::Clone for antecedent_design::choice_evidence::ConflictPolicy
+impl core::clone::Clone for antecedent_design::choice_evidence::EvsiMethod
+impl core::clone::Clone for antecedent_design::choice_evidence::LifecycleRequest
+impl core::clone::Clone for antecedent_design::choice_evidence::LifecycleResult
+impl core::clone::Clone for antecedent_design::choice_evidence::LookOutcome
+impl core::clone::Clone for antecedent_design::choice_evidence::QualifiedPrior
+impl core::clone::Clone for antecedent_design::choice_evidence::QualifiedSource
+impl core::clone::Clone for antecedent_design::choice_evidence::RankingRequest
+impl core::clone::Clone for antecedent_design::choice_evidence::RetainedChoiceEvidence
+impl core::clone::Clone for antecedent_design::choice_evidence::SequentialRule
+impl core::clone::Clone for antecedent_design::choice_evidence::SourceUse
+impl core::clone::Clone for antecedent_design::choice_evidence::StudyCandidate
+impl core::clone::Clone for antecedent_design::choice_evidence::StudyRank
 impl core::clone::Clone for antecedent_design::composition_boundary::ActionDisposition
 impl core::clone::Clone for antecedent_design::composition_boundary::ActionStatus
 impl core::clone::Clone for antecedent_design::composition_boundary::AtomCombination
@@ -925,6 +944,9 @@ impl core::cmp::Eq for antecedent_design::adaptive_policy_search::StandingReques
 impl core::cmp::Eq for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::cmp::Eq for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::Eq for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
+impl core::cmp::Eq for antecedent_design::choice_evidence::ChoiceFrame
+impl core::cmp::Eq for antecedent_design::choice_evidence::ChoiceMeaning
+impl core::cmp::Eq for antecedent_design::choice_evidence::ConflictPolicy
 impl core::cmp::Eq for antecedent_design::composition_boundary::AtomCombination
 impl core::cmp::Eq for antecedent_design::composition_boundary::CalibrationStatus
 impl core::cmp::Eq for antecedent_design::composition_boundary::CompositionOperation
@@ -1307,6 +1329,24 @@ impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::Adapt
 impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::StratumArmCell
 impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::PartialEq for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::ChoiceFrame
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::ChoiceInference
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::ChoiceMeaning
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::ChoiceObservations
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::ChoiceRefusal
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::ConflictPolicy
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::EvsiMethod
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::LifecycleRequest
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::LifecycleResult
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::LookOutcome
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::QualifiedPrior
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::QualifiedSource
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::RankingRequest
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::RetainedChoiceEvidence
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::SequentialRule
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::SourceUse
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::StudyCandidate
+impl core::cmp::PartialEq for antecedent_design::choice_evidence::StudyRank
 impl core::cmp::PartialEq for antecedent_design::composition_boundary::ActionDisposition
 impl core::cmp::PartialEq for antecedent_design::composition_boundary::ActionStatus
 impl core::cmp::PartialEq for antecedent_design::composition_boundary::AtomCombination
@@ -1907,6 +1947,7 @@ impl core::convert::From<antecedent_identify::sid::study_planning::StudyPlanRefu
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::ZTransportPlanningError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::composition_bundle::BundleError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
+impl core::convert::From<antecedent_stats::adaptive_inference::AdaptiveInferenceError> for antecedent_design::choice_evidence::ChoiceRefusal
 impl core::convert::TryFrom<&antecedent_design::design_ranking_artifact::EvsiCandidateWire> for antecedent_design::ranking::EvsiRankRow
 impl core::default::Default for antecedent_design::BinomialSignal
 impl core::default::Default for antecedent_design::DesignConstraints
@@ -1967,6 +2008,7 @@ impl core::error::Error for antecedent_design::StudyPlanError
 impl core::error::Error for antecedent_design::ZTransportPlanningError
 impl core::error::Error for antecedent_design::adaptive_policy::AdaptivePolicyError
 impl core::error::Error for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError
+impl core::error::Error for antecedent_design::choice_evidence::ChoiceRefusal
 impl core::error::Error for antecedent_design::composition_bundle::BundleError
 impl core::error::Error for antecedent_design::decision_evaluation::DemandSourceError
 impl core::error::Error for antecedent_design::decision_evaluation::EvaluationError
@@ -2145,6 +2187,24 @@ impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::AdaptiveT
 impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::StratumArmCell
 impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::fmt::Debug for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
+impl core::fmt::Debug for antecedent_design::choice_evidence::ChoiceFrame
+impl core::fmt::Debug for antecedent_design::choice_evidence::ChoiceInference
+impl core::fmt::Debug for antecedent_design::choice_evidence::ChoiceMeaning
+impl core::fmt::Debug for antecedent_design::choice_evidence::ChoiceObservations
+impl core::fmt::Debug for antecedent_design::choice_evidence::ChoiceRefusal
+impl core::fmt::Debug for antecedent_design::choice_evidence::ConflictPolicy
+impl core::fmt::Debug for antecedent_design::choice_evidence::EvsiMethod
+impl core::fmt::Debug for antecedent_design::choice_evidence::LifecycleRequest
+impl core::fmt::Debug for antecedent_design::choice_evidence::LifecycleResult
+impl core::fmt::Debug for antecedent_design::choice_evidence::LookOutcome
+impl core::fmt::Debug for antecedent_design::choice_evidence::QualifiedPrior
+impl core::fmt::Debug for antecedent_design::choice_evidence::QualifiedSource
+impl core::fmt::Debug for antecedent_design::choice_evidence::RankingRequest
+impl core::fmt::Debug for antecedent_design::choice_evidence::RetainedChoiceEvidence
+impl core::fmt::Debug for antecedent_design::choice_evidence::SequentialRule
+impl core::fmt::Debug for antecedent_design::choice_evidence::SourceUse
+impl core::fmt::Debug for antecedent_design::choice_evidence::StudyCandidate
+impl core::fmt::Debug for antecedent_design::choice_evidence::StudyRank
 impl core::fmt::Debug for antecedent_design::composition_boundary::ActionDisposition
 impl core::fmt::Debug for antecedent_design::composition_boundary::ActionStatus
 impl core::fmt::Debug for antecedent_design::composition_boundary::AtomCombination
@@ -2766,6 +2826,7 @@ impl core::fmt::Display for antecedent_design::StudyPlanError
 impl core::fmt::Display for antecedent_design::ZTransportPlanningError
 impl core::fmt::Display for antecedent_design::adaptive_policy::AdaptivePolicyError
 impl core::fmt::Display for antecedent_design::adaptive_policy_search::AdaptivePolicySearchError
+impl core::fmt::Display for antecedent_design::choice_evidence::ChoiceRefusal
 impl core::fmt::Display for antecedent_design::composition_bundle::BundleError
 impl core::fmt::Display for antecedent_design::decision_eval::DecisionEvalError
 impl core::fmt::Display for antecedent_design::decision_evaluation::DemandSourceError
@@ -2866,6 +2927,9 @@ impl core::marker::Copy for antecedent_design::adaptive_policy_search::SearchSto
 impl core::marker::Copy for antecedent_design::adaptive_policy_search::StandingRequest
 impl core::marker::Copy for antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises
 impl core::marker::Copy for antecedent_design::adaptive_trial_transport::TrialMechanism
+impl core::marker::Copy for antecedent_design::choice_evidence::ChoiceMeaning
+impl core::marker::Copy for antecedent_design::choice_evidence::ConflictPolicy
+impl core::marker::Copy for antecedent_design::choice_evidence::EvsiMethod
 impl core::marker::Copy for antecedent_design::composition_boundary::AtomCombination
 impl core::marker::Copy for antecedent_design::composition_boundary::CalibrationStatus
 impl core::marker::Copy for antecedent_design::composition_boundary::CompositionOperation
@@ -3205,6 +3269,24 @@ impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::Adapt
 impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
 impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::TrialMechanism [auto]
 impl core::marker::Freeze for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::ChoiceFrame [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::ChoiceInference [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::ChoiceMeaning [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::ChoiceObservations [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::ChoiceRefusal [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::ConflictPolicy [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::EvsiMethod [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::LifecycleRequest [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::LifecycleResult [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::LookOutcome [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::QualifiedPrior [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::QualifiedSource [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::RankingRequest [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::RetainedChoiceEvidence [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::SequentialRule [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::SourceUse [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::StudyCandidate [auto]
+impl core::marker::Freeze for antecedent_design::choice_evidence::StudyRank [auto]
 impl core::marker::Freeze for antecedent_design::composition_boundary::ActionDisposition [auto]
 impl core::marker::Freeze for antecedent_design::composition_boundary::ActionStatus [auto]
 impl core::marker::Freeze for antecedent_design::composition_boundary::AtomCombination [auto]
@@ -3976,6 +4058,24 @@ impl core::marker::Send for antecedent_design::adaptive_trial_transport::Adaptiv
 impl core::marker::Send for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
 impl core::marker::Send for antecedent_design::adaptive_trial_transport::TrialMechanism [auto]
 impl core::marker::Send for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::ChoiceFrame [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::ChoiceInference [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::ChoiceMeaning [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::ChoiceObservations [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::ChoiceRefusal [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::ConflictPolicy [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::EvsiMethod [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::LifecycleRequest [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::LifecycleResult [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::LookOutcome [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::QualifiedPrior [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::QualifiedSource [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::RankingRequest [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::RetainedChoiceEvidence [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::SequentialRule [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::SourceUse [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::StudyCandidate [auto]
+impl core::marker::Send for antecedent_design::choice_evidence::StudyRank [auto]
 impl core::marker::Send for antecedent_design::composition_boundary::ActionDisposition [auto]
 impl core::marker::Send for antecedent_design::composition_boundary::ActionStatus [auto]
 impl core::marker::Send for antecedent_design::composition_boundary::AtomCombination [auto]
@@ -4710,6 +4810,24 @@ impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_tra
 impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_transport::StratumArmCell
 impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::marker::StructuralPartialEq for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::ChoiceFrame
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::ChoiceInference
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::ChoiceMeaning
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::ChoiceObservations
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::ChoiceRefusal
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::ConflictPolicy
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::EvsiMethod
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::LifecycleRequest
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::LifecycleResult
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::LookOutcome
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::QualifiedPrior
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::QualifiedSource
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::RankingRequest
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::RetainedChoiceEvidence
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::SequentialRule
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::SourceUse
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::StudyCandidate
+impl core::marker::StructuralPartialEq for antecedent_design::choice_evidence::StudyRank
 impl core::marker::StructuralPartialEq for antecedent_design::composition_boundary::ActionDisposition
 impl core::marker::StructuralPartialEq for antecedent_design::composition_boundary::ActionStatus
 impl core::marker::StructuralPartialEq for antecedent_design::composition_boundary::AtomCombination
@@ -5415,6 +5533,24 @@ impl core::marker::Sync for antecedent_design::adaptive_trial_transport::Adaptiv
 impl core::marker::Sync for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
 impl core::marker::Sync for antecedent_design::adaptive_trial_transport::TrialMechanism [auto]
 impl core::marker::Sync for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::ChoiceFrame [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::ChoiceInference [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::ChoiceMeaning [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::ChoiceObservations [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::ChoiceRefusal [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::ConflictPolicy [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::EvsiMethod [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::LifecycleRequest [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::LifecycleResult [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::LookOutcome [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::QualifiedPrior [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::QualifiedSource [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::RankingRequest [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::RetainedChoiceEvidence [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::SequentialRule [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::SourceUse [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::StudyCandidate [auto]
+impl core::marker::Sync for antecedent_design::choice_evidence::StudyRank [auto]
 impl core::marker::Sync for antecedent_design::composition_boundary::ActionDisposition [auto]
 impl core::marker::Sync for antecedent_design::composition_boundary::ActionStatus [auto]
 impl core::marker::Sync for antecedent_design::composition_boundary::AtomCombination [auto]
@@ -6185,6 +6321,24 @@ impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::Adapti
 impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
 impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::TrialMechanism [auto]
 impl core::marker::Unpin for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::ChoiceFrame [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::ChoiceInference [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::ChoiceMeaning [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::ChoiceObservations [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::ChoiceRefusal [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::ConflictPolicy [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::EvsiMethod [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::LifecycleRequest [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::LifecycleResult [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::LookOutcome [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::QualifiedPrior [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::QualifiedSource [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::RankingRequest [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::RetainedChoiceEvidence [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::SequentialRule [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::SourceUse [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::StudyCandidate [auto]
+impl core::marker::Unpin for antecedent_design::choice_evidence::StudyRank [auto]
 impl core::marker::Unpin for antecedent_design::composition_boundary::ActionDisposition [auto]
 impl core::marker::Unpin for antecedent_design::composition_boundary::ActionStatus [auto]
 impl core::marker::Unpin for antecedent_design::composition_boundary::AtomCombination [auto]
@@ -6956,6 +7110,24 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_tri
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::TrialMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::ChoiceFrame [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::ChoiceInference [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::ChoiceMeaning [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::ChoiceObservations [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::ChoiceRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::ConflictPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::EvsiMethod [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::LifecycleRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::LifecycleResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::LookOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::QualifiedPrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::QualifiedSource [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::RankingRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::RetainedChoiceEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::SequentialRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::SourceUse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::StudyCandidate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::choice_evidence::StudyRank [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_boundary::ActionDisposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_boundary::ActionStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_boundary::AtomCombination [auto]
@@ -7716,6 +7888,24 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::StratumArmCell [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::TrialMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::adaptive_trial_transport::TrialSelectionDiagram [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::ChoiceFrame [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::ChoiceInference [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::ChoiceMeaning [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::ChoiceObservations [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::ChoiceRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::ConflictPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::EvsiMethod [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::LifecycleRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::LifecycleResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::LookOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::QualifiedPrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::QualifiedSource [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::RankingRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::RetainedChoiceEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::SequentialRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::SourceUse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::StudyCandidate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::choice_evidence::StudyRank [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_boundary::ActionDisposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_boundary::ActionStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_boundary::AtomCombination [auto]
@@ -8918,6 +9108,14 @@ pub const antecedent_design::adaptive_policy::MAX_POLICY_FEATURES: usize
 pub const antecedent_design::adaptive_policy::MAX_SCHEDULE_STEPS: usize
 pub const antecedent_design::adaptive_policy::MAX_TREE_DEPTH: u32
 pub const antecedent_design::adaptive_trial_transport::ADAPTIVE_TRANSPORT_IDENTITY_VERSION: u64
+pub const antecedent_design::choice_evidence::CONFLICT_LOG_BAYES_FACTOR: f64
+pub const antecedent_design::choice_evidence::CONFLICT_STATEMENT: &str
+pub const antecedent_design::choice_evidence::MAX_EXACT_COMPOSITIONS: u64
+pub const antecedent_design::choice_evidence::MAX_MONTE_CARLO_STUDY: u32
+pub const antecedent_design::choice_evidence::MAX_SOURCES: usize
+pub const antecedent_design::choice_evidence::MEANING_STATEMENT: &str
+pub const antecedent_design::choice_evidence::MONTE_CARLO_DRAWS: usize
+pub const antecedent_design::choice_evidence::STOPPING_STATEMENT: &str
 pub const antecedent_design::composition_bundle::FACT_EVIDENCE_DIGEST: &str
 pub const antecedent_design::composition_bundle::FACT_LAW: &str
 pub const antecedent_design::composition_bundle::FACT_QUANTITY_DIGEST: &str
@@ -9116,6 +9314,10 @@ pub enum antecedent_design::adaptive_policy_search::PolicyObjective
 pub enum antecedent_design::adaptive_policy_search::PolicyStanding
 pub enum antecedent_design::adaptive_policy_search::SearchStop
 pub enum antecedent_design::adaptive_policy_search::StandingRequest
+pub enum antecedent_design::choice_evidence::ChoiceMeaning
+pub enum antecedent_design::choice_evidence::ConflictPolicy
+pub enum antecedent_design::choice_evidence::EvsiMethod
+pub enum antecedent_design::choice_evidence::LookOutcome
 pub enum antecedent_design::composition_boundary::ActionStatus
 pub enum antecedent_design::composition_boundary::AtomCombination
 pub enum antecedent_design::composition_boundary::AtomPlan
@@ -9843,6 +10045,66 @@ pub field antecedent_design::adaptive_trial_transport::StratumArmCell::weight_su
 pub field antecedent_design::adaptive_trial_transport::TrialSelectionDiagram::mechanisms: alloc::vec::Vec<(antecedent_design::adaptive_trial_transport::TrialMechanism, antecedent_design::transported_policy::MechanismStatus)>
 pub field antecedent_design::adaptive_trial_transport::TrialSelectionDiagram::source_population: alloc::string::String
 pub field antecedent_design::adaptive_trial_transport::TrialSelectionDiagram::target_population: alloc::string::String
+pub field antecedent_design::choice_evidence::ChoiceFrame::meaning: antecedent_design::choice_evidence::ChoiceMeaning
+pub field antecedent_design::choice_evidence::ChoiceFrame::options: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::choice_evidence::ChoiceFrame::population: alloc::string::String
+pub field antecedent_design::choice_evidence::ChoiceInference::expected_loss: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::ChoiceInference::frame: antecedent_design::choice_evidence::ChoiceFrame
+pub field antecedent_design::choice_evidence::ChoiceInference::lineage: alloc::string::String
+pub field antecedent_design::choice_evidence::ChoiceInference::mean: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::ChoiceInference::observations: f64
+pub field antecedent_design::choice_evidence::ChoiceInference::posterior: antecedent_stats::adaptive_inference::dirichlet_choice::DirichletPosterior
+pub field antecedent_design::choice_evidence::ChoiceInference::probability_best: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::ChoiceInference::statements: alloc::vec::Vec<&'static str>
+pub field antecedent_design::choice_evidence::ChoiceObservations::counts: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::ChoiceObservations::observation_id: alloc::string::String
+pub field antecedent_design::choice_evidence::LifecycleRequest::conflict_policy: antecedent_design::choice_evidence::ConflictPolicy
+pub field antecedent_design::choice_evidence::LifecycleRequest::frame: antecedent_design::choice_evidence::ChoiceFrame
+pub field antecedent_design::choice_evidence::LifecycleRequest::initial: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::LifecycleRequest::observations: core::option::Option<antecedent_design::choice_evidence::ChoiceObservations>
+pub field antecedent_design::choice_evidence::LifecycleRequest::ranking: core::option::Option<antecedent_design::choice_evidence::RankingRequest>
+pub field antecedent_design::choice_evidence::LifecycleRequest::rule: core::option::Option<antecedent_design::choice_evidence::SequentialRule>
+pub field antecedent_design::choice_evidence::LifecycleRequest::sources: alloc::vec::Vec<antecedent_design::choice_evidence::SourceUse>
+pub field antecedent_design::choice_evidence::LifecycleResult::inference: core::option::Option<antecedent_design::choice_evidence::ChoiceInference>
+pub field antecedent_design::choice_evidence::LifecycleResult::look: core::option::Option<antecedent_design::choice_evidence::LookOutcome>
+pub field antecedent_design::choice_evidence::LifecycleResult::prior: antecedent_design::choice_evidence::QualifiedPrior
+pub field antecedent_design::choice_evidence::LifecycleResult::ranking: core::option::Option<alloc::vec::Vec<antecedent_design::choice_evidence::StudyRank>>
+pub field antecedent_design::choice_evidence::LifecycleResult::stopping_statement: core::option::Option<&'static str>
+pub field antecedent_design::choice_evidence::QualifiedPrior::alpha: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::QualifiedPrior::borrowed_observations: f64
+pub field antecedent_design::choice_evidence::QualifiedPrior::frame: antecedent_design::choice_evidence::ChoiceFrame
+pub field antecedent_design::choice_evidence::QualifiedPrior::sources: alloc::vec::Vec<antecedent_design::choice_evidence::QualifiedSource>
+pub field antecedent_design::choice_evidence::QualifiedPrior::statements: alloc::vec::Vec<&'static str>
+pub field antecedent_design::choice_evidence::QualifiedSource::conflict_log_bayes_factor: f64
+pub field antecedent_design::choice_evidence::QualifiedSource::conflicting: bool
+pub field antecedent_design::choice_evidence::QualifiedSource::discount: f64
+pub field antecedent_design::choice_evidence::QualifiedSource::label: alloc::string::String
+pub field antecedent_design::choice_evidence::QualifiedSource::observation_id: alloc::string::String
+pub field antecedent_design::choice_evidence::QualifiedSource::transferred: bool
+pub field antecedent_design::choice_evidence::RankingRequest::candidates: alloc::vec::Vec<antecedent_design::choice_evidence::StudyCandidate>
+pub field antecedent_design::choice_evidence::RankingRequest::seed: u64
+pub field antecedent_design::choice_evidence::RankingRequest::values: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::RetainedChoiceEvidence::counts: alloc::vec::Vec<f64>
+pub field antecedent_design::choice_evidence::RetainedChoiceEvidence::frame: antecedent_design::choice_evidence::ChoiceFrame
+pub field antecedent_design::choice_evidence::RetainedChoiceEvidence::label: alloc::string::String
+pub field antecedent_design::choice_evidence::RetainedChoiceEvidence::observation_id: alloc::string::String
+pub field antecedent_design::choice_evidence::SequentialRule::allocation_floor: f64
+pub field antecedent_design::choice_evidence::SequentialRule::max_expected_loss: f64
+pub field antecedent_design::choice_evidence::SequentialRule::max_observations: f64
+pub field antecedent_design::choice_evidence::SequentialRule::min_observations: f64
+pub field antecedent_design::choice_evidence::SequentialRule::min_probability_best: f64
+pub field antecedent_design::choice_evidence::SourceUse::discount: f64
+pub field antecedent_design::choice_evidence::SourceUse::evidence: antecedent_design::choice_evidence::RetainedChoiceEvidence
+pub field antecedent_design::choice_evidence::SourceUse::transfer_rationale: core::option::Option<alloc::string::String>
+pub field antecedent_design::choice_evidence::StudyCandidate::cost: f64
+pub field antecedent_design::choice_evidence::StudyCandidate::label: alloc::string::String
+pub field antecedent_design::choice_evidence::StudyCandidate::observations: u32
+pub field antecedent_design::choice_evidence::StudyRank::candidate: antecedent_design::choice_evidence::StudyCandidate
+pub field antecedent_design::choice_evidence::StudyRank::evsi: f64
+pub field antecedent_design::choice_evidence::StudyRank::method: antecedent_design::choice_evidence::EvsiMethod
+pub field antecedent_design::choice_evidence::StudyRank::net_value: f64
+pub field antecedent_design::choice_evidence::StudyRank::rank_uncertain: bool
+pub field antecedent_design::choice_evidence::StudyRank::standard_error: f64
 pub field antecedent_design::composition_boundary::ActionDisposition::id: alloc::string::String
 pub field antecedent_design::composition_boundary::ActionDisposition::input_id: core::option::Option<alloc::string::String>
 pub field antecedent_design::composition_boundary::ActionDisposition::status: antecedent_design::composition_boundary::ActionStatus
@@ -12002,6 +12264,14 @@ pub fn <antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch>
 pub fn <antecedent_design::adaptive_policy_search::PreparedAdaptivePolicySearch>::fn verify_replay(&self, recorded: &antecedent_design::adaptive_policy_search::AdaptivePolicySearchResult, source: &dyn antecedent_design::adaptive_policy_search::PolicyRolloutSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<bool, antecedent_design::adaptive_policy_search::AdaptivePolicySearchError>
 pub fn <antecedent_design::adaptive_trial_transport::TrialMechanism>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::adaptive_trial_transport::TrialSelectionDiagram>::fn identity_hex(&self) -> alloc::string::String
+pub fn <antecedent_design::choice_evidence::ChoiceRefusal>::fn next_attempt(&self) -> &'static str
+pub fn <antecedent_design::choice_evidence::ChoiceRefusal>::fn reason_code(&self) -> &'static str
+pub fn <antecedent_design::choice_evidence::ChoiceRefusal>::fn registered_code(&self) -> &'static str
+pub fn <antecedent_design::choice_evidence::QualifiedPrior>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_design::choice_evidence::QualifiedPrior>::fn has_conflict(&self) -> bool
+pub fn <antecedent_design::choice_evidence::QualifiedPrior>::fn observation_ids(&self) -> alloc::collections::btree::set::BTreeSet<&str>
+pub fn <antecedent_design::choice_evidence::RetainedChoiceEvidence>::fn from_posterior(label: impl core::convert::Into<alloc::string::String>, frame: antecedent_design::choice_evidence::ChoiceFrame, posterior: &antecedent_stats::adaptive_inference::dirichlet_choice::DirichletPosterior, prior: &[f64], observation_id: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, antecedent_design::choice_evidence::ChoiceRefusal>
+pub fn <antecedent_design::choice_evidence::SequentialRule>::fn evaluate(&self, inference: &antecedent_design::choice_evidence::ChoiceInference) -> core::result::Result<antecedent_design::choice_evidence::LookOutcome, antecedent_design::choice_evidence::ChoiceRefusal>
 pub fn <antecedent_design::composition_boundary::BoundaryError>::fn reason_code(&self) -> &'static str
 pub fn <antecedent_design::composition_boundary::BoundaryError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::composition_boundary::CoordinateIssue>::const fn detail(self) -> &'static str
@@ -12532,6 +12802,10 @@ pub fn antecedent_design::adaptive_trial_transport::transport_adaptive_trial(req
 pub fn antecedent_design::adaptive_trial_transport::verify_adaptive_transport(estimate: &antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate, request: &antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'_>) -> antecedent_design::sequential_evaluation::SequentialResult<()>
 pub fn antecedent_design::candidate_generation::generate_candidates(obligations: &[antecedent_contract::evidence_obligation::EvidenceObligation]) -> antecedent_design::CandidateGeneration
 pub fn antecedent_design::candidate_generation::verified_unlocks(report: &antecedent_design::RepairReport, candidates: &[antecedent_design::DurableStudyCandidate], base_law: &[antecedent_core::ids::VariableId]) -> antecedent_design::VerifiedUnlocks
+pub fn antecedent_design::choice_evidence::evaluate_lifecycle(request: &antecedent_design::choice_evidence::LifecycleRequest, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_design::choice_evidence::LifecycleResult, antecedent_design::choice_evidence::ChoiceRefusal>
+pub fn antecedent_design::choice_evidence::qualify_prior(target: &antecedent_design::choice_evidence::ChoiceFrame, initial: &[f64], uses: &[antecedent_design::choice_evidence::SourceUse], policy: antecedent_design::choice_evidence::ConflictPolicy) -> core::result::Result<antecedent_design::choice_evidence::QualifiedPrior, antecedent_design::choice_evidence::ChoiceRefusal>
+pub fn antecedent_design::choice_evidence::rank_studies(inference: &antecedent_design::choice_evidence::ChoiceInference, values: &[f64], candidates: &[antecedent_design::choice_evidence::StudyCandidate], seed: u64) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evidence::StudyRank>, antecedent_design::choice_evidence::ChoiceRefusal>
+pub fn antecedent_design::choice_evidence::update(prior: &antecedent_design::choice_evidence::QualifiedPrior, observations: &antecedent_design::choice_evidence::ChoiceObservations, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_design::choice_evidence::ChoiceInference, antecedent_design::choice_evidence::ChoiceRefusal>
 pub fn antecedent_design::cohort_decision_input::cohort_decision_input(id: &str, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<antecedent_design::composition_boundary::DecisionInput, antecedent_design::composition_boundary::BoundaryError>
 pub fn antecedent_design::cohort_decision_input::cohort_forward_claim(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> core::result::Result<antecedent_design::inverse_query::ForwardClaim, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn antecedent_design::cohort_decision_input::cohort_mean_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> antecedent_design::decision_eval::MeanSource
@@ -12693,6 +12967,7 @@ pub mod antecedent_design::adaptive_policy_search
 pub mod antecedent_design::adaptive_trial_transport
 pub mod antecedent_design::candidate
 pub mod antecedent_design::candidate_generation
+pub mod antecedent_design::choice_evidence
 pub mod antecedent_design::cohort_decision_input
 pub mod antecedent_design::composition_boundary
 pub mod antecedent_design::composition_bundle
@@ -12925,6 +13200,19 @@ pub struct antecedent_design::adaptive_trial_transport::AdaptiveTransportPremise
 pub struct antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a>
 pub struct antecedent_design::adaptive_trial_transport::StratumArmCell
 pub struct antecedent_design::adaptive_trial_transport::TrialSelectionDiagram
+pub struct antecedent_design::choice_evidence::ChoiceFrame
+pub struct antecedent_design::choice_evidence::ChoiceInference
+pub struct antecedent_design::choice_evidence::ChoiceObservations
+pub struct antecedent_design::choice_evidence::LifecycleRequest
+pub struct antecedent_design::choice_evidence::LifecycleResult
+pub struct antecedent_design::choice_evidence::QualifiedPrior
+pub struct antecedent_design::choice_evidence::QualifiedSource
+pub struct antecedent_design::choice_evidence::RankingRequest
+pub struct antecedent_design::choice_evidence::RetainedChoiceEvidence
+pub struct antecedent_design::choice_evidence::SequentialRule
+pub struct antecedent_design::choice_evidence::SourceUse
+pub struct antecedent_design::choice_evidence::StudyCandidate
+pub struct antecedent_design::choice_evidence::StudyRank
 pub struct antecedent_design::composition_boundary::ActionDisposition
 pub struct antecedent_design::composition_boundary::CompositionReceipt
 pub struct antecedent_design::composition_boundary::DecisionInput
@@ -13933,6 +14221,22 @@ pub variant antecedent_design::adaptive_policy_search::StandingRequest::FittedMo
 pub variant antecedent_design::adaptive_policy_search::StandingRequest::IdentifiedPolicyEffect
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::OutcomeGivenStratumAndArm
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::StratumLaw
+pub variant antecedent_design::choice_evidence::ChoiceMeaning::ObservedBehavior
+pub variant antecedent_design::choice_evidence::ChoiceMeaning::StatedPreference
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::Conflict(alloc::string::String, f64)
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::Inference(alloc::string::String)
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::Invalid(alloc::string::String)
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::MeaningMismatch(alloc::string::String)
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::OverlappingObservations(alloc::string::String)
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::ParameterizationMismatch(alloc::string::String)
+pub variant antecedent_design::choice_evidence::ChoiceRefusal::PopulationMismatch(alloc::string::String)
+pub variant antecedent_design::choice_evidence::ConflictPolicy::Refuse
+pub variant antecedent_design::choice_evidence::ConflictPolicy::Report
+pub variant antecedent_design::choice_evidence::EvsiMethod::Exact { compositions: u64 }
+pub variant antecedent_design::choice_evidence::EvsiMethod::MonteCarlo { draws: usize }
+pub variant antecedent_design::choice_evidence::LookOutcome::BudgetExhausted
+pub variant antecedent_design::choice_evidence::LookOutcome::Continue { allocation: alloc::vec::Vec<f64> }
+pub variant antecedent_design::choice_evidence::LookOutcome::Select { option: usize }
 pub variant antecedent_design::composition_boundary::ActionStatus::Evaluated
 pub variant antecedent_design::composition_boundary::ActionStatus::Unevaluated { reason: antecedent_design::composition_boundary::UnevaluatedReason }
 pub variant antecedent_design::composition_boundary::ActionStatus::Unsupported { reasons: alloc::vec::Vec<antecedent_design::composition_boundary::UnsupportedReason> }

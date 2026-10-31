@@ -16116,6 +16116,7 @@ pub mod antecedent::analysis::typed_transported_mechanism
 pub mod antecedent::analysis::vector_treatment
 pub mod antecedent::bootstrap_retention
 pub mod antecedent::callback_plan
+pub mod antecedent::choice_evidence
 pub mod antecedent::class_prior
 pub mod antecedent::counterfactual_id
 pub mod antecedent::cross_world
@@ -19579,6 +19580,8 @@ pub use antecedent::analysis::vector_treatment::WaldWire = antecedent_io::vector
 pub use antecedent::analysis::verification_holds = antecedent::analysis::provider_callbacks::verification_holds
 pub use antecedent::assess_robustness = super::assess_robustness
 pub use antecedent::check_derived_treatment = antecedent::analysis::api::check_derived_treatment
+pub use antecedent::choice_evidence::DirichletPosterior = antecedent_stats::adaptive_inference::DirichletPosterior
+pub use antecedent::choice_evidence::MAX_CHOICE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS
 pub use antecedent::class_prior::ClassPrior = antecedent::ClassPrior
 pub use antecedent::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
 pub use antecedent::compose_checked_study_claims = antecedent::analysis::api::compose_checked_study_claims
