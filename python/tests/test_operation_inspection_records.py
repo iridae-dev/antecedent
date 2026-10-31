@@ -57,9 +57,22 @@ def test_temporal_class_mediation_publishes_its_class_proof_and_per_horizon_targ
     assert operation["validation"] == "none"
     assert operation["bootstrap_replicates"] == 0
     assert operation["horizons"] == horizons
-    assert operation["atom_count"] == 1
-    assert operation["identified_mass"] + operation["unidentified_mass"] == pytest.approx(1.0)
-    assert operation["identified_mass"] == pytest.approx(1.0)
+    masses = operation["proof_masses"]
+    assert [record["horizon"] for record in masses] == horizons
+    for record in masses:
+        assert record["atom_count"] == 1
+        assert record["basis"] == "completion_enumeration_weight"
+        assert record["identified_mass"] == pytest.approx(1.0)
+        assert record["unidentified_mass"] == pytest.approx(0.0)
+        assert record["truncated_completions"] == 0
+    if len(horizons) == 1:
+        assert operation["atom_count"] == 1
+        assert operation["identified_mass"] == pytest.approx(1.0)
+        assert operation["unidentified_mass"] == pytest.approx(0.0)
+    else:
+        assert operation["atom_count"] is None
+        assert operation["identified_mass"] is None
+        assert operation["unidentified_mass"] is None
     assert operation["proof_signature"].startswith("class=TemporalCpdag;")
     # One scientific target per horizon: the same single completion, proved identified.
     targets = operation["scientific_targets"]

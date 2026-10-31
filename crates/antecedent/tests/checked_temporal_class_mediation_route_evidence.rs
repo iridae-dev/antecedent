@@ -221,9 +221,14 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordina
                 assert_eq!(plan.validation, suite, "{case}");
                 assert_eq!(plan.bootstrap_replicates, 8, "{case}");
                 assert_eq!(plan.horizons.as_ref(), &[1], "{case}");
-                assert_eq!(plan.atom_count, 1, "{case}: one oriented completion");
-                assert!((plan.identified_mass - 1.0).abs() < 1e-12, "{case}");
-                assert!(plan.unidentified_mass.abs() < 1e-12, "{case}");
+                assert_eq!(plan.proof_masses.len(), 1);
+                assert_eq!(plan.proof_masses[0].horizon, 1);
+                assert_eq!(plan.proof_masses[0].atom_count, plan.atom_count.unwrap());
+                assert_eq!(plan.proof_masses[0].identified_mass, plan.identified_mass.unwrap());
+                assert_eq!(plan.proof_masses[0].unidentified_mass, plan.unidentified_mass.unwrap());
+                assert_eq!(plan.atom_count, Some(1), "{case}: one oriented completion");
+                assert!((plan.identified_mass.unwrap() - 1.0).abs() < 1e-12, "{case}");
+                assert!(plan.unidentified_mass.unwrap().abs() < 1e-12, "{case}");
 
                 let first = prepared.estimate_series(&initial, &context).unwrap();
                 assert!(
@@ -443,7 +448,7 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                 assert_eq!(plan.estimator, expected_estimator, "{case}");
                 assert_eq!(plan.validation, suite, "{case}");
                 assert_eq!(plan.bootstrap_replicates, 8, "{case}");
-                assert_eq!(plan.atom_count, 2, "{case}: both posterior atoms retained");
+                assert_eq!(plan.atom_count, Some(2), "{case}: both posterior atoms retained");
                 let atom_weights = plan
                     .scientific_targets
                     .iter()
@@ -460,13 +465,14 @@ fn checked_temporal_class_mediation_lifecycle_covers_all_graph_posterior_coordin
                 );
 
                 assert!(
-                    (plan.unidentified_mass - pin.unidentified_mass).abs() < 1e-12,
+                    (plan.unidentified_mass.unwrap() - pin.unidentified_mass).abs() < 1e-12,
                     "{case}: unidentified mass {} vs pin {}",
-                    plan.unidentified_mass,
+                    plan.unidentified_mass.unwrap(),
                     pin.unidentified_mass
                 );
                 assert!(
-                    (plan.identified_mass + plan.unidentified_mass - 1.0).abs() < 1e-12,
+                    (plan.identified_mass.unwrap() + plan.unidentified_mass.unwrap() - 1.0).abs()
+                        < 1e-12,
                     "{case}"
                 );
 

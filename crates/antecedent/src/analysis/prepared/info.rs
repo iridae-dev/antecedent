@@ -41,7 +41,8 @@ pub use crate::analysis::execute::{
     CheckedStaticDagResponseInfo, CheckedStaticMediationInfo, CheckedTemporalClassEffectInfo,
     CheckedTemporalClassMediationInfo, CheckedTemporalDagEffectInfo,
     CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
-    CheckedTemporalMediationTargetInfo,
+    CheckedTemporalMediationProofMass, CheckedTemporalMediationTargetInfo,
+    TemporalMediationProofMassBasis,
 };
 
 /// The sealed operation a prepared handle retained, read without executing it.

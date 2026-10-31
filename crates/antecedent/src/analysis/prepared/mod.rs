@@ -54,7 +54,8 @@ pub use info::{
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalClassResponseInfo, CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo,
     CheckedTemporalGraphPosteriorEffectInfo, CheckedTemporalGraphPosteriorResponseInfo,
-    CheckedTemporalMediationInfo, CheckedTemporalMediationTargetInfo,
+    CheckedTemporalMediationInfo, CheckedTemporalMediationProofMass,
+    CheckedTemporalMediationTargetInfo, TemporalMediationProofMassBasis,
 };
 pub use info::{
     CheckedDerivativeResponseInfo, CheckedPropensityInfo, CheckedStaticDagResponseInfo,

@@ -289,6 +289,7 @@ impl core::clone::Clone for antecedent::CheckedStaticClassResponseInfo
 impl core::clone::Clone for antecedent::CheckedStudyClaim
 impl core::clone::Clone for antecedent::CheckedTemporalClassMediationInfo
 impl core::clone::Clone for antecedent::CheckedTemporalMediationInfo
+impl core::clone::Clone for antecedent::CheckedTemporalMediationProofMass
 impl core::clone::Clone for antecedent::CheckedTemporalMediationTargetInfo
 impl core::clone::Clone for antecedent::CheckedTransportTrialInfo
 impl core::clone::Clone for antecedent::CheckedUnknownTieredAverageInfo
@@ -511,6 +512,7 @@ impl core::clone::Clone for antecedent::SyntheticDidEstimate
 impl core::clone::Clone for antecedent::TargetDirection
 impl core::clone::Clone for antecedent::TemporalDesignEstimate
 impl core::clone::Clone for antecedent::TemporalInitialState
+impl core::clone::Clone for antecedent::TemporalMediationProofMassBasis
 impl core::clone::Clone for antecedent::TemporalPosition
 impl core::clone::Clone for antecedent::TemporalWindow
 impl core::clone::Clone for antecedent::TidyKind
@@ -1160,6 +1162,7 @@ impl core::cmp::Eq for antecedent::SupportRefusal
 impl core::cmp::Eq for antecedent::SupportStructure
 impl core::cmp::Eq for antecedent::SupportValidation
 impl core::cmp::Eq for antecedent::TargetDirection
+impl core::cmp::Eq for antecedent::TemporalMediationProofMassBasis
 impl core::cmp::Eq for antecedent::TemporalPosition
 impl core::cmp::Eq for antecedent::TidyKind
 impl core::cmp::Eq for antecedent::TierDiagnosticsError
@@ -1336,6 +1339,7 @@ impl core::cmp::PartialEq for antecedent::CellStatus
 impl core::cmp::PartialEq for antecedent::CheckedAdmgGraphPosteriorResponseInfo
 impl core::cmp::PartialEq for antecedent::CheckedGraphPosteriorResponseInfo
 impl core::cmp::PartialEq for antecedent::CheckedStaticClassResponseInfo
+impl core::cmp::PartialEq for antecedent::CheckedTemporalMediationProofMass
 impl core::cmp::PartialEq for antecedent::CheckedTemporalMediationTargetInfo
 impl core::cmp::PartialEq for antecedent::ClaimPoint
 impl core::cmp::PartialEq for antecedent::ClaimReport
@@ -1477,6 +1481,7 @@ impl core::cmp::PartialEq for antecedent::SyntheticControlEstimate
 impl core::cmp::PartialEq for antecedent::SyntheticDidEstimate
 impl core::cmp::PartialEq for antecedent::TargetDirection
 impl core::cmp::PartialEq for antecedent::TemporalDesignEstimate
+impl core::cmp::PartialEq for antecedent::TemporalMediationProofMassBasis
 impl core::cmp::PartialEq for antecedent::TemporalPosition
 impl core::cmp::PartialEq for antecedent::TidyKind
 impl core::cmp::PartialEq for antecedent::TidyRow
@@ -2109,6 +2114,7 @@ impl core::fmt::Debug for antecedent::CheckedStaticClassResponseInfo
 impl core::fmt::Debug for antecedent::CheckedStudyClaim
 impl core::fmt::Debug for antecedent::CheckedTemporalClassMediationInfo
 impl core::fmt::Debug for antecedent::CheckedTemporalMediationInfo
+impl core::fmt::Debug for antecedent::CheckedTemporalMediationProofMass
 impl core::fmt::Debug for antecedent::CheckedTemporalMediationTargetInfo
 impl core::fmt::Debug for antecedent::CheckedTransportTrialInfo
 impl core::fmt::Debug for antecedent::CheckedUnknownTieredAverageInfo
@@ -2334,6 +2340,7 @@ impl core::fmt::Debug for antecedent::SyntheticDidEstimate
 impl core::fmt::Debug for antecedent::TargetDirection
 impl core::fmt::Debug for antecedent::TemporalDesignEstimate
 impl core::fmt::Debug for antecedent::TemporalInitialState
+impl core::fmt::Debug for antecedent::TemporalMediationProofMassBasis
 impl core::fmt::Debug for antecedent::TemporalPosition
 impl core::fmt::Debug for antecedent::TemporalWindow
 impl core::fmt::Debug for antecedent::TidyKind
@@ -3102,6 +3109,7 @@ impl core::marker::Copy for antecedent::SupportRefusal
 impl core::marker::Copy for antecedent::SupportStructure
 impl core::marker::Copy for antecedent::SupportValidation
 impl core::marker::Copy for antecedent::TargetDirection
+impl core::marker::Copy for antecedent::TemporalMediationProofMassBasis
 impl core::marker::Copy for antecedent::TemporalPosition
 impl core::marker::Copy for antecedent::TidyKind
 impl core::marker::Copy for antecedent::Transformation
@@ -3261,6 +3269,7 @@ impl core::marker::Freeze for antecedent::CheckedStaticClassResponseInfo [auto]
 impl core::marker::Freeze for antecedent::CheckedStudyClaim [auto]
 impl core::marker::Freeze for antecedent::CheckedTemporalClassMediationInfo [auto]
 impl core::marker::Freeze for antecedent::CheckedTemporalMediationInfo [auto]
+impl core::marker::Freeze for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::marker::Freeze for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Freeze for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Freeze for antecedent::CheckedUnknownTieredAverageInfo [auto]
@@ -3488,6 +3497,7 @@ impl core::marker::Freeze for antecedent::SyntheticDidEstimate [auto]
 impl core::marker::Freeze for antecedent::TargetDirection [auto]
 impl core::marker::Freeze for antecedent::TemporalDesignEstimate [auto]
 impl core::marker::Freeze for antecedent::TemporalInitialState [auto]
+impl core::marker::Freeze for antecedent::TemporalMediationProofMassBasis [auto]
 impl core::marker::Freeze for antecedent::TemporalPosition [auto]
 impl core::marker::Freeze for antecedent::TemporalWindow [auto]
 impl core::marker::Freeze for antecedent::TidyKind [auto]
@@ -4159,6 +4169,7 @@ impl core::marker::Send for antecedent::CheckedStaticClassResponseInfo [auto]
 impl core::marker::Send for antecedent::CheckedStudyClaim [auto]
 impl core::marker::Send for antecedent::CheckedTemporalClassMediationInfo [auto]
 impl core::marker::Send for antecedent::CheckedTemporalMediationInfo [auto]
+impl core::marker::Send for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::marker::Send for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Send for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Send for antecedent::CheckedUnknownTieredAverageInfo [auto]
@@ -4389,6 +4400,7 @@ impl core::marker::Send for antecedent::SyntheticDidEstimate [auto]
 impl core::marker::Send for antecedent::TargetDirection [auto]
 impl core::marker::Send for antecedent::TemporalDesignEstimate [auto]
 impl core::marker::Send for antecedent::TemporalInitialState [auto]
+impl core::marker::Send for antecedent::TemporalMediationProofMassBasis [auto]
 impl core::marker::Send for antecedent::TemporalPosition [auto]
 impl core::marker::Send for antecedent::TemporalWindow [auto]
 impl core::marker::Send for antecedent::TidyKind [auto]
@@ -5046,6 +5058,7 @@ impl core::marker::StructuralPartialEq for antecedent::CellStatus
 impl core::marker::StructuralPartialEq for antecedent::CheckedAdmgGraphPosteriorResponseInfo
 impl core::marker::StructuralPartialEq for antecedent::CheckedGraphPosteriorResponseInfo
 impl core::marker::StructuralPartialEq for antecedent::CheckedStaticClassResponseInfo
+impl core::marker::StructuralPartialEq for antecedent::CheckedTemporalMediationProofMass
 impl core::marker::StructuralPartialEq for antecedent::CheckedTemporalMediationTargetInfo
 impl core::marker::StructuralPartialEq for antecedent::ClaimPoint
 impl core::marker::StructuralPartialEq for antecedent::ClaimReport
@@ -5187,6 +5200,7 @@ impl core::marker::StructuralPartialEq for antecedent::SyntheticControlEstimate
 impl core::marker::StructuralPartialEq for antecedent::SyntheticDidEstimate
 impl core::marker::StructuralPartialEq for antecedent::TargetDirection
 impl core::marker::StructuralPartialEq for antecedent::TemporalDesignEstimate
+impl core::marker::StructuralPartialEq for antecedent::TemporalMediationProofMassBasis
 impl core::marker::StructuralPartialEq for antecedent::TemporalPosition
 impl core::marker::StructuralPartialEq for antecedent::TidyKind
 impl core::marker::StructuralPartialEq for antecedent::TidyRow
@@ -5593,6 +5607,7 @@ impl core::marker::Sync for antecedent::CheckedStaticClassResponseInfo [auto]
 impl core::marker::Sync for antecedent::CheckedStudyClaim [auto]
 impl core::marker::Sync for antecedent::CheckedTemporalClassMediationInfo [auto]
 impl core::marker::Sync for antecedent::CheckedTemporalMediationInfo [auto]
+impl core::marker::Sync for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::marker::Sync for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Sync for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Sync for antecedent::CheckedUnknownTieredAverageInfo [auto]
@@ -5823,6 +5838,7 @@ impl core::marker::Sync for antecedent::SyntheticDidEstimate [auto]
 impl core::marker::Sync for antecedent::TargetDirection [auto]
 impl core::marker::Sync for antecedent::TemporalDesignEstimate [auto]
 impl core::marker::Sync for antecedent::TemporalInitialState [auto]
+impl core::marker::Sync for antecedent::TemporalMediationProofMassBasis [auto]
 impl core::marker::Sync for antecedent::TemporalPosition [auto]
 impl core::marker::Sync for antecedent::TemporalWindow [auto]
 impl core::marker::Sync for antecedent::TidyKind [auto]
@@ -6498,6 +6514,7 @@ impl core::marker::Unpin for antecedent::CheckedStaticClassResponseInfo [auto]
 impl core::marker::Unpin for antecedent::CheckedStudyClaim [auto]
 impl core::marker::Unpin for antecedent::CheckedTemporalClassMediationInfo [auto]
 impl core::marker::Unpin for antecedent::CheckedTemporalMediationInfo [auto]
+impl core::marker::Unpin for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::marker::Unpin for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Unpin for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Unpin for antecedent::CheckedUnknownTieredAverageInfo [auto]
@@ -6728,6 +6745,7 @@ impl core::marker::Unpin for antecedent::SyntheticDidEstimate [auto]
 impl core::marker::Unpin for antecedent::TargetDirection [auto]
 impl core::marker::Unpin for antecedent::TemporalDesignEstimate [auto]
 impl core::marker::Unpin for antecedent::TemporalInitialState [auto]
+impl core::marker::Unpin for antecedent::TemporalMediationProofMassBasis [auto]
 impl core::marker::Unpin for antecedent::TemporalPosition [auto]
 impl core::marker::Unpin for antecedent::TemporalWindow [auto]
 impl core::marker::Unpin for antecedent::TidyKind [auto]
@@ -7405,6 +7423,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedStaticClassR
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedStudyClaim [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTemporalClassMediationInfo [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTemporalMediationInfo [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTransportTrialInfo [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedUnknownTieredAverageInfo [auto]
@@ -7626,6 +7645,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::SyntheticDidEstimat
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TargetDirection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TemporalDesignEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TemporalInitialState [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TemporalMediationProofMassBasis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TemporalPosition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TemporalWindow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::TidyKind [auto]
@@ -8264,6 +8284,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedStaticClassResp
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedStudyClaim [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTemporalClassMediationInfo [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTemporalMediationInfo [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTransportTrialInfo [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedUnknownTieredAverageInfo [auto]
@@ -8484,6 +8505,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::SyntheticDidEstimate [
 impl core::panic::unwind_safe::UnwindSafe for antecedent::TargetDirection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::TemporalDesignEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::TemporalInitialState [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::TemporalMediationProofMassBasis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::TemporalPosition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::TemporalWindow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::TidyKind [auto]
@@ -9638,6 +9660,7 @@ pub enum antecedent::StageEvent
 pub enum antecedent::StructureSource
 pub enum antecedent::SupportBasis
 pub enum antecedent::TargetDirection
+pub enum antecedent::TemporalMediationProofMassBasis
 pub enum antecedent::TemporalPosition
 pub enum antecedent::TidyKind
 pub enum antecedent::TierDesign
@@ -9909,18 +9932,19 @@ pub field antecedent::CheckedStaticClassResponseInfo::inference: alloc::sync::Ar
 pub field antecedent::CheckedStaticClassResponseInfo::query: antecedent_core::query::response::ResponseQuery
 pub field antecedent::CheckedStaticClassResponseInfo::unidentified_mass: f64
 pub field antecedent::CheckedStaticClassResponseInfo::validation: antecedent::RefuteSuite
-pub field antecedent::CheckedTemporalClassMediationInfo::atom_count: usize
+pub field antecedent::CheckedTemporalClassMediationInfo::atom_count: core::option::Option<usize>
 pub field antecedent::CheckedTemporalClassMediationInfo::bootstrap_replicates: u32
 pub field antecedent::CheckedTemporalClassMediationInfo::estimator: antecedent::EstimatorId
 pub field antecedent::CheckedTemporalClassMediationInfo::graph_class: antecedent::GraphClass
 pub field antecedent::CheckedTemporalClassMediationInfo::horizons: alloc::sync::Arc<[u32]>
-pub field antecedent::CheckedTemporalClassMediationInfo::identified_mass: f64
+pub field antecedent::CheckedTemporalClassMediationInfo::identified_mass: core::option::Option<f64>
 pub field antecedent::CheckedTemporalClassMediationInfo::identifier: alloc::sync::Arc<str>
+pub field antecedent::CheckedTemporalClassMediationInfo::proof_masses: alloc::sync::Arc<[antecedent::CheckedTemporalMediationProofMass]>
 pub field antecedent::CheckedTemporalClassMediationInfo::proof_signature: alloc::sync::Arc<str>
 pub field antecedent::CheckedTemporalClassMediationInfo::query: antecedent_core::query::mediation::MediationQuery
 pub field antecedent::CheckedTemporalClassMediationInfo::scientific_targets: alloc::sync::Arc<[antecedent::CheckedTemporalMediationTargetInfo]>
 pub field antecedent::CheckedTemporalClassMediationInfo::structure_source: antecedent::StructureSource
-pub field antecedent::CheckedTemporalClassMediationInfo::unidentified_mass: f64
+pub field antecedent::CheckedTemporalClassMediationInfo::unidentified_mass: core::option::Option<f64>
 pub field antecedent::CheckedTemporalClassMediationInfo::validation: antecedent::RefuteSuite
 pub field antecedent::CheckedTemporalMediationInfo::adjustment_sets: alloc::sync::Arc<[(u32, alloc::sync::Arc<[antecedent_core::temporal::TemporalNodeKey]>)]>
 pub field antecedent::CheckedTemporalMediationInfo::estimator: antecedent::EstimatorId
@@ -9929,6 +9953,12 @@ pub field antecedent::CheckedTemporalMediationInfo::horizons: alloc::sync::Arc<[
 pub field antecedent::CheckedTemporalMediationInfo::query: antecedent_core::query::mediation::MediationQuery
 pub field antecedent::CheckedTemporalMediationInfo::scientific_targets: alloc::sync::Arc<[antecedent_core::scientific_target::identity::ScientificTarget]>
 pub field antecedent::CheckedTemporalMediationInfo::validation: antecedent::RefuteSuite
+pub field antecedent::CheckedTemporalMediationProofMass::atom_count: usize
+pub field antecedent::CheckedTemporalMediationProofMass::basis: antecedent::TemporalMediationProofMassBasis
+pub field antecedent::CheckedTemporalMediationProofMass::horizon: u32
+pub field antecedent::CheckedTemporalMediationProofMass::identified_mass: f64
+pub field antecedent::CheckedTemporalMediationProofMass::truncated_completions: core::option::Option<usize>
+pub field antecedent::CheckedTemporalMediationProofMass::unidentified_mass: f64
 pub field antecedent::CheckedTemporalMediationTargetInfo::atom_identified: core::option::Option<bool>
 pub field antecedent::CheckedTemporalMediationTargetInfo::atom_key: core::option::Option<u64>
 pub field antecedent::CheckedTemporalMediationTargetInfo::atom_weight: f64
@@ -13822,6 +13852,7 @@ pub fn <antecedent::TemporalInitialState>::fn previous_value(&self) -> core::opt
 pub fn <antecedent::TemporalInitialState>::fn receipt(&self) -> core::option::Option<&antecedent_estimate::temporal_refresh::RefreshReceipt>
 pub fn <antecedent::TemporalInitialState>::fn refresh(&self, panel: antecedent_estimate::temporal_dependent_interval::TemporalUnitPanel, window: &antecedent::TemporalWindow, interval_existed: bool) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::TemporalInitialState>::fn refresh_invalidations(&self) -> core::option::Option<&antecedent_state::invalidation::InvalidationLog>
+pub fn <antecedent::TemporalMediationProofMassBasis>::const fn as_str(self) -> &'static str
 pub fn <antecedent::TidyKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent::UncertaintyKind>::const fn as_str(self) -> &'static str
 pub fn <antecedent::ZTransportResult>::const fn coverage_target(&self) -> core::option::Option<f64>
@@ -15916,6 +15947,7 @@ pub struct antecedent::CheckedStudyClaim
 pub struct antecedent::CheckedStudyClaim has private fields
 pub struct antecedent::CheckedTemporalClassMediationInfo
 pub struct antecedent::CheckedTemporalMediationInfo
+pub struct antecedent::CheckedTemporalMediationProofMass
 pub struct antecedent::CheckedTemporalMediationTargetInfo
 pub struct antecedent::CheckedTransportTrialInfo
 pub struct antecedent::CheckedUnknownTieredAverageInfo
@@ -17024,6 +17056,7 @@ pub use antecedent::analysis::CheckedInterferenceInfo = antecedent::CheckedInter
 pub use antecedent::analysis::CheckedStaticClassResponseInfo = antecedent::CheckedStaticClassResponseInfo
 pub use antecedent::analysis::CheckedTemporalClassMediationInfo = antecedent::CheckedTemporalClassMediationInfo
 pub use antecedent::analysis::CheckedTemporalMediationInfo = antecedent::CheckedTemporalMediationInfo
+pub use antecedent::analysis::CheckedTemporalMediationProofMass = antecedent::CheckedTemporalMediationProofMass
 pub use antecedent::analysis::CheckedTemporalMediationTargetInfo = antecedent::CheckedTemporalMediationTargetInfo
 pub use antecedent::analysis::CheckedTransportTrialInfo = antecedent::CheckedTransportTrialInfo
 pub use antecedent::analysis::CheckedUnknownTieredAverageInfo = antecedent::CheckedUnknownTieredAverageInfo
@@ -17251,6 +17284,7 @@ pub use antecedent::analysis::SynthesisOutcome = antecedent::SynthesisOutcome
 pub use antecedent::analysis::SynthesisValue = antecedent::SynthesisValue
 pub use antecedent::analysis::TargetDirection = antecedent::TargetDirection
 pub use antecedent::analysis::TemporalInitialState = antecedent::TemporalInitialState
+pub use antecedent::analysis::TemporalMediationProofMassBasis = antecedent::TemporalMediationProofMassBasis
 pub use antecedent::analysis::TemporalPosition = antecedent::TemporalPosition
 pub use antecedent::analysis::TemporalWindow = antecedent::TemporalWindow
 pub use antecedent::analysis::TidyKind = antecedent::TidyKind
@@ -17375,6 +17409,7 @@ pub use antecedent::analysis::api::CheckedStaticClassResponseInfo = antecedent::
 pub use antecedent::analysis::api::CheckedStudyClaim = antecedent::CheckedStudyClaim
 pub use antecedent::analysis::api::CheckedTemporalClassMediationInfo = antecedent::CheckedTemporalClassMediationInfo
 pub use antecedent::analysis::api::CheckedTemporalMediationInfo = antecedent::CheckedTemporalMediationInfo
+pub use antecedent::analysis::api::CheckedTemporalMediationProofMass = antecedent::CheckedTemporalMediationProofMass
 pub use antecedent::analysis::api::CheckedTemporalMediationTargetInfo = antecedent::CheckedTemporalMediationTargetInfo
 pub use antecedent::analysis::api::CheckedTransportTrialInfo = antecedent::CheckedTransportTrialInfo
 pub use antecedent::analysis::api::CheckedUnknownTieredAverageInfo = antecedent::CheckedUnknownTieredAverageInfo
@@ -17605,6 +17640,7 @@ pub use antecedent::analysis::api::SynthesisOutcome = antecedent::SynthesisOutco
 pub use antecedent::analysis::api::SynthesisValue = antecedent::SynthesisValue
 pub use antecedent::analysis::api::TargetDirection = antecedent::TargetDirection
 pub use antecedent::analysis::api::TemporalInitialState = antecedent::TemporalInitialState
+pub use antecedent::analysis::api::TemporalMediationProofMassBasis = antecedent::TemporalMediationProofMassBasis
 pub use antecedent::analysis::api::TemporalPosition = antecedent::TemporalPosition
 pub use antecedent::analysis::api::TemporalWindow = antecedent::TemporalWindow
 pub use antecedent::analysis::api::TidyKind = antecedent::TidyKind
@@ -20504,6 +20540,8 @@ pub variant antecedent::SynthesisValue::Hierarchical(antecedent_stats::synthesis
 pub variant antecedent::SynthesisValue::RandomEffects(antecedent_stats::synthesis::RandomEffectsEstimate)
 pub variant antecedent::TargetDirection::AtLeast
 pub variant antecedent::TargetDirection::AtMost
+pub variant antecedent::TemporalMediationProofMassBasis::CompletionEnumerationWeight
+pub variant antecedent::TemporalMediationProofMassBasis::PosteriorProbability
 pub variant antecedent::TemporalPosition::AtTreatment
 pub variant antecedent::TemporalPosition::PostTreatment
 pub variant antecedent::TemporalPosition::PreTreatment

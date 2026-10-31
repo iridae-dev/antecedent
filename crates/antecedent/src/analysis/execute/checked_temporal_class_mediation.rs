@@ -57,6 +57,7 @@ pub(crate) struct CheckedTemporalClassMediationOperation {
     proof: CheckedTemporalMediationProof,
     query: antecedent_core::MediationQuery,
     target_bindings: Arc<[CheckedTemporalMediationTargetInfo]>,
+    proof_masses: Arc<[CheckedTemporalMediationProofMass]>,
     inference: InferenceMode,
     bootstrap_replicates: u32,
     validation: RefuteSuite,
@@ -176,10 +177,12 @@ impl CheckedTemporalClassMediationOperation {
         };
         let target_bindings =
             retained_mediation_targets(&proof, query, data.schema(), &study.settings.inference)?;
+        let proof_masses = retained_proof_masses(&proof, &query.horizons)?;
         Ok(Self {
             proof,
             query: query.clone(),
             target_bindings: target_bindings.into(),
+            proof_masses: proof_masses.into(),
             inference: study.settings.inference.clone(),
             bootstrap_replicates: study.settings.bootstrap_replicates,
             validation: study.settings.refute,
@@ -339,30 +342,6 @@ impl CheckedTemporalClassMediationOperation {
             .identifier
             .clone()
             .unwrap_or_else(|| Arc::from("temporal.mediation"))
-    }
-
-    /// Structural atoms the proof retains and the enumeration or posterior mass
-    /// that identified: `(atom_count, identified_mass, unidentified_mass)`.
-    pub(crate) fn proof_mass(&self) -> (usize, f64, f64) {
-        match &self.proof {
-            CheckedTemporalMediationProof::ClassEnvelope { cache, .. } => {
-                let envelope =
-                    cache.by_horizon.first().map_or(&cache.envelope, |(_, envelope)| envelope);
-                (
-                    envelope.envelope.cases.len(),
-                    envelope.envelope.identified_weight.0,
-                    envelope.envelope.unidentified_weight.0,
-                )
-            }
-            CheckedTemporalMediationProof::ClassPosterior { cache, .. } => {
-                let unidentified = cache.graphs.unidentified_mass();
-                (cache.graphs.n_samples, 1.0 - unidentified, unidentified)
-            }
-            CheckedTemporalMediationProof::DbnPosterior { cache, .. } => {
-                let unidentified = cache.graphs.unidentified_mass();
-                (cache.graphs.n_samples, 1.0 - unidentified, unidentified)
-            }
-        }
     }
 
     /// Stable identity of the retained structure: the graph or the posterior's
@@ -939,6 +918,142 @@ fn append_completion_targets(
     Ok(())
 }
 
+/// The meaning of the weights in a temporal mediation proof-mass record.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TemporalMediationProofMassBasis {
+    /// Raw retained completion-enumeration weights, not posterior probabilities.
+    CompletionEnumerationWeight,
+    /// Frozen graph-posterior probability, conditional on the declared posterior sample.
+    PosteriorProbability,
+}
+
+impl TemporalMediationProofMassBasis {
+    /// Stable inspection label for the weight basis.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CompletionEnumerationWeight => "completion_enumeration_weight",
+            Self::PosteriorProbability => "posterior_probability",
+        }
+    }
+}
+
+/// Retained structural proof weights for one requested mediation horizon.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CheckedTemporalMediationProofMass {
+    /// Requested outcome horizon.
+    pub horizon: u32,
+    /// Retained completion count for a fixed class, or graph sample slots for a posterior.
+    pub atom_count: usize,
+    /// Meaning of the recorded weights.
+    pub basis: TemporalMediationProofMassBasis,
+    /// Identified enumeration weight or graph-posterior probability.
+    pub identified_mass: f64,
+    /// Unidentified enumeration weight or graph-posterior probability.
+    pub unidentified_mass: f64,
+    /// Recorded completion-truncation counter or marker, when applicable. Nonzero means
+    /// the retained proof is incomplete; this is not an estimate of unenumerated mass.
+    /// For a class posterior it sums the counters across unique retained class atoms.
+    pub truncated_completions: Option<usize>,
+}
+
+fn enumeration_mass<G>(
+    horizon: u32,
+    envelope: &antecedent_identify::IdentificationEnvelope<G>,
+) -> CheckedTemporalMediationProofMass {
+    CheckedTemporalMediationProofMass {
+        horizon,
+        atom_count: envelope.cases.len(),
+        basis: TemporalMediationProofMassBasis::CompletionEnumerationWeight,
+        identified_mass: envelope.identified_weight.0,
+        unidentified_mass: envelope.unidentified_weight.0,
+        truncated_completions: Some(envelope.truncated_completions),
+    }
+}
+
+fn posterior_mass(
+    horizon: u32,
+    graphs: &antecedent_prob::WeightedGraphSamples,
+    truncated: Option<usize>,
+) -> Result<CheckedTemporalMediationProofMass, CausalError> {
+    use antecedent_prob::GraphIdentFlag;
+    if graphs.n_samples == 0
+        || graphs.weights.len() != graphs.n_samples
+        || graphs.identified.len() != graphs.n_samples
+        || graphs.weights.iter().any(|weight| !weight.is_finite() || *weight < 0.0)
+    {
+        return Err(CausalError::Compile {
+            message: "temporal mediation proof has invalid posterior weights or flags".into(),
+        });
+    }
+    let scale = graphs.weights.iter().copied().fold(0.0_f64, f64::max);
+    if scale <= 0.0 {
+        return Err(CausalError::Compile {
+            message: "temporal mediation proof has no positive posterior mass".into(),
+        });
+    }
+    // Sum each class independently, retaining tiny identified masses that would
+    // disappear if they were calculated by subtracting from one.
+    let mut identified = 0.0;
+    let mut unidentified = 0.0;
+    for (&weight, &flag) in graphs.weights.iter().zip(graphs.identified.iter()) {
+        match flag {
+            GraphIdentFlag::Identified => identified += weight / scale,
+            GraphIdentFlag::Unidentified => unidentified += weight / scale,
+        }
+    }
+    let total = identified + unidentified;
+    if !total.is_finite() || total <= 0.0 {
+        return Err(CausalError::Compile {
+            message: "temporal mediation proof posterior mass cannot be normalized".into(),
+        });
+    }
+    Ok(CheckedTemporalMediationProofMass {
+        horizon,
+        atom_count: graphs.n_samples,
+        basis: TemporalMediationProofMassBasis::PosteriorProbability,
+        identified_mass: identified / total,
+        unidentified_mass: unidentified / total,
+        truncated_completions: truncated,
+    })
+}
+
+/// Resolve each fallible horizon projection while preparing, not in infallible inspection.
+fn retained_proof_masses(
+    proof: &CheckedTemporalMediationProof,
+    horizons: &[u32],
+) -> Result<Vec<CheckedTemporalMediationProofMass>, CausalError> {
+    horizons
+        .iter()
+        .map(|&horizon| match proof {
+            CheckedTemporalMediationProof::ClassEnvelope { cache, .. } => {
+                let (_, envelope) = cache
+                    .by_horizon
+                    .iter()
+                    .find(|(h, _)| *h == horizon)
+                    .ok_or_else(|| CausalError::Compile {
+                        message: format!("temporal mediation proof mass missing horizon {horizon}"),
+                    })?;
+                Ok(enumeration_mass(horizon, &envelope.envelope))
+            }
+            CheckedTemporalMediationProof::ClassPosterior { cache, .. } => {
+                let truncated = cache
+                    .class_atoms
+                    .iter()
+                    .try_fold(0_usize, |sum, atom| sum.checked_add(atom.truncated_completions))
+                    .ok_or_else(|| CausalError::Resource {
+                        message: "temporal mediation truncation count overflow".into(),
+                    })?;
+                posterior_mass(horizon, &cache.graphs, Some(truncated))
+            }
+            CheckedTemporalMediationProof::DbnPosterior { cache, .. } => {
+                let projected = cache.mediation_horizon(horizon)?;
+                posterior_mass(horizon, &projected.graphs, None)
+            }
+        })
+        .collect()
+}
+
 /// One theorem-scoped target retained for a temporal mediation proof slot.
 ///
 /// Posterior atom weights and completion enumeration weights remain separate. A slot
@@ -986,13 +1101,14 @@ pub struct CheckedTemporalClassMediationInfo {
     pub bootstrap_replicates: u32,
     /// Horizon members retained in order.
     pub horizons: std::sync::Arc<[u32]>,
-    /// Completion atoms (fixed class) or posterior atoms (graph posterior)
-    /// retained by the proof.
-    pub atom_count: usize,
-    /// Enumeration or posterior mass that identified.
-    pub identified_mass: f64,
-    /// Enumeration or posterior mass that stays unidentified.
-    pub unidentified_mass: f64,
+    /// Per-horizon proof counts and weights in requested horizon order.
+    pub proof_masses: Arc<[CheckedTemporalMediationProofMass]>,
+    /// Single-horizon alias of `proof_masses[0].atom_count`; `None` for multiple horizons.
+    pub atom_count: Option<usize>,
+    /// Single-horizon alias of `proof_masses[0].identified_mass`; `None` for multiple horizons.
+    pub identified_mass: Option<f64>,
+    /// Single-horizon alias of `proof_masses[0].unidentified_mass`; `None` for multiple horizons.
+    pub unidentified_mass: Option<f64>,
     /// Signature of the retained source graph or frozen posterior.
     pub proof_signature: std::sync::Arc<str>,
 }
@@ -1001,7 +1117,10 @@ impl Inspect for CheckedTemporalClassMediationOperation {
     type Info = CheckedTemporalClassMediationInfo;
 
     fn info(&self) -> CheckedTemporalClassMediationInfo {
-        let (atom_count, identified_mass, unidentified_mass) = self.proof_mass();
+        let single = match self.proof_masses.as_ref() {
+            [one] => Some(one),
+            _ => None,
+        };
         CheckedTemporalClassMediationInfo {
             query: self.query().clone(),
             scientific_targets: Arc::clone(&self.target_bindings),
@@ -1012,10 +1131,187 @@ impl Inspect for CheckedTemporalClassMediationOperation {
             validation: self.validation(),
             bootstrap_replicates: self.bootstrap_replicates(),
             horizons: Arc::clone(&self.query().horizons),
-            atom_count,
-            identified_mass,
-            unidentified_mass,
+            proof_masses: Arc::clone(&self.proof_masses),
+            atom_count: single.map(|mass| mass.atom_count),
+            identified_mass: single.map(|mass| mass.identified_mass),
+            unidentified_mass: single.map(|mass| mass.unidentified_mass),
             proof_signature: self.proof_signature(),
         }
+    }
+}
+
+#[cfg(test)]
+mod proof_mass_tests {
+    use super::*;
+    use antecedent_core::{AverageEffectQuery, MediationContrast, MediationQuery, VariableId};
+    use antecedent_graph::{Dag, DenseNodeId, TemporalCpdag, TemporalDag};
+    use antecedent_identify::{
+        GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass, TemporalClassEnvelope,
+        TemporalCompletionGraph,
+    };
+
+    #[test]
+    fn fixed_class_reports_distinct_horizon_enumerations_in_requested_order() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let identified = crate::strategy_table::identify_static(
+            crate::strategy_table::DEFAULT_IDENTIFIER_ID,
+            &dag,
+            &query,
+        )
+        .unwrap();
+        let mut unidentified = identified.clone();
+        unidentified.status = antecedent_core::IdentificationStatus::NotIdentified;
+        let envelope = |statuses: Vec<bool>| {
+            let cases = statuses
+                .into_iter()
+                .map(|yes| GraphIdentificationCase {
+                    graph: TemporalCompletionGraph::Dag(TemporalDag::empty()),
+                    result: if yes { identified.clone() } else { unidentified.clone() },
+                    weight: ProbabilityMass(1.0),
+                })
+                .collect::<Vec<_>>();
+            let indexers = (0..cases.len())
+                .map(|_| antecedent_core::TemporalIndexer::new(2, 1, 1).unwrap())
+                .collect();
+            Arc::new(TemporalClassEnvelope {
+                envelope: IdentificationEnvelope::from_cases(cases),
+                indexers,
+            })
+        };
+        let h1 = envelope(vec![true, false]);
+        let mut h2 = envelope(vec![true, true, true]);
+        Arc::make_mut(&mut h2).envelope.truncated_completions = 1;
+        let proof = CheckedTemporalMediationProof::ClassEnvelope {
+            graph: AcceptedGraph::from(TemporalCpdag::empty()),
+            cache: Arc::new(CachedTemporalClassIdentification {
+                envelope: h1.clone(),
+                by_horizon: vec![(1, h1), (2, h2)],
+            }),
+            max_completions: None,
+            class_prior: None,
+        };
+        let masses = retained_proof_masses(&proof, &[2, 1]).unwrap();
+        assert_eq!(masses.iter().map(|m| m.horizon).collect::<Vec<_>>(), [2, 1]);
+        assert_eq!(
+            (masses[0].atom_count, masses[0].identified_mass, masses[0].unidentified_mass),
+            (3, 3.0, 0.0)
+        );
+        assert_eq!(
+            (masses[1].atom_count, masses[1].identified_mass, masses[1].unidentified_mass),
+            (2, 1.0, 1.0)
+        );
+        assert_eq!(masses[0].truncated_completions, Some(1));
+        assert_eq!(masses[1].truncated_completions, Some(0));
+        assert!(
+            masses
+                .iter()
+                .all(|m| m.basis == TemporalMediationProofMassBasis::CompletionEnumerationWeight)
+        );
+        assert!(retained_proof_masses(&proof, &[3]).is_err());
+    }
+
+    #[test]
+    fn posterior_proof_mass_normalizes_weights_without_erasing_small_classes() {
+        use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
+        let samples = |weights: Vec<f64>, flags: Vec<GraphIdentFlag>| {
+            WeightedGraphSamples::new(weights, flags, vec![0, 1]).unwrap()
+        };
+        let graphs =
+            samples(vec![8.0, 2.0], vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified]);
+        let m = posterior_mass(1, &graphs, None).unwrap();
+        assert!((m.identified_mass - 0.8).abs() < 1e-15);
+        assert!((m.unidentified_mass - 0.2).abs() < 1e-15);
+        let permuted =
+            samples(vec![2.0, 8.0], vec![GraphIdentFlag::Unidentified, GraphIdentFlag::Identified]);
+        assert_eq!(posterior_mass(1, &permuted, None).unwrap(), m);
+        let tiny = samples(
+            vec![1e-20, 1.0],
+            vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified],
+        );
+        let m = posterior_mass(2, &tiny, None).unwrap();
+        assert!(m.identified_mass > 0.0);
+        assert!((m.identified_mass / 1e-20 - 1.0).abs() < 1e-12);
+        // The standard constructor refuses an overflowing raw sum; test the
+        // normalization boundary against a deliberately constructed record too.
+        let mut large = graphs.clone();
+        large.weights = Arc::from([f64::MAX, f64::MAX]);
+        let m = posterior_mass(3, &large, None).unwrap();
+        assert_eq!((m.identified_mass, m.unidentified_mass), (0.5, 0.5));
+        for weights in [[0.0, 0.0], [f64::NAN, 1.0], [-1.0, 1.0], [f64::INFINITY, 1.0]] {
+            let mut invalid = graphs.clone();
+            invalid.weights = Arc::from(weights);
+            assert!(matches!(posterior_mass(1, &invalid, None), Err(CausalError::Compile { .. })));
+        }
+        let mut mismatched = graphs.clone();
+        mismatched.identified = Arc::from([GraphIdentFlag::Identified]);
+        assert!(matches!(posterior_mass(1, &mismatched, None), Err(CausalError::Compile { .. })));
+    }
+
+    #[test]
+    fn dbn_mass_uses_each_projected_horizon_not_the_union() {
+        use antecedent_discovery::{GraphPosterior, SamplingSummary};
+        use antecedent_prob::InferenceDiagnostics;
+        let posterior = GraphPosterior::new(
+            3,
+            vec![0.8, 0.2],
+            vec![8_u64, 8],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            SamplingSummary {
+                ess: 1.0 / (0.8_f64.powi(2) + 0.2_f64.powi(2)),
+                diagnostics: InferenceDiagnostics::analytic("proof-mass-test"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_lagged_marginals(1, vec![0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        .unwrap()
+        .with_lag_masks(vec![6_u64, 6])
+        .unwrap();
+        let mut query = MediationQuery::binary(
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            [VariableId::from_raw(1)],
+            MediationContrast::Mediated,
+        );
+        query.horizons = Arc::from([1, 2]);
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)];
+        let ctx = ExecutionContext::for_tests(7);
+        let cache = crate::analysis::prepared::build_dbn_mediation_cache_with_identifier(
+            &posterior,
+            &variables,
+            &query,
+            &ctx,
+            |atom, horizon, graph, horizon_query| {
+                if (atom, horizon) == (0, 2) || (atom, horizon) == (1, 1) {
+                    return Err(CausalError::Compile {
+                        message: "test-only missing horizon certificate".into(),
+                    });
+                }
+                crate::analysis::prepared::identify_temporal_mediation_horizons(
+                    graph,
+                    horizon_query,
+                    EstimatorId::BayesianTemporalMediation,
+                )
+            },
+        )
+        .unwrap();
+        assert!((cache.graphs.unidentified_mass() - 0.0).abs() < 1e-12, "union has both atoms");
+        let proof =
+            CheckedTemporalMediationProof::DbnPosterior { posterior, cache: Arc::new(cache) };
+        let masses = retained_proof_masses(&proof, &[1, 2]).unwrap();
+        assert!((masses[0].identified_mass - 0.8).abs() < 1e-12);
+        assert!((masses[1].identified_mass - 0.2).abs() < 1e-12);
+        assert!((masses[0].unidentified_mass - 0.2).abs() < 1e-12);
+        assert!((masses[1].unidentified_mass - 0.8).abs() < 1e-12);
+        assert!(
+            masses.iter().all(|m| m.basis == TemporalMediationProofMassBasis::PosteriorProbability
+                && m.atom_count == 2
+                && m.truncated_completions.is_none())
+        );
+        assert!(retained_proof_masses(&proof, &[3]).is_err());
     }
 }

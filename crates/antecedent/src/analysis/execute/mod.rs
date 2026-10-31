@@ -506,7 +506,8 @@ pub use checked_static_mediation::CheckedStaticMediationInfo;
 pub use checked_static_response::{CheckedDerivativeResponseInfo, CheckedStaticDagResponseInfo};
 pub use checked_temporal_class_effect::CheckedTemporalClassEffectInfo;
 pub use checked_temporal_class_mediation::{
-    CheckedTemporalClassMediationInfo, CheckedTemporalMediationTargetInfo,
+    CheckedTemporalClassMediationInfo, CheckedTemporalMediationProofMass,
+    CheckedTemporalMediationTargetInfo, TemporalMediationProofMassBasis,
 };
 pub use checked_temporal_effect::CheckedTemporalDagEffectInfo;
 pub use checked_temporal_mediation::CheckedTemporalMediationInfo;

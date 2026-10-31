@@ -542,8 +542,9 @@ pub use prepared::{
     CheckedStaticClassEffectInfo, CheckedStaticClassResponseInfo, CheckedStaticMediationInfo,
     CheckedTemporalClassEffectInfo, CheckedTemporalClassMediationInfo,
     CheckedTemporalDagEffectInfo, CheckedTemporalDagResponseInfo, CheckedTemporalMediationInfo,
-    CheckedTemporalMediationTargetInfo, CheckedUnknownTieredAverageInfo,
-    PreparedIdentificationView, PreparedStudy,
+    CheckedTemporalMediationProofMass, CheckedTemporalMediationTargetInfo,
+    CheckedUnknownTieredAverageInfo, PreparedIdentificationView, PreparedStudy,
+    TemporalMediationProofMassBasis,
 };
 pub use prepared::{
     CheckedBayesianTemporalClassEffectInfo, CheckedTemporalGraphPosteriorEffectInfo,
