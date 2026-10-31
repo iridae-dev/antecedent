@@ -303,9 +303,11 @@ pub(crate) fn build_dbn_posterior_identification_cache(
         .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
-    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
-        let mut budget = budget.clone();
+        // Each atom is a separate identification: it draws on its own allowance, not on one pool
+        // that the posterior's whole atom list would exhaust.
+        let mut budget =
+            antecedent_core::TemporalBudget::new(inner.temporal_materialization_limits());
         // A DBN atom is the pair (contemporaneous mask, lag mask), but the
         // public GraphPosterior constructor keys atoms by contemporaneous mask
         // alone. Use posterior position as a collision-free execution key so
@@ -433,10 +435,11 @@ pub(crate) fn build_dbn_posterior_response_identification_cache(
         .max_lag()
         .ok_or_else(|| CausalError::Compile { message: "DBN posterior missing max_lag".into() })?;
     crate::analysis::execute::report_identify_compute(ctx);
-    let budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let dose = single_step_dose(query)?;
     let mapped = map_posterior_graphs(posterior, ctx, |i, inner| {
-        let mut budget = budget.clone();
+        // Each atom is a separate identification: it draws on its own allowance.
+        let mut budget =
+            antecedent_core::TemporalBudget::new(inner.temporal_materialization_limits());
         let key = dbn_envelope_key(i)?;
         let Some((graph, _graph_lease)) =
             admitted_temporal_dag_atom(posterior, i, variables, &mut budget, inner)?
