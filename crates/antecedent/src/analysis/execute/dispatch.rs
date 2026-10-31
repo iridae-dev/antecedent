@@ -2038,6 +2038,27 @@ impl super::Study {
         // stay here: they choose which sealed operation to commit to, and a match
         // that does not retain that operation is still a compile error.
         let route = self.route_input_classified();
+        // Bind one-shot Bernoulli interference to the actual checked operation,
+        // as prepared execution does, so its result carries that execution's contract.
+        if self.plain_fixed_route()
+            && self.declared.split.is_none()
+            && self.settings.inference.is_frequentist()
+        {
+            if let Some(RouteInput::InterferenceDag { data, query, .. }) = route {
+                if matches!(query.assignment, antecedent_core::AssignmentDesign::Bernoulli { .. })
+                    && query.exposure == antecedent_core::ExposureMapping::NeighborCount
+                {
+                    if let Some(result) = self.admit_sealed_tabular(
+                        data,
+                        ctx,
+                        |prepared| prepared.retains(ExecutionKind::Interference),
+                        "one-shot interference route did not retain its checked operation",
+                    )? {
+                        return Ok(*result);
+                    }
+                }
+            }
+        }
         if let Some(result) = self.run_sealed_bayesian_basis_and_robust_effect(route, ctx)? {
             return Ok(*result);
         }

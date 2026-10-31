@@ -227,7 +227,10 @@ fn accepted_dag_attribution_known_truth() {
     let top_row = usize::try_from(truth["anomaly"]["top_row"].as_u64().unwrap()).unwrap();
     let expected_change = truth["change"]["total_change"].as_f64().unwrap();
     let anomaly_query = || {
-        CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new([VariableId::from_raw(1)], 100))
+        CausalQuery::AnomalyAttribution(AnomalyAttributionQuery::new(
+            [VariableId::from_raw(1)],
+            100,
+        ))
     };
     let change_query = || {
         CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
@@ -525,11 +528,18 @@ fn design_cells_bind_calibration_under_the_harness_key() {
     let keys = |bases: Vec<antecedent_io::calibration::CalibrationBasisWire>| {
         bases.into_iter().map(|basis| basis.key).collect::<Vec<_>>()
     };
-    let harness = study.run(&ctx()).unwrap();
-    let harness = keys(harness.calibration_bases(&study.inspect().unwrap()).unwrap());
-    let executed = prepared.estimate_retained(&ctx()).unwrap();
-    let executed = keys(executed.calibration_bases(&prepared.contract().unwrap()).unwrap());
+    let harness_result = study.run(&ctx()).unwrap();
+    let executed_result = prepared.estimate_retained(&ctx()).unwrap();
+    let one_shot_stamp = harness_result.executed_contract().expect("one-shot execution stamp");
+    let prepared_stamp = executed_result.executed_contract().expect("prepared execution stamp");
+    assert_eq!(one_shot_stamp, prepared_stamp);
+    assert_eq!(one_shot_stamp.refute, RefuteSuite::None);
+    let harness = keys(harness_result.calibration_bases(&study.inspect().unwrap()).unwrap());
+    let executed = keys(executed_result.calibration_bases(&prepared.contract().unwrap()).unwrap());
     assert_eq!(executed, harness);
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(matches!(study.run(&cancelled), Err(antecedent::CausalError::Cancelled { .. })));
     let primary = &executed[0];
     assert_eq!(
         (
