@@ -64,6 +64,39 @@ def question(offsets=None):
     return ProviderQuery("prepared-test", {"offsets": [0] if offsets is None else offsets})
 
 
+def test_provider_automatic_diagnostics_is_omitted_but_explicit_controls_refuse(provider):
+    from antecedent.data_diagnostics import DataDiagnostics
+
+    execution = Execution()
+    study = ac.prepare({"x": [1.0, 3.0]}, query=question(), execution=execution)
+    assert study.execution is execution
+    assert provider.calls == []
+    assert float(ac.estimate(study).value.estimate) == 2.0
+    # The omitted default survives declaration replay when changing the query.
+    branch = ac.reconfigure(study, query=question([3.0]))
+    assert float(ac.estimate(branch).value.estimate) == 5.0
+    calls = len(provider.calls)
+    for setting in (True, False, DataDiagnostics(max_sample_rows=10)):
+        with pytest.raises(CausalUnsupportedError, match="data_diagnostics does not apply"):
+            ac.prepare({"x": [1.0, 3.0]}, query=question(), data_diagnostics=setting)
+        with pytest.raises(CausalUnsupportedError, match="data_diagnostics does not apply"):
+            ac.reconfigure(study, data_diagnostics=setting)
+    assert len(provider.calls) == calls
+    assert study.execution is execution
+
+
+def test_omitted_diagnostics_still_run_for_native_studies():
+    treatment = np.arange(200, dtype=float) % 2
+    study = ac.prepare(
+        {"t": treatment, "y": 2 * treatment + np.sin(np.arange(200))},
+        graph=[("t", "y")],
+        query=ac.AverageEffect(treatment="t", outcome="y"),
+        estimator="linear.adjustment.ate",
+        refute=False,
+    )
+    assert study.data_diagnostics.rows_total == 200
+
+
 def test_prepare_owns_rows_and_request_then_retains_completed_study(provider):
     rows = {"x": np.array([1.0, 3.0])}
     offsets = [2.0]

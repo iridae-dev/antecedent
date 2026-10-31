@@ -19,6 +19,16 @@ from .execution import Execution
 from .outcomes import Outcome, Refusal, as_outcome, capture_outcome
 
 T = TypeVar("T")
+
+
+class _AutomaticDataDiagnostics:
+    """Private omitted-argument marker retained across reconfiguration."""
+
+    def __repr__(self) -> str:
+        return "<automatic>"
+
+
+_AUTO_DATA_DIAGNOSTICS = _AutomaticDataDiagnostics()
 if TYPE_CHECKING:
     from ._batch import BatchResult, PreparedBatch
     from ._prepared_identification import PreparedIdentification
@@ -381,7 +391,7 @@ def prepare(
     provider: Any = None,
     sampling_design: str | None = None,
     accept_discovered: bool = False,
-    data_diagnostics: Any = True,
+    data_diagnostics: Any = _AUTO_DATA_DIAGNOSTICS,
     retain_joint_horizons: bool = False,
     on_refusal: Literal["refuse", "describe"] = "refuse",
     evidence_candidates: Sequence[Any] | None = None,
@@ -390,7 +400,11 @@ def prepare(
     quantity_transform: str = "identity",
     dose_units: str | None = None,
 ) -> PreparedAnalysis[Any]:
-    """Validate, own inputs, identify and quote work without executing estimators."""
+    """Validate, own inputs, identify and quote work without executing estimators.
+
+    Omitted data diagnostics run automatically for native studies; provider
+    requests omit this native-only control. Explicit provider diagnostics are refused.
+    """
     from .estimation import _PreparedEngine as Engine
 
     policy = Execution() if execution is None else execution
@@ -506,6 +520,8 @@ def prepare(
         )
         owned = policy._call(table, projected)
     options = replay_declaration(declarations)
+    if options["data_diagnostics"] is _AUTO_DATA_DIAGNOSTICS:
+        options["data_diagnostics"] = True
     if options["validators"] is not None and not isinstance(options["validators"], Mapping):
         # Request collections are frozen on the public handle. The native
         # callback boundary accepts a concrete list and retains each original
@@ -554,7 +570,12 @@ def prepare(
                 owned,
                 query=query,
                 execution=policy,
-                **{key: value for key, value in declarations.items() if key != "query"},
+                **{
+                    key: value
+                    for key, value in declarations.items()
+                    if key != "query"
+                    and not (key == "data_diagnostics" and value is _AUTO_DATA_DIAGNOSTICS)
+                },
             )
         if isinstance(query, TrialAipwQuery):
             from ._prepared_trial import prepare_trial
