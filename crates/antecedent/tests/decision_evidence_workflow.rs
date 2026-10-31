@@ -260,7 +260,7 @@ fn planning_reuse_and_withdrawal_follow_the_decision() {
     )
     .unwrap();
     // Pinning unit cost alone does not settle this decision: sampling uncertainty over so few
-    // clusters still straddles the bar, so the plan says the bottleneck is clusters, not cost.
+    // clusters still straddles the bar. More-units EVSI is refused while the cost range remains.
     assert!(
         matches!(
             &plan.resolution_rows[0].value,
@@ -272,8 +272,7 @@ fn planning_reuse_and_withdrawal_follow_the_decision() {
         "{:?}",
         plan.resolution_rows[0].value
     );
-    let PlanValue::Evsi { gross, .. } = plan.evsi_rows[0].value else { panic!() };
-    assert!(gross > 0.0);
+    assert!(matches!(plan.evsi_rows[0].value, PlanValue::Refused(_)));
 
     // A decision-rule change reuses the estimate and the derived quantity.
     let before = StageDigests::of(&ev, &assumed, &bar);

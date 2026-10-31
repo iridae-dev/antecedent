@@ -10,8 +10,8 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
- "Classification compares delta-method sampling intervals at vertices of a multilinear assumption box with the decision threshold and reports non-multilinear outer bounds as unresolved. Assumption-dependent means the endpoints favor different actions; intermediate values may remain unresolved. The classification is not a probability.",
- "Planning reuses the existing Normal-Normal FutureStudyProgram only when no assumption range remains; the belief is centered on the current contrast with the delta-method variance, a declared planning model and not a calibrated posterior. Assumption-narrowing candidates re-run the classification and are best cases, not expectations.",
+ "Classification compares the delta-method sampling interval at every vertex of the declared assumption box with the decision threshold, and the assumption range with the same threshold: robust when both sides agree everywhere, assumption-dependent when the preferred action changes inside the declared range, unresolved otherwise. It is a classification, not a probability.",
+ "Planning reuses the existing Normal-Normal FutureStudyProgram; the belief is centered on the current contrast with the delta-method variance, a declared planning model and not a calibrated posterior. Assumption-narrowing candidates re-run the classification and are best cases, not expectations.",
  "Stage digests chain so that a decision-rule change reuses the derived quantity and an estimate-identity or premise change invalidates it.",
 ]
 
@@ -31,23 +31,10 @@ rationale = "Classification of a two-action decision by the side of a threshold 
 no_independent_algorithm = "Interval-versus-threshold comparison, vertex enumeration of a declared box and digest chaining."
 covered_by = ["decision.contract"]
 inline_tests = true
-record_sha256 = "963f58dad74a868addcbfd10e8af902cd5fd27b609bec21c30a6f9a1bc7a234d"
-[[non_algorithm_review.artifacts]]
-role = "implementation"
-path = "crates/antecedent-design/src/decision_evidence/derive.rs"
-sha256 = "06b24c98f993bf8efd31c6438f1cadf1713d291460c197eb5278b93898ee752f"
-
-[[non_algorithm_review.artifacts]]
-role = "implementation"
-path = "crates/antecedent-design/src/decision_evidence/mod.rs"
-sha256 = "aeec1ba8d7fd96a176052b4f8d99bacd5110b7a9b939d9dcdd0d537a785798c5"
-
-[[non_algorithm_review.artifacts]]
-role = "implementation"
-path = "crates/antecedent-design/src/decision_evidence/plan.rs"
-sha256 = "0e0873ca7937cd216da9d1b6c873ec230bc9eb5529c1f3092dea440ab3decda6"
-
-[[non_algorithm_review.artifacts]]
-role = "implementation"
-path = "crates/antecedent-design/src/decision_evidence/reuse.rs"
-sha256 = "d880a4f30fad665fd09d3db7f1b3f2b71501473d4ad3752f80dec210c0cc9a29"
+record_sha256 = "6bbe02c9fb7abebb1973231068c2d1f61f60721b097d6e91003af8d75797d02a"
+artifacts = [
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", sha256 = "6c0caea8b2e531786aa79701d53623135869ec64be0c1485d142d7680a48a64e" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", sha256 = "00a4aef78ca68eaa323b7b4120f82dbf46406cc817387daebb42ec9ac2089de1" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/plan.rs", sha256 = "96670a7810109a61dd6cba42736dcb98571127cfa7da64745b7a53c589594a34" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/reuse.rs", sha256 = "99cd77b129d5240838dcb14eab3d4b8030743349f84f5d55330d495119a49676" },
+]

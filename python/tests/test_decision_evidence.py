@@ -186,7 +186,7 @@ def test_planning_reuse_and_withdrawal():
         ],
     )
     assert first.plan["resolution_rows"][0]["value"]["resolves"] is False
-    assert first.plan["evsi_rows"][0]["value"]["gross_evsi"] > 0
+    assert "refused" in first.plan["evsi_rows"][0]["value"]
 
     second = de.evaluate(
         ev, _margin(COST_RANGE), frame=DecisionFrame("launch_free_shipping", "keep_standard", 3.0)

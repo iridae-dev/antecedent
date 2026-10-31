@@ -1133,3 +1133,53 @@ pub(super) mod tests {
         assert_eq!(a.derived.quantity_identity, b.derived.quantity_identity);
     }
 }
+
+/// Describe the exact decision-evidence interval construction for calibration measurement.
+/// This is a candidate basis only: it does not license or attest an interval.
+/// The scope count is the number of independently randomized units, not outcome rows.
+///
+/// # Errors
+/// Returns a refusal when no sampling interval is produced, or when an assumption range
+/// would require a different calibration target.
+pub fn decision_interval_calibration_basis(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+) -> Result<antecedent_core::CalibrationBasis, EvidenceRefusal> {
+    let result = derive(evidence, request, quantity)?;
+    if result.sampling.is_none()
+        || result.assumption_range.is_some()
+        || !matches!(request.target, Target::ExperimentalContrast)
+        || !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. })
+        || !matches!(evidence.dependence, Dependence::Joint { .. })
+        || quantity.inputs.iter().any(|b| !matches!(b, InputBinding::Measured(_)))
+    {
+        return Err(EvidenceRefusal::Invalid(
+            "calibration basis requires a sampling interval without an assumption range".into(),
+        ));
+    }
+    let key = [
+        "DecisionEvidence".to_owned(),
+        "RandomizedTrial".to_owned(),
+        "design".to_owned(),
+        "tabular".to_owned(),
+        "Frequentist".to_owned(),
+        format!("joint_{}_{}", evidence.design.assignment_design, evidence.adjustment_identity()),
+        "delta_method_normal_95".to_owned(),
+        "joint_neyman_delta".to_owned(),
+        "independent_assignment_units".to_owned(),
+        String::new(),
+        format!("derived_{}", result.quantity_identity),
+    ]
+    .map(std::sync::Arc::<str>::from);
+    Ok(antecedent_core::CalibrationBasis::new(
+        key,
+        0.95,
+        "point".into(),
+        (evidence.design.treated_units + evidence.design.control_units) as u64,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("none"))
+}

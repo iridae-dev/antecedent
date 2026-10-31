@@ -46,7 +46,8 @@ use antecedent_core::CanonicalWriter;
 
 pub use derive::{
     Arm, AssumedRange, DecisionFrame, DecisionResult, DerivedQuantity, DerivedResult, InputBinding,
-    SamplingInterval, Standing, UnresolvedReason, Verdict, decide, derive,
+    SamplingInterval, Standing, UnresolvedReason, Verdict, decide,
+    decision_interval_calibration_basis, derive,
 };
 pub use plan::{Candidate, EvidencePlan, PlanRow, PlanValue, PlanningModel, plan_evidence};
 pub use reuse::{

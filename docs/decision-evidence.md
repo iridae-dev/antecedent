@@ -62,8 +62,10 @@ Stage digests chain (premise, adjustment, estimate, derived quantity, decision).
 
 ## Maintained example
 
-`crates/antecedent/tests/decision_evidence_workflow.rs` and `python/tests/test_decision_evidence.py` run one scenario in both languages: free shipping tested on 80 clusters of 12 customers, three dependent outcomes, margin `orders * (basket value - unit cost)`. With unit cost measured the decision is robust; with unit cost only bounded to $4-$12 and a $2.50 bar it is assumption-dependent; with 24 clusters (the same rows per cluster) it is unresolved; narrowing the cost range alone does not resolve it, and the plan says clusters are the bottleneck.
+`crates/antecedent/tests/decision_evidence_workflow.rs` and `python/tests/test_decision_evidence.py` run one scenario in both languages: free shipping tested on 80 clusters of 12 customers, three dependent outcomes, margin `orders * (basket value - unit cost)`. With unit cost measured the decision is robust; with unit cost only bounded to $4-$12 and a $2.50 bar it is assumption-dependent; with 24 clusters (the same rows per cluster) it is unresolved; narrowing the cost range alone does not resolve it, and the plan refuses to value more clusters at an arbitrary cost midpoint.
 
 ## Not done
 
 No marketplace-specific module, no default substantive assumption, no learned cluster-level adjustment, no calibration claim for derived intervals, no sensitivity bound converted to a probability. Interference beyond a declared no-interference or bounded-spillover assumption is refused rather than modeled.
+
+The calibration gate names two ignored future measurement designs for the executed cluster-margin interval, with and without centered fixed CUPED. Their candidate basis identifies the transformation, adjustment, design and number of assignment units; registration does not itself grant calibration or a support license.

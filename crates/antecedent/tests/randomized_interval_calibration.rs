@@ -615,3 +615,140 @@ fn the_small_arm_interval_is_published_under_its_own_construction() {
         assert_eq!(construction.se_kind, "hc2");
     }
 }
+
+/// Calibrate the executed nonlinear decision-evidence interval under a fixed cluster population.
+/// Each replicate randomizes clusters; the truth is the difference of functions of the known
+/// finite-population arm means. The optional coefficient is fixed independently of outcomes.
+fn measure_decision_margin(test: &'static str, centered: bool) {
+    use antecedent::decision_evidence::*;
+    let n = grid_n(160);
+    let sizes = vec![5_usize; n];
+    let rows = 5 * n;
+    let pre: Vec<f64> = (0..n).map(|i| 5.0 * (1.0 + (i as f64 * 0.17).sin())).collect();
+    let potential = |treated: bool, k: usize| -> Vec<f64> {
+        (0..n)
+            .map(|i| {
+                let x = pre[i] / 5.0;
+                let shock = (i as f64 * 0.37).cos();
+                let y = if k == 0 {
+                    2.0 + 0.4 * x + 0.2 * shock + if treated { 0.3 } else { 0.0 }
+                } else {
+                    9.0 + x + 0.5 * shock + if treated { -0.4 } else { 0.0 }
+                };
+                5.0 * y
+            })
+            .collect()
+    };
+    let (t0, t1, c0, c1) =
+        (potential(true, 0), potential(true, 1), potential(false, 0), potential(false, 1));
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / rows as f64;
+    let truth = mean(&t0) * mean(&t1) - mean(&c0) * mean(&c1);
+    let quantity = DerivedQuantity {
+        name: "calibration_margin".into(),
+        units: "utility".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![
+            InputBinding::Measured("frequency".into()),
+            InputBinding::Measured("value".into()),
+        ],
+    };
+    let request = Request {
+        population_id: "calibration_population".into(),
+        treated_regime_id: "treated".into(),
+        control_regime_id: "control".into(),
+        horizon: 1,
+        target: Target::ExperimentalContrast,
+    };
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test,
+            dgp: "cluster_margin_fixed_population",
+            interval: "delta_method_normal_95",
+        },
+        REPORTED_LEVEL,
+    );
+    for (interval, basis) in map_replicates(n_sim(), |rep| {
+        let assigned = assign(n, Assignment::Complete(n / 2), grid_seed(0x6150_0000 + rep));
+        let mut y0: Vec<f64> = (0..n).map(|i| if assigned[i] { t0[i] } else { c0[i] }).collect();
+        let y1: Vec<f64> = (0..n).map(|i| if assigned[i] { t1[i] } else { c1[i] }).collect();
+        let adjustments = if centered {
+            y0 = centered_fixed_cuped_totals(&y0, &pre, &sizes, 0.4).unwrap();
+            vec![ComponentAdjustment {
+                component: "frequency".into(),
+                kind: AdjustmentKind::CenteredFixedCuped {
+                    covariate: "pre".into(),
+                    coefficient: 0.4,
+                },
+            }]
+        } else {
+            vec![]
+        };
+        let contrast = complete_cluster_joint_contrast(&[&y0, &y1], &assigned, rows).unwrap();
+        let components = ["frequency", "value"]
+            .into_iter()
+            .map(|name| OutcomeComponent {
+                name: name.into(),
+                variable_id: name.into(),
+                units: "u".into(),
+            })
+            .collect();
+        let ev = evidence_from_cluster_contrast(
+            &contrast,
+            "calibration_evidence",
+            "calibration_population",
+            ("treated", "control"),
+            1,
+            components,
+            rows,
+            adjustments,
+            Exposure::NoBetweenUnitInterference {
+                assumption_id: "no_between_cluster_interference".into(),
+            },
+        )
+        .unwrap();
+        let result = derive(&ev, &request, &quantity).unwrap();
+        let interval = result.sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(&ev, &request, &quantity).unwrap();
+        (interval, basis)
+    }) {
+        let construction = Construction {
+            query: basis.query.to_string(),
+            graph_class: basis.graph_class.to_string(),
+            structure: basis.structure.to_string(),
+            modality: basis.modality.to_string(),
+            inference: basis.inference.to_string(),
+            estimator: basis.estimator.to_string(),
+            interval_method: basis.interval_method.to_string(),
+            se_kind: basis.se_kind.to_string(),
+            dependence: basis.dependence.to_string(),
+            posterior: basis.posterior.to_string(),
+            functional: basis.functional.to_string(),
+            identification: basis.identification.to_string(),
+            reported_level: basis.level,
+        };
+        tally.bind_validation(
+            &construction,
+            ScopeFacts {
+                row_count: basis.row_count,
+                replicates_ok: basis.replicates_ok,
+                posterior_draws: basis.posterior_draws,
+                unidentified_mass: basis.unidentified_mass,
+            },
+            &basis.validation,
+        );
+        tally.record(interval, truth);
+    }
+    tally.assert();
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_joint_cluster_delta_interval() {
+    measure_decision_margin("decision_margin_joint_cluster_delta_interval", false);
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_centered_cuped_cluster_delta_interval() {
+    measure_decision_margin("decision_margin_centered_cuped_cluster_delta_interval", true);
+}
