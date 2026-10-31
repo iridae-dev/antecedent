@@ -22,20 +22,6 @@ use crate::gcm::FitResampling;
 /// the study does not set the draw count: each refit is a full nested attribution.
 const INTRINSIC_POSTERIOR_DRAWS: usize = 100;
 
-/// The row counts of the baseline and comparison populations of a change query.
-fn population_sizes(
-    data: &TabularData,
-    change: &antecedent_core::ChangeAttributionQuery,
-) -> Result<(usize, usize), CausalError> {
-    let baseline = antecedent_attribution::resolve_rows(data, &change.baseline)
-        .map_err(CausalError::rejected)?
-        .len();
-    let comparison = antecedent_attribution::resolve_rows(data, &change.comparison)
-        .map_err(CausalError::rejected)?
-        .len();
-    Ok((baseline, comparison))
-}
-
 /// The refit populations of one replicate: row weights when Bayesian, else counts.
 fn population_refit<'a>(
     bayesian: bool,
@@ -193,6 +179,20 @@ enum AttributionTarget {
     Model(CausalQuery),
 }
 
+enum SampledWeights {
+    Legacy(Vec<f64>),
+    Run(antecedent_attribution::temporal_resampling::RunWeights),
+}
+impl std::ops::Deref for SampledWeights {
+    type Target = [f64];
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Legacy(values) => values,
+            Self::Run(values) => values,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum AttributionProcedure {
     Point,
@@ -218,6 +218,8 @@ pub(crate) struct CheckedAttributionOperation {
     result_context: IdentifiedResultContext,
     /// Present when the source graph was a `TemporalDag`. The static `graph` is its unfolding.
     lag_aligned: Option<super::temporal_attribution::LagAlignedScm>,
+    temporal_input: Option<super::temporal_attribution::CompleteWindowInput>,
+    temporal_budget: Option<antecedent_core::TemporalBudget>,
     /// Mechanism fit of a fitted-model route.
     mechanisms: Arc<crate::analysis::structure_route::MechanismProgram>,
     /// Present when the source graph was a mixed graph whose attribution is identified: the
@@ -245,8 +247,21 @@ impl CheckedAttributionOperation {
         study: &Study,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        ctx: &ExecutionContext,
     ) -> Result<Self, CausalError> {
-        Self::checked_on(study, physical, cache, attribution_graph(study)?, None)
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        Self::checked_within(study, physical, cache, &mut budget, ctx)
+    }
+
+    pub(super) fn checked_within(
+        study: &Study,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        Self::checked_on(study, physical, cache, attribution_graph(study, budget, ctx)?, None)
     }
 
     /// The operation on the directed part of an identified mixed graph, with its noise blocks
@@ -349,6 +364,8 @@ impl CheckedAttributionOperation {
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
             lag_aligned,
+            temporal_input: None,
+            temporal_budget: None,
             mechanisms: study.mechanisms.clone().unwrap_or_else(|| {
                 Arc::new(crate::analysis::structure_route::MechanismProgram::standard())
             }),
@@ -424,13 +441,159 @@ impl CheckedAttributionOperation {
     pub(crate) fn execute_series(
         &self,
         series: &TimeSeriesData,
+        provenance: Option<&super::TemporalRowProvenance>,
+        common_history: Option<u32>,
+        shared_budget: Option<&mut antecedent_core::TemporalBudget>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let aligned = self.lag_aligned.as_ref().ok_or_else(|| CausalError::Compile {
             message: "temporal attribution lost its lag-aligned unfolding".into(),
         })?;
-        let table = aligned.table(series)?;
-        self.execute(&table, ctx)
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        let user_weighted = provenance.map_or_else(
+            || series.storage().weights().is_some(),
+            super::TemporalRowProvenance::user_sampling_weights,
+        );
+        if user_weighted {
+            return Err(crate::unsupported_reason!(
+                "option_not_applicable",
+                "temporal attribution mechanism selection and fitting do not support user observation weights"
+            ));
+        }
+        let mut local_budget = provenance.map(|p| p.budget().clone()).unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let mut budget = shared_budget.unwrap_or(&mut local_budget);
+        let input = super::temporal_attribution::CompleteWindowInput::build(
+            aligned,
+            series,
+            common_history.unwrap_or_else(|| aligned.history()),
+            provenance,
+            &mut budget,
+            ctx,
+        )?;
+        if self.result_context.query != self.query()
+            || self.cache.identification.query != self.query()
+            || !proof_supplies_method_and_functional(
+                &self.cache.identification,
+                &self.cache.estimand,
+            )
+        {
+            return Err(CausalError::Compile {
+                message: "attribution operation lost its checked target or identification binding"
+                    .into(),
+            });
+        }
+        let mut temporal_op = self.clone();
+        temporal_op.temporal_input = Some(input.clone());
+        temporal_op.temporal_budget = Some(budget.clone());
+        let ticks = input.original_ticks();
+        let source_bound = provenance.is_none().then_some(series.row_count());
+        let mut result = match &self.target {
+            AttributionTarget::Anomaly(query) => {
+                let mut query = query.clone();
+                let mut selector_lease = None;
+                if let Some(requested) = &query.unit_rows {
+                    if provenance.is_none() {
+                        let count =
+                            u64::try_from(requested.len()).map_err(|_| CausalError::Resource {
+                                message: "anomaly row request size overflow".into(),
+                            })?;
+                        budget
+                            .charge_work(count)
+                            .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+                        let first_complete =
+                            common_history.unwrap_or_else(|| aligned.history()) as usize;
+                        for &row in requested.iter() {
+                            if ctx.cancellation.is_cancelled() {
+                                return Err(CausalError::Cancelled {
+                                    stage: "temporal attribution",
+                                });
+                            }
+                            if row < first_complete {
+                                return Err(CausalError::Compile {
+                                    message: format!(
+                                        "anomaly requested original row {row} without complete observed history"
+                                    ),
+                                });
+                            }
+                        }
+                    }
+                    let selector = antecedent_core::PopulationSelector::Rows(requested.clone());
+                    let (translated, lease) = Self::series_retained_selector(
+                        &selector,
+                        ticks,
+                        source_bound,
+                        &mut budget,
+                        ctx,
+                    )?;
+                    let antecedent_core::PopulationSelector::Rows(rows) = translated else {
+                        unreachable!()
+                    };
+                    query.unit_rows = Some(rows);
+                    selector_lease = lease;
+                }
+                let _selector_lease = selector_lease;
+                temporal_op.execute_anomaly(&query, input.table(), ctx, Some(ticks))
+            }
+            AttributionTarget::Change(query) => {
+                let mut query = query.clone();
+                let (baseline, _baseline_lease) = Self::series_retained_selector(
+                    &query.baseline,
+                    ticks,
+                    source_bound,
+                    &mut budget,
+                    ctx,
+                )?;
+                let (comparison, _comparison_lease) = Self::series_retained_selector(
+                    &query.comparison,
+                    ticks,
+                    source_bound,
+                    &mut budget,
+                    ctx,
+                )?;
+                query.baseline = baseline;
+                query.comparison = comparison;
+                temporal_op.execute_change(&query, input.table(), ctx)
+            }
+            AttributionTarget::Model(query) => {
+                let needs_row_mapping = match query {
+                    CausalQuery::MechanismChange(_) | CausalQuery::UnitChange(_) => true,
+                    CausalQuery::Attribute(a) => matches!(
+                        &a.target,
+                        antecedent_core::AttributeTarget::DistributionChange { .. }
+                            | antecedent_core::AttributeTarget::RootCauses { .. }
+                            | antecedent_core::AttributeTarget::StructureChange { .. }
+                            | antecedent_core::AttributeTarget::MechanismChange { .. }
+                            | antecedent_core::AttributeTarget::Anomaly(_)
+                            | antecedent_core::AttributeTarget::UnitChange(_)
+                    ),
+                    _ => false,
+                };
+                if needs_row_mapping {
+                    let (query, _first_lease, _second_lease) = Self::series_model_query(
+                        query,
+                        ticks,
+                        common_history.unwrap_or_else(|| aligned.history()),
+                        source_bound,
+                        &mut budget,
+                        ctx,
+                    )?;
+                    temporal_op.execute_model(&query, input.table(), Some(&input), ctx)
+                } else {
+                    temporal_op.execute_model(query, input.table(), Some(&input), ctx)
+                }
+            }
+        }?;
+        result.diagnostics.push(Diagnostic::new(
+            "gcm.attribution.complete_observed_windows_v2",
+            DiagnosticKind::Execution,
+            DiagnosticSeverity::Info,
+            format!("fit and score use {} eligible complete observed windows from {} source rows with common history {}; source row coordinates are preserved. V2 resampling splits disconnected runs and derives independent segment streams; circular bootstrap segments wrap only within their run.", input.ticks().len(), series.row_count(), common_history.unwrap_or_else(|| aligned.history())),
+        ));
+        Ok(result)
     }
 
     pub(crate) fn query(&self) -> CausalQuery {
@@ -491,7 +654,7 @@ impl CheckedAttributionOperation {
         match &self.target {
             AttributionTarget::Anomaly(query) => self.execute_anomaly(query, data, ctx, None),
             AttributionTarget::Change(query) => self.execute_change(query, data, ctx),
-            AttributionTarget::Model(query) => self.execute_model(query, data, ctx),
+            AttributionTarget::Model(query) => self.execute_model(query, data, None, ctx),
         }
     }
 
@@ -550,6 +713,308 @@ impl CheckedAttributionOperation {
         }
     }
 
+    fn series_model_query(
+        query: &CausalQuery,
+        ticks: &[usize],
+        history: u32,
+        source_bound: Option<usize>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (
+            CausalQuery,
+            Option<antecedent_core::execution::AdmissionLease>,
+            Option<antecedent_core::execution::AdmissionLease>,
+        ),
+        CausalError,
+    > {
+        use antecedent_core::{AttributeTarget, PopulationSelector};
+        let mut query = query.clone();
+        let mut first = None;
+        let mut second = None;
+        let mut change = |baseline: &mut PopulationSelector,
+                          comparison: &mut PopulationSelector|
+         -> Result<(), CausalError> {
+            let (mapped, lease) =
+                Self::series_retained_selector(baseline, ticks, source_bound, budget, ctx)?;
+            *baseline = mapped;
+            first = lease;
+            let (mapped, lease) =
+                Self::series_retained_selector(comparison, ticks, source_bound, budget, ctx)?;
+            *comparison = mapped;
+            second = lease;
+            Ok(())
+        };
+        match &mut query {
+            CausalQuery::MechanismChange(q) => change(&mut q.baseline, &mut q.comparison)?,
+            CausalQuery::Attribute(q) => match &mut q.target {
+                AttributeTarget::DistributionChange { change: c, .. }
+                | AttributeTarget::RootCauses { change: c, .. }
+                | AttributeTarget::StructureChange { change: c, .. } => {
+                    change(&mut c.baseline, &mut c.comparison)?
+                }
+                AttributeTarget::MechanismChange { query: c, .. } => {
+                    change(&mut c.baseline, &mut c.comparison)?
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+        let unit_rows = match &mut query {
+            CausalQuery::UnitChange(q) => Some(&mut q.unit_rows),
+            CausalQuery::Attribute(q) => match &mut q.target {
+                AttributeTarget::Anomaly(a) => Some(&mut a.unit_rows),
+                AttributeTarget::UnitChange(a) => Some(&mut a.unit_rows),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(Some(rows)) = unit_rows {
+            let count = u64::try_from(rows.len()).map_err(|_| CausalError::Resource {
+                message: "unit row request size overflow".into(),
+            })?;
+            budget
+                .charge_work(count)
+                .map_err(|e| CausalError::Resource { message: e.to_string() })?;
+            if source_bound.is_some() {
+                for &row in rows.iter() {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                    }
+                    if row < history as usize {
+                        return Err(CausalError::Compile {
+                            message: format!(
+                                "requested original row {row} without complete observed history"
+                            ),
+                        });
+                    }
+                }
+            }
+            let (mapped, lease) = Self::series_retained_selector(
+                &PopulationSelector::Rows(rows.clone()),
+                ticks,
+                source_bound,
+                budget,
+                ctx,
+            )?;
+            let PopulationSelector::Rows(mapped) = mapped else { unreachable!() };
+            *rows = mapped;
+            first = lease;
+        }
+        Ok((query, first, second))
+    }
+
+    fn retain_mapped_rows(
+        &self,
+        count: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Arc<antecedent_core::execution::AdmissionLease>>, CausalError> {
+        if count == 0 {
+            return Ok(None);
+        }
+        let Some(shared) = self.temporal_budget.as_ref() else {
+            return Err(CausalError::Compile {
+                message: "temporal row mapping lost its budget".into(),
+            });
+        };
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        let mut budget = shared.clone();
+        let n = u64::try_from(count).map_err(|_| CausalError::Resource {
+            message: "temporal result row count overflow".into(),
+        })?;
+        budget.charge_work(n).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = n.checked_mul(16).and_then(|v| v.checked_add(1024)).ok_or_else(|| {
+            CausalError::Resource { message: "temporal result row bytes overflow".into() }
+        })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "temporal result row byte limit".into() });
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        Ok(Some(Arc::new(lease)))
+    }
+
+    fn model_row_count(slot: &GcmSlot) -> Result<usize, CausalError> {
+        match slot {
+            GcmSlot::Unit(result) => Ok(result.unit_rows.len()),
+            GcmSlot::Attribution(payload) => match &payload.outcome {
+                AttributionOutcome::Anomaly(scores) => {
+                    scores.iter().try_fold(0_usize, |n, score| {
+                        n.checked_add(score.rows.len()).ok_or_else(|| CausalError::Resource {
+                            message: "temporal result row count overflow".into(),
+                        })
+                    })
+                }
+                AttributionOutcome::UnitChange(result) => Ok(result.unit_rows.len()),
+                _ => Ok(0),
+            },
+            _ => Ok(0),
+        }
+    }
+
+    fn remap_model_rows(
+        slot: &mut GcmSlot,
+        ticks: &[usize],
+        ctx: &ExecutionContext,
+    ) -> Result<(), CausalError> {
+        fn remap(
+            rows: &mut Arc<[usize]>,
+            ticks: &[usize],
+            ctx: &ExecutionContext,
+        ) -> Result<(), CausalError> {
+            for row in Arc::make_mut(rows).iter_mut() {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                }
+                *row = *ticks.get(*row).ok_or_else(|| CausalError::Compile {
+                    message: "attribution returned an invalid compact row".into(),
+                })?;
+            }
+            Ok(())
+        }
+        match slot {
+            GcmSlot::Unit(result) => remap(&mut result.unit_rows, ticks, ctx)?,
+            GcmSlot::Attribution(payload) => match &mut payload.outcome {
+                AttributionOutcome::Anomaly(scores) => {
+                    for score in scores {
+                        remap(&mut score.rows, ticks, ctx)?;
+                    }
+                }
+                AttributionOutcome::UnitChange(result) => remap(&mut result.unit_rows, ticks, ctx)?,
+                _ => {}
+            },
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Translate original coordinates to compact positions, including every
+    /// occurrence in a gathered refit. The lease remains live with the query.
+    fn series_retained_selector(
+        selector: &antecedent_core::PopulationSelector,
+        kept: &[usize],
+        source_bound: Option<usize>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (antecedent_core::PopulationSelector, Option<antecedent_core::execution::AdmissionLease>),
+        CausalError,
+    > {
+        use antecedent_core::PopulationSelector;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        if let (Some(n), PopulationSelector::TimeRange { end, .. }) = (source_bound, selector) {
+            if *end > n {
+                return Err(CausalError::Compile {
+                    message: format!(
+                        "temporal population range ends at {end}, beyond {n} source rows"
+                    ),
+                });
+            }
+        }
+        let scans = match selector {
+            PopulationSelector::Rows(rows) => rows.len().checked_mul(kept.len()),
+            PopulationSelector::TimeRange { .. } => Some(kept.len()),
+            _ => return Ok((selector.clone(), None)),
+        }
+        .ok_or_else(|| CausalError::Resource {
+            message: "temporal selector work overflow".into(),
+        })?;
+        let work = u64::try_from(scans).map_err(|_| CausalError::Resource {
+            message: "temporal selector work overflow".into(),
+        })?;
+        budget
+            .charge_work(work)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        let mut count = 0_usize;
+        match selector {
+            PopulationSelector::Rows(rows) => {
+                for row in rows.iter() {
+                    if source_bound.is_some_and(|n| *row >= n) {
+                        return Err(CausalError::Compile {
+                            message: format!("temporal population row {row} is out of range"),
+                        });
+                    }
+                    for tick in kept {
+                        if ctx.cancellation.is_cancelled() {
+                            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                        }
+                        if row == tick {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+            PopulationSelector::TimeRange { start, end } => {
+                for tick in kept {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                    }
+                    if *tick >= *start && *tick < *end {
+                        count += 1;
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        let bytes = u64::try_from(count)
+            .ok()
+            .and_then(|n| n.checked_mul(16))
+            .and_then(|n| n.checked_add(1024))
+            .ok_or_else(|| CausalError::Resource {
+                message: "temporal selector size overflow".into(),
+            })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "temporal selector byte limit".into() });
+        }
+        budget
+            .charge_work(work)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let mut positions = Vec::new();
+        positions.try_reserve_exact(count).map_err(|_| CausalError::Resource {
+            message: "temporal selector allocation refused".into(),
+        })?;
+        match selector {
+            PopulationSelector::Rows(rows) => {
+                for row in rows.iter() {
+                    for (i, tick) in kept.iter().enumerate() {
+                        if ctx.cancellation.is_cancelled() {
+                            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                        }
+                        if row == tick {
+                            positions.push(i);
+                        }
+                    }
+                }
+            }
+            PopulationSelector::TimeRange { start, end } => {
+                for (i, tick) in kept.iter().enumerate() {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                    }
+                    if *tick >= *start && *tick < *end {
+                        positions.push(i);
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        Ok((PopulationSelector::Rows(positions.into()), Some(lease)))
+    }
+
     /// Fit the program's mechanisms and run the fitted-model target on them, with the
     /// uncertainty its procedure carries: the posterior over the mechanisms under Bayesian
     /// inference, the mechanism-refit row (or block) bootstrap when replicates are requested,
@@ -558,13 +1023,39 @@ impl CheckedAttributionOperation {
         &self,
         query: &CausalQuery,
         data: &TabularData,
+        observed: Option<&super::temporal_attribution::CompleteWindowInput>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let fit = self.model_fit(query, data.row_count());
+        let change_query = match query {
+            CausalQuery::MechanismChange(q) => Some(q),
+            CausalQuery::Attribute(q) => match &q.target {
+                antecedent_core::AttributeTarget::MechanismChange { query, .. } => Some(query),
+                _ => None,
+            },
+            _ => None,
+        };
+        let (baseline_runs, comparison_runs) = if let Some(change) = change_query {
+            let baseline = antecedent_attribution::resolve_rows(data, &change.baseline)
+                .map_err(CausalError::rejected)?;
+            let comparison = antecedent_attribution::resolve_rows(data, &change.comparison)
+                .map_err(CausalError::rejected)?;
+            (
+                self.selected_temporal_runs(&baseline, ctx)?,
+                self.selected_temporal_runs(&comparison, ctx)?,
+            )
+        } else {
+            (None, None)
+        };
         let reading = crate::analysis::structure_route::ChangeReading {
-            block: self.lag_aligned.as_ref().map(|aligned| aligned.block_length(data.row_count())),
+            block: self.lag_aligned.as_ref().map(|_| self.temporal_block_length(data.row_count())),
             bayesian: self.inference.is_bayesian() && is_mechanism_change_query(query),
+            runs: baseline_runs
+                .as_ref()
+                .zip(comparison_runs.as_ref())
+                .map(|(a, b)| (a.ranges(), b.ranges())),
+            budget: self.temporal_budget.as_ref(),
         };
         let mut answer = super::structural_route::run_model_query_with_fit(
             &self.mechanisms,
@@ -572,13 +1063,18 @@ impl CheckedAttributionOperation {
             data,
             query,
             fit,
-            super::structural_route::ModelRun { reading, unfolding: self.lag_aligned.as_ref() },
+            super::structural_route::ModelRun {
+                reading,
+                unfolding: self.lag_aligned.as_ref(),
+                observed,
+                budget: self.temporal_budget.as_ref(),
+            },
             ctx,
         )?;
         let mut posterior = None;
         match self.procedure {
             AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                let built = self.model_posterior(query, data, &answer, draws, ctx)?;
+                let built = self.model_posterior(query, data, &answer, draws, observed, ctx)?;
                 if let Some(index) = built.effect_column() {
                     answer.estimate.ate = built.summaries.mean[index];
                     answer.estimate.uncertainty.analytic.se = built.summaries.sd[index];
@@ -596,7 +1092,7 @@ impl CheckedAttributionOperation {
                 )));
             }
             AttributionProcedure::RowBootstrap { replicates } => {
-                self.model_bootstrap(query, data, replicates, &mut answer, ctx)?;
+                self.model_bootstrap(query, data, replicates, &mut answer, observed, ctx)?;
             }
             AttributionProcedure::Point => {
                 if self.inference.is_bayesian()
@@ -616,8 +1112,15 @@ impl CheckedAttributionOperation {
                 }
             }
         }
+        let row_lease = if let Some(input) = observed {
+            let lease = self.retain_mapped_rows(Self::model_row_count(&answer.slot)?, ctx)?;
+            Self::remap_model_rows(&mut answer.slot, input.original_ticks(), ctx)?;
+            lease
+        } else {
+            None
+        };
         let (treatment, outcome) = super::gcm_query_vars(query)?;
-        Ok(finish_identified_execute_with_context(
+        let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
             IdentifiedExecuteFinish::new(
@@ -639,16 +1142,19 @@ impl CheckedAttributionOperation {
                 empty_provenance: true,
                 ..Default::default()
             }),
-        ))
+        );
+        if let Some(lease) = row_lease {
+            result.retained_resources.push(lease);
+        }
+        Ok(result)
     }
 
     /// The weights one draw puts on the rows, in words.
     fn weights_description(&self, n: usize) -> String {
         match &self.lag_aligned {
-            Some(aligned) => format!(
-                "one Exp(1) weight per block of {} consecutive lag-aligned times, shared by \
-                 every row of the block",
-                aligned.block_length(n)
+            Some(_) => format!(
+                "run-aware v2 Exp(1) weights for blocks of {} retained rows, split into independently weighted contiguous source-run segments",
+                self.temporal_block_length(n)
             ),
             None => "one Dirichlet(1,…,1) row-weight vector".to_owned(),
         }
@@ -662,7 +1168,7 @@ impl CheckedAttributionOperation {
         if !attribute_intrinsic_target(query) {
             return None;
         }
-        let block = self.lag_aligned.as_ref().map(|aligned| aligned.block_length(n));
+        let block = self.lag_aligned.as_ref().map(|_| self.temporal_block_length(n));
         match (self.procedure.clone(), block) {
             (AttributionProcedure::SharedDirichletRowWeights { draws }, block) => {
                 Some(AttributionFit {
@@ -699,12 +1205,13 @@ impl CheckedAttributionOperation {
         data: &TabularData,
         answer: &super::structural_route::ModelAnswer,
         draws: usize,
+        observed: Option<&super::temporal_attribution::CompleteWindowInput>,
         ctx: &ExecutionContext,
     ) -> Result<CausalPosterior, CausalError> {
         let (columns, has_primary_effect) = if attribute_intrinsic_target(query) {
             (intrinsic_posterior_columns(&answer.slot)?, false)
         } else {
-            let replicates = self.attribute_replicates(query, data, draws, true, ctx)?;
+            let replicates = self.attribute_replicates(query, data, draws, true, observed, ctx)?;
             let primary = replicates.names.first().is_some_and(|name| name == "total_change");
             (replicates.columns(), primary)
         };
@@ -725,10 +1232,11 @@ impl CheckedAttributionOperation {
         data: &TabularData,
         replicates: u32,
         answer: &mut super::structural_route::ModelAnswer,
+        observed: Option<&super::temporal_attribution::CompleteWindowInput>,
         ctx: &ExecutionContext,
     ) -> Result<(), CausalError> {
         let draws = usize::try_from(replicates).unwrap_or(usize::MAX);
-        let outcome = self.attribute_replicates(query, data, draws, false, ctx)?;
+        let outcome = self.attribute_replicates(query, data, draws, false, observed, ctx)?;
         let columns = outcome.columns();
         let accounted: Vec<_> = columns
             .iter()
@@ -782,6 +1290,7 @@ impl CheckedAttributionOperation {
         data: &TabularData,
         replicates: usize,
         bayesian: bool,
+        observed: Option<&super::temporal_attribution::CompleteWindowInput>,
         ctx: &ExecutionContext,
     ) -> Result<Replicates, CausalError> {
         let (attribute, simulate) = match query {
@@ -817,12 +1326,25 @@ impl CheckedAttributionOperation {
                 &mut counts_stream
             };
             let replicate = match (attribute, simulate) {
-                (Some(attribute), _) => {
-                    self.attribute_replicate(attribute, &fitted, data, bayesian, rng, ctx)
-                }
-                (None, Some(simulate)) => {
-                    self.simulate_replicate(simulate, &fitted, data, bayesian, rng, ctx)
-                }
+                (Some(attribute), _) => self.attribute_replicate(
+                    attribute,
+                    &fitted,
+                    data,
+                    bayesian,
+                    rng,
+                    replicate as u64,
+                    ctx,
+                ),
+                (None, Some(simulate)) => self.simulate_replicate(
+                    simulate,
+                    &fitted,
+                    data,
+                    bayesian,
+                    rng,
+                    replicate as u64,
+                    observed,
+                    ctx,
+                ),
                 (None, None) => unreachable!("a replicate query is an attribution or a rollout"),
             };
             match replicate {
@@ -845,6 +1367,11 @@ impl CheckedAttributionOperation {
                     return Err(CausalError::Cancelled {
                         stage: super::super::stage::STAGE_UNCERTAINTY,
                     });
+                }
+                Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. }))
+                    if self.temporal_input.is_some() =>
+                {
+                    return Err(error);
                 }
                 Err(error) if bayesian => return Err(error),
                 Err(_) => out.failed += 1,
@@ -869,11 +1396,16 @@ impl CheckedAttributionOperation {
         data: &TabularData,
         bayesian: bool,
         rng: &mut antecedent_core::CausalRng,
+        replicate: u64,
+        observed: Option<&super::temporal_attribution::CompleteWindowInput>,
         ctx: &ExecutionContext,
     ) -> Result<Vec<(String, f64)>, CausalError> {
         let n = data.row_count();
-        let weights =
-            if bayesian { self.draw_row_weights(n, rng) } else { self.draw_row_counts(n, rng) };
+        let weights = if bayesian {
+            self.draw_row_weights(n, rng, self.full_temporal_runs(), replicate, ctx)?
+        } else {
+            self.draw_row_counts(n, rng, self.full_temporal_runs(), replicate, ctx)?
+        };
         let registry = crate::gcm::MechanismRegistry::standard();
         let cancelled = || ctx.cancellation.is_cancelled();
         let store = if bayesian {
@@ -893,15 +1425,27 @@ impl CheckedAttributionOperation {
                 &cancelled,
             )
         }
-        .map_err(CausalError::rejected)?;
+        .map_err(|error| {
+            if self.temporal_input.is_some() {
+                CausalError::from(error)
+            } else {
+                CausalError::rejected(error)
+            }
+        })?;
         let refit = crate::gcm::FittedGcm {
             model: fitted.model.clone().with_mechanisms(store),
             assignments: fitted.assignments.clone(),
         };
         let outcome = match &self.lag_aligned {
-            Some(aligned) => {
-                super::structural_route::rollout_on_unfolding(&refit, data, aligned, simulate, ctx)?
-            }
+            Some(aligned) => super::structural_route::rollout_on_unfolding(
+                &refit,
+                data,
+                aligned,
+                observed,
+                self.temporal_budget.as_ref(),
+                simulate,
+                ctx,
+            )?,
             None => crate::analysis::structure_route::run_simulate(&refit, data, simulate, ctx)?,
         };
         let nodes = self.lag_aligned.as_ref().map_or(
@@ -939,7 +1483,13 @@ impl CheckedAttributionOperation {
             );
             let path_outcome = match &self.lag_aligned {
                 Some(aligned) => super::structural_route::rollout_on_unfolding(
-                    &refit, data, aligned, &single, ctx,
+                    &refit,
+                    data,
+                    aligned,
+                    observed,
+                    self.temporal_budget.as_ref(),
+                    &single,
+                    ctx,
                 )?,
                 None => crate::analysis::structure_route::run_simulate(&refit, data, &single, ctx)?,
             };
@@ -961,17 +1511,49 @@ impl CheckedAttributionOperation {
         data: &TabularData,
         bayesian: bool,
         rng: &mut antecedent_core::CausalRng,
+        replicate: u64,
         ctx: &ExecutionContext,
     ) -> Result<Vec<(String, f64)>, CausalError> {
         use antecedent_core::{AttributeTarget, ChangeEstimator};
-        let draw = |op: &Self, n: usize, rng: &mut antecedent_core::CausalRng| {
-            if bayesian { op.draw_row_weights(n, rng) } else { op.draw_row_counts(n, rng) }
+        let draw = |op: &Self,
+                    n: usize,
+                    positions: Option<&[usize]>,
+                    rng: &mut antecedent_core::CausalRng,
+                    key: u64| {
+            let partition =
+                positions.map(|rows| op.selected_temporal_runs(rows, ctx)).transpose()?.flatten();
+            let runs = partition
+                .as_ref()
+                .map(|p| p.ranges())
+                .or_else(|| if positions.is_none() { op.full_temporal_runs() } else { None });
+            if bayesian {
+                op.draw_row_weights(n, rng, runs, key, ctx)
+            } else {
+                op.draw_row_counts(n, rng, runs, key, ctx)
+            }
         };
         match &attribute.target {
             AttributeTarget::DistributionChange { change, estimator }
             | AttributeTarget::RootCauses { change, estimator } => {
-                let (nb, nc) = population_sizes(data, change)?;
-                let (baseline, comparison) = (draw(self, nb, rng), draw(self, nc, rng));
+                let baseline_rows = antecedent_attribution::resolve_rows(data, &change.baseline)
+                    .map_err(CausalError::rejected)?;
+                let comparison_rows =
+                    antecedent_attribution::resolve_rows(data, &change.comparison)
+                        .map_err(CausalError::rejected)?;
+                let baseline = draw(
+                    self,
+                    baseline_rows.len(),
+                    Some(&baseline_rows),
+                    rng,
+                    antecedent_core::derive_stream(replicate, 0),
+                )?;
+                let comparison = draw(
+                    self,
+                    comparison_rows.len(),
+                    Some(&comparison_rows),
+                    rng,
+                    antecedent_core::derive_stream(replicate, 1),
+                )?;
                 let refit = population_refit(bayesian, &baseline, &comparison);
                 let result = match estimator {
                     ChangeEstimator::Sampled { measure, n_samples, seed } => {
@@ -1021,8 +1603,25 @@ impl CheckedAttributionOperation {
                 Ok(change_quantities(&result))
             }
             AttributeTarget::StructureChange { change, comparison, measure, n_samples, seed } => {
-                let (nb, nc) = population_sizes(data, change)?;
-                let (baseline, comparison_weights) = (draw(self, nb, rng), draw(self, nc, rng));
+                let baseline_rows = antecedent_attribution::resolve_rows(data, &change.baseline)
+                    .map_err(CausalError::rejected)?;
+                let comparison_rows =
+                    antecedent_attribution::resolve_rows(data, &change.comparison)
+                        .map_err(CausalError::rejected)?;
+                let baseline = draw(
+                    self,
+                    baseline_rows.len(),
+                    Some(&baseline_rows),
+                    rng,
+                    antecedent_core::derive_stream(replicate, 0),
+                )?;
+                let comparison_weights = draw(
+                    self,
+                    comparison_rows.len(),
+                    Some(&comparison_rows),
+                    rng,
+                    antecedent_core::derive_stream(replicate, 1),
+                )?;
                 let refit = population_refit(bayesian, &baseline, &comparison_weights);
                 let comparison_model =
                     crate::analysis::structure_route::structure_comparison_model(
@@ -1056,7 +1655,7 @@ impl CheckedAttributionOperation {
                 // Paths, feature relevance, anomaly scores and unit change read the fitted
                 // mechanisms (and, for the last three, the rows): refit them on the whole
                 // table under one weight vector and recompute.
-                let weights = draw(self, data.row_count(), rng);
+                let weights = draw(self, data.row_count(), None, rng, replicate)?;
                 self.whole_table_replicate(attribute, fitted, data, bayesian, &weights, ctx)
             }
         }
@@ -1091,7 +1690,13 @@ impl CheckedAttributionOperation {
                 &|| ctx.cancellation.is_cancelled(),
             )
         }
-        .map_err(CausalError::rejected)?;
+        .map_err(|error| {
+            if self.temporal_input.is_some() {
+                CausalError::from(error)
+            } else {
+                CausalError::rejected(error)
+            }
+        })?;
         let refit = crate::gcm::FittedGcm {
             model: fitted.model.clone().with_mechanisms(store),
             assignments: fitted.assignments.clone(),
@@ -1103,6 +1708,8 @@ impl CheckedAttributionOperation {
             attribute,
             None,
             crate::analysis::structure_route::ChangeReading::default(),
+            None,
+            None,
             ctx,
         )?;
         attribution_quantities_weighted(&outcome, weights).ok_or_else(|| CausalError::Compile {
@@ -1122,11 +1729,67 @@ impl CheckedAttributionOperation {
 
     /// One frequentist replicate's row counts over `n` rows: multinomial single rows on a
     /// static table, circular blocks of consecutive times on a lag-aligned unfolding.
-    fn draw_row_counts(&self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
-        match &self.lag_aligned {
-            Some(aligned) => aligned.block_row_counts(n, rng),
-            None => super::gcm_bootstrap::bootstrap_counts(rng, n),
+    fn draw_row_counts(
+        &self,
+        n: usize,
+        rng: &mut antecedent_core::CausalRng,
+        runs: Option<&[std::ops::Range<usize>]>,
+        replicate: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<SampledWeights, CausalError> {
+        match (&self.lag_aligned, runs, &self.temporal_budget) {
+            (Some(_), Some(runs), Some(budget)) => {
+                let mut budget = budget.clone();
+                antecedent_attribution::temporal_resampling::bootstrap_run_counts(
+                    n,
+                    self.temporal_block_length(n),
+                    runs,
+                    replicate,
+                    rng,
+                    &mut budget,
+                    ctx,
+                )
+                .map(SampledWeights::Run)
+                .map_err(CausalError::from)
+            }
+            (Some(_), None, _) => Err(CausalError::Compile {
+                message: "temporal resampling lost its row partition".into(),
+            }),
+            (None, _, _) => {
+                Ok(SampledWeights::Legacy(super::gcm_bootstrap::bootstrap_counts(rng, n)))
+            }
+            _ => Err(CausalError::Compile {
+                message: "temporal resampling lost its shared budget".into(),
+            }),
         }
+    }
+
+    fn selected_temporal_runs(
+        &self,
+        positions: &[usize],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<super::temporal_attribution::SelectedRuns>, CausalError> {
+        match (&self.temporal_input, &self.temporal_budget) {
+            (Some(input), Some(budget)) => {
+                let mut budget = budget.clone();
+                Ok(Some(input.selected_runs(positions, &mut budget, ctx)?))
+            }
+            (None, None) => Ok(None),
+            _ => Err(CausalError::Compile {
+                message: "temporal resampling lost its row owner".into(),
+            }),
+        }
+    }
+
+    fn temporal_block_length(&self, n: usize) -> usize {
+        self.temporal_input.as_ref().map_or_else(
+            || self.lag_aligned.as_ref().map_or(1, |aligned| aligned.block_length(n)),
+            |input| input.block_length(n),
+        )
+    }
+
+    fn full_temporal_runs(&self) -> Option<&[std::ops::Range<usize>]> {
+        self.temporal_input.as_ref().map(|input| input.runs())
     }
 
     /// The bootstrap disclosure of `target` over `n` rows, recording the row-block
@@ -1139,12 +1802,15 @@ impl CheckedAttributionOperation {
     ) -> Diagnostic {
         let accounting = estimate.uncertainty.bootstrap;
         match &self.lag_aligned {
-            Some(aligned) => {
+            Some(_) => {
                 estimate.uncertainty.block.family =
                     Some(antecedent_estimate::CircularBlockFamily::RowBlock);
-                super::gcm_bootstrap::block_bootstrap_diagnostic(
+                super::gcm_bootstrap::bootstrap_diagnostic_over(
                     target,
-                    aligned.block_length(n),
+                    &format!(
+                        "v2 run-aware circular-block bootstrap (nominal block {}; disconnected segments use derived streams and wrap only within their own run)",
+                        self.temporal_block_length(n)
+                    ),
                     &accounting,
                 )
             }
@@ -1154,10 +1820,38 @@ impl CheckedAttributionOperation {
 
     /// One draw's row weights over `n` rows: Dirichlet row weights on a static table,
     /// block weights on the consecutive times of a lag-aligned unfolding.
-    fn draw_row_weights(&self, n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
-        match &self.lag_aligned {
-            Some(aligned) => aligned.block_row_weights(n, rng),
-            None => super::attribution_path::dirichlet_row_weights(n, rng),
+    fn draw_row_weights(
+        &self,
+        n: usize,
+        rng: &mut antecedent_core::CausalRng,
+        runs: Option<&[std::ops::Range<usize>]>,
+        replicate: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<SampledWeights, CausalError> {
+        match (&self.lag_aligned, runs, &self.temporal_budget) {
+            (Some(_), Some(runs), Some(budget)) => {
+                let mut budget = budget.clone();
+                antecedent_attribution::temporal_resampling::bayesian_run_weights(
+                    n,
+                    self.temporal_block_length(n),
+                    runs,
+                    replicate,
+                    rng,
+                    &mut budget,
+                    ctx,
+                )
+                .map(SampledWeights::Run)
+                .map_err(CausalError::from)
+            }
+            (Some(_), None, _) => Err(CausalError::Compile {
+                message: "temporal resampling lost its row partition".into(),
+            }),
+            (None, _, _) => {
+                Ok(SampledWeights::Legacy(super::attribution_path::dirichlet_row_weights(n, rng)))
+            }
+            _ => Err(CausalError::Compile {
+                message: "temporal resampling lost its shared budget".into(),
+            }),
         }
     }
 
@@ -1171,10 +1865,14 @@ impl CheckedAttributionOperation {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let fitted = fit_gcm(self.graph.clone(), data)?;
-        // Score all rows while honoring the query's reference (Empirical / Fixed).
-        let scorer_query =
+        // A series request names original ticks, translated by the entry path.
+        // Keep the existing static scoring convention unchanged.
+        let scorer_query = if self.lag_aligned.is_some() {
+            query.clone()
+        } else {
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
-                .with_reference(query.reference);
+                .with_reference(query.reference)
+        };
         let scores = self.score_anomalies(&fitted.model, data, &scorer_query, ctx)?;
         let outcome = *query.targets.first().ok_or_else(|| CausalError::Compile {
             message: "checked anomaly target has no outcome variable".into(),
@@ -1186,28 +1884,63 @@ impl CheckedAttributionOperation {
             publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
         extra_diagnostics.extend(bootstrap_diagnostic);
         // Scored rows are positions in the retained table; publish the submitted positions.
+        let row_lease = if submitted_rows.is_some() && self.temporal_input.is_some() {
+            let count = scores.iter().try_fold(0_usize, |n, score| {
+                n.checked_add(score.rows.len()).ok_or_else(|| CausalError::Resource {
+                    message: "temporal result row count overflow".into(),
+                })
+            })?;
+            self.retain_mapped_rows(count, ctx)?
+        } else {
+            None
+        };
         let scores = match submitted_rows {
             None => scores,
             Some(kept) => scores
                 .into_iter()
                 .map(|mut score| {
-                    score.rows = score.rows.iter().map(|&row| kept[row]).collect();
-                    score
+                    let rows = score
+                        .rows
+                        .iter()
+                        .map(|&row| {
+                            if ctx.cancellation.is_cancelled() {
+                                return Err(CausalError::Cancelled {
+                                    stage: "temporal attribution",
+                                });
+                            }
+                            kept.get(row).copied().ok_or_else(|| CausalError::Compile {
+                                message: "anomaly returned an invalid compact row".into(),
+                            })
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    score.rows = rows.into();
+                    Ok(score)
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, CausalError>>()?,
         };
         if posterior.is_some() {
-            let disclosure = match query.reference {
-                antecedent_core::AnomalyReference::Empirical => {
-                    "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional."
+            let disclosure = if self.temporal_input.is_some() {
+                match query.reference {
+                    antecedent_core::AnomalyReference::Empirical => {
+                        "Posterior uses v2 run-aware block weights on the observed complete windows, splitting disconnected source runs into independently derived segments. The empirical marginal reference is held fixed at the observed median and MAD; the interval is conditional on that realized reference."
+                    }
+                    antecedent_core::AnomalyReference::Fixed { .. } => {
+                        "Posterior uses v2 run-aware block weights on the observed complete windows, splitting disconnected source runs into independently derived segments. The declared fixed marginal reference remains fixed across draws."
+                    }
                 }
-                antecedent_core::AnomalyReference::Fixed { .. } => {
-                    "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)]."
+            } else {
+                match query.reference {
+                    antecedent_core::AnomalyReference::Empirical => {
+                        "Posterior is the Bayesian bootstrap of the mean anomaly score: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector while holding the observed marginal reference (median / 1.4826·MAD) fixed, so the interval is for the mean relative to that realized sample's reference, not a fixed population functional."
+                    }
+                    antecedent_core::AnomalyReference::Fixed { .. } => {
+                        "Posterior is the Bayesian bootstrap of the population mean anomaly score against the injected fixed reference: each draw reweights the per-row scores by one shared Dirichlet(1,…,1) row-weight vector, so the interval is a credible interval for the fixed functional μ_A = E_Y[−log 2Φ(−|Y − center|/scale)]."
+                    }
                 }
             };
             extra_diagnostics.push(bayesian_attribution_diagnostic(disclosure));
         }
-        Ok(finish_identified_execute_with_context(
+        let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
             IdentifiedExecuteFinish::new(
@@ -1229,7 +1962,11 @@ impl CheckedAttributionOperation {
                 empty_provenance: true,
                 ..Default::default()
             }),
-        ))
+        );
+        if let Some(lease) = row_lease {
+            result.retained_resources.push(lease);
+        }
+        Ok(result)
     }
 
     /// Fits the GCM and publishes the distribution-change attribution with its optional posterior.
@@ -1331,9 +2068,12 @@ impl CheckedAttributionOperation {
         let point =
             super::attribution_path::dirichlet_weighted_mean(&primary.scores, &primary.rows, &unit);
         let registry = crate::gcm::MechanismRegistry::standard();
-        let scorer_query =
+        let scorer_query = if self.temporal_input.is_some() {
+            query.clone()
+        } else {
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
-                .with_reference(query.reference);
+                .with_reference(query.reference)
+        };
         let cancelled = || ctx.cancellation.is_cancelled();
         let mut values = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
         let mut failed = 0_u32;
@@ -1344,7 +2084,13 @@ impl CheckedAttributionOperation {
                 });
             }
             let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xA110_B007, replicate);
-            let counts = self.draw_row_counts(n, &mut rng);
+            let counts = self.draw_row_counts(
+                n,
+                &mut rng,
+                self.full_temporal_runs(),
+                u64::from(replicate),
+                ctx,
+            )?;
             let store = match registry.refit_frequency_weighted_polled(
                 &fitted.model,
                 data,
@@ -1357,6 +2103,11 @@ impl CheckedAttributionOperation {
                     return Err(CausalError::Cancelled {
                         stage: super::super::stage::STAGE_UNCERTAINTY,
                     });
+                }
+                Err(error @ antecedent_model::ModelError::ResourceLimit { .. })
+                    if self.temporal_input.is_some() =>
+                {
+                    return Err(CausalError::from(error));
                 }
                 Err(_) => {
                     failed += 1;
@@ -1383,12 +2134,21 @@ impl CheckedAttributionOperation {
                                 &counts,
                             )
                         });
-                    values.push(value);
+                    if self.temporal_input.is_some() && !value.is_finite() {
+                        failed += 1;
+                    } else {
+                        values.push(value);
+                    }
                 }
                 Err(_) if cancelled() => {
                     return Err(CausalError::Cancelled {
                         stage: super::super::stage::STAGE_UNCERTAINTY,
                     });
+                }
+                Err(error @ (CausalError::Cancelled { .. } | CausalError::Resource { .. }))
+                    if self.temporal_input.is_some() =>
+                {
+                    return Err(error);
                 }
                 Err(_) => failed += 1,
             }
@@ -1422,12 +2182,14 @@ impl CheckedAttributionOperation {
         let AttributionProcedure::RowBootstrap { replicates } = self.procedure else {
             return Ok(None);
         };
-        let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
-            .map_err(CausalError::rejected)?
-            .len();
-        let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
-            .map_err(CausalError::rejected)?
-            .len();
+        let baseline_rows = antecedent_attribution::resolve_rows(data, &query.baseline)
+            .map_err(CausalError::rejected)?;
+        let comparison_rows = antecedent_attribution::resolve_rows(data, &query.comparison)
+            .map_err(CausalError::rejected)?;
+        let baseline_n = baseline_rows.len();
+        let comparison_n = comparison_rows.len();
+        let baseline_runs = self.selected_temporal_runs(&baseline_rows, ctx)?;
+        let comparison_runs = self.selected_temporal_runs(&comparison_rows, ctx)?;
         let rows = baseline_n.checked_add(comparison_n).ok_or_else(|| CausalError::Resource {
             message: "change bootstrap row count overflow".to_owned(),
         })?;
@@ -1441,8 +2203,20 @@ impl CheckedAttributionOperation {
                 });
             }
             let mut rng = super::gcm_bootstrap::replicate_stream(ctx, 0xC4A6_B007, replicate);
-            let baseline_counts = self.draw_row_counts(baseline_n, &mut rng);
-            let comparison_counts = self.draw_row_counts(comparison_n, &mut rng);
+            let baseline_counts = self.draw_row_counts(
+                baseline_n,
+                &mut rng,
+                baseline_runs.as_ref().map(|runs| runs.ranges()),
+                antecedent_core::derive_stream(u64::from(replicate), 0),
+                ctx,
+            )?;
+            let comparison_counts = self.draw_row_counts(
+                comparison_n,
+                &mut rng,
+                comparison_runs.as_ref().map(|runs| runs.ranges()),
+                antecedent_core::derive_stream(u64::from(replicate), 1),
+                ctx,
+            )?;
             match self.change_attribution(
                 model,
                 data,
@@ -1460,14 +2234,24 @@ impl CheckedAttributionOperation {
                         stage: super::super::stage::STAGE_UNCERTAINTY,
                     });
                 }
+                Err(
+                    error @ (antecedent_attribution::AttributionError::Cancelled
+                    | antecedent_attribution::AttributionError::Budget { .. }),
+                ) if self.temporal_input.is_some() => return Err(CausalError::from(error)),
+                Err(antecedent_attribution::AttributionError::Model(
+                    error @ antecedent_model::ModelError::ResourceLimit { .. },
+                )) if self.temporal_input.is_some() => return Err(CausalError::from(error)),
                 Err(_) => failed += 1,
             }
         }
         let accounting = super::gcm_bootstrap::accounting(&totals, failed, replicates);
         let diagnostic = match &self.lag_aligned {
-            Some(aligned) => super::gcm_bootstrap::block_bootstrap_diagnostic(
+            Some(_) => super::gcm_bootstrap::bootstrap_diagnostic_over(
                 "total distribution change",
-                aligned.block_length(baseline_n.min(comparison_n)),
+                &format!(
+                    "v2 run-aware circular-block bootstrap (nominal block {}; disconnected segments use derived streams and wrap only within their own run)",
+                    self.temporal_block_length(baseline_n.min(comparison_n))
+                ),
                 &accounting,
             ),
             None => {
@@ -1497,20 +2281,35 @@ impl CheckedAttributionOperation {
             })
             .collect::<Vec<_>>();
         let registry = crate::gcm::MechanismRegistry::standard();
-        let scorer_query =
+        let scorer_query = if self.temporal_input.is_some() {
+            query.clone()
+        } else {
             antecedent_core::AnomalyAttributionQuery::new(query.targets.clone(), query.max_units)
-                .with_reference(query.reference);
+                .with_reference(query.reference)
+        };
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xA110_7A7E);
-        for _ in 0..draws {
+        for replicate in 0..draws {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled {
                     stage: super::super::stage::STAGE_ESTIMATE_POINT,
                 });
             }
-            let weights = self.draw_row_weights(data.row_count(), &mut rng);
+            let weights = self.draw_row_weights(
+                data.row_count(),
+                &mut rng,
+                self.full_temporal_runs(),
+                replicate as u64,
+                ctx,
+            )?;
             let store = registry
                 .refit_weighted(&fitted.model, data, &fitted.assignments, &weights)
-                .map_err(CausalError::rejected)?;
+                .map_err(|error| {
+                    if self.temporal_input.is_some() {
+                        CausalError::from(error)
+                    } else {
+                        CausalError::rejected(error)
+                    }
+                })?;
             let draw_scores = self.score_anomalies(
                 &fitted.model.clone().with_mechanisms(store),
                 data,
@@ -1534,11 +2333,16 @@ impl CheckedAttributionOperation {
                 ));
             }
         }
-        let (identification, _) = parametric_scm_identification(
-            CausalQuery::AnomalyAttribution(query.clone()),
-            outcome,
-            outcome,
-        );
+        let identification = if self.temporal_input.is_some() {
+            self.cache.identification.clone()
+        } else {
+            parametric_scm_identification(
+                CausalQuery::AnomalyAttribution(query.clone()),
+                outcome,
+                outcome,
+            )
+            .0
+        };
         Ok(Some(super::attribution_path::attribution_posterior(
             columns,
             identification.required_assumptions,
@@ -1561,11 +2365,16 @@ impl CheckedAttributionOperation {
         };
         let posterior_columns =
             self.change_posterior_columns(query, data, model, options, draws, ctx)?;
-        let (identification, _) = parametric_scm_identification(
-            CausalQuery::ChangeAttribution(query.clone()),
-            query.outcome,
-            query.outcome,
-        );
+        let identification = if self.temporal_input.is_some() {
+            self.cache.identification.clone()
+        } else {
+            parametric_scm_identification(
+                CausalQuery::ChangeAttribution(query.clone()),
+                query.outcome,
+                query.outcome,
+            )
+            .0
+        };
         Ok(Some(super::attribution_path::attribution_posterior(
             posterior_columns,
             identification.required_assumptions,
@@ -1587,25 +2396,39 @@ impl CheckedAttributionOperation {
         draws: usize,
         ctx: &ExecutionContext,
     ) -> Result<Vec<(String, Vec<f64>)>, CausalError> {
-        let baseline_n = antecedent_attribution::resolve_rows(data, &query.baseline)
-            .map_err(CausalError::rejected)?
-            .len();
-        let comparison_n = antecedent_attribution::resolve_rows(data, &query.comparison)
-            .map_err(CausalError::rejected)?
-            .len();
+        let baseline_rows = antecedent_attribution::resolve_rows(data, &query.baseline)
+            .map_err(CausalError::rejected)?;
+        let comparison_rows = antecedent_attribution::resolve_rows(data, &query.comparison)
+            .map_err(CausalError::rejected)?;
+        let baseline_n = baseline_rows.len();
+        let comparison_n = comparison_rows.len();
+        let baseline_runs = self.selected_temporal_runs(&baseline_rows, ctx)?;
+        let comparison_runs = self.selected_temporal_runs(&comparison_rows, ctx)?;
         let mut rng = ctx.rng.stream_for(antecedent_core::StreamDomain::Attribution, 0xC4A6_7A7E);
         let _totals_admitted = admit_posterior_columns(ctx, draws, 1)?;
         let mut component_admitted = None;
         let mut components: Option<Vec<(String, Vec<f64>)>> = None;
         let mut totals = Vec::with_capacity(draws);
-        for _ in 0..draws {
+        for replicate in 0..draws {
             if ctx.cancellation.is_cancelled() {
                 return Err(CausalError::Cancelled {
                     stage: super::super::stage::STAGE_ESTIMATE_POINT,
                 });
             }
-            let baseline_weights = self.draw_row_weights(baseline_n, &mut rng);
-            let comparison_weights = self.draw_row_weights(comparison_n, &mut rng);
+            let baseline_weights = self.draw_row_weights(
+                baseline_n,
+                &mut rng,
+                baseline_runs.as_ref().map(|runs| runs.ranges()),
+                antecedent_core::derive_stream(replicate as u64, 0),
+                ctx,
+            )?;
+            let comparison_weights = self.draw_row_weights(
+                comparison_n,
+                &mut rng,
+                comparison_runs.as_ref().map(|runs| runs.ranges()),
+                antecedent_core::derive_stream(replicate as u64, 1),
+                ctx,
+            )?;
             let draw = self
                 .change_attribution(
                     model,
@@ -1738,7 +2561,7 @@ fn publish_lag_aligned(
         "gcm.attribution.lag_aligned",
         DiagnosticKind::Execution,
         DiagnosticSeverity::Info,
-        "attribution ran on the lag-aligned static unfolding of the TemporalDag",
+        "attribution ran on the complete observed lag windows of the TemporalDag unfolding",
     )];
     if let Some(posterior) = &posterior {
         let mean = posterior.summaries.mean.first().copied().unwrap_or(f64::NAN);
@@ -1751,10 +2574,7 @@ fn publish_lag_aligned(
             "gcm.attribution.block_bayesian_bootstrap",
             DiagnosticKind::Scientific,
             DiagnosticSeverity::Info,
-            "the lag-aligned rows are consecutive times of one dependent series, so each draw's \
-             Dirichlet weights fall on contiguous blocks of times (one Exp(1) weight per block \
-             of at least the lag span plus one rows, shared by every row of the block); every \
-             mechanism is refit under those weights; no coverage record measures this interval",
+            "v2 block weights split each drawn block at disconnected source runs and derive independent segment streams; every mechanism is refit under those weights; no coverage record measures this interval",
         ));
     }
     (estimate, posterior, diagnostics)
@@ -1814,6 +2634,8 @@ impl Inspect for CheckedAttributionOperation {
 /// Resolves the static DAG, unfolding a `TemporalDag` over the supplied series when the source graph is temporal.
 fn attribution_graph(
     study: &Study,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<(Dag, Option<super::temporal_attribution::LagAlignedScm>), CausalError> {
     Ok(if let Some(dag) = study.graph.as_dag() {
         (dag.clone(), None)
@@ -1823,7 +2645,9 @@ fn attribution_graph(
                 message: "temporal attribution requires a time series",
             });
         };
-        let aligned = super::temporal_attribution::LagAlignedScm::unfold(temporal, series)?;
+        let aligned = super::temporal_attribution::LagAlignedScm::unfold_within(
+            temporal, series, budget, ctx,
+        )?;
         let dag = aligned.dag.clone();
         (dag, Some(aligned))
     } else {
@@ -2001,9 +2825,13 @@ mod bayesian_checked_attribution_tests {
             identification,
             estimand,
         });
-        let operation =
-            CheckedAttributionOperation::checked(&study, &Arc::new(physical.clone()), &cache)
-                .expect("Bayesian attribution plan");
+        let operation = CheckedAttributionOperation::checked(
+            &study,
+            &Arc::new(physical.clone()),
+            &cache,
+            &ExecutionContext::for_tests(0),
+        )
+        .expect("Bayesian attribution plan");
         let info = operation.info();
         assert_eq!((info.identifier, info.estimator), (IdentifierId::GcmParametric, estimator));
         drop(study);

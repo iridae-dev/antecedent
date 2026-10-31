@@ -714,6 +714,17 @@ impl super::Study {
         execution: Option<&super::super::prepared::PreparedExecution>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.execute_on_with_provenance(data, physical, execution, None, ctx)
+    }
+
+    pub(crate) fn execute_on_with_provenance(
+        &self,
+        data: &DataInput,
+        physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        execution: Option<&super::super::prepared::PreparedExecution>,
+        provenance: Option<&super::TemporalRowProvenance>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         // A requested functional validation is run by `functional_validation::run_validated`
         // (the study refitted at validation none); a route reaching here with the suite still
         // set would return an unvalidated result under a validated request.
@@ -751,7 +762,7 @@ impl super::Study {
                     |series, ctx| self.execute_on_series(series, physical, execution, ctx),
                 )?
             }
-            _ => self.execute_on_inner(data, physical, execution, ctx)?,
+            _ => self.execute_on_inner(data, physical, execution, provenance, ctx)?,
         };
         push_gaussian_likelihood_disclosure(&mut result, &self.settings.inference, data);
         push_lag_zero_average_effect_disclosure(self, &mut result);
@@ -774,6 +785,7 @@ impl super::Study {
         data: &DataInput,
         gp: &GraphPosterior,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match data {
@@ -781,7 +793,7 @@ impl super::Study {
                 self.execute_graph_posterior_tabular(table, gp, physical, ctx)
             }
             DataInput::Temporal(series) | DataInput::Event(series) => {
-                self.execute_graph_posterior_series(series, gp, physical, ctx)
+                self.execute_graph_posterior_series(series, gp, physical, provenance, ctx)
             }
             DataInput::Panel(_) | DataInput::MultiEnv(_) => {
                 Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL })
@@ -795,6 +807,7 @@ impl super::Study {
         data: &TimeSeriesData,
         gp: &GraphPosterior,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if is_class_atom(gp.atom_kind())
@@ -844,7 +857,7 @@ impl super::Study {
                 _ => self.execute_dbn_posterior_response(data, gp, q, physical, ctx),
             },
             CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_) => {
-                self.execute_series_attribution_graph_posterior(data, gp, physical, ctx)
+                self.execute_series_attribution_graph_posterior(data, gp, physical, provenance, ctx)
             }
             _ => Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         }
@@ -879,18 +892,19 @@ impl super::Study {
         data: &DataInput,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: Option<&super::super::prepared::PreparedExecution>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let DataInput::Tabular(table) = data {
             return self.execute_on_table(table, physical, execution, ctx);
         }
         if let Some(gp) = &self.graph_posterior {
-            return self.execute_graph_posterior_route(data, gp, physical, ctx);
+            return self.execute_graph_posterior_route(data, gp, physical, provenance, ctx);
         }
         if matches!(self.query, CausalQuery::Discover(_)) {
             return self.execute_discover(data, physical, ctx);
         }
-        self.execute_route_call(self.route_call(data)?, physical, execution, ctx)
+        self.execute_route_call(self.route_call(data)?, physical, execution, provenance, ctx)
     }
 
     /// [`Self::execute_on_inner`] on tabular rows held by reference, such as the completed
@@ -909,7 +923,7 @@ impl super::Study {
         if matches!(self.query, CausalQuery::Discover(_)) {
             return self.execute_discover_tabular(table, physical, ctx);
         }
-        self.execute_route_call(self.tabular_route_call(table)?, physical, execution, ctx)
+        self.execute_route_call(self.tabular_route_call(table)?, physical, execution, None, ctx)
     }
 
     /// [`Self::execute_on_inner`] on a series held by reference, such as the completed
@@ -922,11 +936,11 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
-            return self.execute_graph_posterior_series(series, gp, physical, ctx);
+            return self.execute_graph_posterior_series(series, gp, physical, None, ctx);
         }
         // A structure search is no imputation route, so a completed series never carries one:
         // `series_route_call` refuses it as an unserved combination.
-        self.execute_route_call(self.series_route_call(series)?, physical, execution, ctx)
+        self.execute_route_call(self.series_route_call(series)?, physical, execution, None, ctx)
     }
 
     /// Run the executor a classified route names.
@@ -935,6 +949,7 @@ impl super::Study {
         call: RouteCall<'_>,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
         execution: Option<&super::super::prepared::PreparedExecution>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         match call {
@@ -981,10 +996,10 @@ impl super::Study {
                 self.execute_multi_env_effect_route(multi, query, physical, ctx)
             }
             RouteCall::ClassAttribution(series) => {
-                self.execute_temporal_class_attribution(series, physical, ctx)
+                self.execute_temporal_class_attribution(series, physical, provenance, ctx)
             }
             RouteCall::SeriesAttribution(series) => {
-                self.execute_series_attribution(series, physical, ctx)
+                self.execute_series_attribution(series, physical, provenance, ctx)
             }
         }
     }
@@ -1039,6 +1054,7 @@ impl super::Study {
         &self,
         series: &TimeSeriesData,
         physical: &std::sync::Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let cache = if let Some((cache, _)) = self.reuse_static_identification(physical) {
@@ -1051,8 +1067,8 @@ impl super::Study {
                 }
             })?)
         };
-        super::CheckedAttributionOperation::checked(self, physical, &cache)?
-            .execute_series(series, ctx)
+        super::CheckedAttributionOperation::checked(self, physical, &cache, ctx)?
+            .execute_series(series, provenance, None, None, ctx)
     }
 
     /// Panel temporal-effect execution: class graphs or the resolved `TemporalDag`.
@@ -1269,7 +1285,7 @@ impl super::Study {
                         },
                     )?)
                 };
-                super::CheckedAttributionOperation::checked(self, physical, &cache)?
+                super::CheckedAttributionOperation::checked(self, physical, &cache, ctx)?
                     .execute(data, ctx)
             }
             TabularCall::Anomaly(q) => {
@@ -1304,8 +1320,10 @@ impl super::Study {
                             })?,
                         )
                     };
-                    return super::CheckedAttributionOperation::checked(self, physical, &cache)?
-                        .execute(data, ctx);
+                    return super::CheckedAttributionOperation::checked(
+                        self, physical, &cache, ctx,
+                    )?
+                    .execute(data, ctx);
                 }
                 self.execute_mechanism_change(data, graph, q, physical, ctx)
             }
@@ -1350,7 +1368,7 @@ impl super::Study {
                     },
                 )?)
             };
-            return super::CheckedAttributionOperation::checked(self, physical, &cache)?
+            return super::CheckedAttributionOperation::checked(self, physical, &cache, ctx)?
                 .execute(data, ctx);
         }
         self.execute_model_route(data, graph, physical, ctx)

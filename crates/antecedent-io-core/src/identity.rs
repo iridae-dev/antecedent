@@ -2212,6 +2212,24 @@ pub struct InferentialCommitmentsWire {
     pub prior_required: bool,
 }
 
+/// Versioned temporal attribution row semantics. An absent field in an older
+/// program remains a legacy/unknown convention; it is not reinterpreted as v2.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TemporalAttributionRowsWire {
+    /// Complete observed windows and run-aware block resampling. V2 keeps each
+    /// primary block draw and derives additional segment streams by hashing its
+    /// domain, replicate key, primary draw bits, block, run and segment positions
+    /// in that order through `derive_stream`; population-specific draws derive
+    /// the replicate key from the replicate and the population index. A sampled
+    /// segment wraps circularly within its own run, and a global end-to-start
+    /// wrap starts a derived segment even for a single run. Mechanism-change
+    /// permutations retain the parent Fisher–Yates stream; split segments use
+    /// separate `0x6d65_6368_7061_7232` parent and `0x6d65_6368_7365_6732`
+    /// segment domains keyed by target stream, permutation and source positions.
+    CompleteObservedDerivedRunBlocksV2,
+}
+
 /// Program-layer payload.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ProgramIdentityWire {
@@ -2230,6 +2248,9 @@ pub struct ProgramIdentityWire {
     pub completion_budget: Option<u64>,
     /// Licensed inferential commitments.
     pub commitments: InferentialCommitmentsWire,
+    /// Absent in older programs; newer temporal attribution binds its row law.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temporal_attribution_rows: Option<TemporalAttributionRowsWire>,
     /// Retained checked program for high-level functional-distribution and scalar
     /// functional-effect results. Omitted by older artifacts and other estimators.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3149,19 +3170,40 @@ mod tests {
             assumption: &'a str,
             unit: &'a str,
         }
-        let old = Legacy { model: "chained_equations", imputations: 20, iterations: 10,
-            seed: 0, assumption: "missing_at_random", unit: "row" };
-        let mut wire = super::ImputationSpecWire { model: old.model.into(), imputations: old.imputations,
-            iterations: old.iterations, seed: old.seed, assumption: old.assumption.into(),
-            unit: old.unit.into(), bootstrap_replicates: 0, assumptions_digest: None, domains: Vec::new() };
+        let old = Legacy {
+            model: "chained_equations",
+            imputations: 20,
+            iterations: 10,
+            seed: 0,
+            assumption: "missing_at_random",
+            unit: "row",
+        };
+        let mut wire = super::ImputationSpecWire {
+            model: old.model.into(),
+            imputations: old.imputations,
+            iterations: old.iterations,
+            seed: old.seed,
+            assumption: old.assumption.into(),
+            unit: old.unit.into(),
+            bootstrap_replicates: 0,
+            assumptions_digest: None,
+            domains: Vec::new(),
+        };
         assert_eq!(crate::to_cbor(&old).unwrap(), crate::to_cbor(&wire).unwrap());
-        let old_digest = super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &old).unwrap();
-        assert_eq!(old_digest, super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap());
+        let old_digest =
+            super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &old).unwrap();
+        assert_eq!(
+            old_digest,
+            super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap()
+        );
         wire.domains.push(("x".into(), "binary".into()));
         let encoded = crate::to_cbor(&wire).unwrap();
         let decoded: super::ImputationSpecWire = crate::from_cbor(&encoded).unwrap();
         assert_eq!(decoded, wire);
-        assert_ne!(old_digest, super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap());
+        assert_ne!(
+            old_digest,
+            super::digest_wire(antecedent_core::IdentityDomain::DataSnapshot, &wire).unwrap()
+        );
     }
     #[test]
     fn programmed_interventions_have_canonical_distinct_identities() {
@@ -3258,6 +3300,7 @@ mod tests {
                     se_kind: None,
                     prior_required: false,
                 },
+                temporal_attribution_rows: None,
                 functional_program: None,
                 checked_aipw_lowering: None,
                 checked_frontdoor_lowering: None,

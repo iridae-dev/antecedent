@@ -414,3 +414,41 @@ fn history_the_route_cannot_supply_is_refused() {
             .to_string();
     assert!(error.contains("policy_history_unavailable"), "{error}");
 }
+
+#[test]
+fn history_availability_refuses_only_the_cells_the_active_policy_reads() {
+    let model = price_model();
+    let ctx = ExecutionContext::for_tests(7);
+    let initial = [ValueBatch { n_rows: 1, n_nodes: 2, values: Arc::from([30.0, f64::NAN]) }];
+    let availability = [true, false];
+    let run = |read: VariableId, from: i32, steps: usize| {
+        let schedule = InterventionSequence::new(vec![SequencedIntervention::new(
+            Intervention::assign(PRICE, ValueExpr::lag(read, 1)),
+            TemporalPolicy::sustained(from, 10),
+        )]);
+        let plan = TemporalPlan {
+            sequence: &schedule,
+            n_steps: steps,
+            n_rows: 1,
+            window: 1,
+            initial_history: &initial,
+        };
+        let mut rng = CausalRng::from_seed(5);
+        let mut ws = MechanismWorkspace::default();
+        antecedent_model::rollout_temporal_with_history_availability(
+            &model,
+            &plan,
+            Some(&availability),
+            TemporalNoise::Draw(&mut rng),
+            &mut ws,
+            &ctx,
+        )
+    };
+    let actual = run(PRICE, 0, 1).unwrap();
+    assert_eq!(actual.column(0, 0).unwrap(), &[30.0]);
+    let error = run(DEMAND, 0, 1).unwrap_err().to_string();
+    assert!(error.contains("unavailable history"), "{error}");
+    // At step 1 the previous demand has been generated, so the missing
+    // pre-origin demand cell is no longer needed.
+    assert!(run(DEMAND, 1, 2).is_ok());
+}

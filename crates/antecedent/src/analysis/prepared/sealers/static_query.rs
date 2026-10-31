@@ -68,7 +68,7 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
         ) =>
         {
             Some(crate::analysis::execute::CheckedAttributionOperation::checked(
-                analysis, plan, cache,
+                analysis, plan, cache, cx.ctx,
             )?)
         }
         (
@@ -88,7 +88,7 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
         ) =>
         {
             Some(crate::analysis::execute::CheckedAttributionOperation::checked(
-                analysis, plan, cache,
+                analysis, plan, cache, cx.ctx,
             )?)
         }
         // The fitted-model routes and the mechanism- and unit-change studies run on
@@ -109,7 +109,7 @@ pub(super) fn attribution(cx: &SealContext<'_>) -> SealOutcome {
         ) =>
         {
             Some(crate::analysis::execute::CheckedAttributionOperation::checked(
-                analysis, plan, cache,
+                analysis, plan, cache, cx.ctx,
             )?)
         }
         _ => None,

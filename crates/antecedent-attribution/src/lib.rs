@@ -46,6 +46,8 @@ pub mod robust;
 pub mod root_cause;
 pub mod shapley;
 pub mod structure_change;
+#[doc(hidden)]
+pub mod temporal_resampling;
 pub mod unit_change;
 
 pub use anomaly::{

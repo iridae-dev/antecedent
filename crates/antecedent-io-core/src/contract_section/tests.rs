@@ -345,6 +345,7 @@ fn contract_for(
         identification_product: Some(*product_digest.as_bytes()),
         completion_budget: None,
         commitments,
+        temporal_attribution_rows: None,
         functional_program: None,
         checked_aipw_lowering: None,
         checked_frontdoor_lowering: None,
@@ -355,6 +356,23 @@ fn contract_for(
         graph_posterior_programs: None,
         structure_provenance: None,
     };
+    let legacy_bytes = to_cbor(&program).unwrap();
+    assert!(
+        !legacy_bytes
+            .windows(b"temporal_attribution_rows".len())
+            .any(|w| w == b"temporal_attribution_rows")
+    );
+    let decoded: ProgramIdentityWire = crate::from_cbor(&legacy_bytes).unwrap();
+    assert_eq!(decoded.temporal_attribution_rows, None);
+    let mut complete = program.clone();
+    complete.temporal_attribution_rows =
+        Some(crate::identity::TemporalAttributionRowsWire::CompleteObservedDerivedRunBlocksV2);
+    assert_ne!(program_digest(&program).unwrap(), program_digest(&complete).unwrap());
+    let mut future = to_cbor(&complete).unwrap();
+    let name = b"complete_observed_derived_run_blocks_v2";
+    let offset = future.windows(name.len()).position(|w| w == name).unwrap();
+    future[offset] = b'x';
+    assert!(crate::from_cbor::<ProgramIdentityWire>(&future).is_err());
     let program_digest = program_digest(&program).unwrap();
     let inference_binding = InferenceBindingWire {
         format: IDENTITY_FORMAT,

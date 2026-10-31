@@ -214,6 +214,7 @@ pub(super) struct SeriesCall<'a> {
     pub(super) study: &'a Study,
     pub(super) input: &'a DataInput,
     pub(super) series: &'a TimeSeriesData,
+    pub(super) provenance: Option<&'a crate::analysis::execute::TemporalRowProvenance>,
     pub(super) ctx: &'a ExecutionContext,
     pub(super) entry: SeriesEntry,
 }

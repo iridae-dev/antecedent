@@ -105,6 +105,31 @@ struct PosteriorBasis {
     outside: Vec<(u64, f64)>,
 }
 
+fn class_temporal_history(class: &ClassMembers) -> u32 {
+    class
+        .members
+        .iter()
+        .map(|member| match &member.kind {
+            MemberKind::Directed(graph) => graph.as_temporal_dag().map_or(0, |temporal| {
+                temporal
+                    .nodes()
+                    .iter()
+                    .filter_map(|node| match node {
+                        NodeRef::Lagged { lag, .. } => Some(lag.raw()),
+                        _ => None,
+                    })
+                    .max()
+                    .unwrap_or(0)
+            }),
+            MemberKind::Blocks { unfolding, .. } => {
+                unfolding.as_ref().map_or(0, LagAlignedScm::history)
+            }
+            MemberKind::Hedged(_) => 0,
+        })
+        .max()
+        .unwrap_or(0)
+}
+
 type MemberRun = Result<StudyResult, CausalError>;
 
 impl super::Study {
@@ -138,7 +163,8 @@ impl super::Study {
         match &member.kind {
             MemberKind::Directed(graph) => {
                 let atom = self.member_study(graph);
-                CheckedAttributionOperation::checked(&atom, physical, cache)?.execute(data, ctx)
+                CheckedAttributionOperation::checked(&atom, physical, cache, ctx)?
+                    .execute(data, ctx)
             }
             MemberKind::Blocks { plan, .. } => {
                 let mut result = CheckedAttributionOperation::checked_blocks(
@@ -162,12 +188,26 @@ impl super::Study {
         &self,
         series: &TimeSeriesData,
         physical: &Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let class = self.temporal_class_members(series, ctx)?;
+        let mut budget = provenance.map(|p| p.budget().clone()).unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let class = self.temporal_class_members_within(series, &mut budget, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
+        let common_history = class_temporal_history(&class);
         let outcomes = Self::run_class_members(&class, ctx, |member| {
-            self.attribute_series_member(member, series, physical, &cache, ctx)
+            self.attribute_series_member(
+                member,
+                series,
+                physical,
+                &cache,
+                provenance,
+                common_history,
+                &mut budget,
+                ctx,
+            )
         })?;
         Self::finish_class_attribution(&class, outcomes)
     }
@@ -180,13 +220,16 @@ impl super::Study {
         series: &TimeSeriesData,
         physical: &Arc<PhysicalExecutionPlan>,
         cache: &Arc<crate::analysis::prepared::CachedStaticIdentification>,
+        provenance: Option<&super::TemporalRowProvenance>,
+        common_history: u32,
+        budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> MemberRun {
         match &member.kind {
             MemberKind::Directed(graph) => {
                 let atom = self.member_study(graph);
-                CheckedAttributionOperation::checked(&atom, physical, cache)?
-                    .execute_series(series, ctx)
+                CheckedAttributionOperation::checked_within(&atom, physical, cache, budget, ctx)?
+                    .execute_series(series, provenance, Some(common_history), Some(budget), ctx)
             }
             MemberKind::Blocks { plan, unfolding } => {
                 let mut result = CheckedAttributionOperation::checked_blocks(
@@ -196,7 +239,13 @@ impl super::Study {
                     (plan.directed.clone(), unfolding.clone()),
                     plan.blocks.clone(),
                 )?
-                .execute_series(series, ctx)?;
+                .execute_series(
+                    series,
+                    provenance,
+                    Some(common_history),
+                    Some(budget),
+                    ctx,
+                )?;
                 result.diagnostics.push(blocks_diagnostic(plan));
                 Ok(result)
             }
@@ -345,6 +394,7 @@ impl super::Study {
     }
 
     /// The members of a temporal structure class over `series`.
+    #[cfg(test)]
     fn temporal_class_members(
         &self,
         series: &TimeSeriesData,
@@ -738,14 +788,28 @@ impl super::Study {
         series: &TimeSeriesData,
         gp: &GraphPosterior,
         physical: &Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let class = self.series_posterior_members(series, gp, ctx)?;
+        let mut budget = provenance.map(|p| p.budget().clone()).unwrap_or_else(|| {
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+        });
+        let class = self.series_posterior_members(series, gp, &mut budget, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
         let mut base = self.clone();
         base.structure_source = crate::support::StructureSource::Accepted;
+        let common_history = class_temporal_history(&class);
         let outcomes = Self::run_class_members(&class, ctx, |member| {
-            base.attribute_series_member(member, series, physical, &cache, ctx)
+            base.attribute_series_member(
+                member,
+                series,
+                physical,
+                &cache,
+                provenance,
+                common_history,
+                &mut budget,
+                ctx,
+            )
         })?;
         let mut result = Self::finish_class_attribution(&class, outcomes)?;
         result.structure_source = crate::support::StructureSource::GraphPosterior;
@@ -759,6 +823,7 @@ impl super::Study {
         &self,
         series: &TimeSeriesData,
         gp: &GraphPosterior,
+        temporal_budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<ClassMembers, CausalError> {
         type Template = (AdjacencyMask, LagMask, AdjacencyMask, LagMask);
@@ -769,8 +834,6 @@ impl super::Study {
             });
         };
         let targets = self.class_attribution_targets()?;
-        let mut temporal_budget =
-            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let variables: Vec<VariableId> =
             series.schema().variables().iter().map(|variable| variable.id).collect();
         let mark_of = |index: usize| gp.mark_atom(index);
@@ -808,7 +871,7 @@ impl super::Study {
                 (lag_masks, max_lag),
                 &variables,
                 &targets,
-                &mut temporal_budget,
+                temporal_budget,
                 ctx,
             )? {
                 Some(SeriesAtomGraph::Member(kind, lease)) => {
@@ -831,7 +894,7 @@ impl super::Study {
                 let mut atom = self.clone();
                 atom.graph = Arc::new(graph);
                 let completions =
-                    atom.temporal_class_members_within(series, &mut temporal_budget, ctx)?;
+                    atom.temporal_class_members_within(series, temporal_budget, ctx)?;
                 graph_leases.extend(completions._temporal_leases);
                 capped |= completions.capped;
                 let share = weight / completions.members.len().max(1) as f64;

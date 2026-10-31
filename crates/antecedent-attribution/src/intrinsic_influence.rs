@@ -613,7 +613,37 @@ pub fn intrinsic_influence(
     query: &IntrinsicInfluenceQuery,
     ctx: &ExecutionContext,
 ) -> Result<IntrinsicInfluenceResult, AttributionError> {
+    intrinsic_influence_with_temporal_runs(model, noise, data, query, None, None, ctx)
+}
+
+/// Intrinsic influence with an explicit partition of compact temporal rows.
+/// The existing static [`intrinsic_influence`] behavior is unchanged.
+///
+/// # Errors
+/// The same failures as [`intrinsic_influence`], including invalid temporal runs.
+#[doc(hidden)]
+pub fn intrinsic_influence_with_temporal_runs(
+    model: &CompiledCausalModel,
+    noise: NoiseIndependence<'_>,
+    data: Option<&TabularData>,
+    query: &IntrinsicInfluenceQuery,
+    runs: Option<&[std::ops::Range<usize>]>,
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
+    ctx: &ExecutionContext,
+) -> Result<IntrinsicInfluenceResult, AttributionError> {
     query.validate()?;
+    if runs.is_some()
+        && query.fit_bootstrap_replicates > 0
+        && !matches!(
+            query.fit_resampling,
+            FitResampling::BlockBootstrap { .. } | FitResampling::DirichletBlockWeights { .. }
+        )
+    {
+        return Err(AttributionError::InvalidInput {
+            message: "temporal runs require a temporal block refit law",
+        });
+    }
+
     // Bootstrap refits operate on physical analysis rows; the fit ignores stored
     // metadata, so compact a nontrivial mask before any refit and reject weights.
     if let Some(data) = data {
@@ -687,7 +717,8 @@ pub fn intrinsic_influence(
         .collect();
     let allocation_residual = residuals.iter().sum::<f64>() / b;
 
-    let fit = fit_component(model, data, query, &spec, &pooled, &sources_sim, ctx)?;
+    let fit =
+        fit_component(model, data, query, &spec, &pooled, &sources_sim, runs, shared_budget, ctx)?;
 
     let tail = 0.5 + 0.5 * query.level;
     let sim_df = b - 1.0;
@@ -1247,6 +1278,8 @@ fn fit_component(
     spec: &Game<'_>,
     pooled: &ShapleyEstimate,
     sources_sim: &[f64],
+    runs: Option<&[std::ops::Range<usize>]>,
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
     ctx: &ExecutionContext,
 ) -> Result<FitComponent, AttributionError> {
     let replicates = query.fit_bootstrap_replicates;
@@ -1283,6 +1316,9 @@ fn fit_component(
     } else {
         None
     };
+    let temporal_budget = shared_budget.cloned().unwrap_or_else(|| {
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+    });
     let outcomes = ctx.map_indexed(
         replicates as usize,
         |r, worker| -> Result<Option<Vec<f64>>, AttributionError> {
@@ -1295,25 +1331,73 @@ fn fit_component(
             );
             let attempt = (|| -> Result<Vec<f64>, AttributionError> {
                 let store = if let Some(assignments) = &held_assignments {
-                    let weights = query.fit_resampling.refit_weights(n_rows, &mut rng);
-                    MechanismRegistry::standard().refit_weighted_polled(
-                        model,
-                        data,
-                        assignments,
-                        &weights,
-                        &|| worker.cancellation.is_cancelled(),
-                    )?
-                } else {
-                    let rows = query.fit_resampling.resample_rows(n_rows, &mut rng);
-                    let resample = subset_table(data, &rows)?;
-                    MechanismRegistry::standard()
-                        .assign_and_fit_polled(
+                    if let Some(runs) = runs {
+                        let mut budget = temporal_budget.clone();
+                        let weights = crate::temporal_resampling::bayesian_run_weights(
+                            n_rows,
+                            match query.fit_resampling {
+                                FitResampling::DirichletBlockWeights { block } => block,
+                                _ => 1,
+                            },
+                            runs,
+                            r as u64,
+                            &mut rng,
+                            &mut budget,
+                            worker,
+                        )?;
+                        MechanismRegistry::standard().refit_weighted_polled(
                             model,
-                            &resample,
-                            SelectionPolicy::BestScore,
+                            data,
+                            assignments,
+                            &weights,
                             &|| worker.cancellation.is_cancelled(),
                         )?
-                        .0
+                    } else {
+                        let weights = query.fit_resampling.refit_weights(n_rows, &mut rng);
+                        MechanismRegistry::standard().refit_weighted_polled(
+                            model,
+                            data,
+                            assignments,
+                            &weights,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                    }
+                } else {
+                    if let Some(runs) = runs {
+                        let mut budget = temporal_budget.clone();
+                        let rows = crate::temporal_resampling::bootstrap_run_rows(
+                            n_rows,
+                            match query.fit_resampling {
+                                FitResampling::BlockBootstrap { block } => block,
+                                _ => 1,
+                            },
+                            runs,
+                            r as u64,
+                            &mut rng,
+                            &mut budget,
+                            worker,
+                        )?;
+                        let resample = subset_table(data, &rows)?;
+                        MechanismRegistry::standard()
+                            .assign_and_fit_polled(
+                                model,
+                                &resample,
+                                SelectionPolicy::BestScore,
+                                &|| worker.cancellation.is_cancelled(),
+                            )?
+                            .0
+                    } else {
+                        let rows = query.fit_resampling.resample_rows(n_rows, &mut rng);
+                        let resample = subset_table(data, &rows)?;
+                        MechanismRegistry::standard()
+                            .assign_and_fit_polled(
+                                model,
+                                &resample,
+                                SelectionPolicy::BestScore,
+                                &|| worker.cancellation.is_cancelled(),
+                            )?
+                            .0
+                    }
                 };
                 let refit = model.clone().with_mechanisms(store);
                 require_noise_support(
@@ -1329,6 +1413,12 @@ fn fit_component(
                 Err(
                     AttributionError::Cancelled | AttributionError::Model(ModelError::Cancelled),
                 ) => Err(AttributionError::Cancelled),
+                Err(AttributionError::Model(error @ ModelError::ResourceLimit { .. }))
+                    if runs.is_some() =>
+                {
+                    Err(AttributionError::Budget { message: error.to_string() })
+                }
+                Err(error @ AttributionError::Budget { .. }) if runs.is_some() => Err(error),
                 Err(_) => Ok(None),
             }
         },

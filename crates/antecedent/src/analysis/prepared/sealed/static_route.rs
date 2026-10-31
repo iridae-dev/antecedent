@@ -88,7 +88,7 @@ impl SealedOperation for CheckedAttributionOperation {
     }
 
     fn estimate_series(&self, call: &SeriesCall<'_>) -> Result<Option<StudyResult>, CausalError> {
-        self.execute_series(call.series, call.ctx).map(Some)
+        self.execute_series(call.series, call.provenance, None, None, call.ctx).map(Some)
     }
 }
 
@@ -388,6 +388,7 @@ impl SealedOperation for crate::analysis::execute::CheckedClassAttributionOperat
             call.study,
             call.series,
             &call.handle.plan,
+            call.provenance,
             call.ctx,
         )?;
         finish_family_result(call.study, call.input, &call.handle.plan, &mut result)?;

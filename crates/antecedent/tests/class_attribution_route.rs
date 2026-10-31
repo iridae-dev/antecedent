@@ -229,7 +229,7 @@ fn cpdag_change_body() {
     let mixture = result.structural_response.as_ref().unwrap();
     let set = mixture.identified_set.as_ref().unwrap();
     for (lower, upper) in set.lower.iter().zip(set.upper.iter()) {
-            assert!(upper - lower < 1e-9, "[{lower}, {upper}]");
+        assert!(upper - lower < 1e-9, "[{lower}, {upper}]");
     }
 }
 
@@ -535,6 +535,12 @@ fn temporal_cpdag_single_body() {
         .encode_contracted_result(&refreshed, "retained-temporal-class-attribution", &ctx)
         .unwrap();
     assert!(antecedent_io::consume_analysis_result(&artifact).is_ok());
+    let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&artifact).unwrap();
+    let contract = antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    assert_eq!(
+        contract.program.unwrap().temporal_attribution_rows,
+        Some(antecedent_io::TemporalAttributionRowsWire::CompleteObservedDerivedRunBlocksV2)
+    );
 }
 
 #[test]
@@ -640,4 +646,67 @@ fn rebind_estimate(
     let result = branch.estimate_retained(ctx)?;
     *prepared = branch;
     Ok(result)
+}
+
+#[test]
+fn temporal_posterior_members_share_the_original_complete_ticks() {
+    on_large_stack("temporal-posterior-common-original-ticks", || {
+        use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
+        use antecedent_prob::InferenceDiagnostics;
+
+        let ctx = ExecutionContext::for_tests(13);
+        let data = lagged_series(8.0);
+        let n = 3;
+        let sampling = SamplingSummary {
+            ess: 2.0,
+            diagnostics: InferenceDiagnostics::analytic("temporal-common-history"),
+            rejected_invalid: 0,
+        };
+        // The two DAG atoms have x(t-1)->y(t) and x(t-2)->y(t), respectively.
+        // Their common observed window is source ticks 2..80, not 1..80.
+        let posterior = GraphPosterior::new(
+            n,
+            vec![0.5, 0.5],
+            vec![0_u64, 0_u64],
+            vec![0.0; n * n],
+            vec![0.0; n * n],
+            sampling,
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Dag)
+        .with_lagged_marginals(2, vec![0.0; 2 * n * n])
+        .unwrap()
+        .with_lag_masks(vec![1_u64 << 1, 1_u64 << (n * n + 1)])
+        .unwrap();
+        let requested = vec![2, 7, 79];
+        let query = CausalQuery::AnomalyAttribution(
+            AnomalyAttributionQuery::new([variable(1)], 1000).with_unit_rows(requested.clone()),
+        );
+        let study = Study::series(data.clone())
+            .graph_posterior(posterior)
+            .query(query)
+            .inference(frequentist())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let prepared = study.prepare(&ctx).unwrap();
+        let result = prepared.estimate_series(&data, &ctx).unwrap();
+        let bytes =
+            prepared.encode_contracted_result(&result, "posterior-complete-window", &ctx).unwrap();
+        let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+        let contract = antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
+        assert_eq!(
+            contract.program.unwrap().temporal_attribution_rows,
+            Some(antecedent_io::TemporalAttributionRowsWire::CompleteObservedDerivedRunBlocksV2)
+        );
+        let scores = result.anomaly().unwrap();
+        let score = scores.iter().find(|score| score.target == variable(1)).unwrap();
+        assert_eq!(score.rows.as_ref(), requested.as_slice());
+        assert_eq!(score.scores.len(), requested.len());
+        assert!(score.scores.iter().all(|value| value.is_finite()));
+        let mixture = result.structural_response.as_ref().unwrap();
+        assert_eq!(mixture.atoms.len(), 2);
+        assert_eq!(mixture.identified_mass, 1.0);
+        assert_eq!(mixture.unevaluable_mass, 0.0);
+    });
 }

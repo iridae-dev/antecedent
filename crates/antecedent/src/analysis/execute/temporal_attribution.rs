@@ -33,6 +33,7 @@ impl LagAlignedScm {
     ///
     /// Empty inputs, a non-lagged node, a variable outside the series, a schema
     /// that is not dense `0..n-1`, or a series too short to realize the longest lag.
+    #[cfg(test)]
     pub(super) fn unfold(
         graph: &TemporalDag,
         series: &TimeSeriesData,
@@ -43,7 +44,7 @@ impl LagAlignedScm {
         Self::unfold_within(graph, series, &mut budget, &ctx)
     }
 
-    fn unfold_within(
+    pub(super) fn unfold_within(
         graph: &TemporalDag,
         series: &TimeSeriesData,
         budget: &mut antecedent_core::TemporalBudget,
@@ -330,27 +331,6 @@ impl LagAlignedScm {
     /// `Exp(1)` weight per contiguous block of [`antecedent_data::circular_block_length`]
     /// rows (at least the unfolding's lag span plus one), shared by every row of the
     /// block. Rows of one dependent series are not exchangeable, so the Dirichlet
-    /// weights fall on blocks of consecutive times, not on single rows.
-    pub(super) fn block_row_weights(
-        &self,
-        n: usize,
-        rng: &mut antecedent_core::CausalRng,
-    ) -> Vec<f64> {
-        block_dirichlet_row_weights(n, self.block_length(n), rng)
-    }
-
-    /// Circular-block multinomial row counts of `n` consecutive lag-aligned rows for one
-    /// frequentist replicate: blocks of [`antecedent_data::circular_block_length`] rows
-    /// (at least the unfolding's lag span plus one) start at uniform positions and wrap
-    /// at the end of the series, until `n` rows are drawn.
-    pub(super) fn block_row_counts(
-        &self,
-        n: usize,
-        rng: &mut antecedent_core::CausalRng,
-    ) -> Vec<f64> {
-        block_bootstrap_counts(n, self.block_length(n), rng)
-    }
-
     /// Number of contemporaneous nodes (one per series variable): the nodes `0..count` are the
     /// slice a rollout steps, the rest are lagged copies tied to the rollout's history.
     pub(super) fn contemporaneous_count(&self) -> usize {
@@ -396,35 +376,109 @@ impl LagAlignedScm {
         self.history
     }
 
-    /// The last `history` rows of `table` as the steps before time zero of a rollout of `n_rows`
-    /// parallel paths, most recent first, one batch per step over every node.
-    ///
-    /// # Errors
-    ///
-    /// A table with fewer rows than the history, or a missing column.
-    pub(super) fn initial_history(
+    /// Construct observed initial cells and mark unavailable auxiliary lag
+    /// copies. The rollout verifies each read before consulting a marked cell.
+    pub(super) fn observed_initial_history(
         &self,
-        table: &TabularData,
+        input: &CompleteWindowInput,
         n_rows: usize,
-    ) -> Result<Vec<antecedent_model::ValueBatch>, CausalError> {
-        let n = table.row_count();
-        let history = usize::try_from(self.history).unwrap_or(usize::MAX);
-        if history > n {
-            return Err(CausalError::Compile {
-                message: "the rollout history is longer than the series".into(),
+        history_depth: u32,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<ObservedHistory, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        let source = input.source();
+        let n = source.row_count();
+        let history = usize::try_from(history_depth)
+            .map_err(|_| CausalError::Resource { message: "history size overflow".into() })?;
+        let history = history.min(n);
+        if history == 0 {
+            return Ok(ObservedHistory {
+                batches: Vec::new(),
+                available: Vec::new(),
+                _lease: None,
             });
         }
         let nodes = self.columns.len();
-        let mut batches = Vec::with_capacity(history);
+        let cells =
+            history.checked_mul(nodes).and_then(|v| v.checked_mul(n_rows)).ok_or_else(|| {
+                CausalError::Resource { message: "rollout history size overflow".into() }
+            })?;
+        let tail_work = if input.0.provenance.is_some() { n } else { 0 };
+        let work = u64::try_from(cells)
+            .ok()
+            .and_then(|v| u64::try_from(tail_work).ok().and_then(|n| v.checked_add(n)))
+            .ok_or_else(|| CausalError::Resource {
+                message: "rollout history work overflow".into(),
+            })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = work.checked_mul(16).and_then(|v| v.checked_add(4096)).ok_or_else(|| {
+            CausalError::Resource { message: "rollout history byte quote overflow".into() }
+        })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "rollout history byte limit".into() });
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let mut tail_start = n.saturating_sub(1);
+        if let Some(p) = input.0.provenance.as_ref() {
+            while tail_start > 0
+                && !p.block_start()[tail_start]
+                && p.original_ticks()[tail_start - 1].checked_add(1)
+                    == Some(p.original_ticks()[tail_start])
+            {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                }
+                tail_start -= 1;
+            }
+        } else {
+            tail_start = 0;
+        }
+        let mut batches = Vec::new();
+        batches.try_reserve_exact(history).map_err(|_| CausalError::Resource {
+            message: "rollout history batch allocation refused".into(),
+        })?;
+        let mut available = Vec::new();
+        available
+            .try_reserve_exact(history.checked_mul(nodes).ok_or_else(|| CausalError::Resource {
+                message: "rollout history mask size overflow".into(),
+            })?)
+            .map_err(|_| CausalError::Resource {
+                message: "rollout history mask allocation refused".into(),
+            })?;
         for step in 1..=history {
-            let row = n - step;
-            let mut values = Vec::with_capacity(nodes * n_rows);
-            for node in 0..nodes {
-                let id = VariableId::from_raw(u32::try_from(node).map_err(|_| {
-                    CausalError::Compile { message: "lag-aligned SCM exceeds u32 nodes".into() }
-                })?);
-                let value = table.float64_values(id)?[row];
-                values.extend(std::iter::repeat_n(value, n_rows));
+            let mut values = Vec::new();
+            values
+                .try_reserve_exact(nodes.checked_mul(n_rows).ok_or_else(|| {
+                    CausalError::Resource { message: "rollout history batch size overflow".into() }
+                })?)
+                .map_err(|_| CausalError::Resource {
+                    message: "rollout history values allocation refused".into(),
+                })?;
+            for &(variable, lag) in self.columns.iter() {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                }
+                let index = usize::try_from(lag)
+                    .ok()
+                    .and_then(|lag| step.checked_add(lag))
+                    .and_then(|back| n.checked_sub(back));
+                let value = index
+                    .filter(|&row| row >= tail_start)
+                    .map(|row| source.float64_slice(variable).map(|column| column[row]))
+                    .transpose()?;
+                available.push(value.is_some_and(f64::is_finite));
+                values.extend(std::iter::repeat_n(
+                    value.filter(|v| v.is_finite()).unwrap_or(f64::NAN),
+                    n_rows,
+                ));
             }
             batches.push(antecedent_model::ValueBatch {
                 n_rows,
@@ -432,7 +486,7 @@ impl LagAlignedScm {
                 values: Arc::from(values),
             });
         }
-        Ok(batches)
+        Ok(ObservedHistory { batches, available, _lease: Some(lease) })
     }
 
     /// Block length of the unfolding's block resamples over `n` rows.
@@ -440,53 +494,438 @@ impl LagAlignedScm {
         let span = usize::try_from(self.history).unwrap_or(usize::MAX).saturating_add(1);
         antecedent_data::circular_block_length(span, n)
     }
+}
 
-    /// Build the lag-aligned table for `series`. Incomplete lag prefixes copy
-    /// the first observation so the row count stays the series length.
-    ///
-    /// # Errors
-    ///
-    /// Schema mismatch or a missing float column.
-    pub(super) fn table(&self, series: &TimeSeriesData) -> Result<TabularData, CausalError> {
-        let variables = series.schema().variables();
-        if variables.len() != self.columns.iter().filter(|(_, lag)| *lag == 0).count() {
+pub(super) struct SelectedRuns {
+    ranges: Vec<std::ops::Range<usize>>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+impl SelectedRuns {
+    pub(super) fn ranges(&self) -> &[std::ops::Range<usize>] {
+        &self.ranges
+    }
+}
+
+pub(super) struct ObservedHistory {
+    pub(super) batches: Vec<antecedent_model::ValueBatch>,
+    pub(super) available: Vec<bool>,
+    _lease: Option<antecedent_core::execution::AdmissionLease>,
+}
+
+/// A gathered series may repeat and reorder source ticks. Its identity and
+/// block starts travel together with their resource admission; clones share
+/// both the data and the lease. This is execution metadata, not evidence that
+/// the source was produced by a particular sampler.
+#[derive(Clone)]
+pub(crate) struct TemporalRowProvenance(Arc<TemporalRowProvenanceInner>);
+
+struct TemporalRowProvenanceInner {
+    original_ticks: Vec<usize>,
+    block_start: Vec<bool>,
+    /// Whether source sampling weights were actually declared by the user;
+    /// gathered refit bookkeeping alone must not masquerade as such a declaration.
+    user_sampling_weights: bool,
+    budget: antecedent_core::TemporalBudget,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
+impl TemporalRowProvenance {
+    pub(crate) fn admit_fixed_blocks(
+        original_ticks: &[usize],
+        block_length: Option<usize>,
+        user_sampling_weights: bool,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        if block_length == Some(0) {
+            return Err(CausalError::Compile {
+                message: "temporal refit block length must be positive".into(),
+            });
+        }
+        Self::admit_with(
+            original_ticks.len(),
+            |row| Some(original_ticks[row]),
+            |row| row == 0 || block_length.is_some_and(|len| row % len == 0),
+            user_sampling_weights,
+            budget,
+            ctx,
+        )
+    }
+
+    pub(crate) fn admit_contiguous_range(
+        start: usize,
+        len: usize,
+        user_sampling_weights: bool,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        Self::admit_with(
+            len,
+            |row| start.checked_add(row),
+            |row| row == 0,
+            user_sampling_weights,
+            budget,
+            ctx,
+        )
+    }
+
+    fn admit_with(
+        count: usize,
+        original_tick: impl Fn(usize) -> Option<usize>,
+        block_start: impl Fn(usize) -> bool,
+        user_sampling_weights: bool,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        let n = u64::try_from(count).map_err(|_| CausalError::Resource {
+            message: "temporal refit provenance size overflow".into(),
+        })?;
+        let bytes = n.checked_mul(24).and_then(|v| v.checked_add(1024)).ok_or_else(|| {
+            CausalError::Resource {
+                message: "temporal refit provenance byte quote overflow".into(),
+            }
+        })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource {
+                message: "temporal refit provenance byte limit".into(),
+            });
+        }
+        budget.charge_work(n).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let mut ticks = Vec::new();
+        ticks.try_reserve_exact(count).map_err(|_| CausalError::Resource {
+            message: "temporal refit tick allocation refused".into(),
+        })?;
+        let mut starts = Vec::new();
+        starts.try_reserve_exact(count).map_err(|_| CausalError::Resource {
+            message: "temporal refit block allocation refused".into(),
+        })?;
+        for row in 0..count {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            ticks.push(original_tick(row).ok_or_else(|| CausalError::Resource {
+                message: "temporal refit source coordinate overflow".into(),
+            })?);
+            starts.push(block_start(row));
+        }
+        Ok(Self(Arc::new(TemporalRowProvenanceInner {
+            original_ticks: ticks,
+            block_start: starts,
+            user_sampling_weights,
+            budget: budget.clone(),
+            _lease: lease,
+        })))
+    }
+
+    pub(super) fn original_ticks(&self) -> &[usize] {
+        &self.0.original_ticks
+    }
+    pub(super) fn block_start(&self) -> &[bool] {
+        &self.0.block_start
+    }
+    pub(crate) fn user_sampling_weights(&self) -> bool {
+        self.0.user_sampling_weights
+    }
+    pub(crate) fn budget(&self) -> &antecedent_core::TemporalBudget {
+        &self.0.budget
+    }
+}
+
+/// Complete-window execution input with original positions, contiguous runs,
+/// observed source history, and the admission retained with the owned table.
+#[derive(Clone)]
+pub(super) struct CompleteWindowInput(Arc<CompleteWindowInputInner>);
+
+struct CompleteWindowInputInner {
+    table: TabularData,
+    /// The caller-owned original source, retained separately for actual rollout history.
+    source: TimeSeriesData,
+    provenance: Option<TemporalRowProvenance>,
+    common_history: u32,
+    /// Compact row position to original source tick.
+    ticks: Vec<usize>,
+    /// Original source coordinate for each compact row; may repeat or be unordered.
+    original_ticks: Vec<usize>,
+    /// Half-open compact-index ranges that are contiguous in original time.
+    runs: Vec<std::ops::Range<usize>>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
+impl CompleteWindowInput {
+    /// Construct observed windows with a shared class-wide history boundary.
+    /// Original source storage remains caller-owned; the lease covers the new
+    /// table, mapping, runs and bounded construction copies, not allocator peaks.
+    pub(super) fn build(
+        aligned: &LagAlignedScm,
+        series: &TimeSeriesData,
+        common_history: u32,
+        provenance: Option<&TemporalRowProvenance>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
+        }
+        if common_history < aligned.history {
+            return Err(CausalError::Compile {
+                message: "shared attribution history is shorter than the graph history".into(),
+            });
+        }
+        let n = series.row_count();
+        if provenance.is_some_and(|p| p.original_ticks().len() != n) {
+            return Err(CausalError::Compile {
+                message: "temporal refit provenance does not match series length".into(),
+            });
+        }
+        let h = usize::try_from(common_history).map_err(|_| CausalError::Resource {
+            message: "attribution history exceeds addressable rows".into(),
+        })?;
+        if n <= h {
+            return Err(CausalError::Compile {
+                message: "temporal attribution has no complete observed lag window".into(),
+            });
+        }
+        if series.schema().variables().len() != aligned.contemporaneous_count() {
             return Err(CausalError::Compile {
                 message: "lag-aligned series schema does not match the unfolded graph".into(),
             });
         }
-        let n = series.row_count();
-        let mut owned = Vec::with_capacity(self.columns.len());
-        for &(variable, lag) in self.columns.iter() {
+        let rows = u64::try_from(n).map_err(|_| CausalError::Resource {
+            message: "attribution row count overflow".into(),
+        })?;
+        let cols = u64::try_from(aligned.columns.len()).map_err(|_| CausalError::Resource {
+            message: "attribution column count overflow".into(),
+        })?;
+        let work = rows
+            .checked_mul(cols.checked_add(4).ok_or_else(|| CausalError::Resource {
+                message: "attribution work overflow".into(),
+            })?)
+            .ok_or_else(|| CausalError::Resource { message: "attribution work overflow".into() })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = rows
+            .checked_mul(cols)
+            .and_then(|v| v.checked_mul(32))
+            .and_then(|v| rows.checked_mul(48).and_then(|r| v.checked_add(r)))
+            .and_then(|v| cols.checked_mul(256).and_then(|c| v.checked_add(c)))
+            .and_then(|v| v.checked_add(4096))
+            .ok_or_else(|| CausalError::Resource {
+                message: "attribution bytes overflow".into(),
+            })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "attribution byte limit".into() });
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let mask = series.storage().analysis_mask();
+        let mut ticks = Vec::new();
+        ticks.try_reserve_exact(n - h).map_err(|_| CausalError::Resource {
+            message: "attribution row map allocation refused".into(),
+        })?;
+        let mut contiguous = 0_usize;
+        for tick in 0..n {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            let continues = tick > 0
+                && provenance.is_none_or(|p| {
+                    !p.block_start()[tick]
+                        && p.original_ticks()[tick - 1].checked_add(1)
+                            == Some(p.original_ticks()[tick])
+                });
+            contiguous = if continues { contiguous.saturating_add(1) } else { 1 };
+            if tick >= h && contiguous > h && mask.is_none_or(|m| m.is_valid(tick)) {
+                ticks.push(tick);
+            }
+        }
+        if ticks.is_empty() {
+            return Err(CausalError::Compile {
+                message: "temporal attribution has no eligible complete windows".into(),
+            });
+        }
+        let mut originals = Vec::new();
+        originals.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+            message: "attribution original row map allocation refused".into(),
+        })?;
+        for &tick in &ticks {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            originals.push(provenance.map_or(tick, |p| p.original_ticks()[tick]));
+        }
+        let mut runs = Vec::new();
+        runs.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+            message: "attribution run allocation refused".into(),
+        })?;
+        let mut start = 0;
+        for position in 1..ticks.len() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            let row = ticks[position];
+            if ticks[position - 1].checked_add(1) != Some(row)
+                || originals[position - 1].checked_add(1) != Some(originals[position])
+                || provenance.is_some_and(|p| p.block_start()[row])
+            {
+                runs.push(start..position);
+                start = position;
+            }
+        }
+        runs.push(start..ticks.len());
+        let mut owned = Vec::new();
+        owned.try_reserve_exact(aligned.columns.len()).map_err(|_| CausalError::Resource {
+            message: "attribution column allocation refused".into(),
+        })?;
+        for &(variable, lag) in aligned.columns.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
             let source = series.float64_slice(variable)?;
             if source.len() != n {
                 return Err(CausalError::Compile {
-                    message: "lag-aligned series column length does not match the time index"
-                        .into(),
+                    message: "lag-aligned column length does not match the source".into(),
                 });
             }
-            let lag_rows = usize::try_from(lag).map_err(|_| CausalError::Compile {
-                message: "lag does not fit a row index".into(),
+            let lag = usize::try_from(lag).map_err(|_| CausalError::Resource {
+                message: "attribution lag overflow".into(),
             })?;
-            let mut values = Vec::with_capacity(n);
-            for t in 0..n {
-                values.push(source[t.saturating_sub(lag_rows)]);
+            if lag > h {
+                return Err(CausalError::Compile {
+                    message: "column lag exceeds shared history".into(),
+                });
+            }
+            let mut values = Vec::new();
+            values.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+                message: "attribution value allocation refused".into(),
+            })?;
+            for &tick in &ticks {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                }
+                values.push(source[tick - lag]);
             }
             owned.push((format!("v{}_{lag}", variable.raw()), values));
         }
         let refs: Vec<(&str, &[f64])> =
             owned.iter().map(|(name, values)| (name.as_str(), values.as_slice())).collect();
         let mut table = TabularData::from_f64_columns(refs)?;
-        // The row weights of the series (the multiplicities of a block resample) and its
-        // analysis mask belong to the rows of the aligned table: dropping them would refit the
-        // unweighted, unmasked series and make every resample reproduce the original.
-        let storage = series.storage();
-        if let Some(weights) = storage.weights() {
-            table = table.with_weights(weights.into())?;
+        if provenance.is_none_or(TemporalRowProvenance::user_sampling_weights) {
+            if let Some(weights) = series.storage().weights() {
+                let mut selected = Vec::new();
+                selected.try_reserve_exact(ticks.len()).map_err(|_| CausalError::Resource {
+                    message: "attribution weight allocation refused".into(),
+                })?;
+                for &tick in &ticks {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "temporal attribution" });
+                    }
+                    selected.push(weights[tick]);
+                }
+                table = table.with_weights(selected.into())?;
+            }
         }
-        if let Some(mask) = storage.analysis_mask().filter(|mask| !mask.is_all_valid()) {
-            table = table.with_analysis_mask(mask.clone())?;
+        Ok(Self(Arc::new(CompleteWindowInputInner {
+            table,
+            source: series.clone(),
+            provenance: provenance.cloned(),
+            common_history,
+            ticks,
+            original_ticks: originals,
+            runs,
+            _lease: lease,
+        })))
+    }
+
+    pub(super) fn table(&self) -> &TabularData {
+        &self.0.table
+    }
+    pub(super) fn source(&self) -> &TimeSeriesData {
+        &self.0.source
+    }
+    pub(super) fn ticks(&self) -> &[usize] {
+        &self.0.ticks
+    }
+    pub(super) fn original_ticks(&self) -> &[usize] {
+        &self.0.original_ticks
+    }
+    pub(super) fn block_length(&self, n: usize) -> usize {
+        let span = usize::try_from(self.0.common_history).unwrap_or(usize::MAX).saturating_add(1);
+        antecedent_data::circular_block_length(span, n)
+    }
+    pub(super) fn runs(&self) -> &[std::ops::Range<usize>] {
+        &self.0.runs
+    }
+
+    pub(super) fn selected_runs(
+        &self,
+        positions: &[usize],
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<SelectedRuns, CausalError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal attribution" });
         }
-        Ok(table)
+        let n = u64::try_from(positions.len())
+            .map_err(|_| CausalError::Resource { message: "temporal run size overflow".into() })?;
+        let log = u64::from(usize::BITS - self.0.runs.len().leading_zeros());
+        let work = n.checked_mul(log + 2).ok_or_else(|| CausalError::Resource {
+            message: "temporal run work overflow".into(),
+        })?;
+        budget.charge_work(work).map_err(|e| CausalError::Resource { message: e.to_string() })?;
+        let bytes = n.checked_mul(32).and_then(|v| v.checked_add(1024)).ok_or_else(|| {
+            CausalError::Resource { message: "temporal run bytes overflow".into() }
+        })?;
+        if bytes > budget.limits().max_bytes {
+            return Err(CausalError::Resource { message: "temporal run byte limit".into() });
+        }
+        let lease = ctx.acquire_admission(0, bytes).map_err(|e| match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })?;
+        let mut ranges = Vec::new();
+        ranges.try_reserve_exact(positions.len()).map_err(|_| CausalError::Resource {
+            message: "temporal run allocation refused".into(),
+        })?;
+        let mut start = 0;
+        for (index, &row) in positions.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "temporal attribution" });
+            }
+            if row >= self.0.ticks.len() {
+                return Err(CausalError::Compile {
+                    message: "temporal population row is out of range".into(),
+                });
+            }
+            if index > 0 {
+                let prev = positions[index - 1];
+                let run = self.0.runs.partition_point(|range| range.end <= row);
+                if prev.checked_add(1) != Some(row) || self.0.runs[run].start == row {
+                    ranges.push(start..index);
+                    start = index;
+                }
+            }
+        }
+        if !positions.is_empty() {
+            ranges.push(start..positions.len());
+        }
+        Ok(SelectedRuns { ranges, _lease: lease })
     }
 }
 
@@ -576,8 +1015,242 @@ mod tests {
                 .expect("series");
         let aligned = LagAlignedScm::unfold(&graph, &series).expect("unfold");
         assert_eq!(aligned.dag.directed_edge_pairs_sorted(), vec![(2, 1)]);
-        let table = aligned.table(&series).expect("table");
-        assert_eq!(table.float64_slice(VariableId::from_raw(1)).unwrap(), y.as_slice());
-        assert_eq!(table.float64_slice(VariableId::from_raw(2)).unwrap(), &[0.0, 0.0, 1.0, 2.0]);
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let input =
+            CompleteWindowInput::build(&aligned, &series, 1, None, &mut budget, &ctx).unwrap();
+        assert_eq!(input.table().float64_slice(VariableId::from_raw(1)).unwrap(), &y[1..]);
+        assert_eq!(input.table().float64_slice(VariableId::from_raw(2)).unwrap(), &[0.0, 1.0, 2.0]);
+    }
+    #[test]
+    fn complete_windows_use_observed_values_and_original_tick_coordinates() {
+        let mut graph = TemporalDag::empty();
+        let parent = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let child = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(parent, child).unwrap();
+        let x = [5.0, 11.0, 13.0, 17.0, 19.0, 23.0, 29.0];
+        let y = [7.0, 31.0, 37.0, 41.0, 43.0, 47.0, 53.0];
+        let series =
+            TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                .unwrap();
+        let series = series.with_weights(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0].into()).unwrap();
+        let series = series
+            .with_analysis_mask(antecedent_data::ValidityBitmap::from_bytes(vec![0x6f], 7).unwrap())
+            .unwrap();
+        let aligned = LagAlignedScm::unfold(&graph, &series).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let input =
+            CompleteWindowInput::build(&aligned, &series, 2, None, &mut budget, &ctx).unwrap();
+        assert_eq!(input.0.ticks, [2, 3, 5, 6]);
+        assert_eq!(input.0.runs, [0..2, 2..4]);
+        let selected = input.selected_runs(&[0, 2, 3], &mut budget, &ctx).unwrap();
+        assert_eq!(selected.ranges(), [0..1, 1..3]);
+        let repeated = input.selected_runs(&[2, 2, 3], &mut budget, &ctx).unwrap();
+        assert_eq!(repeated.ranges(), [0..1, 1..3]);
+        let lag_col =
+            aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 2).unwrap();
+        assert_eq!(
+            input.0.table.float64_slice(VariableId::from_raw(lag_col as u32)).unwrap(),
+            &[5.0, 11.0, 17.0, 19.0]
+        );
+        assert_eq!(input.original_ticks().iter().position(|&tick| tick == 5), Some(2));
+        assert_eq!(input.0.table.storage().weights().unwrap(), &[3.0, 4.0, 6.0, 7.0]);
+        assert!(!input.original_ticks().contains(&1));
+        assert_eq!(input.0.source.float64_slice(VariableId::from_raw(0)).unwrap(), x);
+    }
+    #[test]
+    fn refit_provenance_retains_duplicate_ticks_and_block_starts() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(11);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let rows = TemporalRowProvenance::admit_fixed_blocks(
+            &[8, 9, 2, 3, 2],
+            Some(2),
+            false,
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        let shared = rows.clone();
+        drop(rows);
+        assert_eq!(shared.original_ticks(), [8, 9, 2, 3, 2]);
+        assert_eq!(shared.block_start(), [true, false, true, false, true]);
+        assert!(!shared.user_sampling_weights());
+        assert!(
+            TemporalRowProvenance::admit_fixed_blocks(&[1, 2], Some(0), false, &mut budget, &ctx)
+                .is_err()
+        );
+    }
+    #[test]
+    fn complete_refit_windows_keep_duplicate_source_coordinates_and_synthetic_weight_kind() {
+        let mut graph = TemporalDag::empty();
+        let parent = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let child = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(parent, child).unwrap();
+        let x = [0., 1., 2., 0., 1., 2., 3.];
+        let y = [4., 5., 6., 4., 5., 6., 7.];
+        let series =
+            TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                .unwrap()
+                .with_weights(vec![1.; 7].into())
+                .unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let map = TemporalRowProvenance::admit_fixed_blocks(
+            &[8, 9, 10, 8, 9, 10, 11],
+            Some(3),
+            false,
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        let aligned = LagAlignedScm::unfold(&graph, &series).unwrap();
+        let input = CompleteWindowInput::build(&aligned, &series, 2, Some(&map), &mut budget, &ctx)
+            .unwrap();
+        // Fixed blocks start at positions 0, 3 and 6. With history two,
+        // the complete windows are [0, 1, 2] and [3, 4, 5]; the last
+        // one-row block cannot supply the two preceding observations.
+        assert_eq!(map.block_start(), [true, false, false, true, false, false, true]);
+        assert_eq!(input.ticks(), [2, 5]);
+        assert_eq!(input.original_ticks(), [10, 10]);
+        assert_eq!(input.runs(), [0..1, 1..2]);
+        assert!(input.table().storage().weights().is_none());
+    }
+    #[test]
+    fn provenance_shares_admission_until_last_clone_and_honors_cancellation() {
+        let pool = antecedent_core::execution::AdmissionPool::fixed(1, 1_000_000);
+        let ctx = antecedent_core::ExecutionContext::for_tests(3).with_admission(pool.clone());
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let before = pool.available().bytes();
+        let rows =
+            TemporalRowProvenance::admit_fixed_blocks(&[1, 2], Some(2), false, &mut budget, &ctx)
+                .unwrap();
+        let charged = pool.available().bytes();
+        assert!(charged < before);
+        let retained = rows.clone();
+        drop(rows);
+        assert_eq!(pool.available().bytes(), charged);
+        drop(retained);
+        assert_eq!(pool.available().bytes(), before);
+        ctx.cancellation.cancel();
+        assert!(matches!(
+            TemporalRowProvenance::admit_fixed_blocks(&[], None, false, &mut budget, &ctx),
+            Err(CausalError::Cancelled { .. })
+        ));
+        assert_eq!(pool.available().bytes(), before);
+    }
+    #[test]
+    fn rollout_history_keeps_real_contemporaneous_values_when_auxiliary_history_is_absent() {
+        let mut graph = TemporalDag::empty();
+        let parent = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let child = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(parent, child).unwrap();
+        let x = [5.0, 11.0, 13.0];
+        let y = [7.0, 31.0, 37.0];
+        let series =
+            TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                .unwrap();
+        let aligned = LagAlignedScm::unfold(&graph, &series).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let input =
+            CompleteWindowInput::build(&aligned, &series, 2, None, &mut budget, &ctx).unwrap();
+        let history = aligned.observed_initial_history(&input, 1, 2, &mut budget, &ctx).unwrap();
+        let x_now = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 0).unwrap();
+        let x_lag = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 2).unwrap();
+        let width = aligned.columns.len();
+        assert_eq!(history.batches[0].values[x_now], 13.0);
+        assert_eq!(history.batches[1].values[x_now], 11.0);
+        assert!(history.available[width + x_now]);
+        assert!(!history.available[width + x_lag]);
+        assert!(history.batches[1].values[x_lag].is_nan());
+    }
+    #[test]
+    fn a_missing_historical_cell_stays_missing_on_an_eligible_anchor() {
+        let mut graph = TemporalDag::empty();
+        let parent = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let child = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(parent, child).unwrap();
+        let x = [f64::NAN, 11.0, 13.0, 17.0];
+        let y = [7.0, 31.0, 37.0, 41.0];
+        let series =
+            TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                .unwrap();
+        let aligned = LagAlignedScm::unfold(&graph, &series).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let input =
+            CompleteWindowInput::build(&aligned, &series, 2, None, &mut budget, &ctx).unwrap();
+        let lag = aligned.columns.iter().position(|&(v, l)| v.raw() == 0 && l == 2).unwrap();
+        let antecedent_data::OwnedColumn::Float64(column) = &input.table().storage().columns()[lag]
+        else {
+            panic!("expected float column")
+        };
+        assert_eq!(input.original_ticks(), [2, 3]);
+        assert!(column.values[0].is_nan());
+        assert!(!column.validity.is_valid(0));
+        assert_eq!(column.values[1], 11.0);
+        assert!(column.validity.is_valid(1));
+    }
+    #[test]
+    fn rollout_history_does_not_cross_a_refit_block_boundary() {
+        let mut graph = TemporalDag::empty();
+        let parent = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(2)).unwrap();
+        let child = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(parent, child).unwrap();
+        let x = [1., 2., 3., 4., 5., 6., 7.];
+        let y = [8., 9., 10., 11., 12., 13., 14.];
+        let series =
+            TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                .unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let provenance = TemporalRowProvenance::admit_fixed_blocks(
+            &[0, 1, 2, 3, 4, 5, 6],
+            Some(4),
+            false,
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        let aligned = LagAlignedScm::unfold(&graph, &series).unwrap();
+        let input =
+            CompleteWindowInput::build(&aligned, &series, 2, Some(&provenance), &mut budget, &ctx)
+                .unwrap();
+        let history = aligned.observed_initial_history(&input, 1, 2, &mut budget, &ctx).unwrap();
+        let x_now = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 0).unwrap();
+        let x_lag = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 2).unwrap();
+        let width = aligned.columns.len();
+        assert_eq!(history.batches[1].values[x_now], 6.0);
+        assert!(history.available[width + x_now]);
+        assert!(!history.available[width + x_lag]);
+    }
+    #[test]
+    fn zero_history_keeps_the_first_observation() {
+        let mut graph = TemporalDag::empty();
+        let x = graph.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        let y = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+        graph.insert_directed(x, y).unwrap();
+        let xs = [3.0, 5.0, 7.0];
+        let ys = [11.0, 13.0, 17.0];
+        let series =
+            TimeSeriesData::from_f64_columns([("x", xs.as_slice()), ("y", ys.as_slice())], 1)
+                .unwrap();
+        let aligned = LagAlignedScm::unfold(&graph, &series).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let input =
+            CompleteWindowInput::build(&aligned, &series, 0, None, &mut budget, &ctx).unwrap();
+        assert_eq!(input.original_ticks(), [0, 1, 2]);
+        assert_eq!(input.table().float64_slice(VariableId::from_raw(0)).unwrap(), xs);
     }
 }

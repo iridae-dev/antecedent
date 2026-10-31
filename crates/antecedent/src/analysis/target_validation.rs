@@ -571,7 +571,9 @@ fn merge_derivative_checks(
     if kind == TargetRefuterKind::FiniteDifferenceConsistency {
         let mut merged: Option<DerivativeConsistency> = None;
         for coordinate in coordinates {
-            let DerivativeCoordinate::FiniteDifference(check) = coordinate else { continue };
+            let DerivativeCoordinate::FiniteDifference(check) = coordinate else {
+                continue;
+            };
             match &mut merged {
                 None => merged = Some(check),
                 Some(all) => {
@@ -588,7 +590,9 @@ fn merge_derivative_checks(
     } else {
         let mut merged: Option<LocalLinearity> = None;
         for coordinate in coordinates {
-            let DerivativeCoordinate::Linearity(check) = coordinate else { continue };
+            let DerivativeCoordinate::Linearity(check) = coordinate else {
+                continue;
+            };
             match &mut merged {
                 None => merged = Some(check),
                 Some(all) => {
@@ -626,6 +630,21 @@ mod repack_tests {
 
     use super::*;
 
+    fn test_join_rows(map: &[usize], span: usize, block: Option<usize>) -> JoinFreeRows {
+        let ctx = ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        join_free_rows(map, span, block, &mut budget, &ctx).unwrap()
+    }
+
+    #[test]
+    fn block_boundary_cannot_bridge_even_successive_source_ticks() {
+        let ticks = [3, 4, 5, 6, 7, 8];
+        assert_eq!(*test_join_rows(&ticks, 2, Some(3)), [false, true, true, false, true, true]);
+        assert_eq!(*test_join_rows(&ticks, 3, Some(3)), [false, false, true, false, false, true]);
+        assert_eq!(*test_join_rows(&ticks, 2, None), [false, true, true, true, true, true]);
+    }
+
     /// A gathered circular-block series, with a series whose every value names its own period:
     /// the lag pair a design row reads is `(source of row - k, source of row)`, and a pair is
     /// an observed one exactly when its sources are `k` periods apart. Built here from the
@@ -639,15 +658,16 @@ mod repack_tests {
             let length = antecedent_data::circular_block_length(span, n);
             let mut map = vec![0_usize; n];
             antecedent_data::fill_circular_block_indexes(n, length, &mut rng, &mut map).unwrap();
-            let free = join_free_rows(&map, span);
+            let free = test_join_rows(&map, span, Some(length));
             let mut joins = 0;
             for row in 0..n {
                 // Brute force from the definition: the window of `row` is the original's when
                 // each earlier member is the source period exactly its lag before (the wrap of
                 // a block past the last period joins the last period to the first, so it is a
                 // join); the first rows have no earlier member to cross a join with.
-                let observed = row + 1 < span
-                    || (1..span).all(|k| map[row] >= k && map[row - k] == map[row] - k);
+                let observed = row + 1 >= span
+                    && row % length + 1 >= span
+                    && (1..span).all(|k| map[row] >= k && map[row - k] == map[row] - k);
                 assert_eq!(free[row], observed, "row {row}, span {span}");
                 joins += usize::from(!free[row]);
             }
@@ -658,7 +678,17 @@ mod repack_tests {
                 1,
             )
             .unwrap();
-            let mask = join_free_mask(storage.storage(), &map, span).unwrap();
+            let mask = join_free_mask(
+                storage.storage(),
+                &map,
+                span,
+                Some(length),
+                &mut antecedent_core::TemporalBudget::new(
+                    ExecutionContext::for_tests(0).temporal_materialization_limits(),
+                ),
+                &ExecutionContext::for_tests(0),
+            )
+            .unwrap();
             for row in 0..n {
                 assert_eq!(mask.is_valid(row), free[row]);
             }
@@ -677,11 +707,11 @@ mod repack_tests {
                 let (start, width) = subsample_bounds(rows, span, &mut rng);
                 assert!(width >= (span + 2).min(rows) && start + width <= rows);
                 let map: Vec<usize> = (start..start + width).collect();
-                let free = join_free_rows(&map, span);
+                let free = test_join_rows(&map, span, None);
                 for row in 0..width {
-                    let observed = row + 1 < span
-                        || (1..span).all(|k| map[row] >= k && map[row - k] == map[row] - k);
-                    assert!(observed && free[row], "rows {rows}, span {span}, row {row}");
+                    let observed = row + 1 >= span
+                        && (1..span).all(|k| map[row] >= k && map[row - k] == map[row] - k);
+                    assert_eq!(observed, free[row], "rows {rows}, span {span}, row {row}");
                 }
             }
         }
@@ -1221,6 +1251,13 @@ fn failed(error: &CausalError) -> TargetRefitError {
     })
 }
 
+fn operational_refit_error(error: &TargetRefitError) -> bool {
+    matches!(
+        error,
+        TargetRefitError::Failed(ValidationError::Cancelled | ValidationError::Resource { .. })
+    )
+}
+
 fn data_failed(error: antecedent_data::DataError) -> TargetRefitError {
     TargetRefitError::Failed(ValidationError::from(error))
 }
@@ -1248,7 +1285,9 @@ fn shifted(values: &[f64], shift: isize) -> (Arc<[f64]>, Vec<bool>) {
     let mut out = vec![0.0; n];
     let mut keep = vec![false; n];
     for t in 0..n {
-        let Some(source) = t.checked_add_signed(shift).filter(|s| *s < n) else { continue };
+        let Some(source) = t.checked_add_signed(shift).filter(|s| *s < n) else {
+            continue;
+        };
         out[t] = values[source];
         keep[t] = true;
     }
@@ -1306,17 +1345,68 @@ fn subsample_bounds(rows: usize, span: usize, rng: &mut CausalRng) -> (usize, us
     (unbiased_index(rng, rows - width + 1), width)
 }
 
-/// Whether each design row of a gathered series (`map[row]` is the source position of `row`)
-/// reads a lag window that was observed together: a row whose lag window crosses a join of the
-/// map pairs values observed apart, an artificial lag relationship. The first `span - 1` rows
-/// have no complete window in the replicate or in the original series (whose lag-aligned table
-/// repeats the first observation there, one such row per fit), so they are kept: the replicate
-/// then fits the same number of padded rows the original does, which keeps the target of the
-/// replicates the target of the original.
-fn join_free_rows(map: &[usize], span: usize) -> Vec<bool> {
-    (0..map.len())
-        .map(|row| row + 1 < span || (1..span).all(|k| map[row - k] + k == map[row]))
-        .collect()
+/// Eligible windows use observed consecutive source ticks and do not cross a
+/// draw boundary, even if two blocks happen to have adjacent tick values.
+struct JoinFreeRows {
+    values: Vec<bool>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+impl std::ops::Deref for JoinFreeRows {
+    type Target = [bool];
+    fn deref(&self) -> &Self::Target {
+        &self.values
+    }
+}
+
+fn join_free_rows(
+    map: &[usize],
+    span: usize,
+    block_length: Option<usize>,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<JoinFreeRows, TargetRefitError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(failed(&CausalError::Cancelled { stage: "temporal attribution" }));
+    }
+    if block_length == Some(0) {
+        return Err(failed(&CausalError::Compile {
+            message: "refit block length must be positive".into(),
+        }));
+    }
+    let n = u64::try_from(map.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "refit mask work overflow".into() })
+    })?;
+    budget.charge_work(n).map_err(|e| failed(&CausalError::Resource { message: e.to_string() }))?;
+    let bytes = n.checked_mul(20).and_then(|v| v.checked_add(1024)).ok_or_else(|| {
+        failed(&CausalError::Resource { message: "refit mask bytes overflow".into() })
+    })?;
+    if bytes > budget.limits().max_bytes {
+        return Err(failed(&CausalError::Resource { message: "refit mask byte limit".into() }));
+    }
+    let lease = ctx.acquire_admission(0, bytes).map_err(|e| {
+        failed(&match e {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                CausalError::Cancelled { stage: "temporal attribution" }
+            }
+            other => CausalError::Resource { message: other.to_string() },
+        })
+    })?;
+    let mut values = Vec::new();
+    values.try_reserve_exact(map.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "refit mask allocation refused".into() })
+    })?;
+    let mut length = 0_usize;
+    for (row, &tick) in map.iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled { stage: "temporal attribution" }));
+        }
+        let continues = row > 0
+            && block_length.is_none_or(|block| row % block != 0)
+            && map[row - 1].checked_add(1) == Some(tick);
+        length = if continues { length.saturating_add(1) } else { 1 };
+        values.push(length >= span.max(1));
+    }
+    Ok(JoinFreeRows { values, _lease: lease })
 }
 
 /// The analysis mask of a gathered series for a route that fits row-wise lag-aligned tables
@@ -1327,15 +1417,25 @@ fn join_free_mask(
     storage: &antecedent_data::OwnedColumnarStorage,
     map: &[usize],
     span: usize,
+    block_length: Option<usize>,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
 ) -> Result<ValidityBitmap, TargetRefitError> {
-    let free = join_free_rows(map, span);
-    let keep: Vec<bool> = free
-        .iter()
-        .zip(map)
-        .map(|(&free, &source)| {
-            free && storage.analysis_mask().is_none_or(|mask| mask.is_valid(source))
-        })
-        .collect();
+    let free = join_free_rows(map, span, block_length, budget, ctx)?;
+    let n = u64::try_from(map.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "refit mask work overflow".into() })
+    })?;
+    budget.charge_work(n).map_err(|e| failed(&CausalError::Resource { message: e.to_string() }))?;
+    let mut keep = Vec::new();
+    keep.try_reserve_exact(map.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "refit mask allocation refused".into() })
+    })?;
+    for (&eligible, &source) in free.iter().zip(map) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled { stage: "temporal attribution" }));
+        }
+        keep.push(eligible && storage.analysis_mask().is_none_or(|mask| mask.is_valid(source)));
+    }
     mask_from(&keep)
 }
 
@@ -1382,7 +1482,9 @@ fn truncated_series(
     let rows: Vec<usize> = (start..end).collect();
     let mut columns = Vec::with_capacity(storage.columns().len());
     for column in storage.columns() {
-        let OwnedColumn::Float64(column) = column else { return Ok(None) };
+        let OwnedColumn::Float64(column) = column else {
+            return Ok(None);
+        };
         let values: Arc<[f64]> = Arc::from(&column.values[start..end]);
         let validity = column.validity.gather_rows(&rows).map_err(data_failed)?;
         columns.push(OwnedColumn::Float64(
@@ -1554,6 +1656,43 @@ impl PreparedRefit<'_> {
         self.read_back(&refitted)
     }
 
+    fn reestimate_materialised_series(
+        &self,
+        data: &TimeSeriesData,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let result = self
+            .prepared
+            .estimate_series_with_provenance(data, provenance, ctx)
+            .map_err(|error| failed(&error))?;
+        self.read_back(&result)
+    }
+
+    fn reestimate_gathered_series(
+        &self,
+        data: &TimeSeriesData,
+        source_ticks: &[usize],
+        block_length: Option<usize>,
+        user_sampling_weights: bool,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<f64>, TargetRefitError> {
+        let provenance = crate::analysis::execute::TemporalRowProvenance::admit_fixed_blocks(
+            source_ticks,
+            block_length,
+            user_sampling_weights,
+            budget,
+            ctx,
+        )
+        .map_err(|error| failed(&error))?;
+        let result = self
+            .prepared
+            .estimate_series_with_provenance(data, Some(&provenance), ctx)
+            .map_err(|error| failed(&error))?;
+        self.read_back(&result)
+    }
+
     /// The refitted target vector, in the original coordinate order.
     fn read_back(&self, refitted: &StudyResult) -> Result<Vec<f64>, TargetRefitError> {
         let (family, labels, values) =
@@ -1711,7 +1850,9 @@ impl PreparedRefit<'_> {
             {
                 continue;
             }
-            let Some(w) = static_node(dag, v) else { continue };
+            let Some(w) = static_node(dag, v) else {
+                continue;
+            };
             let mut ws = DSeparationWorkspace::default();
             if !dag.reaches(t, w) && dag.is_d_separated(t, w, &z, &mut ws).unwrap_or(false) {
                 return Ok(v);
@@ -2212,7 +2353,9 @@ impl PreparedRefit<'_> {
     /// when the study is one whose populations are row selections; `None` otherwise.
     fn change_populations(&self, rows: usize) -> Option<Vec<Vec<usize>>> {
         use antecedent_core::PopulationSelector;
-        let CausalQuery::ChangeAttribution(query) = &self.study().query else { return None };
+        let CausalQuery::ChangeAttribution(query) = &self.study().query else {
+            return None;
+        };
         let positions = |selector: &PopulationSelector| -> Option<Vec<usize>> {
             match selector {
                 PopulationSelector::All => Some((0..rows).collect()),
@@ -2389,7 +2532,17 @@ impl PreparedRefit<'_> {
         series: &TimeSeriesData,
         perturbation: TargetPerturbation,
         rng: &mut CausalRng,
-    ) -> Result<Option<TimeSeriesData>, TargetRefitError> {
+        ctx: &ExecutionContext,
+    ) -> Result<
+        Option<(
+            TimeSeriesData,
+            Option<crate::analysis::execute::TemporalRowProvenance>,
+            Option<JoinFreeRows>,
+        )>,
+        TargetRefitError,
+    > {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let storage = series.storage();
         let n = series.row_count();
         let span = max_graph_lag(self.study()) + 1;
@@ -2414,11 +2567,26 @@ impl PreparedRefit<'_> {
             _ => return Ok(None),
         };
         let base = series_with(series, &[replacement], None, None)?;
-        let Some(window) = truncated_series(&base, from.saturating_sub(span), to)? else {
+        let window_start = from.saturating_sub(span);
+        let Some(window) = truncated_series(&base, window_start, to)? else {
             return Ok(None);
         };
         if replicate == 0 {
-            return Ok(Some(window));
+            let provenance = if self.target.family() == TargetFamily::Attribution {
+                Some(
+                    crate::analysis::execute::TemporalRowProvenance::admit_contiguous_range(
+                        window_start,
+                        window.row_count(),
+                        series.storage().weights().is_some(),
+                        &mut budget,
+                        ctx,
+                    )
+                    .map_err(|error| failed(&error))?,
+                )
+            } else {
+                None
+            };
+            return Ok(Some((window, provenance, None)));
         }
         let rows = window.row_count();
         if self.target.family() == TargetFamily::Attribution {
@@ -2428,7 +2596,34 @@ impl PreparedRefit<'_> {
             let mut map = vec![0_usize; rows];
             antecedent_data::fill_circular_block_indexes(rows, length, rng, &mut map)
                 .map_err(data_failed)?;
-            return self.gathered_rows(&window, &map).map(Some);
+            let (gathered, guard) =
+                self.gathered_rows(&window, &map, Some(length), &mut budget, ctx)?;
+            budget
+                .charge_work(u64::try_from(map.len()).map_err(|_| {
+                    failed(&CausalError::Resource {
+                        message: "refit coordinate work overflow".into(),
+                    })
+                })?)
+                .map_err(|e| failed(&CausalError::Resource { message: e.to_string() }))?;
+            for tick in &mut map {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(failed(&CausalError::Cancelled { stage: "temporal attribution" }));
+                }
+                *tick = tick.checked_add(window_start).ok_or_else(|| {
+                    failed(&CausalError::Resource {
+                        message: "refit source coordinate overflow".into(),
+                    })
+                })?;
+            }
+            let provenance = crate::analysis::execute::TemporalRowProvenance::admit_fixed_blocks(
+                &map,
+                Some(length),
+                series.storage().weights().is_some(),
+                &mut budget,
+                ctx,
+            )
+            .map_err(|error| failed(&error))?;
+            return Ok(Some((gathered, Some(provenance), Some(guard))));
         }
         // Any other route that reads neither row weights nor an analysis mask cannot skip the
         // design rows whose lag window crosses a join of a block resample, and a join pairs
@@ -2436,7 +2631,7 @@ impl PreparedRefit<'_> {
         // join: a subsample of a dependent series (its spread is wider than the full series',
         // so the check is conservative where the window is short).
         let (start, width) = subsample_bounds(rows, span, rng);
-        truncated_series(&window, start, start + width)
+        Ok(truncated_series(&window, start, start + width)?.map(|window| (window, None, None)))
     }
 
     /// The gathered series of the rows `map` (positions of `series`), with a design row whose lag
@@ -2445,7 +2640,10 @@ impl PreparedRefit<'_> {
         &self,
         series: &TimeSeriesData,
         map: &[usize],
-    ) -> Result<TimeSeriesData, TargetRefitError> {
+        block_length: Option<usize>,
+        budget: &mut antecedent_core::TemporalBudget,
+        ctx: &ExecutionContext,
+    ) -> Result<(TimeSeriesData, JoinFreeRows), TargetRefitError> {
         let n = map.len();
         let span = max_graph_lag(self.study()) + 1;
         let time_index = match truncated_series(series, 0, n)? {
@@ -2468,8 +2666,11 @@ impl PreparedRefit<'_> {
                     .map_err(data_failed)?,
             ));
         }
+        let block_boundaries =
+            (self.target.family() == TargetFamily::Attribution).then_some(block_length).flatten();
+        let weight_free = join_free_rows(map, span, block_boundaries, budget, ctx)?;
         let mask = if self.target.family() == TargetFamily::Attribution {
-            Some(join_free_mask(storage, map, span)?)
+            Some(join_free_mask(storage, map, span, block_length, budget, ctx)?)
         } else {
             storage
                 .analysis_mask()
@@ -2477,13 +2678,23 @@ impl PreparedRefit<'_> {
                 .transpose()
                 .map_err(data_failed)?
         };
-        let weights: Arc<[f64]> = (0..n)
-            .map(|row| {
-                let aligned = row + 1 >= span && (1..span).all(|k| map[row - k] + k == map[row]);
-                let sampling = storage.weights().map_or(1.0, |weights| weights[map[row]]);
-                if aligned { sampling } else { 0.0 }
-            })
-            .collect();
+        budget
+            .charge_work(u64::try_from(n).map_err(|_| {
+                failed(&CausalError::Resource { message: "refit weight work overflow".into() })
+            })?)
+            .map_err(|e| failed(&CausalError::Resource { message: e.to_string() }))?;
+        let mut values = Vec::new();
+        values.try_reserve_exact(n).map_err(|_| {
+            failed(&CausalError::Resource { message: "refit weight allocation refused".into() })
+        })?;
+        for (row, &source) in map.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled { stage: "temporal attribution" }));
+            }
+            let sampling = storage.weights().map_or(1.0, |weights| weights[source]);
+            values.push(if weight_free[row] { sampling } else { 0.0 });
+        }
+        let weights: Arc<[f64]> = values.into();
         let gathered = antecedent_data::OwnedColumnarStorage::try_new(
             storage.schema().clone(),
             columns,
@@ -2492,7 +2703,7 @@ impl PreparedRefit<'_> {
         )
         .and_then(|gathered| TimeSeriesData::try_new(gathered, time_index))
         .map_err(data_failed)?;
-        Ok(gathered)
+        Ok((gathered, weight_free))
     }
 
     /// The bootstrap of a series drawn as a gathered circular-block series, with a zero row
@@ -2508,6 +2719,8 @@ impl PreparedRefit<'_> {
         rng: &mut CausalRng,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let n = series.row_count();
         let span = max_graph_lag(self.study()) + 1;
         let length = antecedent_data::circular_block_length(span, n);
@@ -2531,8 +2744,11 @@ impl PreparedRefit<'_> {
                     .map_err(data_failed)?,
             ));
         }
+        let block_boundaries =
+            (self.target.family() == TargetFamily::Attribution).then_some(length);
+        let weight_free = join_free_rows(&map, span, block_boundaries, &mut budget, ctx)?;
         let mask = if self.target.family() == TargetFamily::Attribution {
-            Some(join_free_mask(storage, &map, span)?)
+            Some(join_free_mask(storage, &map, span, Some(length), &mut budget, ctx)?)
         } else {
             storage
                 .analysis_mask()
@@ -2546,13 +2762,23 @@ impl PreparedRefit<'_> {
         // route that reads none keeps the attenuation, of order `(span - 1) / length`. A
         // sampling weight of the original sample is carried to the row it was gathered from, so
         // the replicate is the block resample of the weighted sample.
-        let weights: Arc<[f64]> = (0..n)
-            .map(|row| {
-                let aligned = row + 1 >= span && (1..span).all(|k| map[row - k] + k == map[row]);
-                let sampling = storage.weights().map_or(1.0, |weights| weights[map[row]]);
-                if aligned { sampling } else { 0.0 }
-            })
-            .collect();
+        budget
+            .charge_work(u64::try_from(n).map_err(|_| {
+                failed(&CausalError::Resource { message: "refit weight work overflow".into() })
+            })?)
+            .map_err(|e| failed(&CausalError::Resource { message: e.to_string() }))?;
+        let mut values = Vec::new();
+        values.try_reserve_exact(n).map_err(|_| {
+            failed(&CausalError::Resource { message: "refit weight allocation refused".into() })
+        })?;
+        for (row, &source) in map.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled { stage: "temporal attribution" }));
+            }
+            let sampling = storage.weights().map_or(1.0, |weights| weights[source]);
+            values.push(if weight_free[row] { sampling } else { 0.0 });
+        }
+        let weights: Arc<[f64]> = values.into();
         let gathered = antecedent_data::OwnedColumnarStorage::try_new(
             storage.schema().clone(),
             columns,
@@ -2561,7 +2787,18 @@ impl PreparedRefit<'_> {
         )
         .and_then(|gathered| TimeSeriesData::try_new(gathered, series.time_index().clone()))
         .map_err(data_failed)?;
-        self.reestimate(&Modal::Series(gathered), ctx)
+        if self.target.family() == TargetFamily::Attribution {
+            self.reestimate_gathered_series(
+                &gathered,
+                &map,
+                Some(length),
+                storage.weights().is_some(),
+                &mut budget,
+                ctx,
+            )
+        } else {
+            self.reestimate(&Modal::Series(gathered), ctx)
+        }
     }
 
     fn series_refit(
@@ -2579,8 +2816,33 @@ impl PreparedRefit<'_> {
             if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) {
                 return self.gathered_bootstrap(series, rng, ctx);
             }
-            if let Some(window) = self.materialised_window(series, perturbation, rng)? {
-                return self.reestimate(&Modal::Series(window), ctx);
+            // Negative controls are substituted before drawing the same
+            // circular block map. Gathering preserves the sampled multiplicities
+            // and their source/block provenance without treating generated
+            // bookkeeping weights as user-declared weights.
+            let replacement = match perturbation {
+                TargetPerturbation::NegativeControlExposure { replicate } if replicate > 0 => {
+                    let control = self.control_exposure()?;
+                    Some((self.treatment, Arc::from(Self::column_of(series.storage(), control)?)))
+                }
+                TargetPerturbation::NegativeControlOutcome { replicate } if replicate > 0 => self
+                    .options
+                    .negative_control_outcome
+                    .map(|control| {
+                        Self::column_of(series.storage(), control)
+                            .map(|values| (self.outcome, Arc::from(values)))
+                    })
+                    .transpose()?,
+                _ => None,
+            };
+            if let Some(replacement) = replacement {
+                let substituted = series_with(series, &[replacement], None, None)?;
+                return self.gathered_bootstrap(&substituted, rng, ctx);
+            }
+            if let Some((window, provenance, _guard)) =
+                self.materialised_window(series, perturbation, rng, ctx)?
+            {
+                return self.reestimate_materialised_series(&window, provenance.as_ref(), ctx);
             }
         }
         if matches!(perturbation, TargetPerturbation::RandomCommonCause { .. }) {
@@ -2606,7 +2868,17 @@ impl PreparedRefit<'_> {
             let width = ((fraction * n as f64).round() as usize).clamp(1, n);
             let start = unbiased_index(rng, n);
             let map: Vec<usize> = (0..width).map(|i| (start + i) % n).collect();
-            return self.reestimate(&Modal::Series(self.gathered_rows(series, &map)?), ctx);
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            let (gathered, _guard) = self.gathered_rows(series, &map, None, &mut budget, ctx)?;
+            return self.reestimate_gathered_series(
+                &gathered,
+                &map,
+                None,
+                series.storage().weights().is_some(),
+                &mut budget,
+                ctx,
+            );
         }
         let exposure = match perturbation {
             TargetPerturbation::NegativeControlExposure { .. } => Some(self.control_exposure()?),
@@ -2634,6 +2906,9 @@ impl PreparedRefit<'_> {
             self.options.negative_control_outcome,
         )?;
         let refit = self.reestimate(&Modal::Series(perturbed), ctx);
+        if refit.as_ref().err().is_some_and(operational_refit_error) {
+            return refit;
+        }
         // A route that reads no row weights (a conditional effect) cannot take the circular
         // window as zero weights; the same subset is then cut as a contiguous window, which keeps
         // every lag the procedure reads inside it.
@@ -2648,26 +2923,32 @@ impl PreparedRefit<'_> {
                 let width = ((fraction * n as f64).round() as usize).clamp(1, n);
                 let start = unbiased_index(rng, n - width + 1);
                 if let Some(window) = truncated_series(series, start, start + width)? {
-                    if let Ok(values) = self.reestimate(&Modal::Series(window), ctx) {
-                        return Ok(values);
+                    match self.reestimate(&Modal::Series(window), ctx) {
+                        Ok(values) => return Ok(values),
+                        Err(error) if operational_refit_error(&error) => return Err(error),
+                        Err(_) => {}
                     }
                 }
             }
         }
-        // A route that reads no row weights cannot take the block resample as multiplicities;
-        // the bootstrap is then drawn as a gathered circular-block series, whose lag windows
-        // that straddle a block junction pair values observed apart (the block length keeps
-        // their share small).
+        // Routes that do not consume row weights need a gathered circular-block series.
+        // Attribution refits retain the block boundaries so complete windows do not cross joins.
         if refit.is_err() {
-            if let Some(window) = self.materialised_window(series, perturbation, rng)? {
-                if let Ok(values) = self.reestimate(&Modal::Series(window), ctx) {
-                    return Ok(values);
+            if let Some((window, provenance, _guard)) =
+                self.materialised_window(series, perturbation, rng, ctx)?
+            {
+                match self.reestimate_materialised_series(&window, provenance.as_ref(), ctx) {
+                    Ok(values) => return Ok(values),
+                    Err(error) if operational_refit_error(&error) => return Err(error),
+                    Err(_) => {}
                 }
             }
         }
         if matches!(perturbation, TargetPerturbation::Bootstrap { .. }) && refit.is_err() {
-            if let Ok(values) = self.gathered_bootstrap(series, rng, ctx) {
-                return Ok(values);
+            match self.gathered_bootstrap(series, rng, ctx) {
+                Ok(values) => return Ok(values),
+                Err(error) if operational_refit_error(&error) => return Err(error),
+                Err(_) => {}
             }
         }
         match refit {

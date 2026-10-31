@@ -1329,6 +1329,24 @@ pub fn sample_temporal_policy(
     Ok(antecedent_model::rollout_temporal(model, plan, TemporalNoise::Draw(rng), &mut ws, ctx)?)
 }
 
+pub(crate) fn sample_temporal_policy_with_history_availability(
+    model: &CompiledCausalModel,
+    plan: &TemporalPlan<'_>,
+    history_available: &[bool],
+    rng: &mut CausalRng,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPath, CausalError> {
+    let mut ws = MechanismWorkspace::default();
+    Ok(antecedent_model::rollout_temporal_with_history_availability(
+        model,
+        plan,
+        Some(history_available),
+        TemporalNoise::Draw(rng),
+        &mut ws,
+        ctx,
+    )?)
+}
+
 /// Abduction once, then unit-level ITE for binary hard interventions on `treatment`.
 ///
 /// # Errors

@@ -498,8 +498,10 @@ pub(super) fn run_model_query(
 /// on the lag-aligned unfolding of a `TemporalDag`, the unfolding a rollout steps.
 #[derive(Clone, Copy, Default)]
 pub(super) struct ModelRun<'a> {
-    pub(super) reading: ChangeReading,
+    pub(super) reading: ChangeReading<'a>,
     pub(super) unfolding: Option<&'a super::temporal_attribution::LagAlignedScm>,
+    pub(super) observed: Option<&'a super::temporal_attribution::CompleteWindowInput>,
+    pub(super) budget: Option<&'a antecedent_core::TemporalBudget>,
 }
 
 /// Roll the dynamics of a fitted lag-aligned model forward.
@@ -515,8 +517,10 @@ pub(super) struct ModelRun<'a> {
 /// series shorter than the history, or a rollout failure.
 pub(super) fn rollout_on_unfolding(
     fitted: &crate::gcm::FittedGcm,
-    data: &TabularData,
+    _data: &TabularData,
     aligned: &super::temporal_attribution::LagAlignedScm,
+    observed: Option<&super::temporal_attribution::CompleteWindowInput>,
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
     simulate: &SimulateQuery,
     ctx: &ExecutionContext,
 ) -> Result<SimulationOutcome, CausalError> {
@@ -538,18 +542,31 @@ pub(super) fn rollout_on_unfolding(
     let mut steps = aligned.lag_assignments(*n_steps);
     steps.extend(schedule.steps.iter().cloned());
     let sequence = InterventionSequence::new(steps);
-    let initial = aligned.initial_history(data, *n_rows)?;
+    let observed = observed.ok_or_else(|| CausalError::Compile {
+        message: "temporal rollout lost its observed source history".into(),
+    })?;
+    let mut budget = shared_budget.cloned().unwrap_or_else(|| {
+        antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+    });
+    let history = aligned.observed_initial_history(
+        observed,
+        *n_rows,
+        (*window).max(aligned.history()),
+        &mut budget,
+        ctx,
+    )?;
     let plan = crate::gcm::TemporalPlan {
         sequence: &sequence,
         n_steps: *n_steps,
         n_rows: *n_rows,
         window: (*window).max(aligned.history()),
-        initial_history: &initial,
+        initial_history: &history.batches,
     };
     let mut rng = antecedent_core::CausalRng::from_seed(*seed);
-    Ok(SimulationOutcome::Temporal(crate::gcm::sample_temporal_policy(
+    Ok(SimulationOutcome::Temporal(crate::gcm::sample_temporal_policy_with_history_availability(
         &fitted.model,
         &plan,
+        &history.available,
         &mut rng,
         ctx,
     )?))
@@ -586,8 +603,17 @@ pub(super) fn run_model_query_with_fit(
     match query {
         CausalQuery::Attribute(attribute) => {
             let _lease = admit(ctx, model_quote(rows, nodes, 0), "attribution")?;
-            let outcome =
-                run_attribute_with_fit(&fitted, graph, data, attribute, fit, reading, ctx)?;
+            let outcome = run_attribute_with_fit(
+                &fitted,
+                graph,
+                data,
+                attribute,
+                fit,
+                reading,
+                run.observed.map(|input| input.runs()),
+                run.budget,
+                ctx,
+            )?;
             let value = match &outcome {
                 AttributionOutcome::RootCauses { attribution, .. } => attribution.total_change,
                 AttributionOutcome::Change(change) => change.total_change,
@@ -604,7 +630,15 @@ pub(super) fn run_model_query_with_fit(
             let draws = crate::analysis::structure_route::simulated_rows(&simulate.target, rows);
             let _lease = admit(ctx, model_quote(rows, nodes, draws), "simulation")?;
             if let Some(aligned) = run.unfolding {
-                let outcome = rollout_on_unfolding(&fitted, data, aligned, simulate, ctx)?;
+                let outcome = rollout_on_unfolding(
+                    &fitted,
+                    data,
+                    aligned,
+                    run.observed,
+                    run.budget,
+                    simulate,
+                    ctx,
+                )?;
                 return Ok(ModelAnswer {
                     slot: GcmSlot::Simulation(Box::new(SimulationPayload { outcome, mechanisms })),
                     estimate: point(f64::NAN),

@@ -12,8 +12,8 @@ pub mod affine_certificate;
 pub mod basis;
 pub mod batch;
 pub mod compile;
-pub mod compose;
 mod complex_schur;
+pub mod compose;
 pub mod continuous_cyclic;
 pub mod cyclic_actions;
 pub mod cyclic_component;
@@ -112,7 +112,10 @@ pub use sample::{
     sample_with_overlay_into, soft_to_slot,
 };
 pub use sample::{NodeEvaluation, NodeNoise, evaluate_node};
-pub use temporal_rollout::{TemporalNoise, TemporalPath, TemporalPlan, rollout_temporal};
+pub use temporal_rollout::{
+    TemporalNoise, TemporalPath, TemporalPlan, rollout_temporal,
+    rollout_temporal_with_history_availability,
+};
 pub use tree::TreeEnsemble;
 
 /// Crate version.

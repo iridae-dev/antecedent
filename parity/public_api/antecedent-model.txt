@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn antecedent_model::rollout_temporal_with_history_availability(model: &antecedent_model::CompiledCausalModel, plan: &antecedent_model::TemporalPlan<'_>, history_available: core::option::Option<&[bool]>, noise: antecedent_model::TemporalNoise<'_>, ws: &mut antecedent_model::MechanismWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::TemporalPath, antecedent_model::ModelError>
 #[non_exhaustive] pub enum antecedent_model::CycleGateError
 #[non_exhaustive] pub enum antecedent_model::CyclicComponentError
 #[non_exhaustive] pub enum antecedent_model::LinearSolutionError
@@ -5954,6 +5955,7 @@ pub use antecedent_model::temporal_rollout::TemporalNoise = antecedent_model::Te
 pub use antecedent_model::temporal_rollout::TemporalPath = antecedent_model::TemporalPath
 pub use antecedent_model::temporal_rollout::TemporalPlan = antecedent_model::TemporalPlan
 pub use antecedent_model::temporal_rollout::rollout_temporal = antecedent_model::rollout_temporal
+pub use antecedent_model::temporal_rollout::rollout_temporal_with_history_availability = antecedent_model::rollout_temporal_with_history_availability
 pub use antecedent_model::tree::TreeEnsemble = antecedent_model::TreeEnsemble
 pub use antecedent_model::typed_mechanism_transport::MechanismRole = antecedent_model::mechanism_transport::MechanismRole
 pub use antecedent_model::typed_mechanism_transport::UNCERTAINTY_SCOPE = antecedent_model::mechanism_transport::UNCERTAINTY_SCOPE

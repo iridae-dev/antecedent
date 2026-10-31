@@ -93,6 +93,27 @@ impl TemporalPath {
 pub fn rollout_temporal(
     model: &CompiledCausalModel,
     plan: &TemporalPlan<'_>,
+    noise: TemporalNoise<'_>,
+    ws: &mut MechanismWorkspace,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPath, ModelError> {
+    rollout_temporal_with_history_availability(model, plan, None, noise, ws, ctx)
+}
+
+/// Roll out with per-history-step, per-node availability. `None` means all
+/// supplied history cells are available; otherwise entries are most-recent
+/// first, with exactly `initial_history.len() * model.n_nodes()` booleans.
+/// An unavailable cell may be stored as NaN but is rejected before any active
+/// program can read it; history produced by the rollout itself is available.
+///
+/// # Errors
+/// A malformed availability mask or any failure of [`rollout_temporal`],
+/// including an active policy that reads an unavailable history cell.
+#[doc(hidden)]
+pub fn rollout_temporal_with_history_availability(
+    model: &CompiledCausalModel,
+    plan: &TemporalPlan<'_>,
+    history_available: Option<&[bool]>,
     mut noise: TemporalNoise<'_>,
     ws: &mut MechanismWorkspace,
     ctx: &ExecutionContext,
@@ -124,6 +145,11 @@ pub fn rollout_temporal(
         .any(|b| b.n_rows != n_rows || b.n_nodes != n_nodes || b.values.len() != block)
     {
         return Err(shape_error("an initial history batch does not match the model and rows"));
+    }
+    if history_available
+        .is_some_and(|mask| plan.initial_history.len().checked_mul(n_nodes) != Some(mask.len()))
+    {
+        return Err(shape_error("initial history availability does not match its batches"));
     }
     if let TemporalNoise::Retained { steps, .. } = &noise {
         if steps.len() != plan.n_steps || steps.iter().any(|s| s.len() != block) {
@@ -193,6 +219,22 @@ pub fn rollout_temporal(
                  earlier steps exist"
             ))
             .into_error());
+        }
+        if let Some(mask) = history_available {
+            for program in overlay.programs.iter().flatten() {
+                for &slot in program.lag_slots() {
+                    let lag = slot / n_nodes;
+                    let node = slot % n_nodes;
+                    if lag > t {
+                        let previous = lag - t - 1;
+                        if !mask[previous * n_nodes + node] {
+                            return Err(refusal_history_not_yet_observed(format!(
+                                "a policy active at step {t} reads unavailable history for node {node} at lag {lag}"
+                            )).into_error());
+                        }
+                    }
+                }
+            }
         }
         buf.fill(0.0);
         for lag in 1..=available.min(plan.window as usize) {

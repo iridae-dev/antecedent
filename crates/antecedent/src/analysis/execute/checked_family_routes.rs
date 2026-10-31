@@ -50,10 +50,11 @@ impl CheckedClassAttributionOperation {
         study: &Study,
         data: &TimeSeriesData,
         plan: &Arc<PhysicalExecutionPlan>,
+        provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         self.target.require(study, plan)?;
-        study.execute_temporal_class_attribution(data, plan, ctx)
+        study.execute_temporal_class_attribution(data, plan, provenance, ctx)
     }
 }
 

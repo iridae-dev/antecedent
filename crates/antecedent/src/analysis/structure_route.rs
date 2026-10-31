@@ -1554,11 +1554,23 @@ fn noise_structure(
 /// of the residuals, not an independent-residual one); `bayesian` reads the answer as the
 /// posterior probability of a change under the prior the query declares.
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct ChangeReading {
+pub(crate) struct ChangeReading<'a> {
     /// Block length of a dependent series, when the populations are segments of one.
     pub(crate) block: Option<usize>,
     /// Read the answer as a posterior probability of a change.
     pub(crate) bayesian: bool,
+    pub(crate) runs: Option<(&'a [std::ops::Range<usize>], &'a [std::ops::Range<usize>])>,
+    pub(crate) budget: Option<&'a antecedent_core::TemporalBudget>,
+}
+
+fn temporal_attribution_error(error: antecedent_attribution::AttributionError) -> CausalError {
+    match error {
+        antecedent_attribution::AttributionError::Model(
+            error @ (antecedent_model::ModelError::Cancelled
+            | antecedent_model::ModelError::ResourceLimit { .. }),
+        ) => CausalError::from(error),
+        other => CausalError::from(other),
+    }
 }
 
 /// Block permutations a dependent-series mechanism-change test runs.
@@ -1572,7 +1584,7 @@ pub(crate) fn run_mechanism_change(
     data: &TabularData,
     detection: &antecedent_core::MechanismChangeQuery,
     method: MechanismChangeMethod,
-    reading: ChangeReading,
+    reading: ChangeReading<'_>,
     ctx: &ExecutionContext,
 ) -> Result<Vec<antecedent_attribution::MechanismChangeDetection>, CausalError> {
     if reading.bayesian {
@@ -1587,19 +1599,58 @@ pub(crate) fn run_mechanism_change(
                  MechanismChangeQuery::with_change_prior"
                 )
             })?;
-        return Ok(antecedent_attribution::mechanism_change_posterior(
-            &fitted.model,
-            data,
-            detection,
-            prior,
-            reading.block.unwrap_or(1),
-            ctx,
-        )?
-        .into_iter()
-        .map(antecedent_attribution::MechanismChangePosterior::into_detection)
-        .collect());
+        let posterior = if let Some((baseline, comparison)) = reading.runs {
+            let mut budget = reading.budget.cloned().ok_or_else(|| CausalError::Compile {
+                message: "temporal mechanism detection lost its shared budget".into(),
+            })?;
+            antecedent_attribution::mechanism_change::mechanism_change_posterior_with_runs(
+                &fitted.model,
+                data,
+                detection,
+                prior,
+                reading.block.unwrap_or(1),
+                baseline,
+                comparison,
+                &mut budget,
+                ctx,
+            )
+            .map_err(temporal_attribution_error)?
+        } else {
+            antecedent_attribution::mechanism_change_posterior(
+                &fitted.model,
+                data,
+                detection,
+                prior,
+                reading.block.unwrap_or(1),
+                ctx,
+            )?
+        };
+        return Ok(posterior
+            .into_iter()
+            .map(antecedent_attribution::MechanismChangePosterior::into_detection)
+            .collect());
     }
     if let Some(block) = reading.block {
+        if let Some((baseline, comparison)) = reading.runs {
+            let mut budget = reading.budget.cloned().ok_or_else(|| CausalError::Compile {
+                message: "temporal mechanism detection lost its shared budget".into(),
+            })?;
+            return Ok(
+                antecedent_attribution::mechanism_change::detect_mechanism_changes_block_with_runs(
+                    &fitted.model,
+                    data,
+                    detection,
+                    method,
+                    block,
+                    CHANGE_BLOCK_PERMUTATIONS,
+                    baseline,
+                    comparison,
+                    &mut budget,
+                    ctx,
+                )
+                .map_err(temporal_attribution_error)?,
+            );
+        }
         return Ok(antecedent_attribution::detect_mechanism_changes_block(
             &fitted.model,
             data,
@@ -1807,7 +1858,9 @@ pub(crate) fn run_attribute_with_fit(
     data: &TabularData,
     query: &AttributeQuery,
     fit: Option<AttributionFit>,
-    reading: ChangeReading,
+    reading: ChangeReading<'_>,
+    temporal_runs: Option<&[std::ops::Range<usize>]>,
+    temporal_budget: Option<&antecedent_core::TemporalBudget>,
     ctx: &ExecutionContext,
 ) -> Result<AttributionOutcome, CausalError> {
     Ok(match &query.target {
@@ -1838,13 +1891,11 @@ pub(crate) fn run_attribute_with_fit(
                 .with_level(target.level)
                 .with_max_sources(target.max_sources)
                 .with_seed(target.seed);
-            AttributionOutcome::IntrinsicInfluence(crate::gcm::attribute_intrinsic_influence(
-                &fitted.model,
-                noise,
-                Some(data),
-                &engine_query,
-                ctx,
-            )?)
+            AttributionOutcome::IntrinsicInfluence(
+                antecedent_attribution::intrinsic_influence::intrinsic_influence_with_temporal_runs(
+                    &fitted.model, noise, Some(data), &engine_query, temporal_runs, temporal_budget, ctx,
+                ).map_err(CausalError::from)?,
+            )
         }
         AttributeTarget::RootCauses { change, estimator } => {
             let attribution = change_attribution(fitted, data, change, estimator, ctx)?;

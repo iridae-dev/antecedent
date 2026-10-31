@@ -427,6 +427,152 @@ pub fn detect_mechanism_changes_block(
     ctx: &ExecutionContext,
 ) -> Result<Vec<MechanismChangeDetection>, AttributionError> {
     crate::population::reject_mask_for_ordered(data)?;
+    detect_mechanism_changes_block_impl(
+        graph_model,
+        data,
+        query,
+        method,
+        block,
+        permutations,
+        None,
+        None,
+        ctx,
+    )
+}
+
+/// Block-permutation detection with contiguous ranges in each compact population.
+/// Ranges must be nonempty, ordered, and partition their population exactly. No block
+/// crosses a supplied run boundary, including the boundary between populations.
+pub fn detect_mechanism_changes_block_with_runs(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    method: MechanismChangeMethod,
+    block: usize,
+    permutations: usize,
+    baseline_runs: &[std::ops::Range<usize>],
+    comparison_runs: &[std::ops::Range<usize>],
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Vec<MechanismChangeDetection>, AttributionError> {
+    detect_mechanism_changes_block_impl(
+        graph_model,
+        data,
+        query,
+        method,
+        block,
+        permutations,
+        Some((baseline_runs, comparison_runs)),
+        Some(budget),
+        ctx,
+    )
+}
+
+type PopulationRuns<'a> = (&'a [std::ops::Range<usize>], &'a [std::ops::Range<usize>]);
+
+fn poll_run_cancellation(ctx: &ExecutionContext, index: usize) -> Result<(), AttributionError> {
+    if index % 256 == 0 && ctx.cancellation.is_cancelled() {
+        Err(AttributionError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
+// Account for caller-provided partition lists before inspecting their elements or doing fits.
+fn charge_run_validation(
+    runs: PopulationRuns<'_>,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(), AttributionError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(AttributionError::Cancelled);
+    }
+    let count = runs
+        .0
+        .len()
+        .checked_add(runs.1.len())
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or(AttributionError::Budget { message: "run validation work overflow".into() })?;
+    budget.charge_work(count).map_err(|e| AttributionError::Budget { message: e.to_string() })
+}
+
+fn validate_runs(
+    runs: &[std::ops::Range<usize>],
+    len: usize,
+    ctx: &ExecutionContext,
+) -> Result<(), AttributionError> {
+    if runs.len() > len {
+        return Err(AttributionError::invalid_input("runs must partition the compact population"));
+    }
+    let mut end = 0;
+    for (i, run) in runs.iter().enumerate() {
+        poll_run_cancellation(ctx, i)?;
+        if run.start != end || run.end <= run.start || run.end > len {
+            return Err(AttributionError::invalid_input(
+                "runs must partition the compact population",
+            ));
+        }
+        end = run.end;
+    }
+    if end != len {
+        return Err(AttributionError::invalid_input("runs must partition the compact population"));
+    }
+    Ok(())
+}
+
+// Segment original parent blocks at every compact run boundary. Each tuple records
+// (parent block, run ordinal, pooled start, pooled end).
+fn partition_permutation_blocks(
+    starts: &[usize],
+    block: usize,
+    n: usize,
+    baseline_len: usize,
+    baseline: &[std::ops::Range<usize>],
+    comparison: &[std::ops::Range<usize>],
+    ctx: &ExecutionContext,
+) -> Result<Vec<(usize, usize, usize, usize)>, AttributionError> {
+    let mut boundaries = Vec::with_capacity(baseline.len() + comparison.len());
+    for (i, run) in baseline.iter().enumerate() {
+        poll_run_cancellation(ctx, i)?;
+        boundaries.push(run.end);
+    }
+    for (i, run) in comparison.iter().enumerate() {
+        poll_run_cancellation(ctx, i)?;
+        boundaries.push(baseline_len + run.end);
+    }
+    let mut segments = Vec::new();
+    for (parent, &start) in starts.iter().enumerate() {
+        poll_run_cancellation(ctx, parent)?;
+        let end = start.saturating_add(block).min(n);
+        let mut pos = start;
+        let first = boundaries.partition_point(|&boundary| boundary <= pos);
+        for (run, &boundary) in boundaries.iter().enumerate().skip(first) {
+            poll_run_cancellation(ctx, run)?;
+            let stop = end.min(boundary);
+            segments.push((parent, run, pos, stop));
+            pos = stop;
+            if pos == end {
+                break;
+            }
+        }
+    }
+    Ok(segments)
+}
+
+fn detect_mechanism_changes_block_impl(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    method: MechanismChangeMethod,
+    block: usize,
+    permutations: usize,
+    runs: Option<PopulationRuns<'_>>,
+    mut budget: Option<&mut antecedent_core::TemporalBudget>,
+    ctx: &ExecutionContext,
+) -> Result<Vec<MechanismChangeDetection>, AttributionError> {
+    if let (Some(runs), Some(budget)) = (runs, budget.as_deref_mut()) {
+        charge_run_validation(runs, budget, ctx)?;
+    }
     if permutations < MIN_BLOCK_PERMUTATIONS {
         return Err(AttributionError::invalid_input(
             "a block permutation test needs at least 99 permutations",
@@ -434,21 +580,87 @@ pub fn detect_mechanism_changes_block(
     }
     let alpha = query.significance_level.to_f64();
     let pairs = residual_pairs(graph_model, data, query, ctx)?;
+    let max_bytes = budget.as_ref().map(|b| b.limits().max_bytes);
+    if let Some(budget) = budget {
+        let mut work = 0_u64;
+        for (_, rb, rc) in &pairs {
+            let n = rb
+                .len()
+                .checked_add(rc.len())
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+            let rounds = permutations
+                .checked_add(1)
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+            let cost = n
+                .checked_mul(rounds)
+                .and_then(|v| v.checked_mul((usize::BITS - n.max(1).leading_zeros()) as usize + 1))
+                .and_then(|v| u64::try_from(v).ok())
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+            work = work
+                .checked_add(cost)
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+        }
+        budget
+            .charge_work(work)
+            .map_err(|e| AttributionError::Budget { message: e.to_string() })?;
+    }
     let raw = ctx.map_indexed(pairs.len(), |i, worker| {
         let (target, rb, rc) = &pairs[i];
         let observed = block_statistic(method, rb, rc)?;
-        let mut rng = CausalRng::from_seed(
-            attribution_stream(worker, KERNEL_STREAM, target.as_usize() as u64).next_u64(),
-        );
+        let seed = attribution_stream(worker, KERNEL_STREAM, target.as_usize() as u64).next_u64();
+        let mut rng = CausalRng::from_seed(seed);
         let pooled: Vec<f64> = rb.iter().chain(rc.iter()).copied().collect();
         let n = pooled.len();
         let block = block.clamp(1, n);
         let starts: Vec<usize> = (0..n).step_by(block).collect();
         let mut order: Vec<usize> = (0..starts.len()).collect();
         let mut shuffled = Vec::with_capacity(n);
+        let segments = if let Some((baseline, comparison)) = runs {
+            validate_runs(baseline, rb.len(), ctx)?;
+            validate_runs(comparison, rc.len(), ctx)?;
+            let count = starts
+                .len()
+                .checked_add(baseline.len())
+                .and_then(|x| x.checked_add(comparison.len()))
+                .ok_or(AttributionError::Budget { message: "run segment count overflow".into() })?;
+            let bytes = count
+                .checked_mul(std::mem::size_of::<(usize, usize, usize, usize)>() * 4)
+                .and_then(|x| u64::try_from(x).ok())
+                .ok_or(AttributionError::Budget {
+                    message: "run segment allocation overflow".into(),
+                })?;
+            if max_bytes.is_some_and(|limit| bytes > limit) {
+                return Err(AttributionError::Budget { message: "temporal bytes limit".into() });
+            }
+            let lease = ctx.acquire_admission(0, bytes).map_err(|e| {
+                if matches!(e, antecedent_core::execution::AdmissionError::Cancelled) {
+                    AttributionError::Cancelled
+                } else {
+                    AttributionError::Budget { message: e.to_string() }
+                }
+            })?;
+            let segments = partition_permutation_blocks(
+                &starts,
+                block,
+                n,
+                rb.len(),
+                baseline,
+                comparison,
+                ctx,
+            )?;
+            Some((segments, lease))
+        } else {
+            None
+        };
         let mut exceed = 0_usize;
-        for _ in 0..permutations {
+        for replicate in 0..permutations {
+            if runs.is_some() && ctx.cancellation.is_cancelled() {
+                return Err(AttributionError::Cancelled);
+            }
             for k in (1..order.len()).rev() {
+                if runs.is_some() {
+                    poll_run_cancellation(ctx, k)?;
+                }
                 #[allow(
                     clippy::cast_possible_truncation,
                     clippy::cast_sign_loss,
@@ -458,9 +670,60 @@ pub fn detect_mechanism_changes_block(
                 order.swap(k, j);
             }
             shuffled.clear();
-            for &o in &order {
-                let start = starts[o];
-                shuffled.extend_from_slice(&pooled[start..(start + block).min(n)]);
+            if let Some((segments, _lease)) = &segments {
+                // Shuffle whole original blocks with the primary stream, then insert
+                // split-off segments uniformly using independent v2 streams.
+                let mut parent_keys = Vec::with_capacity(order.len());
+                for i in 0..order.len() {
+                    poll_run_cancellation(ctx, i)?;
+                    let key = antecedent_core::derive_stream(
+                        antecedent_core::derive_stream(
+                            antecedent_core::derive_stream(seed, 0x6d65_6368_7061_7232),
+                            replicate as u64,
+                        ),
+                        i as u64,
+                    );
+                    parent_keys.push(CausalRng::from_seed(key).next_f64());
+                }
+                parent_keys.sort_by(f64::total_cmp);
+                let mut rank = vec![0; order.len()];
+                for (i, &parent) in order.iter().enumerate() {
+                    poll_run_cancellation(ctx, i)?;
+                    rank[parent] = i;
+                }
+                let mut arranged = Vec::with_capacity(segments.len());
+                let mut previous = None;
+                for (i, &(parent, run, start, end)) in segments.iter().enumerate() {
+                    poll_run_cancellation(ctx, i)?;
+                    let key = if previous != Some(parent) {
+                        parent_keys[rank[parent]]
+                    } else {
+                        let mut key = antecedent_core::derive_stream(seed, 0x6d65_6368_7365_6732);
+                        for value in [replicate, parent, run, start] {
+                            key = antecedent_core::derive_stream(key, value as u64);
+                        }
+                        CausalRng::from_seed(key).next_f64()
+                    };
+                    previous = Some(parent);
+                    arranged.push((key, parent, run, start, end));
+                }
+                arranged.sort_by(|a, b| {
+                    a.0.total_cmp(&b.0).then(rank[a.1].cmp(&rank[b.1])).then(a.3.cmp(&b.3))
+                });
+                for (i, (_, _, _, start, end)) in arranged.into_iter().enumerate() {
+                    poll_run_cancellation(ctx, i)?;
+                    for chunk in pooled[start..end].chunks(256) {
+                        if ctx.cancellation.is_cancelled() {
+                            return Err(AttributionError::Cancelled);
+                        }
+                        shuffled.extend_from_slice(chunk);
+                    }
+                }
+            } else {
+                for &o in &order {
+                    let start = starts[o];
+                    shuffled.extend_from_slice(&pooled[start..(start + block).min(n)]);
+                }
             }
             let (a, b) = shuffled.split_at(rb.len());
             let statistic = block_statistic(method, a, b)?;
@@ -563,6 +826,19 @@ fn sample_mean(xs: &[f64]) -> f64 {
 /// Bartlett long-run variance inflation `1 + 2 Σ_{k<block} (1 − k/block) ρ_k` of the residuals
 /// of two populations, each centred on its own mean, floored at 1.
 fn serial_inflation(rb: &[f64], rc: &[f64], block: usize) -> f64 {
+    match serial_inflation_with_runs(rb, rc, block, None, None) {
+        Ok(value) => value,
+        Err(_) => unreachable!("no cancellation context on the static path"),
+    }
+}
+
+fn serial_inflation_with_runs(
+    rb: &[f64],
+    rc: &[f64],
+    block: usize,
+    runs: Option<PopulationRuns<'_>>,
+    ctx: Option<&ExecutionContext>,
+) -> Result<f64, AttributionError> {
     let centred = |xs: &[f64]| {
         let mean = sample_mean(xs);
         xs.iter().map(|x| x - mean).collect::<Vec<f64>>()
@@ -570,16 +846,45 @@ fn serial_inflation(rb: &[f64], rc: &[f64], block: usize) -> f64 {
     let (a, b) = (centred(rb), centred(rc));
     let n = (a.len() + b.len()) as f64;
     let variance = (a.iter().chain(&b).map(|x| x * x).sum::<f64>() / n).max(f64::MIN_POSITIVE);
-    let lag_product = |series: &[f64], k: usize| -> f64 {
-        series.iter().zip(series.iter().skip(k)).map(|(x, y)| x * y).sum::<f64>()
+    let lag_product = |series: &[f64], k: usize| -> Result<f64, AttributionError> {
+        let mut sum = 0.0;
+        for (i, (x, y)) in series.iter().zip(series.iter().skip(k)).enumerate() {
+            if let Some(ctx) = ctx {
+                poll_run_cancellation(ctx, i)?;
+            }
+            sum += x * y;
+        }
+        Ok(sum)
     };
     let block = block.max(1);
     let mut inflation = 1.0;
     for k in 1..block.min(a.len().min(b.len())) {
-        let rho = (lag_product(&a, k) + lag_product(&b, k)) / (n * variance);
+        if let Some(ctx) = ctx {
+            poll_run_cancellation(ctx, k)?;
+        }
+        let product = if let Some((ar, br)) = runs {
+            let mut left = 0.0;
+            let mut right = 0.0;
+            for (i, r) in ar.iter().enumerate() {
+                if let Some(ctx) = ctx {
+                    poll_run_cancellation(ctx, i)?;
+                }
+                left += lag_product(&a[r.clone()], k)?;
+            }
+            for (i, r) in br.iter().enumerate() {
+                if let Some(ctx) = ctx {
+                    poll_run_cancellation(ctx, i)?;
+                }
+                right += lag_product(&b[r.clone()], k)?;
+            }
+            left + right
+        } else {
+            lag_product(&a, k)? + lag_product(&b, k)?
+        };
+        let rho = product / (n * variance);
         inflation += 2.0 * (1.0 - k as f64 / block as f64) * rho;
     }
-    inflation.max(1.0)
+    Ok(inflation.max(1.0))
 }
 
 /// The posterior probability of a mechanism change for each target, under a declared prior over
@@ -607,17 +912,90 @@ pub fn mechanism_change_posterior(
     block: usize,
     ctx: &ExecutionContext,
 ) -> Result<Vec<MechanismChangePosterior>, AttributionError> {
+    mechanism_change_posterior_impl(graph_model, data, query, prior, block, None, None, ctx)
+}
+
+/// Posterior detection using separate contiguous compact runs for each population.
+/// Each run list must partition its compact population exactly.
+pub fn mechanism_change_posterior_with_runs(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    prior: f64,
+    block: usize,
+    baseline_runs: &[std::ops::Range<usize>],
+    comparison_runs: &[std::ops::Range<usize>],
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<Vec<MechanismChangePosterior>, AttributionError> {
+    mechanism_change_posterior_impl(
+        graph_model,
+        data,
+        query,
+        prior,
+        block,
+        Some((baseline_runs, comparison_runs)),
+        Some(budget),
+        ctx,
+    )
+}
+
+fn mechanism_change_posterior_impl(
+    graph_model: &CompiledCausalModel,
+    data: &TabularData,
+    query: &MechanismChangeQuery,
+    prior: f64,
+    block: usize,
+    runs: Option<PopulationRuns<'_>>,
+    mut budget: Option<&mut antecedent_core::TemporalBudget>,
+    ctx: &ExecutionContext,
+) -> Result<Vec<MechanismChangePosterior>, AttributionError> {
+    if let (Some(runs), Some(budget)) = (runs, budget.as_deref_mut()) {
+        charge_run_validation(runs, budget, ctx)?;
+    }
     if !(prior > 0.0 && prior < 1.0) {
         return Err(AttributionError::invalid_input(
             "the prior probability of a change lies strictly between 0 and 1",
         ));
     }
     let pairs = residual_pairs(graph_model, data, query, ctx)?;
-    Ok(pairs
+    if let Some((a, b)) = runs {
+        if let Some((_, rb, rc)) = pairs.first() {
+            validate_runs(a, rb.len(), ctx)?;
+            validate_runs(b, rc.len(), ctx)?;
+        }
+    }
+    if let Some(budget) = budget {
+        let mut work = 0_u64;
+        for (_, rb, rc) in &pairs {
+            let n = rb
+                .len()
+                .checked_add(rc.len())
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+            let cost = n
+                .checked_mul(block.min(n).max(1))
+                .and_then(|v| u64::try_from(v).ok())
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+            work = work
+                .checked_add(cost)
+                .ok_or(AttributionError::Budget { message: "temporal work overflow".into() })?;
+        }
+        budget
+            .charge_work(work)
+            .map_err(|e| AttributionError::Budget { message: e.to_string() })?;
+    }
+    pairs
         .into_iter()
         .map(|(variable, rb, rc)| {
+            if runs.is_some() && ctx.cancellation.is_cancelled() {
+                return Err(AttributionError::Cancelled);
+            }
             let statistic = gaussian_lr_statistic(&rb, &rc);
-            let inflation = serial_inflation(&rb, &rc, block);
+            let inflation = if runs.is_some() {
+                serial_inflation_with_runs(&rb, &rc, block, runs, Some(ctx))?
+            } else {
+                serial_inflation(&rb, &rc, block)
+            };
             // Tempering by the reciprocal inflation: the sufficient statistics count as
             // n / inflation effective observations.
             let weight = 1.0 / inflation;
@@ -639,16 +1017,16 @@ pub fn mechanism_change_posterior(
                 - nig_log_marginal(n_all, mean_all, ss_all, beta0);
             let log_odds = (prior / (1.0 - prior)).ln() + log_bayes_factor;
             let probability = 1.0 / (1.0 + (-log_odds).exp());
-            MechanismChangePosterior {
+            Ok(MechanismChangePosterior {
                 variable,
                 statistic,
                 inflation,
                 log_bayes_factor,
                 prior,
                 probability,
-            }
+            })
         })
-        .collect())
+        .collect()
 }
 
 /// Distinct RNG stream per (target, population) so seeding is deterministic
@@ -907,6 +1285,122 @@ mod tests {
         g.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         let model = CompiledCausalModel::compile(g).unwrap();
         (model, data)
+    }
+
+    #[test]
+    fn run_aware_block_stream_is_deterministic_and_keeps_intact_block_behavior() {
+        let (model, data) = two_period_data();
+        let q = MechanismChangeQuery::new(
+            [VariableId::from_raw(0)],
+            PopulationSelector::TimeRange { start: 0, end: 40 },
+            PopulationSelector::TimeRange { start: 40, end: 80 },
+            0.05,
+            10,
+        );
+        let ctx = ExecutionContext::for_tests(71);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        let static_result = detect_mechanism_changes_block(
+            &model,
+            &data,
+            &q,
+            MechanismChangeMethod::MeanDiff,
+            10,
+            99,
+            &ctx,
+        )
+        .unwrap();
+        let intact = detect_mechanism_changes_block_with_runs(
+            &model,
+            &data,
+            &q,
+            MechanismChangeMethod::MeanDiff,
+            10,
+            99,
+            &[0..40],
+            &[0..40],
+            &mut budget,
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(static_result[0].p_value, intact[0].p_value);
+        let run = || {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            detect_mechanism_changes_block_with_runs(
+                &model,
+                &data,
+                &q,
+                MechanismChangeMethod::MeanDiff,
+                10,
+                99,
+                &[0..17, 17..40],
+                &[0..13, 13..40],
+                &mut budget,
+                &ctx,
+            )
+            .unwrap()[0]
+                .p_value
+        };
+        assert_eq!(run(), run());
+        assert!(validate_runs(&[0..17, 18..40], 40, &ctx).is_err());
+    }
+
+    #[test]
+    fn partitioned_blocks_keep_every_row_without_crossing_a_run_join() {
+        let segments = partition_permutation_blocks(
+            &[0, 4, 8],
+            4,
+            12,
+            6,
+            &[0..3, 3..6],
+            &[0..2, 2..6],
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap();
+        assert_eq!(
+            segments,
+            vec![(0, 0, 0, 3), (0, 1, 3, 4), (1, 1, 4, 6), (1, 2, 6, 8), (2, 3, 8, 12)]
+        );
+    }
+
+    #[test]
+    fn run_validation_work_and_inner_lag_cancellation_are_refused() {
+        let ctx = ExecutionContext::for_tests(1);
+        let mut limits = ctx.temporal_materialization_limits();
+        limits.max_work = 0;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            charge_run_validation((&[0..1], &[0..1]), &mut budget, &ctx),
+            Err(AttributionError::Budget { .. })
+        ));
+
+        let mut cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation =
+            antecedent_core::execution::CancellationToken::cancel_after_checks(2);
+        let data = [1.0, 1.0, -1.0, -1.0];
+        let runs = [0..2, 2..4];
+        assert!(matches!(
+            serial_inflation_with_runs(&data, &data, 4, Some((&runs, &runs)), Some(&cancelled)),
+            Err(AttributionError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn serial_inflation_does_not_pair_across_a_compaction_join() {
+        let a = [1.0, 1.0, -1.0, -1.0];
+        let b = a;
+        let joined = serial_inflation(&a, &b, 2);
+        let split = serial_inflation_with_runs(
+            &a,
+            &b,
+            2,
+            Some((&[0..2, 2..4], &[0..2, 2..4])),
+            Some(&ExecutionContext::for_tests(1)),
+        )
+        .unwrap();
+        assert!((joined - 1.25).abs() < 1e-12);
+        assert!((split - 1.5).abs() < 1e-12);
     }
 
     #[test]

@@ -830,12 +830,25 @@ impl PreparedStudy {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        self.estimate_series_with_provenance(data, None, ctx)
+    }
+
+    pub(crate) fn estimate_series_with_provenance(
+        &self,
+        data: &TimeSeriesData,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
         if !self.materialized {
-            return self.materialize(ctx)?.estimate_series(data, ctx);
+            return self.materialize(ctx)?.estimate_series_with_provenance(data, provenance, ctx);
         }
         self.ensure_series_compatible(data)?;
         let input = series_input(&self.analysis.data, data.clone());
-        if crate::analysis::functional_validation::requested(&self.analysis) {
+        // A provenance-bearing call is already an internal outer refit; it
+        // evaluates the target once, rather than nesting another validation and
+        // losing the gathered source coordinates.
+        if provenance.is_none() && crate::analysis::functional_validation::requested(&self.analysis)
+        {
             let result = crate::analysis::functional_validation::validate_data(
                 &self.analysis,
                 input.clone(),
@@ -843,12 +856,38 @@ impl PreparedStudy {
             )?;
             return self.stamp(&input, result);
         }
-        let mut result = if crate::analysis::missing_imputation::imputes_series(&self.analysis) {
-            self.estimate_series_imputed(&self.analysis, data, SeriesEntry::Estimate, ctx)?
+        let mut refit_study = None;
+        if provenance.is_some() && crate::analysis::functional_validation::requested(&self.analysis)
+        {
+            let mut study = self.analysis.clone();
+            study.settings.refute = crate::analysis::builder::RefuteSuite::None;
+            refit_study = Some(study);
+        }
+        let execution_study = refit_study.as_ref().unwrap_or(&self.analysis);
+        let mut result = if crate::analysis::missing_imputation::imputes_series(execution_study) {
+            self.estimate_series_imputed(
+                execution_study,
+                data,
+                SeriesEntry::Estimate,
+                provenance,
+                ctx,
+            )?
         } else {
-            match self.run_sealed_series(&self.analysis, &input, ctx, SeriesEntry::Estimate)? {
+            match self.run_sealed_series(
+                execution_study,
+                &input,
+                ctx,
+                SeriesEntry::Estimate,
+                provenance,
+            )? {
                 Some(result) => result,
-                None => self.analysis.execute_on(&input, &self.plan, Some(&self.execution), ctx)?,
+                None => execution_study.execute_on_with_provenance(
+                    &input,
+                    &self.plan,
+                    Some(&self.execution),
+                    provenance,
+                    ctx,
+                )?,
             }
         };
         crate::analysis::execute::push_lag_zero_average_effect_disclosure(
@@ -867,6 +906,7 @@ impl PreparedStudy {
         study: &Study,
         data: &TimeSeriesData,
         entry: SeriesEntry,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let mut complete = study.clone();
@@ -877,9 +917,15 @@ impl PreparedStudy {
             ctx,
             |table, ctx| {
                 let input = series_input(&study.data, table.clone());
-                match self.run_sealed_series(&complete, &input, ctx, entry)? {
+                match self.run_sealed_series(&complete, &input, ctx, entry, provenance)? {
                     Some(result) => Ok(result),
-                    None => complete.execute_on(&input, &self.plan, Some(&self.execution), ctx),
+                    None => complete.execute_on_with_provenance(
+                        &input,
+                        &self.plan,
+                        Some(&self.execution),
+                        provenance,
+                        ctx,
+                    ),
                 }
             },
         )
@@ -896,6 +942,7 @@ impl PreparedStudy {
         input: &DataInput,
         ctx: &ExecutionContext,
         entry: SeriesEntry,
+        provenance: Option<&crate::analysis::execute::TemporalRowProvenance>,
     ) -> Result<Option<StudyResult>, CausalError> {
         let (DataInput::Temporal(series) | DataInput::Event(series)) = input else {
             unreachable!("series execution constructs temporal data")
@@ -906,6 +953,7 @@ impl PreparedStudy {
             study,
             input,
             series,
+            provenance,
             ctx: &scoped,
             entry,
         })
@@ -1132,13 +1180,14 @@ impl PreparedStudy {
         let imputes = crate::analysis::missing_imputation::imputes_series(&refreshed);
         let result = match &refreshed.data {
             DataInput::Temporal(series) if imputes => {
-                self.estimate_series_imputed(&refreshed, series, SeriesEntry::Refresh, ctx)?
+                self.estimate_series_imputed(&refreshed, series, SeriesEntry::Refresh, None, ctx)?
             }
             _ => match self.run_sealed_series(
                 &refreshed,
                 &refreshed.data,
                 ctx,
                 SeriesEntry::Refresh,
+                None,
             )? {
                 Some(result) => result,
                 None => refreshed.execute_shared(&self.plan, Some(&self.execution), ctx)?,

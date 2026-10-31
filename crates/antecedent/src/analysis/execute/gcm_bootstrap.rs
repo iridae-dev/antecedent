@@ -154,25 +154,7 @@ pub(super) fn bootstrap_diagnostic(target: &str, accounting: &BootstrapAccountin
     )
 }
 
-/// [`bootstrap_diagnostic`] for a lag-aligned unfolding of one dependent series: the
-/// counts are circular blocks of `block` consecutive times.
-pub(super) fn block_bootstrap_diagnostic(
-    target: &str,
-    block: usize,
-    accounting: &BootstrapAccounting,
-) -> Diagnostic {
-    bootstrap_diagnostic_over(
-        target,
-        &format!(
-            "whole-procedure circular-block multinomial bootstrap of one dependent series \
-             (blocks of {block} consecutive lag-aligned times, at least the lag span plus one, \
-             each drawn at a uniform start and wrapping at the end)"
-        ),
-        accounting,
-    )
-}
-
-fn bootstrap_diagnostic_over(
+pub(super) fn bootstrap_diagnostic_over(
     target: &str,
     resample: &str,
     accounting: &BootstrapAccounting,

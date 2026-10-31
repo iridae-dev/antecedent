@@ -640,6 +640,10 @@ impl NodeProgram {
         &self.reads
     }
 
+    pub(crate) fn lag_slots(&self) -> &[usize] {
+        &self.lag_slots
+    }
+
     /// Deepest look-back in steps; zero when the program reads no history.
     #[must_use]
     pub fn max_lag(&self) -> u32 {

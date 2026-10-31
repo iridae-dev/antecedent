@@ -8,6 +8,23 @@
 )]
 use super::*;
 
+const _: () = assert!(antecedent_attribution::temporal_resampling::TEMPORAL_BLOCK_LAW_VERSION == 2);
+
+/// The lowered route, rather than graph name alone, binds the window law.
+fn temporal_attribution_rows(study: &Study) -> Option<antecedent_io::TemporalAttributionRowsWire> {
+    use crate::analysis::lowering::{GraphPosteriorCell, RouteCell, expected_cell};
+    let route = expected_cell(study);
+    let temporal = matches!(route, Some(RouteCell::GcmTemporal | RouteCell::GcmTemporalClass))
+        || (matches!(route, Some(RouteCell::GraphPosterior(GraphPosteriorCell::CrossWorld)))
+            && matches!(&study.data, DataInput::Temporal(_) | DataInput::Event(_))
+            && matches!(
+                &study.query,
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_)
+            ));
+    temporal
+        .then_some(antecedent_io::TemporalAttributionRowsWire::CompleteObservedDerivedRunBlocksV2)
+}
+
 pub(super) fn program_payloads_for(
     study: &Study,
     resolved_estimator: Option<&str>,
@@ -348,6 +365,7 @@ pub(super) fn program_payloads(
         identification_product: identification_product_digest.map(|digest| *digest.as_bytes()),
         completion_budget: study.declared.max_completions.map(|cap| cap as u64),
         commitments: commitments.clone(),
+        temporal_attribution_rows: temporal_attribution_rows(study),
         functional_program,
         checked_aipw_lowering: lowerings.aipw,
         checked_frontdoor_lowering: lowerings.frontdoor,

@@ -1,6 +1,8 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn antecedent_attribution::intrinsic_influence::intrinsic_influence_with_temporal_runs(model: &antecedent_model::compile::CompiledCausalModel, noise: antecedent_attribution::NoiseIndependence<'_>, data: core::option::Option<&antecedent_data::dataset::TabularData>, query: &antecedent_attribution::IntrinsicInfluenceQuery, runs: core::option::Option<&[core::ops::range::Range<usize>]>, shared_budget: core::option::Option<&antecedent_core::intervention::TemporalBudget>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::IntrinsicInfluenceResult, antecedent_attribution::AttributionError>
+#[doc(hidden)] pub mod antecedent_attribution::temporal_resampling
 #[non_exhaustive] pub enum antecedent_attribution::AttributionError
 #[non_exhaustive] pub enum antecedent_attribution::ComponentStatus
 #[non_exhaustive] pub enum antecedent_attribution::DifferenceMeasure
@@ -8,6 +10,8 @@
 #[non_exhaustive] pub enum antecedent_attribution::MechanismChangeMethod
 #[non_exhaustive] pub enum antecedent_attribution::ShapleyMethod
 #[non_exhaustive] pub enum antecedent_attribution::UncertaintyComponent
+impl !core::marker::Freeze for antecedent_attribution::temporal_resampling::RunRows [auto]
+impl !core::marker::Freeze for antecedent_attribution::temporal_resampling::RunWeights [auto]
 impl core::clone::Clone for antecedent_attribution::AnomalyScores
 impl core::clone::Clone for antecedent_attribution::ArrowStrength
 impl core::clone::Clone for antecedent_attribution::AttributionError
@@ -226,6 +230,8 @@ impl core::marker::Send for antecedent_attribution::SourceInfluence [auto]
 impl core::marker::Send for antecedent_attribution::StructureChangeOptions [auto]
 impl core::marker::Send for antecedent_attribution::UncertaintyComponent [auto]
 impl core::marker::Send for antecedent_attribution::UnitChangeResult [auto]
+impl core::marker::Send for antecedent_attribution::temporal_resampling::RunRows [auto]
+impl core::marker::Send for antecedent_attribution::temporal_resampling::RunWeights [auto]
 impl core::marker::StructuralPartialEq for antecedent_attribution::AnomalyScores
 impl core::marker::StructuralPartialEq for antecedent_attribution::AttributionError
 impl core::marker::StructuralPartialEq for antecedent_attribution::Coalition
@@ -284,6 +290,8 @@ impl core::marker::Sync for antecedent_attribution::SourceInfluence [auto]
 impl core::marker::Sync for antecedent_attribution::StructureChangeOptions [auto]
 impl core::marker::Sync for antecedent_attribution::UncertaintyComponent [auto]
 impl core::marker::Sync for antecedent_attribution::UnitChangeResult [auto]
+impl core::marker::Sync for antecedent_attribution::temporal_resampling::RunRows [auto]
+impl core::marker::Sync for antecedent_attribution::temporal_resampling::RunWeights [auto]
 impl core::marker::Unpin for antecedent_attribution::AnomalyScores [auto]
 impl core::marker::Unpin for antecedent_attribution::ArrowStrength [auto]
 impl core::marker::Unpin for antecedent_attribution::AttributionError [auto]
@@ -324,6 +332,10 @@ impl core::marker::Unpin for antecedent_attribution::SourceInfluence [auto]
 impl core::marker::Unpin for antecedent_attribution::StructureChangeOptions [auto]
 impl core::marker::Unpin for antecedent_attribution::UncertaintyComponent [auto]
 impl core::marker::Unpin for antecedent_attribution::UnitChangeResult [auto]
+impl core::marker::Unpin for antecedent_attribution::temporal_resampling::RunRows [auto]
+impl core::marker::Unpin for antecedent_attribution::temporal_resampling::RunWeights [auto]
+impl core::ops::deref::Deref for antecedent_attribution::temporal_resampling::RunRows
+impl core::ops::deref::Deref for antecedent_attribution::temporal_resampling::RunWeights
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::AnomalyScores [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::ArrowStrength [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::AttributionError [auto]
@@ -364,6 +376,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::SourceI
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::StructureChangeOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::UncertaintyComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::UnitChangeResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::temporal_resampling::RunRows [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::temporal_resampling::RunWeights [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::AnomalyScores [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::ArrowStrength [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::AttributionError [auto]
@@ -404,6 +418,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::SourceInfl
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::StructureChangeOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::UncertaintyComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::UnitChangeResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::temporal_resampling::RunRows [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_attribution::temporal_resampling::RunWeights [auto]
 impl<'a> core::clone::Clone for antecedent_attribution::NoiseIndependence<'a>
 impl<'a> core::clone::Clone for antecedent_attribution::PopulationRefit<'a>
 impl<'a> core::fmt::Debug for antecedent_attribution::NoiseIndependence<'a>
@@ -422,11 +438,13 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::Noi
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_attribution::PopulationRefit<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_attribution::NoiseIndependence<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_attribution::PopulationRefit<'a> [auto]
+impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<E>> for antecedent_attribution::AttributionError where Self: core::convert::From<E>
 pub const antecedent_attribution::HEDGE_WITNESS_ID: &str
 pub const antecedent_attribution::HEDGE_WITNESS_TEST: &str
 pub const antecedent_attribution::INTRINSIC_MAX_EXACT_PLAYERS: usize
 pub const antecedent_attribution::MIN_BLOCK_PERMUTATIONS: usize
 pub const antecedent_attribution::intrinsic_influence::MIN_FIT_BOOTSTRAP_REPLICATES: u32
+pub const antecedent_attribution::temporal_resampling::TEMPORAL_BLOCK_LAW_VERSION: u16
 pub enum antecedent_attribution::IntrinsicAllocation
 pub enum antecedent_attribution::NoiseBlockIdentification
 pub enum antecedent_attribution::NoiseIndependence<'a>
@@ -644,12 +662,17 @@ pub fn antecedent_attribution::estimate_shapley<P: antecedent_attribution::Coali
 pub fn antecedent_attribution::feature_relevance(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, outcome: antecedent_core::ids::VariableId, features: &[antecedent_core::ids::VariableId], options: &antecedent_attribution::FeatureRelevanceOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::FeatureRelevance>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::intrinsic_influence(model: &antecedent_model::compile::CompiledCausalModel, noise: antecedent_attribution::NoiseIndependence<'_>, data: core::option::Option<&antecedent_data::dataset::TabularData>, query: &antecedent_attribution::IntrinsicInfluenceQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::IntrinsicInfluenceResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::latent_blocks::plan_noise_blocks(admg: &antecedent_graph::admg::Admg, targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<antecedent_attribution::NoiseBlockIdentification, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::mechanism_change::detect_mechanism_changes_block_with_runs(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, method: antecedent_attribution::MechanismChangeMethod, block: usize, permutations: usize, baseline_runs: &[core::ops::range::Range<usize>], comparison_runs: &[core::ops::range::Range<usize>], budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangeDetection>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::mechanism_change::mechanism_change_posterior(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, prior: f64, block: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangePosterior>, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::mechanism_change::mechanism_change_posterior_with_runs(graph_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::MechanismChangeQuery, prior: f64, block: usize, baseline_runs: &[core::ops::range::Range<usize>], comparison_runs: &[core::ops::range::Range<usize>], budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::MechanismChangePosterior>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::path::path_decompose(model: &antecedent_model::compile::CompiledCausalModel, sources: &[antecedent_core::ids::VariableId], outcome: antecedent_core::ids::VariableId, max_paths: usize, max_len: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::population::resolve_rows(data: &antecedent_data::dataset::TabularData, selector: &antecedent_core::query::attribution::PopulationSelector) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::root_cause::root_cause_rank(attribution: &antecedent_attribution::ChangeAttributionResult, graph_samples: core::option::Option<&antecedent_prob::graph_samples::WeightedGraphSamples>, contribution_draws: core::option::Option<&antecedent_prob::posterior::PosteriorDraws>, _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_attribution::RootCauseRank>, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::structure_change(baseline_model: &antecedent_model::compile::CompiledCausalModel, comparison_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::StructureChangeOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::structure_change::structure_change_with_refit(baseline_model: &antecedent_model::compile::CompiledCausalModel, comparison_model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::ChangeAttributionQuery, options: &antecedent_attribution::StructureChangeOptions, refit: &antecedent_attribution::PopulationRefit<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::ChangeAttributionResult, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::temporal_resampling::bayesian_run_weights(n: usize, block: usize, runs: &[core::ops::range::Range<usize>], replicate: u64, rng: &mut antecedent_core::execution::rng::CausalRng, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::temporal_resampling::RunWeights, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::temporal_resampling::bootstrap_run_counts(n: usize, block: usize, runs: &[core::ops::range::Range<usize>], replicate: u64, rng: &mut antecedent_core::execution::rng::CausalRng, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::temporal_resampling::RunWeights, antecedent_attribution::AttributionError>
+pub fn antecedent_attribution::temporal_resampling::bootstrap_run_rows(n: usize, block: usize, runs: &[core::ops::range::Range<usize>], replicate: u64, rng: &mut antecedent_core::execution::rng::CausalRng, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::temporal_resampling::RunRows, antecedent_attribution::AttributionError>
 pub fn antecedent_attribution::unit_change(model: &antecedent_model::compile::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::attribution::UnitChangeQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_attribution::UnitChangeResult, antecedent_attribution::AttributionError>
 pub mod antecedent_attribution::anomaly
 pub mod antecedent_attribution::builder
@@ -702,6 +725,10 @@ pub struct antecedent_attribution::ShapleyEstimate
 pub struct antecedent_attribution::SourceInfluence
 pub struct antecedent_attribution::StructureChangeOptions
 pub struct antecedent_attribution::UnitChangeResult
+pub struct antecedent_attribution::temporal_resampling::RunRows
+pub struct antecedent_attribution::temporal_resampling::RunRows has private fields
+pub struct antecedent_attribution::temporal_resampling::RunWeights
+pub struct antecedent_attribution::temporal_resampling::RunWeights has private fields
 pub trait antecedent_attribution::CoalitionPayoff
 pub trait fn fn antecedent_attribution::CoalitionPayoff::fork<'a>(self: &'a Self) -> core::option::Option<alloc::boxed::Box<dyn antecedent_attribution::CoalitionPayoff + core::marker::Send + 'a>> {default}
 pub trait fn fn antecedent_attribution::CoalitionPayoff::samples_per_evaluation(&self) -> usize {default}
