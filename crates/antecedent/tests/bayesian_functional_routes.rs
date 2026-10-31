@@ -643,7 +643,9 @@ fn derivative_bayesian_pins() {
                     bandwidth: Some(0.35),
                     ..Default::default()
                 })
-                .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+                // The derivative route uses Rubin's Bayesian bootstrap; this is the
+                // compatibility declaration, not a Laplace coefficient posterior.
+                .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)))
                 .refute(RefuteSuite::None)
                 .build()
                 .unwrap()
@@ -1478,4 +1480,49 @@ fn inference_setter_can_return_to_frequentist_defaults() {
     let result = study.run(&ExecutionContext::for_tests(1)).unwrap();
     assert!(result.posterior.is_none());
     assert_eq!(result.logical_plan.estimator.as_deref(), Some("linear.adjustment.ate"));
+}
+
+#[test]
+fn bayesian_derivative_refuses_unread_backend_and_likelihood() {
+    let treatment: Vec<_> = (0..100).map(|i| f64::from(i) / 25.0).collect();
+    let outcome: Vec<_> = treatment.iter().map(|x| 2.0 * x + 1.0).collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(2);
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = || {
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::PointDerivative {
+            outcome: VariableId::from_raw(1),
+            treatment: VariableId::from_raw(0),
+            at: 2.0,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        }))
+    };
+    let ctx = ExecutionContext::for_tests(18);
+    let study = Study::tabular(data.clone())
+        .graph(graph.clone())
+        .query(query())
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap();
+    let error = study.prepare(&ctx).unwrap().estimate(&data, &ctx).unwrap_err();
+    assert_eq!(error.reason_code(), Some("option_not_applicable"));
+    assert!(error.to_string().contains("Rubin Bayesian bootstrap"), "{error}");
+
+    let error = Study::tabular(data)
+        .graph(graph)
+        .query(query())
+        .inference(InferenceMode::Bayesian(
+            BayesianConfig::laplace().likelihood(antecedent_prob::BayesLikelihood::BernoulliLogit),
+        ))
+        .refute(RefuteSuite::None)
+        .build()
+        .err()
+        .expect("a derivative cannot use a Bernoulli likelihood");
+    assert_eq!(error.reason_code(), Some("likelihood_not_supported"));
 }

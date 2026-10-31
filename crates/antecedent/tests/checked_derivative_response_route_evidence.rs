@@ -385,7 +385,9 @@ fn all_bayesian_static_dag_derivative_coordinates_execute_retained_operations() 
                 bandwidth: Some(0.35),
                 ..Default::default()
             })
-            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+            // Rubin bootstrap is the derivative posterior; Laplace/Gaussian is
+            // the accepted compatibility declaration, not a coefficient fit.
+            .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)))
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
