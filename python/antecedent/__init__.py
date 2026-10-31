@@ -424,6 +424,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "cross_world",
     "cross_world_execution",
     "cyclic",
+    "decision_evidence",
     "decision_reliability",
     "decision_robust",
     "descriptive",
@@ -514,6 +515,7 @@ if _TYPE_CHECKING:
     from . import cross_world as cross_world
     from . import cross_world_execution as cross_world_execution
     from . import cyclic as cyclic
+    from . import decision_evidence as decision_evidence
     from . import decision_reliability as decision_reliability
     from . import decision_robust as decision_robust
     from . import descriptive as descriptive

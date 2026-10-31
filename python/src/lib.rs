@@ -67,6 +67,7 @@ mod data_diagnostics_api;
 mod data_snapshot;
 mod decision_api;
 mod decision_compile_api;
+mod decision_evidence_api;
 mod decision_reliability_api;
 #[cfg(test)]
 mod defaults;
@@ -2090,6 +2091,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     data_diagnostics_api::register(m)?;
     data_snapshot::register(m)?;
     execution_api::register(m)?;
+    decision_evidence_api::register(m)?;
     tiered_identify_api::register(m)?;
     contract_refusals_api::register(m)?;
     inspect_receipt_api::register(m)?;
