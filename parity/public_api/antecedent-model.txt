@@ -4644,6 +4644,7 @@ pub field antecedent_model::sparse_equilibrium::SolveEvidence::admitted_bytes: u
 pub field antecedent_model::sparse_equilibrium::SolveEvidence::block_count: usize
 pub field antecedent_model::sparse_equilibrium::SolveEvidence::budget_checks: usize
 pub field antecedent_model::sparse_equilibrium::SolveEvidence::contraction_bound: f64
+pub field antecedent_model::sparse_equilibrium::SolveEvidence::contraction_bound_provenance: core::option::Option<alloc::string::String>
 pub field antecedent_model::sparse_equilibrium::SolveEvidence::contraction_iterations: usize
 pub field antecedent_model::sparse_equilibrium::SolveEvidence::cyclic_block_count: usize
 pub field antecedent_model::sparse_equilibrium::SolveEvidence::estimated_bytes: u64
@@ -4855,7 +4856,7 @@ pub fn <antecedent_model::ValueBatchMut<'a>>::fn column_mut(&mut self, node: usi
 pub fn <antecedent_model::ValueBatchMut<'a>>::fn into_batch(self) -> antecedent_model::ValueBatch
 pub fn <antecedent_model::ValueBatchMut<'a>>::fn new(n_rows: usize, n_nodes: usize, values: &'a mut [f64]) -> core::result::Result<Self, antecedent_model::ModelError>
 pub fn <antecedent_model::ValueBatchMut<'a>>::fn set(&mut self, row: usize, node: usize, v: f64) -> core::result::Result<(), antecedent_model::ModelError>
-pub fn <antecedent_model::WeightingDoSampler>::fn estimate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, treatment_value: f64, _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::DoSampleResult, antecedent_model::ModelError>
+pub fn <antecedent_model::WeightingDoSampler>::fn estimate(&self, model: &antecedent_model::CompiledCausalModel, data: &antecedent_data::dataset::TabularData, treatment_value: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::DoSampleResult, antecedent_model::ModelError>
 pub fn <antecedent_model::WeightingDoSampler>::fn new(treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> Self
 pub fn <antecedent_model::WeightingDoSampler>::fn weighted_mean(result: &antecedent_model::DoSampleResult) -> f64
 pub fn <antecedent_model::WeightingDoSampler>::fn with_root_match_tolerance(self, tolerance: f64) -> Self
@@ -5211,6 +5212,7 @@ pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn boundary(&self, i: usize
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn compile(&self) -> core::result::Result<antecedent_model::nonlinear_sde::CompiledSde, antecedent_model::nonlinear_sde::SdeError>
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn parameter_values(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn plan_world(&self, world: &antecedent_model::nonlinear_sde::SdeWorld, start: f64, step: f64) -> core::result::Result<antecedent_model::nonlinear_sde::WorldPlan, antecedent_model::nonlinear_sde::SdeError>
+pub fn <antecedent_model::nonlinear_sde::SdeSystem>::fn plan_world_continuous(&self, world: &antecedent_model::nonlinear_sde::SdeWorld, start: f64) -> core::result::Result<antecedent_model::nonlinear_sde::WorldPlan, antecedent_model::nonlinear_sde::SdeError>
 pub fn <antecedent_model::nonlinear_sde::WorldPlan>::fn held_value(&self, variable: usize, t: f64) -> core::option::Option<f64>
 pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn alpha(&self) -> f64
 pub fn <antecedent_model::observation_query::BetaBernoulli>::const fn beta(&self) -> f64
@@ -6128,6 +6130,7 @@ pub variant antecedent_model::compose::GaussianConditioningError::NotFinite(allo
 pub variant antecedent_model::compose::GaussianConditioningError::RepeatedVariable(alloc::string::String)
 pub variant antecedent_model::compose::GaussianConditioningError::SingularEvidence
 pub variant antecedent_model::compose::GaussianConditioningError::UnknownVariable(alloc::string::String)
+pub variant antecedent_model::compose::GaussianConditioningError::Unrepresentable
 pub variant antecedent_model::compose::MechanismFamily::LinearGaussian
 pub variant antecedent_model::compose::MechanismFamily::Tabular
 pub variant antecedent_model::compose::MechanismForm::LinearGaussian { intercept: f64, sigma: f64, coefficients: alloc::vec::Vec<(alloc::string::String, f64)> }
@@ -6181,7 +6184,7 @@ pub variant antecedent_model::cyclic_world::CyclicRefusalKind::UnknownInitialLaw
 pub variant antecedent_model::cyclic_world::CyclicRefusalKind::UnsupportedSoftFamily { family: alloc::sync::Arc<str> }
 pub variant antecedent_model::cyclic_world::CyclicRefusalKind::VariableBinding { message: &'static str }
 pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::EquilibriumDraws { outcomes: alloc::vec::Vec<antecedent_model::nonlinear_equilibrium::EquilibriumOutcome> }
-pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::GaussianLaw { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, residual_inf: core::option::Option<f64> }
+pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::GaussianLaw { mean: alloc::vec::Vec<f64>, covariance: alloc::vec::Vec<f64>, residual_inf: core::option::Option<f64>, block_diagnostics: core::option::Option<alloc::vec::Vec<antecedent_model::scc_compile::BlockDiagnostic>> }
 pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::NoSolution { failure: antecedent_model::cyclic_world::WorldFailure }
 pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::Trajectory { trajectory: antecedent_model::continuous_cyclic::OdeTrajectory }
 pub variant antecedent_model::cyclic_world::CyclicWorldOutcome::Withheld
@@ -6254,6 +6257,7 @@ pub variant antecedent_model::history_operators::HistoryExecutionError::SeriesTo
 pub variant antecedent_model::history_operators::HistoryExecutionError::SingularHistory
 pub variant antecedent_model::history_operators::HistoryExecutionError::UnknownFunctional { name: alloc::string::String }
 pub variant antecedent_model::history_operators::HistoryExecutionError::UnstableRollout { step: u32 }
+pub variant antecedent_model::history_operators::HistoryExecutionError::WeightDeclarationMismatch { declared: bool, supplied: bool }
 pub variant antecedent_model::history_operators::HistoryExecutionError::WeightShape { windows: usize, got: usize }
 pub variant antecedent_model::history_operators::HistoryOperatorError::ActionMissesCadence { at_ns: u64, interval_ns: u64 }
 pub variant antecedent_model::history_operators::HistoryOperatorError::ActionNotDelayable

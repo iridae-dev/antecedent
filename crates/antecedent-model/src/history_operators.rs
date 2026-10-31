@@ -1860,6 +1860,17 @@ pub enum HistoryExecutionError {
         /// The refused value.
         value: f64,
     },
+    /// Supplied weights do not match the program's declared weight operator.
+    #[error(
+        "the program declares weights={declared}, but row weights supplied={supplied}; next \
+         attempt: supply row weights exactly when the program declares the weight operator"
+    )]
+    WeightDeclarationMismatch {
+        /// Whether the program declares a weight operator.
+        declared: bool,
+        /// Whether row weights were supplied to execution.
+        supplied: bool,
+    },
     /// The weight vector does not have one entry per window.
     #[error("{got} row weights for {windows} windows; next attempt: weight every window")]
     WeightShape {
@@ -2763,11 +2774,15 @@ impl HistoryProgram {
         reference: PolicyRule,
         initial: Option<&InitialState>,
     ) -> Result<TrajectoryExecution, HistoryExecutionError> {
+        let declared = self.weights.is_some();
+        let supplied = row_weights.is_some();
+        if declared != supplied {
+            return Err(HistoryExecutionError::WeightDeclarationMismatch { declared, supplied });
+        }
         let policy = policy.admit()?;
         let reference = reference.admit()?;
         let windows = self.history.scan(series)?;
-        let weights = if self.weights.is_some() { row_weights } else { None };
-        let fit = self.regression.fit(&windows, weights)?;
+        let fit = self.regression.fit(&windows, row_weights)?;
         let d = windows.depth() as usize;
         let state = match (self.history.frame().initial_law().name(), initial) {
             (_, Some(state)) => {
@@ -3515,6 +3530,80 @@ mod execution_tests {
 
     fn close(actual: f64, expected: f64, tolerance: f64, label: &str) {
         assert!((actual - expected).abs() <= tolerance, "{label}: {actual} vs {expected}");
+    }
+
+    #[test]
+    fn program_requires_weights_exactly_when_declared_and_uses_them() {
+        let (mut y, a) = simulate(300, 0.3, 77);
+        y[75] += 15.0;
+        let series = TickSeries::try_new(&y, &a).unwrap();
+        let unweighted = program("final");
+        let weighted = program_with(
+            InitialLaw::contemporaneous_observed(),
+            HistoryWindow::max_lag(1),
+            Some((1.0, 1.0)),
+            "final",
+        )
+        .unwrap();
+        let mut weights = vec![1.0; y.len() - 1];
+        weights[74] = 30.0;
+        let invalid_policy = PolicyRule::Hold(f64::NAN);
+        assert_eq!(
+            weighted.execute(&series, None, invalid_policy, PolicyRule::Hold(0.0), None),
+            Err(HistoryExecutionError::WeightDeclarationMismatch {
+                declared: true,
+                supplied: false
+            })
+        );
+        assert_eq!(
+            unweighted.execute(
+                &series,
+                Some(&weights),
+                invalid_policy,
+                PolicyRule::Hold(0.0),
+                None
+            ),
+            Err(HistoryExecutionError::WeightDeclarationMismatch {
+                declared: false,
+                supplied: true
+            })
+        );
+        let plain = unweighted
+            .execute(&series, None, PolicyRule::Hold(0.0), PolicyRule::Hold(0.0), None)
+            .unwrap();
+        let fit = weighted
+            .execute(&series, Some(&weights), PolicyRule::Hold(0.0), PolicyRule::Hold(0.0), None)
+            .unwrap();
+        assert!(
+            fit.fit
+                .coefficients()
+                .iter()
+                .zip(plain.fit.coefficients())
+                .any(|(a, b)| (a - b).abs() > 1e-6)
+        );
+        // Independent weighted normal-equation oracle on the original series:
+        // every column must be orthogonal to the weighted residuals.
+        let mut score = [0.0; 4];
+        for t in 1..y.len() {
+            let row = [1.0, y[t - 1], a[t], a[t - 1]];
+            let prediction: f64 = row.iter().zip(fit.fit.coefficients()).map(|(x, b)| x * b).sum();
+            for j in 0..4 {
+                score[j] += weights[t - 1] * row[j] * (y[t] - prediction);
+            }
+        }
+        for residual_score in score {
+            close(residual_score, 0.0, 1e-7, "weighted normal equation");
+        }
+        assert!(matches!(
+            weighted.execute(
+                &series,
+                Some(&weights[..weights.len() - 1]),
+                PolicyRule::Hold(0.0),
+                PolicyRule::Hold(0.0),
+                None
+            ),
+            Err(HistoryExecutionError::WeightShape { .. })
+        ));
     }
 
     #[test]
