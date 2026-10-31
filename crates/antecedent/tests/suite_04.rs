@@ -11,6 +11,8 @@ mod dbn_posterior_atom_identity;
 mod dbn_sustained_validation;
 #[path = "decision_exit_gate.rs"]
 mod decision_exit_gate;
+#[path = "decision_evidence_workflow.rs"]
+mod decision_evidence_workflow;
 #[path = "decision_reliability_derived_facade.rs"]
 mod decision_reliability_derived_facade;
 #[path = "decision_reliability_facade.rs"]

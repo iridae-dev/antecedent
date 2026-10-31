@@ -58,6 +58,10 @@ pub use crate::decision_contract::UtilityExpr;
 /// Normal quantile for a two-sided 95% interval.
 pub(crate) const Z95: f64 = 1.959_963_984_540_054;
 
+/// Independently assigned units required in each arm before a normal interval over the
+/// covariance is supported; equal to the estimator's own threshold.
+pub const MIN_UNITS_PER_ARM_FOR_INTERVAL: usize = 30;
+
 /// The most unknown dimensions one evaluation enumerates (`2^n` vertices).
 pub const MAX_UNKNOWN_DIMENSIONS: usize = 12;
 
@@ -979,6 +983,30 @@ mod tests {
         assert!(matches!(
             a.merge_independent(&c, true),
             Err(EvidenceRefusal::IncompatibleHorizon { .. })
+        ));
+    }
+
+    #[test]
+    fn few_independent_units_leave_no_interval_however_many_rows() {
+        let mut ev = evidence(1.0, no_interference());
+        ev.design = DesignRecord {
+            assignment_design: "cluster".into(),
+            treated_units: 8,
+            control_units: 8,
+            outcome_rows: 100_000,
+        };
+        let q = DerivedQuantity {
+            name: "v".into(),
+            units: "u".into(),
+            expr: UtilityExpr::Input(0),
+            inputs: vec![InputBinding::Measured("value".into())],
+        };
+        let req = derive::tests::request();
+        let r = derive(&ev, &req, &q).unwrap();
+        assert!(r.sampling.is_none() && r.contrast.is_some());
+        assert!(matches!(
+            r.unresolved[0],
+            UnresolvedReason::TooFewIndependentUnits { required: 30, .. }
         ));
     }
 

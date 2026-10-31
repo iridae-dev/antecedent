@@ -132,6 +132,16 @@ pub enum UnresolvedReason {
     /// The quantity combines several components but only their marginals are known; the
     /// covariance between them was not estimated and is not assumed.
     JointLawMissing,
+    /// Too few independently assigned units in an arm for a normal interval over the
+    /// covariance. Adding rows inside existing units does not change this.
+    TooFewIndependentUnits {
+        /// Independently assigned units in the treated arm.
+        treated: usize,
+        /// Independently assigned units in the control arm.
+        control: usize,
+        /// Required in each arm.
+        required: usize,
+    },
     /// The expression has a kink, so a delta-method interval is not defined.
     SamplingUnavailable,
     /// Sampling uncertainty alone leaves the decision threshold inside the interval for some
@@ -481,7 +491,18 @@ pub fn derive(
         }
     };
     let mut unresolved = Vec::new();
-    let (sampling, vertices) = if marginals_only_combination {
+    let few_units = evidence.design.treated_units.min(evidence.design.control_units)
+        < super::MIN_UNITS_PER_ARM_FOR_INTERVAL;
+    if few_units {
+        unresolved.push(UnresolvedReason::TooFewIndependentUnits {
+            treated: evidence.design.treated_units,
+            control: evidence.design.control_units,
+            required: super::MIN_UNITS_PER_ARM_FOR_INTERVAL,
+        });
+    }
+    let (sampling, vertices) = if few_units {
+        (None, Vec::new())
+    } else if marginals_only_combination {
         unresolved.push(UnresolvedReason::JointLawMissing);
         (None, Vec::new())
     } else if expr::has_kink(&quantity.expr) {

@@ -55,6 +55,7 @@ pub mod callback_plan;
 pub mod class_prior;
 pub mod counterfactual_id;
 pub mod cross_world;
+pub mod decision_evidence;
 pub mod design;
 pub mod design_posterior_model;
 pub mod discovery;
