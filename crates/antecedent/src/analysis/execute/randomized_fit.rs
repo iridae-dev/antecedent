@@ -935,8 +935,23 @@ fn fisher_p_value(
 ) -> Result<(f64, u64), CausalError> {
     let n = outcomes.len();
     let k = treated;
-    let observed = allocation_contrast(outcomes, realized, k, ctx)?.abs();
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "randomization_test" });
+    }
     let exhaustive = binomial_within(n, k, EXHAUSTIVE_ALLOCATION_LIMIT);
+    let allocations = exhaustive.unwrap_or(u128::from(MONTE_CARLO_ALLOCATIONS));
+    let visits = (n as u128).checked_mul(allocations + 1).ok_or_else(|| CausalError::Resource {
+        message: "randomization test row-visit quote overflow".into(),
+    })?;
+    let limit = ctx.randomization_test_limits().max_row_visits;
+    if visits > u128::from(limit) {
+        return Err(CausalError::Resource {
+            message: format!(
+                "randomization test requires {visits} row visits, exceeding limit {limit}; raise the randomization test limit to authorize the full allocation schedule"
+            ),
+        });
+    }
+    let observed = allocation_contrast(outcomes, realized, k, ctx)?.abs();
     // Reserve the mask and the selected path's index buffer before allocating either.
     let index_count = if exhaustive.is_some() { k } else { n };
     let bytes = n
@@ -1181,7 +1196,7 @@ mod fisher_tests {
         );
         assert_eq!(pool.available().bytes(), bytes);
         let mut cancelled = ExecutionContext::for_tests(42).with_admission(pool.clone());
-        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);
         assert!(matches!(
             fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &cancelled),
             Err(super::CausalError::Cancelled { .. })
@@ -1199,6 +1214,55 @@ mod fisher_tests {
             Err(super::CausalError::Resource { .. })
         ));
         assert_eq!(tight.available().bytes(), mc_bytes - 1);
+    }
+
+    #[test]
+    fn fisher_work_ceiling_refuses_before_scans_without_changing_the_schedule() {
+        use antecedent_core::RandomizationTestLimits;
+        let outcomes = [1.0, 2.0, 3.0, 4.0];
+        let assigned = [true, true, false, false];
+        let tight = ExecutionContext::for_tests(42)
+            .with_randomization_test_limits(RandomizationTestLimits { max_row_visits: 27 });
+        assert!(matches!(
+            fisher_p_value(&outcomes, 2, &assigned, &tight),
+            Err(super::CausalError::Resource { .. })
+        ));
+        let sufficient =
+            tight.with_randomization_test_limits(RandomizationTestLimits { max_row_visits: 28 });
+        assert_eq!(fisher_p_value(&outcomes, 2, &assigned, &sufficient).unwrap(), (1.0 / 3.0, 6));
+        let mut before_scan = tight.clone();
+        before_scan.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        assert!(matches!(
+            fisher_p_value(&outcomes, 2, &assigned, &before_scan),
+            Err(super::CausalError::Resource { .. })
+        ));
+        assert!(!before_scan.cancellation.is_requested());
+        assert_eq!(tight.randomization_test_limits().max_row_visits, 27);
+        assert_eq!(
+            sufficient.clone().serial_inner().randomization_test_limits().max_row_visits,
+            28
+        );
+        let cancelled = tight.clone();
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            fisher_p_value(&outcomes, 2, &assigned, &cancelled),
+            Err(super::CausalError::Cancelled { .. })
+        ));
+    }
+
+    #[test]
+    fn monte_carlo_work_quote_includes_all_draws_and_observed_scan() {
+        use antecedent_core::RandomizationTestLimits;
+        let n = 40;
+        let outcomes = vec![1.0; n];
+        let assigned: Vec<bool> = (0..n).map(|i| i < n / 2).collect();
+        let visits = n as u64 * (MONTE_CARLO_ALLOCATIONS + 1);
+        let ctx = ExecutionContext::for_tests(42)
+            .with_randomization_test_limits(RandomizationTestLimits { max_row_visits: visits - 1 });
+        assert!(matches!(
+            fisher_p_value(&outcomes, n / 2, &assigned, &ctx),
+            Err(super::CausalError::Resource { .. })
+        ));
     }
 
     #[test]

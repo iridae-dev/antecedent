@@ -11524,6 +11524,7 @@ class _Execution:
         exposure_probability_work_limit: int | None = None,
         hmc_work_limit: int | None = None,
         temporal_materialization_limits: tuple[int, int, int, int, int] | None = None,
+        randomization_test_max_row_visits: int | None = None,
     ) -> None: ...
     @property
     def available_memory_bytes(self) -> int: ...

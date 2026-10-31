@@ -479,6 +479,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "Refusal",
         "ResourceLimits",
         "TemporalMaterializationLimits",
+        "RandomizationTestLimits",
         "TemporalQuery",
         "rebind",
         "reconfigure",

@@ -103,8 +103,8 @@ pub use execution::{
     ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
     CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
     ExecutionReceipt, ExecutionRequestState, KernelPolicy, MonteCarloBudget, MonteCarloError,
-    NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory, StreamDomain,
-    WeakCancellationToken, default_user_threads,
+    NonZeroThreadCount, Parallelism, ProgressSink, RandomizationTestLimits, RequestIdentity,
+    RngFactory, StreamDomain, WeakCancellationToken, default_user_threads,
 };
 pub use execution::{GOLDEN_GAMMA, derive_stream, mix64, splitmix64};
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};

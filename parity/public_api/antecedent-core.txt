@@ -570,6 +570,7 @@ impl core::clone::Clone for antecedent_core::QuantityUnits
 impl core::clone::Clone for antecedent_core::QueryError
 impl core::clone::Clone for antecedent_core::QueryId
 impl core::clone::Clone for antecedent_core::RandomizationDesign
+impl core::clone::Clone for antecedent_core::RandomizationTestLimits
 impl core::clone::Clone for antecedent_core::RandomizedEffectFault
 impl core::clone::Clone for antecedent_core::RandomizedEffectQuery
 impl core::clone::Clone for antecedent_core::RandomizedEstimand
@@ -1062,6 +1063,7 @@ impl core::cmp::Eq for antecedent_core::ProviderId
 impl core::cmp::Eq for antecedent_core::QuantityUnits
 impl core::cmp::Eq for antecedent_core::QueryError
 impl core::cmp::Eq for antecedent_core::QueryId
+impl core::cmp::Eq for antecedent_core::RandomizationTestLimits
 impl core::cmp::Eq for antecedent_core::RandomizedEffectFault
 impl core::cmp::Eq for antecedent_core::RandomizedEstimand
 impl core::cmp::Eq for antecedent_core::RealizationKind
@@ -1599,6 +1601,7 @@ impl core::cmp::PartialEq for antecedent_core::QuantityUnits
 impl core::cmp::PartialEq for antecedent_core::QueryError
 impl core::cmp::PartialEq for antecedent_core::QueryId
 impl core::cmp::PartialEq for antecedent_core::RandomizationDesign
+impl core::cmp::PartialEq for antecedent_core::RandomizationTestLimits
 impl core::cmp::PartialEq for antecedent_core::RandomizedEffectFault
 impl core::cmp::PartialEq for antecedent_core::RandomizedEffectQuery
 impl core::cmp::PartialEq for antecedent_core::RandomizedEstimand
@@ -1978,6 +1981,7 @@ impl core::default::Default for antecedent_core::OutcomeFunctional
 impl core::default::Default for antecedent_core::PanelObservationProcess
 impl core::default::Default for antecedent_core::PolicyReads
 impl core::default::Default for antecedent_core::PopulationRegistry
+impl core::default::Default for antecedent_core::RandomizationTestLimits
 impl core::default::Default for antecedent_core::RolloutDidEstimator
 impl core::default::Default for antecedent_core::RouteMemoryDeclaration
 impl core::default::Default for antecedent_core::RowMask
@@ -2332,6 +2336,7 @@ impl core::fmt::Debug for antecedent_core::QuantityUnits
 impl core::fmt::Debug for antecedent_core::QueryError
 impl core::fmt::Debug for antecedent_core::QueryId
 impl core::fmt::Debug for antecedent_core::RandomizationDesign
+impl core::fmt::Debug for antecedent_core::RandomizationTestLimits
 impl core::fmt::Debug for antecedent_core::RandomizedEffectFault
 impl core::fmt::Debug for antecedent_core::RandomizedEffectQuery
 impl core::fmt::Debug for antecedent_core::RandomizedEstimand
@@ -3201,6 +3206,7 @@ impl core::marker::Copy for antecedent_core::ProviderCapability
 impl core::marker::Copy for antecedent_core::ProviderDeclarationError
 impl core::marker::Copy for antecedent_core::ProviderId
 impl core::marker::Copy for antecedent_core::QueryId
+impl core::marker::Copy for antecedent_core::RandomizationTestLimits
 impl core::marker::Copy for antecedent_core::RandomizedEffectFault
 impl core::marker::Copy for antecedent_core::RandomizedEstimand
 impl core::marker::Copy for antecedent_core::RealizationKind
@@ -3628,6 +3634,7 @@ impl core::marker::Freeze for antecedent_core::QuantityUnits [auto]
 impl core::marker::Freeze for antecedent_core::QueryError [auto]
 impl core::marker::Freeze for antecedent_core::QueryId [auto]
 impl core::marker::Freeze for antecedent_core::RandomizationDesign [auto]
+impl core::marker::Freeze for antecedent_core::RandomizationTestLimits [auto]
 impl core::marker::Freeze for antecedent_core::RandomizedEffectFault [auto]
 impl core::marker::Freeze for antecedent_core::RandomizedEffectQuery [auto]
 impl core::marker::Freeze for antecedent_core::RandomizedEstimand [auto]
@@ -4178,6 +4185,7 @@ impl core::marker::Send for antecedent_core::QuantityUnits [auto]
 impl core::marker::Send for antecedent_core::QueryError [auto]
 impl core::marker::Send for antecedent_core::QueryId [auto]
 impl core::marker::Send for antecedent_core::RandomizationDesign [auto]
+impl core::marker::Send for antecedent_core::RandomizationTestLimits [auto]
 impl core::marker::Send for antecedent_core::RandomizedEffectFault [auto]
 impl core::marker::Send for antecedent_core::RandomizedEffectQuery [auto]
 impl core::marker::Send for antecedent_core::RandomizedEstimand [auto]
@@ -4721,6 +4729,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::QuantityUnits
 impl core::marker::StructuralPartialEq for antecedent_core::QueryError
 impl core::marker::StructuralPartialEq for antecedent_core::QueryId
 impl core::marker::StructuralPartialEq for antecedent_core::RandomizationDesign
+impl core::marker::StructuralPartialEq for antecedent_core::RandomizationTestLimits
 impl core::marker::StructuralPartialEq for antecedent_core::RandomizedEffectFault
 impl core::marker::StructuralPartialEq for antecedent_core::RandomizedEffectQuery
 impl core::marker::StructuralPartialEq for antecedent_core::RandomizedEstimand
@@ -5258,6 +5267,7 @@ impl core::marker::Sync for antecedent_core::QuantityUnits [auto]
 impl core::marker::Sync for antecedent_core::QueryError [auto]
 impl core::marker::Sync for antecedent_core::QueryId [auto]
 impl core::marker::Sync for antecedent_core::RandomizationDesign [auto]
+impl core::marker::Sync for antecedent_core::RandomizationTestLimits [auto]
 impl core::marker::Sync for antecedent_core::RandomizedEffectFault [auto]
 impl core::marker::Sync for antecedent_core::RandomizedEffectQuery [auto]
 impl core::marker::Sync for antecedent_core::RandomizedEstimand [auto]
@@ -5813,6 +5823,7 @@ impl core::marker::Unpin for antecedent_core::QuantityUnits [auto]
 impl core::marker::Unpin for antecedent_core::QueryError [auto]
 impl core::marker::Unpin for antecedent_core::QueryId [auto]
 impl core::marker::Unpin for antecedent_core::RandomizationDesign [auto]
+impl core::marker::Unpin for antecedent_core::RandomizationTestLimits [auto]
 impl core::marker::Unpin for antecedent_core::RandomizedEffectFault [auto]
 impl core::marker::Unpin for antecedent_core::RandomizedEffectQuery [auto]
 impl core::marker::Unpin for antecedent_core::RandomizedEstimand [auto]
@@ -6373,6 +6384,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QuantityUnits 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QueryError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::QueryId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RandomizationDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RandomizationTestLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RandomizedEffectFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RandomizedEffectQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::RandomizedEstimand [auto]
@@ -6927,6 +6939,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QuantityUnits [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QueryError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::QueryId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RandomizationDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RandomizationTestLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RandomizedEffectFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RandomizedEffectQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::RandomizedEstimand [auto]
@@ -7905,6 +7918,7 @@ pub field antecedent_core::PopulationSelection::keep: antecedent_core::RowMask
 pub field antecedent_core::PopulationSelection::weights: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_core::PriorAssumption::description: alloc::sync::Arc<str>
 pub field antecedent_core::PriorAssumption::id: alloc::sync::Arc<str>
+pub field antecedent_core::RandomizationTestLimits::max_row_visits: u64
 pub field antecedent_core::RandomizedEffectQuery::ancova_covariates: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::RandomizedEffectQuery::assignment_probabilities: alloc::sync::Arc<[f64]>
 pub field antecedent_core::RandomizedEffectQuery::assignment_units: alloc::sync::Arc<[alloc::sync::Arc<str>]>
@@ -8631,6 +8645,7 @@ pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed_with_scratch<T, 
 pub fn <antecedent_core::ExecutionContext>::fn production(seed: u64, max_threads: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn production_default(seed: u64) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn pulse_extrapolation_ranges(&self) -> f64
+pub fn <antecedent_core::ExecutionContext>::fn randomization_test_limits(&self) -> antecedent_core::RandomizationTestLimits
 pub fn <antecedent_core::ExecutionContext>::fn serial_inner(&self) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn set_memory_limit(&mut self, limit: core::option::Option<u64>)
 pub fn <antecedent_core::ExecutionContext>::fn temporal_materialization_limits(&self) -> antecedent_core::TemporalMaterializationLimits
@@ -8642,6 +8657,7 @@ pub fn <antecedent_core::ExecutionContext>::fn with_hmc_work_limit(&self, limit:
 pub fn <antecedent_core::ExecutionContext>::fn with_imputation_bootstrap(&self, replicates: u32) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_memory_limit(self, limit: core::option::Option<u64>) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_pulse_extrapolation_ranges(&self, ranges: f64) -> core::option::Option<Self>
+pub fn <antecedent_core::ExecutionContext>::fn with_randomization_test_limits(&self, limits: antecedent_core::RandomizationTestLimits) -> Self
 pub fn <antecedent_core::ExecutionContext>::fn with_temporal_materialization_limits(&self, limits: antecedent_core::TemporalMaterializationLimits) -> Self
 pub fn <antecedent_core::ExecutionReceipt>::const fn new(request: antecedent_core::RequestIdentity, state: antecedent_core::ExecutionRequestState) -> Self
 pub fn <antecedent_core::ExecutionRequestState>::const fn as_str(self) -> &'static str
@@ -10081,6 +10097,7 @@ pub struct antecedent_core::QuantityUnits
 pub struct antecedent_core::QuantityUnits has private fields
 pub struct antecedent_core::QueryId
 pub struct antecedent_core::QueryId has private fields
+pub struct antecedent_core::RandomizationTestLimits
 pub struct antecedent_core::RandomizedEffectQuery
 pub struct antecedent_core::RecoveryMismatch
 pub struct antecedent_core::RecoveryRecord
@@ -10410,6 +10427,7 @@ pub use antecedent_core::execution::MonteCarloError = antecedent_core::MonteCarl
 pub use antecedent_core::execution::NonZeroThreadCount = antecedent_core::NonZeroThreadCount
 pub use antecedent_core::execution::Parallelism = antecedent_core::Parallelism
 pub use antecedent_core::execution::ProgressSink = antecedent_core::ProgressSink
+pub use antecedent_core::execution::RandomizationTestLimits = antecedent_core::RandomizationTestLimits
 pub use antecedent_core::execution::RequestIdentity = antecedent_core::RequestIdentity
 pub use antecedent_core::execution::RngFactory = antecedent_core::RngFactory
 pub use antecedent_core::execution::StreamDomain = antecedent_core::StreamDomain

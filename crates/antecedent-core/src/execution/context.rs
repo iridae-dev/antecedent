@@ -13,6 +13,22 @@ use super::rng::RngFactory;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Finite logical-work ceiling for a complete-design Fisher randomization test.
+///
+/// Row visits include the observed allocation and every exhaustive or sampled
+/// allocation. Exceeding this limit refuses the test without reducing its draws.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RandomizationTestLimits {
+    /// Maximum number of outcome-row visits for one randomization test.
+    pub max_row_visits: u64,
+}
+
+impl Default for RandomizationTestLimits {
+    fn default() -> Self {
+        Self { max_row_visits: 1_000_000_000 }
+    }
+}
+
 /// Full execution context passed into algorithms.
 #[derive(Clone)]
 pub struct ExecutionContext {
@@ -53,9 +69,24 @@ pub struct ExecutionContext {
     pub(super) exposure_probability_work_limit: Option<u64>,
     pub(super) hmc_work_limit: Option<u64>,
     pub(super) temporal_materialization_limits: Option<crate::TemporalMaterializationLimits>,
+    pub(super) randomization_test_limits: Option<RandomizationTestLimits>,
 }
 
 impl ExecutionContext {
+    /// Set the finite row-visit ceiling for a Fisher randomization test.
+    #[must_use]
+    pub fn with_randomization_test_limits(&self, limits: RandomizationTestLimits) -> Self {
+        let mut scoped = self.clone();
+        scoped.randomization_test_limits = Some(limits);
+        scoped
+    }
+
+    /// Caller-selected Fisher work ceiling, or its finite default.
+    #[must_use]
+    pub fn randomization_test_limits(&self) -> RandomizationTestLimits {
+        self.randomization_test_limits.unwrap_or_default()
+    }
+
     /// Set finite logical ceilings for temporal materialization.
     #[must_use]
     pub fn with_temporal_materialization_limits(
@@ -200,6 +231,7 @@ impl ExecutionContext {
             exposure_probability_work_limit: None,
             hmc_work_limit: None,
             temporal_materialization_limits: None,
+            randomization_test_limits: None,
         }
     }
 
@@ -245,6 +277,7 @@ impl ExecutionContext {
             exposure_probability_work_limit: None,
             hmc_work_limit: None,
             temporal_materialization_limits: None,
+            randomization_test_limits: None,
         }
     }
 

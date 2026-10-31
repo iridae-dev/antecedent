@@ -4,7 +4,10 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use antecedent_core::{CachePolicy, ExecutionContext, KernelPolicy, TemporalMaterializationLimits};
+use antecedent_core::{
+    CachePolicy, ExecutionContext, KernelPolicy, RandomizationTestLimits,
+    TemporalMaterializationLimits,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
@@ -59,6 +62,7 @@ pub(crate) fn apply(ctx: &mut ExecutionContext) {
     *ctx = ctx.with_hmc_work_limit(policy.context.hmc_work_limit());
     *ctx =
         ctx.with_temporal_materialization_limits(policy.context.temporal_materialization_limits());
+    *ctx = ctx.with_randomization_test_limits(policy.context.randomization_test_limits());
     ctx.kernel_policy = policy.context.kernel_policy;
     if let Some(ranges) = policy.pulse_extrapolation_ranges {
         if let Some(scoped) = ctx.with_pulse_extrapolation_ranges(ranges) {
@@ -83,7 +87,7 @@ pub(crate) struct PythonExecution {
 #[pymethods]
 impl PythonExecution {
     #[new]
-    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None, exposure_probability_work_limit=None, hmc_work_limit=None, temporal_materialization_limits=None))]
+    #[pyo3(signature = (*, seed=1, threads=None, memory_bytes=None, cache="bounded", cache_bytes=Some(crate::PY_DEFAULT_CACHE_MAX_BYTES), kernel="auto", cancel=None, on_progress=None, callback_failure_capacity=crate::interrupt::DEFAULT_CALLBACK_FAILURE_CAPACITY, pulse_extrapolation_ranges=None, exposure_probability_work_limit=None, hmc_work_limit=None, temporal_materialization_limits=None, randomization_test_max_row_visits=None))]
     fn new(
         seed: u64,
         threads: Option<u32>,
@@ -98,6 +102,7 @@ impl PythonExecution {
         exposure_probability_work_limit: Option<u64>,
         hmc_work_limit: Option<u64>,
         temporal_materialization_limits: Option<(u64, u64, u64, u64, u64)>,
+        randomization_test_max_row_visits: Option<u64>,
     ) -> PyResult<Self> {
         if let Some(ranges) = pulse_extrapolation_ranges {
             if !(ranges.is_finite() && ranges >= 0.0) {
@@ -127,6 +132,10 @@ impl PythonExecution {
                 max_graph_nodes,
                 max_graph_edges,
             });
+        }
+        if let Some(max_row_visits) = randomization_test_max_row_visits {
+            context =
+                context.with_randomization_test_limits(RandomizationTestLimits { max_row_visits });
         }
         context.cache_policy = match cache {
             "disabled" => CachePolicy::disabled(),
@@ -214,12 +223,16 @@ mod tests {
         };
         let outer_policy = Arc::get_mut(&mut outer).unwrap();
         outer_policy.context = outer_policy.context.with_temporal_materialization_limits(limits);
+        outer_policy.context = outer_policy
+            .context
+            .with_randomization_test_limits(RandomizationTestLimits { max_row_visits: 27 });
         {
             let _outer = enter(Some(Arc::clone(&outer)));
             let mut first = ExecutionContext::for_tests(21);
             apply(&mut first);
             assert_eq!(first.memory_limit_bytes(), Some(128));
             assert_eq!(first.temporal_materialization_limits(), limits);
+            assert_eq!(first.randomization_test_limits().max_row_visits, 27);
             assert_eq!(first.cache_policy, CachePolicy::disabled());
             let lease = first.acquire_admission(0, 96).unwrap();
             let mut second = ExecutionContext::for_tests(22);
@@ -230,6 +243,7 @@ mod tests {
                 let mut inner = ExecutionContext::for_tests(23);
                 apply(&mut inner);
                 assert_eq!(inner.memory_limit_bytes(), Some(8));
+                assert_eq!(inner.randomization_test_limits(), RandomizationTestLimits::default());
                 assert_eq!(
                     inner.temporal_materialization_limits(),
                     TemporalMaterializationLimits::default()

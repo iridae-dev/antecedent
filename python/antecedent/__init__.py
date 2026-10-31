@@ -229,7 +229,13 @@ from .accepted_graph import AcceptedGraph
 from .data_diagnostics import DataDiagnostics, diagnose_data
 from .drift import staleness
 from .errors import CausalError, ReviewRequired
-from .execution import CachePolicy, Execution, ResourceLimits, TemporalMaterializationLimits
+from .execution import (
+    CachePolicy,
+    Execution,
+    RandomizationTestLimits,
+    ResourceLimits,
+    TemporalMaterializationLimits,
+)
 from .identify import Identification, identify
 from .ids import Estimator, Identifier, Latency, Refute
 from .inference import Bayesian, ClassPrior, Frequentist
@@ -271,6 +277,7 @@ __all__ = [
     "Execution",
     "ResourceLimits",
     "TemporalMaterializationLimits",
+    "RandomizationTestLimits",
     "CachePolicy",
     "CancellationToken",
     "TemporalQuery",

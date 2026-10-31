@@ -37,7 +37,7 @@ pub use budget::{
     NonZeroThreadCount, Parallelism, default_user_threads,
 };
 pub use cancel::{CancellationToken, ProgressSink, WeakCancellationToken};
-pub use context::ExecutionContext;
+pub use context::{ExecutionContext, RandomizationTestLimits};
 pub use pipeline::{MapExecutionError, PipelineReceipt, PipelineStep};
 pub use request::{ExecutionReceipt, ExecutionRequestState, RequestIdentity};
 pub use rng::{

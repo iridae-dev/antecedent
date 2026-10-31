@@ -42,6 +42,7 @@ _EXPECTED_ALL = {
     "Execution",
     "ResourceLimits",
     "TemporalMaterializationLimits",
+    "RandomizationTestLimits",
     "CachePolicy",
     "CancellationToken",
     "Outcome",

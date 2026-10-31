@@ -74,6 +74,22 @@ class TemporalMaterializationLimits:
 
 
 @dataclass(frozen=True, slots=True)
+class RandomizationTestLimits:
+    """Maximum outcome-row visits in one complete-design Fisher test.
+
+    The default is one billion. The full observed and allocation scans are
+    charged; exceeding the limit refuses the test rather than reducing draws.
+    """
+
+    max_row_visits: int = 1_000_000_000
+
+    def __post_init__(self) -> None:
+        if self.max_row_visits is None:
+            raise CausalTypeError("max_row_visits must be an integer")
+        _integer(self.max_row_visits, "max_row_visits")
+
+
+@dataclass(frozen=True, slots=True)
 class CachePolicy:
     """Permission for semantic reuse, independently of numerical equivalence."""
 
@@ -129,6 +145,8 @@ class Execution:
     the engine default (4 billion); a higher value authorizes more work without
     changing the requested sampling schedule. ``temporal_materialization`` sets
     finite temporal expansion limits; None selects the engine defaults.
+    ``randomization_test`` sets the finite Fisher row-visit ceiling; None selects
+    the engine default of one billion.
     """
 
     seed: int = 1
@@ -146,6 +164,7 @@ class Execution:
     exposure_probability_work_limit: int | None = None
     hmc_work_limit: int | None = None
     temporal_materialization: TemporalMaterializationLimits | None = None
+    randomization_test: RandomizationTestLimits | None = None
     _handle: Any = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -172,6 +191,10 @@ class Execution:
             raise CausalTypeError(
                 "temporal_materialization must be TemporalMaterializationLimits or None"
             )
+        if self.randomization_test is not None and not isinstance(
+            self.randomization_test, RandomizationTestLimits
+        ):
+            raise CausalTypeError("randomization_test must be RandomizationTestLimits or None")
         if self.kernels not in ("auto", "portable", "scalar"):
             raise CausalValueError("kernels must be auto, portable or scalar")
         for name in ("on_progress", "on_stage"):
@@ -195,6 +218,11 @@ class Execution:
                 callback_failure_capacity=self.callback_failure_capacity,
                 exposure_probability_work_limit=self.exposure_probability_work_limit,
                 hmc_work_limit=self.hmc_work_limit,
+                randomization_test_max_row_visits=(
+                    None
+                    if self.randomization_test is None
+                    else self.randomization_test.max_row_visits
+                ),
                 temporal_materialization_limits=(
                     None
                     if self.temporal_materialization is None
