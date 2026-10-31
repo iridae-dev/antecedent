@@ -2883,3 +2883,45 @@ kind = "fn"
 status = "bound"
 python = "antecedent.data_diagnostics.diagnose_data"
 reason = "Standalone and prepared fit-free diagnostic reporting; tested in python/tests/test_data_diagnostics.py."
+
+[[entry]]
+rust = "antecedent::PreparedClaimParent"
+kind = "type"
+status = "missing"
+reason = "Python has no binding that pairs a retained prepared study and trusted claim envelope for checked in-process claim composition."
+
+[[entry]]
+rust = "antecedent::analysis::api::compose_checked_study_claims"
+kind = "fn"
+status = "missing"
+reason = "The checked composition of prepared-study claims, including its parent program and target checks, has no Python binding; composition verification exposes a different workflow."
+
+[[entry]]
+rust = "antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context"
+kind = "fn"
+status = "missing"
+reason = "Python exposes posterior artifact replay with row and point limits but calls the context-free consumer and offers no caller execution context for this replay."
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::PreparedJointPanelImputation"
+kind = "type"
+status = "missing"
+reason = "Python's joint-panel wrapper prepares the ordinary panel path and does not expose the prepared panel multiple-imputation and pooled-vector workflow."
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::declare_joint_panel_gaussian_restriction"
+kind = "fn"
+status = "missing"
+reason = "Python joint-panel preparation builds a target and can declare exogenous context but does not expose this distinct Gaussian identifying restriction."
+
+[[entry]]
+rust = "antecedent::analysis::joint_panel::dummy_code_panel"
+kind = "fn"
+status = "missing"
+reason = "Python's joint-panel surface does not expose the native categorical channel declaration and dummy-coded panel conversion with its domain and reference checks."
+
+[[entry]]
+rust = "antecedent::support::support_cell_named_for_data"
+kind = "fn"
+status = "internal"
+reason = "The native study builder and contract reasoning select the data-modality-aware support cell during Python study preparation; Python consumes the resulting support report rather than calling this lookup directly."
