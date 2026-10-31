@@ -142,6 +142,23 @@ pub enum EvidenceRefusal {
 }
 
 impl EvidenceRefusal {
+    /// Registered refusal code (`parity/reason_codes.toml`).
+    #[must_use]
+    pub fn registered_code(&self) -> &'static str {
+        match self {
+            Self::Invalid(_) | Self::FrameShape => "decision_evidence_invalid",
+            Self::IncompatiblePopulation { .. }
+            | Self::IncompatibleIntervention { .. }
+            | Self::IncompatibleHorizon { .. }
+            | Self::DeploymentBridgeMissing => "decision_evidence_scope_mismatch",
+            Self::UnsupportedAssignmentDesign(_)
+            | Self::InterferenceUnspecified
+            | Self::AdjustmentNotAdmissible { .. }
+            | Self::TooManyUnknowns(_) => "decision_evidence_design_unsupported",
+            Self::DependenceUnknown { .. } => "evidence_overlap_unknown",
+        }
+    }
+
     /// Stable machine-readable reason.
     #[must_use]
     pub fn reason_code(&self) -> &'static str {

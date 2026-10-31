@@ -521,6 +521,22 @@ id = "evidence_source_withdrawn"
 applies_to = ["runtime_refusal"]
 meaning = "A request rests on an evidence source, or on a result, that was withdrawn, superseded, replaced or updated after it was registered. The original is preserved; the refusal names the retired source and its successor where one exists."
 
+# Decision evidence (composed experimental evidence for decision-relevant outcomes).
+[[code]]
+id = "decision_evidence_scope_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A request reaches past what the experiment established: a population, randomized contrast or horizon the evidence does not cover, or a deployment-policy quantity with no declared structural bridge from the experimental contrast. Nothing is carried across; the refusal names the evidence's scope and the bridge or evidence that would license the request."
+
+[[code]]
+id = "decision_evidence_design_unsupported"
+applies_to = ["runtime_refusal"]
+meaning = "The assignment design, the pretreatment adjustment or the exposure assumption has no joint route: an assignment design other than complete randomization of units or clusters, a learned coefficient that would change the unit of analysis, between-unit exposure left unspecified, or more unknown dimensions than one evaluation enumerates. The refusal names the admissible alternatives."
+
+[[code]]
+id = "decision_evidence_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A joint evidence, derived quantity or decision declaration is not well formed: misaligned or non-finite arrays, a covariance that is not symmetric with a nonnegative diagonal, an arm with fewer than two assigned units, an unknown component, or a frame that does not name exactly two actions. The refusal names the field."
+
 # Measurement models (promotion records: measurement.* in parity/promotion.toml).
 [[code]]
 id = "measurement_model_invalid"
