@@ -207,9 +207,9 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let mass = lagged[from * 2 + to];
     assert!(mass >= min_mass, "DbnPosterior: P(x_(t-1) -> y_t) = {mass} < {min_mass}");
 
-    // Exact reference: enumerate every template the engine declares (the 3 contemporaneous DAGs
-    // on two variables times the 2^4 lag-1 edge sets, uniform prior, no constraint forbidding
-    // any of them) and weight each by the Gaussian BIC of the aligned design, exactly as for the
+    // Exact reference: the configured min_lag=1 excludes contemporaneous edges. Enumerate
+    // the empty contemporaneous DAG times the 2^4 lag-1 edge sets under the uniform prior,
+    // and weight each by the Gaussian BIC of the aligned design, exactly as for the
     // static enumeration. The design rows are t = 1..n-1 with columns (x_t, y_t, x_(t-1),
     // y_(t-1)); a node's parents are its contemporaneous parents and its lagged sources.
     use antecedent_data::TableView;
@@ -223,7 +223,7 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
         series_y[..rows].to_vec(),
     ];
     let n = rows as f64;
-    let contemporaneous: [&[(usize, usize)]; 3] = [&[], &[(0, 1)], &[(1, 0)]];
+    let contemporaneous: [&[(usize, usize)]; 1] = [&[]];
     let mut logs = Vec::new();
     let mut lag_sets = Vec::new();
     let mut cmasks = Vec::new();
@@ -235,7 +235,8 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
                 .map(|node| {
                     let mut parents: Vec<usize> =
                         edges.iter().filter(|e| e.1 == node).map(|e| e.0).collect();
-                    parents.extend((0..2).filter(|&from| lag_edge(from, node)).map(|from| 2 + from));
+                    parents
+                        .extend((0..2).filter(|&from| lag_edge(from, node)).map(|from| 2 + from));
                     -(n / 2.0) * (ols_rss(&design, node, &parents) / n).ln()
                         - (parents.len() as f64 / 2.0) * n.ln()
                 })
