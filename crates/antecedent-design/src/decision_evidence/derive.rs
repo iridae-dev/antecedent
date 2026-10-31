@@ -1,0 +1,968 @@
+//! Derived decision quantities and decision classification over joint experimental evidence.
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
+use antecedent_core::CanonicalWriter;
+
+use super::expr;
+use super::{
+    DELTA_METHOD_STATEMENT, Dependence, EvidenceRefusal, Exposure, JointExperimentEvidence,
+    MAX_UNKNOWN_DIMENSIONS, Request, SEPARATION_STATEMENT, Target, UtilityExpr, Z95,
+};
+
+/// What one input of a derived quantity's expression is, in each arm.
+#[derive(Clone, Debug, PartialEq)]
+pub enum InputBinding {
+    /// The arm mean of a measured component.
+    Measured(String),
+    /// A value known without uncertainty.
+    Fixed(f64),
+    /// A value not measured, bounded by a declared assumption.
+    Assumed {
+        /// Lower end of the declared range.
+        lower: f64,
+        /// Upper end of the declared range.
+        upper: f64,
+        /// Identity of the declared assumption.
+        assumption_id: String,
+        /// Whether the arms share one value (one unknown) or each arm has its own (two).
+        shared_across_arms: bool,
+    },
+    /// A value that is needed and unavailable.
+    Missing {
+        /// What is missing.
+        what: String,
+    },
+}
+
+/// A function of experimental outcomes, written in the decision contract's expression language.
+///
+/// It is evaluated in each arm at that arm's component means and the contrast is the treated
+/// value minus the control value. This is a function of means, not the mean of a function.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DerivedQuantity {
+    /// Name.
+    pub name: String,
+    /// Declared units of the result.
+    pub units: String,
+    /// The expression; `Input(k)` reads `inputs[k]`.
+    pub expr: UtilityExpr,
+    /// Binding of each input.
+    pub inputs: Vec<InputBinding>,
+}
+
+fn hash_expr(w: &mut CanonicalWriter, e: &UtilityExpr) {
+    match e {
+        UtilityExpr::Const(c) => {
+            w.word(0).real(*c);
+        }
+        UtilityExpr::Input(k) => {
+            w.word(1).word(*k as u64);
+        }
+        UtilityExpr::Neg(a) => {
+            w.word(2);
+            hash_expr(w, a);
+        }
+        UtilityExpr::Add(a, b) => {
+            w.word(3);
+            hash_expr(w, a);
+            hash_expr(w, b);
+        }
+        UtilityExpr::Sub(a, b) => {
+            w.word(4);
+            hash_expr(w, a);
+            hash_expr(w, b);
+        }
+        UtilityExpr::Mul(a, b) => {
+            w.word(5);
+            hash_expr(w, a);
+            hash_expr(w, b);
+        }
+        UtilityExpr::Min(a, b) => {
+            w.word(6);
+            hash_expr(w, a);
+            hash_expr(w, b);
+        }
+        UtilityExpr::Max(a, b) => {
+            w.word(7);
+            hash_expr(w, a);
+            hash_expr(w, b);
+        }
+    }
+}
+
+impl DerivedQuantity {
+    /// Identity of the transformation: expression, bindings and units.
+    #[must_use]
+    pub fn identity(&self) -> String {
+        let mut w = CanonicalWriter::new("antecedent.decision_evidence.derived_quantity.v1");
+        w.text(&self.name).text(&self.units);
+        hash_expr(&mut w, &self.expr);
+        for b in &self.inputs {
+            match b {
+                InputBinding::Measured(n) => {
+                    w.word(0).text(n);
+                }
+                InputBinding::Fixed(v) => {
+                    w.word(1).real(*v);
+                }
+                InputBinding::Assumed { lower, upper, assumption_id, shared_across_arms } => {
+                    w.word(2)
+                        .real(*lower)
+                        .real(*upper)
+                        .text(assumption_id)
+                        .word(u64::from(*shared_across_arms));
+                }
+                InputBinding::Missing { what } => {
+                    w.word(3).text(what);
+                }
+            }
+        }
+        w.finish_hex()
+    }
+}
+
+/// Why a derived quantity or a decision is unresolved.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UnresolvedReason {
+    /// A needed input is neither measured nor bounded by an assumption.
+    MissingInput {
+        /// What is missing.
+        what: String,
+    },
+    /// The quantity combines several components but only their marginals are known; the
+    /// covariance between them was not estimated and is not assumed.
+    JointLawMissing,
+    /// The expression has a kink, so a delta-method interval is not defined.
+    SamplingUnavailable,
+    /// Sampling uncertainty alone leaves the decision threshold inside the interval for some
+    /// admissible assumption values.
+    SamplingStraddlesThreshold,
+}
+
+/// A delta-method sampling interval.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SamplingInterval {
+    /// Value of the contrast the interval is centered on.
+    pub estimate: f64,
+    /// Standard error through the joint covariance.
+    pub standard_error: f64,
+    /// Lower end of the nominal 95% interval.
+    pub lower: f64,
+    /// Upper end of the nominal 95% interval.
+    pub upper: f64,
+}
+
+/// The range of the contrast over a declared assumption set. Not a probability law.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssumedRange {
+    /// Smallest contrast over the admissible assumptions.
+    pub lower: f64,
+    /// Largest contrast over the admissible assumptions.
+    pub upper: f64,
+    /// Exact (vertex enumeration of a multilinear function) or a guaranteed outer bound.
+    pub exact: bool,
+    /// Declared assumptions the range depends on.
+    pub assumption_ids: Vec<String>,
+    /// Number of unknown dimensions enumerated.
+    pub dimensions: usize,
+}
+
+/// Result of a derived quantity.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DerivedResult {
+    /// Quantity name.
+    pub name: String,
+    /// Units.
+    pub units: String,
+    /// Arm values at the center of the assumption set (the measured point when none).
+    pub treated_value: Option<f64>,
+    /// Control value at the same point.
+    pub control_value: Option<f64>,
+    /// Contrast at that point.
+    pub contrast: Option<f64>,
+    /// Sampling interval at that point, if defined.
+    pub sampling: Option<SamplingInterval>,
+    /// Sampling interval at every vertex of the assumption set, when defined.
+    pub sampling_at_vertices: Vec<SamplingInterval>,
+    /// Range over declared assumptions, when any are in play.
+    pub assumption_range: Option<AssumedRange>,
+    /// Why no resolved answer exists, if so.
+    pub unresolved: Vec<UnresolvedReason>,
+    /// Standing of the result.
+    pub standing: Standing,
+    /// Support license inherited: always none.
+    pub license: &'static str,
+    /// Calibration of the interval: always unmeasured.
+    pub calibration: &'static str,
+    /// Statement about the interval construction.
+    pub interval_statement: &'static str,
+    /// Statement keeping sampling and assumption ranges apart.
+    pub separation: &'static str,
+    /// Identity of the transformation.
+    pub quantity_identity: String,
+}
+
+/// How strong an answer is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Standing {
+    /// Sampling interval only.
+    Sampled,
+    /// A sampling interval and an assumption range.
+    AssumptionDependent,
+    /// Neither can be stated.
+    Unresolved,
+}
+
+fn check_request(
+    e: &JointExperimentEvidence,
+    r: &Request,
+) -> Result<Option<String>, EvidenceRefusal> {
+    if r.population_id != e.population_id {
+        return Err(EvidenceRefusal::IncompatiblePopulation {
+            requested: r.population_id.clone(),
+            available: e.population_id.clone(),
+        });
+    }
+    if (&r.treated_regime_id, &r.control_regime_id) != (&e.treated_regime_id, &e.control_regime_id)
+    {
+        return Err(EvidenceRefusal::IncompatibleIntervention {
+            requested: format!("{}/{}", r.treated_regime_id, r.control_regime_id),
+            available: format!("{}/{}", e.treated_regime_id, e.control_regime_id),
+        });
+    }
+    if r.horizon != e.horizon {
+        return Err(EvidenceRefusal::IncompatibleHorizon {
+            requested: r.horizon,
+            available: e.horizon,
+        });
+    }
+    if matches!(e.exposure, Exposure::Unspecified) {
+        return Err(EvidenceRefusal::InterferenceUnspecified);
+    }
+    match &r.target {
+        Target::ExperimentalContrast => Ok(None),
+        Target::Deployment { bridge_assumption_id: Some(id) } => Ok(Some(id.clone())),
+        Target::Deployment { bridge_assumption_id: None } => {
+            Err(EvidenceRefusal::DeploymentBridgeMissing)
+        }
+    }
+}
+
+/// One unknown dimension.
+struct Dim {
+    lower: f64,
+    upper: f64,
+    /// Inputs (index) affected; for a shared assumption both arms; spillover: treated only.
+    kind: DimKind,
+}
+enum DimKind {
+    Shared(usize),
+    Treated(usize),
+    Control(usize),
+    /// Additive offset on the treated arm mean of a component.
+    Spill(usize),
+}
+
+/// Evaluate a derived quantity over joint evidence.
+///
+/// # Errors
+///
+/// [`EvidenceRefusal`] when the request does not match the evidence, exposure is unspecified, a
+/// deployment target has no declared bridge, a binding is malformed, or there are too many
+/// unknown dimensions.
+pub fn derive(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+) -> Result<DerivedResult, EvidenceRefusal> {
+    let bridge = check_request(evidence, request)?;
+    let n = quantity.inputs.len();
+    let bad = |m: String| Err(EvidenceRefusal::Invalid(m));
+    let mut max_input = 0usize;
+    fn scan(e: &UtilityExpr, m: &mut usize) {
+        match e {
+            UtilityExpr::Input(k) => *m = (*m).max(*k + 1),
+            UtilityExpr::Const(_) => {}
+            UtilityExpr::Neg(a) => scan(a, m),
+            UtilityExpr::Add(a, b)
+            | UtilityExpr::Sub(a, b)
+            | UtilityExpr::Mul(a, b)
+            | UtilityExpr::Min(a, b)
+            | UtilityExpr::Max(a, b) => {
+                scan(a, m);
+                scan(b, m);
+            }
+        }
+    }
+    scan(&quantity.expr, &mut max_input);
+    if max_input > n {
+        return bad(format!("expression reads input {} but only {n} are bound", max_input - 1));
+    }
+
+    let mut unresolved = Vec::new();
+    let mut assumption_ids: Vec<String> = bridge.into_iter().collect();
+    let mut dims: Vec<Dim> = Vec::new();
+    // Component slot read by each input (None when not measured).
+    let mut slot: Vec<Option<usize>> = vec![None; n];
+    let (mut base_t, mut base_c) = (vec![0.0; n], vec![0.0; n]);
+    for (k, b) in quantity.inputs.iter().enumerate() {
+        match b {
+            InputBinding::Measured(name) => {
+                let Some(i) = evidence.component_index(name) else {
+                    return bad(format!("input {k} names unknown component `{name}`"));
+                };
+                slot[k] = Some(i);
+                base_t[k] = evidence.treated_means[i];
+                base_c[k] = evidence.control_means[i];
+            }
+            InputBinding::Fixed(v) => {
+                if !v.is_finite() {
+                    return bad(format!("input {k} is not finite"));
+                }
+                base_t[k] = *v;
+                base_c[k] = *v;
+            }
+            InputBinding::Assumed { lower, upper, assumption_id, shared_across_arms } => {
+                if !(lower.is_finite() && upper.is_finite()) || lower > upper {
+                    return bad(format!("input {k} has an invalid assumed range"));
+                }
+                assumption_ids.push(assumption_id.clone());
+                let mid = 0.5 * (lower + upper);
+                base_t[k] = mid;
+                base_c[k] = mid;
+                if upper > lower {
+                    if *shared_across_arms {
+                        dims.push(Dim { lower: *lower, upper: *upper, kind: DimKind::Shared(k) });
+                    } else {
+                        dims.push(Dim { lower: *lower, upper: *upper, kind: DimKind::Treated(k) });
+                        dims.push(Dim { lower: *lower, upper: *upper, kind: DimKind::Control(k) });
+                    }
+                }
+            }
+            InputBinding::Missing { what } => {
+                unresolved.push(UnresolvedReason::MissingInput { what: what.clone() })
+            }
+        }
+    }
+    if let Exposure::BoundedSpillover { assumption_id, bias_bounds } = &evidence.exposure {
+        let mut used = false;
+        for (c, b) in bias_bounds.iter().enumerate() {
+            if *b > 0.0 && slot.contains(&Some(c)) {
+                dims.push(Dim { lower: -b, upper: *b, kind: DimKind::Spill(c) });
+                used = true;
+            }
+        }
+        if used {
+            assumption_ids.push(assumption_id.clone());
+        }
+    }
+    assumption_ids.sort();
+    assumption_ids.dedup();
+    if dims.len() > MAX_UNKNOWN_DIMENSIONS {
+        return Err(EvidenceRefusal::TooManyUnknowns(dims.len()));
+    }
+    let identity = quantity.identity();
+    let finish = |unresolved: Vec<UnresolvedReason>,
+                  point: Option<(f64, f64)>,
+                  sampling: Option<SamplingInterval>,
+                  vertices: Vec<SamplingInterval>,
+                  range: Option<AssumedRange>| {
+        let standing = if !unresolved.is_empty() {
+            Standing::Unresolved
+        } else if range.is_some() {
+            Standing::AssumptionDependent
+        } else {
+            Standing::Sampled
+        };
+        DerivedResult {
+            name: quantity.name.clone(),
+            units: quantity.units.clone(),
+            treated_value: point.map(|p| p.0),
+            control_value: point.map(|p| p.1),
+            contrast: point.map(|p| p.0 - p.1),
+            sampling,
+            sampling_at_vertices: vertices,
+            assumption_range: range,
+            unresolved,
+            standing,
+            license: "none",
+            calibration: "unmeasured",
+            interval_statement: DELTA_METHOD_STATEMENT,
+            separation: SEPARATION_STATEMENT,
+            quantity_identity: identity.clone(),
+        }
+    };
+    if !unresolved.is_empty() {
+        return Ok(finish(unresolved, None, None, Vec::new(), None));
+    }
+
+    // Apply a vertex (bit mask) or the midpoint to the arm input vectors.
+    let apply = |mask: Option<usize>| -> (Vec<f64>, Vec<f64>) {
+        let (mut t, mut c) = (base_t.clone(), base_c.clone());
+        for (d, dim) in dims.iter().enumerate() {
+            let v = match mask {
+                Some(m) => {
+                    if (m >> d) & 1 == 1 {
+                        dim.upper
+                    } else {
+                        dim.lower
+                    }
+                }
+                None => 0.5 * (dim.lower + dim.upper),
+            };
+            match dim.kind {
+                DimKind::Shared(k) => {
+                    t[k] = v;
+                    c[k] = v;
+                }
+                DimKind::Treated(k) => t[k] = v,
+                DimKind::Control(k) => c[k] = v,
+                DimKind::Spill(comp) => {
+                    for (k, s) in slot.iter().enumerate() {
+                        if *s == Some(comp) {
+                            t[k] += v;
+                        }
+                    }
+                }
+            }
+        }
+        (t, c)
+    };
+    let sampling_at = |t: &[f64], c: &[f64]| -> Option<SamplingInterval> {
+        let (vt, gt) = expr::value_and_gradient(&quantity.expr, t)?;
+        let (vc, gc) = expr::value_and_gradient(&quantity.expr, c)?;
+        let k = evidence.components.len();
+        let (mut ht, mut hc) = (vec![0.0; k], vec![0.0; k]);
+        for (i, s) in slot.iter().enumerate() {
+            if let Some(s) = s {
+                ht[*s] += gt[i];
+                hc[*s] += gc[i];
+            }
+        }
+        let quad = |h: &[f64], m: &[f64], full: bool| -> f64 {
+            if full {
+                (0..k).map(|i| (0..k).map(|j| h[i] * m[i * k + j] * h[j]).sum::<f64>()).sum()
+            } else {
+                (0..k).map(|i| h[i] * h[i] * m[i]).sum()
+            }
+        };
+        let var = match &evidence.dependence {
+            Dependence::Joint { treated, control } => {
+                quad(&ht, treated, true) + quad(&hc, control, true)
+            }
+            Dependence::MarginalsOnly { treated, control } => {
+                quad(&ht, treated, false) + quad(&hc, control, false)
+            }
+        };
+        let se = var.max(0.0).sqrt();
+        let est = vt - vc;
+        Some(SamplingInterval {
+            estimate: est,
+            standard_error: se,
+            lower: est - Z95 * se,
+            upper: est + Z95 * se,
+        })
+    };
+
+    // Components read by the expression at all.
+    let mut read: Vec<usize> = slot.iter().flatten().copied().collect();
+    read.sort_unstable();
+    read.dedup();
+    let marginals_only_combination =
+        matches!(evidence.dependence, Dependence::MarginalsOnly { .. }) && read.len() > 1;
+
+    let (mt, mc) = apply(None);
+    let point = match (expr::value(&quantity.expr, &mt), expr::value(&quantity.expr, &mc)) {
+        (Some(a), Some(b)) => Some((a, b)),
+        _ => {
+            return Err(EvidenceRefusal::Invalid(
+                "the expression is not finite at the evidence".into(),
+            ));
+        }
+    };
+    let mut unresolved = Vec::new();
+    let (sampling, vertices) = if marginals_only_combination {
+        unresolved.push(UnresolvedReason::JointLawMissing);
+        (None, Vec::new())
+    } else if expr::has_kink(&quantity.expr) {
+        unresolved.push(UnresolvedReason::SamplingUnavailable);
+        (None, Vec::new())
+    } else {
+        let mid = sampling_at(&mt, &mc);
+        let mut vs = Vec::new();
+        if !dims.is_empty() {
+            for mask in 0..(1usize << dims.len()) {
+                let (t, c) = apply(Some(mask));
+                if let Some(s) = sampling_at(&t, &c) {
+                    vs.push(s);
+                }
+            }
+        }
+        (mid, vs)
+    };
+
+    let range = if dims.is_empty() {
+        None
+    } else {
+        let read_once_per_component = {
+            let mut seen = std::collections::BTreeSet::new();
+            slot.iter().flatten().all(|c| seen.insert(*c))
+        };
+        let exact = expr::is_multilinear(&quantity.expr) && read_once_per_component;
+        let (lo, hi) = if exact {
+            let mut lo = f64::INFINITY;
+            let mut hi = f64::NEG_INFINITY;
+            for mask in 0..(1usize << dims.len()) {
+                let (t, c) = apply(Some(mask));
+                let v = expr::value(&quantity.expr, &t)
+                    .zip(expr::value(&quantity.expr, &c))
+                    .map(|(a, b)| a - b)
+                    .ok_or_else(|| {
+                        EvidenceRefusal::Invalid(
+                            "expression is not finite on the assumption set".into(),
+                        )
+                    })?;
+                lo = lo.min(v);
+                hi = hi.max(v);
+            }
+            (lo, hi)
+        } else {
+            let (mut lt, mut ut, mut lc, mut uc) =
+                (base_t.clone(), base_t.clone(), base_c.clone(), base_c.clone());
+            for dim in &dims {
+                match dim.kind {
+                    DimKind::Shared(k) => {
+                        (lt[k], ut[k], lc[k], uc[k]) = (dim.lower, dim.upper, dim.lower, dim.upper);
+                    }
+                    DimKind::Treated(k) => (lt[k], ut[k]) = (dim.lower, dim.upper),
+                    DimKind::Control(k) => (lc[k], uc[k]) = (dim.lower, dim.upper),
+                    DimKind::Spill(comp) => {
+                        for (k, s) in slot.iter().enumerate() {
+                            if *s == Some(comp) {
+                                lt[k] += dim.lower;
+                                ut[k] += dim.upper;
+                            }
+                        }
+                    }
+                }
+            }
+            let (a, b) = expr::enclosure(&quantity.expr, &lt, &ut)
+                .zip(expr::enclosure(&quantity.expr, &lc, &uc))
+                .map(|(t, c)| ((t.0, t.1), (c.0, c.1)))
+                .ok_or_else(|| {
+                    EvidenceRefusal::Invalid(
+                        "expression is not finite on the assumption set".into(),
+                    )
+                })?;
+            (a.0 - b.1, a.1 - b.0)
+        };
+        Some(AssumedRange {
+            lower: lo,
+            upper: hi,
+            exact,
+            assumption_ids: assumption_ids.clone(),
+            dimensions: dims.len(),
+        })
+    };
+    Ok(finish(unresolved, point, sampling, vertices, range))
+}
+
+/// The two actions a decision compares and the rule that separates them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecisionFrame {
+    /// Action implemented by the treated regime.
+    pub treated_action: String,
+    /// Action implemented by the control regime.
+    pub control_action: String,
+    /// The treated action is preferred when the contrast exceeds this threshold.
+    pub threshold: f64,
+}
+
+impl DecisionFrame {
+    /// Identity of the decision rule (not of the evidence).
+    #[must_use]
+    pub fn rule_identity(&self) -> String {
+        let mut w = CanonicalWriter::new("antecedent.decision_evidence.decision_rule.v1");
+        w.text(&self.treated_action).text(&self.control_action).real(self.threshold);
+        w.finish_hex()
+    }
+}
+
+/// Which action a decision favors.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Arm {
+    /// The treated action.
+    Treated,
+    /// The control action.
+    Control,
+}
+
+/// Classification of a decision.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Verdict {
+    /// One action is preferred under sampling uncertainty and under every declared assumption.
+    Robust {
+        /// Preferred action name.
+        action: String,
+    },
+    /// Sampling resolves the decision at every admissible assumption, but the preferred action
+    /// changes inside the declared assumption range.
+    AssumptionDependent {
+        /// Assumptions the preference depends on.
+        assumption_ids: Vec<String>,
+        /// Preferred action at the lowest contrast.
+        at_lower: String,
+        /// Preferred action at the highest contrast.
+        at_upper: String,
+    },
+    /// The decision cannot be stated; the reasons say what is missing.
+    Unresolved {
+        /// Reasons.
+        reasons: Vec<UnresolvedReason>,
+    },
+}
+
+/// A decision and the derived quantity it rests on.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecisionResult {
+    /// The frame.
+    pub frame: DecisionFrame,
+    /// The evidence it rests on.
+    pub derived: DerivedResult,
+    /// The classification.
+    pub verdict: Verdict,
+    /// Statement that a classification is not a probability.
+    pub statement: &'static str,
+}
+
+/// Classify a decision over a derived quantity.
+///
+/// # Errors
+///
+/// Those of [`derive`].
+pub fn decide(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+    frame: &DecisionFrame,
+) -> Result<DecisionResult, EvidenceRefusal> {
+    if frame.treated_action == frame.control_action || !frame.threshold.is_finite() {
+        return Err(EvidenceRefusal::FrameShape);
+    }
+    let derived = derive(evidence, request, quantity)?;
+    let t = frame.threshold;
+    let side = |lo: f64, hi: f64| -> Option<bool> {
+        if lo > t {
+            Some(true)
+        } else if hi < t {
+            Some(false)
+        } else {
+            None
+        }
+    };
+    let name = |treated: bool| {
+        if treated { frame.treated_action.clone() } else { frame.control_action.clone() }
+    };
+    let verdict = if !derived.unresolved.is_empty() {
+        Verdict::Unresolved { reasons: derived.unresolved.clone() }
+    } else {
+        let intervals: Vec<&SamplingInterval> = if derived.sampling_at_vertices.is_empty() {
+            derived.sampling.iter().collect()
+        } else {
+            derived.sampling_at_vertices.iter().collect()
+        };
+        let sides: Vec<Option<bool>> = intervals.iter().map(|s| side(s.lower, s.upper)).collect();
+        if sides.is_empty() || sides.iter().any(Option::is_none) {
+            Verdict::Unresolved { reasons: vec![UnresolvedReason::SamplingStraddlesThreshold] }
+        } else {
+            let all_true = sides.iter().all(|s| *s == Some(true));
+            let all_false = sides.iter().all(|s| *s == Some(false));
+            match &derived.assumption_range {
+                Some(r) if !(all_true || all_false) || side(r.lower, r.upper).is_none() => {
+                    Verdict::AssumptionDependent {
+                        assumption_ids: r.assumption_ids.clone(),
+                        at_lower: name(r.lower > t),
+                        at_upper: name(r.upper > t),
+                    }
+                }
+                _ => Verdict::Robust { action: name(all_true) },
+            }
+        }
+    };
+    Ok(DecisionResult {
+        frame: frame.clone(),
+        derived,
+        verdict,
+        statement: "a classification over declared assumptions; it is not a probability and no assumption range was turned into one",
+    })
+}
+
+#[cfg(test)]
+pub(super) mod tests {
+    use super::super::*;
+    use super::*;
+
+    pub(in super::super) fn evidence(
+        t_cov_scale: f64,
+        exposure: Exposure,
+    ) -> JointExperimentEvidence {
+        let comps = ["frequency", "value", "cost"]
+            .iter()
+            .map(|n| OutcomeComponent {
+                name: (*n).into(),
+                variable_id: format!("v.{n}"),
+                units: "u".into(),
+            })
+            .collect();
+        // Arm means; frequency and value are negatively correlated in the treated arm.
+        let treated = vec![
+            0.0004 * t_cov_scale,
+            -0.0001 * t_cov_scale,
+            0.0,
+            -0.0001 * t_cov_scale,
+            0.04 * t_cov_scale,
+            0.0,
+            0.0,
+            0.0,
+            0.01 * t_cov_scale,
+        ];
+        let control = vec![
+            0.0003 * t_cov_scale,
+            0.0,
+            0.0,
+            0.0,
+            0.03 * t_cov_scale,
+            0.0,
+            0.0,
+            0.0,
+            0.01 * t_cov_scale,
+        ];
+        JointExperimentEvidence::new(
+            "exp-1",
+            "pop",
+            ("ship", "hold"),
+            4,
+            comps,
+            (vec![2.2, 12.0, 6.0], vec![2.0, 11.0, 6.0]),
+            Dependence::Joint { treated, control },
+            DesignRecord {
+                assignment_design: "cluster".into(),
+                treated_units: 30,
+                control_units: 30,
+                outcome_rows: 480,
+            },
+            vec![],
+            exposure,
+        )
+        .unwrap()
+    }
+
+    pub(in super::super) fn request() -> Request {
+        Request {
+            population_id: "pop".into(),
+            treated_regime_id: "ship".into(),
+            control_regime_id: "hold".into(),
+            horizon: 4,
+            target: Target::ExperimentalContrast,
+        }
+    }
+
+    pub(in super::super) fn margin(cost: InputBinding) -> DerivedQuantity {
+        DerivedQuantity {
+            name: "margin".into(),
+            units: "currency".into(),
+            expr: UtilityExpr::product(
+                UtilityExpr::Input(0),
+                UtilityExpr::difference(UtilityExpr::Input(1), UtilityExpr::Input(2)),
+            ),
+            inputs: vec![
+                InputBinding::Measured("frequency".into()),
+                InputBinding::Measured("value".into()),
+                cost,
+            ],
+        }
+    }
+
+    pub(in super::super) fn no_interference() -> Exposure {
+        Exposure::NoBetweenUnitInterference { assumption_id: "a.sutva".into() }
+    }
+
+    #[test]
+    fn derived_margin_is_a_delta_method_function_of_means() {
+        let r = derive(
+            &evidence(1.0, no_interference()),
+            &request(),
+            &margin(InputBinding::Measured("cost".into())),
+        )
+        .unwrap();
+        // treated 2.2*(12-6)=13.2 ; control 2.0*(11-6)=10.0
+        assert!((r.contrast.unwrap() - 3.2).abs() < 1e-12);
+        let s = r.sampling.unwrap();
+        assert!(s.standard_error > 0.0 && s.lower < 3.2 && s.upper > 3.2);
+        assert_eq!(r.standing, Standing::Sampled);
+        assert_eq!((r.license, r.calibration), ("none", "unmeasured"));
+    }
+
+    #[test]
+    fn joint_covariance_enters_the_standard_error() {
+        let ev = evidence(1.0, no_interference());
+        let mut marginal_cov = ev.clone();
+        if let Dependence::Joint { treated, .. } = &mut marginal_cov.dependence {
+            treated[1] = 0.0;
+            treated[3] = 0.0;
+        }
+        let q = margin(InputBinding::Measured("cost".into()));
+        let with = derive(&ev, &request(), &q).unwrap().sampling.unwrap().standard_error;
+        let without =
+            derive(&marginal_cov, &request(), &q).unwrap().sampling.unwrap().standard_error;
+        assert!((with - without).abs() > 1e-6, "dropping the covariance must change the answer");
+    }
+
+    #[test]
+    fn marginals_only_refuses_a_cross_component_function_but_not_a_single_component() {
+        let mut ev = evidence(1.0, no_interference());
+        ev.dependence = Dependence::MarginalsOnly {
+            treated: vec![0.0004, 0.04, 0.01],
+            control: vec![0.0003, 0.03, 0.01],
+        };
+        let r = derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).unwrap();
+        assert_eq!(r.unresolved, vec![UnresolvedReason::JointLawMissing]);
+        assert!(r.sampling.is_none() && r.contrast.is_some());
+        let single = DerivedQuantity {
+            name: "frequency_gain".into(),
+            units: "u".into(),
+            expr: UtilityExpr::Input(0),
+            inputs: vec![InputBinding::Measured("frequency".into())],
+        };
+        assert!(derive(&ev, &request(), &single).unwrap().sampling.is_some());
+    }
+
+    #[test]
+    fn assumed_cost_gives_a_separate_range_and_never_a_sampling_interval() {
+        let cost = InputBinding::Assumed {
+            lower: 4.0,
+            upper: 11.0,
+            assumption_id: "a.cost".into(),
+            shared_across_arms: true,
+        };
+        let r = derive(&evidence(1.0, no_interference()), &request(), &margin(cost)).unwrap();
+        let range = r.assumption_range.clone().unwrap();
+        assert!(
+            range.exact
+                && range.dimensions == 1
+                && (range.lower - 2.2).abs() < 1e-9
+                && (range.upper - 3.6).abs() < 1e-9
+        );
+        assert_eq!(r.standing, Standing::AssumptionDependent);
+        assert_eq!(r.sampling_at_vertices.len(), 2);
+    }
+
+    #[test]
+    fn missing_input_is_unresolved_not_defaulted() {
+        let r = derive(
+            &evidence(1.0, no_interference()),
+            &request(),
+            &margin(InputBinding::Missing { what: "unit cost".into() }),
+        )
+        .unwrap();
+        assert_eq!(r.standing, Standing::Unresolved);
+        assert!(r.contrast.is_none() && r.sampling.is_none() && r.assumption_range.is_none());
+    }
+
+    #[test]
+    fn requests_outside_the_evidence_are_refused_with_a_next_attempt() {
+        let ev = evidence(1.0, no_interference());
+        let q = margin(InputBinding::Measured("cost".into()));
+        let mut r = request();
+        r.horizon = 8;
+        assert_eq!(
+            derive(&ev, &r, &q).unwrap_err().reason_code(),
+            "decision_evidence.incompatible_horizon"
+        );
+        let mut r = request();
+        r.target = Target::Deployment { bridge_assumption_id: None };
+        let e = derive(&ev, &r, &q).unwrap_err();
+        assert_eq!(e, EvidenceRefusal::DeploymentBridgeMissing);
+        assert!(!e.next_attempt().is_empty());
+        let e = derive(&evidence(1.0, Exposure::Unspecified), &request(), &q).unwrap_err();
+        assert_eq!(e, EvidenceRefusal::InterferenceUnspecified);
+        let mut r = request();
+        r.target = Target::Deployment { bridge_assumption_id: Some("a.bridge".into()) };
+        let ok = derive(&ev, &r, &q).unwrap();
+        assert!(ok.sampling.is_some());
+    }
+
+    #[test]
+    fn spillover_bound_widens_into_an_assumption_range() {
+        let ev = evidence(
+            1.0,
+            Exposure::BoundedSpillover {
+                assumption_id: "a.spill".into(),
+                bias_bounds: vec![0.1, 0.5, 0.0],
+            },
+        );
+        let r = derive(&ev, &request(), &margin(InputBinding::Measured("cost".into()))).unwrap();
+        let range = r.assumption_range.unwrap();
+        assert_eq!(range.dimensions, 2);
+        assert!(range.assumption_ids.contains(&"a.spill".to_owned()));
+        assert!(range.lower < 3.2 && range.upper > 3.2);
+    }
+
+    #[test]
+    fn decision_is_robust_assumption_dependent_or_unresolved() {
+        let frame = DecisionFrame {
+            treated_action: "ship".into(),
+            control_action: "hold".into(),
+            threshold: 0.0,
+        };
+        let measured = margin(InputBinding::Measured("cost".into()));
+        let r = decide(&evidence(0.05, no_interference()), &request(), &measured, &frame).unwrap();
+        assert_eq!(r.verdict, Verdict::Robust { action: "ship".into() });
+
+        let cost = InputBinding::Assumed {
+            lower: 4.0,
+            upper: 11.0,
+            assumption_id: "a.cost".into(),
+            shared_across_arms: true,
+        };
+        let bar = DecisionFrame { threshold: 2.5, ..frame.clone() };
+        let r = decide(&evidence(0.05, no_interference()), &request(), &margin(cost.clone()), &bar)
+            .unwrap();
+        assert!(
+            matches!(r.verdict, Verdict::AssumptionDependent { .. }),
+            "{:?} {:?}",
+            r.verdict,
+            r.derived.sampling_at_vertices
+        );
+
+        let r = decide(&evidence(400.0, no_interference()), &request(), &measured, &frame).unwrap();
+        assert_eq!(
+            r.verdict,
+            Verdict::Unresolved { reasons: vec![UnresolvedReason::SamplingStraddlesThreshold] }
+        );
+
+        let r = decide(
+            &evidence(0.05, no_interference()),
+            &request(),
+            &margin(InputBinding::Missing { what: "cost".into() }),
+            &frame,
+        )
+        .unwrap();
+        assert!(matches!(r.verdict, Verdict::Unresolved { .. }));
+    }
+
+    #[test]
+    fn a_threshold_change_changes_only_the_rule_identity() {
+        let frame = DecisionFrame {
+            treated_action: "ship".into(),
+            control_action: "hold".into(),
+            threshold: 0.0,
+        };
+        let other = DecisionFrame { threshold: 1.0, ..frame.clone() };
+        assert_ne!(frame.rule_identity(), other.rule_identity());
+        let q = margin(InputBinding::Measured("cost".into()));
+        let a = decide(&evidence(1.0, no_interference()), &request(), &q, &frame).unwrap();
+        let b = decide(&evidence(1.0, no_interference()), &request(), &q, &other).unwrap();
+        assert_eq!(a.derived.quantity_identity, b.derived.quantity_identity);
+    }
+}
