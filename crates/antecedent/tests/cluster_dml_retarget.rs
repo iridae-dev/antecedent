@@ -114,6 +114,26 @@ fn close(a: f64, b: f64, what: &str) {
     assert!((a - b).abs() <= 1e-9 * (1.0 + a.abs().max(b.abs())), "{what}: {a} vs {b}");
 }
 
+// A declared schema-2 record and basis exercise construction/scope routing only.
+// They do not claim that the copied historical measurements attest this execution.
+fn routing_record(
+    mut record: antecedent_io::coverage_records_data::CoverageRecord,
+    id: &'static str,
+) -> antecedent_io::coverage_records_data::CoverageRecord {
+    record.id = id;
+    record.validation_schema = 2;
+    record.validation = "none";
+    record
+}
+
+fn routing_basis(
+    mut basis: antecedent_io::calibration::CalibrationBasisWire,
+) -> antecedent_io::calibration::CalibrationBasisWire {
+    assert_eq!(basis.key.structure, "fixed");
+    basis.key.validation = "none".into();
+    basis
+}
+
 /// The published interval of a cluster-DML result is `estimate +- t_{G-1} * se`, not the normal
 /// interval, and a result without a declared reference keeps the normal quantile.
 #[test]
@@ -128,6 +148,8 @@ fn the_published_interval_uses_the_few_cluster_t_reference() {
         .iter()
         .find(|record| record.test.ends_with("::cluster_dml_t_wald_interval"))
         .expect("the unweighted Student construction was measured");
+    let basis = routing_basis(basis);
+    let measured = routing_record(measured, "cov.fixture.student.v2_validation_none");
     assert_eq!(
         antecedent_io::calibration::calibration_slot_in(&basis, &[measured]).record_id.as_deref(),
         Some(measured.id),
@@ -174,6 +196,8 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
                 && record.nominal.to_bits() == 0.95_f64.to_bits()
         })
         .unwrap();
+    let student = routing_record(student, "cov.fixture.student.v2_validation_none");
+    let normal = routing_record(normal, "cov.fixture.normal.v2_validation_none");
     assert!(student.n_min <= 800 && student.n_max >= 800);
     for rows in [800, 1000] {
         let fx = fixture_with_groups(5, rows / SIZE);
@@ -195,6 +219,7 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
         assert_eq!(basis.key.interval_method, "analytic_se");
         assert_eq!(basis.key.se_kind, "cluster");
         assert_eq!(basis.key.dependence, "iid", "historical normal key convention");
+        let basis = routing_basis(basis);
         let selected = calibration_slot_in(&basis, &[student, normal]);
         assert_eq!(selected.record_id.as_deref(), Some(normal.id));
         assert_eq!(selected.status, if rows == 800 { "scope_not_assessed" } else { "calibrated" });
@@ -254,8 +279,9 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
         );
         assert_eq!(basis.key.functional, "all_observed.mean+reference=cluster_df+weights=sampling");
         assert_eq!(basis.key.dependence, "cluster");
-        let mut historical = template;
-        historical.id = "cov.fixture.historical_normal_cluster";
+        let basis = routing_basis(basis);
+        let mut historical =
+            routing_record(template, "cov.fixture.historical_normal_cluster.v2_validation_none");
         historical.estimator = match basis.key.estimator.as_str() {
             "aipw" => "aipw",
             "dml" => "dml",
@@ -267,7 +293,7 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
         historical.grid = &[];
         assert!(calibration_slot_in(&basis, &[historical]).record_id.is_none());
         let mut student = historical;
-        student.id = "cov.fixture.student_cluster";
+        student.id = "cov.fixture.student_cluster.v2_validation_none";
         student.interval_method = "student_analytic";
         student.functional = "all_observed.mean+reference=cluster_df+weights=sampling";
         let selected = calibration_slot_in(&basis, &[historical, student]);
@@ -293,7 +319,8 @@ fn weighted_cluster_student_calibration_matches_its_actual_reference() {
     assert_eq!(result.estimate().as_effect().unwrap().uncertainty.analytic.reference_df, None);
     assert_eq!(basis.key.se_kind, "cluster");
     assert_eq!(basis.key.dependence, "cluster");
-    let mut normal = template;
+    let basis = routing_basis(basis);
+    let mut normal = routing_record(template, "cov.fixture.weighted_normal.v2_validation_none");
     normal.n_min = 1;
     normal.n_max = u64::MAX;
     normal.grid = &[];

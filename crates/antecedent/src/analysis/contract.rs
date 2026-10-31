@@ -1724,10 +1724,18 @@ mod frontdoor_artifact_tests {
             prepared.execution_record_with_quantity_labels(&result, &context, None).unwrap();
         let bytes = prepared.encode_contracted_result(&result, "frontdoor", &context).unwrap();
         let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
-        assert!(
-            intact.acceptance.accepts_as_verified_program(),
-            "{:?}",
-            intact.acceptance.unresolved
+        // The checked lowering binds the program, but the artifact does not carry
+        // a portable replay of the fitted operation. It remains readable and
+        // unresolved even when its procedure is internally consistent.
+        assert!(!intact.acceptance.accepts_as_verified_program());
+        assert_eq!(
+            intact
+                .acceptance
+                .unresolved
+                .iter()
+                .map(|reason| reason.as_ref())
+                .collect::<Vec<&str>>(),
+            ["dependencies.checked_estimator_operation"]
         );
 
         let (artifact, _header, body) =
@@ -1900,7 +1908,7 @@ mod checked_iv_artifact_tests {
     }
 
     #[test]
-    fn checked_wald_and_binary_2sls_artifacts_verify_and_rehashed_procedure_tampering_fails() {
+    fn checked_wald_and_binary_2sls_lowerings_bind_and_rehashed_procedure_tampering_fails() {
         let data = fixture();
         let graph = Dag::from_named_edges(data.schema(), &[("z", "t"), ("t", "y")]).unwrap();
         let query = AverageEffectQuery::binary_ate(
@@ -1927,10 +1935,18 @@ mod checked_iv_artifact_tests {
             let result = prepared.estimate(&data, &context).unwrap();
             let bytes = prepared.encode_contracted_result(&result, "iv", &context).unwrap();
             let intact = antecedent_io::consume_analysis_result(&bytes).unwrap();
-            assert!(
-                intact.acceptance.accepts_as_verified_program(),
-                "{expected}: {:?}",
-                intact.acceptance.unresolved
+            // The checked IV lowering proves its binding, not a replay of the
+            // published estimate. The intact artifact is readable but unresolved.
+            assert!(!intact.acceptance.accepts_as_verified_program());
+            assert_eq!(
+                intact
+                    .acceptance
+                    .unresolved
+                    .iter()
+                    .map(|reason| reason.as_ref())
+                    .collect::<Vec<&str>>(),
+                ["dependencies.checked_estimator_operation"],
+                "{expected}"
             );
             let (artifact, _, _) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
             let contract =

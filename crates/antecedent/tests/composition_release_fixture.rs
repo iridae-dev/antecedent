@@ -532,17 +532,29 @@ fn new_observations_revalidate_the_claim_graph_and_the_decision_is_reevaluated()
     assert_eq!(selected(&revised.result), text(&rv["selected"]));
     assert_ne!(revised.plan_identity, previous_plan);
 
-    // The classification against the earlier graph: what rested on study B is
-    // recomputed; what did not is still valid and keeps its numbers.
+    // The old claims that rested on study B lose authority when its evidence
+    // changes; independent claims remain valid. The replacement graph is usable.
     let moved = verify(Some(&previous), &revised.graph, &revised.session, pooled.result);
     assert_eq!(
-        moved.revalidation().keys_of(Revalidation::Recompute),
+        moved.revalidation().keys_of(Revalidation::Withdrawn),
         vec!["claim", "decision", "mechanisms", "pooled_effect", "study_b"]
     );
     assert_eq!(
         moved.revalidation().keys_of(Revalidation::StillValid),
         vec!["measurement", "study_a", "survey"]
     );
+    assert!(moved.revalidation().keys_of(Revalidation::Recompute).is_empty());
+    for key in ["claim", "decision", "mechanisms", "pooled_effect", "study_b"] {
+        let claim = moved.revalidation().claim(key).expect("revalidated claim");
+        assert!(
+            claim.withdrawals.iter().any(|withdrawal| {
+                withdrawal.kind.as_str() == "retired"
+                    && withdrawal.origin == "study_b"
+                    && withdrawal.detail == "evidence_changed"
+            }),
+            "{key} should reflect the replaced study evidence: {claim:?}"
+        );
+    }
     // And the recomputed decision is usable against its own graph.
     assert!(gate(&revised.graph, &revised.session, pooled.result).is_none());
 

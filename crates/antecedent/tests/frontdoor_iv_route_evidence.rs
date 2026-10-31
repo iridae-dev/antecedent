@@ -193,10 +193,13 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
         )
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{coordinate} artifact refusal: {:?}",
-        consumed.acceptance.unresolved
+    // The checked lowering binds the route; portable replay of the fitted
+    // estimator operation remains unresolved until R11 is implemented.
+    assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+    assert_eq!(
+        consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
+        ["dependencies.checked_estimator_operation"],
+        "{coordinate}"
     );
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact estimate");
 }
@@ -252,11 +255,7 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
     assert_eq!(checked.lowering().treatment, VariableId::from_raw(0), "{coordinate}");
     assert_eq!(checked.lowering().outcome, VariableId::from_raw(1), "{coordinate}");
     let result = prepared.estimate(&data, &context).unwrap();
-    assert!(
-        (result.effect() - IV_REFERENCE).abs() < 1e-9,
-        "{coordinate}: {}",
-        result.effect()
-    );
+    assert!((result.effect() - IV_REFERENCE).abs() < 1e-9, "{coordinate}: {}", result.effect());
     assert!(
         (result.effect() - reference.effect()).abs() < 1e-12,
         "{coordinate} changed result vs fresh route"
@@ -280,10 +279,13 @@ fn verify_iv(accepted: bool, validation: &str, wald: bool) {
         )
         .unwrap();
     let consumed = consume_analysis_result(&artifact).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{coordinate} artifact refusal: {:?}",
-        consumed.acceptance.unresolved
+    // The checked lowering binds the route; portable replay of the fitted
+    // estimator operation remains unresolved until R11 is implemented.
+    assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
+    assert_eq!(
+        consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
+        ["dependencies.checked_estimator_operation"],
+        "{coordinate}"
     );
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact estimate");
 }

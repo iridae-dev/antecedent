@@ -319,7 +319,8 @@ fn graph_posterior_admg_response_curve_is_sealed_for_both_inference_modes() {
         let builder = Study::tabular(data.clone())
             .graph_posterior(posterior.clone())
             .query(CausalQuery::Response(query.clone()))
-            .inference(inference);
+            .inference(inference)
+            .refute(RefuteSuite::None);
         let study = builder.clone().build().unwrap();
         let mut prepared = study.prepare(&ctx).unwrap();
         drop(builder);

@@ -97,10 +97,16 @@ fn checked_iv_refresh_publishes_the_refreshed_row_count() {
         .unwrap();
         let artifact = prepared.encode_contracted_result(&refreshed, "iv", &context).unwrap();
         let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-        assert!(
-            consumed.acceptance.accepts_as_verified_program(),
-            "unresolved={:?}",
-            consumed.acceptance.unresolved
+        // The lowering binds, but the fitted operation has no portable replay yet.
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert_eq!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .map(|reason| reason.as_ref())
+                .collect::<Vec<&str>>(),
+            ["dependencies.checked_estimator_operation"]
         );
         let published = consumed
             .contract

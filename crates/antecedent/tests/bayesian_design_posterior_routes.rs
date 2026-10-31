@@ -36,7 +36,8 @@ fn close(left: f64, right: f64, tolerance: f64) {
 
 /// The artifact encoder refuses a forged wire with this convert error naming `reason`.
 fn assert_refused<T>(outcome: Result<T, impl std::fmt::Display>, reason: &str, what: &str) {
-    let text = outcome.err().unwrap_or_else(|| panic!("{what}: the forged wire was encoded")).to_string();
+    let text =
+        outcome.err().unwrap_or_else(|| panic!("{what}: the forged wire was encoded")).to_string();
     assert!(text.contains("convert error") && text.contains(reason), "{what}: {text}");
 }
 
@@ -206,23 +207,47 @@ fn survival_posterior_artifact_round_trips_and_refuses_forgeries() {
     };
     let mut licensed = body.clone();
     licensed.posterior_row.as_mut().unwrap().licensed = true;
-    assert_refused(encode(&licensed), "a posterior row must be an unlicensed, unmeasured-calibration posterior", "licensed");
+    assert_refused(
+        encode(&licensed),
+        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "licensed",
+    );
     let mut calibrated = body.clone();
     calibrated.posterior_row.as_mut().unwrap().calibration = "measured".into();
-    assert_refused(encode(&calibrated), "a posterior row must be an unlicensed, unmeasured-calibration posterior", "calibrated");
+    assert_refused(
+        encode(&calibrated),
+        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "calibrated",
+    );
     let mut misaligned = body.clone();
     misaligned.posterior_row.as_mut().unwrap().covariance = Some(vec![0.0; 3]);
-    assert_refused(encode(&misaligned), "a posterior row must be an unlicensed, unmeasured-calibration posterior", "misaligned");
+    assert_refused(
+        encode(&misaligned),
+        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "misaligned",
+    );
     let mut inverted = body.clone();
     let row = inverted.posterior_row.as_mut().unwrap();
     std::mem::swap(&mut row.lower, &mut row.upper);
-    assert_refused(encode(&inverted), "a posterior row must be an unlicensed, unmeasured-calibration posterior", "inverted");
+    assert_refused(
+        encode(&inverted),
+        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "inverted",
+    );
     let mut without_posterior = body.clone();
     without_posterior.posterior_artifact = None;
-    assert_refused(encode(&without_posterior), "a posterior row is attached to a query without its Bayesian counterpart", "without posterior artifact");
+    assert_refused(
+        encode(&without_posterior),
+        "a posterior row is attached to a query without its Bayesian counterpart",
+        "without posterior artifact",
+    );
     let mut beside_frequentist = body;
     beside_frequentist.survival = Some(frequentist_section());
-    assert_refused(encode(&beside_frequentist), "a posterior row is attached to a query without its Bayesian counterpart", "beside frequentist section");
+    assert_refused(
+        encode(&beside_frequentist),
+        "a posterior row is attached to a query without its Bayesian counterpart",
+        "beside frequentist section",
+    );
 }
 
 /// A minimal frequentist section, to prove a posterior row never rides beside one.
@@ -455,7 +480,7 @@ fn dose_policy_artifact_round_trips_and_refuses_forgeries() {
     forged.posterior_row.as_mut().unwrap().licensed = true;
     assert_refused(
         antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names.clone(), "x"),
-        "a posterior row must be an unlicensed, unmeasured-calibration posterior",
+        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
         "licensed",
     );
     let mut missing = body;
@@ -639,10 +664,18 @@ fn quantile_posterior_artifact_round_trips_and_refuses_forgeries() {
     };
     let mut licensed = body.clone();
     licensed.posterior_row.as_mut().unwrap().licensed = true;
-    assert_refused(encode(&licensed), "a posterior row must be an unlicensed, unmeasured-calibration posterior", "licensed");
+    assert_refused(
+        encode(&licensed),
+        "a posterior row must have supported licensing semantics, unmeasured calibration and aligned finite arrays",
+        "licensed",
+    );
     let mut foreign = body.clone();
     foreign.posterior_row.as_mut().unwrap().estimator = "bayesian.piecewise_survival".into();
-    assert_refused(encode(&foreign), "a posterior row is attached to a query without its Bayesian counterpart", "foreign estimator");
+    assert_refused(
+        encode(&foreign),
+        "a posterior row is attached to a query without its Bayesian counterpart",
+        "foreign estimator",
+    );
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
     assert!(
         consumed.acceptance.unresolved.iter().any(|reason| {
