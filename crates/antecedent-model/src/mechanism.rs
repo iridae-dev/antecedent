@@ -563,13 +563,10 @@ pub fn infer_noise_column_rng(
             Ok(NoiseInferenceMode::Invertible)
         }
         MechanismSlot::Constant { value: c } => {
-            // `evaluate_column` ignores the noise of a constant, so a replay reproduces `c`
-            // whatever was abduced. Abduction is therefore only faithful on rows that equal
-            // the constant; any other row is refused instead of reported as "invertible".
-            let tol = 1e-9 * c.abs().max(1.0);
+            // Replay ignores the noise, so use the same deterministic support
+            // rule as log probability before reporting an inversion.
             for r in 0..n {
-                let deviation = (value[r] - *c).abs();
-                if deviation.is_nan() || deviation > tol {
+                if !constant_in_support(value[r], *c) {
                     return Err(ModelError::Numerical {
                         message: format!(
                             "constant mechanism ({c}) cannot reproduce the observed value {} at \
@@ -803,6 +800,12 @@ fn categorical_inverse_cdf_draw(
 /// Tolerance used for matching an observed deterministic constant.
 const SUPPORT_TOLERANCE: f64 = 1e-12;
 
+/// A finite observation is supported by a finite deterministic constant when
+/// their absolute difference is strictly below the existing support tolerance.
+fn constant_in_support(observed: f64, constant: f64) -> bool {
+    observed.is_finite() && constant.is_finite() && (observed - constant).abs() < SUPPORT_TOLERANCE
+}
+
 /// Floor applied to a tree classifier's class score before its logarithm. Tree scores are
 /// leaf-mean estimates rather than a normalised model, so a held-out category can score
 /// exactly zero; the floor is this estimator's explicit smoothing and is not applied to the
@@ -885,11 +888,8 @@ pub fn log_prob_column(
         }
         MechanismSlot::Constant { value } => {
             for r in 0..n {
-                output[r] = if (values[r] - *value).abs() < SUPPORT_TOLERANCE {
-                    0.0
-                } else {
-                    f64::NEG_INFINITY
-                };
+                output[r] =
+                    if constant_in_support(values[r], *value) { 0.0 } else { f64::NEG_INFINITY };
             }
             Ok(())
         }
@@ -1367,6 +1367,51 @@ mod tests {
         assert_eq!(noise, [0.0, 0.0]);
         let err = infer_noise_column(&slot, &[3.0, 3.5], parents, &mut noise).unwrap_err();
         assert!(matches!(err, ModelError::Numerical { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn constant_abduction_and_log_support_agree_at_boundaries() {
+        let parents = ParentBatch { n_rows: 1, n_parents: 0, values: &[] };
+        for (constant, observed, supported) in [
+            (0.0, 0.0, true),
+            (0.0, 0.5e-12, true),
+            (0.0, 1e-12, false),
+            (0.0, 2e-12, false),
+            (3.0, 3.0 + 1e-10, false),
+            (1e9, 1e9 + 0.5, false),
+            (1e9, 1e9, true),
+            (3.0, f64::NAN, false),
+            (3.0, f64::INFINITY, false),
+            (f64::INFINITY, 3.0, false),
+            (f64::INFINITY, f64::INFINITY, false),
+            (f64::NAN, 3.0, false),
+        ] {
+            let slot = MechanismSlot::Constant { value: constant };
+            let mut noise = [0.0];
+            let result = infer_noise_column(&slot, &[observed], parents, &mut noise);
+            let mut logp = [0.0];
+            log_prob_column(&slot, &[observed], parents, &mut logp).unwrap();
+            if supported {
+                assert!(result.is_ok(), "{constant}, {observed}: {result:?}");
+                assert_eq!(logp[0], 0.0);
+                let mut replay = [0.0];
+                evaluate_column(
+                    &slot,
+                    parents,
+                    &noise,
+                    &mut replay,
+                    &mut MechanismWorkspace::default(),
+                )
+                .unwrap();
+                assert!((replay[0] - observed).abs() < SUPPORT_TOLERANCE);
+            } else {
+                assert!(
+                    matches!(result, Err(ModelError::Numerical { .. })),
+                    "{constant}, {observed}: {result:?}"
+                );
+                assert_eq!(logp[0], f64::NEG_INFINITY);
+            }
+        }
     }
 
     /// Category probabilities of 1e-20 sit below the resolution of an `f64` uniform: the
