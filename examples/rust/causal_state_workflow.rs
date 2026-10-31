@@ -14,7 +14,8 @@
 //! `CausalState` as the primary online append path.
 //!
 //! 1. Append (or replace) data — state versions and marks registered queries stale.
-//! 2. Call `refresh_results` under the `CacheBudget` — never auto-reruns on append.
+//! 2. Capture the state version before computing; publish with `refresh_results_at`
+//!    under the `CacheBudget` — never auto-reruns on append.
 //! 3. UI code must key on `version` / stale queries so it never mixes an old
 //!    identification summary with a new estimate.
 //!
@@ -68,7 +69,9 @@ pub fn run() -> Result<(), CausalError> {
         VariableId::from_raw(0),
         VariableId::from_raw(1),
     )));
-    state.refresh_results(&[(qid, 1, 8)])?;
+    let computation_version = state.version;
+    let updates = [(qid, 1, 8)]; // Stand in for fingerprints computed from that snapshot.
+    state.refresh_results_at(computation_version, &updates)?;
     println!(
         "stale_queries={} batches={}",
         state.stale_queries().len(),
@@ -92,7 +95,9 @@ pub fn run() -> Result<(), CausalError> {
     apply_state_event(&mut state, StateEvent::ReplaceData(new_ver))?;
     println!("after replace stale={}", state.stale_queries().len());
     assert_eq!(state.stale_queries().len(), 1, "replacing data stales the registered query");
-    state.refresh_results(&[(qid, 1, 8)])?;
+    let computation_version = state.version;
+    let updates = [(qid, 1, 8)]; // Stand in for fingerprints computed from that snapshot.
+    state.refresh_results_at(computation_version, &updates)?;
     println!("after refresh stale={} version={}", state.stale_queries().len(), state.version.raw());
     assert_eq!(state.stale_queries().len(), 0);
     Ok(())
