@@ -17,7 +17,8 @@ Definitions written from the estimand, not from the product:
   CATE stratum, action a against control: scores 1{T=a} y / pi_a - 1{T=0} y / pi_0 over the rows of
     the stratum, mean and SE as above.
   uplift bin: scores y / e (treated), -y / (1 - e) (control), per bin; the singleton-bin
-    function reports zero error, the interval function refuses a singleton.
+    function reports an undefined (NaN) error, since a single score has no residual degrees of
+    freedom, and the interval function refuses a singleton.
   finite-class regret: candidate HT scores net of cost 1{a} c, the paired contrast with the selected
     candidate, regret = max(0, max_j d_j), simultaneous half-width z(1 - 0.05 / (2 (k - 1))) SE_j,
     lower = max(0, max_j (d_j - span_j)), upper = max(0, max_j (d_j + span_j)).

@@ -81,6 +81,7 @@ def estimate(feat, y, t, target, caliper):
     treated = [i for i in range(n_all) if t[i] > 0.5]
     control = [i for i in range(n_all) if t[i] <= 0.5]
     usage = [mpf(0)] * n_all
+    queried = [mpf(0)] * n_all
     effects, sizes = [], []
     passes = []
     if target in ("att", "ate"):
@@ -89,6 +90,7 @@ def estimate(feat, y, t, target, caliper):
         passes.append((match_arm(feat, y, control, treated, caliper), -1))
     for res, sign in passes:
         for q, tied, d in res:
+            queried[q] = mpf(1)
             effects.append(sign * d)
             sizes.append(len(tied))
             for j in tied:
@@ -99,7 +101,9 @@ def estimate(feat, y, t, target, caliper):
     inflation = sum(1 + mpf(1) / s for s in sizes) / n
     sigma2 = var / inflation
     if target == "ate":
-        weight = sum((1 + u) ** 2 for u in usage)
+        # A unit's outcome enters once as a retained query and once per share it donates; a
+        # unit dropped by the caliper that never donates contributes nothing.
+        weight = sum((queried[j] + usage[j]) ** 2 for j in range(n_all))
     else:
         weight = n + sum(u * u for u in usage)
     return tau, sqrt(sigma2 * weight / n**2), len(effects)

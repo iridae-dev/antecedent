@@ -229,7 +229,8 @@ fn regenerate(case: &Value, rows: usize, y: &[f64]) -> Value {
                     .stream_for(StreamDomain::TemporalBlock, derive_stream(BOOTSTRAP_STREAM, r));
                 fill_circular_block_indexes(rows, length, &mut rng, &mut index).unwrap();
             } else {
-                let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, BOOTSTRAP_STREAM ^ r);
+                let mut rng =
+                    ctx.rng.stream_for(StreamDomain::Resample, derive_stream(BOOTSTRAP_STREAM, r));
                 for slot in &mut index {
                     *slot = unbiased_index(&mut rng, rows);
                 }
@@ -242,7 +243,8 @@ fn regenerate(case: &Value, rows: usize, y: &[f64]) -> Value {
         let draws = case["bayes"]["draws"].as_u64().unwrap();
         let mut weights = Vec::new();
         for d in 0..draws {
-            let mut rng = ctx.rng.stream_for(StreamDomain::Estimate, POSTERIOR_STREAM ^ d);
+            let mut rng =
+                ctx.rng.stream_for(StreamDomain::Bayesian, derive_stream(POSTERIOR_STREAM, d));
             let count = length.map_or(rows, |l| rows.div_ceil(l));
             weights.push(bayesian_bootstrap_weights(&mut rng, count, false));
         }

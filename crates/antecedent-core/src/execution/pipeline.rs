@@ -145,9 +145,9 @@ impl ExecutionContext {
     /// [`Self::map_indexed_with_scratch`] that never waits for worker slots.
     ///
     /// The worker lease is taken in one immediate step. When the pool has fewer free slots
-    /// than requested, the map runs on as many workers as that refusal reported free;
-    /// serial execution still requires one available worker slot. A caller
-    /// that already holds other leases on this pool cannot be blocked by a competing study.
+    /// than requested, the map runs on as many workers as that refusal reported free; serial
+    /// execution still takes one worker slot and waits for it when a competing study holds
+    /// them all. A pool with no worker slots at all refuses at once.
     ///
     /// # Errors
     ///
@@ -223,9 +223,10 @@ impl ExecutionContext {
             MapWait::UntilAvailable => (requested, self.acquire_map_lease(requested)?),
             MapWait::IfFree => match self.acquire_map_lease_if_free(requested) {
                 Ok(value) => value,
-                Err(AdmissionError::ExceedsRemainder { .. }) => {
-                    (1, self.acquire_request(AdmissionRequest::new(1, 0), None)?)
-                }
+                // Under contention the map runs on its caller, which still needs one worker
+                // slot: it waits for that slot like every other map, so concurrent calls on a
+                // shared pool queue instead of refusing.
+                Err(AdmissionError::ExceedsRemainder { .. }) => (1, self.acquire_map_lease(1)?),
                 Err(error) => return Err(error.into()),
             },
         };
@@ -518,7 +519,7 @@ impl ExecutionContext {
         let Some((granted, lease)) = granted else {
             let worker = match enclosing {
                 Some(worker) => worker,
-                None => Arc::new(self.acquire_request(AdmissionRequest::new(1, 0), None)?),
+                None => Arc::new(self.acquire_map_lease(1)?),
             };
             return crate::numerical_admission::with_context(&inner, || {
                 crate::numerical_admission::with_worker(worker, || {

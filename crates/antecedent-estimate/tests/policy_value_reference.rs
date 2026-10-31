@@ -60,7 +60,8 @@ fn binary_scores_standard_errors_and_point_values_match_the_exact_scores() {
         let (costs, rcosts) = (floats(&case["costs"]), floats(&case["reference_costs"]));
         let n = y.len();
         // The reference script lists one propensity or cost per row; scalar cases repeat them.
-        let scalar = |v: &Vec<f64>| if v.iter().all(|x| *x == v[0]) { vec![v[0]] } else { v.clone() };
+        let scalar =
+            |v: &Vec<f64>| if v.iter().all(|x| *x == v[0]) { vec![v[0]] } else { v.clone() };
         let (e, costs, rcosts) = (scalar(&e), scalar(&costs), scalar(&rcosts));
         let design = BinaryPolicyDesign {
             assignment: &t,
@@ -221,7 +222,10 @@ fn uplift_bins_match_the_exact_scores_and_a_singleton_bin_is_handled_as_document
         close(point[0].effect, case["first_effect"].as_f64().unwrap(), "first bin");
         close(point[0].standard_error, case["first_se"].as_f64().unwrap(), "first se");
         close(point[1].effect, case["second_effect"].as_f64().unwrap(), "singleton effect");
-        assert!(point[1].standard_error.abs() < 1e-300, "a singleton bin has a zero error");
+        assert!(
+            point[1].standard_error.is_nan(),
+            "a singleton bin has no residual degrees of freedom, so its error is undefined"
+        );
         assert!(evaluate_uplift_bins(&y, &t, &e, &bins, 2).is_err());
     }
 }
