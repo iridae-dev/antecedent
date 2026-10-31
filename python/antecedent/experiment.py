@@ -550,6 +550,13 @@ class RandomizedEffect:
     design-based point estimates and variance contracts. Other design families
     are explicitly refused by the retained analysis route.
 
+    ``cuped=FixedCUPED(...)`` adjusts by a pre-assignment covariate with a coefficient fixed
+    outside the trial. It composes with Bernoulli rows and with cluster randomization; under a
+    cluster design the adjustment is applied to cluster totals, so the cluster stays the unit of
+    analysis and the estimand stays the unadjusted per-row ITT. A coefficient learned from the
+    rows (``ancova_covariates``) is Bernoulli-only. Each adjusted route has its own graphless
+    support row; neither inherits the unadjusted design's license.
+
     ``weights="w"`` names a column of sampling weights (or gives one weight per row) for an
     unadjusted Bernoulli or completely randomized design. The estimate is then the
     intention-to-treat effect in the weighted population: the difference of the arms' Hajek
@@ -590,9 +597,10 @@ class RandomizedEffect:
         if self.cuped is not None:
             if not isinstance(self.cuped, FixedCUPED) or self.cuped.covariate == self.outcome:
                 raise CausalValueError("CUPED requires a distinct pre-assignment covariate")
-            if not isinstance(self.design.assignment, BernoulliAssignment):
+            if not isinstance(self.design.assignment, (BernoulliAssignment, ClusterRandomization)):
                 raise CausalValueError(
-                    "retained fixed CUPED currently requires Bernoulli assignment"
+                    "retained fixed CUPED requires Bernoulli or cluster assignment; a coefficient "
+                    "fixed outside the trial keeps the design's own unit of analysis"
                 )
         if self.ancova_covariates:
             if (

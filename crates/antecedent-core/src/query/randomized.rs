@@ -124,6 +124,13 @@ pub fn randomized_graphless_coordinate(
             "unit",
             "pointwise_95_normal_interval",
         ),
+        RandomizationDesign::Cluster { .. } if fixed_cuped => (
+            "randomized_effect",
+            "cluster",
+            "fixed_cuped_cluster_totals",
+            "cluster",
+            "pointwise_95_normal_interval",
+        ),
         RandomizationDesign::Cluster { .. } => (
             "randomized_effect",
             "cluster",
@@ -186,6 +193,7 @@ pub struct RandomizedEffectQuery {
     /// Control and treatment arm labels.
     pub treatment_arms: (Arc<str>, Arc<str>),
     /// Pre-assignment covariate and coefficient fixed before outcomes were observed.
+    /// Valid under Bernoulli rows and complete cluster randomization.
     pub fixed_cuped: Option<(VariableId, f64)>,
     /// Pre-assignment covariates fitted jointly with assignment by ANCOVA.
     pub ancova_covariates: Arc<[VariableId]>,
@@ -491,8 +499,15 @@ impl RandomizedEffectQuery {
             ));
         }
         if let Some((covariate, coefficient)) = self.fixed_cuped {
-            if !matches!(self.design, RandomizationDesign::Bernoulli)
-                || covariate == self.outcome
+            // A coefficient fixed outside the experiment turns the adjusted outcome into
+            // another potential outcome with the same contrast, so it composes with any
+            // design whose own estimator and unit of analysis are kept: independent
+            // Bernoulli rows, or complete cluster randomization over cluster totals. A
+            // coefficient learned from these rows (ANCOVA) is not exchangeable that way.
+            if !matches!(
+                self.design,
+                RandomizationDesign::Bernoulli | RandomizationDesign::Cluster { .. }
+            ) || covariate == self.outcome
                 || !coefficient.is_finite()
             {
                 return Err(QueryError::RandomizedEffectRefused(

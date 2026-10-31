@@ -149,3 +149,72 @@ def test_weak_arm_support_reports_point_only_and_names_the_arm_rule():
     )
     assert result.randomized_effect.interval_95 is None
     assert result.evidence_status == "off_axis"
+
+
+def _cluster_data(clusters: int = 60, size: int = 4, treated_clusters: int = 30):
+    n = clusters * size
+    cluster = np.arange(n) // size
+    treated_cluster = (np.arange(clusters) * 7 % clusters) < treated_clusters
+    assigned = treated_cluster[cluster]
+    baseline = 2.0 * np.sin(0.37 * cluster) + 0.1 * np.cos(0.9 * np.arange(n))
+    outcome = (
+        3.0 + 1.5 * baseline + 0.2 * np.sin(0.29 * np.arange(n)) + 1.4 * assigned.astype(float)
+    )
+    design = ant.experiment.ExperimentDesign(
+        interference.ClusterRandomization(cluster.tolist(), treated_clusters),
+        assigned.tolist(),
+        [f"cluster-{c}" for c in cluster],
+        [f"row-{i}" for i in range(n)],
+    )
+    return {"outcome": outcome, "baseline": baseline}, design
+
+
+def test_cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license():
+    data, design = _cluster_data()
+    plain = require_success(
+        ant.analyze(data, query=ant.experiment.RandomizedEffect("outcome", design), refute="none")
+    )
+    adjusted = require_success(
+        ant.analyze(
+            data,
+            query=ant.experiment.RandomizedEffect(
+                "outcome", design, cuped=ant.experiment.FixedCUPED("baseline", 1.5)
+            ),
+            refute="none",
+        )
+    )
+    fit, plain_fit = adjusted.randomized_effect, plain.randomized_effect
+    # Independent reference: Neyman over per-cluster totals of Y - 1.5 X (the cluster is the unit).
+    clusters = np.arange(240) // 4
+    arm = (np.arange(60) * 7 % 60) < 30
+    totals = np.bincount(clusters, weights=data["outcome"] - 1.5 * data["baseline"])
+    treated, control = totals[arm], totals[~arm]
+    scale = 60 / 240
+    assert fit.effect == pytest.approx(scale * (treated.mean() - control.mean()), abs=1e-9)
+    assert fit.standard_error == pytest.approx(
+        scale * np.sqrt(treated.var(ddof=1) / 30 + control.var(ddof=1) / 30), rel=1e-9
+    )
+    assert fit.assignment_design == "cluster"
+    assert (fit.control_units, fit.treatment_units) == (30, 30)
+    assert fit.uncertainty == "cluster_fixed_cuped_neyman_normal_interval"
+    assert plain_fit.uncertainty == "cluster_neyman_normal_interval"
+    assert fit.interval_95[0] < 1.4 < fit.interval_95[1]
+    assert fit.standard_error < 0.5 * plain_fit.standard_error
+    assert fit.support_status == "licensed"
+
+
+def test_cluster_fixed_cuped_with_few_clusters_is_point_only_and_ancova_stays_bernoulli():
+    data, design = _cluster_data(treated_clusters=20)
+    result = require_success(
+        ant.analyze(
+            data,
+            query=ant.experiment.RandomizedEffect(
+                "outcome", design, cuped=ant.experiment.FixedCUPED("baseline", 1.5)
+            ),
+            refute="none",
+        )
+    )
+    assert result.randomized_effect.interval_95 is None
+    assert result.randomized_effect.support_status != "licensed"
+    with pytest.raises(Exception, match="Bernoulli"):
+        ant.experiment.RandomizedEffect("outcome", design, ancova_covariates=("baseline",))

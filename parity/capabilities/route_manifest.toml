@@ -1880,6 +1880,21 @@ retained_route_test = "crates/antecedent/tests/randomized_trial_route.rs::calibr
 notes = "method=neyman_unit_weighted_cluster_totals; assignment_unit=cluster. License row in parity/support_graphless.toml. Known complete cluster assignment, independent clusters, binary unit-weighted ITT, at least 30 clusters per arm, and an actually published interval (positive realized variance). Conservative cluster-total variance and a pointwise 95% normal interval; no observational network exposure or other assignment design is licensed by this row."
 
 [[route]]
+id = "graphless.randomized_effect.cluster.fixed_cuped_cluster_totals"
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design_time_model = "cluster"
+inference = "pointwise_95_normal_interval"
+uncertainty = "pointwise_95_normal_interval"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "graphless"
+owning_module = "crates/antecedent-estimate/src/randomized_neyman.rs"
+retained_operation = "randomized"
+retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license"
+notes = "method=fixed_cuped_cluster_totals; assignment_unit=cluster. License row in parity/support_graphless.toml. Known complete cluster assignment, independent clusters, binary unit-weighted ITT adjusted by one pre-assignment covariate whose coefficient was fixed outside these outcomes, at least 30 clusters per arm, and an actually published interval (positive realized variance). The estimand is the unadjusted per-row ITT; the unit of analysis stays the cluster. A learned coefficient, row-level independence and other designs are not licensed, and the row does not inherit the unadjusted cluster row. One 2,000-allocation fixture family covers three fixed coefficients."
+
+[[route]]
 id = "graphless.randomized_effect.stratified.blocked_neyman_difference_in_means"
 target = "randomized_effect"
 graph_class = "RandomizedTrial"
@@ -14830,6 +14845,34 @@ implementation = ["crates/antecedent-estimate/src/randomized_neyman.rs"]
 provenance = []
 evidence = ["crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering"]
 artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/randomized_trial_route.rs::calibrated_randomized_intervals_round_trip_and_reject_tampering"]
+
+[[method]]
+id = "method.graphless.randomized_effect.cluster.fixed_cuped_cluster_totals"
+kind = "route_method"
+route = "graphless.randomized_effect.cluster.fixed_cuped_cluster_totals"
+child = ""
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design = "static"
+estimator = "unlisted"
+identifier = []
+lowering = []
+inference = "unlisted"
+design_time_model = "cluster"
+status = "graphless"
+structures = []
+validations = []
+coordinates = 0
+uncertainty = "analytic"
+uncertainty_structure = "none"
+uncertainty_basis = "graphless_claim:pointwise_95_normal_interval"
+uncertainty_by_structure = []
+decision_ports = "unlisted"
+owning_module = "crates/antecedent-estimate/src/randomized_neyman.rs"
+implementation = ["crates/antecedent-estimate/src/randomized_neyman.rs"]
+provenance = []
+evidence = ["crates/antecedent/tests/randomized_precision_intervals.rs::cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license"]
 
 [[method]]
 id = "method.graphless.randomized_effect.stratified.blocked_neyman_difference_in_means"

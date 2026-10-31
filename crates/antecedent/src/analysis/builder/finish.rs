@@ -862,6 +862,11 @@ fn refuse_randomized_effect_mismatch(
                     EstimatorId::RandomizedHt
                 }
             }
+            antecedent_core::RandomizationDesign::Cluster { .. }
+                if randomized.fixed_cuped.is_some() =>
+            {
+                EstimatorId::RandomizedClusterFixedCuped
+            }
             antecedent_core::RandomizationDesign::Complete { .. }
             | antecedent_core::RandomizationDesign::Stratified { .. }
             | antecedent_core::RandomizationDesign::Factorial2x2 { .. }
@@ -1012,6 +1017,7 @@ fn apply_design_contract(
                 id,
                 EstimatorId::RandomizedHt
                     | EstimatorId::RandomizedFixedCupedHt
+                    | EstimatorId::RandomizedClusterFixedCuped
                     | EstimatorId::RandomizedAncova
                     | EstimatorId::RandomizedWaldCace
                     | EstimatorId::RandomizedSwitchbackHt

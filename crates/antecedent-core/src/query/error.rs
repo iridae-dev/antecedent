@@ -46,9 +46,9 @@ pub enum RandomizedEffectFault {
     /// Refused: treatment receipt is only valid for a CACE/LATE or treatment-on-treated query.
     #[error("treatment receipt is only valid for a CACE/LATE or treatment-on-treated query")]
     ReceiptWithoutComplier,
-    /// Refused: fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient.
+    /// Refused: fixed CUPED requires Bernoulli or cluster assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient.
     #[error(
-        "fixed CUPED requires Bernoulli assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient"
+        "fixed CUPED requires Bernoulli or cluster assignment, a distinct pre-assignment covariate, and a finite externally fixed coefficient"
     )]
     FixedCupedDesign,
     /// Refused: ANCOVA requires distinct pre-assignment covariates, independent unit-level Bernoulli assignment with a common probability, and residual degrees of freedom.

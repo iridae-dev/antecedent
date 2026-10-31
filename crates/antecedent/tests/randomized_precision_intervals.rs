@@ -284,3 +284,115 @@ fn weak_arm_support_withholds_the_interval_and_names_the_arm_rule() {
         }
     }
 }
+
+/// Sixty four-row clusters whose outcomes carry a cluster-level baseline shared by their rows.
+/// Thirty are treated; the realized assignment alternates by cluster. Returns the query, the data
+/// and the true per-row effect (every row's effect is exactly `1.4`).
+fn cluster_trial(treated_clusters: usize) -> (RandomizedEffectQuery, TabularData) {
+    const CLUSTERS: usize = 60;
+    const SIZE: usize = 4;
+    let n = CLUSTERS * SIZE;
+    let cluster_of = |i: usize| i / SIZE;
+    // Treated clusters are the first `treated_clusters` of a fixed interleaving.
+    let treated = |c: usize| (c * 7 % CLUSTERS) < treated_clusters;
+    let baseline = (0..n)
+        .map(|i| 2.0 * (0.37 * cluster_of(i) as f64).sin() + 0.1 * (0.9 * i as f64).cos())
+        .collect::<Vec<_>>();
+    let y = (0..n)
+        .map(|i| {
+            3.0 + 1.5 * baseline[i]
+                + 0.2 * (0.29 * i as f64).sin()
+                + 1.4 * f64::from(treated(cluster_of(i)))
+        })
+        .collect::<Vec<_>>();
+    let data =
+        TabularData::from_f64_columns([("outcome", y.as_slice()), ("baseline", baseline.as_slice())])
+            .unwrap();
+    let query = RandomizedEffectQuery::with_design(
+        antecedent_core::RandomizationDesign::Cluster { treated_clusters },
+        VariableId::from_raw(0),
+        (0..n).map(|i| treated(cluster_of(i))).collect::<Vec<_>>(),
+        vec![treated_clusters as f64 / CLUSTERS as f64; n],
+        (0..n).map(|i| Arc::<str>::from(format!("cluster-{}", cluster_of(i)))).collect::<Vec<_>>(),
+        (0..n).map(|i| Arc::<str>::from(format!("row-{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    );
+    (query, data)
+}
+
+#[test]
+fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license() {
+    let (query, data) = cluster_trial(30);
+    let ctx = ExecutionContext::for_tests(0xC1_0573);
+    let run = |query: RandomizedEffectQuery| {
+        let prepared =
+            Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        (prepared, result)
+    };
+    let (_, plain) = run(query.clone());
+    let (prepared, adjusted) =
+        run(query.clone().with_fixed_cuped(VariableId::from_raw(1), 1.5));
+    retained_graphless::assert_retained_graphless_program(
+        "cluster_fixed_cuped_keeps_the_cluster_un",
+        &prepared,
+        &adjusted,
+        &ctx,
+    );
+    let (plain_fit, fit) = (plain.randomized_effect().unwrap(), adjusted.randomized_effect().unwrap());
+    // Same estimand and unit of analysis: the cluster, 30 clusters per arm, per-row ITT.
+    assert_eq!(fit.assignment_design.as_ref(), "cluster");
+    assert_eq!((fit.control_units, fit.treatment_units), (30, 30));
+    assert_eq!(fit.estimand.as_ref(), "itt");
+    assert_eq!(fit.uncertainty.as_ref(), "cluster_fixed_cuped_neyman_normal_interval");
+    assert_eq!(plain_fit.uncertainty.as_ref(), "cluster_neyman_normal_interval");
+    let [lower, upper] = fit.interval_95.expect("30 clusters per arm publish an interval");
+    let [plain_lower, plain_upper] = plain_fit.interval_95.expect("unadjusted cluster interval");
+    assert!(lower < 1.4 && 1.4 < upper, "[{lower}, {upper}]");
+    assert!((fit.effect - 1.4).abs() < 0.05, "{}", fit.effect);
+    assert!(
+        (upper - lower) < 0.5 * (plain_upper - plain_lower),
+        "the cluster-level covariate must narrow the interval: {} vs {}",
+        upper - lower,
+        plain_upper - plain_lower
+    );
+    // The adjusted route holds its own graphless license, never the unadjusted cluster row.
+    assert_eq!(adjusted.support_status(), Some(antecedent::support::CellStatus::Licensed));
+    let bytes = prepared.encode_contracted_result(&adjusted, "cluster-cuped", &ctx).unwrap();
+    let (_, header, artifact) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let randomized = artifact.randomized_effect.as_ref().unwrap();
+    assert_eq!(randomized.uncertainty, "cluster_fixed_cuped_neyman_normal_interval");
+    assert_eq!(randomized.graphless_support_status.as_deref(), Some("licensed"));
+    // Relabelling the adjusted result as the unadjusted one must not keep the license.
+    let mut relabelled = artifact.clone();
+    relabelled.randomized_effect.as_mut().unwrap().uncertainty =
+        "cluster_neyman_normal_interval".into();
+    antecedent_io::encode_analysis_result_artifact(
+        &relabelled,
+        header.variable_names.clone(),
+        "relabelled",
+    )
+    .expect_err("an adjusted cluster result must not carry the unadjusted uncertainty label");
+    let mut forged = artifact;
+    forged.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
+    antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged")
+        .expect_err("a forged interval must not encode");
+}
+
+#[test]
+fn cluster_fixed_cuped_with_too_few_clusters_is_point_only_and_a_learned_slope_is_refused() {
+    let ctx = ExecutionContext::for_tests(0xC1_0574);
+    // 20 treated of 60 clusters: below the 30-per-arm independent-cluster support.
+    let (query, data) = cluster_trial(20);
+    let result = Study::tabular(data.clone())
+        .query(query.clone().with_fixed_cuped(VariableId::from_raw(1), 1.5))
+        .build()
+        .unwrap()
+        .run(&ctx)
+        .unwrap();
+    assert!(result.randomized_effect().unwrap().interval_95.is_none());
+    assert!(result.support_status().is_none());
+    // A slope fitted from these rows treats rows as independent; it is not a cluster route.
+    let learned = query.with_ancova(vec![VariableId::from_raw(1)]);
+    assert!(learned.validate().is_err(), "ANCOVA must not run on a cluster design");
+}

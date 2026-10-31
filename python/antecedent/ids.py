@@ -90,6 +90,7 @@ class Estimator(StrEnum):
     INTERFERENCE_CLUSTER_BAYESIAN_BOOTSTRAP = "interference.cluster_bayesian_bootstrap"
     RANDOMIZED_HT_ITT = "randomized.ht_itt"
     RANDOMIZED_FIXED_CUPED_HT_ITT = "randomized.fixed_cuped_ht_itt"
+    RANDOMIZED_CLUSTER_FIXED_CUPED_ITT = "randomized.cluster_fixed_cuped_itt"
     RANDOMIZED_ANCOVA_ITT = "randomized.ancova_itt"
     RANDOMIZED_WALD_CACE_LATE = "randomized.wald_cace_late"
     RANDOMIZED_SWITCHBACK_HT_ITT = "randomized.switchback_ht_itt"

@@ -1,0 +1,25 @@
+feature_id = "estimate.randomized.cluster_fixed_cuped_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data", doi = "10.1145/2433396.2433413", sections = ["CUPED: subtract a fixed multiple of a pre-experiment covariate from the outcome before estimating the average treatment effect"] },
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["difference in means under complete randomization, with a variance that drops the unobservable variance of treatment effects"] },
+]
+
+implementation_deviations = [
+ "This composes two procedures and is not an estimator analyzed in either paper: the CUPED adjustment of the first, applied to cluster outcome totals, then the conservative Neyman bound of the second over those totals. The guarantee is derived here, not inherited: with a coefficient fixed outside the experiment, the adjusted outcome is another potential outcome whose per-row contrast equals the unadjusted one, so the cluster Neyman analysis of its totals targets the unadjusted per-row ITT.",
+ "The coefficient is supplied by the caller and is not estimated from this experiment. A coefficient learned from the rows (ANCOVA or the same-sample theta of the paper) is refused on a cluster design, because the row-level residual variance would treat rows as independent units and change the unit of analysis.",
+ "The covariate must be measured before assignment; the adjustment is applied to each row and totalled per assignment cluster, so the cluster, not the row, is the unit of analysis. The interval support floor is that of the unadjusted cluster interval: 30 independently assigned clusters in each arm and positive realized variance.",
+ "The variance is the conservative Neyman bound; it is conservative by the between-cluster variation of the adjusted-outcome effect, which is zero effect heterogeneity for a coefficient that explains the baseline and non-negative otherwise.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_neyman.rs (fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt: 2,000 complete allocations of 60 unequal clusters at three fixed coefficients, coverage of the unadjusted known ITT)",
+ "crates/antecedent/tests/randomized_precision_intervals.rs (cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license)",
+]

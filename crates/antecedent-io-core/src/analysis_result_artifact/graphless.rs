@@ -157,6 +157,11 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "complete_neyman_variance_upper_bound_no_interval",
             Some("complete_neyman_normal_interval"),
         ),
+        crate::RandomizationDesignWire::Cluster { .. } if query.fixed_cuped.is_some() => (
+            "cluster",
+            "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval",
+            Some("cluster_fixed_cuped_neyman_normal_interval"),
+        ),
         crate::RandomizationDesignWire::Cluster { .. } => (
             "cluster",
             "cluster_neyman_variance_upper_bound_no_interval",
@@ -376,6 +381,13 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "complete",
             "neyman_difference_in_means",
             "unit",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Cluster { .. } if query.fixed_cuped.is_some() => Some((
+            "randomized_effect",
+            "cluster",
+            "fixed_cuped_cluster_totals",
+            "cluster",
             "pointwise_95_normal_interval",
         )),
         crate::RandomizationDesignWire::Cluster { .. } => Some((

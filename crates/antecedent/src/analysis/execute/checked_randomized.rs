@@ -83,6 +83,7 @@ fn check_declaration_for_design(
                 | RandomizedMethod::TreatmentOnTreated
                 | RandomizedMethod::ComplierEffect
                 | RandomizedMethod::FixedCuped
+                | RandomizedMethod::ClusterFixedCuped
         )
     {
         return Ok(());

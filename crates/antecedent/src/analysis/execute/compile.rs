@@ -1516,6 +1516,11 @@ impl super::Study {
                             "randomized.ht_itt"
                         }
                     }
+                    antecedent_core::RandomizationDesign::Cluster { .. }
+                        if q.fixed_cuped.is_some() =>
+                    {
+                        "randomized.cluster_fixed_cuped_itt"
+                    }
                     antecedent_core::RandomizationDesign::Complete { .. }
                     | antecedent_core::RandomizationDesign::Stratified { .. }
                     | antecedent_core::RandomizationDesign::Factorial2x2 { .. }

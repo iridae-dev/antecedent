@@ -418,6 +418,18 @@ limitations = "Known complete cluster assignment, independent clusters, binary u
 
 [[license]]
 family = "randomized_effect"
+design = "cluster"
+method = "fixed_cuped_cluster_totals"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 30
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent-estimate/src/randomized_neyman.rs::fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt"
+retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license"
+limitations = "Known complete cluster assignment, independent clusters, binary unit-weighted ITT adjusted by one pre-assignment covariate whose coefficient was fixed outside these outcomes, at least 30 clusters per arm, and an actually published interval (positive realized variance). The estimand is the unadjusted per-row ITT; the unit of analysis stays the cluster and the variance is the Neyman bound over cluster totals of the adjusted outcome. A coefficient learned from these rows (ANCOVA), row-level independence, receipt adjustment and other assignment designs are not licensed by this row, and it does not inherit the unadjusted cluster row."
+
+[[license]]
+family = "randomized_effect"
 design = "stratified"
 method = "blocked_neyman_difference_in_means"
 inference_claim = "pointwise_95_normal_interval"

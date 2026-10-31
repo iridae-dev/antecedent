@@ -645,6 +645,64 @@ mod tests {
         eprintln!("cluster Neyman boundary interval: {covered}/{REPLICATES} = {rate:.4}");
         assert!((0.93..=0.985).contains(&rate));
     }
+    /// A fixed population of 60 unequal clusters whose control totals follow a pre-assignment
+    /// covariate. Returns (sizes, covariate totals, control totals, treated totals, ITT truth).
+    fn covariate_cluster_population() -> (Vec<usize>, Vec<f64>, Vec<f64>, Vec<f64>, f64) {
+        const CLUSTERS: usize = 60;
+        let sizes = (0..CLUSTERS).map(|i| 2 + i % 3).collect::<Vec<_>>();
+        let rows = sizes.iter().sum::<usize>();
+        let covariate = (0..CLUSTERS)
+            .map(|i| sizes[i] as f64 * (1.0 + 0.8 * (i as f64 * 0.41).sin()))
+            .collect::<Vec<_>>();
+        let control = (0..CLUSTERS)
+            .map(|i| 3.0 * covariate[i] + sizes[i] as f64 * 0.3 * (i as f64 * 0.77).cos())
+            .collect::<Vec<_>>();
+        let treated = (0..CLUSTERS)
+            .map(|i| control[i] + sizes[i] as f64 * (2.0 + 0.25 * (i as f64 * 0.53).cos()))
+            .collect::<Vec<_>>();
+        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>() / rows as f64;
+        (sizes, covariate, control, treated, truth)
+    }
+
+    #[test]
+    fn fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt() {
+        // The adjusted outcome Y - theta X has the same per-row ITT as Y because X is fixed
+        // before assignment, for any theta chosen without these outcomes. The cluster stays
+        // the unit of analysis: the adjustment is applied to cluster totals and the Neyman
+        // bound runs over those totals. A good coefficient, no coefficient and a misspecified
+        // one all keep the unadjusted truth; only the width differs.
+        const REPLICATES: usize = 2_000;
+        let (sizes, covariate, control, treated, truth) = covariate_cluster_population();
+        let clusters = sizes.len();
+        let rows = sizes.iter().sum::<usize>();
+        let mut widths = Vec::new();
+        for theta in [3.0, 0.0, -2.0] {
+            let mut covered = 0;
+            let mut width = 0.0;
+            for rep in 0..REPLICATES {
+                let order = allocation(clusters, rep);
+                let adjust = |totals: &[f64], i: usize| totals[i] - theta * covariate[i];
+                let treatment =
+                    order[..clusters / 2].iter().map(|&i| adjust(&treated, i)).collect::<Vec<_>>();
+                let comparison =
+                    order[clusters / 2..].iter().map(|&i| adjust(&control, i)).collect::<Vec<_>>();
+                let fit = complete_cluster_itt(&treatment, &comparison, rows).unwrap();
+                let [lower, upper] = fit.interval_95.expect("30 clusters per arm are supported");
+                covered += usize::from(lower <= truth && truth <= upper);
+                width += upper - lower;
+            }
+            let rate = covered as f64 / REPLICATES as f64;
+            eprintln!(
+                "fixed CUPED cluster totals theta={theta}: coverage {covered}/{REPLICATES} = {rate:.4}, mean width {:.4}",
+                width / REPLICATES as f64
+            );
+            assert!((0.93..=0.985).contains(&rate), "theta={theta} coverage {rate}");
+            widths.push(width / REPLICATES as f64);
+        }
+        assert!(widths[0] < 0.5 * widths[1], "a good fixed coefficient must narrow the interval");
+        assert!(widths[2] > widths[1], "a misspecified fixed coefficient widens it, never biases");
+    }
+
     #[test]
     fn equal_weights_reproduce_the_neyman_variance_bound() {
         let treated = [3.0, 5.0, 4.0, 8.0, 6.0];

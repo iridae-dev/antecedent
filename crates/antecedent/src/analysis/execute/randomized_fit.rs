@@ -28,6 +28,7 @@ pub(super) enum RandomizedMethod {
     Bernoulli,
     Complete,
     Cluster,
+    ClusterFixedCuped,
     Stratified,
     Factorial2x2,
     MultiArm,
@@ -49,6 +50,9 @@ impl RandomizedMethod {
                 RandomizationDesign::Bernoulli if query.fixed_cuped.is_some() => Self::FixedCuped,
                 RandomizationDesign::Bernoulli => Self::Bernoulli,
                 RandomizationDesign::Complete { .. } => Self::Complete,
+                RandomizationDesign::Cluster { .. } if query.fixed_cuped.is_some() => {
+                    Self::ClusterFixedCuped
+                }
                 RandomizationDesign::Cluster { .. } => Self::Cluster,
                 RandomizationDesign::Stratified { .. } => Self::Stratified,
                 RandomizationDesign::Factorial2x2 { .. } => Self::Factorial2x2,
@@ -67,7 +71,7 @@ impl RandomizedMethod {
             | Self::FixedCuped
             | Self::Bernoulli => "bernoulli",
             Self::Complete => "complete",
-            Self::Cluster => "cluster",
+            Self::Cluster | Self::ClusterFixedCuped => "cluster",
             Self::Stratified => "stratified",
             Self::Factorial2x2 => "factorial_2x2",
             Self::MultiArm => "multi_arm",
@@ -79,6 +83,7 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => EstimatorId::RandomizedWaldCace,
             Self::FixedCuped => EstimatorId::RandomizedFixedCupedHt,
+            Self::ClusterFixedCuped => EstimatorId::RandomizedClusterFixedCuped,
             Self::Ancova => EstimatorId::RandomizedAncova,
             Self::Bernoulli | Self::MultiArm => EstimatorId::RandomizedHt,
             Self::Complete | Self::Stratified | Self::Factorial2x2 | Self::Cluster => {
@@ -102,6 +107,7 @@ impl RandomizedMethod {
         match self {
             Self::TreatmentOnTreated | Self::ComplierEffect => "estimate.randomized.wald_cace_late",
             Self::FixedCuped => "estimate.randomized.fixed_cuped_ht_itt",
+            Self::ClusterFixedCuped => "estimate.randomized.cluster_fixed_cuped_itt",
             Self::Ancova => "estimate.randomized.ancova_itt",
             Self::Bernoulli => "estimate.randomized.ht_itt",
             Self::Switchback => "estimate.randomized.switchback_ht_itt",
@@ -114,7 +120,7 @@ impl RandomizedMethod {
 
     /// Cluster-level dependence is what the published standard error accounts for.
     pub(super) fn clustered_standard_error(self) -> bool {
-        matches!(self, Self::Cluster | Self::Switchback)
+        matches!(self, Self::Cluster | Self::ClusterFixedCuped | Self::Switchback)
     }
 
     pub(super) fn uncertainty(self, interval_published: bool) -> &'static str {
@@ -130,6 +136,9 @@ impl RandomizedMethod {
             (Self::Bernoulli, false) => "bernoulli_ht_conservative_variance_no_interval",
             (Self::Complete, false) => "complete_neyman_variance_upper_bound_no_interval",
             (Self::Cluster, false) => "cluster_neyman_variance_upper_bound_no_interval",
+            (Self::ClusterFixedCuped, false) => {
+                "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval"
+            }
             (Self::Stratified, false) => "stratified_neyman_variance_upper_bound_no_interval",
             (Self::Factorial2x2, false) => "factorial_cell_neyman_variance_upper_bound_no_interval",
             (Self::MultiArm, false) => "multi_arm_covariance_free_variance_bound_no_interval",
@@ -143,6 +152,7 @@ impl RandomizedMethod {
             (Self::Bernoulli, true) => "bernoulli_ht_score_normal_interval",
             (Self::Complete, true) => "complete_neyman_normal_interval",
             (Self::Cluster, true) => "cluster_neyman_normal_interval",
+            (Self::ClusterFixedCuped, true) => "cluster_fixed_cuped_neyman_normal_interval",
             (Self::Stratified, true) => "stratified_neyman_normal_interval",
             (Self::Factorial2x2, true) => "factorial_cell_neyman_pointwise_normal_intervals",
             (Self::MultiArm, true) => "multi_arm_ht_score_pointwise_normal_intervals",
@@ -188,6 +198,9 @@ impl RandomizedMethod {
             (Self::Cluster, false) => {
                 "Complete cluster-randomization HT ITT over cluster outcome totals, with Neyman conservative variance; no confidence interval is reported"
             }
+            (Self::ClusterFixedCuped, false) => {
+                "Complete cluster-randomization ITT over cluster totals of outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient, with Neyman conservative variance over the cluster totals; no confidence interval: the normal interval needs 30 independently assigned clusters in each arm and a positive variance"
+            }
             (Self::Stratified, false) => {
                 "Stratified difference in means weighted by block size, with blockwise Neyman conservative variance estimate; no confidence interval is reported"
             }
@@ -220,6 +233,9 @@ impl RandomizedMethod {
             }
             (Self::Cluster, true) => {
                 "Cluster-randomized ITT over cluster outcome totals with a conservative cluster-level Neyman variance and pointwise 95% normal interval"
+            }
+            (Self::ClusterFixedCuped, true) => {
+                "Cluster-randomized ITT over cluster totals of outcomes adjusted by an externally fixed pre-assignment CUPED coefficient, with a conservative cluster-level Neyman variance and pointwise 95% normal interval; the cluster is the unit of analysis and the estimand is the unadjusted per-row ITT"
             }
             (Self::Stratified, true) => {
                 "Blocked difference in means with blockwise conservative Neyman variance and pointwise 95% normal interval"
@@ -342,7 +358,9 @@ pub(super) fn fit_randomized(
         }
         RandomizedMethod::MultiArm => fit_multi_arm(query, outcomes),
         RandomizedMethod::Complete => fit_complete(query, outcomes),
-        RandomizedMethod::Cluster => fit_cluster(query, outcomes),
+        RandomizedMethod::Cluster | RandomizedMethod::ClusterFixedCuped => {
+            fit_cluster(query, outcomes)
+        }
         RandomizedMethod::Stratified => fit_stratified(query, outcomes),
         RandomizedMethod::Factorial2x2 => fit_factorial(query, outcomes),
         RandomizedMethod::Switchback => fit_switchback(query, outcomes),
