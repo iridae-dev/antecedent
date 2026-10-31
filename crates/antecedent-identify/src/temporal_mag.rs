@@ -109,6 +109,14 @@ pub(crate) fn query_keys(
     ])
 }
 
+/// Representative of the variable group `variable` was merged into.
+fn root(merged: &BTreeMap<u32, u32>, mut variable: u32) -> u32 {
+    while let Some(&next) = merged.get(&variable) {
+        variable = next;
+    }
+    variable
+}
+
 /// Longest lag-weighted chain of ancestors of the seed variables in the stationary template, or
 /// `None` when a lagged parent cycle makes the ancestry infinite.
 ///
@@ -145,7 +153,10 @@ fn ancestry_depth(
         _ => IdentificationError::budget(IdentificationBudget::Memory),
     })?;
     let nodes = graph.nodes();
-    let mut parents: BTreeMap<u32, Vec<(u32, u32)>> = BTreeMap::new();
+    let mut relations_all: Vec<(u32, u32, u32)> = Vec::new();
+    // A contemporaneous circle-circle edge lets either endpoint be the parent of the other; the
+    // zero-lag pair cannot extend the depth, so its endpoints share one ancestry.
+    let mut merged: BTreeMap<u32, u32> = BTreeMap::new();
     for edge in graph.edges_lazy() {
         if ctx.cancellation.is_cancelled() {
             return Err(IdentificationError::Cancelled);
@@ -167,20 +178,39 @@ fn ancestry_depth(
                 continue;
             };
             if pl.raw() >= cl.raw() {
-                parents.entry(cv.raw()).or_default().push((pv.raw(), pl.raw() - cl.raw()));
+                if pl.raw() == cl.raw()
+                    && at_parent == Endpoint::Circle
+                    && at_child == Endpoint::Circle
+                {
+                    let (a, b) = (root(&merged, pv.raw()), root(&merged, cv.raw()));
+                    if a != b {
+                        merged.insert(a.max(b), a.min(b));
+                    }
+                    continue;
+                }
+                relations_all.push((cv.raw(), pv.raw(), pl.raw() - cl.raw()));
             }
         }
+    }
+    let mut parents: BTreeMap<u32, Vec<(u32, u32)>> = BTreeMap::new();
+    for (child, parent, weight) in relations_all {
+        let (child, parent) = (root(&merged, child), root(&merged, parent));
+        if child == parent && weight == 0 {
+            continue;
+        }
+        parents.entry(child).or_default().push((parent, weight));
     }
     // Explicit DFS avoids recursion proportional to the caller's template size.
     let mut memo = BTreeMap::<u32, Option<u32>>::new();
     let mut deepest = 0u32;
     for seed in seeds {
-        if memo.get(&seed.variable.raw()).is_some_and(Option::is_some) {
-            deepest = deepest.max(memo[&seed.variable.raw()].unwrap_or(0));
+        let seed_root = root(&merged, seed.variable.raw());
+        if memo.get(&seed_root).is_some_and(Option::is_some) {
+            deepest = deepest.max(memo[&seed_root].unwrap_or(0));
             continue;
         }
-        let mut stack = vec![(seed.variable.raw(), 0usize, 0u32)];
-        memo.insert(seed.variable.raw(), None);
+        let mut stack = vec![(seed_root, 0usize, 0u32)];
+        memo.insert(seed_root, None);
         while let Some((variable, next, best)) = stack.last_mut() {
             if ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::Cancelled);
@@ -530,6 +560,27 @@ mod tests {
         let mut budget =
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         assert_eq!(ancestry_depth(&graph, &seeds, &mut budget, &ctx).unwrap(), None);
+    }
+    #[test]
+    fn contemporaneous_circle_edge_does_not_make_ancestry_unbounded() {
+        let mut graph = TemporalPag::empty();
+        let treatment = node(&mut graph, 0, 0);
+        let outcome = node(&mut graph, 1, 0);
+        let witness = node(&mut graph, 2, 2);
+        graph
+            .insert_circle_circle_with_middle(
+                treatment,
+                outcome,
+                antecedent_graph::MiddleMark::Unknown,
+            )
+            .unwrap();
+        graph.insert_directed(witness, treatment).unwrap();
+        let seeds = query_keys(&query()).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        // Y[t] o-o X[t] and W[t-2] -> X[t]: the possible ancestry of Y spans two steps.
+        assert_eq!(ancestry_depth(&graph, &seeds, &mut budget, &ctx).unwrap(), Some(2));
     }
     #[test]
     fn history_caps_retain_uncertified_mass() {

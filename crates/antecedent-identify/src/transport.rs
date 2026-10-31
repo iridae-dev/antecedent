@@ -303,6 +303,15 @@ impl TransportIdentifier {
                 &outcome_ancestors,
             );
         }
+        // Reflexive descendants of the treatments, computed once.
+        let treatment_nodes =
+            treatments.iter().map(|x| prepared.var_to_dense(*x)).collect::<Result<Vec<_>, _>>()?;
+        let mut treated_downstream = BitSet::with_len(graph.node_count());
+        graph.descendants_of(
+            &treatment_nodes,
+            &mut treated_downstream,
+            &mut antecedent_graph::GraphWorkspace::default(),
+        );
         if !source_experiments_cover(query, &treatments) {
             return Ok(TransportIdentification::MissingEvidence(MissingEvidenceCertificate {
                 reason: Arc::from("transport.source_experiment_missing"),
@@ -323,15 +332,6 @@ impl TransportIdentifier {
         // quantity the query asks for. Such a diagram falls through to the S-admissible
         // search and then to `NotCertified`.
         let mut safe_standardizers = !relevant_selection.iter().any(|z| outcomes.contains(z));
-        // Reflexive descendants of the treatments, computed once.
-        let treatment_nodes =
-            treatments.iter().map(|x| prepared.var_to_dense(*x)).collect::<Result<Vec<_>, _>>()?;
-        let mut treated_downstream = BitSet::with_len(graph.node_count());
-        graph.descendants_of(
-            &treatment_nodes,
-            &mut treated_downstream,
-            &mut antecedent_graph::GraphWorkspace::default(),
-        );
         for z in &relevant_selection {
             let dz = prepared.var_to_dense(*z)?;
             let downstream = treated_downstream.contains(dz);
@@ -448,6 +448,28 @@ impl TransportIdentifier {
             });
         }
 
+        // No tier above applies. An intervention on non-ancestors of the outcomes still leaves
+        // the outcomes' law as the target's observational law, whatever the selection structure
+        // around them.
+        if !outcomes.iter().any(|y| {
+            prepared.var_to_dense(*y).is_ok_and(|dense| treated_downstream.contains(dense))
+        }) {
+            return Ok(TransportIdentification::Transportable {
+                formula: TransportFormula::Direct(response_factor(
+                    Arc::clone(&query.target_population),
+                    &outcomes,
+                    &[],
+                    &[],
+                )),
+                certificate: TransportCertificate {
+                    rule: Arc::from("transport.sid.treatment_irrelevant"),
+                    selection_targets: diagram.selection_targets().to_vec().into(),
+                    premises: Arc::from([Arc::from(
+                        "no treatment is an ancestor of a requested outcome, so the outcome law under the intervention is the target observational law",
+                    )]),
+                },
+            });
+        }
         if matches!(search, StandardizerSearch::Capped) {
             return Ok(TransportIdentification::NotCertified(NotCertifiedCertificate {
                 reason: Arc::from("transport.sid.standardizer_search_capped"),
@@ -957,6 +979,13 @@ mod tests {
     #[test]
     fn multi_node_district_returns_scoped_negative_certificate() {
         let mut graph = Admg::with_variables(3);
+        // The treatment acts on the outcome, so the intervention is relevant to it.
+        graph
+            .insert_directed(
+                dense(&graph, VariableId::from_raw(0)),
+                dense(&graph, VariableId::from_raw(2)),
+            )
+            .unwrap();
         graph
             .insert_directed(
                 dense(&graph, VariableId::from_raw(1)),
@@ -1209,7 +1238,31 @@ mod tests {
         let (z, y) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
         graph.insert_directed(z, y).unwrap();
         graph.insert_bidirected(z, y).unwrap();
+        // The treatment X acts on the outcome, so the intervention is not irrelevant to it.
+        graph.insert_directed(DenseNodeId::from_raw(2), y).unwrap();
         SelectionDiagram::try_new(graph, [VariableId::from_raw(0)]).unwrap()
+    }
+
+    #[test]
+    fn treatment_that_is_not_an_outcome_ancestor_transports_the_target_outcome_law() {
+        // Z -> Y, Z <-> Y, X isolated, selection on Z: X cannot affect Y, so the response to
+        // do(X) is the target's observational P*(y), whatever the collider at Z does to
+        // standardization.
+        let mut graph = Admg::with_variables(3);
+        let (z, y) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+        graph.insert_directed(z, y).unwrap();
+        graph.insert_bidirected(z, y).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(0)]).unwrap();
+        let result = TransportIdentifier::new().identify(&diagram, &query_over(1, 2)).unwrap();
+        let TransportIdentification::Transportable { formula, certificate } = result else {
+            panic!("the target outcome law transports: {result:?}");
+        };
+        assert_eq!(&*certificate.rule, "transport.sid.treatment_irrelevant");
+        let TransportFormula::Direct(factor) = formula else { panic!("direct formula") };
+        assert_eq!(&*factor.population, "target");
+        assert_eq!(*factor.variables, [VariableId::from_raw(1)]);
+        assert!(factor.conditioned_on.is_empty());
+        assert!(factor.interventions.is_empty());
     }
 
     #[test]

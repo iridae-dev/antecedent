@@ -231,7 +231,7 @@ impl GeneralizedAdjustmentIdentifier {
             completions += 1;
             let found = self.admg_candidates_of_mag(mag)?;
             candidates += found.members.len();
-            if found.bounded {
+            if found.bounded || found.members.is_empty() {
                 let proof = TransportIdentification::NotCertified(NotCertifiedCertificate {
                     reason: Arc::from(CLASS_TRANSPORT_CANDIDATES_BOUNDED_REASON),
                     witness: Arc::from([]),

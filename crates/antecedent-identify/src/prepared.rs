@@ -206,6 +206,7 @@ impl PreparedAdmg {
         lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
     ) -> Result<Self, IdentificationError> {
         admg.validate().map_err(IdentificationError::from)?;
+        reject_duplicate_static_labels(admg.nodes())?;
         let topo: Arc<[DenseNodeId]> = Arc::from(admg.topological_order().ok_or_else(|| {
             IdentificationError::construction(
                 antecedent_graph::error::CyclicDagRefusal::unlicensed(
@@ -422,9 +423,33 @@ pub fn dag_to_admg(dag: &Dag) -> Result<Admg, IdentificationError> {
     Admg::from_dag(dag).map_err(IdentificationError::from)
 }
 
+/// A variable names one node: a second node with the same `Static` label would be unreachable
+/// by variable id.
+fn reject_duplicate_static_labels(nodes: &[NodeRef]) -> Result<(), IdentificationError> {
+    let mut seen = std::collections::HashSet::with_capacity(nodes.len());
+    for node in nodes {
+        if let NodeRef::Static(variable) = node {
+            if !seen.insert(*variable) {
+                return Err(IdentificationError::construction(format!(
+                    "variable {variable} labels more than one node"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepared_admg_rejects_duplicate_static_labels() {
+        let mut g = Admg::empty();
+        g.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        g.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        assert!(matches!(PreparedAdmg::new(g), Err(IdentificationError::Construction { .. })));
+    }
 
     #[test]
     fn dag_embed_preserves_edges() {

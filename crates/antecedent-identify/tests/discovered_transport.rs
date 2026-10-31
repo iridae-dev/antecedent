@@ -106,7 +106,10 @@ fn chain_class_yields_its_three_members_with_the_verdicts_fixed_for_each_dag() {
     // 0 <- 1 <- 2: the varying mechanism is not an ancestor of the outcome: direct transport.
     match &by_edges(&[(1, 0), (2, 1)]).verdict {
         MemberVerdict::Identified { formula: TransportFormula::Direct(_), rule } => {
-            assert_eq!(rule, "transport.sid.direct");
+            assert!(
+                rule == "transport.sid.direct" || rule == "transport.sid.treatment_irrelevant",
+                "{rule}"
+            );
         }
         other => panic!("0<-1<-2: {other:?}"),
     }
@@ -284,9 +287,20 @@ fn pag_members_disagree_when_a_selected_cause_may_share_a_latent_cause_with_the_
         let z_is_a_cause = member.directed_edges.contains(&(v(2), v(1)));
         match (&member.verdict, z_is_a_cause) {
             (MemberVerdict::NotCertified { .. }, true) => {}
+            // Where the treatment does not reach the outcome the intervention is irrelevant, and
+            // the target's outcome law answers it whatever the selected cause does.
+            (MemberVerdict::Identified { formula, rule }, true)
+                if rule == "transport.sid.treatment_irrelevant" =>
+            {
+                assert_eq!(kind(formula), "direct");
+                assert!(!member.directed_edges.contains(&(v(0), v(1))));
+            }
             (MemberVerdict::Identified { formula, rule }, false) => {
                 assert_eq!(kind(formula), "direct");
-                assert_eq!(rule, "transport.sid.direct");
+                assert!(
+                    rule == "transport.sid.direct" || rule == "transport.sid.treatment_irrelevant",
+                    "{rule}"
+                );
             }
             other => panic!("{other:?}"),
         }
@@ -471,7 +485,10 @@ fn the_effect_horizon_decides_whether_a_selected_history_matters() {
     match &envelope.members()[0].verdict {
         MemberVerdict::Identified { rule, formula } => {
             assert_eq!(kind(formula), "direct");
-            assert_eq!(rule, "transport.sid.direct");
+            assert!(
+                rule == "transport.sid.direct" || rule == "transport.sid.treatment_irrelevant",
+                "{rule}"
+            );
         }
         other => panic!("{other:?}"),
     }
@@ -544,6 +561,18 @@ fn temporal_pag_members_disagree_when_a_selected_lagged_cause_may_be_confounded(
             member.directed_edges.contains(&LaggedEdge { from: v(2), to: v(1), lag: 1 });
         match (&member.verdict, w_is_a_cause) {
             (MemberVerdict::NotCertified { .. }, true) => {}
+            // Where the lagged treatment does not reach the outcome the intervention is
+            // irrelevant, and the target's outcome law answers it.
+            (MemberVerdict::Identified { formula, rule }, true)
+                if rule == "transport.sid.treatment_irrelevant" =>
+            {
+                assert_eq!(kind(formula), "direct");
+                assert!(!member.directed_edges.contains(&LaggedEdge {
+                    from: v(0),
+                    to: v(1),
+                    lag: 1
+                }));
+            }
             (MemberVerdict::Identified { formula, .. }, false) => {
                 assert_eq!(kind(formula), "direct");
             }

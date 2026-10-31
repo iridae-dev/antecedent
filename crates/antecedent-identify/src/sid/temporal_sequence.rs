@@ -537,12 +537,22 @@ pub struct UnrolledSequence {
 }
 
 impl UnrolledSequence {
-    /// The unrolled coordinate of template `variable` in `period` (1 or 2), or
-    /// the baseline coordinate `index` for `period` 0.
+    /// The unrolled coordinate of template `variable` in `period` (1 or 2), or the baseline
+    /// coordinate of baseline index `variable` for `period` 0. `None` when the period is not
+    /// 0, 1 or 2, or the variable is not a template variable (baseline index) of the unrolling.
     #[must_use]
-    pub fn coordinate(&self, variable: VariableId, period: usize) -> VariableId {
-        let period = u32::try_from(period.saturating_sub(1)).unwrap_or(0);
-        VariableId::from_raw(period * self.variable_count + variable.raw())
+    pub fn coordinate(&self, variable: VariableId, period: usize) -> Option<VariableId> {
+        match period {
+            0 => self.slots.baseline.get(usize::try_from(variable.raw()).ok()?).copied(),
+            1 | 2 => {
+                if variable.raw() >= self.variable_count {
+                    return None;
+                }
+                let offset = u32::try_from(period - 1).ok()?.checked_mul(self.variable_count)?;
+                offset.checked_add(variable.raw()).map(VariableId::from_raw)
+            }
+            _ => None,
+        }
     }
 }
 

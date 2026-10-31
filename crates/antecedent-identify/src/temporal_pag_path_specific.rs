@@ -310,13 +310,19 @@ fn window_mag(
     shift: usize,
     seeds: &[usize],
     ctx: &antecedent_core::ExecutionContext,
+    budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<Pag, IdentificationError> {
     if ctx.cancellation.is_cancelled() {
         return Err(IdentificationError::Cancelled);
     }
+    let n = window.dense_len();
+    let nodes_wide = u64::try_from(n).unwrap_or(u64::MAX);
+    let seeds_wide = u64::try_from(seeds.len()).unwrap_or(u64::MAX);
+    budget
+        .charge_work(nodes_wide.saturating_mul(nodes_wide.saturating_add(seeds_wide)))
+        .map_err(crate::error::temporal_materialization_error)?;
     let admg = mag_as_admg(big)?;
     let ancestors = admg.strict_ancestor_sets();
-    let n = window.dense_len();
     let mut keep = vec![false; n];
     for &seed in seeds {
         if seed >= n {
@@ -340,6 +346,10 @@ fn window_mag(
             if ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::Cancelled);
             }
+            // Each pair rebuilds its conditioning set from the kept nodes.
+            budget
+                .charge_work(u64::try_from(kept.len()).unwrap_or(u64::MAX).saturating_add(1))
+                .map_err(crate::error::temporal_materialization_error)?;
             let (b_big, b_inner) = (DenseNodeId::from_index(j + shift), DenseNodeId::from_index(j));
             let direct = admg.children(a_big).contains(&b_big)
                 || admg.children(b_big).contains(&a_big)
@@ -467,7 +477,8 @@ impl GeneralizedAdjustmentIdentifier {
                 .unfold_within(big.clone(), &mut temporal_budget, &ctx)
                 .map_err(crate::error::temporal_graph_error)?;
             let results = if antecedent_graph::completion::is_mag_completion(&finite.pag) {
-                let marginal = window_mag(&finite.pag, inner, shift, &seeds, &ctx)?;
+                let marginal =
+                    window_mag(&finite.pag, inner, shift, &seeds, &ctx, &mut temporal_budget)?;
                 self.window_candidate_results(
                     &marginal,
                     &query,
@@ -553,7 +564,7 @@ impl GeneralizedAdjustmentIdentifier {
     ) -> Result<Vec<IdentificationResult>, IdentificationError> {
         let found = self.admg_candidates_of_mag(marginal)?;
         *candidates += found.members.len();
-        if found.bounded {
+        if found.bounded || found.members.is_empty() {
             let result = crate::pag_path_specific::search_bounded_result(query);
             return Ok(vec![result]);
         }
@@ -677,8 +688,30 @@ mod tests {
         let mut ctx = antecedent_core::ExecutionContext::for_tests(1);
         ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);
         assert!(matches!(
-            window_mag(&graph, &inner, 0, &[0, 1, 2], &ctx),
+            window_mag(
+                &graph,
+                &inner,
+                0,
+                &[0, 1, 2],
+                &ctx,
+                &mut antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
+            ),
             Err(IdentificationError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn marginal_window_pair_search_charges_work() {
+        let graph = Pag::with_variables(3);
+        let inner = TemporalIndexer::new(3, 0, 1).unwrap();
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let mut limits = ctx.temporal_materialization_limits();
+        // The set-up charge is nodes * (nodes + seeds) = 18; the first pair needs 4 more.
+        limits.max_work = 18;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            window_mag(&graph, &inner, 0, &[0, 1, 2], &ctx, &mut budget),
+            Err(IdentificationError::Budget { .. })
         ));
     }
 
@@ -764,6 +797,9 @@ mod tests {
             3,
             &[a_id, b_id],
             &antecedent_core::ExecutionContext::for_tests(1),
+            &mut antecedent_core::TemporalBudget::new(
+                antecedent_core::ExecutionContext::for_tests(1).temporal_materialization_limits(),
+            ),
         )
         .unwrap();
         let edge = marginal
@@ -789,6 +825,9 @@ mod tests {
             1,
             &[1],
             &antecedent_core::ExecutionContext::for_tests(1),
+            &mut antecedent_core::TemporalBudget::new(
+                antecedent_core::ExecutionContext::for_tests(1).temporal_materialization_limits(),
+            ),
         )
         .unwrap();
         let edge = marginal

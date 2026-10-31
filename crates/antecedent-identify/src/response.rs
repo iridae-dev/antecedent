@@ -92,6 +92,21 @@ impl ResponseIdentifier {
             return Ok(result);
         }
 
+        if let ResponseFunctional::InterventionResponse { interventions, .. } = &response.functional
+        {
+            let treatments = response.functional.treatment_ids();
+            let set_level = treatments.first().is_some_and(|treatment| {
+                interventions.iter().any(|iv| {
+                    matches!(iv, antecedent_core::Intervention::Set { variable, .. }
+                        if variable == treatment)
+                })
+            });
+            if !set_level {
+                return Err(IdentificationError::unsupported(
+                    "single-treatment intervention responses are identified only for hard Set interventions",
+                ));
+            }
+        }
         let pairs = response_pairs(&response.functional)?;
         let mut arena = CausalExprArena::new();
         let mut estimands = Vec::with_capacity(pairs.len());
@@ -435,6 +450,27 @@ mod tests {
     use antecedent_graph::{Dag, DenseNodeId};
 
     use super::*;
+
+    #[test]
+    fn shift_intervention_response_is_not_answered_as_unit_contrast() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let response = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(1),
+            interventions: Arc::from([antecedent_core::Intervention::Shift {
+                variable: VariableId::from_raw(0),
+                delta: Value::f64(0.5),
+            }]),
+        });
+        let identifier = ResponseIdentifier::new();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        let result = identifier.identify(
+            &prepared,
+            &CausalQuery::Response(response),
+            &mut IdentificationWorkspace::default(),
+        );
+        assert!(matches!(result, Err(IdentificationError::UnsupportedQuery { .. })), "{result:?}");
+    }
 
     #[test]
     fn identifies_curve_pair_and_preserves_response_query() {

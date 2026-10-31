@@ -101,12 +101,16 @@ impl AdjustmentSearchConfig {
     /// Validate the invariants the search relies on.
     ///
     /// Measurement costs must be finite and non-negative: they are summed and ordered, and a
-    /// NaN or infinite cost would make the cost ordering inconsistent.
+    /// NaN or infinite cost would make the cost ordering inconsistent. A search that may
+    /// return no set cannot answer an existence question, so `max_results` is at least one.
     ///
     /// # Errors
     ///
-    /// A cost that is not finite and non-negative.
+    /// A cost that is not finite and non-negative, or `max_results == 0`.
     pub fn validate(&self) -> Result<(), IdentificationError> {
+        if self.max_results == 0 {
+            return Err(IdentificationError::invalid_input("adjustment.max_results_zero"));
+        }
         self.validate_costs()
     }
 

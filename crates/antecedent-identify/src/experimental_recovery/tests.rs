@@ -11,9 +11,9 @@ use super::{
     NotThisRecipe, PRIOR_REGULARIZATION_ATTEMPT, PhysicalDynamicalStability,
     RecoveredCoefficientPoint, RecoveredCoefficientUncertainty, RecoveryAttempt, RecoveryDrawInput,
     RecoveryWarning, RefusalReason, RegimeAssumption, UncertaintyFault, UniquenessRestriction,
-    UnresolvedReason, WeakStability, as_recovered_mechanism, decide_experimental_recovery,
-    joint_draw_from_blocks, recover_assembled_coefficients, recover_declared_coefficients,
-    regime_is_identified,
+    UnresolvedReason, WeakStability, as_recovered_mechanism, classify_draw,
+    decide_experimental_recovery, joint_draw_from_blocks, recover_assembled_coefficients,
+    recover_declared_coefficients, regime_is_identified,
 };
 use crate::experiment_moments::{
     ConstraintRow, RegimeSample, TargetConstraintBlock, UnitColumn, assemble_experiment_constraints,
@@ -668,6 +668,25 @@ fn complete_draw(variance: f64, weight: f64, marked_inadmissible: bool) -> Recov
         weight,
         marked_inadmissible,
     }
+}
+
+#[test]
+fn indefinite_or_negative_noise_covariance_is_inadmissible() {
+    let nodes = two_nodes();
+    for covariance in [vec![1.0, 2.0, 2.0, 1.0], vec![-1.0, 0.0, 0.0, 1.0]] {
+        let mut draw = complete_draw(1.0, 1.0, false);
+        draw.noise_covariance = covariance;
+        assert_eq!(
+            classify_draw(&nodes, &draw),
+            DrawAdmissibility::Inadmissible(InadmissibleCoefficientDraw::NoiseNotJoint)
+        );
+    }
+    let mut singular = complete_draw(1.0, 1.0, false);
+    singular.noise_covariance = vec![1.0, 1.0, 1.0, 1.0];
+    assert_eq!(classify_draw(&nodes, &singular), DrawAdmissibility::Admissible);
+    let mut zero = complete_draw(1.0, 1.0, false);
+    zero.noise_covariance = vec![0.0; 4];
+    assert_eq!(classify_draw(&nodes, &zero), DrawAdmissibility::Admissible);
 }
 
 #[test]

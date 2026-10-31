@@ -494,6 +494,37 @@ pub(super) fn noise_is_joint(nodes: &[VariableId], draw: &RecoveryDrawInput) -> 
             }
         }
     }
+    covariance_is_positive_semidefinite(&draw.noise_covariance, n)
+}
+
+/// Symmetric elimination with a relative tolerance: a negative pivot, or a vanishing pivot with a
+/// non-vanishing column, is an indefinite covariance.
+fn covariance_is_positive_semidefinite(covariance: &[f64], n: usize) -> bool {
+    let mut matrix = covariance.to_vec();
+    let scale = matrix.iter().fold(0.0_f64, |largest, value| largest.max(value.abs()));
+    #[allow(clippy::cast_precision_loss, reason = "tolerance scale for a small dimension")]
+    let tolerance = 16.0 * f64::EPSILON * scale * (n.max(1) as f64);
+    for pivot in 0..n {
+        let diagonal = matrix[pivot * n + pivot];
+        if diagonal < -tolerance {
+            return false;
+        }
+        if diagonal <= tolerance {
+            if (pivot + 1..n).any(|row| matrix[row * n + pivot].abs() > tolerance) {
+                return false;
+            }
+            continue;
+        }
+        for row in pivot + 1..n {
+            let factor = matrix[row * n + pivot] / diagonal;
+            if factor == 0.0 {
+                continue;
+            }
+            for column in pivot + 1..n {
+                matrix[row * n + column] -= factor * matrix[pivot * n + column];
+            }
+        }
+    }
     true
 }
 

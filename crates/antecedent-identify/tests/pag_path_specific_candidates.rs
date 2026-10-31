@@ -276,9 +276,9 @@ fn two_models_with_one_mag_disagree_and_the_route_refuses() {
     );
 }
 
-/// One edge with two open ends: its three MAG completions each leave the effect of one end on
-/// the other unidentified (an unobserved common cause cannot be excluded, or there is no
-/// directed path), so the envelope carries no identified mass.
+/// One edge with two open ends: the completion that directs it from the treatment cannot exclude
+/// an unobserved common cause, so that effect stays unidentified. A completion with no directed
+/// path from the treatment has a structurally zero effect, which is identified.
 #[test]
 fn an_edge_with_two_circle_marks_leaves_the_effect_unidentified() {
     let mut pag = Pag::with_variables(2);
@@ -288,9 +288,9 @@ fn an_edge_with_two_circle_marks_leaves_the_effect_unidentified() {
         .identify_pag_path_specific_envelope(&pag, &query)
         .unwrap();
     assert!(envelope.cases.len() >= 2, "A->B, A<-B and A<->B: {}", envelope.cases.len());
-    assert_eq!(envelope.identified_weight.0, 0.0);
+    assert_eq!(envelope.identified_weight.0, 2.0);
     assert!(envelope.unidentified_weight.0 > 0.0);
-    assert_eq!(envelope.status, IdentificationStatus::NotIdentified);
+    assert_ne!(envelope.status, IdentificationStatus::NonparametricallyIdentified);
 }
 
 /// `C -> T -> M -> Y` with every mark decided. `C -> T` is the only invisible edge, and a

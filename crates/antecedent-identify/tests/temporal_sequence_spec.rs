@@ -197,7 +197,9 @@ fn a_template_unrolls_through_the_temporal_dag_unfolding() {
         has(0, 1) && has(1, 2) && has(0, 2) && has(0, 3) && has(1, 3) && has(3, 4) && has(4, 5)
     );
     assert!(!has(3, 0) && has(6, 0) && has(6, 3) && has(6, 2) && has(6, 5));
-    assert_eq!(unrolled.coordinate(v(1), 2), v(4));
+    assert_eq!(unrolled.coordinate(v(1), 2), Some(v(4)));
+    assert_eq!(unrolled.coordinate(v(1), 1), Some(v(1)));
+    assert_eq!(unrolled.coordinate(v(0), 0), Some(v(6)));
     let diagram =
         SelectionDiagram::try_new(unrolled.admg.clone(), Arc::<[VariableId]>::from([v(3)]))
             .unwrap();
@@ -244,4 +246,26 @@ fn the_history_count_has_no_ceiling() {
     };
     assert!(with_levels(16, 16, 16).is_ok());
     assert!(with_levels(17, 241, 1).is_ok());
+}
+
+#[test]
+fn unrolled_coordinate_rejects_out_of_range_periods() {
+    use antecedent_core::Lag;
+    let mut template = TemporalDag::empty();
+    let l0 = template.add_lagged(v(0), Lag::CONTEMPORANEOUS).unwrap();
+    let a0 = template.add_lagged(v(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = template.add_lagged(v(2), Lag::CONTEMPORANEOUS).unwrap();
+    template.insert_directed(l0, a0).unwrap();
+    template.insert_directed(a0, y0).unwrap();
+    let roles = TemplateRoles { covariates: vec![v(0)], action: v(1), outcome: v(2) };
+    let unrolled = unroll_two_slice(&template, &roles, 1, &[(0, v(0))]).unwrap();
+    // Three template variables: period 3 would collide with the baseline coordinate.
+    assert_eq!(unrolled.coordinate(v(1), 3), None);
+    assert_eq!(unrolled.coordinate(v(1), usize::MAX), None);
+    assert_eq!(unrolled.coordinate(v(1), 1usize << 32), None);
+    assert_eq!(unrolled.coordinate(v(3), 1), None);
+    assert_eq!(unrolled.coordinate(v(u32::MAX), 2), None);
+    // Period 0 is the baseline coordinate, never a period-1 coordinate.
+    assert_eq!(unrolled.coordinate(v(0), 0), Some(v(6)));
+    assert_eq!(unrolled.coordinate(v(1), 0), None);
 }

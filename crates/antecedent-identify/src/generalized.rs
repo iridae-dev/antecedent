@@ -61,6 +61,12 @@ use crate::result::{
 pub(crate) const CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE: &str =
     "identify.conditional.search_bounded";
 
+/// Diagnostic code of a modifier-constrained adjustment search that stopped at `max_results`
+/// sets. Every returned set is certified; only the list of alternatives is incomplete, so this
+/// is not a bounded-search (undecided) outcome.
+pub(crate) const CONDITIONAL_RESULTS_TRUNCATED_DIAGNOSTIC_CODE: &str =
+    "identify.conditional.results_truncated";
+
 /// Diagnostic code of a per-completion [`IdentificationResult`] whose adjustment-set search
 /// was capped before it could decide — as opposed to searching exhaustively and finding no
 /// valid set. Such a result keeps [`IdentificationStatus::NotIdentified`] and is an Execution
@@ -568,7 +574,7 @@ fn validate_conditional_adjustment(
         let found =
             constrained_conditional_set(graph, mutilated, nodes, query, &modifiers, config)?;
         match found {
-            ConditionalSearch::Found(adjustments, examined, budget_exhausted) => {
+            ConditionalSearch::Found(adjustments, examined, budget_exhausted, truncated) => {
                 for adjustment in adjustments {
                     let (active, control) = conditional_levels(query)?;
                     let functional = result.arena.backdoor_ate(
@@ -599,6 +605,18 @@ fn validate_conditional_adjustment(
                              returned set separates treatment from outcome but a smaller one may \
                              exist",
                             config.max_examinations
+                        ),
+                    ));
+                }
+                if truncated {
+                    result.diagnostics.push(Diagnostic::new(
+                        CONDITIONAL_RESULTS_TRUNCATED_DIAGNOSTIC_CODE,
+                        DiagnosticKind::Execution,
+                        DiagnosticSeverity::Info,
+                        format!(
+                            "conditional adjustment search stopped at max_results={}; every \
+                             returned set is certified but further sets may exist",
+                            config.max_results
                         ),
                     ));
                 }
@@ -661,10 +679,17 @@ fn fund_adjustment_enumeration(
 
 enum ConditionalSearch {
     /// Certified sets, separation tests spent, and whether the examination budget cut the
-    /// search for smaller sets short.
-    Found(Vec<Vec<VariableId>>, u64, bool),
+    /// search for smaller sets short, and whether `max_results` ended the enumeration.
+    Found(Vec<Vec<VariableId>>, u64, bool, bool),
     /// Proved: no admissible set exists.
     Absent,
+}
+
+/// How a conditional search ended.
+#[derive(Clone, Copy)]
+struct Outcome {
+    budget_exhausted: bool,
+    truncated: bool,
 }
 
 fn constrained_conditional_set(
@@ -701,11 +726,16 @@ fn constrained_conditional_set(
     )? {
         // Over the declared ceiling the subset search is skipped, not the decision: the
         // candidates were just certified as a conditioning set, so they are the answer.
-        return Ok(finish_conditional_search(&[], &candidates, nodes, examined, true, config));
+        return Ok(finish_conditional_search(
+            &[],
+            &candidates,
+            nodes,
+            examined,
+            Outcome { budget_exhausted: true, truncated: false },
+            config,
+        ));
     }
-    if config.max_results == 0 {
-        return Ok(ConditionalSearch::Absent);
-    }
+    let mut truncated = false;
     let mut found: Vec<Vec<DenseNodeId>> = Vec::new();
     // Found sets as bit masks, so each superset/subset test is word-wise.
     let mut found_masks: Vec<BitSet> = Vec::new();
@@ -761,7 +791,10 @@ fn constrained_conditional_set(
                         mask.insert(d);
                     }
                     found_masks.push(mask);
-                    config.minimal_only && z.is_empty() || found.len() >= config.max_results
+                    let complete = config.minimal_only && z.is_empty();
+                    let full = found.len() >= config.max_results;
+                    truncated |= full && !complete;
+                    complete || full
                 }
                 Ok(false) => false,
                 Err(e) => {
@@ -782,7 +815,14 @@ fn constrained_conditional_set(
             break;
         }
     }
-    Ok(finish_conditional_search(&found, &candidates, nodes, examined, budget_exhausted, config))
+    Ok(finish_conditional_search(
+        &found,
+        &candidates,
+        nodes,
+        examined,
+        Outcome { budget_exhausted, truncated },
+        config,
+    ))
 }
 
 /// Translate the completed dense search and rank its admissible sets. An exhausted
@@ -792,7 +832,7 @@ fn finish_conditional_search(
     candidates: &[DenseNodeId],
     nodes: &[antecedent_graph::NodeRef],
     examined: u64,
-    budget_exhausted: bool,
+    Outcome { budget_exhausted, truncated }: Outcome,
     config: &crate::backdoor::AdjustmentSearchConfig,
 ) -> ConditionalSearch {
     let mut sets: Vec<Vec<VariableId>> = found
@@ -823,7 +863,7 @@ fn finish_conditional_search(
     if sets.is_empty() {
         ConditionalSearch::Absent
     } else {
-        ConditionalSearch::Found(sets, examined, budget_exhausted)
+        ConditionalSearch::Found(sets, examined, budget_exhausted, truncated)
     }
 }
 
@@ -1369,7 +1409,7 @@ mod tests {
         )
         .unwrap();
         match result {
-            ConditionalSearch::Found(sets, examined, bounded) => {
+            ConditionalSearch::Found(sets, examined, bounded, _) => {
                 assert_eq!(sets.len(), 1);
                 assert_eq!(examined, 2);
                 assert!(bounded);
@@ -1769,6 +1809,60 @@ mod tests {
 #[cfg(test)]
 mod conditional_search_tests {
     use super::*;
+
+    fn collider_dag() -> antecedent_graph::Dag {
+        let mut dag = antecedent_graph::Dag::with_variables(5);
+        for (a, b) in [(1, 0), (1, 2), (3, 2), (3, 4), (0, 4)] {
+            dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        dag
+    }
+
+    fn collider_query() -> AverageEffectQuery {
+        AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(4))
+            .with_effect_modifiers([VariableId::from_raw(2)])
+    }
+
+    #[test]
+    fn conditional_max_results_zero_is_invalid() {
+        let query = collider_query();
+        let config =
+            crate::backdoor::AdjustmentSearchConfig { max_results: 0, ..Default::default() };
+        let mut result = not_identified(CausalQuery::AverageEffect(query.clone()), "fixture");
+        let outcome =
+            validate_dag_conditional_adjustment(&collider_dag(), &query, &mut result, &config);
+        assert!(matches!(outcome, Err(IdentificationError::InvalidInput { .. })), "{outcome:?}");
+    }
+
+    #[test]
+    fn conditional_truncation_emits_diagnostic() {
+        let query = collider_query();
+        let run = |max_results| {
+            let config =
+                crate::backdoor::AdjustmentSearchConfig { max_results, ..Default::default() };
+            let mut result = not_identified(CausalQuery::AverageEffect(query.clone()), "fixture");
+            validate_dag_conditional_adjustment(&collider_dag(), &query, &mut result, &config)
+                .unwrap();
+            result
+        };
+        // {A} and {B} are both minimal adjustment sets; one result stops the enumeration.
+        let truncated = run(1);
+        assert_eq!(truncated.status, IdentificationStatus::NonparametricallyIdentified);
+        let note = truncated
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == CONDITIONAL_RESULTS_TRUNCATED_DIAGNOSTIC_CODE)
+            .expect("truncation is reported");
+        assert_eq!(note.kind, DiagnosticKind::Execution);
+        assert!(!crate::envelope::search_truncated(&truncated));
+        let full = run(64);
+        assert!(
+            !full
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_ref() == CONDITIONAL_RESULTS_TRUNCATED_DIAGNOSTIC_CODE)
+        );
+    }
 
     #[test]
     fn modifier_collider_requires_an_alternative_adjustment_set() {

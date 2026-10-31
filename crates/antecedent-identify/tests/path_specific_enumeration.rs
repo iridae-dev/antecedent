@@ -8,8 +8,8 @@
 //! Avin, Shpitser and Pearl definition: a recanting witness is a node `W` other than the
 //! treatment reached by a prefix `q` with one continuation to the outcome that makes a selected
 //! path and another that makes an unselected one. A DAG query is identified exactly when some
-//! path is selected and no witness exists. The product decides the same question from
-//! reachability of the treatment's children and shares no code with the enumeration.
+//! no witness exists (an empty selection is zero by structure, hence identified). The product
+//! decides the same question from reachability of the treatment's children and shares no code with the enumeration.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -78,12 +78,12 @@ impl Graph {
     }
 }
 
-/// Identified exactly when some path is selected and no prefix is shared by a selected and an
-/// unselected path.
+/// Identified exactly when no prefix is shared by a selected and an unselected path. With no path
+/// selected the effect is structurally zero, which is identified.
 fn reference(paths: &[Vec<usize>], selected: impl Fn(&[usize]) -> bool) -> bool {
     let chosen: Vec<&Vec<usize>> = paths.iter().filter(|p| selected(p)).collect();
     if chosen.is_empty() {
-        return false;
+        return true;
     }
     for p in &chosen {
         for q in paths.iter().filter(|q| !selected(q)) {
@@ -186,7 +186,10 @@ fn identification_matches_the_recanting_witness_definition_on_every_small_dag() 
     for n in 3..=5 {
         let (identified, refused) = sweep(n);
         println!("n={n} identified={identified} refused={refused}");
-        assert!(identified > 30 && refused > 10, "n={n}: {identified} {refused}");
+        // A witness needs a node besides the treatment, the outcome and its own continuation,
+        // so three nodes admit none and refuse nothing.
+        assert!(identified > 30, "n={n}: {identified} {refused}");
+        assert!(n < 4 || refused > 10, "n={n}: {identified} {refused}");
     }
 }
 
@@ -199,6 +202,37 @@ fn the_reference_finds_the_textbook_witness() {
     // T -> A -> W -> Y and T -> A -> Y with W required: the shared first hop is a witness.
     let paths = vec![vec![0, 1, 2, 3], vec![0, 1, 3]];
     assert!(!reference(&paths, |p| p.contains(&2)));
-    // Nothing selected is not identified.
-    assert!(!reference(&paths, |p| p.contains(&9)));
+    // Nothing selected is zero by structure, which is identified.
+    assert!(reference(&paths, |p| p.contains(&9)));
+}
+
+#[test]
+fn path_specific_with_no_matching_path_is_identified_zero() {
+    use antecedent_core::DiagnosticKind;
+    use antecedent_graph::Admg;
+    // X -> M -> Y with a bystander Z on no X -> Y path.
+    let mut graph = Admg::with_variables(4);
+    for (from, to) in [(0, 1), (1, 2)] {
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let identifier = PathSpecificIdentifier::new();
+    let prepared = identifier.prepare(&graph).unwrap();
+    let query = CausalQuery::PathSpecific(
+        PathSpecificEffectQuery::binary(v(0), v(2)).with_path_nodes(vec![v(3)]),
+    );
+    let result =
+        identifier.identify(&prepared, &query, &mut IdentificationWorkspace::default()).unwrap();
+    assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+    assert_eq!(result.estimands.len(), 1);
+    let antecedent_expr::ExprNode::Contrast { left, right, .. } =
+        result.arena.node(result.estimands[0].functional)
+    else {
+        panic!("a structurally zero effect is a contrast of identical arms");
+    };
+    assert_eq!(left, right);
+    assert!(result.diagnostics.iter().any(|d| {
+        d.code.as_ref()
+            == antecedent_identify::path_specific::PATH_SPECIFIC_STRUCTURAL_ZERO_DIAGNOSTIC_CODE
+            && d.kind == DiagnosticKind::Scientific
+    }));
 }

@@ -460,7 +460,7 @@ impl GeneralizedAdjustmentIdentifier {
             completions += 1;
             let found = self.admg_candidates_of_mag(mag)?;
             candidates += found.members.len();
-            if found.bounded {
+            if found.bounded || found.members.is_empty() {
                 let result = search_bounded_result(query);
                 return Ok(vec![result]);
             }
@@ -540,7 +540,7 @@ impl GeneralizedAdjustmentIdentifier {
         let mut workspace = IdentificationWorkspace::default();
         self.pag_envelope_with_candidates(pag, |mag| {
             let found = self.admg_candidates_of_mag(mag)?;
-            if found.bounded {
+            if found.bounded || found.members.is_empty() {
                 return Ok(vec![search_bounded_result(query)]);
             }
             let mut forms: Vec<Option<String>> = Vec::new();
