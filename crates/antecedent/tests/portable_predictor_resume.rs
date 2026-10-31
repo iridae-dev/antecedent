@@ -57,8 +57,19 @@ fn fit_bytes(effect: f64) -> (Vec<u8>, u64) {
 
 fn predict_bytes(bytes: &[u8]) -> (Vec<f64>, String) {
     let consumed = antecedent_io::consume_analysis_result(bytes).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
-    assert!(consumed.acceptance.verified_references);
+    // The serialized predictor remains usable for model-point inference, but
+    // this body does not independently replay the fitted causal estimator.
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.verified_references);
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
     let claim = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap();
     let parent = antecedent_core::to_hex(&claim.claim_id);
     let model = consumed.body.fitted_effect.unwrap();

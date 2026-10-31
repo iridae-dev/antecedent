@@ -382,9 +382,11 @@ pub struct DesignReplay {
 
 /// Independently consume a design artifact and replay it against supplied raw data.
 ///
-/// The existing reader remains unchanged. Its missing RD operation is discharged only
-/// by running the checked engine and matching the complete data, program, inference,
-/// execution and scientific-result bindings. The producing seed must be supplied.
+/// The bytes-only reader may lack the checked numerical operation. For these three
+/// supported designs, that specific gap is discharged only after running the checked
+/// engine and matching the complete data, program, inference, execution and result
+/// bindings. All other unresolved obligations still refuse. The producing seed must
+/// be supplied; bytes-only acceptance is unchanged.
 /// # Errors
 /// Missing raw data, malformed or unsupported artifact, checked-engine refusal, or any
 /// mismatch of the supplied data/configuration/execution context and original result.
@@ -397,12 +399,30 @@ pub fn consume_design_with_data(
         .map_err(|_| RecalcRunError::Request(RecalcRequestCode::InvalidDesignArtifact))?;
     let request =
         request.ok_or(RecalcRunError::Request(RecalcRequestCode::DesignDataUnavailable))?;
+    let expected_estimator = match request.model {
+        DesignModel::Iv2Sls { .. } => "iv.2sls",
+        DesignModel::Rd { .. } => "rd.sharp",
+        DesignModel::Frontdoor { .. } => "frontdoor.linear_two_stage",
+    };
     if !source.acceptance.recognized
         || !source.acceptance.claim_present
-        || source.contract.is_none()
+        || source
+            .contract
+            .as_ref()
+            .and_then(|contract| contract.program.as_ref())
+            .and_then(|program| program.commitments.resolved_estimator.as_deref())
+            != Some(expected_estimator)
         || source.acceptance.unresolved.iter().any(|reason| {
-            !matches!(request.model, DesignModel::Rd { .. })
-                || reason.as_ref() != "dependencies.checked_rd_operation"
+            !match (&request.model, reason.as_ref()) {
+                // These requests are independently rebuilt below and compared in full;
+                // the bytes-only reader still cannot replay their numerical operation.
+                (
+                    DesignModel::Iv2Sls { .. } | DesignModel::Frontdoor { .. },
+                    "dependencies.checked_estimator_operation",
+                ) => true,
+                (DesignModel::Rd { .. }, "dependencies.checked_rd_operation") => true,
+                _ => false,
+            }
         })
     {
         return Err(RecalcRunError::Request(RecalcRequestCode::DesignArtifactUnverified).into());

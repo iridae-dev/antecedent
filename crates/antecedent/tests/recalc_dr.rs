@@ -232,7 +232,19 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
     assert_eq!(predicted, independent);
     let artifact = session.export_predictor_result(&ctx()).unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.acceptance.accepts_as_verified_program());
+    // The serialized predictor remains usable for model-point inference, but
+    // this body does not independently replay the fitted causal estimator.
+    assert!(!consumed.acceptance.accepts_as_verified_program());
+    assert!(!consumed.acceptance.verified_references);
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_estimator_operation"),
+        "{:?}",
+        consumed.acceptance.unresolved
+    );
     let model = consumed.body.fitted_effect.unwrap();
     let (replayed, actual_fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         model.predict(&[VariableId::from_raw(2)], &[&[-1.0, 1.0]], 2, &ctx()).unwrap()

@@ -278,20 +278,23 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
         let (consumed, solves) =
             count_least_squares_solves(|| antecedent_io::consume_analysis_result(&bytes).unwrap());
         assert_eq!(solves, 0);
-        if matches!(r.model, DesignModel::Rd { .. }) {
-            // The existing RD wire lacks the checked running-variable operation.
-            // Its consumer names this dependency rather than inventing replay support.
-            assert!(!consumed.acceptance.accepts_as_verified_program());
-            assert!(
-                consumed
-                    .acceptance
-                    .unresolved
-                    .iter()
-                    .any(|reason| reason.as_ref() == "dependencies.checked_rd_operation")
-            );
+        // A checked lowering is not an independent numerical replay. These
+        // artifacts remain readable while the missing operation is explicit.
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        let missing_operation = if matches!(r.model, DesignModel::Rd { .. }) {
+            "dependencies.checked_rd_operation"
         } else {
-            assert!(consumed.acceptance.accepts_as_verified_program());
-        }
+            "dependencies.checked_estimator_operation"
+        };
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| reason.as_ref() == missing_operation),
+            "{:?}",
+            consumed.acceptance.unresolved
+        );
         close(consumed.body.estimate.unwrap(), first.law.ate);
         assert!(antecedent_io::consume_analysis_result(&bytes[..bytes.len() / 2]).is_err());
         assert_source_backed_replay(&bytes, &r, &first, consumed.artifact_digest);
@@ -318,6 +321,63 @@ fn design_actual_artifact_consumers_and_fresh_raw_data_refits_are_honest() {
         assert!(rebuilt.receipt.totals().model_fits > 0);
         same(&first, &rebuilt);
     }
+}
+
+#[test]
+fn design_source_replay_refuses_other_dependencies_and_wrong_operation() {
+    let original = iv(1.0);
+    let mut session = DesignSession::new();
+    run(&mut session, &original);
+    let bytes = session.export_result().unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
+
+    // Preserve the original sealed contract while changing its published body.
+    // The missing numerical replay operation must not mask this separate failure.
+    let mut body = consumed.body.clone();
+    body.estimate = Some(body.estimate.unwrap() + 1.0);
+    let mut artifact = antecedent_io::encode_analysis_result_artifact(
+        &body,
+        consumed.header.variable_names.clone(),
+        "tampered-design",
+    )
+    .unwrap();
+    let (descriptor, section) = antecedent_io::pack_section_shared(
+        antecedent_io::CONTRACT_SECTION,
+        "application/cbor",
+        antecedent_io::to_cbor(consumed.contract.as_ref().unwrap()).unwrap().into(),
+        antecedent_io::CompressPolicy::Auto,
+    );
+    artifact.manifest.sections.push(descriptor);
+    artifact.sections.push(section);
+    let mut changed = Vec::new();
+    artifact.write_to(&mut changed).unwrap();
+    let parsed = antecedent_io::consume_analysis_result(&changed).unwrap();
+    assert!(
+        parsed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() != "dependencies.checked_estimator_operation"),
+        "{:?}",
+        parsed.acceptance.unresolved
+    );
+    assert!(matches!(
+        consume_design_with_data(&changed, Some(&original), &ctx()),
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignArtifactUnverified
+        )))
+    ));
+
+    // A missing IV numerical operation is not authority to replay the artifact
+    // as a different, though independently supported, front-door operation.
+    let mut wrong_operation = original.clone();
+    wrong_operation.model = DesignModel::Frontdoor { mediator: 2 };
+    assert!(matches!(
+        consume_design_with_data(&bytes, Some(&wrong_operation), &ctx()),
+        Err(DesignRunError::Recalc(RecalcRunError::Request(
+            RecalcRequestCode::DesignArtifactUnverified
+        )))
+    ));
 }
 
 #[test]
