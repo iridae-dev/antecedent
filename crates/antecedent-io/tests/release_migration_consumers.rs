@@ -160,7 +160,6 @@ fn every_previous_route_gets_an_explicit_outcome_and_none_is_a_break() {
     }
     assert_eq!(kept + one + split + retired, routes.len());
     assert_eq!(retired, 0, "no previous route left the inventory");
-    // Every previous refusal now executes, so the migration carries it as a method.
     assert!(one > 0 && split > 0, "kept {kept}, one {one}, split {split}");
     // Every method that names a previous route is carried by exactly that route's outcome.
     let ids: Vec<&str> = routes.iter().map(|r| r.id.as_str()).collect();
@@ -170,7 +169,7 @@ fn every_previous_route_gets_an_explicit_outcome_and_none_is_a_break() {
         added.iter().all(|m| m.route == "unlisted"),
         "a method names a route not in the manifest"
     );
-    assert_eq!(narrowed, 1, "exactly one method keeps less than its route's licence");
+    assert_eq!(narrowed, 0, "current linked method statuses carry their route licence kind");
     for axis in RouteAxis::ALL {
         assert!(
             occupied.get(&axis).copied().unwrap_or(0) > 0,
@@ -223,18 +222,19 @@ fn a_frozen_previous_release_route_artifact_is_consumed_by_the_current_reader() 
         .map(|m| (m.id.as_str(), m.result.as_ref().expect("no fixture record is a break")))
         .collect();
     assert!(matches!(by_id["licensed.AverageEffect.Dag"], RouteRecordOutcome::Split { .. }));
-    // The previous refusal executes now: it migrates to the method that carries it.
-    assert!(matches!(
-        by_id["closed.AnomalyAttribution.Admg"],
-        RouteRecordOutcome::OneToOne { .. } | RouteRecordOutcome::Split { .. }
-    ));
+    // No current method carries this historical closed route, so its refusal remains.
+    assert_eq!(by_id["closed.AnomalyAttribution.Admg"], &RouteRecordOutcome::RefusalKept);
     let RouteRecordOutcome::Split { methods: response, .. } =
         by_id["licensed.InterventionResponse.CoDetermined"]
     else {
         panic!("the response route splits");
     };
-    assert_eq!(response.iter().filter(|m| m.narrowed).count(), 1);
-    assert!(response.iter().any(|m| !m.narrowed && m.status == "licensed"));
+    // Both current method records carry the licensed status; this is a route-status
+    // comparison, not an assertion that a calibration record attests coverage.
+    assert_eq!(response.len(), 2);
+    assert!(response.iter().all(|m| !m.narrowed && m.status == "licensed"));
+    assert!(response.iter().any(|m| m.estimator == "cell.aipw"));
+    assert!(response.iter().any(|m| m.estimator == "response.bayesian"));
     let RouteRecordOutcome::Split { methods: temporal, .. } =
         by_id["licensed.AnomalyAttribution.TemporalDag"]
     else {
@@ -258,10 +258,11 @@ fn a_fixture_with_a_removed_route_reports_each_break_beside_the_carried_records(
         {"id":"licensed.AverageEffect.Dag","status":"licensed","design_time_model":"static","inference":"Frequentist"},
         {"id":"licensed.RemovedQuery.Dag","status":"licensed","design_time_model":"static","inference":"Frequentist"},
         {"id":"graphless.removed.design","status":"graphless","design_time_model":"static","inference":"unlisted"},
-        {"id":"licensed.AverageEffect.Dag","status":"withdrawn","design_time_model":"static","inference":"Frequentist"}
+        {"id":"execution.removed.design","status":"execution_only","design_time_model":"static","inference":"unlisted"},
+        {"id":"unknown.status.route","status":"withdrawn","design_time_model":"static","inference":"Frequentist"}
     ]}"#;
     let migrated = consume_previous_route_records(artifact, &methods).unwrap();
-    assert_eq!(migrated.len(), 4);
+    assert_eq!(migrated.len(), 5);
     assert!(matches!(migrated[0].result, Ok(RouteRecordOutcome::Split { .. })));
     let error = migrated[1].result.clone().unwrap_err();
     assert_eq!(
@@ -269,8 +270,12 @@ fn a_fixture_with_a_removed_route_reports_each_break_beside_the_carried_records(
         RouteRecordError::RouteWithoutCurrentMethod { id: "licensed.RemovedQuery.Dag".into() }
     );
     assert!(error.to_string().contains("method that replaced it"));
-    assert_eq!(migrated[2].result, Ok(RouteRecordOutcome::Retired));
-    assert!(matches!(migrated[3].result, Err(RouteRecordError::UnknownStatus { .. })));
+    assert_eq!(
+        migrated[2].result,
+        Err(RouteRecordError::RouteWithoutCurrentMethod { id: "graphless.removed.design".into() })
+    );
+    assert_eq!(migrated[3].result, Ok(RouteRecordOutcome::Retired));
+    assert!(matches!(migrated[4].result, Err(RouteRecordError::UnknownStatus { .. })));
 }
 
 #[test]
@@ -278,6 +283,14 @@ fn bytes_that_are_not_a_route_artifact_are_not_decoded() {
     let (_, methods) = routes_and_methods();
     assert_eq!(
         consume_previous_route_records(b"{\"routes\":[{\"id\":\"x\"}]}", &methods).unwrap_err(),
+        PreviousReleaseError::ArtifactNotDecoded
+    );
+    let duplicate = br#"{"routes":[
+        {"id":"repeated","status":"closed","design_time_model":"static","inference":"Frequentist"},
+        {"id":"repeated","status":"closed","design_time_model":"static","inference":"Frequentist"}
+    ]}"#;
+    assert_eq!(
+        consume_previous_route_records(duplicate, &methods).unwrap_err(),
         PreviousReleaseError::ArtifactNotDecoded
     );
     assert_eq!(
