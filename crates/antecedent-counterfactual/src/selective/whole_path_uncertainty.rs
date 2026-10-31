@@ -373,7 +373,7 @@ pub fn derive_whole_path_uncertainty(
 
     // Re-abduce and re-predict; the executed values must be reproduced exactly.
     let plans: Vec<WorldPlan> = (0..request.worlds.len())
-        .map(|w| WorldPlan::new(&request.scm, &request.worlds, w))
+        .map(|w| WorldPlan::from_validated(&request.scm, &request.worlds, w))
         .collect();
     let n_vars = request.scm.variables.len();
     let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];

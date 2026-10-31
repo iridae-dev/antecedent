@@ -299,6 +299,94 @@ fn mediation_worlds() -> Vec<FiniteWorld> {
 }
 
 #[test]
+fn repeated_world_routes_are_refused_before_planning_or_digest() {
+    use antecedent_counterfactual::selective::finite_scm::{WorldPlan, validate_worlds};
+    let model = mediation();
+    let original = mediation_worlds();
+    for second_source in [1, 2] {
+        let mut worlds = original.clone();
+        worlds[0].routes.push(WorldRoute { parent: 1, child: 2, source: second_source });
+        let mut reversed = worlds.clone();
+        reversed[0].routes.reverse();
+        for worlds in [&worlds, &reversed] {
+            let expected =
+                ("invalid_argument".to_owned(), "cross_world_execution.invalid_world".to_owned());
+            assert_eq!(refusal_of(validate_worlds(&model, worlds)), expected);
+            assert_eq!(refusal_of(worlds[0].digest()), expected);
+            assert_eq!(refusal_of(WorldPlan::new(&model, worlds, 0)), expected);
+            let req = request(
+                model.clone(),
+                vec![unit("u", &[])],
+                worlds.to_vec(),
+                FiniteQuantity::Probability(atom(0, 2, 1)),
+            );
+            let mut exec = FiniteScmExecutor::new();
+            let before = exec.counters();
+            assert_eq!(refusal_of(exec.execute(&req, &ctx())), expected);
+            assert_eq!(exec.retained_len(), 0);
+            assert_eq!(exec.counters(), before);
+        }
+    }
+}
+
+#[test]
+fn repeated_routes_preserve_populated_abductions_and_counters() {
+    let model = mediation();
+    let worlds = mediation_worlds();
+    let quantity = FiniteQuantity::Probability(atom(0, 2, 1));
+    let valid = request(model.clone(), vec![unit("u", &[])], worlds.clone(), quantity.clone());
+    let mut exec = FiniteScmExecutor::new();
+    let first = exec.execute(&valid, &ctx()).unwrap();
+    assert!(exec.retained_len() > 0, "the valid run must populate the abduction cache");
+    let retained: Vec<_> = exec.retained_all().cloned().collect();
+    let before = exec.counters();
+    for second_source in [1, 2] {
+        let mut invalid_worlds = worlds.clone();
+        invalid_worlds[0].routes.push(WorldRoute { parent: 1, child: 2, source: second_source });
+        for reverse in [false, true] {
+            let mut candidate = invalid_worlds.clone();
+            if reverse {
+                candidate[0].routes.reverse();
+            }
+            let invalid = request(model.clone(), vec![unit("u", &[])], candidate, quantity.clone());
+            assert_eq!(
+                refusal_of(exec.execute(&invalid, &ctx())),
+                ("invalid_argument".to_owned(), "cross_world_execution.invalid_world".to_owned())
+            );
+            assert_eq!(exec.counters(), before);
+            assert_eq!(exec.retained_all().cloned().collect::<Vec<_>>(), retained);
+        }
+    }
+    let again = exec.execute(&valid, &ctx()).unwrap();
+    assert_eq!(again.value.to_bits(), first.value.to_bits());
+    assert_eq!(again.units, first.units);
+    assert_eq!(again.receipt, first.receipt);
+    assert_eq!(again.work.abductions, 0);
+    assert_eq!(again.work.abductions_reused, 1);
+}
+
+#[test]
+fn distinct_routes_are_order_independent_in_plan_and_identity() {
+    use antecedent_counterfactual::selective::finite_scm::WorldPlan;
+    let model = mediation();
+    let mut worlds = mediation_worlds();
+    worlds[0].routes.push(WorldRoute { parent: 0, child: 2, source: 1 });
+    let mut reordered = worlds.clone();
+    reordered[0].routes.reverse();
+    assert_eq!(worlds[0].digest().unwrap(), reordered[0].digest().unwrap());
+    assert!(WorldPlan::new(&model, &worlds, 0).is_ok());
+    let quantity = FiniteQuantity::Probability(atom(0, 2, 1));
+    let a = FiniteScmExecutor::new()
+        .execute(&request(model.clone(), vec![unit("u", &[])], worlds, quantity.clone()), &ctx())
+        .unwrap();
+    let b = FiniteScmExecutor::new()
+        .execute(&request(model, vec![unit("u", &[])], reordered, quantity), &ctx())
+        .unwrap();
+    assert_eq!(a.value, b.value);
+    assert_eq!(a.receipt.world_digest, b.receipt.world_digest);
+}
+
+#[test]
 fn natural_effects_are_recomputed_from_coupled_worlds() {
     let mut exec = FiniteScmExecutor::new();
     let run = |exec: &mut FiniteScmExecutor, quantity| {

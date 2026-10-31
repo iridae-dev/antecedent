@@ -697,7 +697,7 @@ impl FiniteScmExecutor {
 
         // Action-specific prediction (stage 4) and summary (stage 5).
         let plans: Vec<WorldPlan> = (0..request.worlds.len())
-            .map(|w| WorldPlan::new(&request.scm, &request.worlds, w))
+            .map(|w| WorldPlan::from_validated(&request.scm, &request.worlds, w))
             .collect();
         let n_vars = request.scm.variables.len();
         let mut values = vec![vec![0u8; n_vars]; request.worlds.len()];
@@ -744,7 +744,7 @@ impl FiniteScmExecutor {
         };
 
         let (receipt, stages) =
-            Self::receipts(request, &mechanism, &resolved, computed, &abduction_set);
+            Self::receipts(request, &mechanism, &resolved, computed, &abduction_set)?;
         // Commit atomically after every stage succeeded.
         for entry in &resolved {
             self.retained.entry(entry.identity.clone()).or_insert_with(|| Arc::clone(entry));
@@ -810,8 +810,9 @@ impl FiniteScmExecutor {
             interventions: Vec::new(),
             routes: Vec::new(),
         });
-        let plans: Vec<WorldPlan> =
-            (0..extended.len()).map(|w| WorldPlan::new(&request.scm, &extended, w)).collect();
+        let plans: Vec<WorldPlan> = (0..extended.len())
+            .map(|w| WorldPlan::from_validated(&request.scm, &extended, w))
+            .collect();
         let mut work = EliminationWork::default();
         let mut resolved: Vec<Arc<RetainedAbduction>> = Vec::with_capacity(units.len());
         let mut answers = Vec::with_capacity(units.len());
@@ -880,7 +881,7 @@ impl FiniteScmExecutor {
         counters.summaries += 1;
         let mean = total.total() / answers.len() as f64;
         let (receipt, stages) =
-            Self::receipts(request, mechanism, &resolved, units.len(), abduction_set);
+            Self::receipts(request, mechanism, &resolved, units.len(), abduction_set)?;
         self.counters = counters;
         Ok(FiniteExecutionResult {
             matrix_row: row.id,
@@ -994,7 +995,7 @@ impl FiniteScmExecutor {
         resolved: &[Arc<RetainedAbduction>],
         computed: usize,
         abduction_set: &str,
-    ) -> (ExecutionReceipt, Vec<StageReceipt>) {
+    ) -> Result<(ExecutionReceipt, Vec<StageReceipt>), CrossWorldExecutionError> {
         let mut exo = digest("exogenous_set");
         for r in resolved {
             exo.text(&r.draws_digest);
@@ -1003,7 +1004,7 @@ impl FiniteScmExecutor {
         let mut worlds = digest("world_set");
         worlds.word(request.worlds.len() as u64);
         for world in &request.worlds {
-            worlds.text(&world.digest());
+            worlds.text(&world.digest()?);
         }
         let world_digest = worlds.finish_hex();
         let mut prediction = digest("prediction");
@@ -1047,6 +1048,6 @@ impl FiniteScmExecutor {
             stage(ExecutionStage::ActionPrediction, &prediction_digest, StageStatus::Computed),
             stage(ExecutionStage::SummaryDecision, &summary_digest, StageStatus::Computed),
         ];
-        (receipt, stages)
+        Ok((receipt, stages))
     }
 }

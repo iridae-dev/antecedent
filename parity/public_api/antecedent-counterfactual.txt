@@ -22,6 +22,7 @@ impl core::clone::Clone for antecedent_counterfactual::selective::CouplingKind
 impl core::clone::Clone for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::clone::Clone for antecedent_counterfactual::selective::CrossWorldRefusal
 impl core::clone::Clone for antecedent_counterfactual::selective::EliminationReceipt
+impl core::clone::Clone for antecedent_counterfactual::selective::EnvelopeMember
 impl core::clone::Clone for antecedent_counterfactual::selective::EvidenceKind
 impl core::clone::Clone for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::clone::Clone for antecedent_counterfactual::selective::ExecutionStage
@@ -29,6 +30,7 @@ impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousInfer
 impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousMethod
 impl core::clone::Clone for antecedent_counterfactual::selective::ExogenousVariable
 impl core::clone::Clone for antecedent_counterfactual::selective::FactualUnit
+impl core::clone::Clone for antecedent_counterfactual::selective::FiniteEnvelopeResult
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteExecutionRequest
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteExecutionResult
 impl core::clone::Clone for antecedent_counterfactual::selective::FiniteQuantity
@@ -43,6 +45,7 @@ impl core::clone::Clone for antecedent_counterfactual::selective::MatrixRequest
 impl core::clone::Clone for antecedent_counterfactual::selective::MatrixRow
 impl core::clone::Clone for antecedent_counterfactual::selective::ModelClass
 impl core::clone::Clone for antecedent_counterfactual::selective::NoiseCoupling
+impl core::clone::Clone for antecedent_counterfactual::selective::NoiseSpread
 impl core::clone::Clone for antecedent_counterfactual::selective::PopulationKind
 impl core::clone::Clone for antecedent_counterfactual::selective::QuantityClass
 impl core::clone::Clone for antecedent_counterfactual::selective::RetainedAbduction
@@ -50,6 +53,8 @@ impl core::clone::Clone for antecedent_counterfactual::selective::StageReceipt
 impl core::clone::Clone for antecedent_counterfactual::selective::StageStatus
 impl core::clone::Clone for antecedent_counterfactual::selective::TemporalExecution
 impl core::clone::Clone for antecedent_counterfactual::selective::UnitAnswer
+impl core::clone::Clone for antecedent_counterfactual::selective::UnitEnvelope
+impl core::clone::Clone for antecedent_counterfactual::selective::UnitSpread
 impl core::clone::Clone for antecedent_counterfactual::selective::WorkCounters
 impl core::clone::Clone for antecedent_counterfactual::selective::WorldAtom
 impl core::clone::Clone for antecedent_counterfactual::selective::WorldRoute
@@ -184,6 +189,7 @@ impl core::cmp::PartialEq for antecedent_counterfactual::selective::CouplingKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::CrossWorldRefusal
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::EliminationReceipt
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::EnvelopeMember
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::EvidenceKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExecutionStage
@@ -191,6 +197,7 @@ impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousInf
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousMethod
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ExogenousVariable
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FactualUnit
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteEnvelopeResult
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteExecutionRequest
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteExecutionResult
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::FiniteQuantity
@@ -204,6 +211,7 @@ impl core::cmp::PartialEq for antecedent_counterfactual::selective::MatrixRefusa
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::MatrixRequest
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::ModelClass
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::NoiseCoupling
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::NoiseSpread
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::PopulationKind
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::QuantityClass
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::RetainedAbduction
@@ -211,6 +219,8 @@ impl core::cmp::PartialEq for antecedent_counterfactual::selective::StageReceipt
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::StageStatus
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::TemporalExecution
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::UnitAnswer
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::UnitEnvelope
+impl core::cmp::PartialEq for antecedent_counterfactual::selective::UnitSpread
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorkCounters
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorldAtom
 impl core::cmp::PartialEq for antecedent_counterfactual::selective::WorldRoute
@@ -315,6 +325,7 @@ impl core::fmt::Debug for antecedent_counterfactual::selective::CouplingKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::fmt::Debug for antecedent_counterfactual::selective::CrossWorldRefusal
 impl core::fmt::Debug for antecedent_counterfactual::selective::EliminationReceipt
+impl core::fmt::Debug for antecedent_counterfactual::selective::EnvelopeMember
 impl core::fmt::Debug for antecedent_counterfactual::selective::EvidenceKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExecutionStage
@@ -322,6 +333,7 @@ impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousInferen
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousMethod
 impl core::fmt::Debug for antecedent_counterfactual::selective::ExogenousVariable
 impl core::fmt::Debug for antecedent_counterfactual::selective::FactualUnit
+impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteEnvelopeResult
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteExecutionRequest
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteExecutionResult
 impl core::fmt::Debug for antecedent_counterfactual::selective::FiniteQuantity
@@ -338,6 +350,7 @@ impl core::fmt::Debug for antecedent_counterfactual::selective::MatrixRequest
 impl core::fmt::Debug for antecedent_counterfactual::selective::MatrixRow
 impl core::fmt::Debug for antecedent_counterfactual::selective::ModelClass
 impl core::fmt::Debug for antecedent_counterfactual::selective::NoiseCoupling
+impl core::fmt::Debug for antecedent_counterfactual::selective::NoiseSpread
 impl core::fmt::Debug for antecedent_counterfactual::selective::PopulationKind
 impl core::fmt::Debug for antecedent_counterfactual::selective::QuantityClass
 impl core::fmt::Debug for antecedent_counterfactual::selective::RetainedAbduction
@@ -346,6 +359,8 @@ impl core::fmt::Debug for antecedent_counterfactual::selective::StageStatus
 impl core::fmt::Debug for antecedent_counterfactual::selective::TemporalExecution
 impl core::fmt::Debug for antecedent_counterfactual::selective::TemporalExecutor
 impl core::fmt::Debug for antecedent_counterfactual::selective::UnitAnswer
+impl core::fmt::Debug for antecedent_counterfactual::selective::UnitEnvelope
+impl core::fmt::Debug for antecedent_counterfactual::selective::UnitSpread
 impl core::fmt::Debug for antecedent_counterfactual::selective::WorkCounters
 impl core::fmt::Debug for antecedent_counterfactual::selective::WorldAtom
 impl core::fmt::Debug for antecedent_counterfactual::selective::WorldRoute
@@ -471,6 +486,7 @@ impl core::marker::Freeze for antecedent_counterfactual::selective::CouplingKind
 impl core::marker::Freeze for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::EliminationReceipt [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::EnvelopeMember [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExecutionStage [auto]
@@ -478,6 +494,7 @@ impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousInf
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteEnvelopeResult [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::FiniteQuantity [auto]
@@ -494,6 +511,7 @@ impl core::marker::Freeze for antecedent_counterfactual::selective::MatrixReques
 impl core::marker::Freeze for antecedent_counterfactual::selective::MatrixRow [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::ModelClass [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::NoiseSpread [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::PopulationKind [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::QuantityClass [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::RetainedAbduction [auto]
@@ -502,6 +520,8 @@ impl core::marker::Freeze for antecedent_counterfactual::selective::StageStatus 
 impl core::marker::Freeze for antecedent_counterfactual::selective::TemporalExecution [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::TemporalExecutor [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::UnitEnvelope [auto]
+impl core::marker::Freeze for antecedent_counterfactual::selective::UnitSpread [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::WorkCounters [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::WorldAtom [auto]
 impl core::marker::Freeze for antecedent_counterfactual::selective::WorldRoute [auto]
@@ -573,6 +593,7 @@ impl core::marker::Send for antecedent_counterfactual::selective::CouplingKind [
 impl core::marker::Send for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::EliminationReceipt [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::EnvelopeMember [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExecutionStage [auto]
@@ -580,6 +601,7 @@ impl core::marker::Send for antecedent_counterfactual::selective::ExogenousInfer
 impl core::marker::Send for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::FiniteEnvelopeResult [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::FiniteQuantity [auto]
@@ -596,6 +618,7 @@ impl core::marker::Send for antecedent_counterfactual::selective::MatrixRequest 
 impl core::marker::Send for antecedent_counterfactual::selective::MatrixRow [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::ModelClass [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::NoiseSpread [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::PopulationKind [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::QuantityClass [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::RetainedAbduction [auto]
@@ -604,6 +627,8 @@ impl core::marker::Send for antecedent_counterfactual::selective::StageStatus [a
 impl core::marker::Send for antecedent_counterfactual::selective::TemporalExecution [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::TemporalExecutor [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::UnitEnvelope [auto]
+impl core::marker::Send for antecedent_counterfactual::selective::UnitSpread [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::WorkCounters [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::WorldAtom [auto]
 impl core::marker::Send for antecedent_counterfactual::selective::WorldRoute [auto]
@@ -669,6 +694,7 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective:
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CrossWorldExecutionError
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::CrossWorldRefusal
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::EliminationReceipt
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::EnvelopeMember
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::EvidenceKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExecutionReceipt
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExecutionStage
@@ -676,6 +702,7 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective:
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousMethod
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ExogenousVariable
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FactualUnit
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteEnvelopeResult
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteExecutionRequest
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteExecutionResult
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::FiniteQuantity
@@ -689,6 +716,7 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective:
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::MatrixRequest
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::ModelClass
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::NoiseCoupling
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::NoiseSpread
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::PopulationKind
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::QuantityClass
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::RetainedAbduction
@@ -696,6 +724,8 @@ impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective:
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::StageStatus
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::TemporalExecution
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::UnitAnswer
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::UnitEnvelope
+impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::UnitSpread
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorkCounters
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorldAtom
 impl core::marker::StructuralPartialEq for antecedent_counterfactual::selective::WorldRoute
@@ -766,6 +796,7 @@ impl core::marker::Sync for antecedent_counterfactual::selective::CouplingKind [
 impl core::marker::Sync for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::EliminationReceipt [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::EnvelopeMember [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExecutionStage [auto]
@@ -773,6 +804,7 @@ impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousInfer
 impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::FiniteEnvelopeResult [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::FiniteQuantity [auto]
@@ -789,6 +821,7 @@ impl core::marker::Sync for antecedent_counterfactual::selective::MatrixRequest 
 impl core::marker::Sync for antecedent_counterfactual::selective::MatrixRow [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::ModelClass [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::NoiseSpread [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::PopulationKind [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::QuantityClass [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::RetainedAbduction [auto]
@@ -797,6 +830,8 @@ impl core::marker::Sync for antecedent_counterfactual::selective::StageStatus [a
 impl core::marker::Sync for antecedent_counterfactual::selective::TemporalExecution [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::TemporalExecutor [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::UnitEnvelope [auto]
+impl core::marker::Sync for antecedent_counterfactual::selective::UnitSpread [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::WorkCounters [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::WorldAtom [auto]
 impl core::marker::Sync for antecedent_counterfactual::selective::WorldRoute [auto]
@@ -868,6 +903,7 @@ impl core::marker::Unpin for antecedent_counterfactual::selective::CouplingKind 
 impl core::marker::Unpin for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::EliminationReceipt [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::EnvelopeMember [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExecutionStage [auto]
@@ -875,6 +911,7 @@ impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousInfe
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteEnvelopeResult [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::FiniteQuantity [auto]
@@ -891,6 +928,7 @@ impl core::marker::Unpin for antecedent_counterfactual::selective::MatrixRequest
 impl core::marker::Unpin for antecedent_counterfactual::selective::MatrixRow [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::ModelClass [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::NoiseSpread [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::PopulationKind [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::QuantityClass [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::RetainedAbduction [auto]
@@ -899,6 +937,8 @@ impl core::marker::Unpin for antecedent_counterfactual::selective::StageStatus [
 impl core::marker::Unpin for antecedent_counterfactual::selective::TemporalExecution [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::TemporalExecutor [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::UnitEnvelope [auto]
+impl core::marker::Unpin for antecedent_counterfactual::selective::UnitSpread [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::WorkCounters [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::WorldAtom [auto]
 impl core::marker::Unpin for antecedent_counterfactual::selective::WorldRoute [auto]
@@ -969,6 +1009,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::sele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::EliminationReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::EnvelopeMember [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExecutionStage [auto]
@@ -976,6 +1017,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::sele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteEnvelopeResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::FiniteQuantity [auto]
@@ -992,6 +1034,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::sele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::MatrixRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::ModelClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::NoiseSpread [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::PopulationKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::QuantityClass [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::RetainedAbduction [auto]
@@ -1000,6 +1043,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::sele
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::TemporalExecution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::TemporalExecutor [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::UnitEnvelope [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::UnitSpread [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorkCounters [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorldAtom [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_counterfactual::selective::WorldRoute [auto]
@@ -1070,6 +1115,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selecti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CrossWorldExecutionError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::CrossWorldRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::EliminationReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::EnvelopeMember [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::EvidenceKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExecutionReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExecutionStage [auto]
@@ -1077,6 +1123,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selecti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ExogenousVariable [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FactualUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteEnvelopeResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteExecutionRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteExecutionResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::FiniteQuantity [auto]
@@ -1093,6 +1140,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selecti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::MatrixRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::ModelClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::NoiseCoupling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::NoiseSpread [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::PopulationKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::QuantityClass [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::RetainedAbduction [auto]
@@ -1101,6 +1149,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selecti
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::TemporalExecution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::TemporalExecutor [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::UnitAnswer [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::UnitEnvelope [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::UnitSpread [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorkCounters [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorldAtom [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_counterfactual::selective::WorldRoute [auto]
@@ -1186,6 +1236,8 @@ pub const <antecedent_counterfactual::selective::whole_path_uncertainty::Uncerta
 pub const <antecedent_counterfactual::temporal_cross_world::TemporalNode>::ALL: [antecedent_counterfactual::temporal_cross_world::TemporalNode; 5]
 pub const antecedent_counterfactual::RANK_PRESERVING_ASSUMPTION: &str
 pub const antecedent_counterfactual::VERSION: &str
+pub const antecedent_counterfactual::selective::ENVELOPE_LABEL: &str
+pub const antecedent_counterfactual::selective::SPREAD_LABEL: &str
 pub const antecedent_counterfactual::selective::factorized::MAX_ELIMINATION_NODES: usize
 pub const antecedent_counterfactual::selective::factorized::MAX_ELIMINATION_TABLE_ENTRIES: usize
 pub const antecedent_counterfactual::selective::factorized::MAX_ELIMINATION_WORK: u64
@@ -1268,6 +1320,8 @@ pub field antecedent_counterfactual::selective::EliminationReceipt::multiplicati
 pub field antecedent_counterfactual::selective::EliminationReceipt::peak_table_entries: u64
 pub field antecedent_counterfactual::selective::EliminationReceipt::plan_digest: alloc::string::String
 pub field antecedent_counterfactual::selective::EliminationReceipt::units: u64
+pub field antecedent_counterfactual::selective::EnvelopeMember::index: usize
+pub field antecedent_counterfactual::selective::EnvelopeMember::value: f64
 pub field antecedent_counterfactual::selective::ExecutionReceipt::abduction_digest: alloc::string::String
 pub field antecedent_counterfactual::selective::ExecutionReceipt::coupling: alloc::string::String
 pub field antecedent_counterfactual::selective::ExecutionReceipt::digest: alloc::string::String
@@ -1280,6 +1334,13 @@ pub field antecedent_counterfactual::selective::ExogenousVariable::name: alloc::
 pub field antecedent_counterfactual::selective::ExogenousVariable::pmf: alloc::vec::Vec<f64>
 pub field antecedent_counterfactual::selective::FactualUnit::observed: alloc::vec::Vec<(usize, u8)>
 pub field antecedent_counterfactual::selective::FactualUnit::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::label: &'static str
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::lower: f64
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::lower_member: usize
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::members: alloc::vec::Vec<antecedent_counterfactual::selective::EnvelopeMember>
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::units: alloc::vec::Vec<antecedent_counterfactual::selective::UnitEnvelope>
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::upper: f64
+pub field antecedent_counterfactual::selective::FiniteEnvelopeResult::upper_member: usize
 pub field antecedent_counterfactual::selective::FiniteExecutionRequest::coupling: antecedent_counterfactual::selective::NoiseCoupling
 pub field antecedent_counterfactual::selective::FiniteExecutionRequest::evidence_history: alloc::string::String
 pub field antecedent_counterfactual::selective::FiniteExecutionRequest::exogenous: antecedent_counterfactual::selective::ExogenousInference
@@ -1294,6 +1355,7 @@ pub field antecedent_counterfactual::selective::FiniteExecutionResult::label: &'
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::matrix_row: &'static str
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::method: antecedent_counterfactual::selective::ExogenousMethod
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::receipt: antecedent_counterfactual::selective::ExecutionReceipt
+pub field antecedent_counterfactual::selective::FiniteExecutionResult::spread: core::option::Option<antecedent_counterfactual::selective::NoiseSpread>
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::stages: alloc::vec::Vec<antecedent_counterfactual::selective::StageReceipt>
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::units: alloc::vec::Vec<antecedent_counterfactual::selective::UnitAnswer>
 pub field antecedent_counterfactual::selective::FiniteExecutionResult::value: f64
@@ -1339,6 +1401,9 @@ pub field antecedent_counterfactual::selective::MatrixRow::remedy: &'static str
 pub field antecedent_counterfactual::selective::MatrixRow::route: &'static str
 pub field antecedent_counterfactual::selective::MatrixRow::status: antecedent_counterfactual::selective::CapabilityStatus
 pub field antecedent_counterfactual::selective::MatrixRow::theorem: &'static str
+pub field antecedent_counterfactual::selective::NoiseSpread::label: &'static str
+pub field antecedent_counterfactual::selective::NoiseSpread::mean_variance: f64
+pub field antecedent_counterfactual::selective::NoiseSpread::units: alloc::vec::Vec<antecedent_counterfactual::selective::UnitSpread>
 pub field antecedent_counterfactual::selective::RetainedAbduction::draws_digest: alloc::string::String
 pub field antecedent_counterfactual::selective::RetainedAbduction::evidence_digest: alloc::string::String
 pub field antecedent_counterfactual::selective::RetainedAbduction::identity: alloc::string::String
@@ -1354,6 +1419,12 @@ pub field antecedent_counterfactual::selective::TemporalExecution::work: anteced
 pub field antecedent_counterfactual::selective::UnitAnswer::evidence_probability: f64
 pub field antecedent_counterfactual::selective::UnitAnswer::unit: alloc::string::String
 pub field antecedent_counterfactual::selective::UnitAnswer::value: f64
+pub field antecedent_counterfactual::selective::UnitEnvelope::lower: f64
+pub field antecedent_counterfactual::selective::UnitEnvelope::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::UnitEnvelope::upper: f64
+pub field antecedent_counterfactual::selective::UnitSpread::distribution: alloc::vec::Vec<(f64, f64)>
+pub field antecedent_counterfactual::selective::UnitSpread::unit: alloc::string::String
+pub field antecedent_counterfactual::selective::UnitSpread::variance: f64
 pub field antecedent_counterfactual::selective::WorkCounters::abduction_states_enumerated: u64
 pub field antecedent_counterfactual::selective::WorkCounters::abductions: u64
 pub field antecedent_counterfactual::selective::WorkCounters::abductions_reused: u64
@@ -1593,12 +1664,13 @@ pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::const fn max_r
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn clear(&mut self)
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn execute(&mut self, request: &antecedent_counterfactual::selective::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::FiniteExecutionResult, antecedent_counterfactual::selective::CrossWorldExecutionError>
+pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn execute_envelope(&mut self, request: &antecedent_counterfactual::selective::FiniteExecutionRequest, alternatives: &[antecedent_counterfactual::selective::FiniteScm], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::FiniteEnvelopeResult, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn new() -> Self
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained(&self, identity: &str) -> core::option::Option<&antecedent_counterfactual::selective::RetainedAbduction>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_all(&self) -> impl core::iter::traits::iterator::Iterator<Item = &antecedent_counterfactual::selective::RetainedAbduction>
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn retained_len(&self) -> usize
 pub fn <antecedent_counterfactual::selective::FiniteScmExecutor>::fn with_max_retained(max_retained: usize) -> Self
-pub fn <antecedent_counterfactual::selective::FiniteWorld>::fn digest(&self) -> alloc::string::String
+pub fn <antecedent_counterfactual::selective::FiniteWorld>::fn digest(&self) -> core::result::Result<alloc::string::String, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::const fn max_retained(&self) -> usize
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn counters(&self) -> antecedent_counterfactual::selective::WorkCounters
 pub fn <antecedent_counterfactual::selective::GeneralTemporalExecutor>::fn execute(&mut self, spec: &antecedent_counterfactual::temporal_cross_world::general::GeneralTemporalSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_counterfactual::selective::GeneralTemporalExecution, antecedent_counterfactual::temporal_cross_world::TemporalCounterfactualError>
@@ -1620,7 +1692,7 @@ pub fn <antecedent_counterfactual::selective::TemporalExecutor>::fn with_max_ret
 pub fn <antecedent_counterfactual::selective::WorkCounters>::fn since(self, earlier: Self) -> Self
 pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn decode(&self, joint: usize) -> alloc::vec::Vec<usize>
 pub fn <antecedent_counterfactual::selective::finite_scm::CompiledScm<'_>>::fn enumerable(&self) -> bool
-pub fn <antecedent_counterfactual::selective::finite_scm::WorldPlan>::fn new(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld], index: usize) -> Self
+pub fn <antecedent_counterfactual::selective::finite_scm::WorldPlan>::fn new(scm: &antecedent_counterfactual::selective::FiniteScm, worlds: &[antecedent_counterfactual::selective::FiniteWorld], index: usize) -> core::result::Result<Self, antecedent_counterfactual::selective::CrossWorldExecutionError>
 pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UncertaintySource>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::UnitSampling>::const fn name(self) -> &'static str
 pub fn <antecedent_counterfactual::selective::whole_path_uncertainty::WholePathUncertainty>::fn realized_mean_standard_error(&self) -> f64
@@ -1695,9 +1767,11 @@ pub struct antecedent_counterfactual::OutcomeMean
 pub struct antecedent_counterfactual::cross_world::CrossWorldEvaluation
 pub struct antecedent_counterfactual::selective::CrossWorldRefusal
 pub struct antecedent_counterfactual::selective::EliminationReceipt
+pub struct antecedent_counterfactual::selective::EnvelopeMember
 pub struct antecedent_counterfactual::selective::ExecutionReceipt
 pub struct antecedent_counterfactual::selective::ExogenousVariable
 pub struct antecedent_counterfactual::selective::FactualUnit
+pub struct antecedent_counterfactual::selective::FiniteEnvelopeResult
 pub struct antecedent_counterfactual::selective::FiniteExecutionRequest
 pub struct antecedent_counterfactual::selective::FiniteExecutionResult
 pub struct antecedent_counterfactual::selective::FiniteScm
@@ -1711,12 +1785,15 @@ pub struct antecedent_counterfactual::selective::GeneralTemporalExecutor has pri
 pub struct antecedent_counterfactual::selective::MatrixRefusal
 pub struct antecedent_counterfactual::selective::MatrixRequest
 pub struct antecedent_counterfactual::selective::MatrixRow
+pub struct antecedent_counterfactual::selective::NoiseSpread
 pub struct antecedent_counterfactual::selective::RetainedAbduction
 pub struct antecedent_counterfactual::selective::StageReceipt
 pub struct antecedent_counterfactual::selective::TemporalExecution
 pub struct antecedent_counterfactual::selective::TemporalExecutor
 pub struct antecedent_counterfactual::selective::TemporalExecutor has private fields
 pub struct antecedent_counterfactual::selective::UnitAnswer
+pub struct antecedent_counterfactual::selective::UnitEnvelope
+pub struct antecedent_counterfactual::selective::UnitSpread
 pub struct antecedent_counterfactual::selective::WorkCounters
 pub struct antecedent_counterfactual::selective::WorldAtom
 pub struct antecedent_counterfactual::selective::WorldRoute
@@ -1787,16 +1864,23 @@ pub use antecedent_counterfactual::error::CounterfactualError = antecedent_count
 pub use antecedent_counterfactual::nested_counterfactual = antecedent_counterfactual::engine::nested_counterfactual
 pub use antecedent_counterfactual::nested_counterfactual_with_exo = antecedent_counterfactual::engine::nested_counterfactual_with_exo
 pub use antecedent_counterfactual::nested_hard_counterfactual = antecedent_counterfactual::engine::nested_hard_counterfactual
+pub use antecedent_counterfactual::selective::finite_executor::ENVELOPE_LABEL = antecedent_counterfactual::selective::ENVELOPE_LABEL
 pub use antecedent_counterfactual::selective::finite_executor::EliminationReceipt = antecedent_counterfactual::selective::EliminationReceipt
+pub use antecedent_counterfactual::selective::finite_executor::EnvelopeMember = antecedent_counterfactual::selective::EnvelopeMember
 pub use antecedent_counterfactual::selective::finite_executor::ExecutionReceipt = antecedent_counterfactual::selective::ExecutionReceipt
 pub use antecedent_counterfactual::selective::finite_executor::ExogenousInference = antecedent_counterfactual::selective::ExogenousInference
 pub use antecedent_counterfactual::selective::finite_executor::ExogenousMethod = antecedent_counterfactual::selective::ExogenousMethod
+pub use antecedent_counterfactual::selective::finite_executor::FiniteEnvelopeResult = antecedent_counterfactual::selective::FiniteEnvelopeResult
 pub use antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest = antecedent_counterfactual::selective::FiniteExecutionRequest
 pub use antecedent_counterfactual::selective::finite_executor::FiniteExecutionResult = antecedent_counterfactual::selective::FiniteExecutionResult
 pub use antecedent_counterfactual::selective::finite_executor::FiniteScmExecutor = antecedent_counterfactual::selective::FiniteScmExecutor
 pub use antecedent_counterfactual::selective::finite_executor::NoiseCoupling = antecedent_counterfactual::selective::NoiseCoupling
+pub use antecedent_counterfactual::selective::finite_executor::NoiseSpread = antecedent_counterfactual::selective::NoiseSpread
 pub use antecedent_counterfactual::selective::finite_executor::RetainedAbduction = antecedent_counterfactual::selective::RetainedAbduction
+pub use antecedent_counterfactual::selective::finite_executor::SPREAD_LABEL = antecedent_counterfactual::selective::SPREAD_LABEL
 pub use antecedent_counterfactual::selective::finite_executor::UnitAnswer = antecedent_counterfactual::selective::UnitAnswer
+pub use antecedent_counterfactual::selective::finite_executor::UnitEnvelope = antecedent_counterfactual::selective::UnitEnvelope
+pub use antecedent_counterfactual::selective::finite_executor::UnitSpread = antecedent_counterfactual::selective::UnitSpread
 pub use antecedent_counterfactual::selective::finite_scm::ExogenousVariable = antecedent_counterfactual::selective::ExogenousVariable
 pub use antecedent_counterfactual::selective::finite_scm::FactualUnit = antecedent_counterfactual::selective::FactualUnit
 pub use antecedent_counterfactual::selective::finite_scm::FiniteQuantity = antecedent_counterfactual::selective::FiniteQuantity

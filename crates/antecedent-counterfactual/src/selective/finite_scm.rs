@@ -433,7 +433,7 @@ pub fn validate_units(
 /// # Errors
 /// No world, too many, a blank or repeated name, an intervention or route on an
 /// unknown variable or level, a route that is not a parent edge, a route into
-/// an intervened variable, or a route to a nonexistent or the same world.
+/// an intervened variable, a repeated parent-child route, or a route to a nonexistent or the same world.
 pub fn validate_worlds(
     scm: &FiniteScm,
     worlds: &[FiniteWorld],
@@ -454,6 +454,7 @@ pub fn validate_worlds(
                 return Err(bad("intervention"));
             }
         }
+        world.validate_unique_routes()?;
         for route in &world.routes {
             let edge =
                 scm.variables.get(route.child).is_some_and(|c| c.parents.contains(&route.parent));
@@ -470,9 +471,26 @@ pub fn validate_worlds(
 }
 
 impl FiniteWorld {
+    fn validate_unique_routes(&self) -> Result<(), CrossWorldExecutionError> {
+        let mut edges = BTreeSet::new();
+        for route in &self.routes {
+            if !edges.insert((route.parent, route.child)) {
+                return Err(invalid(
+                    "cross_world_execution.invalid_world",
+                    format!("{}:duplicate_route({},{})", self.name, route.parent, route.child),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Canonical digest of the world's definition.
-    #[must_use]
-    pub fn digest(&self) -> String {
+    ///
+    /// # Errors
+    /// Repeated parent-child routes are ambiguous. This check does not validate
+    /// graph edges, interventions or source-world indices; use `validate_worlds`.
+    pub fn digest(&self) -> Result<String, CrossWorldExecutionError> {
+        self.validate_unique_routes()?;
         let mut w = CanonicalWriter::new("antecedent.counterfactual.selective.world.v1");
         w.text(&self.name);
         let mut interventions = self.interventions.clone();
@@ -488,7 +506,7 @@ impl FiniteWorld {
         for (p, c, s) in routes {
             w.word(p as u64).word(c as u64).word(s as u64);
         }
-        w.finish_hex()
+        Ok(w.finish_hex())
     }
 }
 
@@ -706,9 +724,27 @@ pub struct WorldPlan {
 }
 
 impl WorldPlan {
-    /// Build the plan of world `index`.
-    #[must_use]
-    pub fn new(scm: &FiniteScm, worlds: &[FiniteWorld], index: usize) -> Self {
+    /// Build the plan of world `index` after validating all world declarations.
+    ///
+    /// # Errors
+    /// An invalid world declaration or an index outside `worlds`.
+    pub fn new(
+        scm: &FiniteScm,
+        worlds: &[FiniteWorld],
+        index: usize,
+    ) -> Result<Self, CrossWorldExecutionError> {
+        validate_worlds(scm, worlds)?;
+        if index >= worlds.len() {
+            return Err(invalid(
+                "cross_world_execution.invalid_world",
+                format!("world index {index}"),
+            ));
+        }
+        Ok(Self::from_validated(scm, worlds, index))
+    }
+
+    // Call only after `validate_worlds` and with an in-range index.
+    pub(crate) fn from_validated(scm: &FiniteScm, worlds: &[FiniteWorld], index: usize) -> Self {
         let world = &worlds[index];
         let mut fixed = vec![None; scm.variables.len()];
         for (variable, level) in &world.interventions {
