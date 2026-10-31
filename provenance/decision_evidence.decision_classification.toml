@@ -1,0 +1,40 @@
+feature_id = "decision_evidence.decision_classification"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Normal-Normal expected value of sample information is the standard textbook result;
+# no paper algorithm is implemented here.
+papers = []
+
+implementation_deviations = [
+ "Classification compares the delta-method sampling interval at every vertex of the declared assumption box with the decision threshold, and the assumption range with the same threshold: robust when both sides agree everywhere, assumption-dependent when the preferred action changes inside the declared range, unresolved otherwise. It is a classification, not a probability.",
+ "Planning reuses the existing Normal-Normal FutureStudyProgram; the belief is centered on the current contrast with the delta-method variance, a declared planning model and not a calibrated posterior. Assumption-narrowing candidates re-run the classification and are best cases, not expectations.",
+ "Stage digests chain so that a decision-rule change reuses the derived quantity and an estimate-identity or premise change invalidates it.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-design/src/decision_evidence/derive.rs (decision_is_robust_assumption_dependent_or_unresolved, a_threshold_change_changes_only_the_rule_identity)",
+ "crates/antecedent-design/src/decision_evidence/plan.rs (more_units_have_value_when_the_decision_is_statistically_open, narrowing_an_assumption_can_resolve_an_assumption_dependent_decision)",
+ "crates/antecedent-design/src/decision_evidence/reuse.rs (rule_change_reuses_everything_before_the_decision, premise_change_reuses_nothing_and_new_observations_keep_the_premise, withdrawal_unsupports_composed_evidence)",
+ "crates/antecedent/tests/decision_evidence_workflow.rs (the_decision_is_robust_assumption_dependent_or_unresolved_and_the_reasons_are_named)",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "contract"
+rationale = "Classification of a two-action decision by the side of a threshold on which an interval and an assumption range lie, with a stage-digest chain; no paper algorithm. The only statistical component is the existing Normal-Normal EVSI program."
+no_independent_algorithm = "Interval-versus-threshold comparison, vertex enumeration of a declared box and digest chaining."
+covered_by = ["decision.contract"]
+inline_tests = true
+record_sha256 = "6bbe02c9fb7abebb1973231068c2d1f61f60721b097d6e91003af8d75797d02a"
+artifacts = [
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", sha256 = "6c0caea8b2e531786aa79701d53623135869ec64be0c1485d142d7680a48a64e" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", sha256 = "00a4aef78ca68eaa323b7b4120f82dbf46406cc817387daebb42ec9ac2089de1" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/plan.rs", sha256 = "96670a7810109a61dd6cba42736dcb98571127cfa7da64745b7a53c589594a34" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/reuse.rs", sha256 = "99cd77b129d5240838dcb14eab3d4b8030743349f84f5d55330d495119a49676" },
+]

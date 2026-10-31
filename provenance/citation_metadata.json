@@ -87,6 +87,22 @@
     ],
     "url": "https://api.crossref.org/works/10.1007/978-1-4899-3242-6"
   },
+  "10.1007/978-3-662-12616-5": {
+    "doi": "10.1007/978-3-662-12616-5",
+    "response_sha256": "0b35068ff5f6b9e2d288180fd6c9b7bb98e7631abb31237c7cff3593f18f5c14",
+    "titles": [
+      "Numerical Solution of Stochastic Differential Equations"
+    ],
+    "url": "https://api.crossref.org/works/10.1007/978-3-662-12616-5"
+  },
+  "10.1007/bf02846028": {
+    "doi": "10.1007/bf02846028",
+    "response_sha256": "65a121ff19a1dc6036c738364c0a004e9cd5d8b4e98064e88e9e46eaf940fc9a",
+    "titles": [
+      "Continuous Markov processes and stochastic equations"
+    ],
+    "url": "https://api.crossref.org/works/10.1007/bf02846028"
+  },
   "10.1016/0167-2789(92)90102-s": {
     "doi": "10.1016/0167-2789(92)90102-s",
     "response_sha256": "d58e118f7107cf30269ce2b4c7ae051f85b3f1902a317fb5d6520d7451b4d1b7",
@@ -279,6 +295,14 @@
     ],
     "url": "https://api.crossref.org/works/10.1073/pnas.2014602118"
   },
+  "10.1080/00031305.1992.10475842": {
+    "doi": "10.1080/00031305.1992.10475842",
+    "response_sha256": "207f1fc839cbae3012669db8f043546e82a60cc93f8995aa79f885ae72213804",
+    "titles": [
+      "A Note on the Delta Method"
+    ],
+    "url": "https://api.crossref.org/works/10.1080/00031305.1992.10475842"
+  },
   "10.1080/00401706.1967.10490441": {
     "doi": "10.1080/00401706.1967.10490441",
     "response_sha256": "3196c3df6b7b5e58cbb3c0e5f261309e4de65d11d4e85b03108628030d030b2e",
@@ -446,6 +470,14 @@
       "Inference for Treatment-Specific Survival Curves Using Machine Learning"
     ],
     "url": "https://api.crossref.org/works/10.1080/01621459.2023.2205060"
+  },
+  "10.1080/02331888908802205": {
+    "doi": "10.1080/02331888908802205",
+    "response_sha256": "23ca697b11a3dbc8938de5ee38bf61a6db3006dbf769f2c3b32fc3a97001837d",
+    "titles": [
+      "Approximate discrete-time schemes for statistics of diffusion processes"
+    ],
+    "url": "https://api.crossref.org/works/10.1080/02331888908802205"
   },
   "10.1080/02664763.2019.1679096": {
     "doi": "10.1080/02664763.2019.1679096",
@@ -630,6 +662,14 @@
       "Marginal Structural Models and Causal Inference in Epidemiology"
     ],
     "url": "https://api.crossref.org/works/10.1097/00001648-200009000-00011"
+  },
+  "10.1111/1467-9469.00059": {
+    "doi": "10.1111/1467-9469.00059",
+    "response_sha256": "93536bb069165d57f9f5989f0206ee713aa4a02ae65ea336d01753ea189da763",
+    "titles": [
+      "Estimation of an Ergodic Diffusion from Discrete Observations"
+    ],
+    "url": "https://api.crossref.org/works/10.1111/1467-9469.00059"
   },
   "10.1111/1467-9469.00323": {
     "doi": "10.1111/1467-9469.00323",
@@ -822,6 +862,14 @@
       "On Estimating Regression"
     ],
     "url": "https://api.crossref.org/works/10.1137/1109020"
+  },
+  "10.1137/1119062": {
+    "doi": "10.1137/1119062",
+    "response_sha256": "cece1e23e71a20df67fc700f9360e8afd4065714a957b4c958c6384a060ce507",
+    "titles": [
+      "Approximate Integration of Stochastic Differential Equations"
+    ],
+    "url": "https://api.crossref.org/works/10.1137/1119062"
   },
   "10.1137/1126086": {
     "doi": "10.1137/1126086",
@@ -1158,6 +1206,14 @@
       "Robust Estimation of a Location Parameter"
     ],
     "url": "https://api.crossref.org/works/10.1214/aoms/1177703732"
+  },
+  "10.1214/aoms/1177706645": {
+    "doi": "10.1214/aoms/1177706645",
+    "response_sha256": "380e6e72ee7221e590ce4821d3f35b06d0e8335b11f8c3e0b4506cebeb8f0af3",
+    "titles": [
+      "A Note on the Generation of Random Normal Deviates"
+    ],
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177706645"
   },
   "10.1214/aoms/1177728069": {
     "doi": "10.1214/aoms/1177728069",
