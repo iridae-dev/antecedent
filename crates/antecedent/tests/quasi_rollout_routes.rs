@@ -356,6 +356,15 @@ fn the_bayesian_rollout_is_a_joint_bayesian_bootstrap_posterior_with_credible_ba
     assert_eq!(result.support_status(), None);
     let posterior = result.posterior.as_ref().unwrap();
     assert!(posterior.draws.n_draws >= 380);
+    // Independently compute the sample SD about the posterior draw mean, not
+    // the (separately fitted) rollout point.
+    let draws = posterior.draws.column(posterior.effect_column().unwrap()).unwrap();
+    let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+    let expected_sd = (draws.iter().map(|draw| (draw - mean).powi(2)).sum::<f64>()
+        / (draws.len() - 1) as f64)
+        .sqrt();
+    let actual_sd = result.estimate().as_effect().unwrap().se_analytic();
+    assert!((actual_sd - expected_sd).abs() < 1e-10, "{actual_sd} vs {expected_sd}");
     let rollout = result.quasi_rollout().unwrap();
     assert!(rollout.uncertainty.starts_with("bayesian_"));
     assert_eq!(rollout.calibration.as_ref(), "unmeasured");
@@ -575,10 +584,8 @@ fn simplex_least_squares(target: &[f64], donors: &[Vec<f64>]) -> Vec<f64> {
         (0..k).map(|a| 2.0 * ((0..k).map(|b| gram[a][b] * w[b]).sum::<f64>() - cross[a])).collect();
     for _ in 0..200_000 {
         let i = (0..k).min_by(|&a, &b| grad[a].total_cmp(&grad[b])).unwrap();
-        let j = (0..k)
-            .filter(|&a| w[a] > 0.0)
-            .max_by(|&a, &b| grad[a].total_cmp(&grad[b]))
-            .unwrap();
+        let j =
+            (0..k).filter(|&a| w[a] > 0.0).max_by(|&a, &b| grad[a].total_cmp(&grad[b])).unwrap();
         let gap = grad[j] - grad[i];
         if gap < 1e-13 {
             break;
@@ -626,11 +633,14 @@ fn reference_synthetic_did(
             .map(|&t| demean(&donors.iter().map(|&u| values[u][t]).collect::<Vec<_>>()))
             .collect();
         let time_weights = simplex_least_squares(&demean(&donor_post), &profiles);
-        let treated_pre: f64 = pre.iter().zip(&time_weights).map(|(&t, l)| l * values[unit][t]).sum();
+        let treated_pre: f64 =
+            pre.iter().zip(&time_weights).map(|(&t, l)| l * values[unit][t]).sum();
         let donor_pre_joint: f64 = donors
             .iter()
             .zip(&unit_weights)
-            .map(|(&u, w)| w * pre.iter().zip(&time_weights).map(|(&t, l)| l * values[u][t]).sum::<f64>())
+            .map(|(&u, w)| {
+                w * pre.iter().zip(&time_weights).map(|(&t, l)| l * values[u][t]).sum::<f64>()
+            })
             .sum();
         let synthetic_post: f64 = donor_post.iter().zip(&unit_weights).map(|(p, w)| p * w).sum();
         effects.push((post_mean(unit) - treated_pre) - (synthetic_post - donor_pre_joint));
@@ -691,7 +701,8 @@ fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals()
     // definition, and the placebo SE from an in-test placebo procedure (the three adoption dates
     // reassigned to randomly chosen never-treated units, the whole estimator refit on the
     // remaining donors, the population variance of the placebo overall estimates).
-    let values: Vec<Vec<f64>> = (0..33).map(|u| reference_y[u * 22..(u + 1) * 22].to_vec()).collect();
+    let values: Vec<Vec<f64>> =
+        (0..33).map(|u| reference_y[u * 22..(u + 1) * 22].to_vec()).collect();
     let treated_units: Vec<(usize, usize)> = vec![(30, 15), (31, 17), (32, 19)];
     let donor_units: Vec<usize> = (0..30).collect();
     let (reference, unit_effects) = reference_synthetic_did(&values, &treated_units, &donor_units);
@@ -712,7 +723,8 @@ fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals()
         let mut assigned = Vec::new();
         for (index, &(_, adoption)) in treated_units.iter().enumerate() {
             let pick = index
-                + (((placebo_rng.uniform() * (pool.len() - index) as f64) as usize).min(pool.len() - index - 1));
+                + (((placebo_rng.uniform() * (pool.len() - index) as f64) as usize)
+                    .min(pool.len() - index - 1));
             pool.swap(index, pick);
             assigned.push((pool[index], adoption));
         }
@@ -934,7 +946,8 @@ fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_desi
     let side_rows = |right: bool| -> Vec<usize> {
         (0..time.len())
             .filter(|&i| {
-                (time[i] - 1000.0).abs() < 300.0 && if right { time[i] >= 1000.0 } else { time[i] < 1000.0 }
+                (time[i] - 1000.0).abs() < 300.0
+                    && if right { time[i] >= 1000.0 } else { time[i] < 1000.0 }
             })
             .collect()
     };

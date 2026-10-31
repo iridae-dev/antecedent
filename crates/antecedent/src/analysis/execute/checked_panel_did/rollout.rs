@@ -69,6 +69,15 @@ fn estimation(error: EstimationError) -> CausalError {
     CausalError::Estimate(error)
 }
 
+/// Posterior sample SD; invalid or insufficient draws cannot license uncertainty.
+fn rollout_draw_sd(draws: &[f64]) -> f64 {
+    if draws.iter().any(|draw| !draw.is_finite()) {
+        return f64::NAN;
+    }
+    let sd = antecedent_stats::sample_std(draws);
+    if sd.is_finite() { sd } else { f64::NAN }
+}
+
 impl super::CheckedPanelDidOperation {
     /// Execute a heterogeneity-robust or covariate-adjusted rollout.
     pub(super) fn execute_rollout(
@@ -173,11 +182,7 @@ impl super::CheckedPanelDidOperation {
         let overall_draws =
             posterior.columns.first().map(|(_, column)| column.clone()).unwrap_or_default();
         let point = fit.overall.estimate;
-        let point_sd = {
-            let count = overall_draws.len().max(2) as f64;
-            (overall_draws.iter().map(|draw| (draw - point).powi(2)).sum::<f64>() / (count - 1.0))
-                .sqrt()
-        };
+        let point_sd = rollout_draw_sd(&overall_draws);
         let columns = posterior
             .columns
             .iter()
@@ -192,7 +197,7 @@ impl super::CheckedPanelDidOperation {
             point,
             point_sd,
             n_obs: fit.units as u64,
-            interval_withheld: false,
+            interval_withheld: !point_sd.is_finite(),
             backend: "bayesian_bootstrap.whole_unit_dirichlet",
             model: "Bayesian bootstrap: flat-Dirichlet weights on whole independent units refit                     every group-time cell, nuisance model and aggregation per draw; the posterior                     is joint across cells and aggregations"
                 .to_string(),
@@ -474,6 +479,25 @@ impl super::CheckedPanelDidOperation {
             critical_value,
             diagnostics,
             notes,
+        }
+    }
+}
+
+#[cfg(test)]
+mod posterior_sd_tests {
+    use super::rollout_draw_sd;
+
+    #[test]
+    fn posterior_sd_is_centered_on_draws_and_requires_finite_sample() {
+        let expected = 2.0_f64.sqrt();
+        assert!((rollout_draw_sd(&[1.0, 3.0]) - expected).abs() < 1e-12);
+        let point = 100.0_f64;
+        let wrong_point_centered = ((1.0 - point).powi(2) + (3.0 - point).powi(2)).sqrt();
+        assert!((rollout_draw_sd(&[1.0, 3.0]) - wrong_point_centered).abs() > 100.0);
+        assert!((rollout_draw_sd(&[101.0, 103.0]) - expected).abs() < 1e-12);
+        assert_eq!(rollout_draw_sd(&[4.0, 4.0]), 0.0);
+        for invalid in [&[][..], &[1.0][..], &[1.0, f64::NAN][..], &[1.0, f64::INFINITY][..]] {
+            assert!(rollout_draw_sd(invalid).is_nan());
         }
     }
 }
