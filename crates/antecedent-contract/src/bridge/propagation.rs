@@ -104,8 +104,8 @@ impl MappingUncertainty {
 
     fn write(&self, out: &mut CanonicalWriter) {
         out.text(&self.id)
-            .real(self.intercept_variance)
-            .real(self.slope_variance)
+            .real(self.intercept_variance + 0.0)
+            .real(self.slope_variance + 0.0)
             .real(self.intercept_slope_covariance + 0.0);
     }
 }
@@ -1657,6 +1657,37 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn signed_zero_variances_have_the_same_mapping_identity() {
+        let positive = MappingUncertainty {
+            id: "mapping".into(),
+            intercept_variance: 0.0,
+            slope_variance: 0.0,
+            intercept_slope_covariance: 0.0,
+        };
+        let negative = MappingUncertainty {
+            id: "mapping".into(),
+            intercept_variance: -0.0,
+            slope_variance: -0.0,
+            intercept_slope_covariance: -0.0,
+        };
+        positive.validate().unwrap();
+        negative.validate().unwrap();
+        assert_eq!(positive, negative);
+        let mut first = preference(
+            BridgeMapping::Affine { intercept: 0.0, slope: 1.0 },
+            vec![linkage("link", "holds")],
+        );
+        first.source_dependence =
+            Some(SourceMappingDependence::Independent { evidence: "disjoint-rows".into() });
+        first.mapping_uncertainty = Some(positive);
+        let mut second = first.clone();
+        second.mapping_uncertainty = Some(negative);
+        assert_eq!(first.identity(), second.identity());
+        assert_eq!(first.propagate_affine_uncertainty(2.0, 0.25).unwrap().variance, 0.25);
+        assert_eq!(second.propagate_affine_uncertainty(2.0, 0.25).unwrap().variance, 0.25);
     }
 
     fn uncertainty(slope_variance: f64) -> MappingUncertainty {

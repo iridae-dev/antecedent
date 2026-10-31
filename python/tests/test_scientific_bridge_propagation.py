@@ -18,6 +18,7 @@ by the measured-coverage rule and refuses here.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 from antecedent import scientific_bridge as sb
@@ -200,3 +201,32 @@ def test_the_artifact_replays_the_propagation_in_a_fresh_consumption():
     )
     assert other.claim_id != claim.claim_id
     assert other.export("propagated-bridge").expectation.identity != exported.expectation.identity
+
+
+def test_exact_zero_mapping_variances_share_identity_and_replay_from_python():
+    source = sb.SourceClaim.declared("intent", 0.5, STATED, standard_error=0.05)
+    identities, artifacts = [], []
+    for zero in [0.0, -0.0]:
+        declared = replace(
+            contract(independent()),
+            mapping_uncertainty=sb.MappingUncertainty(
+                "exact-mapping", intercept_variance=zero, slope_variance=zero
+            ),
+        )
+        prepared = sb.prepare_scientific_bridge(declared)
+        identities.append(prepared.contract_identity)
+        claim = require_success(prepared.derive(source))
+        propagated = require_success(claim.propagated_uncertainty())
+        assert claim.value == pytest.approx(INTERCEPT + SLOPE * 0.5)
+        assert propagated.variance == pytest.approx(SLOPE * SLOPE * 0.05**2)
+        exported = claim.export("exact-zero-mapping")
+        artifacts.append(exported.expectation.identity)
+        consumed = require_success(
+            sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+        )
+        assert consumed.claim.contract_identity == prepared.contract_identity
+        assert (
+            require_success(consumed.claim.propagated_uncertainty()).variance == propagated.variance
+        )
+    assert identities[0] == identities[1]
+    assert artifacts[0] == artifacts[1]

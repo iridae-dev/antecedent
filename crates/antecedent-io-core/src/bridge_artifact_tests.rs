@@ -336,7 +336,9 @@ fn a_resealed_edit_of_the_propagation_does_not_replay() {
     downgraded.feature = SCIENTIFIC_BRIDGE_ARTIFACT_FEATURE.to_owned();
     assert!(matches!(
         ScientificBridgeArtifact::from_meta(&reseal(downgraded), None),
-        Err(ScientificBridgeArtifactError::UnsupportedSemantics("extended declarations in a version-1 artifact"))
+        Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+            "extended declarations in a version-1 artifact"
+        ))
     ));
     // The plug-in derivation of the same source carries no propagation and another identity.
     let (_, plain, _) = sealed(&declared);
@@ -434,7 +436,9 @@ fn a_bridge_of_draws_is_replayed_bit_for_bit_from_its_stored_table() {
     // The reader of a bridged mean does not read a bridge of draws.
     assert!(matches!(
         ScientificBridgeArtifact::from_bytes(&bytes, None),
-        Err(ScientificBridgeArtifactError::UnsupportedSemantics("a bridge of draws is consumed with its draws"))
+        Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+            "a bridge of draws is consumed with its draws"
+        ))
     ));
     // A consumer that retained another identity refuses it.
     assert!(matches!(
@@ -484,7 +488,7 @@ fn a_bridge_of_draws_is_replayed_bit_for_bit_from_its_stored_table() {
         draws.source_identity = foreign.metadata().identity.clone();
         draws.source_digest = CanonicalWriter::digest_bytes_hex(TAG_BODY, &foreign_bytes);
     }
-assert!(matches!(
+    assert!(matches!(
         ScientificBridgeDrawsArtifact::from_meta(&reseal_draws(other), &foreign_bytes, None),
         Err(ScientificBridgeArtifactError::ReplayMismatch("claim identity"))
     ));
@@ -506,7 +510,7 @@ fn a_caller_byte_bound_and_draw_limits_refuse_what_the_defaults_admit() {
         ScientificBridgeAny::shape_within(&bytes, bytes.len() - 1),
         Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
     ));
-assert!(matches!(
+    assert!(matches!(
         ScientificBridgeDrawsArtifact::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults),
         Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
     ));
@@ -519,11 +523,11 @@ assert!(matches!(
         ),
         Err(ScientificBridgeArtifactError::Malformed(_))
     ));
-assert!(matches!(
+    assert!(matches!(
         ScientificBridgeAny::from_bytes_within(&bytes, None, bytes.len() - 1, &defaults),
         Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
     ));
-assert!(matches!(
+    assert!(matches!(
         ScientificBridgeDrawsArtifact::to_bytes_within(&bridged, "draws-bridge", bytes.len() - 1),
         Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
     ));
@@ -542,8 +546,44 @@ fn a_caller_byte_bound_refuses_a_point_bridge_over_it() {
         ScientificBridgeArtifact::from_bytes_within(&bytes, None, bytes.len() - 1),
         Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
     ));
-assert!(matches!(
+    assert!(matches!(
         ScientificBridgeArtifact::to_bytes_within(&bridged, &source, "point", bytes.len() - 1),
         Err(ScientificBridgeArtifactError::LimitsExceeded("artifact bytes"))
     ));
+}
+
+#[test]
+fn legacy_signed_zero_mapping_variances_are_inspectable_but_not_replayed() {
+    let mut declared = contract(ValueKind::Mean, true);
+    let uncertainty = declared.mapping_uncertainty.as_mut().unwrap();
+    uncertainty.intercept_variance = -0.0;
+    uncertainty.intercept_slope_covariance = 0.0;
+    let (_, meta, _) = sealed(&declared);
+    assert_eq!(meta.contract.mapping_uncertainty.as_ref().unwrap().intercept, 0.0_f64.to_bits());
+    ScientificBridgeArtifact::from_meta(&meta, None).unwrap();
+    let full = FullBridgeContractWire::from_domain(&declared).unwrap();
+    full.to_domain().unwrap();
+    for intercept in [true, false] {
+        let mut legacy = meta.clone();
+        let uncertainty = legacy.contract.mapping_uncertainty.as_mut().unwrap();
+        if intercept {
+            uncertainty.intercept = (-0.0_f64).to_bits();
+        } else {
+            uncertainty.slope = (-0.0_f64).to_bits();
+        }
+        assert!(matches!(ScientificBridgeArtifact::from_meta(&reseal(legacy), None),
+            Err(ScientificBridgeArtifactError::UnsupportedSemantics(message))
+            if message.contains("legacy signed-zero")));
+        let mut legacy_full = full.clone();
+        let uncertainty = legacy_full.uncertainty.as_mut().unwrap();
+        if intercept {
+            uncertainty.intercept = (-0.0_f64).to_bits();
+        } else {
+            uncertainty.slope = (-0.0_f64).to_bits();
+        }
+        assert!(
+            matches!(legacy_full.to_domain(), Err(ScientificBridgeArtifactError::UnsupportedSemantics(message))
+            if message.contains("legacy signed-zero"))
+        );
+    }
 }

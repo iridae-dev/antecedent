@@ -51,8 +51,8 @@
 use crate::{IoError, admg_from_wire, admg_to_wire, wire::AdmgWire};
 use antecedent_core::{ExecutionContext, IdentityDomain, SmoothedDoseTransportQuery, VariableId};
 use antecedent_estimate::smoothed_dose::{
-    SMOOTHED_DOSE_BOUNDS, SmoothedDoseBounds, smoothed_dose_fold_scheme,
-    evaluate_smoothed_dose_models, parse_smoothing_kernel, smoothed_dose_fold_assignment,
+    SMOOTHED_DOSE_BOUNDS, SmoothedDoseBounds, evaluate_smoothed_dose_models,
+    parse_smoothing_kernel, smoothed_dose_fold_assignment, smoothed_dose_fold_scheme,
     smoothed_dose_memory_cap, smoothed_dose_workspace_bytes,
 };
 use antecedent_estimate::{
@@ -119,7 +119,8 @@ pub struct SmoothedDoseQueryWire {
 }
 
 impl SmoothedDoseQueryWire {
-    /// The wire form of a query.
+    /// The wire form of a query. Dose-grid and support values retain their
+    /// IEEE-754 representations, including the sign of zero.
     #[must_use]
     pub fn from_query(query: &SmoothedDoseTransportQuery) -> Self {
         Self {
@@ -711,6 +712,31 @@ impl SmoothedDoseArtifactWire {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smoothed_query_wire_retains_single_zero_and_support_bits() {
+        for zero in [-0.0_f64, 0.0_f64] {
+            let query = SmoothedDoseTransportQuery {
+                outcome: VariableId::from_raw(0),
+                dose: VariableId::from_raw(1),
+                source_population: Arc::from("trial"),
+                target_population: Arc::from("target"),
+                grid: Arc::from([zero]),
+                bandwidth: 1.0,
+                kernel: antecedent_core::SmoothingKernel::Epanechnikov,
+                dose_support: (zero, 1.0),
+                density_provenance: Arc::from("known"),
+            };
+            query.validate().unwrap();
+            let wire = SmoothedDoseQueryWire::from_query(&query);
+            let decoded: SmoothedDoseQueryWire =
+                crate::from_cbor(&crate::to_cbor(&wire).unwrap()).unwrap();
+            let back = decoded.to_query().unwrap();
+            back.validate().unwrap();
+            assert_eq!(back.grid[0].to_bits(), zero.to_bits());
+            assert_eq!(back.dose_support.0.to_bits(), zero.to_bits());
+        }
+    }
 
     #[test]
     fn the_frozen_bounds_are_the_recorded_ones() {

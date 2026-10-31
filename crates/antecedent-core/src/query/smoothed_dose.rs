@@ -89,7 +89,7 @@ impl SmoothedDoseTransportQuery {
         if self.outcome == self.dose
             || self.grid.is_empty()
             || self.grid.iter().any(|a| !a.is_finite())
-            || sorted.windows(2).any(|pair| pair[0].total_cmp(&pair[1]).is_eq())
+            || sorted.windows(2).any(|pair| pair[0] == pair[1])
             || !self.bandwidth.is_finite()
             || self.bandwidth <= 0.0
             || !lo.is_finite()
@@ -139,6 +139,17 @@ mod tests {
             dose_support: (0.0, 4.0),
             density_provenance: Arc::from("known"),
         }
+    }
+
+    #[test]
+    fn signed_zeroes_are_the_same_dose_but_an_individual_zero_is_valid() {
+        let duplicate = SmoothedDoseTransportQuery { grid: Arc::from([-0.0, 0.0]), ..query() };
+        assert!(matches!(
+            duplicate.validate(),
+            Err(QueryError::InvalidResponse(ResponseFault::SmoothedDoseDeclaration))
+        ));
+        let negative_only = SmoothedDoseTransportQuery { grid: Arc::from([-0.0]), ..query() };
+        assert!(negative_only.validate().is_ok());
     }
 
     #[test]

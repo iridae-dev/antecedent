@@ -51,12 +51,14 @@ impl NestedCounterfactualQuery {
         Self::with_levels(treatment, mediator, outcome, 0.0, 1.0)
     }
 
-    /// Construct with explicit finite control and active treatment values.
+    /// Construct with explicit finite, numerically distinct treatment values.
+    /// The original IEEE-754 bits are retained in equality and query identity,
+    /// including the sign of a zero in either otherwise valid contrast.
     ///
     /// # Errors
     ///
     /// Returns [`QueryError::InvalidIntervention`] if the variable roles are
-    /// not distinct or either treatment level is non-finite.
+    /// not distinct, a treatment level is non-finite, or the levels compare equal.
     pub fn with_levels(
         treatment: VariableId,
         mediator: VariableId,
@@ -128,5 +130,27 @@ impl NestedCounterfactualQuery {
         q.control = Intervention::set(self.treatment, Value::f64(self.control_value()));
         q.active = Intervention::set(self.treatment, Value::f64(self.active_value()));
         q
+    }
+}
+
+#[cfg(test)]
+mod signed_zero_tests {
+    use super::*;
+    #[test]
+    fn distinct_levels_keep_their_bits_but_two_zero_levels_are_not_a_contrast() {
+        let (t, m, y) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let negative = NestedCounterfactualQuery::with_levels(t, m, y, -0.0, 1.0).unwrap();
+        let positive = NestedCounterfactualQuery::with_levels(t, m, y, 0.0, 1.0).unwrap();
+        assert_ne!(negative, positive);
+        assert_eq!(negative.control_value().to_bits(), (-0.0_f64).to_bits());
+        assert!(matches!(
+            NestedCounterfactualQuery::with_levels(t, m, y, -0.0, 0.0),
+            Err(QueryError::InvalidIntervention(InterventionFault::NestedLevels))
+        ));
+        let mut a = CanonicalWriter::new("test.nested.signed-zero");
+        let mut b = CanonicalWriter::new("test.nested.signed-zero");
+        negative.encode(&mut a);
+        positive.encode(&mut b);
+        assert_ne!(a.finish(), b.finish());
     }
 }

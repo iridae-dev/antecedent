@@ -593,6 +593,7 @@ fn contract_to_wire(
 fn contract_from_wire(
     wire: &ContractWire,
 ) -> Result<BridgeContract, ScientificBridgeArtifactError> {
+    check_uncertainty_identity_version(wire.mapping_uncertainty.as_ref())?;
     if wire.assumptions.len() > MAX_BRIDGE_ASSUMPTIONS {
         return Err(ScientificBridgeArtifactError::LimitsExceeded("assumptions"));
     }
@@ -708,10 +709,24 @@ fn fit_to_wire(fit: &TrialLevelFit) -> FitWire {
 fn uncertainty_to_wire(value: &MappingUncertainty) -> MappingUncertaintyWire {
     MappingUncertaintyWire {
         id: value.id.clone(),
-        intercept: value.intercept_variance.to_bits(),
-        slope: value.slope_variance.to_bits(),
+        intercept: (value.intercept_variance + 0.0).to_bits(),
+        slope: (value.slope_variance + 0.0).to_bits(),
         covariance: value.intercept_slope_covariance.to_bits(),
     }
+}
+
+// Preserve inspection of older bytes but refuse to replay identities made from
+// negative-zero variance bits under the canonicalized variance encoding.
+fn check_uncertainty_identity_version(
+    value: Option<&MappingUncertaintyWire>,
+) -> Result<(), ScientificBridgeArtifactError> {
+    let negative_zero = (-0.0_f64).to_bits();
+    if value.is_some_and(|v| v.intercept == negative_zero || v.slope == negative_zero) {
+        return Err(ScientificBridgeArtifactError::UnsupportedSemantics(
+            "legacy signed-zero mapping variance identity; reissue from source declaration",
+        ));
+    }
+    Ok(())
 }
 
 fn uncertainty_from_wire(value: &MappingUncertaintyWire) -> MappingUncertainty {
@@ -1589,6 +1604,7 @@ impl FullBridgeContractWire {
                 "full bridge contract version",
             ));
         }
+        check_uncertainty_identity_version(self.uncertainty.as_ref())?;
         let mut contract = contract_from_wire(&self.base)?;
         contract.mapping_uncertainty = self.uncertainty.as_ref().map(uncertainty_from_wire);
         contract.source_dependence = self.dependence.as_ref().map(dependence_from_wire);

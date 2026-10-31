@@ -363,3 +363,21 @@ arm outcomes and cannot validate those deterministic target assignments. Its
 existing restriction to unconditional targets still applies. Other randomized
 arm-to-world mappings remain caller-attested, and this guard does not authenticate
 that codebook or establish support for temporal execution.
+
+Signed zero remains part of retained finite dose declarations and their query
+identities. Continuous-dose grids and fixed group doses, smoothed-dose grids
+and support, and nested-counterfactual levels round-trip their original bits.
+Numeric `PartialEq` on an f64 field does not promise identical wire bytes. A
+nested contrast still requires numerically distinct levels. A smoothed grid
+containing both zero signs is now refused as a repeated numeric dose; historical
+records of that shape can decode but fail query validation. Single-zero records
+keep their historical representation.
+
+Mapping uncertainty variances have numeric zero semantics: either sign is an
+exact variance component. Their bridge identities and new bridge-wire producers
+now normalize intercept and slope variance zeros, as the mapping identity already
+did for covariance. Historical extended bridge wires with negative-zero variance
+bits remain inspectable but require reissue from the source declaration before
+reconstruction, including after resealing. Other coefficient bits, nonzero
+variances and unextended version-1 contracts retain their encoding. Raw retained
+contract hashes cannot identify this legacy case by themselves.

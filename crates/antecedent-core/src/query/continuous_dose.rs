@@ -94,7 +94,8 @@ pub struct ContinuousDoseResponseQuery {
 }
 
 /// Every field is written. `baseline_groups` is row-aligned and `target_doses`
-/// is the result grid; both keep their order.
+/// is the result grid; both keep their order. Finite dose levels retain their
+/// exact IEEE-754 bits, including the sign of zero, in this encoding.
 impl CanonicalEncode for ContinuousDoseResponseQuery {
     fn encode(&self, writer: &mut CanonicalWriter) {
         self.outcome.encode(writer);

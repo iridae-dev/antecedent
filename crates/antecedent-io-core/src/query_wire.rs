@@ -2501,6 +2501,62 @@ mod tests {
     use antecedent_core::{ComponentId, PopulationRegistry};
 
     #[test]
+    fn continuous_and_nested_query_wires_preserve_single_zero_sign_bits() {
+        use antecedent_core::{
+            CausalQuery, ContinuousDoseResponseQuery, FixedGroupDosePolicy,
+            NestedCounterfactualQuery,
+        };
+        use std::sync::Arc;
+        for zero in [-0.0_f64, 0.0_f64] {
+            let continuous = CausalQuery::ContinuousDoseResponse(ContinuousDoseResponseQuery {
+                outcome: VariableId::from_raw(0),
+                dose: VariableId::from_raw(1),
+                dose_density: VariableId::from_raw(2),
+                baseline_groups: Arc::from([Arc::from("a")]),
+                target_doses: Arc::from([zero]),
+                bandwidth: 1.0,
+                min_local_support: 2,
+                density_provenance: Arc::from("known"),
+                fixed_policy: Some(FixedGroupDosePolicy {
+                    policy_doses: Arc::from([(Arc::from("a"), zero)]),
+                    reference_doses: Arc::from([(Arc::from("a"), zero)]),
+                }),
+            });
+            continuous.validate().unwrap();
+            let wire = causal_query_to_wire(&continuous).unwrap();
+            let bytes = to_cbor(&wire).unwrap();
+            let decoded: CausalQueryWire = from_cbor(&bytes).unwrap();
+            let CausalQuery::ContinuousDoseResponse(back) =
+                causal_query_from_wire(&decoded).unwrap()
+            else {
+                panic!("continuous query")
+            };
+            assert_eq!(back.target_doses[0].to_bits(), zero.to_bits());
+            let policy = back.fixed_policy.unwrap();
+            assert_eq!(policy.policy_doses[0].1.to_bits(), zero.to_bits());
+            assert_eq!(policy.reference_doses[0].1.to_bits(), zero.to_bits());
+
+            let nested = CausalQuery::NestedCounterfactual(
+                NestedCounterfactualQuery::with_levels(
+                    VariableId::from_raw(0),
+                    VariableId::from_raw(1),
+                    VariableId::from_raw(2),
+                    zero,
+                    1.0,
+                )
+                .unwrap(),
+            );
+            let wire = causal_query_to_wire(&nested).unwrap();
+            let decoded: CausalQueryWire = from_cbor(&to_cbor(&wire).unwrap()).unwrap();
+            let CausalQuery::NestedCounterfactual(back) = causal_query_from_wire(&decoded).unwrap()
+            else {
+                panic!("nested query")
+            };
+            assert_eq!(back.control_value().to_bits(), zero.to_bits());
+        }
+    }
+
+    #[test]
     fn association_queries_round_trip_every_field_and_refuse_unknown_codes() {
         use antecedent_core::{
             AssociationFunctional, AssociationMeasure, AssociationOutcome, AssociationQuery,
