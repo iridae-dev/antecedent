@@ -8,8 +8,8 @@ The two licensed GCM cells run on ``analyze`` and retain a study::
     report = result.inspect().to_dict()
     loaded = ant.load(result.export())
 
-graph-posterior structures stay refused; cheap/full validation and accepted structures run the
-functional refuter state and stay unlicensed.
+The supported anomaly cheap/full cells run the functional refuters. Change attribution
+cheap/full validation is refused; accepted DAG change attribution remains licensed.
 """
 
 from __future__ import annotations
@@ -130,7 +130,8 @@ def test_route_anomaly_tabular_explicit():
         report,
         loaded,
         fresh=fresh,
-        coordinate="AnomalyAttribution:Dag:explicit:Frequentist:none",
+        # The omitted suite maps to the full support axis; it is not an explicit Full suite.
+        coordinate="AnomalyAttribution:Dag:explicit:Frequentist:full",
     )
     assert result.answer.kind == "structured"
     scores = result.anomaly
@@ -183,9 +184,7 @@ def test_anomaly_analyze_reproduces_the_conformance_pin():
     y = _outlier_chain()["y"]
     median = float(np.median(y))
     scale = 1.482602218505602 * float(np.median(np.abs(y - median)))
-    np.testing.assert_allclose(
-        scores.scores, _it_scores(y, median, scale), rtol=0, atol=1e-9
-    )
+    np.testing.assert_allclose(scores.scores, _it_scores(y, median, scale), rtol=0, atol=1e-9)
 
 
 def test_change_analyze_reproduces_the_conformance_pin():
@@ -213,7 +212,7 @@ def test_second_click_refuter_suite_refuses(query):
 
 
 @pytest.mark.parametrize("query", [_anomaly_query(), _change_query()], ids=["anomaly", "change"])
-def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
+def test_bootstrap_and_validation_follow_each_attribution_cell(query):
     data = _outlier_chain() if isinstance(query, ant.AnomalyAttribution) else _two_period_chain()
     # A Frequentist replicate count runs the mechanism-refit row bootstrap: it publishes
     # a bootstrap standard error and the result is unlicensed.
@@ -226,12 +225,25 @@ def test_bootstrap_runs_unlicensed_and_cheap_full_refuse(query):
     # a frequentist replicate budget is not a Bayesian configuration field.
     with pytest.raises(TypeError, match="bootstrap"):
         ant.Bayesian(bootstrap=50)
-    # Cheap and full validation refit the whole contribution vector on perturbed data: the
-    # table needs noise for the refits to vary, and the result stays unlicensed.
     noisy = {name: values + _NOISE[: len(values)] for name, values in data.items()}
     for suite in ("cheap", "full"):
-        validated = require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
-        assert validated.evidence_status != "licensed"
+        if isinstance(query, ant.ChangeAttribution):
+            # The native known-truth test documents why this specific refuter is refused:
+            # tests/attribution_refuter_known_truth.rs::a_change_attribution_validation_is_refused_for_want_of_a_detectable_violation.
+            with pytest.raises(
+                CausalUnsupportedError,
+                match="Cheap and full validation of a change attribution is refused",
+            ):
+                require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
+        else:
+            validated = require_success(ant.analyze(noisy, graph=_dag(), query=query, refute=suite))
+            assert validated.evidence_status == "licensed"
+            reports = {report.refuter for report in validated.validation.reports}
+            assert "target.subset_stability" in reports
+            if suite == "full":
+                assert "target.bootstrap_stability" in reports
+            else:
+                assert "target.bootstrap_stability" not in reports
 
 
 def test_retarget_refuses():
@@ -241,7 +253,7 @@ def test_retarget_refuses():
     assert raised.value.reason_code == "population_not_estimable"
 
 
-def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
+def test_bayesian_anomaly_and_accepted_change_on_analyze():
     bayesian = require_success(
         ant.analyze(
             _outlier_chain(),
@@ -259,7 +271,11 @@ def test_bayesian_anomaly_and_unlicensed_axes_on_analyze():
             query=_change_query(),
         )
     )
-    assert accepted.evidence_status != "licensed"
+    assert accepted.evidence_status == "licensed"
+    assert accepted.inspect().to_dict()["support"]["payload"]["matrix_coordinate"] == (
+        "ChangeAttribution:Dag:accepted:Frequentist:none"
+    )
+    assert abs(accepted.change_attribution.total_change - 5.0) <= EXACT_CHANGE_TOLERANCE
     with pytest.raises(ant.errors.CausalTypeError, match="requires graph=Dag"):
         require_success(
             ant.analyze(
