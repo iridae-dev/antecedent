@@ -231,20 +231,20 @@ pub struct ManifestRouteRecord<'a> {
 
 /// The axes a record occupies: its time frames crossed with its inference realizations.
 ///
-/// A time frame is named by the words `static` or `temporal` in the design and time model,
-/// and a realization by `frequentist` or `bayesian` in the inference text (case ignored).
-/// A record that names no time frame or no realization occupies no axis.
+/// A time frame is named by the whole word `static` or `temporal` in the design and time model,
+/// and a realization by the whole word `frequentist` or `bayesian` in the inference text (case
+/// ignored, words split at any non-letter). A word directly after `non`, `not` or `no` is
+/// negated and names nothing. A record that names no time frame or no realization occupies no
+/// axis.
 #[must_use]
 pub fn route_record_axes(design_time_model: &str, inference: &str) -> Vec<RouteAxis> {
-    let design = design_time_model.to_ascii_lowercase();
-    let inference = inference.to_ascii_lowercase();
     let frames = [("static", false), ("temporal", true)]
         .into_iter()
-        .filter(|(word, _)| design.contains(word))
+        .filter(|(word, _)| names_word(design_time_model, word))
         .map(|(_, temporal)| temporal);
     let realizations = [("frequentist", false), ("bayesian", true)]
         .into_iter()
-        .filter(|(word, _)| inference.contains(word))
+        .filter(|(word, _)| names_word(inference, word))
         .map(|(_, bayesian)| bayesian)
         .collect::<Vec<_>>();
     let mut axes = Vec::new();
@@ -259,6 +259,20 @@ pub fn route_record_axes(design_time_model: &str, inference: &str) -> Vec<RouteA
         }
     }
     axes
+}
+
+/// Whether `text` contains `word` as a whole word that is not negated by a preceding
+/// `non`, `not` or `no`.
+fn names_word(text: &str, word: &str) -> bool {
+    let lowered = text.to_ascii_lowercase();
+    let mut previous = "";
+    for token in lowered.split(|c: char| !c.is_ascii_alphabetic()).filter(|t| !t.is_empty()) {
+        if token == word && !matches!(previous, "non" | "not" | "no") {
+            return true;
+        }
+        previous = token;
+    }
+    false
 }
 
 /// One method record of the current route manifest, as far as the migration reads it.
@@ -843,6 +857,20 @@ mod tests {
         );
         assert!(route_record_axes("binary_aipw", "unlisted").is_empty());
         assert!(route_record_axes("static", "unlisted").is_empty());
+    }
+
+    #[test]
+    fn route_record_axes_read_whole_words_and_honour_negation() {
+        use super::route_record_axes;
+        assert_eq!(
+            route_record_axes("not temporal static", "non-bayesian frequentist"),
+            [RouteAxis::StaticFrequentist]
+        );
+        assert!(route_record_axes("statically typed", "unbayesian").is_empty());
+        assert_eq!(
+            route_record_axes("temporal", "frequentist only, no bayesian"),
+            [RouteAxis::TemporalFrequentist]
+        );
     }
 
     fn method(

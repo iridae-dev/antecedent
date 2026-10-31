@@ -277,14 +277,17 @@ pub(crate) struct Functional<'a>(pub(crate) &'a OutcomeFunctional);
 impl Serialize for Functional<'_> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         match self.0 {
-            OutcomeFunctional::Exceedance(c) => {
-                s.serialize_newtype_variant("OutcomeFunctionalWire", 0, "exceedance", &c.to_f64())
-            }
+            OutcomeFunctional::Exceedance(c) => s.serialize_newtype_variant(
+                "OutcomeFunctionalWire",
+                0,
+                "exceedance",
+                &super::canonical_zero(c.to_f64()),
+            ),
             OutcomeFunctional::ExceedanceGrid(grid) => s.serialize_newtype_variant(
                 "OutcomeFunctionalWire",
                 0,
                 "exceedance_grid",
-                &Sequence(|| grid.iter().map(|v| v.to_f64())),
+                &Sequence(|| grid.iter().map(|v| super::canonical_zero(v.to_f64()))),
             ),
             OutcomeFunctional::Quantile(tau) => {
                 s.serialize_newtype_variant("OutcomeFunctionalWire", 0, "quantile", &tau.to_f64())

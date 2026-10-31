@@ -303,7 +303,8 @@ pub(super) fn split_plan(
 /// rescaling the outcome shifts every family's score by the same `ln(scale)` and
 /// cannot change which family wins. Held-out rows of a categorical outcome whose
 /// level is absent from a training fold are not scored (a sampling zero, not
-/// evidence against the family).
+/// evidence against the family). A fold the family cannot be fit on refuses the family: it
+/// would otherwise be ranked on fewer held-out rows than its rivals.
 pub(super) fn oof_mean_loglik(
     family: MechanismFamily,
     frame: &FitFrame<'_>,
@@ -316,19 +317,14 @@ pub(super) fn oof_mean_loglik(
     let strata = categorical.then(|| category_strata(y));
     let folds = frame.validation_folds(strata.as_deref())?;
     let p = frame.n_parents();
-    let mut total = 0.0;
-    let mut scored = 0usize;
-    let mut last_fold_error: Option<ModelError> = None;
+    let mut outcomes = Vec::with_capacity(folds.len());
     for FoldSplit { train, test } in &folds {
         poll(cancelled)?;
         if train.len() < 2 || test.is_empty() {
+            outcomes.push(FoldOutcome::Unscorable);
             continue;
         }
         let y_train: Vec<f64> = train.iter().map(|&r| y[r]).collect();
-        // A fold whose training rows cannot be fit (a quasi-separated multinomial, a
-        // parent constant within the fold) is not scored rather than failing the family:
-        // the mechanism itself is the full-data fit, which already succeeded. If no fold
-        // can be scored the family is refused with the last fit error.
         let slot = match super::fit::fit_frame_family(
             family,
             &frame.select(train),
@@ -339,7 +335,7 @@ pub(super) fn oof_mean_loglik(
         ) {
             Ok(slot) => slot,
             Err(e) => {
-                last_fold_error = Some(e);
+                outcomes.push(FoldOutcome::FitFailed(e));
                 continue;
             }
         };
@@ -353,18 +349,46 @@ pub(super) fn oof_mean_loglik(
             ParentBatch { n_rows: test.len(), n_parents: p, values: &values },
             &mut lp,
         )?;
-        for v in lp {
-            if categorical && v == f64::NEG_INFINITY {
-                continue;
+        outcomes.push(FoldOutcome::Scored(
+            lp.into_iter().filter(|v| !(categorical && *v == f64::NEG_INFINITY)).collect(),
+        ));
+    }
+    pooled_mean_loglik(outcomes)
+}
+
+/// What one validation fold contributed to a family's out-of-fold score.
+enum FoldOutcome {
+    /// The fold is too small to fit or score; every family sees the same fold, so none is scored
+    /// on it.
+    Unscorable,
+    /// The family could not be fit on the fold's training rows.
+    FitFailed(ModelError),
+    /// Held-out log-likelihoods of the fold's scored rows.
+    Scored(Vec<f64>),
+}
+
+/// Mean of the held-out log-likelihoods over every fold.
+///
+/// Families are ranked by this mean, so each must be scored on the same held-out rows. A family
+/// that cannot be fit on one fold would otherwise be averaged over fewer, possibly easier rows
+/// than its rivals; it is refused with that fit error instead.
+fn pooled_mean_loglik(outcomes: Vec<FoldOutcome>) -> Result<f64, ModelError> {
+    let mut total = 0.0;
+    let mut scored = 0usize;
+    for outcome in outcomes {
+        match outcome {
+            FoldOutcome::Unscorable => {}
+            FoldOutcome::FitFailed(error) => return Err(error),
+            FoldOutcome::Scored(values) => {
+                scored += values.len();
+                total += values.iter().sum::<f64>();
             }
-            total += v;
-            scored += 1;
         }
     }
     if scored == 0 {
-        return Err(last_fold_error.unwrap_or_else(|| ModelError::Unsupported {
+        return Err(ModelError::Unsupported {
             message: "not enough rows to cross-validate a mechanism family".into(),
-        }));
+        });
     }
     Ok(total / scored as f64)
 }
@@ -589,5 +613,31 @@ mod category_strata_tests {
         assert_eq!(strata[1], strata[3]);
         assert_ne!(strata[1], strata[2]);
         assert!(strata[0] < strata[1] && strata[1] < strata[2]);
+    }
+}
+
+#[cfg(test)]
+mod pooled_score_tests {
+    use super::{FoldOutcome, ModelError, pooled_mean_loglik};
+
+    #[test]
+    fn a_fold_the_family_cannot_fit_refuses_it_instead_of_shrinking_its_rows() {
+        let failed = ModelError::Unsupported { message: "fold fit failed".into() };
+        let outcomes = vec![
+            FoldOutcome::Scored(vec![-1.0, -1.0]),
+            FoldOutcome::FitFailed(failed),
+            FoldOutcome::Scored(vec![-3.0]),
+        ];
+        assert!(pooled_mean_loglik(outcomes).is_err());
+    }
+
+    #[test]
+    fn every_fold_scored_pools_into_one_mean() {
+        let outcomes = vec![
+            FoldOutcome::Scored(vec![-1.0, -1.0]),
+            FoldOutcome::Unscorable,
+            FoldOutcome::Scored(vec![-4.0]),
+        ];
+        assert!((pooled_mean_loglik(outcomes).unwrap() + 2.0).abs() < 1e-12);
     }
 }

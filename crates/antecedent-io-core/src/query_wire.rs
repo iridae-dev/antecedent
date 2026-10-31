@@ -119,6 +119,11 @@ impl Default for OutcomeFunctionalWire {
     }
 }
 
+/// Positive zero for either zero: a threshold of `-0.0` is the threshold `0.0`.
+pub(crate) fn canonical_zero(value: f64) -> f64 {
+    if value == 0.0 { 0.0 } else { value }
+}
+
 impl OutcomeFunctionalWire {
     /// Whether this is the omitted backward-compatible default.
     #[must_use]
@@ -129,9 +134,9 @@ impl OutcomeFunctionalWire {
     #[must_use]
     pub fn from_domain(f: &OutcomeFunctional) -> Self {
         match f {
-            OutcomeFunctional::Exceedance(c) => Self::Exceedance(c.to_f64()),
+            OutcomeFunctional::Exceedance(c) => Self::Exceedance(canonical_zero(c.to_f64())),
             OutcomeFunctional::ExceedanceGrid(grid) => {
-                Self::ExceedanceGrid(grid.iter().map(|c| c.to_f64()).collect())
+                Self::ExceedanceGrid(grid.iter().map(|c| canonical_zero(c.to_f64())).collect())
             }
             OutcomeFunctional::Quantile(tau) => Self::Quantile(tau.to_f64()),
             _ => Self::Mean,
@@ -143,8 +148,10 @@ impl OutcomeFunctionalWire {
     pub fn to_domain(&self) -> OutcomeFunctional {
         match self {
             Self::Mean => OutcomeFunctional::Mean,
-            Self::Exceedance(c) => OutcomeFunctional::exceedance(*c),
-            Self::ExceedanceGrid(grid) => OutcomeFunctional::exceedance_grid(grid.clone()),
+            Self::Exceedance(c) => OutcomeFunctional::exceedance(canonical_zero(*c)),
+            Self::ExceedanceGrid(grid) => OutcomeFunctional::exceedance_grid(
+                grid.iter().copied().map(canonical_zero).collect::<Vec<_>>(),
+            ),
             Self::Quantile(tau) => OutcomeFunctional::quantile(*tau),
         }
     }
@@ -318,6 +325,34 @@ impl TargetPopulationWire {
                 TargetPopulation::local_at_cutoff(VariableId::from_raw(*running), *cutoff)
             }
         })
+    }
+}
+
+impl TargetPopulationWire {
+    /// Decode, resolving registry-backed variants against `registry`.
+    ///
+    /// A named predicate and a custom distribution carry digests of the rows, weights and
+    /// declared parents they were encoded against. [`Self::to_domain`] has no registry and
+    /// drops them; here they are recomputed and must match, so two wires that differ only in
+    /// those fields never decode to the same population.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::to_domain`], an entry the registry does not hold, or a recorded digest or
+    /// dependency list that differs from the registry's.
+    pub fn to_domain_with_registry(
+        &self,
+        registry: &PopulationRegistry,
+    ) -> Result<TargetPopulation, IoError> {
+        let domain = self.to_domain()?;
+        if matches!(self, Self::PredicateNamed { .. } | Self::CustomDistribution { .. })
+            && Self::from_domain_with_registry(&domain, Some(registry))? != *self
+        {
+            return Err(IoError::Convert(
+                "population wire disagrees with the registry it is decoded against".into(),
+            ));
+        }
+        Ok(domain)
     }
 }
 
@@ -605,8 +640,22 @@ pub enum CallbackOutputWire {
     /// Exactly these levels.
     Levels {
         /// Sorted, unique, finite levels.
+        #[serde(deserialize_with = "canonical_levels")]
         levels: Vec<f64>,
     },
+}
+
+/// Levels exactly as the domain stores them: strictly ascending, so two orderings of one set are
+/// not two encodings of the same value.
+fn canonical_levels<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<f64>, D::Error> {
+    let levels = Vec::<f64>::deserialize(deserializer)?;
+    if levels.windows(2).all(|pair| pair[0] < pair[1]) {
+        Ok(levels)
+    } else {
+        Err(serde::de::Error::custom("callback levels must be strictly ascending"))
+    }
 }
 
 /// Recovery record of a callback on the wire: the content digest of its source, its entry
@@ -2461,6 +2510,11 @@ fn allocation_from_wire(a: &AllocationMethodWire) -> Result<AllocationMethod, Io
         } => {
             let n_usize = usize::try_from(*n).map_err(|_| IoError::TooLarge)?;
             let mode = match mode {
+                ShapleyModeWire::Exact if n_usize != 0 => {
+                    return Err(IoError::Convert(
+                        "exact Shapley allocation takes no sample count".into(),
+                    ));
+                }
                 ShapleyModeWire::Exact => ShapleyMode::Exact,
                 ShapleyModeWire::MonteCarlo => ShapleyMode::MonteCarlo { n_samples: n_usize },
                 ShapleyModeWire::Permutation => {
@@ -2499,6 +2553,113 @@ mod tests {
     use super::*;
     use crate::convert::{from_cbor, to_cbor};
     use antecedent_core::{ComponentId, PopulationRegistry};
+
+    #[test]
+    fn non_canonical_wire_forms_are_refused_or_normalised() {
+        // Exact Shapley allocation has no sample count.
+        let mut allocation = allocation_to_wire(&AllocationMethod::Shapley {
+            approximation: ShapleyConfig::exact(),
+        })
+        .unwrap();
+        assert!(allocation_from_wire(&allocation).is_ok());
+        if let AllocationMethodWire::Shapley { n, .. } = &mut allocation {
+            *n = 5;
+        }
+        assert!(allocation_from_wire(&allocation).is_err());
+        // Callback levels are strictly ascending.
+        let sorted = r#"{"levels":{"levels":{"levels":[0.0,1.0]}}}"#;
+        let unsorted = r#"{"levels":{"levels":{"levels":[1.0,0.0]}}}"#;
+        let repeated = r#"{"levels":{"levels":{"levels":[1.0,1.0]}}}"#;
+        #[derive(Deserialize)]
+        struct Holder {
+            #[allow(dead_code, reason = "decoded to exercise the levels check")]
+            levels: CallbackOutputWire,
+        }
+        assert!(serde_json::from_str::<Holder>(sorted).is_ok());
+        assert!(serde_json::from_str::<Holder>(unsorted).is_err());
+        assert!(serde_json::from_str::<Holder>(repeated).is_err());
+        // A negative-zero threshold is the zero threshold.
+        let negative = OutcomeFunctionalWire::Exceedance(-0.0).to_domain();
+        let positive = OutcomeFunctionalWire::Exceedance(0.0).to_domain();
+        assert_eq!(negative, positive);
+        assert_eq!(
+            OutcomeFunctionalWire::from_domain(&OutcomeFunctional::exceedance(-0.0)),
+            OutcomeFunctionalWire::Exceedance(0.0)
+        );
+        // Periods and cohorts only belong to a staggered panel.
+        let panel = CausalQuery::PanelDid(PanelDidQuery::new(
+            VariableId::from_raw(0),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "a", "b", "b"].map(Arc::<str>::from),
+            ["x", "x", "y", "y"].map(Arc::<str>::from),
+        ));
+        let CausalQueryWire::PanelDid(mut wire) = causal_query_to_wire(&panel).unwrap() else {
+            panic!("panel wire")
+        };
+        assert!(causal_query_from_wire(&CausalQueryWire::PanelDid(wire.clone())).is_ok());
+        wire.periods = vec![1, 2];
+        assert!(causal_query_from_wire(&CausalQueryWire::PanelDid(wire.clone())).is_err());
+        wire.periods.clear();
+        wire.cohorts = vec![0, 2];
+        assert!(causal_query_from_wire(&CausalQueryWire::PanelDid(wire)).is_err());
+    }
+
+    #[test]
+    fn unbounded_enumeration_and_draw_counts_are_refused_with_a_typed_error() {
+        let path =
+            PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(1));
+        let mut path_wire = path_specific_to_wire(&path).unwrap();
+        path_wire.max_paths = u64::MAX;
+        assert_eq!(path_specific_from_wire(&path_wire).unwrap_err(), IoError::TooLarge);
+        path_wire.max_paths = 8;
+        path_wire.max_len = u64::MAX;
+        assert_eq!(path_specific_from_wire(&path_wire).unwrap_err(), IoError::TooLarge);
+        let mut interference = InterferenceQueryWire {
+            assignment: AssignmentDesignWire::Bernoulli { probabilities: vec![0.5] },
+            exposure: ExposureMappingWire::OwnTreatment,
+            functional: InterferenceFunctionalWire::ExposureContrast {
+                outcome: 1,
+                from: ExposureLevelWire { own: 0.0, neighbors: 0.0 },
+                to: ExposureLevelWire { own: 1.0, neighbors: 0.0 },
+            },
+            probability_draws: u32::MAX,
+        };
+        assert_eq!(interference_query_from_wire(&interference).unwrap_err(), IoError::TooLarge);
+        interference.probability_draws = 10_000;
+        assert!(interference_query_from_wire(&interference).is_ok());
+    }
+
+    #[test]
+    fn registry_backed_population_wires_verify_their_digests_on_decode() {
+        let registry = registry_for_wire_tests();
+        for population in [
+            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(9)),
+        ] {
+            let wire =
+                TargetPopulationWire::from_domain_with_registry(&population, Some(&registry))
+                    .unwrap();
+            assert_eq!(wire.to_domain_with_registry(&registry).unwrap(), population);
+            let mut tampered = wire.clone();
+            match &mut tampered {
+                TargetPopulationWire::PredicateNamed { rows, .. } => rows[0] ^= 1,
+                TargetPopulationWire::CustomDistribution { weights, .. } => weights[0] ^= 1,
+                other => panic!("registry-backed variant expected: {other:?}"),
+            }
+            assert_eq!(tampered.to_domain().unwrap(), population);
+            assert!(tampered.to_domain_with_registry(&registry).is_err());
+        }
+        let mut other_parents = TargetPopulationWire::from_domain_with_registry(
+            &TargetPopulation::CustomDistribution(DistributionRef::from_raw(9)),
+            Some(&registry),
+        )
+        .unwrap();
+        if let TargetPopulationWire::CustomDistribution { depends_on, .. } = &mut other_parents {
+            depends_on.push(7);
+        }
+        assert!(other_parents.to_domain_with_registry(&registry).is_err());
+    }
 
     #[test]
     fn continuous_and_nested_query_wires_preserve_single_zero_sign_bits() {

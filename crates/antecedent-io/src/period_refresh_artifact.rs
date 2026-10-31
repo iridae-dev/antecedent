@@ -330,15 +330,29 @@ fn prior_precision_is_spd(precision: &[f64], p: usize) -> bool {
 }
 
 /// Closed-form normal-inverse-gamma posterior of the pooled rows.
-fn posterior_of(prior: &PriorWire, total: &Accumulated) -> Result<PosteriorWire, IoError> {
+///
+/// The rate adds the residual sum of squares at the posterior mean and the prior's pull on that
+/// mean, both summed directly from the rows: the algebraically equal difference of large sums
+/// of squares loses every digit of a near-exact fit.
+fn posterior_of(
+    prior: &PriorWire,
+    total: &Accumulated,
+    blocks: &[BlockWire],
+) -> Result<PosteriorWire, IoError> {
     let p = prior.mean.len();
     let precision: Vec<f64> = prior.precision.iter().zip(&total.xtx).map(|(a, b)| a + b).collect();
     let prior_eta = multiply(&prior.precision, p, &prior.mean);
     let eta: Vec<f64> = prior_eta.iter().zip(&total.xty).map(|(a, b)| a + b).collect();
     let scale = invert_square(&precision, p).ok_or_else(|| mismatch(PREFIX, "singular"))?;
     let mean = multiply(&scale, p, &eta);
-    let sum_squares = dot(&prior.mean, &prior_eta) + total.yty;
-    let rate = prior.rate + 0.5 * (sum_squares - dot(&mean, &eta));
+    let residual_squares: f64 = blocks
+        .iter()
+        .flat_map(|block| block.rows.iter())
+        .map(|row| (row.y - dot(&row.x, &mean)).powi(2))
+        .sum();
+    let shift: Vec<f64> = mean.iter().zip(&prior.mean).map(|(m, m0)| m - m0).collect();
+    let prior_pull = dot(&shift, &multiply(&prior.precision, p, &shift));
+    let rate = prior.rate + 0.5 * (residual_squares + prior_pull);
     if !rate.is_finite() || rate <= 0.0 {
         return Err(mismatch(PREFIX, "rate"));
     }
@@ -497,7 +511,7 @@ impl PeriodRefreshArtifactWire {
         if total.n == 0 || total.n != self.rows_used {
             return Err(mismatch(PREFIX, "rows_used"));
         }
-        let posterior = posterior_of(&self.prior, &total)?;
+        let posterior = posterior_of(&self.prior, &total, &self.blocks)?;
         if !posterior_close(&posterior, &self.posterior) {
             return Err(mismatch(PREFIX, "posterior"));
         }
@@ -860,9 +874,30 @@ impl PeriodRefreshSummaryWire {
 #[cfg(test)]
 mod prior_precision_tests {
     use super::{
-        Accumulated, LeastSquaresWire, PeriodRefreshArtifactWire, PriorWire, posterior_of,
-        prior_precision_is_spd,
+        Accumulated, BlockWire, LeastSquaresWire, PeriodRefreshArtifactWire, PriorWire, RowWire,
+        accumulate, posterior_of, prior_precision_is_spd,
     };
+
+    #[test]
+    fn posterior_rate_survives_a_near_exact_fit_far_from_the_origin() {
+        let prior = PriorWire {
+            mean: vec![0.0, 0.0],
+            precision: vec![1e-30, 0.0, 0.0, 1e-30],
+            shape: 2.0,
+            rate: 1e-3,
+        };
+        let rows = (0..5_u32)
+            .map(|t| RowWire {
+                id: u64::from(t),
+                x: vec![1.0, f64::from(t)],
+                y: 1e8 + 0.1 * f64::from(t),
+            })
+            .collect();
+        let blocks = vec![BlockWire::new("snapshot".into(), rows)];
+        let total = accumulate(&blocks, 2).unwrap();
+        let posterior = posterior_of(&prior, &total, &blocks).unwrap();
+        assert!((posterior.rate - 1e-3).abs() < 1e-6, "rate {}", posterior.rate);
+    }
 
     #[test]
     fn prior_precision_requires_symmetric_positive_definite_matrix() {
@@ -878,7 +913,7 @@ mod prior_precision_tests {
         };
         assert!(prior_precision_is_spd(&prior.precision, 2));
         let data = Accumulated { n: 0, xtx: vec![0.0; 4], xty: vec![0.0; 2], yty: 0.0 };
-        let posterior = posterior_of(&prior, &data).unwrap();
+        let posterior = posterior_of(&prior, &data, &[]).unwrap();
         assert_eq!(posterior.mean, vec![0.0, 0.0]);
         assert_eq!(posterior.precision, prior.precision);
         assert_eq!(posterior.shape, 2.0);

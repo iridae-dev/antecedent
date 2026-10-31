@@ -238,11 +238,19 @@ pub fn assumptions_from_wire(records: &[AssumptionRecordWire]) -> Result<Assumpt
                 } else {
                     raw.split(',')
                         .map(|id| {
-                            id.parse::<u32>().map(VariableId::from_raw).map_err(|error| {
+                            let parsed = id.parse::<u32>().map_err(|error| {
                                 IoError::Convert(format!(
                                     "invalid variable assumption scope `{values}`: {error}"
                                 ))
-                            })
+                            })?;
+                            // `+3` and `03` parse to 3 but re-encode as `3`: one value, one text.
+                            if parsed.to_string() != id {
+                                return Err(IoError::Convert(format!(
+                                    "variable assumption scope `{values}` is not in canonical \
+                                     decimal form"
+                                )));
+                            }
+                            Ok(VariableId::from_raw(parsed))
                         })
                         .collect::<Result<Vec<_>, _>>()?
                 };
@@ -294,5 +302,28 @@ fn status_label(s: AssumptionStatus) -> String {
         AssumptionStatus::Supported => "supported".into(),
         AssumptionStatus::Contradicted => "contradicted".into(),
         AssumptionStatus::Untestable => "untestable".into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(scope: &str) -> AssumptionRecordWire {
+        AssumptionRecordWire {
+            assumption: AssumptionTagWire::CausalMarkov,
+            source: "user_declared".into(),
+            scope: scope.into(),
+            status: "declared".into(),
+        }
+    }
+
+    #[test]
+    fn variable_scope_ids_are_canonical_decimal() {
+        let set = assumptions_from_wire(&[record("variables:[3,10]")]).unwrap();
+        assert_eq!(assumptions_to_wire(&set)[0].scope, "variables:[3,10]");
+        for scope in ["variables:[+3]", "variables:[03]", "variables:[3,010]"] {
+            assert!(assumptions_from_wire(&[record(scope)]).is_err(), "{scope}");
+        }
     }
 }

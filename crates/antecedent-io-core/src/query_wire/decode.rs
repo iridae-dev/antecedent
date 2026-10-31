@@ -4,6 +4,13 @@
 
 use super::*;
 
+/// Most Monte Carlo assignment draws a decoded interference query may request.
+pub const MAX_WIRE_PROBABILITY_DRAWS: u32 = 100_000_000;
+/// Most paths a decoded path-specific query may enumerate.
+pub const MAX_WIRE_PATHS: usize = 1 << 20;
+/// Longest path (in edges) a decoded path-specific query may enumerate.
+pub const MAX_WIRE_PATH_LENGTH: usize = 1 << 12;
+
 /// Decode [`CausalQueryWire`].
 ///
 /// # Errors
@@ -353,6 +360,11 @@ fn panel_did_from_wire(w: &PanelDidQueryWire) -> Result<CausalQuery, IoError> {
             period,
         )
     } else {
+        if !w.periods.is_empty() || !w.cohorts.is_empty() {
+            return Err(IoError::Convert(
+                "calendar periods and cohorts belong to a staggered panel DiD".into(),
+            ));
+        }
         let constructor = if w.repeated_cross_section {
             PanelDidQuery::repeated_cross_section
         } else {
@@ -931,6 +943,9 @@ pub fn interference_query_from_wire(
         },
         probability_draws: w.probability_draws,
     };
+    if query.probability_draws > MAX_WIRE_PROBABILITY_DRAWS {
+        return Err(IoError::TooLarge);
+    }
     query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
     Ok(query)
 }
@@ -978,6 +993,9 @@ pub fn path_specific_from_wire(
         max_len: usize::try_from(w.max_len)
             .map_err(|_| IoError::Convert("max_len does not fit usize".into()))?,
     };
+    if query.max_paths > MAX_WIRE_PATHS || query.max_len > MAX_WIRE_PATH_LENGTH {
+        return Err(IoError::TooLarge);
+    }
     query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
     Ok(query)
 }

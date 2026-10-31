@@ -261,6 +261,16 @@ impl CompletionCpdagWire {
             return Err(CpdagArtifactError::LimitsExceeded("cpdag node count").into());
         }
         self.check_reconstruction_work()?;
+        // Dense ids follow the stored order and the premises identity sorts the variables, so
+        // only the ascending order has one reading.
+        for pair in self.variables.windows(2) {
+            if pair[0] == pair[1] {
+                return Err(IoError::Convert("a CPDAG variable repeats".into()));
+            }
+            if pair[0] > pair[1] {
+                return Err(IoError::Convert("CPDAG variables are not in ascending order".into()));
+            }
+        }
         let mut graph = Cpdag::empty();
         let mut ids = BTreeMap::new();
         for raw in &self.variables {
@@ -885,7 +895,19 @@ impl CpdagCompletionArtifactWire {
 
 #[cfg(test)]
 mod reconstruction_budget_tests {
-    use super::admit_cpdag_reconstruction;
+    use super::{CompletionCpdagWire, admit_cpdag_reconstruction};
+
+    #[test]
+    fn unsorted_variables_are_refused_rather_than_given_other_dense_ids() {
+        let wire = |variables: Vec<u32>| CompletionCpdagWire {
+            variables,
+            directed: vec![],
+            undirected: vec![],
+        };
+        assert!(wire(vec![0, 1, 2]).to_cpdag().is_ok());
+        assert!(wire(vec![2, 0, 1]).to_cpdag().is_err());
+        assert!(wire(vec![0, 0]).to_cpdag().is_err());
+    }
 
     #[test]
     fn reconstruction_work_checks_boundary_and_overflow() {
