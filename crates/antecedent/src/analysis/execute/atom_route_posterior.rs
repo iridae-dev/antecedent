@@ -43,7 +43,10 @@ use antecedent_discovery::adjacency_mask::{
     pag_from_adjacency_mask,
 };
 
-use super::atom_mix::{AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals};
+use super::atom_mix::{
+    AtomBoundRule, AtomEvalView, AtomMixInput, MixedAtomEvals, mix_atom_evals,
+    sanitize_atom_uncertainty,
+};
 use super::response_path::{
     mix_response_values, mix_support_reports, response_identified_value, response_primary_pair,
     response_scalar_summary,
@@ -891,7 +894,10 @@ impl super::Study {
         let fits: Vec<(&AtomRecord, &StudyResult, f64)> = records
             .iter()
             .filter_map(|record| match &record.run {
-                AtomRun::Fit(result) if mixing_scalar(kind, result).is_some() => {
+                AtomRun::Fit(result)
+                    if key_weights.get(record.key) > 0.0
+                        && mixing_scalar(kind, result).is_some() =>
+                {
                     Some((record, &**result, key_weights.get(record.key)))
                 }
                 _ => None,
@@ -916,7 +922,7 @@ impl super::Study {
             // One atom carries the whole conditional mixture: its own uncertainty is the
             // mixture's.
             if let Some(own) = representative.1.estimate.as_effect() {
-                estimate.uncertainty = own.uncertainty;
+                estimate.uncertainty = sanitize_atom_uncertainty(own.uncertainty);
                 estimate.scores.influence.clone_from(&own.scores.influence);
             }
             if published_posterior.is_none() {
