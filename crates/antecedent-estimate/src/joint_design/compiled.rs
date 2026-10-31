@@ -103,6 +103,11 @@ pub enum JointDesignRecipe {
 #[serde(tag = "inference", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JointDesignInference {
     /// Native design point functional and complete-unit uncertainty.
+    ///
+    /// For Gaussian longitudinal designs the version-one compatibility recipe
+    /// is a 64-replicate whole-episode bootstrap with seed 0; it does not use
+    /// the execution-context RNG and carries no Monte Carlo precision guarantee.
+    /// Select [`Self::GaussianLongitudinalBootstrap`] to declare both controls.
     Frequentist,
     /// Proper Gaussian arm-mean likelihood, distinct from design-based uncertainty.
     RandomizedGaussian {

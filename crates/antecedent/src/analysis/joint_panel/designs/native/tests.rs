@@ -670,6 +670,81 @@ pub(crate) fn native_experiment_fixtures()
 }
 
 #[test]
+fn native_continuous_history_default_bootstrap_is_fixed_and_replays() {
+    use antecedent_estimate::joint_design::compiled::JointDesignLaw;
+
+    let (recipe, _, _) = gaussian_longitudinal_chain_fixture();
+    let prepare_ctx = ExecutionContext::for_tests(558);
+    let other_ctx = ExecutionContext::for_tests(992);
+    let prepared = PreparedNativeJointDesign::compile(recipe.clone(), &prepare_ctx).unwrap();
+    let default = prepared.execute(JointDesignInference::Frequentist, &prepare_ctx).unwrap();
+    let JointNativeDesignLaw::Moments(JointDesignLaw::FrequentistBootstrap {
+        estimate,
+        realizations,
+        failures,
+    }) = default.law()
+    else {
+        panic!("default must retain complete bootstrap slots");
+    };
+    assert_eq!(
+        estimate.uncertainty,
+        antecedent_estimate::joint_design::JointUncertainty::FullProcedureBootstrap
+    );
+    assert_eq!(realizations.len(), 64);
+    assert_eq!(failures.len(), 64);
+    assert!(
+        realizations
+            .iter()
+            .zip(failures)
+            .all(|(draw, failure)| draw.is_some() != failure.is_some())
+    );
+    let explicit = prepared
+        .execute(
+            JointDesignInference::GaussianLongitudinalBootstrap { replicates: 64, seed: 0 },
+            &other_ctx,
+        )
+        .unwrap();
+    assert_eq!(default.law(), explicit.law());
+    // The compatibility recipe belongs to inference, not the context RNG.
+    assert_eq!(
+        recipe.execute_native(&JointDesignInference::Frequentist, &other_ctx).unwrap(),
+        *default.law()
+    );
+    let artifact = default.export_artifact().unwrap();
+    assert_eq!(replay_native_joint_design(&artifact, &other_ctx).unwrap(), *default.law());
+    prepared.consume_current(&artifact, &other_ctx).unwrap();
+
+    let changed_seed = prepared
+        .execute(
+            JointDesignInference::GaussianLongitudinalBootstrap { replicates: 64, seed: 1 },
+            &other_ctx,
+        )
+        .unwrap();
+    let JointNativeDesignLaw::Moments(JointDesignLaw::FrequentistBootstrap {
+        realizations: changed,
+        ..
+    }) = changed_seed.law()
+    else {
+        panic!("explicit bootstrap slots required");
+    };
+    assert_ne!(realizations, changed, "explicit seed selects a different stream on this fixture");
+    let short = prepared
+        .execute(
+            JointDesignInference::GaussianLongitudinalBootstrap { replicates: 8, seed: 0 },
+            &other_ctx,
+        )
+        .unwrap();
+    let JointNativeDesignLaw::Moments(JointDesignLaw::FrequentistBootstrap {
+        realizations: prefix,
+        ..
+    }) = short.law()
+    else {
+        panic!("explicit bootstrap slots required");
+    };
+    assert_eq!(prefix.as_slice(), &realizations[..8]);
+}
+
+#[test]
 fn native_continuous_history_compiler_preserves_complete_refits_and_posterior_replay() {
     let ctx = ExecutionContext::for_tests(558);
     let (recipe, bayesian, contrast) = gaussian_longitudinal_chain_fixture();
