@@ -3985,6 +3985,7 @@ pub trait fn fn antecedent_validate::Validator::validate(&self, prepared: &mut <
 pub trait fn fn antecedent_validate::common::EffectRefit::prepare_aligned(&self, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<core::result::Result<antecedent_validate::common::AlignedRefit, antecedent_validate::ValidationError>> {default}
 pub trait fn fn antecedent_validate::common::EffectRefit::prepare_aligned_windows(&self, data: &antecedent_data::dataset::TabularData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<core::result::Result<(antecedent_validate::common::AlignedRefit, core::option::Option<antecedent_validate::common::WindowCompleteness>), antecedent_validate::ValidationError>> {default}
 pub trait fn fn antecedent_validate::common::EffectRefit::refit(&self, data: &antecedent_data::dataset::TabularData, extra_contemporaneous: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::effect_estimate::EffectEstimate, antecedent_validate::ValidationError>
+pub trait fn fn antecedent_validate::common::EffectRefit::static_bootstrap_uses_witness_columns(&self) -> bool {default}
 pub trait type antecedent_validate::Validator::Prepared
 pub trait type antecedent_validate::Validator::Report
 pub type antecedent_validate::common::WindowCompleteness = alloc::vec::Vec<bool>

@@ -956,6 +956,7 @@ impl core::clone::Clone for antecedent::analysis::sensitivity_source::SourceLimi
 impl core::clone::Clone for antecedent::analysis::source_evidence::SourceResolution
 impl core::clone::Clone for antecedent::analysis::target_validation::TargetRefitOptions
 impl core::clone::Clone for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::clone::Clone for antecedent::analysis::target_validation::TargetRefutationOutcomeView
 impl core::clone::Clone for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::clone::Clone for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual
 impl core::clone::Clone for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
@@ -1089,6 +1090,7 @@ impl core::clone::Clone for antecedent::result::IntervalBinding
 impl core::clone::Clone for antecedent::result::MissingDataReport
 impl core::clone::Clone for antecedent::result::StructuralResponseAtom
 impl core::clone::Clone for antecedent::result::StructuralResponseMixture
+impl core::clone::Clone for antecedent::result::StudyResultView
 impl core::clone::Clone for antecedent::result::SurvivalDifferenceBand
 impl core::clone::Clone for antecedent::retained_refresh::RefreshFamily
 impl core::clone::Clone for antecedent::retained_refresh::RefreshMutation
@@ -1746,7 +1748,7 @@ impl core::cmp::PartialEq for antecedent::analysis::selective_discovery::Discove
 impl core::cmp::PartialEq for antecedent::analysis::selective_discovery::GraphAcceptance
 impl core::cmp::PartialEq for antecedent::analysis::sensitivity_source::SourceLimits
 impl core::cmp::PartialEq for antecedent::analysis::target_validation::TargetRefitOptions
-impl core::cmp::PartialEq for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::cmp::PartialEq for antecedent::analysis::target_validation::TargetRefutationOutcomeView
 impl core::cmp::PartialEq for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::cmp::PartialEq for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual
 impl core::cmp::PartialEq for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
@@ -2805,6 +2807,7 @@ impl core::fmt::Debug for antecedent::analysis::sensitivity_source::SourceLimits
 impl core::fmt::Debug for antecedent::analysis::source_evidence::SourceResolution
 impl core::fmt::Debug for antecedent::analysis::target_validation::TargetRefitOptions
 impl core::fmt::Debug for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::fmt::Debug for antecedent::analysis::target_validation::TargetRefutationOutcomeView
 impl core::fmt::Debug for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::fmt::Debug for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual
 impl core::fmt::Debug for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
@@ -2938,6 +2941,7 @@ impl core::fmt::Debug for antecedent::result::IntervalBinding
 impl core::fmt::Debug for antecedent::result::MissingDataReport
 impl core::fmt::Debug for antecedent::result::StructuralResponseAtom
 impl core::fmt::Debug for antecedent::result::StructuralResponseMixture
+impl core::fmt::Debug for antecedent::result::StudyResultView
 impl core::fmt::Debug for antecedent::result::SurvivalDifferenceBand
 impl core::fmt::Debug for antecedent::retained_refresh::RefreshFamily
 impl core::fmt::Debug for antecedent::retained_refresh::RefreshMutation
@@ -3977,6 +3981,7 @@ impl core::marker::Freeze for antecedent::analysis::sensitivity_source::SourceLi
 impl core::marker::Freeze for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Freeze for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Freeze for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Freeze for antecedent::analysis::target_validation::TargetRefutationOutcomeView [auto]
 impl core::marker::Freeze for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Freeze for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual [auto]
 impl core::marker::Freeze for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
@@ -4110,6 +4115,7 @@ impl core::marker::Freeze for antecedent::result::IntervalBinding [auto]
 impl core::marker::Freeze for antecedent::result::MissingDataReport [auto]
 impl core::marker::Freeze for antecedent::result::StructuralResponseAtom [auto]
 impl core::marker::Freeze for antecedent::result::StructuralResponseMixture [auto]
+impl core::marker::Freeze for antecedent::result::StudyResultView [auto]
 impl core::marker::Freeze for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Freeze for antecedent::retained_refresh::RefreshFamily [auto]
 impl core::marker::Freeze for antecedent::retained_refresh::RefreshMutation [auto]
@@ -4883,6 +4889,7 @@ impl core::marker::Send for antecedent::analysis::sensitivity_source::SourceLimi
 impl core::marker::Send for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Send for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Send for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Send for antecedent::analysis::target_validation::TargetRefutationOutcomeView [auto]
 impl core::marker::Send for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Send for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual [auto]
 impl core::marker::Send for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
@@ -5017,6 +5024,7 @@ impl core::marker::Send for antecedent::result::IntervalBinding [auto]
 impl core::marker::Send for antecedent::result::MissingDataReport [auto]
 impl core::marker::Send for antecedent::result::StructuralResponseAtom [auto]
 impl core::marker::Send for antecedent::result::StructuralResponseMixture [auto]
+impl core::marker::Send for antecedent::result::StudyResultView [auto]
 impl core::marker::Send for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Send for antecedent::retained_refresh::RefreshFamily [auto]
 impl core::marker::Send for antecedent::retained_refresh::RefreshMutation [auto]
@@ -5463,7 +5471,7 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::selective_disco
 impl core::marker::StructuralPartialEq for antecedent::analysis::selective_discovery::GraphAcceptance
 impl core::marker::StructuralPartialEq for antecedent::analysis::sensitivity_source::SourceLimits
 impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::TargetRefitOptions
-impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::TargetRefutationOutcome
+impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::TargetRefutationOutcomeView
 impl core::marker::StructuralPartialEq for antecedent::analysis::target_validation::WithinClassDistribution
 impl core::marker::StructuralPartialEq for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual
 impl core::marker::StructuralPartialEq for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
@@ -6321,6 +6329,7 @@ impl core::marker::Sync for antecedent::analysis::sensitivity_source::SourceLimi
 impl core::marker::Sync for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Sync for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Sync for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Sync for antecedent::analysis::target_validation::TargetRefutationOutcomeView [auto]
 impl core::marker::Sync for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Sync for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual [auto]
 impl core::marker::Sync for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
@@ -6455,6 +6464,7 @@ impl core::marker::Sync for antecedent::result::IntervalBinding [auto]
 impl core::marker::Sync for antecedent::result::MissingDataReport [auto]
 impl core::marker::Sync for antecedent::result::StructuralResponseAtom [auto]
 impl core::marker::Sync for antecedent::result::StructuralResponseMixture [auto]
+impl core::marker::Sync for antecedent::result::StudyResultView [auto]
 impl core::marker::Sync for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Sync for antecedent::retained_refresh::RefreshFamily [auto]
 impl core::marker::Sync for antecedent::retained_refresh::RefreshMutation [auto]
@@ -7228,6 +7238,7 @@ impl core::marker::Unpin for antecedent::analysis::sensitivity_source::SourceLim
 impl core::marker::Unpin for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::marker::Unpin for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::marker::Unpin for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::marker::Unpin for antecedent::analysis::target_validation::TargetRefutationOutcomeView [auto]
 impl core::marker::Unpin for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::marker::Unpin for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual [auto]
 impl core::marker::Unpin for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
@@ -7362,6 +7373,7 @@ impl core::marker::Unpin for antecedent::result::IntervalBinding [auto]
 impl core::marker::Unpin for antecedent::result::MissingDataReport [auto]
 impl core::marker::Unpin for antecedent::result::StructuralResponseAtom [auto]
 impl core::marker::Unpin for antecedent::result::StructuralResponseMixture [auto]
+impl core::marker::Unpin for antecedent::result::StudyResultView [auto]
 impl core::marker::Unpin for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::marker::Unpin for antecedent::retained_refresh::RefreshFamily [auto]
 impl core::marker::Unpin for antecedent::retained_refresh::RefreshMutation [auto]
@@ -7374,9 +7386,13 @@ impl core::marker::Unpin for antecedent::review::PendingGraphReview [auto]
 impl core::marker::Unpin for antecedent::strategy_table::UnknownStrategy [auto]
 impl core::ops::deref::Deref for antecedent::PreparedStudy
 impl core::ops::deref::Deref for antecedent::Study
+impl core::ops::deref::Deref for antecedent::StudyResult
 impl core::ops::deref::Deref for antecedent::analysis::recalc_receipt::Columns
+impl core::ops::deref::Deref for antecedent::analysis::target_validation::TargetRefutationOutcome
 impl core::ops::deref::DerefMut for antecedent::PreparedStudy
+impl core::ops::deref::DerefMut for antecedent::StudyResult
 impl core::ops::deref::DerefMut for antecedent::analysis::recalc_receipt::Columns
+impl core::ops::deref::DerefMut for antecedent::analysis::target_validation::TargetRefutationOutcome
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AcceptedGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::AcceptedPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ActionConstraint [auto]
@@ -8098,6 +8114,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sensitivi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::TargetRefutationOutcomeView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
@@ -8228,6 +8245,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::IntervalBin
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::MissingDataReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::StructuralResponseAtom [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::StructuralResponseMixture [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::StudyResultView [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::retained_refresh::RefreshFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::retained_refresh::RefreshMutation [auto]
@@ -8958,6 +8976,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sensitivity_
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::source_evidence::SourceResolution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::TargetRefitOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::TargetRefutationOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::TargetRefutationOutcomeView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::target_validation::WithinClassDistribution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::temporal_counterfactual::TemporalCounterfactual [auto]
@@ -9088,6 +9107,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::result::IntervalBindin
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::MissingDataReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::StructuralResponseAtom [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::StructuralResponseMixture [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::result::StudyResultView [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::result::SurvivalDifferenceBand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::retained_refresh::RefreshFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::retained_refresh::RefreshMutation [auto]
@@ -10652,22 +10672,6 @@ pub field antecedent::StructureProvenance::search_bounds: alloc::sync::Arc<str>
 pub field antecedent::StudyEstimate::estimate: f64
 pub field antecedent::StudyEstimate::source: antecedent_contract::evidence_ledger::ids::SourceId
 pub field antecedent::StudyEstimate::standard_error: f64
-pub field antecedent::StudyResult::certificate: core::option::Option<antecedent::AnalysisIdentification>
-pub field antecedent::StudyResult::diagnostics: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>
-pub field antecedent::StudyResult::estimand: antecedent_expr::estimand::IdentifiedEstimand
-pub field antecedent::StudyResult::identification: antecedent_identify::result::IdentificationResult
-pub field antecedent::StudyResult::logical_plan: antecedent_contract::plan::LogicalAnalysisPlanRecord
-pub field antecedent::StudyResult::outcome: antecedent_core::ids::VariableId
-pub field antecedent::StudyResult::performance: antecedent_contract::plan::ExecutionPerformanceRecord
-pub field antecedent::StudyResult::physical_plan: antecedent_contract::plan::PhysicalExecutionPlanRecord
-pub field antecedent::StudyResult::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
-pub field antecedent::StudyResult::posterior: core::option::Option<antecedent_estimate::bayesian::CausalPosterior>
-pub field antecedent::StudyResult::predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::predictive::PredictiveCheckReport>
-pub field antecedent::StudyResult::provenance: antecedent_contract::provenance::ProvenanceGraph
-pub field antecedent::StudyResult::refutations: alloc::vec::Vec<antecedent_validate::common::RefutationReport>
-pub field antecedent::StudyResult::structural_response: core::option::Option<antecedent::result::StructuralResponseMixture>
-pub field antecedent::StudyResult::structure_source: antecedent::StructureSource
-pub field antecedent::StudyResult::treatment: core::option::Option<antecedent_core::ids::VariableId>
 pub field antecedent::StudySummary::estimate: f64
 pub field antecedent::StudySummary::source: antecedent_contract::evidence_ledger::ids::SourceId
 pub field antecedent::StudySummary::variance: f64
@@ -12336,9 +12340,9 @@ pub field antecedent::analysis::target_validation::TargetRefitOptions::negative_
 pub field antecedent::analysis::target_validation::TargetRefitOptions::prior_scale_factors: alloc::vec::Vec<f64>
 pub field antecedent::analysis::target_validation::TargetRefitOptions::prior_shift_tolerance: f64
 pub field antecedent::analysis::target_validation::TargetRefitOptions::within_class: core::option::Option<antecedent::analysis::target_validation::WithinClassDistribution>
-pub field antecedent::analysis::target_validation::TargetRefutationOutcome::certificate: antecedent_validate::target_native::TargetCertificate
-pub field antecedent::analysis::target_validation::TargetRefutationOutcome::plan: antecedent_validate::target_native::TargetRefutationPlan
-pub field antecedent::analysis::target_validation::TargetRefutationOutcome::run: antecedent_validate::target_native::engine::TargetRefutationRun
+pub field antecedent::analysis::target_validation::TargetRefutationOutcomeView::certificate: antecedent_validate::target_native::TargetCertificate
+pub field antecedent::analysis::target_validation::TargetRefutationOutcomeView::plan: antecedent_validate::target_native::TargetRefutationPlan
+pub field antecedent::analysis::target_validation::TargetRefutationOutcomeView::run: antecedent_validate::target_native::engine::TargetRefutationRun
 pub field antecedent::analysis::transport_handoff::TransportHandoffRefusal::code: &'static str
 pub field antecedent::analysis::transport_handoff::TransportHandoffRefusal::detail: alloc::string::String
 pub field antecedent::analysis::transport_handoff::TransportHandoffRefusal::message: alloc::string::String
@@ -12678,6 +12682,22 @@ pub field antecedent::result::StructuralResponseMixture::truncated_atoms: usize
 pub field antecedent::result::StructuralResponseMixture::unevaluable_mass: f64
 pub field antecedent::result::StructuralResponseMixture::unidentified_mass: f64
 pub field antecedent::result::StructuralResponseMixture::weight_basis: antecedent::StructuralWeightBasis
+pub field antecedent::result::StudyResultView::certificate: core::option::Option<antecedent::AnalysisIdentification>
+pub field antecedent::result::StudyResultView::diagnostics: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>
+pub field antecedent::result::StudyResultView::estimand: antecedent_expr::estimand::IdentifiedEstimand
+pub field antecedent::result::StudyResultView::identification: antecedent_identify::result::IdentificationResult
+pub field antecedent::result::StudyResultView::logical_plan: antecedent_contract::plan::LogicalAnalysisPlanRecord
+pub field antecedent::result::StudyResultView::outcome: antecedent_core::ids::VariableId
+pub field antecedent::result::StudyResultView::performance: antecedent_contract::plan::ExecutionPerformanceRecord
+pub field antecedent::result::StudyResultView::physical_plan: antecedent_contract::plan::PhysicalExecutionPlanRecord
+pub field antecedent::result::StudyResultView::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
+pub field antecedent::result::StudyResultView::posterior: core::option::Option<antecedent_estimate::bayesian::CausalPosterior>
+pub field antecedent::result::StudyResultView::predictive_checks: alloc::vec::Vec<antecedent_validate::bayesian_checks::predictive::PredictiveCheckReport>
+pub field antecedent::result::StudyResultView::provenance: antecedent_contract::provenance::ProvenanceGraph
+pub field antecedent::result::StudyResultView::refutations: alloc::vec::Vec<antecedent_validate::common::RefutationReport>
+pub field antecedent::result::StudyResultView::structural_response: core::option::Option<antecedent::result::StructuralResponseMixture>
+pub field antecedent::result::StudyResultView::structure_source: antecedent::StructureSource
+pub field antecedent::result::StudyResultView::treatment: core::option::Option<antecedent_core::ids::VariableId>
 pub field antecedent::result::SurvivalDifferenceBand::difference: alloc::sync::Arc<[f64]>
 pub field antecedent::result::SurvivalDifferenceBand::lower: alloc::sync::Arc<[f64]>
 pub field antecedent::result::SurvivalDifferenceBand::replicates_ok: u32
@@ -15618,7 +15638,7 @@ pub fn antecedent::analysis::staleness::staleness_policy_from_json(text: &str) -
 pub fn antecedent::analysis::staleness::staleness_policy_json(policy: &antecedent_validate::staleness::policy::StalenessPolicy) -> serde_json::value::Value
 pub fn antecedent::analysis::staleness::staleness_report_json(report: &antecedent_validate::staleness::report::StalenessReport) -> serde_json::value::Value
 pub fn antecedent::analysis::structure_route::attribution_quantities(outcome: &antecedent::AttributionOutcome) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
-pub fn antecedent::analysis::target_validation::certify_result_refutations(result: &antecedent::StudyResult, reports: &[antecedent_validate::target_native::TargetRefutationReport]) -> core::result::Result<antecedent_validate::target_native::TargetCertificate, antecedent_validate::target_native::TargetCertificationError>
+pub fn antecedent::analysis::target_validation::certify_result_refutations(result: &antecedent::StudyResult, outcome: &antecedent::analysis::target_validation::TargetRefutationOutcome) -> core::result::Result<antecedent_validate::target_native::TargetCertificate, antecedent_validate::target_native::TargetCertificationError>
 pub fn antecedent::analysis::target_validation::refute_prepared_target(prepared: &antecedent::PreparedStudy, result: &antecedent::StudyResult, data: antecedent::analysis::target_validation::PreparedTargetData<'_>, suite: antecedent_validate::target_native::TargetSuite, config: &antecedent_validate::target_native::engine::TargetRefutationConfig, options: &antecedent::analysis::target_validation::TargetRefitOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::target_validation::TargetRefutationOutcome, antecedent::CausalError>
 pub fn antecedent::analysis::target_validation::result_quadrant(result: &antecedent::StudyResult) -> antecedent_validate::target_native::TargetQuadrant
 pub fn antecedent::analysis::target_validation::result_refutation_target(result: &antecedent::StudyResult) -> core::result::Result<antecedent_validate::target_native::RefutationTarget, antecedent::CausalError>
@@ -16699,6 +16719,8 @@ pub struct antecedent::analysis::source_evidence::SourceResolution
 pub struct antecedent::analysis::source_evidence::SourceResolution has private fields
 pub struct antecedent::analysis::target_validation::TargetRefitOptions
 pub struct antecedent::analysis::target_validation::TargetRefutationOutcome
+pub struct antecedent::analysis::target_validation::TargetRefutationOutcome has private fields
+pub struct antecedent::analysis::target_validation::TargetRefutationOutcomeView
 pub struct antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual
 pub struct antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual has private fields
 pub struct antecedent::analysis::temporal_counterfactual::TemporalCounterfactual
@@ -16862,6 +16884,7 @@ pub struct antecedent::result::InterferenceInference
 pub struct antecedent::result::InterferencePointwiseInterval
 pub struct antecedent::result::StructuralResponseAtom
 pub struct antecedent::result::StructuralResponseMixture
+pub struct antecedent::result::StudyResultView
 pub struct antecedent::result::SurvivalDifferenceBand
 pub struct antecedent::retained_refresh::RefreshObservation
 pub struct antecedent::retained_refresh::RetainedRefresh

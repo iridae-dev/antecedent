@@ -2205,6 +2205,7 @@ pub fn <antecedent_data::OwnedColumnarStorage>::fn analysis_mask(&self) -> core:
 pub fn <antecedent_data::OwnedColumnarStorage>::fn columns(&self) -> &[antecedent_data::OwnedColumn]
 pub fn <antecedent_data::OwnedColumnarStorage>::fn columns_arc(&self) -> &alloc::sync::Arc<[antecedent_data::OwnedColumn]>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest(&self) -> [u8; 32]
+pub fn <antecedent_data::OwnedColumnarStorage>::fn content_digest_with_context(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<[u8; 32], antecedent_core::execution::admission::AdmissionError>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn try_new(schema: antecedent_core::schema::CausalSchema, columns: alloc::vec::Vec<antecedent_data::OwnedColumn>, analysis_mask: core::option::Option<antecedent_data::ValidityBitmap>, weights: core::option::Option<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn weights(&self) -> core::option::Option<&[f64]>
 pub fn <antecedent_data::OwnedColumnarStorage>::fn with_schema(&self, schema: antecedent_core::schema::CausalSchema) -> core::result::Result<Self, antecedent_data::DataError>
