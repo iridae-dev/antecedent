@@ -3,6 +3,7 @@
 # One line per public item; do not edit by hand.
 #[non_exhaustive] pub enum antecedent_contract::AlignedLaw
 #[non_exhaustive] pub enum antecedent_contract::ChainReading
+#[non_exhaustive] pub enum antecedent_contract::CheckedWorldPointError
 #[non_exhaustive] pub enum antecedent_contract::ClaimDomainAxis
 #[non_exhaustive] pub enum antecedent_contract::ClaimKind
 #[non_exhaustive] pub enum antecedent_contract::ClaimOperation
@@ -139,6 +140,9 @@ impl core::clone::Clone for antecedent_contract::ChainReading
 impl core::clone::Clone for antecedent_contract::ChainRefusal
 impl core::clone::Clone for antecedent_contract::CheckedCausalContract
 impl core::clone::Clone for antecedent_contract::CheckedEquivalence
+impl core::clone::Clone for antecedent_contract::CheckedWorldPoint
+impl core::clone::Clone for antecedent_contract::CheckedWorldPointError
+impl core::clone::Clone for antecedent_contract::CheckedWorldPointLimits
 impl core::clone::Clone for antecedent_contract::ClaimCompatibility
 impl core::clone::Clone for antecedent_contract::ClaimDomainAxis
 impl core::clone::Clone for antecedent_contract::ClaimDomains
@@ -547,6 +551,8 @@ impl core::cmp::Eq for antecedent_contract::ChainPlan
 impl core::cmp::Eq for antecedent_contract::ChainReading
 impl core::cmp::Eq for antecedent_contract::ChainRefusal
 impl core::cmp::Eq for antecedent_contract::CheckedEquivalence
+impl core::cmp::Eq for antecedent_contract::CheckedWorldPointError
+impl core::cmp::Eq for antecedent_contract::CheckedWorldPointLimits
 impl core::cmp::Eq for antecedent_contract::ClaimCompatibility
 impl core::cmp::Eq for antecedent_contract::ClaimDomainAxis
 impl core::cmp::Eq for antecedent_contract::ClaimDomains
@@ -919,6 +925,8 @@ impl core::cmp::PartialEq for antecedent_contract::ChainReading
 impl core::cmp::PartialEq for antecedent_contract::ChainRefusal
 impl core::cmp::PartialEq for antecedent_contract::CheckedCausalContract
 impl core::cmp::PartialEq for antecedent_contract::CheckedEquivalence
+impl core::cmp::PartialEq for antecedent_contract::CheckedWorldPointError
+impl core::cmp::PartialEq for antecedent_contract::CheckedWorldPointLimits
 impl core::cmp::PartialEq for antecedent_contract::ClaimCompatibility
 impl core::cmp::PartialEq for antecedent_contract::ClaimDomainAxis
 impl core::cmp::PartialEq for antecedent_contract::ClaimDomains
@@ -1389,6 +1397,7 @@ impl core::default::Default for antecedent_contract::composition_verification::C
 impl core::default::Default for antecedent_contract::evidence_ledger::EvidenceLedger
 impl core::default::Default for antecedent_contract::evidence_ledger::OperationEffect
 impl core::error::Error for antecedent_contract::ChainRefusal
+impl core::error::Error for antecedent_contract::CheckedWorldPointError
 impl core::error::Error for antecedent_contract::DependenceError
 impl core::error::Error for antecedent_contract::EvidenceEnvelopeError
 impl core::error::Error for antecedent_contract::EvidenceObligationError
@@ -1420,6 +1429,9 @@ impl core::fmt::Debug for antecedent_contract::ChainReading
 impl core::fmt::Debug for antecedent_contract::ChainRefusal
 impl core::fmt::Debug for antecedent_contract::CheckedCausalContract
 impl core::fmt::Debug for antecedent_contract::CheckedEquivalence
+impl core::fmt::Debug for antecedent_contract::CheckedWorldPoint
+impl core::fmt::Debug for antecedent_contract::CheckedWorldPointError
+impl core::fmt::Debug for antecedent_contract::CheckedWorldPointLimits
 impl core::fmt::Debug for antecedent_contract::ClaimCompatibility
 impl core::fmt::Debug for antecedent_contract::ClaimDomainAxis
 impl core::fmt::Debug for antecedent_contract::ClaimDomains
@@ -1816,6 +1828,7 @@ impl core::fmt::Debug for antecedent_contract::transport_revalidation::Transport
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportRevalidation
 impl core::fmt::Debug for antecedent_contract::transport_revalidation::TransportScene
 impl core::fmt::Display for antecedent_contract::ChainRefusal
+impl core::fmt::Display for antecedent_contract::CheckedWorldPointError
 impl core::fmt::Display for antecedent_contract::DependenceError
 impl core::fmt::Display for antecedent_contract::DependenceSourceId
 impl core::fmt::Display for antecedent_contract::EvidenceEnvelopeError
@@ -1989,6 +2002,8 @@ impl core::marker::Copy for antecedent_contract::AxisInterval
 impl core::marker::Copy for antecedent_contract::BoundTrustLevel
 impl core::marker::Copy for antecedent_contract::BufferMaterialization
 impl core::marker::Copy for antecedent_contract::ChainReading
+impl core::marker::Copy for antecedent_contract::CheckedWorldPointError
+impl core::marker::Copy for antecedent_contract::CheckedWorldPointLimits
 impl core::marker::Copy for antecedent_contract::ClaimDomainAxis
 impl core::marker::Copy for antecedent_contract::ClaimKind
 impl core::marker::Copy for antecedent_contract::ClaimOperation
@@ -2159,6 +2174,9 @@ impl core::marker::Freeze for antecedent_contract::ChainReading [auto]
 impl core::marker::Freeze for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Freeze for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Freeze for antecedent_contract::CheckedEquivalence [auto]
+impl core::marker::Freeze for antecedent_contract::CheckedWorldPoint [auto]
+impl core::marker::Freeze for antecedent_contract::CheckedWorldPointError [auto]
+impl core::marker::Freeze for antecedent_contract::CheckedWorldPointLimits [auto]
 impl core::marker::Freeze for antecedent_contract::ClaimCompatibility [auto]
 impl core::marker::Freeze for antecedent_contract::ClaimDomainAxis [auto]
 impl core::marker::Freeze for antecedent_contract::ClaimDomains [auto]
@@ -2572,6 +2590,9 @@ impl core::marker::Send for antecedent_contract::ChainReading [auto]
 impl core::marker::Send for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Send for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Send for antecedent_contract::CheckedEquivalence [auto]
+impl core::marker::Send for antecedent_contract::CheckedWorldPoint [auto]
+impl core::marker::Send for antecedent_contract::CheckedWorldPointError [auto]
+impl core::marker::Send for antecedent_contract::CheckedWorldPointLimits [auto]
 impl core::marker::Send for antecedent_contract::ClaimCompatibility [auto]
 impl core::marker::Send for antecedent_contract::ClaimDomainAxis [auto]
 impl core::marker::Send for antecedent_contract::ClaimDomains [auto]
@@ -2985,6 +3006,8 @@ impl core::marker::StructuralPartialEq for antecedent_contract::ChainReading
 impl core::marker::StructuralPartialEq for antecedent_contract::ChainRefusal
 impl core::marker::StructuralPartialEq for antecedent_contract::CheckedCausalContract
 impl core::marker::StructuralPartialEq for antecedent_contract::CheckedEquivalence
+impl core::marker::StructuralPartialEq for antecedent_contract::CheckedWorldPointError
+impl core::marker::StructuralPartialEq for antecedent_contract::CheckedWorldPointLimits
 impl core::marker::StructuralPartialEq for antecedent_contract::ClaimCompatibility
 impl core::marker::StructuralPartialEq for antecedent_contract::ClaimDomainAxis
 impl core::marker::StructuralPartialEq for antecedent_contract::ClaimDomains
@@ -3393,6 +3416,9 @@ impl core::marker::Sync for antecedent_contract::ChainReading [auto]
 impl core::marker::Sync for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Sync for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Sync for antecedent_contract::CheckedEquivalence [auto]
+impl core::marker::Sync for antecedent_contract::CheckedWorldPoint [auto]
+impl core::marker::Sync for antecedent_contract::CheckedWorldPointError [auto]
+impl core::marker::Sync for antecedent_contract::CheckedWorldPointLimits [auto]
 impl core::marker::Sync for antecedent_contract::ClaimCompatibility [auto]
 impl core::marker::Sync for antecedent_contract::ClaimDomainAxis [auto]
 impl core::marker::Sync for antecedent_contract::ClaimDomains [auto]
@@ -3806,6 +3832,9 @@ impl core::marker::Unpin for antecedent_contract::ChainReading [auto]
 impl core::marker::Unpin for antecedent_contract::ChainRefusal [auto]
 impl core::marker::Unpin for antecedent_contract::CheckedCausalContract [auto]
 impl core::marker::Unpin for antecedent_contract::CheckedEquivalence [auto]
+impl core::marker::Unpin for antecedent_contract::CheckedWorldPoint [auto]
+impl core::marker::Unpin for antecedent_contract::CheckedWorldPointError [auto]
+impl core::marker::Unpin for antecedent_contract::CheckedWorldPointLimits [auto]
 impl core::marker::Unpin for antecedent_contract::ClaimCompatibility [auto]
 impl core::marker::Unpin for antecedent_contract::ClaimDomainAxis [auto]
 impl core::marker::Unpin for antecedent_contract::ClaimDomains [auto]
@@ -4219,6 +4248,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ChainReadi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ChainRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedCausalContract [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedEquivalence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedWorldPoint [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedWorldPointError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::CheckedWorldPointLimits [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ClaimCompatibility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ClaimDomainAxis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ClaimDomains [auto]
@@ -4632,6 +4664,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ChainReading 
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ChainRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedCausalContract [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedEquivalence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedWorldPoint [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedWorldPointError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::CheckedWorldPointLimits [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ClaimCompatibility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ClaimDomainAxis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ClaimDomains [auto]
@@ -5032,6 +5067,7 @@ impl<'a> core::clone::Clone for antecedent_contract::ObservationContext<'a>
 impl<'a> core::clone::Clone for antecedent_contract::ObservationSlotsRequest<'a>
 impl<'a> core::clone::Clone for antecedent_contract::ResponseCoordinateLabels<'a>
 impl<'a> core::clone::Clone for antecedent_contract::VerificationSubject<'a>
+impl<'a> core::clone::Clone for antecedent_contract::WorldPointParent<'a>
 impl<'a> core::clone::Clone for antecedent_contract::bridge::BridgeDrawsSource<'a>
 impl<'a> core::clone::Clone for antecedent_contract::bridge::BridgeSource<'a>
 impl<'a> core::clone::Clone for antecedent_contract::measurement::MeasurementRequest<'a>
@@ -5045,6 +5081,7 @@ impl<'a> core::fmt::Debug for antecedent_contract::ObservationContext<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::ObservationSlotsRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::ResponseCoordinateLabels<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::VerificationSubject<'a>
+impl<'a> core::fmt::Debug for antecedent_contract::WorldPointParent<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::bridge::BridgeDrawsSource<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::bridge::BridgeSource<'a>
 impl<'a> core::fmt::Debug for antecedent_contract::measurement::MeasurementRequest<'a>
@@ -5052,6 +5089,7 @@ impl<'a> core::fmt::Debug for antecedent_contract::rewrite_legality::FrameRow<'a
 impl<'a> core::marker::Copy for antecedent_contract::ObservationContext<'a>
 impl<'a> core::marker::Copy for antecedent_contract::ResponseCoordinateLabels<'a>
 impl<'a> core::marker::Copy for antecedent_contract::VerificationSubject<'a>
+impl<'a> core::marker::Copy for antecedent_contract::WorldPointParent<'a>
 impl<'a> core::marker::Copy for antecedent_contract::bridge::BridgeDrawsSource<'a>
 impl<'a> core::marker::Copy for antecedent_contract::bridge::BridgeSource<'a>
 impl<'a> core::marker::Copy for antecedent_contract::rewrite_legality::FrameRow<'a>
@@ -5060,6 +5098,7 @@ impl<'a> core::marker::Freeze for antecedent_contract::ObservationContext<'a> [a
 impl<'a> core::marker::Freeze for antecedent_contract::ObservationSlotsRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::ResponseCoordinateLabels<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::VerificationSubject<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_contract::WorldPointParent<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
@@ -5069,6 +5108,7 @@ impl<'a> core::marker::Send for antecedent_contract::ObservationContext<'a> [aut
 impl<'a> core::marker::Send for antecedent_contract::ObservationSlotsRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::ResponseCoordinateLabels<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::VerificationSubject<'a> [auto]
+impl<'a> core::marker::Send for antecedent_contract::WorldPointParent<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
@@ -5080,6 +5120,7 @@ impl<'a> core::marker::Sync for antecedent_contract::ObservationContext<'a> [aut
 impl<'a> core::marker::Sync for antecedent_contract::ObservationSlotsRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::ResponseCoordinateLabels<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::VerificationSubject<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_contract::WorldPointParent<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
@@ -5089,6 +5130,7 @@ impl<'a> core::marker::Unpin for antecedent_contract::ObservationContext<'a> [au
 impl<'a> core::marker::Unpin for antecedent_contract::ObservationSlotsRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::ResponseCoordinateLabels<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::VerificationSubject<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_contract::WorldPointParent<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
@@ -5098,6 +5140,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::Observ
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ObservationSlotsRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ResponseCoordinateLabels<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::VerificationSubject<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::WorldPointParent<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
@@ -5107,6 +5150,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::Observati
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::ObservationSlotsRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::ResponseCoordinateLabels<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::VerificationSubject<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::WorldPointParent<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeDrawsSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::bridge::BridgeSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_contract::measurement::MeasurementRequest<'a> [auto]
@@ -5436,6 +5480,16 @@ pub field antecedent_contract::CheckedCausalContract::required_evidence_ids: all
 pub field antecedent_contract::CheckedEquivalence::graph_id: alloc::string::String
 pub field antecedent_contract::CheckedEquivalence::justification_id: alloc::string::String
 pub field antecedent_contract::CheckedEquivalence::scope: antecedent_contract::EquivalenceScope
+pub field antecedent_contract::CheckedWorldPointLimits::max_assumption_records: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_comparisons: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_evidence_bytes: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_evidence_references: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_memory_bytes: u64
+pub field antecedent_contract::CheckedWorldPointLimits::max_target_depth: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_target_payload_bytes: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_target_work: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_terms: usize
+pub field antecedent_contract::CheckedWorldPointLimits::max_world_actions: usize
 pub field antecedent_contract::ClaimCompatibility::compatible: bool
 pub field antecedent_contract::ClaimCompatibility::operation: antecedent_contract::ClaimOperation
 pub field antecedent_contract::ClaimCompatibility::restriction: core::option::Option<alloc::sync::Arc<str>>
@@ -5739,9 +5793,11 @@ pub field antecedent_contract::PlannedMechanism::origin: antecedent_contract::Me
 pub field antecedent_contract::PlannedMechanism::parents: alloc::vec::Vec<antecedent_contract::PlannedParent>
 pub field antecedent_contract::PlannedMechanism::population_id: alloc::string::String
 pub field antecedent_contract::PlannedMechanism::regime_id: alloc::string::String
+pub field antecedent_contract::PlannedMechanism::semantic_identity: alloc::string::String
 pub field antecedent_contract::PlannedMechanism::transform_id: alloc::string::String
 pub field antecedent_contract::PlannedMechanism::units: alloc::string::String
 pub field antecedent_contract::PlannedMechanism::variable_id: alloc::string::String
+pub field antecedent_contract::PlannedParent::semantic_identity: alloc::string::String
 pub field antecedent_contract::PlannedParent::transform_id: alloc::string::String
 pub field antecedent_contract::PlannedParent::units: alloc::string::String
 pub field antecedent_contract::PlannedParent::variable_id: alloc::string::String
@@ -5864,6 +5920,8 @@ pub field antecedent_contract::VerificationProbe::expected: f64
 pub field antecedent_contract::VerificationProbe::kind: antecedent_contract::VerificationProbeKind
 pub field antecedent_contract::VerificationProbe::observed: f64
 pub field antecedent_contract::VerificationProbe::tolerance: f64
+pub field antecedent_contract::WorldPointParent::claim: &'a antecedent_contract::ClaimEnvelope
+pub field antecedent_contract::WorldPointParent::target: &'a antecedent_core::scientific_target::identity::ScientificTarget
 pub field antecedent_contract::WorldTime::time_id: alloc::sync::Arc<str>
 pub field antecedent_contract::WorldTime::world_id: alloc::sync::Arc<str>
 pub field antecedent_contract::adaptive_design::AdaptiveContractError::refusals: alloc::vec::Vec<antecedent_contract::ExternalRefusal>
@@ -6436,6 +6494,12 @@ pub fn <antecedent_contract::ChainRefusal>::fn message(&self) -> &str
 pub fn <antecedent_contract::ChainRefusal>::fn message_with_next_attempt(&self) -> alloc::string::String
 pub fn <antecedent_contract::ChainRefusal>::fn new(code: &'static str, detail: &'static str, message: impl core::convert::Into<alloc::string::String>, stage: core::option::Option<&str>, next: antecedent_core::refusal::NextAttempt) -> Self
 pub fn <antecedent_contract::ChainRefusal>::fn stage(&self) -> core::option::Option<&str>
+pub fn <antecedent_contract::CheckedWorldPoint>::const fn limitations(&self) -> &'static [&'static str]
+pub fn <antecedent_contract::CheckedWorldPoint>::const fn proof_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::CheckedWorldPoint>::const fn value(&self) -> f64
+pub fn <antecedent_contract::CheckedWorldPoint>::fn evidence(&self) -> &[alloc::sync::Arc<str>]
+pub fn <antecedent_contract::CheckedWorldPoint>::fn parent_ids(&self) -> &[antecedent_core::identity::SemanticDigest]
+pub fn <antecedent_contract::CheckedWorldPoint>::fn target(&self) -> &antecedent_core::scientific_target::identity::ScientificTarget
 pub fn <antecedent_contract::ClaimCompatibility>::fn new(operation: antecedent_contract::ClaimOperation, compatible: bool, unresolved: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, restriction: core::option::Option<alloc::sync::Arc<str>>) -> Self
 pub fn <antecedent_contract::ClaimDomainAxis>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::ClaimDomains>::const fn new(identification: antecedent_contract::DomainStatus, support: antecedent_contract::DomainStatus, evaluated: antecedent_contract::DomainStatus) -> Self
@@ -7239,6 +7303,7 @@ pub fn <antecedent_contract::transport_revalidation::TransportScene>::fn graph(&
 pub fn antecedent_contract::adaptive_design::licensed_routes() -> alloc::vec::Vec<(antecedent_contract::adaptive_design::ProcedureCell, &'static [antecedent_contract::adaptive_design::InferenceParadigm])>
 pub fn antecedent_contract::adaptive_design::procedure_cells() -> alloc::vec::Vec<antecedent_contract::adaptive_design::ProcedureCell>
 pub fn antecedent_contract::adaptive_design::procedure_status(cell: &antecedent_contract::adaptive_design::ProcedureCell) -> antecedent_contract::adaptive_design::CellStatus
+pub fn antecedent_contract::admit_composition_targets<'a>(targets: impl core::iter::traits::collect::IntoIterator<Item = &'a antecedent_core::scientific_target::identity::ScientificTarget>, premise_quote: antecedent_core::scientific_target::composition_quote::CompositionTargetQuote, limits: &antecedent_contract::CheckedWorldPointLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::sync::Arc<antecedent_core::execution::admission::AdmissionLease>, antecedent_contract::CheckedWorldPointError>
 pub fn antecedent_contract::bind_external_result(contract: &antecedent_contract::CheckedCausalContract, result: &antecedent_contract::ExternalResult) -> core::result::Result<antecedent_contract::BoundExternalClaim, antecedent_contract::ExternalBindingError>
 pub fn antecedent_contract::bind_external_result_to_program(binding: &antecedent_contract::ProgramBinding, claim: &antecedent_contract::ExternalProgramClaim, contract: &antecedent_contract::CheckedCausalContract, result: &antecedent_contract::ExternalResult) -> core::result::Result<antecedent_contract::ProgramBoundClaim, antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::bridge::bridged_claim_id(contract: antecedent_core::identity::SemanticDigest, source_claim: antecedent_core::identity::SemanticDigest) -> antecedent_core::identity::SemanticDigest
@@ -7324,7 +7389,10 @@ pub fn antecedent_contract::check_rows_pairable(alignment: &antecedent_contract:
 pub fn antecedent_contract::check_rows_pairable_across(inputs: &[(&str, &antecedent_contract::InputAlignment)]) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::check_static_point_labels(labels: &[antecedent_core::response::SupportStatus], status: antecedent_core::response::SupportStatus, value_len: usize) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn antecedent_contract::claim::claim_compatibility(parents: &[&antecedent_contract::ClaimEnvelope], operation: antecedent_contract::ClaimOperation, alignment: core::option::Option<&str>) -> antecedent_contract::ClaimCompatibility
+pub fn antecedent_contract::claim::compose_checked_world_points(target: &antecedent_core::scientific_target::identity::ScientificTarget, parents: &[antecedent_contract::WorldPointParent<'_>], limits: &antecedent_contract::CheckedWorldPointLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::CheckedWorldPoint, antecedent_contract::CheckedWorldPointError>
 pub fn antecedent_contract::claim::compose_claims(parents: &[&antecedent_contract::ClaimEnvelope], operation: antecedent_contract::ClaimOperation, derived: core::option::Option<antecedent_contract::ClaimEnvelope>, alignment: core::option::Option<&str>) -> antecedent_contract::DerivedClaimOutcome
+pub fn antecedent_contract::claim::composition_claim_premises_identity(claim: &antecedent_contract::ClaimEnvelope) -> antecedent_core::identity::SemanticDigest
+pub fn antecedent_contract::claim::quote_claim_premises<'a>(claims: impl core::iter::traits::iterator::Iterator<Item = &'a antecedent_contract::ClaimEnvelope>, parent_count: usize, limits: &antecedent_contract::CheckedWorldPointLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_core::scientific_target::composition_quote::CompositionTargetQuote, antecedent_contract::CheckedWorldPointError>
 pub fn antecedent_contract::composition_refusal(kind_tag: &str, detail: &str, subject: &str, expected: core::option::Option<&str>, supplied: core::option::Option<&str>, remedy: &'static str) -> antecedent_contract::ExternalRefusal
 pub fn antecedent_contract::composition_verification::ledger_effects(ledger: &antecedent_contract::evidence_ledger::EvidenceLedger, bindings: &[(&str, antecedent_contract::evidence_ledger::ResultId)]) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::ObservedEffect>, antecedent_contract::composition_verification::GraphError>
 pub fn antecedent_contract::composition_verification::revalidate(previous: &antecedent_contract::composition_verification::CompositionGraph, current: &antecedent_contract::composition_verification::CompositionGraph, effects: &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::ObservedEffect>) -> core::result::Result<antecedent_contract::composition_verification::GraphRevalidation, antecedent_contract::composition_verification::GraphError>
@@ -7427,6 +7495,9 @@ pub struct antecedent_contract::ChainRefusal
 pub struct antecedent_contract::ChainRefusal has private fields
 pub struct antecedent_contract::CheckedCausalContract
 pub struct antecedent_contract::CheckedEquivalence
+pub struct antecedent_contract::CheckedWorldPoint
+pub struct antecedent_contract::CheckedWorldPoint has private fields
+pub struct antecedent_contract::CheckedWorldPointLimits
 pub struct antecedent_contract::ColumnClaim
 pub struct antecedent_contract::ColumnClaim has private fields
 pub struct antecedent_contract::ComposedCoordinate
@@ -7534,6 +7605,7 @@ pub struct antecedent_contract::UtilityProviderContract
 pub struct antecedent_contract::VerificationProbe
 pub struct antecedent_contract::VerifiedRequest
 pub struct antecedent_contract::VerifiedRequest has private fields
+pub struct antecedent_contract::WorldPointParent<'a>
 pub struct antecedent_contract::WorldTime
 pub struct antecedent_contract::adaptive_design::AdaptiveContractError
 pub struct antecedent_contract::adaptive_design::AdaptiveDesignContract
@@ -7721,6 +7793,9 @@ pub use antecedent_contract::capability::SemanticApplicability = antecedent_cont
 pub use antecedent_contract::claim::AcceptanceReport = antecedent_contract::AcceptanceReport
 pub use antecedent_contract::claim::AttestedEvidence = antecedent_contract::AttestedEvidence
 pub use antecedent_contract::claim::CalibrationView = antecedent_contract::CalibrationView
+pub use antecedent_contract::claim::CheckedWorldPoint = antecedent_contract::CheckedWorldPoint
+pub use antecedent_contract::claim::CheckedWorldPointError = antecedent_contract::CheckedWorldPointError
+pub use antecedent_contract::claim::CheckedWorldPointLimits = antecedent_contract::CheckedWorldPointLimits
 pub use antecedent_contract::claim::ClaimCompatibility = antecedent_contract::ClaimCompatibility
 pub use antecedent_contract::claim::ClaimDomainAxis = antecedent_contract::ClaimDomainAxis
 pub use antecedent_contract::claim::ClaimDomains = antecedent_contract::ClaimDomains
@@ -7736,8 +7811,12 @@ pub use antecedent_contract::claim::EvidenceDependence = antecedent_contract::Ev
 pub use antecedent_contract::claim::HandoffReceipt = antecedent_contract::HandoffReceipt
 pub use antecedent_contract::claim::HostOperation = antecedent_contract::HostOperation
 pub use antecedent_contract::claim::SharedEvidenceRef = antecedent_contract::SharedEvidenceRef
+pub use antecedent_contract::claim::WorldPointParent = antecedent_contract::WorldPointParent
+pub use antecedent_contract::claim::admit_composition_targets = antecedent_contract::admit_composition_targets
 pub use antecedent_contract::claim_compatibility = antecedent_contract::claim::claim_compatibility
+pub use antecedent_contract::compose_checked_world_points = antecedent_contract::claim::compose_checked_world_points
 pub use antecedent_contract::compose_claims = antecedent_contract::claim::compose_claims
+pub use antecedent_contract::composition_claim_premises_identity = antecedent_contract::claim::composition_claim_premises_identity
 pub use antecedent_contract::composition_provenance::CompositionLink = antecedent_contract::CompositionLink
 pub use antecedent_contract::composition_provenance::CompositionStage = antecedent_contract::CompositionStage
 pub use antecedent_contract::composition_provenance::ProvenanceChain = antecedent_contract::ProvenanceChain
@@ -7933,6 +8012,7 @@ pub use antecedent_contract::quantity::QuantityCondition = antecedent_contract::
 pub use antecedent_contract::quantity::QuantityMismatch = antecedent_contract::QuantityMismatch
 pub use antecedent_contract::quantity::QuantityRole = antecedent_contract::QuantityRole
 pub use antecedent_contract::quantity::ScientificQuantity = antecedent_contract::ScientificQuantity
+pub use antecedent_contract::quote_claim_premises = antecedent_contract::claim::quote_claim_premises
 pub use antecedent_contract::reason_code_for_kind = antecedent_contract::mechanism_composition::reason_code_for_kind
 pub use antecedent_contract::reasoning::AssumptionSlot = antecedent_contract::AssumptionSlot
 pub use antecedent_contract::reasoning::IDENTIFICATION_NOT_CLAIMED = antecedent_contract::IDENTIFICATION_NOT_CLAIMED
@@ -7977,6 +8057,18 @@ pub variant antecedent_contract::ChainReading::Interval
 pub variant antecedent_contract::ChainReading::Point
 pub variant antecedent_contract::ChainReading::Posterior
 pub variant antecedent_contract::ChainReading::Spread
+pub variant antecedent_contract::CheckedWorldPointError::Admission
+pub variant antecedent_contract::CheckedWorldPointError::Cancelled
+pub variant antecedent_contract::CheckedWorldPointError::DuplicateParent
+pub variant antecedent_contract::CheckedWorldPointError::EvidenceLimit
+pub variant antecedent_contract::CheckedWorldPointError::ExpectedContrast
+pub variant antecedent_contract::CheckedWorldPointError::HistoryLawNotSupported
+pub variant antecedent_contract::CheckedWorldPointError::IncompatibleParents
+pub variant antecedent_contract::CheckedWorldPointError::NonFiniteArithmetic
+pub variant antecedent_contract::CheckedWorldPointError::ParentCount
+pub variant antecedent_contract::CheckedWorldPointError::TermLimit
+pub variant antecedent_contract::CheckedWorldPointError::WitnessMismatch
+pub variant antecedent_contract::CheckedWorldPointError::WorldNotFound
 pub variant antecedent_contract::ClaimDomainAxis::Evaluated
 pub variant antecedent_contract::ClaimDomainAxis::Identification
 pub variant antecedent_contract::ClaimDomainAxis::Support
