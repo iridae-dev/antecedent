@@ -165,7 +165,7 @@ impl std::fmt::Display for DiscoveredTransportRefusal {
 ///
 /// Always [`DiscoveredTransportError::Refused`] with
 /// `discovered_transport.pag_members_not_causal_graphs`.
-#[deprecated(since = "2.4.1", note = "use transport_across_pag, which no longer refuses a PAG")]
+#[deprecated(note = "use transport_across_pag, which no longer refuses a PAG")]
 #[must_use]
 pub fn refuse_pag_transport(
     unresolved: Vec<UnresolvedPair>,

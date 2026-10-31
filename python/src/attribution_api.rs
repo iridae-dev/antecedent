@@ -146,6 +146,7 @@ fn counterfactual_ite(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<GcmIteResult> {
+    crate::require_finite([("active", active), ("control", control)])?;
     let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     let (mean_ite, n_units, noise_inference, n_assignments, unit_vec, route) =
         detach_catch(py, move || {
@@ -199,6 +200,7 @@ fn sample_do_py(
     mechanism_wrappers: Option<Bound<'_, PyDict>>,
     shift: bool,
 ) -> PyResult<GcmSampleResult> {
+    crate::require_finite([("do_value", do_value)])?;
     let wrappers = mechanism_wrappers.map(Bound::unbind);
     let threads = if wrappers.is_some() { Some(1) } else { threads };
     let input = GcmInput::load(&names, columns, edges, seed, threads)?;

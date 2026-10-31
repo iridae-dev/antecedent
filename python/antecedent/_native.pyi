@@ -1566,7 +1566,7 @@ class PreparedAnalysis:
         self,
         names: list[str],
         columns: Sequence[Any],
-        frame: dict[str, Any] | None,
+        frame: dict[str, Any],
         *,
         response: bool = False,
         seed: int = 1,

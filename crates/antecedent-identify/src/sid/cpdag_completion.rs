@@ -51,7 +51,6 @@ use super::{
 
 /// Most nodes of a supplied CPDAG under the earlier fixed ceiling.
 #[deprecated(
-    since = "2.4.1",
     note = "no longer enforced: the completion enumeration is bounded by the search budget"
 )]
 pub const CPDAG_MAX_NODES: usize = 6;
@@ -71,7 +70,7 @@ fn directed_edge_ids(edges: &[(usize, usize)]) -> Vec<(u32, u32)> {
 ///
 /// Never emitted now. It is written as two literals so the refusal-detail registry gate does
 /// not read this retained name as a live emission.
-#[deprecated(since = "2.4.1", note = "no longer emitted: the node count is not bounded")]
+#[deprecated(note = "no longer emitted: the node count is not bounded")]
 pub const CPDAG_BOUNDS_EXCEEDED_DETAIL: &str = concat!("cpdag_scenarios", ".bounds_exceeded");
 /// The input is not a valid CPDAG.
 pub const CPDAG_NOT_A_CPDAG_DETAIL: &str = "cpdag_scenarios.not_a_cpdag";

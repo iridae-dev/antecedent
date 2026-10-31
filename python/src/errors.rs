@@ -304,6 +304,19 @@ pub(crate) fn py_err<E: IntoCausalPyErr>(e: E) -> PyErr {
     e.into_antecedent_py_err()
 }
 
+/// Refuse a non-finite intervention level, shift or contrast width, naming it.
+///
+/// A NaN or infinite level would otherwise run the model on an undefined world and report
+/// the result as if it described one.
+pub(crate) fn require_finite<'a>(values: impl IntoIterator<Item = (&'a str, f64)>) -> PyResult<()> {
+    for (name, value) in values {
+        if !value.is_finite() {
+            return Err(value_err(format!("{name} must be finite, got {value}")));
+        }
+    }
+    Ok(())
+}
+
 /// A `usize` index that has to cross the binding as a `u32` id.
 ///
 /// Failure is an input error. It is not saturated and not zero.

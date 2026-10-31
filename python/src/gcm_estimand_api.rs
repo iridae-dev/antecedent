@@ -290,6 +290,10 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<PyPopulationDoContrast> {
+        crate::require_finite([("delta", delta)])?;
+        if delta == 0.0 {
+            return Err(crate::value_err("delta must be nonzero".to_string()));
+        }
         let model = self.inner.clone();
         let data = Arc::clone(&self.data);
         let (parent_id, child_id) = (variable_of(&data, &parent)?, variable_of(&data, &child)?);
@@ -430,6 +434,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<PyDoSample> {
+        crate::require_finite(interventions.iter().map(|(name, level)| (name.as_str(), *level)))?;
         let model = self.inner.model.clone();
         let data = Arc::clone(&self.data);
         let outcome_id = variable_of(&data, &outcome)?;

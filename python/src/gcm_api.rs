@@ -681,6 +681,12 @@ impl PyFittedGcm {
         threads: Option<u32>,
         programs: Option<Vec<CallbackProgramArgs>>,
     ) -> PyResult<GcmSampleResult> {
+        crate::require_finite(
+            interventions
+                .iter()
+                .chain(shifts.iter().flatten())
+                .map(|(name, level)| (name.as_str(), *level)),
+        )?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let (flat, n_rows, n_nodes, route) = detach_catch(py, move || {
@@ -726,6 +732,12 @@ impl PyFittedGcm {
         threads: Option<u32>,
         programs: Option<Vec<CallbackProgramArgs>>,
     ) -> PyResult<(GcmSampleResult, Bound<'py, PyAny>)> {
+        crate::require_finite(
+            interventions
+                .iter()
+                .chain(shifts.iter().flatten())
+                .map(|(name, level)| (name.as_str(), *level)),
+        )?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let (draws, noise, route) = detach_catch(py, move || {
@@ -863,6 +875,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<GcmIteResult> {
+        crate::require_finite([("active", active), ("control", control)])?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let n_assignments = self.inner.assignments.len();
