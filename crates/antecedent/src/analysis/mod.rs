@@ -611,3 +611,5 @@ pub use data_diagnostics::{
     DataDiagnosticCheck, DataDiagnosticColumn, DataDiagnosticContext, DataDiagnosticFinding,
     DataDiagnostics, DataDiagnosticsError, DataDiagnosticsReport, diagnose_data,
 };
+
+pub mod checked_claim_composition;

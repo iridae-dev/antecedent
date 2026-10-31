@@ -1245,3 +1245,7 @@ path = "tests/functional_graph_posterior_mixture_truth.rs"
 [[test]]
 name = "data_diagnostics"
 path = "tests/data_diagnostics.rs"
+
+[[test]]
+name = "checked_claim_synthesis"
+path = "tests/checked_claim_synthesis.rs"

@@ -291,3 +291,27 @@ identity encoding; the retained admission lease is shared by cloned results.
 These are structural accounting bounds, not allocator-level peak-memory
 measurements. The proof binds the semantic scientific target; target annotations
 and inference selections excluded by that target identity are not certified.
+
+## Checked Study claim synthesis
+
+Use `analysis::checked_claim_composition::compose_checked_study_claims` with
+`PreparedClaimParent` inputs to construct a scalar contrast or a known-weight
+aggregate. Each parent envelope must match its retained prepared program. The
+facade verifies the relation between the program's schema/query identity and its
+lowered scientific target; these are different digest formats. Parent integrity
+and the truth of its snapshot remain the caller's responsibility.
+
+The composer checks finite points, complete identified mass, compatible units
+and premises, and exact equality of the requested world coefficients. It creates
+the new claim, parent references, provenance, and loss receipt internally. The
+result remains an in-process point derivation with no new identification product,
+program, execution, uncertainty distribution, calibration record, or portable
+analysis-result seal. Composition can use a different execution context from the
+parent runs. Cloned results share their retained admission lease.
+
+The legacy `compose_claims` function now refuses arbitrary caller-supplied
+contrast and aggregate children. Its retarget operation can relay one unchanged
+parent, optionally weakening positive domain labels to Unknown; it cannot change
+the target, value, evidence, reasoning, units, execution, or calibration. Declined
+domains are recorded in the receipt. Use a prepared Study retarget workflow to
+compute a different question.

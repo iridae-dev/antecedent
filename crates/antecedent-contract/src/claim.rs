@@ -594,7 +594,8 @@ impl ClaimOperation {
 pub struct ClaimCompatibility {
     /// Requested operation.
     pub operation: ClaimOperation,
-    /// Whether the operation is licensed for these parents.
+    /// Whether the stated parent premises are compatible. Synthesis additionally
+    /// requires checked target and arithmetic verification.
     pub compatible: bool,
     /// Unresolved obligations (alignment, mapping, identity disagreement).
     pub unresolved: Arc<[Arc<str>]>,
@@ -1278,13 +1279,26 @@ pub fn admit_composition_targets<'a>(
     Ok(lease)
 }
 
-fn quote_parent_premises(
-    parents: &[WorldPointParent<'_>],
+/// Quote borrowed claim premises without attesting their scientific binding.
+/// The count must match the iterator and remain within the caller's term limit.
+/// # Errors
+/// Cancellation or a work/evidence limit.
+pub fn quote_claim_premises<'a>(
+    claims: impl Iterator<Item = &'a ClaimEnvelope>,
+    parent_count: usize,
     limits: &CheckedWorldPointLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_core::scientific_target::CompositionTargetQuote, CheckedWorldPointError> {
     use crate::reasoning::SlotAvailability;
     use antecedent_core::assumption::{Assumption, AssumptionSource};
+    if ctx.cancellation.is_cancelled() {
+        return Err(CheckedWorldPointError::Cancelled);
+    }
+    if parent_count > limits.max_terms {
+        return Err(CheckedWorldPointError::TermLimit);
+    }
+    let mut evidence_count = 0usize;
+    let mut evidence_bytes = 0usize;
     let mut work = 0usize;
     let mut charge = |n: usize| -> Result<(), CheckedWorldPointError> {
         work = work.checked_add(n).ok_or(CheckedWorldPointError::TermLimit)?;
@@ -1293,14 +1307,21 @@ fn quote_parent_premises(
         }
         Ok(())
     };
-    for parent in parents {
+    let mut actual_count = 0usize;
+    for claim in claims {
+        actual_count = actual_count.checked_add(1).ok_or(CheckedWorldPointError::TermLimit)?;
+        if actual_count > limits.max_terms || actual_count > parent_count {
+            return Err(CheckedWorldPointError::TermLimit);
+        }
+        // Each parent has fixed identity/status fields, even with no text.
+        charge(64)?;
         if ctx.cancellation.is_cancelled() {
             return Err(CheckedWorldPointError::Cancelled);
         }
-        if let Some(units) = &parent.claim.outcome_units {
+        if let Some(units) = &claim.outcome_units {
             charge(units.len())?;
         }
-        match &parent.claim.reasoning.assumptions {
+        match &claim.reasoning.assumptions {
             SlotAvailability::Unavailable { reason } => charge(reason.len())?,
             SlotAvailability::Available(slot) => {
                 charge(slot.obligations.len())?;
@@ -1341,17 +1362,13 @@ fn quote_parent_premises(
                 }
             }
         }
-    }
-    let mut evidence_count = 0usize;
-    let mut evidence_bytes = 0usize;
-    for parent in parents {
         evidence_count = evidence_count
-            .checked_add(parent.claim.evidence.len())
+            .checked_add(claim.evidence.len())
             .ok_or(CheckedWorldPointError::EvidenceLimit)?;
         if evidence_count > limits.max_evidence_references {
             return Err(CheckedWorldPointError::EvidenceLimit);
         }
-        for item in parent.claim.evidence.iter() {
+        for item in claim.evidence.iter() {
             if ctx.cancellation.is_cancelled() {
                 return Err(CheckedWorldPointError::Cancelled);
             }
@@ -1363,14 +1380,16 @@ fn quote_parent_premises(
             }
         }
     }
+    if actual_count != parent_count {
+        return Err(CheckedWorldPointError::TermLimit);
+    }
     // Upper bound repeated equality and lexicographic tree comparisons; no
     // unbounded evidence or obligation text is compared before this check.
     let base = work
         .checked_add(evidence_bytes)
         .and_then(|v| v.checked_add(evidence_count))
         .ok_or(CheckedWorldPointError::TermLimit)?;
-    let passes = parents
-        .len()
+    let passes = parent_count
         .checked_add(evidence_count)
         .and_then(|v| v.checked_add(2))
         .ok_or(CheckedWorldPointError::TermLimit)?;
@@ -1438,6 +1457,45 @@ fn encode_parent_premises(writer: &mut CanonicalWriter, claim: &ClaimEnvelope) {
     }
 }
 
+/// Hash the claim premises consumed by checked composition after quotation and admission.
+/// The identity binds units, assumption slots, identification mass and domain labels;
+/// it does not authenticate the source of the supplied claim.
+#[must_use]
+pub fn composition_claim_premises_identity(claim: &ClaimEnvelope) -> SemanticDigest {
+    use crate::reasoning::SlotAvailability;
+    let mut writer = CanonicalWriter::new("antecedent.composition.claim_premises.v1");
+    encode_parent_premises(&mut writer, claim);
+    match &claim.reasoning.identification {
+        SlotAvailability::Unavailable { .. } => {
+            writer.word(0);
+        }
+        SlotAvailability::Available(slot) => {
+            writer
+                .word(1)
+                .text(slot.status.as_str())
+                .real(slot.identified_mass)
+                .real(slot.unidentified_mass)
+                .real(slot.unevaluable_mass)
+                .real(slot.incomplete_search_mass)
+                .word(u64::from(slot.full_mass_scope))
+                .word(u64::from(slot.search_capped));
+        }
+    }
+    writer
+        .text(claim.domains.identification.as_str())
+        .text(claim.domains.support.as_str())
+        .text(claim.domains.evaluated.as_str());
+    match claim.execution {
+        Some(id) => {
+            writer.word(1).bytes(id.as_bytes());
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    SemanticDigest::from_bytes(writer.finish())
+}
+
 /// Check and evaluate a declared linear combination of point-valued world claims.
 ///
 /// Inputs are paired with contrast terms by their typed world identity, not by the
@@ -1495,7 +1553,8 @@ pub fn compose_checked_world_points(
             return Err(CheckedWorldPointError::WitnessMismatch);
         }
     }
-    let premise_quote = quote_parent_premises(parents, limits, ctx)?;
+    let premise_quote =
+        quote_claim_premises(parents.iter().map(|p| p.claim), parents.len(), limits, ctx)?;
     let lease = admit_composition_targets(
         std::iter::once(target).chain(parents.iter().map(|p| p.target)),
         premise_quote,
@@ -1644,7 +1703,11 @@ pub fn compose_checked_world_points(
     })
 }
 
-/// Compose parent claims. Reuses [`ProvenanceGraph`]; does not invent a verifier.
+/// Compare parent claims or relay one parent's verified content with optional domain weakening.
+///
+/// A caller-supplied contrast or aggregate envelope carries no arithmetic proof and
+/// is refused. Use the facade's checked Study claim composer to construct a new
+/// target and point from retained prepared programs and trusted parent envelopes.
 #[must_use]
 pub fn compose_claims(
     parents: &[&ClaimEnvelope],
@@ -1664,11 +1727,62 @@ pub fn compose_claims(
             Some(compatibility),
         );
     }
-    let Some(derived) = derived else {
+    let Some(mut derived) = derived else {
         return refuse_derived("missing_derived_envelope", parent_ids, Some(compatibility));
     };
+    if matches!(operation, ClaimOperation::Contrast | ClaimOperation::Aggregate) {
+        return refuse_derived(
+            "derived_value_requires_verified_operation",
+            parent_ids,
+            Some(compatibility),
+        );
+    }
     if let Some(restriction) = derived_departs_from_parents(parents, &derived, operation) {
         return refuse_derived(restriction, parent_ids, Some(compatibility));
+    }
+    if operation == ClaimOperation::Retarget {
+        // No verifier accompanies this legacy call. Relay one parent's content,
+        // allowing only explicit weakening of positive domain statuses to unknown.
+        if parents.len() != 1 {
+            return refuse_derived("retarget_requires_one_parent", parent_ids, Some(compatibility));
+        }
+        let parent = parents[0];
+        if derived.identities != parent.identities
+            || derived.kind != parent.kind
+            || derived.value.map(f64::to_bits) != parent.value.map(f64::to_bits)
+            || derived.outcome_units != parent.outcome_units
+            || derived.reasoning != parent.reasoning
+            || derived.execution != parent.execution
+            || derived.evidence != parent.evidence
+            || derived.calibration != parent.calibration
+            || derived.attested != parent.attested
+        {
+            return refuse_derived(
+                "retarget_requires_unchanged_parent",
+                parent_ids,
+                Some(compatibility),
+            );
+        }
+        for axis in
+            [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
+        {
+            let from = parent.domain(axis);
+            let to = derived.domain(axis);
+            if from != to && !(from.is_positive() && to == DomainStatus::Unknown) {
+                return refuse_derived(
+                    "retarget_invalid_domain_change",
+                    parent_ids,
+                    Some(compatibility),
+                );
+            }
+        }
+        let mut identity = CanonicalWriter::new("antecedent.in_process.retarget_relay.v1");
+        identity
+            .bytes(parent.claim_id.as_bytes())
+            .text(derived.domains.identification.as_str())
+            .text(derived.domains.support.as_str())
+            .text(derived.domains.evaluated.as_str());
+        derived.claim_id = SemanticDigest::from_bytes(identity.finish());
     }
     let mut provenance = ProvenanceGraph::new();
     for parent in parents {
@@ -1685,6 +1799,15 @@ pub fn compose_claims(
     {
         return refuse_derived("provenance_cycle_or_duplicate", parent_ids, Some(compatibility));
     }
+    let omitted_domains: Vec<Arc<str>> = if operation == ClaimOperation::Retarget {
+        [ClaimDomainAxis::Identification, ClaimDomainAxis::Support, ClaimDomainAxis::Evaluated]
+            .into_iter()
+            .filter(|axis| parents[0].domain(*axis) != derived.domain(*axis))
+            .map(|axis| Arc::from(format!("domains.{}", axis.as_str())))
+            .collect()
+    } else {
+        Vec::new()
+    };
     DerivedClaimOutcome::Derived(Box::new(DerivedClaim {
         receipt: HandoffReceipt::new(
             parents[0].claim_id,
@@ -1692,11 +1815,15 @@ pub fn compose_claims(
             operation.as_str(),
             "derive",
             [Arc::from("claim.envelope"), Arc::from("parents"), Arc::from("provenance")],
-            [],
+            omitted_domains,
             provenance
                 .validate()
                 .map_or_else(|_| vec![Arc::from("provenance")], |missing| missing.to_vec()),
-            [],
+            if operation == ClaimOperation::Retarget {
+                vec![Arc::from("portable_export")]
+            } else {
+                vec![]
+            },
         ),
         claim: derived,
         parents: parent_ids,
@@ -1968,6 +2095,137 @@ mod tests {
             compose_claims(&[&parent], ClaimOperation::Retarget, Some(weaker), None),
             DerivedClaimOutcome::Derived(_)
         ));
+    }
+
+    #[test]
+    fn retarget_weakening_is_recorded_and_domain_bound() {
+        let mut parent = sample_claim(1, 0.4);
+        parent.domains = ClaimDomains::new(
+            DomainStatus::Identified,
+            DomainStatus::Supported,
+            DomainStatus::Evaluated,
+        );
+        let relay = |child: ClaimEnvelope| match compose_claims(
+            &[&parent],
+            ClaimOperation::Retarget,
+            Some(child),
+            None,
+        ) {
+            DerivedClaimOutcome::Derived(record) => record,
+            other => panic!("expected relay, got {other:?}"),
+        };
+        let unchanged = relay(parent.clone());
+        let mut weaker = parent.clone();
+        weaker.domains.evaluated = DomainStatus::Unknown;
+        let weakened = relay(weaker);
+        assert_ne!(unchanged.claim.claim_id, weakened.claim.claim_id);
+        assert!(weakened.receipt.omitted.iter().any(|field| &**field == "domains.evaluated"));
+        assert!(
+            weakened
+                .receipt
+                .unavailable_operations
+                .iter()
+                .any(|field| &**field == "portable_export")
+        );
+        let mut all_weaker = parent.clone();
+        all_weaker.domains =
+            ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Unknown);
+        let all = relay(all_weaker);
+        assert_ne!(all.claim.claim_id, weakened.claim.claim_id);
+        for axis in ["identification", "support", "evaluated"] {
+            assert!(all.receipt.omitted.iter().any(|field| &**field == format!("domains.{axis}")));
+        }
+    }
+
+    #[test]
+    fn retarget_never_erases_or_fabricates_negative_and_limited_domains() {
+        for status in [
+            DomainStatus::Contradicted,
+            DomainStatus::OutsideScope,
+            DomainStatus::Limited,
+            DomainStatus::NotClaimed,
+        ] {
+            for axis in 0..3 {
+                let mut parent = sample_claim(1, 0.4);
+                match axis {
+                    0 => parent.domains.identification = status,
+                    1 => parent.domains.support = status,
+                    _ => parent.domains.evaluated = status,
+                }
+                let mut child = parent.clone();
+                match axis {
+                    0 => child.domains.identification = DomainStatus::Unknown,
+                    1 => child.domains.support = DomainStatus::Unknown,
+                    _ => child.domains.evaluated = DomainStatus::Unknown,
+                }
+                assert!(matches!(
+                    compose_claims(&[&parent], ClaimOperation::Retarget, Some(child), None),
+                    DerivedClaimOutcome::Refused { .. }
+                ));
+                let mut child = sample_claim(1, 0.4);
+                let clean = child.clone();
+                match axis {
+                    0 => child.domains.identification = status,
+                    1 => child.domains.support = status,
+                    _ => child.domains.evaluated = status,
+                }
+                assert!(matches!(
+                    compose_claims(&[&clean], ClaimOperation::Retarget, Some(child), None),
+                    DerivedClaimOutcome::Refused { .. }
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_retarget_never_accepts_unverified_child_changes() {
+        let parent = sample_claim(1, 0.4);
+        let refuse = |child| {
+            matches!(
+                compose_claims(&[&parent], ClaimOperation::Retarget, Some(child), None),
+                DerivedClaimOutcome::Refused { .. }
+            )
+        };
+        let mut child = parent.clone();
+        child.value = Some(12.0);
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.identities.target = digest(99);
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.evidence = Arc::from([Arc::from("fabricated")]);
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.reasoning.assumptions = crate::reasoning::SlotAvailability::unavailable("changed");
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.calibration.status = Arc::from("calibrated");
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.kind = ClaimKind::Bounds;
+        assert!(refuse(child));
+        let mut child = parent.clone();
+        child.claim_id = digest(88);
+        let DerivedClaimOutcome::Derived(record) =
+            compose_claims(&[&parent], ClaimOperation::Retarget, Some(child), None)
+        else {
+            panic!("unchanged relay")
+        };
+        assert_ne!(record.claim.claim_id, digest(88));
+    }
+
+    #[test]
+    fn legacy_linear_synthesis_refuses_arbitrary_child_even_if_aligned() {
+        let mut a = sample_claim(1, 0.4);
+        let mut b = sample_claim(2, 0.4);
+        a.evidence = Arc::from([Arc::from("alignment:joint_draws:shared")]);
+        b.evidence = Arc::clone(&a.evidence);
+        for operation in [ClaimOperation::Contrast, ClaimOperation::Aggregate] {
+            assert!(matches!(
+                compose_claims(&[&a, &b], operation, Some(sample_claim(3, 0.4)), None),
+                DerivedClaimOutcome::Refused { .. }
+            ));
+        }
     }
 
     #[test]
@@ -2259,6 +2517,54 @@ mod tests {
         }
         // A contiguous chain of lossless hops stays equivalent.
         assert!(first.chain(&HandoffReceipt::lossless(digest(1), "c")).equivalent_claim());
+    }
+
+    #[test]
+    fn claim_quotation_is_single_pass_and_bounds_even_empty_parent_records() {
+        let mut claim = sample_claim(1, 1.0);
+        claim.evidence = Arc::from([]);
+        let mut limits = CheckedWorldPointLimits {
+            max_target_work: 4096,
+            max_target_payload_bytes: 4096,
+            max_target_depth: 64,
+            max_memory_bytes: 0,
+            max_terms: 2,
+            max_comparisons: 4,
+            max_world_actions: 0,
+            max_assumption_records: 0,
+            max_evidence_references: 0,
+            max_evidence_bytes: 0,
+        };
+        let ctx = antecedent_core::ExecutionContext::for_tests(17);
+        // FromFn is one-shot; quotation cannot replay or clone this iterator.
+        let calls = std::cell::Cell::new(0);
+        let single = std::iter::from_fn(|| {
+            calls.set(calls.get() + 1);
+            (calls.get() == 1).then_some(&claim)
+        });
+        let quoted = quote_claim_premises(single, 1, &limits, &ctx).unwrap();
+        assert!(quoted.work >= 64);
+        assert_eq!(calls.get(), 2);
+        calls.set(0);
+        let endless = std::iter::from_fn(|| {
+            calls.set(calls.get() + 1);
+            Some(&claim)
+        });
+        assert_eq!(
+            quote_claim_premises(endless, 1, &limits, &ctx).unwrap_err(),
+            CheckedWorldPointError::TermLimit
+        );
+        assert_eq!(calls.get(), 2);
+        limits.max_target_work = 1;
+        assert_eq!(
+            quote_claim_premises(std::iter::once(&claim), 1, &limits, &ctx).unwrap_err(),
+            CheckedWorldPointError::TermLimit
+        );
+        ctx.cancellation.cancel();
+        assert_eq!(
+            quote_claim_premises(std::iter::empty(), 0, &limits, &ctx).unwrap_err(),
+            CheckedWorldPointError::Cancelled
+        );
     }
 
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {

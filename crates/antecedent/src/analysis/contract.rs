@@ -1407,7 +1407,10 @@ impl ProgramPayloads {
         &self.target.query
     }
 
-    fn identities(&self, data_snapshot: antecedent_core::SemanticDigest) -> ContractIdentities {
+    pub(crate) fn identities(
+        &self,
+        data_snapshot: antecedent_core::SemanticDigest,
+    ) -> ContractIdentities {
         ContractIdentities::new(
             self.target_digest,
             self.identification_digest,

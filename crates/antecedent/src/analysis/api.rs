@@ -109,6 +109,7 @@ pub use super::{
     consume_counterfactual_transport_artifact, prepare_counterfactual_transport,
 };
 pub use super::{CpdagEvaluation, EmpiricalScenarioInput, EvidenceSearch, SequenceEndpoints};
+pub use super::{GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation};
 pub use super::{
     IntervalEstimand, TemporalInitialState, TemporalWindow, consume_period_refresh_artifact,
     consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
@@ -121,9 +122,6 @@ pub use super::{
 };
 pub use super::{
     LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
-};
-pub use super::{
-    GraphSelectionPerImputation, estimate_with_graph_selection_per_imputation,
 };
 pub use super::{
     MissingInference, MissingModality, MissingRouteCell, MissingRouteSupport,
@@ -162,4 +160,8 @@ pub use super::{JointResponseResult, PreparedJointResponse};
 pub use super::{
     DataDiagnosticCheck, DataDiagnosticColumn, DataDiagnosticContext, DataDiagnosticFinding,
     DataDiagnostics, DataDiagnosticsError, DataDiagnosticsReport, diagnose_data,
+};
+
+pub use super::checked_claim_composition::{
+    CheckedStudyClaim, PreparedClaimParent, compose_checked_study_claims,
 };
