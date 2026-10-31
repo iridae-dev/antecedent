@@ -530,7 +530,7 @@ pub fn transport_adaptive_trial(
         )
     })?;
     let last = contract.looks().saturating_sub(1);
-    let analysed = contract.analysis_units(last);
+    let analysed = contract.analysis_units(last).map_err(SequentialEvaluationError::from)?;
     if analysed.is_empty() {
         return Err(adaptive_refusal(
             antecedent_core::reason_code!("transport_support_failure"),

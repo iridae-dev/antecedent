@@ -46,13 +46,27 @@ fn ledger_refusal(error: &LedgerError) -> ExternalRefusal {
 impl AdaptiveDesignContract {
     /// Identity of the observation behind `unit` in the evidence ledger.
     ///
-    /// # Panics
-    /// When `unit` does not fit in `u32`; a validated contract has at most
-    /// `u32::MAX` units.
-    #[must_use]
-    pub fn observation_id(&self, unit: usize) -> ObservationId {
-        let key = u32::try_from(unit).expect("a validated contract has at most u32::MAX units");
-        ObservationId::from_key(&self.identity().to_hex(), &key.to_le_bytes())
+    /// # Errors
+    /// `adaptive_inference.unit_out_of_range` if `unit >= self.units()`.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a structured refusal preserves the requested index"
+    )]
+    pub fn observation_id(&self, unit: usize) -> Result<ObservationId, ExternalRefusal> {
+        let invalid_unit = || {
+            ExternalRefusal::new(
+                antecedent_core::reason_code!("invalid_argument"),
+                "bind",
+                "adaptive_inference.unit_out_of_range",
+            )
+            .with_offending(format!("unit {unit}"))
+            .with_remedy("select a unit index below the number of declared units")
+        };
+        if unit >= self.units() {
+            return Err(invalid_unit());
+        }
+        let key = u32::try_from(unit).map_err(|_| invalid_unit())?;
+        Ok(ObservationId::from_key(&self.identity().to_hex(), &key.to_le_bytes()))
     }
 
     /// Register the data behind each interim analysis and the repeated use.
@@ -70,8 +84,11 @@ impl AdaptiveDesignContract {
         // Registered from the last look backwards so that each look is a
         // declared subset of the one after it.
         for look in (0..looks).rev() {
-            let mut rows: Vec<ObservationId> =
-                self.analysis_units(look).into_iter().map(|u| self.observation_id(u)).collect();
+            let mut rows: Vec<ObservationId> = self
+                .analysis_units(look)?
+                .into_iter()
+                .map(|u| self.observation_id(u))
+                .collect::<Result<_, _>>()?;
             rows.sort_unstable();
             let lineage = match look_sources.get(look + 1).copied().flatten() {
                 Some(of) => Lineage::Subset { of },

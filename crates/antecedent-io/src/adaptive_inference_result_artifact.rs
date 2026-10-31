@@ -276,7 +276,7 @@ fn look_data(
     }
     let declaration = contract.declaration();
     let arms = contract.arms();
-    let units = contract.analysis_units(look);
+    let units = contract.analysis_units(look).map_err(|r| contract_refusal(&r))?;
     let rows = declaration.assignment_probabilities.as_ref().expect("validated contract");
     let mut assigned = Vec::with_capacity(units.len());
     let mut probabilities = Vec::with_capacity(units.len() * arms);

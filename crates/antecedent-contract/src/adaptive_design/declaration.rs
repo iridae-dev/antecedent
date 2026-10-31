@@ -484,7 +484,6 @@ fn check_rule(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Extern
                 && threshold > 0.0
                 && threshold < 0.5
         }
-        (StoppingRuleKind::Futility, spec) => !matches!(spec, StoppingSpec::NoStopping),
         _ => false,
     };
     if !kind_matches_cell || !spec_ok {
@@ -573,18 +572,32 @@ impl AdaptiveDesignContract {
     /// Units whose outcomes were observed by look `look` and which were
     /// enrolled by then, in enrollment order. Nested in `look`.
     ///
-    /// # Panics
-    /// Never for a validated contract and `look < looks()`.
-    #[must_use]
-    pub fn analysis_units(&self, look: usize) -> Vec<usize> {
+    /// # Errors
+    /// `adaptive_inference.look_out_of_range` if `look >= self.looks()`.
+    #[allow(
+        clippy::result_large_err,
+        reason = "a structured refusal preserves the requested index"
+    )]
+    pub fn analysis_units(&self, look: usize) -> Result<Vec<usize>, ExternalRefusal> {
         let looks = self.declaration.interim_analyses.as_ref().expect("validated contract");
         let availability = self.declaration.availability.as_ref().expect("validated contract");
-        let enrolled = looks[look].units_enrolled as usize;
-        (0..enrolled)
+        let enrolled = looks
+            .get(look)
+            .ok_or_else(|| {
+                ExternalRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    STAGE_BIND,
+                    "adaptive_inference.look_out_of_range",
+                )
+                .with_offending(format!("look {look}"))
+                .with_remedy("select a look index below the number of interim analyses")
+            })?
+            .units_enrolled as usize;
+        Ok((0..enrolled)
             .filter(|&unit| {
                 availability.available_at_look[unit].is_some_and(|l| (l as usize) <= look)
             })
-            .collect()
+            .collect())
     }
 
     /// Whether the fixed-sample paradigm may be asked of this contract's

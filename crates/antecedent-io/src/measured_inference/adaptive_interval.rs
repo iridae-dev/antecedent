@@ -123,14 +123,22 @@ fn unit_mean(contract: &AdaptiveDesignContract, unit: usize) -> f64 {
     m.iter().sum::<f64>() / m.len() as f64
 }
 
-fn arm_outcomes(contract: &AdaptiveDesignContract, look: usize, arm: u32) -> Vec<f64> {
+fn arm_outcomes(
+    contract: &AdaptiveDesignContract,
+    look: usize,
+    arm: u32,
+) -> Result<Vec<f64>, IoError> {
     let declaration = contract.declaration();
-    contract
+    Ok(contract
         .analysis_units(look)
+        .map_err(|r| IoError::Refused {
+            code: r.code,
+            message: format!("{}: {}", r.detail, r.remedy.unwrap_or("")),
+        })?
         .into_iter()
         .filter(|&u| declaration.assigned_arm[u] == arm)
         .map(|u| unit_mean(contract, u))
-        .collect()
+        .collect())
 }
 
 fn thompson(
@@ -236,7 +244,13 @@ fn weighted(
     }
     immediate(contract)?;
     min_probability_at_least(contract, built::MEASURED_EXPLORATION / 2.0)?;
-    let units = contract.analysis_units(look).len() as u64;
+    let units = contract
+        .analysis_units(look)
+        .map_err(|r| IoError::Refused {
+            code: r.code,
+            message: format!("{}: {}", r.detail, r.remedy.unwrap_or("")),
+        })?
+        .len() as u64;
     let (estimate, variance) = (values[0], values[1]);
     let interval = built::weighted_wald_interval(estimate, variance, built::MEASURED_LEVEL)
         .ok_or_else(|| refusal("the weighted interval is not defined"))?;
@@ -375,9 +389,11 @@ fn group_sequential(
         return Err(refusal("only 1:1 randomization was measured"));
     }
     let planned = planned_horizon(contract, look)?;
-    let (estimate, se) =
-        built::welch_difference(&arm_outcomes(contract, look, 0), &arm_outcomes(contract, look, 1))
-            .ok_or_else(|| refusal("the arm difference and its standard error are not defined"))?;
+    let (estimate, se) = built::welch_difference(
+        &arm_outcomes(contract, look, 0)?,
+        &arm_outcomes(contract, look, 1)?,
+    )
+    .ok_or_else(|| refusal("the arm difference and its standard error are not defined"))?;
     let critical = *values
         .get(1 + 3 * look)
         .ok_or_else(|| refusal("the result holds no boundary for the look"))?;

@@ -267,8 +267,19 @@ impl AdaptiveInferenceHandle {
         match self.inner.interim_evidence() {
             Ok(evidence) => {
                 let contract = self.inner.contract();
-                let sizes: Vec<usize> =
-                    (0..contract.looks()).map(|l| contract.analysis_units(l).len()).collect();
+                let sizes: Vec<usize> = match (0..contract.looks())
+                    .map(|l| contract.analysis_units(l).map(|units| units.len()))
+                    .collect::<Result<Vec<_>, _>>()
+                {
+                    Ok(sizes) => sizes,
+                    Err(error) => {
+                        return refused(&AdaptiveInferenceRefusal {
+                            code: error.code,
+                            detail: error.detail,
+                            message: error.remedy.unwrap_or("").to_owned(),
+                        });
+                    }
+                };
                 let pooling = contract
                     .refuse_independent_pooling_of_looks(&evidence)
                     .err()

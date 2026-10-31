@@ -316,6 +316,32 @@ fn a_futility_rule_has_its_own_spec_with_parameters_in_range_and_part_of_the_ide
             .expect_err("out of range");
         assert_eq!(details(&error), ["adaptive_inference.rule_mismatch"]);
     }
+    for spec in [
+        StoppingSpec::NoStopping,
+        StoppingSpec::PosteriorProbabilityBest { threshold: 0.95 },
+        StoppingSpec::PosteriorExpectedLoss { loss_threshold: 0.05 },
+        StoppingSpec::ResourceCap { max_units: 1 },
+        StoppingSpec::AlphaSpending {
+            spending: SpendingKind::PocockType,
+            total_alpha: 0.05,
+            sidedness: BoundarySidedness::OneSidedUpper,
+        },
+    ] {
+        let mut d = futility_declaration(0.05, 0.1);
+        d.stopping_rule.as_mut().unwrap().spec = spec;
+        assert_eq!(
+            details(&AdaptiveDesignContract::new(d).unwrap_err()),
+            ["adaptive_inference.rule_mismatch"]
+        );
+    }
+    for (margin, threshold) in [(f64::INFINITY, 0.1), (0.05, f64::NAN), (0.05, f64::INFINITY)] {
+        assert_eq!(
+            details(
+                &AdaptiveDesignContract::new(futility_declaration(margin, threshold)).unwrap_err()
+            ),
+            ["adaptive_inference.rule_mismatch"]
+        );
+    }
     // Futility boundaries (error rates) stay carried forward with their owner.
     let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
     assert_eq!(refusal.detail, "adaptive_inference.cell_carried_forward");
@@ -571,10 +597,18 @@ fn delayed_outcomes_enter_the_analysis_only_when_observed() {
     declaration.outcomes[7] = Vec::new();
     availability.delay = DelayMechanism::IgnorableAdministrative;
     let contract = AdaptiveDesignContract::new(declaration).unwrap();
-    assert_eq!(contract.analysis_units(0), vec![0, 2]);
-    assert_eq!(contract.analysis_units(1), vec![0, 1, 2, 3, 4, 5, 6]);
+    let first = contract.analysis_units(0).unwrap();
+    let last = contract.analysis_units(1).unwrap();
+    assert_eq!(first, vec![0, 2]);
+    assert_eq!(last, vec![0, 1, 2, 3, 4, 5, 6]);
     // Nested: each look's data contain the previous look's.
-    assert!(contract.analysis_units(0).iter().all(|u| contract.analysis_units(1).contains(u)));
+    assert!(first.iter().all(|u| last.contains(u)));
+    for look in [contract.looks(), usize::MAX] {
+        let refusal = contract.analysis_units(look).unwrap_err();
+        assert_eq!(refusal.code, "invalid_argument");
+        assert_eq!(refusal.detail, "adaptive_inference.look_out_of_range");
+        assert_eq!(refusal.offending.as_deref(), Some(format!("look {look}").as_str()));
+    }
 }
 
 #[test]
@@ -637,7 +671,20 @@ fn observation_identities_are_stable_per_contract_and_unit() {
     // Rebuilt from the same declaration, the identity is the same: it is a function of the
     // contract and the unit, not of the instance.
     let rebuilt = AdaptiveDesignContract::new(thompson()).unwrap();
-    assert_eq!(a.observation_id(3), rebuilt.observation_id(3));
-    assert_ne!(a.observation_id(3), a.observation_id(4));
-    assert_ne!(a.observation_id(3), b.observation_id(3));
+    let id = a.observation_id(3).unwrap();
+    assert_eq!(id, rebuilt.observation_id(3).unwrap());
+    assert_ne!(id, a.observation_id(4).unwrap());
+    assert_ne!(id, b.observation_id(3).unwrap());
+    assert_eq!(
+        id,
+        antecedent_contract::evidence_ledger::ObservationId::from_key(
+            &a.identity().to_hex(),
+            &3_u32.to_le_bytes(),
+        )
+    );
+    for unit in [a.units(), usize::MAX] {
+        let refusal = a.observation_id(unit).unwrap_err();
+        assert_eq!(refusal.code, antecedent_core::reason_code!("invalid_argument"));
+        assert_eq!(refusal.detail, "adaptive_inference.unit_out_of_range");
+    }
 }

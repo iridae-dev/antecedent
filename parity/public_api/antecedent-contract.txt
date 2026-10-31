@@ -6738,13 +6738,13 @@ pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::const fn 
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::const fn declaration(&self) -> &antecedent_contract::adaptive_design::AdaptiveDesignDeclaration
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::const fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn admit_paradigm(&self, paradigm: antecedent_contract::adaptive_design::InferenceParadigm) -> core::result::Result<antecedent_contract::adaptive_design::RouteAuthorization, antecedent_contract::ExternalRefusal>
-pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn analysis_units(&self, look: usize) -> alloc::vec::Vec<usize>
+pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn analysis_units(&self, look: usize) -> core::result::Result<alloc::vec::Vec<usize>, antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn arms(&self) -> usize
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn interim_evidence(&self) -> core::result::Result<antecedent_contract::adaptive_design::InterimEvidence, antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn is_adaptive(&self) -> bool
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn looks(&self) -> usize
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn new(declaration: antecedent_contract::adaptive_design::AdaptiveDesignDeclaration) -> core::result::Result<Self, antecedent_contract::adaptive_design::AdaptiveContractError>
-pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn observation_id(&self, unit: usize) -> antecedent_contract::evidence_ledger::ObservationId
+pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn observation_id(&self, unit: usize) -> core::result::Result<antecedent_contract::evidence_ledger::ObservationId, antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn refuse_independent_pooling_of_looks(&self, evidence: &antecedent_contract::adaptive_design::InterimEvidence) -> core::result::Result<(), antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::AdaptiveDesignContract>::fn units(&self) -> usize
 pub fn <antecedent_contract::adaptive_design::AssignmentFamily>::const fn as_str(self) -> &'static str

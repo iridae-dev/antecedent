@@ -345,3 +345,13 @@ and returns the specialized consumed type.
 - [Plan power and sample size](guides/power-and-sample-size.md) for group-sequential plans.
 - [Evaluate a policy that changes with what you observe](sequential-evaluation.md).
 - [Inference from adaptive procedures](guides/composed-uncertainty.md#uncertainty-of-an-adaptive-procedure) and [transported policy and adaptive source](guides/transported-decisions-and-measurement.md).
+
+The Rust `AdaptiveDesignContract::analysis_units(look)` returns a `Result`: a valid
+zero-based look yields the enrolled units whose outcomes are available, while an index
+at or beyond `looks()` returns `invalid_argument` with detail
+`adaptive_inference.look_out_of_range`. Existing callers should propagate or handle the
+refusal. `observation_id(unit)` likewise returns a `Result` and refuses indices at
+or beyond `units()` with `adaptive_inference.unit_out_of_range`; valid identities
+retain their existing encoding. Futility declarations require
+`StoppingSpec::PosteriorFutility` with a finite
+margin in `[0, 1)` and a finite threshold in `(0, 0.5)`.

@@ -671,8 +671,10 @@ pub fn contract_boundaries(
 
 fn evidence_of(contract: &AdaptiveDesignContract) -> Result<EvidenceWire, Error> {
     let evidence = contract.interim_evidence().map_err(|r| refused_with(&[r]))?;
-    let look_sizes =
-        (0..contract.looks()).map(|l| contract.analysis_units(l).len() as u64).collect();
+    let look_sizes = (0..contract.looks())
+        .map(|l| contract.analysis_units(l).map(|units| units.len() as u64))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|r| refused_with(&[r]))?;
     let independent_pooling_detail =
         contract.refuse_independent_pooling_of_looks(&evidence).err().map(|refusal| refusal.detail);
     Ok(EvidenceWire {
