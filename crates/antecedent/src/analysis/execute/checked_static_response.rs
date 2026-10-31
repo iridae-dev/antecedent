@@ -3,8 +3,8 @@
 // executors that run them. The shared response estimators live in `response_path`.
 
 use super::response_path::{
-    attach_response_influence, response_primary_pair, response_prior_targets,
-    response_scalar_summary,
+    attach_response_influence, resolved_bayesian_response_estimator, response_primary_pair,
+    response_prior_targets, response_scalar_summary,
 };
 use super::{
     Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
@@ -209,8 +209,13 @@ impl CheckedDerivativeResponseOperation {
                 .estimate_identified(data, &self.query, identification_status, assumptions)
                 .map_err(CausalError::from)?,
             InferenceMode::Bayesian(config) => {
-                let mut estimator = bayesian_gcomp(config, ctx);
-                estimator.prior.clone_from(&config.prior);
+                let estimator = resolved_bayesian_response_estimator(
+                    config,
+                    &self.fitter,
+                    data,
+                    &self.query,
+                    ctx,
+                )?;
                 self.fitter
                     .estimate_bayesian(
                         data,

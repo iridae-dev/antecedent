@@ -431,6 +431,11 @@ impl CheckedAdmgResponseCurveOperation {
             means.len(),
             scalar_intervention,
         );
+        let frequentist_bootstrap = matches!(self.inference, InferenceMode::Frequentist)
+            && self.fitter.bootstrap_replicates > 0;
+        let bootstrap_requested =
+            if frequentist_bootstrap { self.fitter.bootstrap_replicates } else { 0 };
+        let bootstrap_ok = frequentist_bootstrap.then_some(freq_replicates_ok);
         let response = antecedent_core::CausalResponse {
             estimand: self.query.functional.clone(),
             identification_status: first.identification.status,
@@ -482,9 +487,10 @@ impl CheckedAdmgResponseCurveOperation {
         .with_refutations(refutations)
         .with_posterior(posterior)
         .with_n_draws(n_draws)
-        .with_bootstrap(Some(0), None)
+        .with_bootstrap(Some(bootstrap_requested), bootstrap_ok)
         .with_response(response)
         .without_evalue_mirror()
+        .with_rebound_interval()
         .finish();
         Ok(result)
     }
@@ -1102,7 +1108,10 @@ impl CheckedAipwOperation {
             self.population_registry.as_ref(),
             &self.custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
         crate::analysis::helpers::attach_tiered_evalue_for_cell(
             &mut result.estimate,
             data,
@@ -1578,7 +1587,10 @@ impl CheckedLinearOperation {
             self.population_registry.as_ref(),
             &self.custom_validator_names,
         );
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
         Ok(result)
     }
 

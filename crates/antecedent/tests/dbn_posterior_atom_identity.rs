@@ -441,3 +441,137 @@ fn repeated_dbn_atoms_contribute_their_combined_mass_once() {
     assert!((mean - expected).abs() < 1e-9, "mixture mean={mean}, expected={expected}");
     assert!(bayesian.posterior.as_ref().unwrap().unidentified_mass.abs() < f64::EPSILON);
 }
+
+/// A series whose lagged treatment effect is 1 on the first half and 3 on the second half.
+fn two_regime_series() -> TimeSeriesData {
+    let mut schema = CausalSchemaBuilder::new();
+    for (name, hint) in [
+        ("treatment", RoleHint::TreatmentCandidate),
+        ("outcome", RoleHint::OutcomeCandidate),
+        ("confounder", RoleHint::Context),
+    ] {
+        schema
+            .add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(hint),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
+    let schema = schema.build().unwrap();
+    let n: u32 = 200;
+    let treatment: Vec<f64> = (0..n)
+        .map(|t| f64::from((t * 7919) % 17) / 17.0 + 0.3 * (f64::from(t) * 0.37).sin())
+        .collect();
+    let confounder: Vec<f64> = (0..n).map(|t| (f64::from(t) * 0.23).cos()).collect();
+    let mut outcome = vec![0.0; n as usize];
+    for t in 1..n as usize {
+        let effect = if t < 100 { 1.0 } else { 3.0 };
+        outcome[t] = effect * treatment[t - 1] + 0.05 * (t as f64 * 1.7).sin();
+    }
+    let len = n as usize;
+    let columns = vec![
+        OwnedColumn::Float64(
+            Float64Column::new(TREATMENT, Arc::from(treatment), ValidityBitmap::all_valid(len))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(OUTCOME, Arc::from(outcome), ValidityBitmap::all_valid(len))
+                .unwrap(),
+        ),
+        OwnedColumn::Float64(
+            Float64Column::new(CONFOUNDER, Arc::from(confounder), ValidityBitmap::all_valid(len))
+                .unwrap(),
+        ),
+    ];
+    let storage = OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap();
+    TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: len },
+    )
+    .unwrap()
+}
+
+/// The point of a Frequentist DBN-posterior effect is fit on the estimation rows of a declared
+/// split, so discovery rows from a different regime do not enter it.
+#[test]
+fn dbn_posterior_frequentist_estimates_on_the_estimation_split() {
+    let series = two_regime_series();
+    let query = TemporalEffectQuery::pulse(TREATMENT, OUTCOME, 1.0)
+        .with_policy(TemporalPolicy::pulse(-1))
+        .with_horizon_steps(1);
+    let treatment_to_outcome = 1_u64 << 1;
+    let ate = |split: Option<antecedent_data::DiscoveryEstimationSplit>| {
+        let mut builder = Study::series(series.clone())
+            .graph_posterior(dbn_posterior(&[treatment_to_outcome], &[1.0]))
+            .temporal_query(query.clone())
+            .inference(InferenceMode::Frequentist)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0);
+        if let Some(split) = split {
+            builder = builder.split(split);
+        }
+        builder
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(21))
+            .unwrap()
+            .estimate()
+            .as_effect()
+            .unwrap()
+            .ate
+    };
+    let full = ate(None);
+    let split =
+        ate(Some(antecedent_data::DiscoveryEstimationSplit::from_sizes(200, 95, 10, 95).unwrap()));
+    assert!((full - 2.0).abs() < 0.4, "the full sample blends both regimes: {full}");
+    assert!((split - 3.0).abs() < 0.15, "the estimation half has effect 3, got {split}");
+}
+
+/// Atoms whose horizon estimands use different adjustment sets are not one estimand: the
+/// response publishes that policy and a graph-dependent status instead of a fixed-weight mean.
+#[test]
+fn dbn_posterior_response_with_distinct_adjustment_sets_is_graph_dependent() {
+    let (series, _) = confounded_series(true);
+    let treatment_to_outcome = 1_u64 << 1;
+    let confounder_to_outcome = 1_u64 << 7;
+    let query = antecedent_core::ResponseQuery::new(
+        antecedent_core::ResponseFunctional::InterventionResponse {
+            outcome: OUTCOME,
+            interventions: Arc::from([antecedent_core::Intervention::set(
+                TREATMENT,
+                antecedent_core::Value::f64(1.0),
+            )]),
+        },
+    )
+    .with_temporal(
+        antecedent_core::TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None)
+            .unwrap(),
+    );
+    let result = Study::series(series)
+        .graph_posterior(dbn_posterior(
+            &[treatment_to_outcome, treatment_to_outcome | confounder_to_outcome],
+            &[0.5, 0.5],
+        ))
+        .query(antecedent_core::CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(22))
+        .unwrap();
+    let structural = result.structural_response.as_ref().expect("structural mixture");
+    assert_eq!(
+        structural.aggregation_policy,
+        Some(antecedent::StructuralAggregationPolicy::GraphDependentAtoms)
+    );
+    assert_eq!(result.identification.status, antecedent_core::IdentificationStatus::GraphDependent);
+    assert!(matches!(
+        result.response().unwrap().estimate,
+        antecedent_core::ResponseIdentification::GraphDependent(_)
+    ));
+}

@@ -565,10 +565,14 @@ fn normalized_column(col: &[f64]) -> Option<(Vec<f64>, (f64, f64))> {
         return Some((col.iter().map(|v| v / norm).collect(), (norm, 1.0)));
     }
     let scale = col.iter().fold(0.0_f64, |s, v| s.max(v.abs()));
-    if scale == 0.0 || !scale.is_finite() { return None; }
+    if scale == 0.0 || !scale.is_finite() {
+        return None;
+    }
     let mut unit: Vec<f64> = col.iter().map(|v| v / scale).collect();
     let factor = l2(&unit);
-    for value in &mut unit { *value /= factor; }
+    for value in &mut unit {
+        *value /= factor;
+    }
     Some((unit, (scale, factor)))
 }
 
@@ -1524,16 +1528,22 @@ fn residual_over_norm(basis: &[Vec<f64>], values: &[f64]) -> f64 {
         for _ in 0..2 {
             for q in basis {
                 let c = dot(q, &w);
-                for (wi, qi) in w.iter_mut().zip(q) { *wi -= c * qi; }
+                for (wi, qi) in w.iter_mut().zip(q) {
+                    *wi -= c * qi;
+                }
             }
         }
         return l2(&w) / norm;
     }
-    let Some((mut w, _)) = normalized_column(values) else { return 0.0; };
+    let Some((mut w, _)) = normalized_column(values) else {
+        return 0.0;
+    };
     for _ in 0..2 {
         for q in basis {
             let c = dot(q, &w);
-            for (wi, qi) in w.iter_mut().zip(q) { *wi -= c * qi; }
+            for (wi, qi) in w.iter_mut().zip(q) {
+                *wi -= c * qi;
+            }
         }
     }
     l2(&w)
@@ -1689,10 +1699,11 @@ pub(super) fn with_plan_subject(study: &Study, error: CausalError) -> CausalErro
     error.diagnosed(fields)
 }
 
-/// [`name_stats_refusal`] for a one-shot run, which has no frozen plan: prepare the study (this
-/// builds the identification the dependent-column scan needs; it runs only after a refusal)
-/// and name the refusal against that plan, falling back to the query's label alone when
-/// preparation cannot supply one.
+/// [`name_stats_refusal`] for a one-shot run, which has no frozen plan: identify the study
+/// without fitting its statistical operations (the identification is all the dependent-column
+/// scan needs; it runs only after a refusal, so it must not repeat the cross-fit that may
+/// have just failed) and name the refusal against that plan, falling back to the query's label
+/// alone when identification cannot supply one.
 pub(super) fn name_run_refusal(
     study: &Study,
     error: CausalError,
@@ -1701,7 +1712,7 @@ pub(super) fn name_run_refusal(
     if !matches!(&error, CausalError::Estimate(EstimationError::Stats(_))) {
         return error;
     }
-    match study.prepare(ctx) {
+    match study.prepare_deferred(ctx) {
         Ok(prepared) => name_stats_refusal(prepared.study(), None, error, ctx),
         Err(_) => with_plan_subject(study, error),
     }

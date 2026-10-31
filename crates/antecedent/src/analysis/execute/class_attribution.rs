@@ -564,7 +564,7 @@ impl super::Study {
             .collect();
 
         let merged = merge_payload(&identified, &weights, &hedge_components)?;
-        let posterior = shared_posterior(&identified, unidentified_mass);
+        let posterior = shared_posterior(&identified, (unidentified_mass, unevaluable_mass));
         let envelope_note =
             if posterior.is_none() { posterior_envelope_diagnostic(&identified) } else { None };
 
@@ -900,6 +900,11 @@ impl super::Study {
                 let share = weight / completions.members.len().max(1) as f64;
                 kinds.extend(completions.members.into_iter().map(|member| (share, member.kind)));
             }
+            // An atom that names no member keeps its mass beside them as unidentified mass.
+            if kinds.is_empty() && outside.last().is_none_or(|(outside_key, _)| *outside_key != key)
+            {
+                outside.push((key, weight));
+            }
             for (share, kind) in kinds {
                 keys.push(key);
                 members.push(Member { weight: share, kind });
@@ -1006,6 +1011,11 @@ impl super::Study {
                                   TemporalAdmg, Cpdag or Pag atoms",
                     });
                 }
+            }
+            // An atom that names no member keeps its mass beside them as unidentified mass.
+            if kinds.is_empty() && outside.last().is_none_or(|(outside_key, _)| *outside_key != key)
+            {
+                outside.push((key, weight));
             }
             for (share, kind) in kinds {
                 keys.push(key);
@@ -1542,17 +1552,47 @@ fn merge_change(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
+    // A component's permutation-sampling error is carried only where every member holds it and
+    // the members agree on its value: a mean over disagreeing members is a different quantity
+    // from the one each member's error describes. The widest member error and interval bound.
     let contributions: Vec<ComponentContribution> = components
         .iter()
+        .enumerate()
         .zip(&mean)
-        .map(|(component, contribution)| ComponentContribution {
-            component: *component,
-            contribution: *contribution,
-            stderr: None,
-            ci_low: None,
-            ci_high: None,
+        .map(|((position, component), contribution)| {
+            let held: Option<Vec<&ComponentContribution>> = parts
+                .iter()
+                .map(|part| part.contributions.iter().find(|c| c.component == *component))
+                .collect();
+            let agree =
+                (upper[position] - lower[position]).abs() <= 1e-12 * (1.0 + mean[position].abs());
+            let carried = held.filter(|_| agree);
+            let widest = |read: fn(&ComponentContribution) -> Option<f64>,
+                          pick: fn(f64, f64) -> f64| {
+                carried.as_ref().and_then(|held| {
+                    held.iter()
+                        .map(|c| read(c))
+                        .collect::<Option<Vec<f64>>>()
+                        .and_then(|values| values.into_iter().reduce(pick))
+                })
+            };
+            ComponentContribution {
+                component: *component,
+                contribution: *contribution,
+                stderr: widest(|c| c.stderr, f64::max),
+                ci_low: widest(|c| c.ci_low, f64::min),
+                ci_high: widest(|c| c.ci_high, f64::max),
+            }
         })
         .collect();
+    // The permutation-sampling errors of independent members combine in quadrature under the
+    // weights of the mean.
+    let monte_carlo_stderr = parts
+        .iter()
+        .zip(weights)
+        .map(|(part, weight)| part.monte_carlo_stderr.map(|se| (weight * se).powi(2)))
+        .sum::<Option<f64>>()
+        .map(f64::sqrt);
     let budget = ComputeBudget {
         evaluations: parts.iter().map(|part| part.budget.evaluations).sum(),
         samples: parts.iter().map(|part| part.budget.samples).sum(),
@@ -1568,7 +1608,7 @@ fn merge_change(
         unidentified: Arc::from(unidentified),
         graph_sensitivity: Some(Arc::from(deviation)),
         budget,
-        monte_carlo_stderr: None,
+        monte_carlo_stderr,
         component_mc_stderr: None,
         cache_stats: CacheStats::default(),
         fit_uncertainty: None,
@@ -1671,7 +1711,7 @@ fn merge_anomaly(parts: &[&[AnomalyScores]], weights: &[f64]) -> Result<Merged, 
 /// structure does (the mean anomaly score): it is then each member's own posterior.
 fn shared_posterior(
     identified: &[(usize, StudyResult)],
-    unidentified_mass: f64,
+    (unidentified_mass, unevaluable_mass): (f64, f64),
 ) -> Option<CausalPosterior> {
     let first = identified[0].1.posterior.as_ref()?;
     for (_, result) in &identified[1..] {
@@ -1681,6 +1721,7 @@ fn shared_posterior(
     }
     let mut shared = first.clone();
     shared.unidentified_mass = unidentified_mass;
+    shared.unevaluable_mass = unevaluable_mass;
     Some(shared)
 }
 
@@ -1874,5 +1915,69 @@ mod temporal_owner_tests {
             Err(CausalError::Resource { .. })
         ));
         assert_eq!(pool.available().bytes(), available);
+    }
+}
+
+#[cfg(test)]
+mod merged_uncertainty_tests {
+    use super::*;
+
+    fn change(
+        contribution: f64,
+        stderr: Option<f64>,
+        monte_carlo: Option<f64>,
+    ) -> ChangeAttributionResult {
+        ChangeAttributionResult {
+            outcome: VariableId::from_raw(1),
+            total_change: contribution,
+            observed_change: None,
+            contributions: Arc::from([ComponentContribution {
+                component: ComponentId::from_variable(VariableId::from_raw(0)),
+                contribution,
+                stderr,
+                ci_low: stderr.map(|se| contribution - se),
+                ci_high: stderr.map(|se| contribution + se),
+            }]),
+            interactions: Arc::from([]),
+            path_breakdown: Arc::from([]),
+            unidentified: Arc::from([]),
+            graph_sensitivity: None,
+            budget: ComputeBudget { evaluations: 1, samples: 1, exact_coalitions: 0 },
+            monte_carlo_stderr: monte_carlo,
+            component_mc_stderr: None,
+            cache_stats: CacheStats::default(),
+            fit_uncertainty: None,
+        }
+    }
+
+    fn merged_contribution(
+        parts: &[ChangeAttributionResult],
+    ) -> (ComponentContribution, Option<f64>) {
+        let refs: Vec<&ChangeAttributionResult> = parts.iter().collect();
+        let merged = merge_change(&refs, &[0.5, 0.5], &[]);
+        let ResultPayload::ChangeAttribution(result) = merged.payload else { unreachable!() };
+        (result.contributions[0].clone(), result.monte_carlo_stderr)
+    }
+
+    #[test]
+    fn agreeing_members_keep_the_widest_member_error_and_disagreeing_members_withhold_it() {
+        let (agreed, monte_carlo) = merged_contribution(&[
+            change(1.0, Some(0.1), Some(0.3)),
+            change(1.0, Some(0.2), Some(0.4)),
+        ]);
+        assert_eq!(agreed.stderr, Some(0.2));
+        assert!((agreed.ci_low.unwrap() - 0.8).abs() < 1e-12);
+        assert!((agreed.ci_high.unwrap() - 1.2).abs() < 1e-12);
+        let expected = (0.25f64 * 0.09 + 0.25 * 0.16).sqrt();
+        assert!((monte_carlo.unwrap() - expected).abs() < 1e-12);
+        let (disagreed, _) = merged_contribution(&[
+            change(1.0, Some(0.1), Some(0.3)),
+            change(2.0, Some(0.2), Some(0.4)),
+        ]);
+        assert!(disagreed.stderr.is_none() && disagreed.ci_low.is_none());
+        let (partial, monte_carlo) =
+            merged_contribution(&[change(1.0, Some(0.1), None), change(1.0, None, None)]);
+        assert!(partial.stderr.is_none());
+        assert!(monte_carlo.is_none());
     }
 }

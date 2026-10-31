@@ -186,7 +186,13 @@ fn collect_class_points<'a>(
         {
             continue;
         }
-        let (atom, point) = fit(case, indexer)?;
+        let (atom, point) = match fit(case, indexer) {
+            Ok(fitted) => fitted,
+            // A completion whose own regression cannot be fit is unevaluable mass, not a
+            // reason to lose the other completions; a stop of the run itself still stops it.
+            Err(error) if !stops_the_run(&error) => continue,
+            Err(error) => return Err(error),
+        };
         atoms.push(atom);
         weights.push(case.weight.0);
         points.push(point);
@@ -212,6 +218,42 @@ fn collect_class_points<'a>(
         primary_identification,
         primary_indexer,
     })
+}
+
+/// Refuse a series that carries observation weights: the completions' regressions are fit on
+/// the unweighted series, so the weights would be ignored while the result is labelled as
+/// sampling-weighted.
+fn refuse_series_weights(data: &TimeSeriesData) -> Result<(), CausalError> {
+    if data.storage().weights().is_some() {
+        return Err(CausalError::Estimate(
+            antecedent_estimate::sampling_weights::unsupported_route(
+                "sampling weights are read by the frequentist temporal linear adjustment and \
+             sustained contrast; the class-aware conditional, derivative and cross-world points \
+             have no sampling-weighted construction",
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Whether `error` ends the run (cancellation, a resource or admission limit, an unsupported
+/// request) rather than describing one completion that could not be fit.
+fn stops_the_run(error: &CausalError) -> bool {
+    use antecedent_estimate::EstimationError;
+    match error {
+        CausalError::Cancelled { .. }
+        | CausalError::Resource { .. }
+        | CausalError::Unsupported { .. } => true,
+        CausalError::Estimate(
+            EstimationError::Admission(_)
+            | EstimationError::Capacity(_)
+            | EstimationError::TemporalMaterialization(_),
+        ) => true,
+        _ => {
+            error.peeled().reason_code()
+                == Some(antecedent_core::reason_code!("cancelled_no_claim"))
+        }
+    }
 }
 
 /// The structural lag span of a class envelope's completions.
@@ -465,6 +507,7 @@ fn collect_class_conditional<'a>(
     policy: antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<ClassPoints<'a>, CausalError> {
+    refuse_series_weights(data)?;
     collect_class_points(bundle, |case, indexer| {
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
         let atom =
@@ -570,6 +613,7 @@ fn collect_class_cross_world<'a>(
     policy: antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<ClassPoints<'a>, CausalError> {
+    refuse_series_weights(data)?;
     collect_class_points(bundle, |case, indexer| {
         if let CausalQuery::PathSpecific(path) = query {
             match &case.graph {
@@ -665,6 +709,7 @@ fn class_derivative_responses<'a>(
     offsets: (i32, i32),
     (policy, prior_scale): (antecedent_core::KernelPolicy, Option<f64>),
 ) -> Result<ClassDerivatives<'a>, CausalError> {
+    refuse_series_weights(data)?;
     let envelope = &bundle.envelope;
     require_identified_mass(envelope)?;
     let mut atoms = Vec::new();
@@ -679,12 +724,16 @@ fn class_derivative_responses<'a>(
         }
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
         let atom = SlopeAtom::new(data, &estimand, indexer, offsets, policy, prior_scale);
-        let response = super::temporal_path::temporal_linear_derivative_response(
+        let response = match super::temporal_path::temporal_linear_derivative_response(
             data,
             query,
             &case.result,
             &atom,
-        )?;
+        ) {
+            Ok(response) => response,
+            Err(error) if !stops_the_run(&error) => continue,
+            Err(error) => return Err(error),
+        };
         let scalar = super::response_path::response_scalar_summary(&response).0;
         if scalar.is_finite() {
             values[index] = Some(scalar);
@@ -1091,6 +1140,7 @@ impl super::Study {
         let mut pairs = Vec::new();
         let mut pooled = PooledAtoms::default();
         let mut chosen = None;
+        let mut masses = PosteriorAtomMasses::default();
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
             let weight = key_weights.get(atom.key);
@@ -1105,11 +1155,21 @@ impl super::Study {
                 prior_scale,
             )?;
             let point = fitted.point()?;
+            let envelope = &atom.envelope.envelope;
+            masses.add(
+                weight,
+                envelope.status,
+                super::temporal_path::temporal_class_structural_mixture(
+                    envelope,
+                    crate::result::StructuralWeightBasis::CompletionEnumeration,
+                    None,
+                    &fitted.values,
+                ),
+            );
             if !point.is_finite() {
                 continue;
             }
             pairs.push((weight, point));
-            let envelope = &atom.envelope.envelope;
             if chosen.is_none() {
                 let mut diagnostics =
                     vec![super::temporal_path::temporal_class_envelope_diagnostic(
@@ -1135,13 +1195,6 @@ impl super::Study {
                         CausalQuery::TemporalEffect(query.clone()),
                     ),
                     diagnostics,
-                    super::temporal_path::temporal_class_structural_mixture(
-                        envelope,
-                        crate::result::StructuralWeightBasis::CompletionEnumeration,
-                        None,
-                        &fitted.values,
-                    ),
-                    envelope.status,
                 ));
             }
             pooled.push(fitted, weight, envelope.truncated_completions > 0);
@@ -1150,7 +1203,7 @@ impl super::Study {
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
             (&pairs, pooled, (None, false)),
-            chosen,
+            (chosen, masses),
             (query.treatment, query.outcome),
             (
                 EstimatorId::TemporalLinearAdjustment,
@@ -1199,6 +1252,7 @@ impl super::Study {
         let mut pooled_weights = Vec::new();
         let mut spans = Vec::new();
         let mut chosen = None;
+        let mut masses = PosteriorAtomMasses::default();
         let mut witness_states = super::posterior_witness_state::AtomWitnessStates::default();
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         for atom in cache.class_atoms.iter() {
@@ -1214,6 +1268,7 @@ impl super::Study {
                 (offsets, ctx.kernel_policy, prior_scale),
             )?;
             let scalar = super::response_path::response_scalar_summary(&derived.response).0;
+            masses.add(weight, derived.status, derived.structural);
             if !derivative_response_finite(&derived.response) {
                 continue;
             }
@@ -1250,8 +1305,6 @@ impl super::Study {
                     derived.estimand,
                     derived.identification,
                     derived.diagnostics,
-                    derived.structural,
-                    derived.status,
                 ));
             }
         }
@@ -1279,7 +1332,7 @@ impl super::Study {
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
             (&pairs, PooledAtoms::default(), (replicates_ok, cancelled)),
-            chosen,
+            (chosen, masses),
             (treatment, outcome),
             (
                 EstimatorId::temporal_response_for(&self.settings.inference),
@@ -1330,6 +1383,7 @@ impl super::Study {
         let mut pairs = Vec::new();
         let mut pooled = PooledAtoms::default();
         let mut chosen = None;
+        let mut masses = PosteriorAtomMasses::default();
         let key_weights = IdentifiedKeyWeights::new(&cache.graphs);
         let query = &self.query;
         for atom in cache.class_atoms.iter() {
@@ -1346,10 +1400,20 @@ impl super::Study {
                 prior_scale,
             )?;
             let point = fitted.point()?;
+            let envelope = &atom.envelope.envelope;
+            masses.add(
+                weight,
+                envelope.status,
+                super::temporal_path::temporal_class_structural_mixture(
+                    envelope,
+                    crate::result::StructuralWeightBasis::CompletionEnumeration,
+                    None,
+                    &fitted.values,
+                ),
+            );
             if !point.is_finite() {
                 continue;
             }
-            let envelope = &atom.envelope.envelope;
             if chosen.is_none() {
                 let identification = super::temporal_path::template_scoped_cross_world(
                     fitted.primary_identification.clone(),
@@ -1365,19 +1429,11 @@ impl super::Study {
                     ),
                     cross_world_note(),
                 ];
-                let structural = super::temporal_path::temporal_class_structural_mixture(
-                    envelope,
-                    crate::result::StructuralWeightBasis::CompletionEnumeration,
-                    None,
-                    &fitted.values,
-                );
                 chosen = Some((
                     identification.required_assumptions.clone(),
                     estimand,
                     identification,
                     diagnostics,
-                    structural,
-                    envelope.status,
                 ));
             }
             pairs.push((weight, point));
@@ -1387,7 +1443,7 @@ impl super::Study {
             ExecuteRun { physical, ctx, started, identify_cached },
             &cache,
             (&pairs, pooled, (None, false)),
-            chosen,
+            (chosen, masses),
             (treatment, outcome),
             (
                 EstimatorId::TemporalLinearAdjustment,
@@ -1412,20 +1468,21 @@ impl super::Study {
         run: ExecuteRun<'_>,
         cache: &crate::analysis::prepared::CachedTemporalClassPosteriorIdentification,
         (pairs, pooled, accounting): (&[(f64, f64)], PooledAtoms, (Option<u32>, bool)),
-        chosen: Option<(
-            antecedent_core::AssumptionSet,
-            IdentifiedEstimand,
-            IdentificationResult,
-            Vec<Diagnostic>,
-            crate::result::StructuralResponseMixture,
-            IdentificationStatus,
-        )>,
+        (chosen, masses): (
+            Option<(
+                antecedent_core::AssumptionSet,
+                IdentifiedEstimand,
+                IdentificationResult,
+                Vec<Diagnostic>,
+            )>,
+            PosteriorAtomMasses,
+        ),
         (treatment, outcome): (VariableId, VariableId),
         (estimator_id, streams): (EstimatorId, (u64, u64)),
         evaluate: &dyn Fn(usize, &dyn SlopeSource) -> Result<Vec<f64>, CausalError>,
     ) -> Result<StudyResult, CausalError> {
         let ExecuteRun { physical, ctx, started, identify_cached } = run;
-        let (assumptions, estimand, mut identification, mut diagnostics, mut structural, atom_status) =
+        let (assumptions, estimand, mut identification, mut diagnostics) =
             chosen.ok_or_else(|| CausalError::Compile {
                 message: format!(
                     "temporal class graph-posterior point had no estimable atom (atoms={}, unidentified={})",
@@ -1434,11 +1491,12 @@ impl super::Study {
                 ),
             })?;
         let point = weighted_derivative_mean(pairs)?;
-        let unidentified = cache.graphs.unidentified_mass();
+        let (mut structural, atom_status, summary) =
+            masses.finish(cache.graphs.unidentified_mass());
         identification.status = resolve_posterior_status(
             atom_status,
             crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
-            PosteriorMassSummary { unidentified, ..PosteriorMassSummary::default() },
+            summary,
         );
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
@@ -1507,6 +1565,101 @@ impl super::Study {
             }),
         );
         Ok(result)
+    }
+}
+
+/// The mass every positive-weight graph-posterior atom carries, kept by kind.
+///
+/// Each atom contributes its own completion masses (identified and evaluated, unidentified,
+/// identified but unevaluable, subsampled out) scaled by its posterior weight, and the graphs
+/// the posterior proved unidentified add their mass beside them, so the four masses account for
+/// all posterior mass. An atom with no completions contributes its whole weight as unidentified
+/// mass. The status is the most conservative status of any atom.
+#[derive(Default)]
+struct PosteriorAtomMasses {
+    weight: f64,
+    identified: f64,
+    unidentified: f64,
+    subsampled: f64,
+    atoms: Vec<crate::result::StructuralResponseAtom>,
+    truncated_atoms: usize,
+    partial_scope: bool,
+    statuses: Vec<IdentificationStatus>,
+}
+
+impl PosteriorAtomMasses {
+    fn add(
+        &mut self,
+        weight: f64,
+        status: IdentificationStatus,
+        mixture: crate::result::StructuralResponseMixture,
+    ) {
+        let carried = mixture.identified_mass
+            + mixture.unidentified_mass
+            + mixture.unevaluable_mass
+            + mixture.subsampled_out_mass;
+        self.weight += weight;
+        if carried > 0.0 {
+            self.identified += weight * mixture.identified_mass;
+            self.unidentified += weight * mixture.unidentified_mass;
+            self.subsampled += weight * mixture.subsampled_out_mass;
+        } else {
+            self.unidentified += weight;
+        }
+        self.truncated_atoms += mixture.truncated_atoms;
+        self.partial_scope |= !mixture.full_mass_scope;
+        self.statuses.push(status);
+        self.atoms.extend(mixture.atoms);
+    }
+
+    /// The posterior-level mixture, its most conservative atom status and the mass summary the
+    /// status ladder reads, with `graph_unidentified` the mass of graphs proved unidentified.
+    fn finish(
+        self,
+        graph_unidentified: f64,
+    ) -> (crate::result::StructuralResponseMixture, IdentificationStatus, PosteriorMassSummary)
+    {
+        let total = self.weight + graph_unidentified;
+        let (identified, unidentified, subsampled, unevaluable) = if total > 0.0 {
+            let identified = self.identified / total;
+            let unidentified = (self.unidentified + graph_unidentified) / total;
+            let subsampled = self.subsampled / total;
+            // The remainder, so the four masses conserve exactly under division.
+            let unevaluable = (1.0 - identified - unidentified - subsampled).max(0.0);
+            (identified, unidentified, subsampled, unevaluable)
+        } else {
+            (0.0, 0.0, 0.0, 0.0)
+        };
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for atom in &self.atoms {
+            if let Some(ResponseValue::Scalar(value)) = &atom.value {
+                lo = lo.min(*value);
+                hi = hi.max(*value);
+            }
+        }
+        let status = super::most_conservative_identification_status(self.statuses);
+        let mixture = crate::result::StructuralResponseMixture {
+            weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
+            atoms: self.atoms,
+            identified_mass: identified,
+            unidentified_mass: unidentified,
+            unevaluable_mass: unevaluable,
+            subsampled_out_mass: subsampled,
+            identified_set: (lo.is_finite() && hi.is_finite())
+                .then(|| super::scalar_identified_set(lo, hi)),
+            identified_set_interval: None,
+            conditional_on_identified: None,
+            full_mass_scope: !self.partial_scope,
+            truncated_atoms: self.truncated_atoms,
+            aggregation_policy: None,
+        };
+        let summary = PosteriorMassSummary {
+            unidentified,
+            unevaluable,
+            subsampled,
+            ..PosteriorMassSummary::default()
+        };
+        (mixture, status, summary)
     }
 }
 
@@ -1881,4 +2034,89 @@ fn derivative_on_envelope<'a>(
         structural,
         status: envelope.status,
     })
+}
+
+#[cfg(test)]
+mod posterior_mass_tests {
+    use super::*;
+
+    fn mixture(
+        values: &[Option<f64>],
+        masses: [f64; 3],
+    ) -> crate::result::StructuralResponseMixture {
+        let [identified, unidentified, unevaluable] = masses;
+        crate::result::StructuralResponseMixture {
+            weight_basis: crate::result::StructuralWeightBasis::CompletionEnumeration,
+            atoms: values
+                .iter()
+                .enumerate()
+                .map(|(index, value)| crate::result::StructuralResponseAtom {
+                    graph_key: index as u64,
+                    weight: 1.0 / values.len() as f64,
+                    status: IdentificationStatus::NonparametricallyIdentified,
+                    value: value.map(ResponseValue::Scalar),
+                    posterior: None,
+                    response: None,
+                })
+                .collect(),
+            identified_mass: identified,
+            unidentified_mass: unidentified,
+            unevaluable_mass: unevaluable,
+            subsampled_out_mass: 0.0,
+            identified_set: None,
+            identified_set_interval: None,
+            conditional_on_identified: None,
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            aggregation_policy: None,
+        }
+    }
+
+    #[test]
+    fn every_atoms_completion_mass_reaches_the_published_mixture_and_status() {
+        let identified = IdentificationStatus::NonparametricallyIdentified;
+        let mut masses = PosteriorAtomMasses::default();
+        masses.add(0.5, identified, mixture(&[Some(1.0); 4], [1.0, 0.0, 0.0]));
+        masses.add(0.5, identified, mixture(&[Some(3.0), None, None, None], [0.25, 0.75, 0.0]));
+        let (published, status, summary) = masses.finish(0.0);
+        assert!((published.identified_mass - 0.625).abs() < 1e-12);
+        assert!((published.unidentified_mass - 0.375).abs() < 1e-12);
+        assert_eq!(published.atoms.len(), 8);
+        let set = published.identified_set.expect("the range over every atom's completions");
+        assert_eq!((set.lower[0], set.upper[0]), (1.0, 3.0));
+        assert_eq!(
+            resolve_posterior_status(
+                status,
+                crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+                summary,
+            ),
+            IdentificationStatus::GraphDependent
+        );
+    }
+
+    #[test]
+    fn zero_completion_atoms_and_unidentified_graphs_conserve_the_posterior_mass() {
+        let identified = IdentificationStatus::NonparametricallyIdentified;
+        let mut masses = PosteriorAtomMasses::default();
+        masses.add(0.4, identified, mixture(&[Some(1.0)], [1.0, 0.0, 0.0]));
+        masses.add(0.3, identified, mixture(&[], [0.0, 0.0, 0.0]));
+        masses.add(0.1, identified, mixture(&[None], [0.0, 0.0, 1.0]));
+        let (published, _, _) = masses.finish(0.2);
+        assert!((published.identified_mass - 0.4).abs() < 1e-12);
+        assert!((published.unidentified_mass - 0.5).abs() < 1e-12);
+        assert!((published.unevaluable_mass - 0.1).abs() < 1e-12);
+        let sum = published.identified_mass
+            + published.unidentified_mass
+            + published.unevaluable_mass
+            + published.subsampled_out_mass;
+        assert!((sum - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_completion_that_cannot_be_fit_is_not_a_stop_of_the_run() {
+        let failed = CausalError::Compile { message: "rank deficient completion".into() };
+        assert!(!stops_the_run(&failed));
+        assert!(stops_the_run(&CausalError::Cancelled { stage: "temporal class" }));
+        assert!(stops_the_run(&CausalError::Resource { message: "limit".into() }));
+    }
 }

@@ -160,7 +160,12 @@ impl super::Study {
             diagnostics.push(warning.clone());
         }
         let DbnMixedResponse {
-            response, identification, conditional, structural_set, masses, ..
+            response,
+            identification,
+            conditional,
+            structural_set,
+            aggregation_policy,
+            masses,
         } = mixed;
 
         Ok(self.finish_identified_execute(
@@ -192,7 +197,7 @@ impl super::Study {
                     atoms,
                     masses,
                     structural_set,
-                    conditional,
+                    (conditional, aggregation_policy),
                 )),
                 predictive_checks,
                 bootstrap_replicates_requested: Some(None),
@@ -736,7 +741,10 @@ fn dbn_posterior_structural_mixture(
     atoms: Vec<crate::result::StructuralResponseAtom>,
     masses: DbnMasses,
     structural_set: Option<antecedent_core::ResponseEnvelope>,
-    conditional: antecedent_core::ResponseValue,
+    (conditional, aggregation_policy): (
+        antecedent_core::ResponseValue,
+        crate::result::StructuralAggregationPolicy,
+    ),
 ) -> crate::result::StructuralResponseMixture {
     crate::result::StructuralResponseMixture {
         weight_basis: crate::result::StructuralWeightBasis::PosteriorProbability,
@@ -750,9 +758,7 @@ fn dbn_posterior_structural_mixture(
         conditional_on_identified: Some(conditional),
         full_mass_scope: true,
         truncated_atoms: 0,
-        aggregation_policy: Some(
-            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
-        ),
+        aggregation_policy: Some(aggregation_policy),
     }
 }
 
@@ -834,18 +840,17 @@ fn mix_dbn_posterior_atoms(
     let conditional = super::response_path::mix_response_values(&conditional_refs)?;
     let structural_set = super::response_path::response_envelope_from_weighted(weighted);
     let first = &weighted[0].2;
-    let graph_dependent = resolve_posterior_status(
+    let resolved = resolve_posterior_status(
         identification.status,
-        crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+        aggregation_policy,
         PosteriorMassSummary {
             unidentified: unidentified_mass,
             failed: failed_mass,
             ..PosteriorMassSummary::default()
         },
-    ) == IdentificationStatus::GraphDependent;
-    if graph_dependent {
-        identification.status = IdentificationStatus::GraphDependent;
-    }
+    );
+    let graph_dependent = resolved == IdentificationStatus::GraphDependent;
+    identification.status = resolved;
     let uncertainty = if weighted.len() == 1 {
         let base = first.uncertainty.clone();
         // A single-atom, single-coordinate InterventionResponse is a scalar

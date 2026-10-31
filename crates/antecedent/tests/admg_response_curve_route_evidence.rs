@@ -233,6 +233,11 @@ fn verify_coordinate(coordinate: &str, accepted: bool, bayesian: bool) {
             antecedent_core::IntervalMethod::BootstrapSe,
             "{coordinate} interval method"
         );
+        assert_eq!(
+            result.performance.bootstrap_replicates_requested,
+            Some(199),
+            "{coordinate} requested replicates"
+        );
     }
     let refreshed = rebind_estimate(&mut prepared, data.clone(), &ctx).unwrap();
     assert_eq!(means(&refreshed), means(&result), "{coordinate} refresh");

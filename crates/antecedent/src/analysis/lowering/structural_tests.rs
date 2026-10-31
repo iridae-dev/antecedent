@@ -19,7 +19,7 @@ use crate::analysis::lowering::{
 use crate::planner::lowered::{
     FunctionalKind, LoweredProgram, LoweringDepth, ProblemTarget, UncertaintyReading,
 };
-use crate::planner::statistical::{ModelRole, Realization};
+use crate::planner::statistical::{ModelRole, PosteriorAlgorithm, Realization};
 use crate::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 
 fn v(raw: u32) -> VariableId {
@@ -227,6 +227,7 @@ fn counterfactual_lowers_its_functional_mechanisms_and_row_weight_posterior() {
     let posterior = bayesian.statistical().posterior().expect("row-weight posterior");
     assert_eq!(posterior.draws(), 48);
     assert_eq!(posterior.prior().name(), "dirichlet_row_weights(1)");
+    assert_eq!(posterior.algorithm(), PosteriorAlgorithm::BayesianBootstrap);
     assert!(matches!(bayesian.statistical().realization(), Realization::Bayesian(_)));
     assert_eq!(bayesian.claim().uncertainty(), UncertaintyReading::Posterior);
     assert_ne!(bayesian.identity(), frequentist.identity());
@@ -266,6 +267,7 @@ fn a_fitted_model_attribution_lowers_its_posterior_over_the_mechanisms() {
         let posterior = program.statistical().posterior().expect("row-weight posterior");
         assert_eq!(posterior.draws(), 32);
         assert_eq!(posterior.prior().name(), "dirichlet_row_weights(1)");
+        assert_eq!(posterior.algorithm(), PosteriorAlgorithm::BayesianBootstrap);
         assert!(matches!(program.statistical().realization(), Realization::Bayesian(_)));
         assert_eq!(program.claim().uncertainty(), UncertaintyReading::Posterior);
         assert_ne!(program.identity(), point.identity());

@@ -1526,3 +1526,90 @@ fn bayesian_derivative_refuses_unread_backend_and_likelihood() {
         .expect("a derivative cannot use a Bernoulli likelihood");
     assert_eq!(error.reason_code(), Some("likelihood_not_supported"));
 }
+
+fn source_prior_bytes(data: &TabularData, dag: &Dag, treatment: u32, outcome: u32) -> Vec<u8> {
+    let source = Study::tabular(data.clone())
+        .graph(dag.clone())
+        .query(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(treatment),
+            VariableId::from_raw(outcome),
+        ))
+        .inference(bayes())
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(31))
+        .unwrap();
+    antecedent::io::encode_causal_posterior_bytes(source.posterior.as_ref().unwrap(), "source")
+        .unwrap()
+}
+
+/// A transferred prior without a response-specific mapping is refused by the graph-posterior
+/// response, not replaced by an isotropic prior on every atom.
+#[test]
+fn graph_posterior_response_refuses_a_transferred_prior_without_a_mapping() {
+    let data = mixture_data(160);
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let bytes = source_prior_bytes(&data, &dag, 0, 1);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(1.0))]),
+    });
+    let ctx = ExecutionContext::for_tests(32);
+    let config = BayesianConfig::conjugate().n_draws(32).prior_from_artifact(bytes, None);
+    let built = Study::tabular(data)
+        .graph_posterior(mixture_gp())
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .build();
+    let error = match built {
+        Err(error) => error,
+        Ok(study) => study.run(&ctx).expect_err("an unmapped transfer must not run"),
+    };
+    assert!(error.to_string().contains("response-specific mapping"), "{error}");
+}
+
+/// The same refusal holds for the sealed static derivative response.
+#[test]
+fn derivative_response_refuses_a_transferred_prior_without_a_mapping() {
+    let a: Vec<_> = (0..400)
+        .map(|i| 2.0 + (f64::from(i) * 0.71).sin() + 0.2 * (f64::from(i) * 0.13).cos())
+        .collect();
+    let b: Vec<_> = (0..400).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let y: Vec<_> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut dag = Dag::with_variables(3);
+    for (from, to) in [(0, 2), (1, 2)] {
+        dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+    }
+    let bytes = source_prior_bytes(&data, &dag, 0, 2);
+    let functional = ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at: 2.0,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    };
+    let ctx = ExecutionContext::for_tests(33);
+    let config = BayesianConfig::conjugate().n_draws(32).prior_from_artifact(bytes, None);
+    let built = Study::tabular(data)
+        .graph(dag)
+        .query(CausalQuery::Response(ResponseQuery::new(functional)))
+        .inference(InferenceMode::Bayesian(config))
+        .refute(RefuteSuite::None)
+        .build();
+    let error = match built {
+        Err(error) => error,
+        Ok(study) => study.run(&ctx).expect_err("an unmapped transfer must not run"),
+    };
+    assert!(error.to_string().contains("response-specific mapping"), "{error}");
+}

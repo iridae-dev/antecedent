@@ -275,7 +275,6 @@ fn block_mutation(
     mutation: &RefreshMutation,
 ) {
     if let RefreshMutation::Replace { rows, .. } = mutation {
-        blocks.clear();
         blocks.insert(label.to_owned(), rows.clone());
     } else {
         apply_to_model(blocks.entry(label.to_owned()).or_default(), mutation);
@@ -346,6 +345,41 @@ fn conjugate_blocks_follow_every_change_and_equal_the_closed_form_posterior() {
     let unlabelled = refresh.apply_verified(&RefreshMutation::Evict { id: 1 }).unwrap_err();
     assert!(unlabelled.to_string().contains("in_block"), "{unlabelled}");
     assert_eq!(refresh.result().unwrap(), before);
+}
+
+#[test]
+fn replacing_one_conjugate_block_keeps_its_siblings() {
+    let prior = prior();
+    let mut refresh = RetainedRefresh::start(
+        RefreshFamily::ConjugateBlocks,
+        "prepared",
+        2,
+        &observations(0..8, false),
+        Some((&prior, "a")),
+    )
+    .unwrap();
+    refresh
+        .apply_verified(&RefreshMutation::in_block(
+            "b",
+            RefreshMutation::Append { source: source("later"), rows: observations(0..6, false) },
+        ))
+        .unwrap();
+    let replacement = observations(3..11, false);
+    refresh
+        .apply_verified(&RefreshMutation::in_block(
+            "b",
+            RefreshMutation::Replace { source: source("later"), rows: replacement.clone() },
+        ))
+        .unwrap();
+    let mut blocks = BTreeMap::new();
+    blocks.insert("a".to_owned(), observations(0..8, false));
+    blocks.insert("b".to_owned(), replacement);
+    let RefreshResult::Conjugate { summary, .. } = refresh.result().unwrap() else {
+        panic!("not a conjugate result");
+    };
+    let reference = posterior_mean(&blocks);
+    assert_close(summary.mean[0], reference[0], "posterior mean 0");
+    assert_close(summary.mean[1], reference[1], "posterior mean 1");
 }
 
 fn every_family() -> Vec<RetainedRefresh> {
@@ -686,4 +720,29 @@ fn a_prepared_study_starts_mutates_spills_and_reloads_the_summary_its_estimator_
     let foreign =
         study.apply_retained_refresh(&mut scatter, &RefreshMutation::Evict { id: 0 }).unwrap_err();
     assert!(foreign.to_string().contains("keeps a ols summary"), "{foreign}");
+}
+
+#[test]
+fn a_retained_refresh_is_bound_to_the_prepared_study_that_started_it() {
+    let study = prepared(InferenceMode::Frequentist);
+    let other = {
+        let data = autoregressive_pulse_series(400, 0.6, false, 31);
+        Study::series(data)
+            .graph(AcceptedGraph::temporal_dag(autoregressive_pulse_dag(false, false)))
+            .query(CausalQuery::TemporalEffect(pulse()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ExecutionContext::for_tests(11))
+            .unwrap()
+    };
+    let mut refresh =
+        study.start_retained_refresh("series", 2, &observations(0..12, false), None).unwrap();
+    let mutation = RefreshMutation::Evict { id: 0 };
+    let before = refresh.result().unwrap();
+    let refused = other.apply_retained_refresh(&mut refresh, &mutation).unwrap_err();
+    assert!(refused.to_string().contains("another prepared study"), "{refused}");
+    assert_eq!(refresh.result().unwrap(), before);
+    study.apply_retained_refresh(&mut refresh, &mutation).unwrap();
 }

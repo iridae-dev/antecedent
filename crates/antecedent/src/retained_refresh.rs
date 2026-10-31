@@ -170,7 +170,8 @@ pub enum RefreshMutation {
         /// New mask.
         masked: bool,
     },
-    /// Replace the source and its rows. Nothing of the old source survives. Recomputed.
+    /// Replace the source and its rows. Nothing of the old source survives. Recomputed. Inside a
+    /// block it replaces that block alone; the other blocks stay.
     Replace {
         /// New source.
         source: Arc<str>,
@@ -237,6 +238,8 @@ enum Summary {
 #[derive(Clone, Debug)]
 pub struct RetainedRefresh {
     summary: Summary,
+    /// The compiled program of the prepared study that started this handle, when it had one.
+    bound_to: Option<antecedent_core::SemanticDigest>,
 }
 
 fn invalid(message: String) -> CausalError {
@@ -363,7 +366,21 @@ impl RetainedRefresh {
                 Summary::Conjugate(fit)
             }
         };
-        Ok(Self { summary })
+        Ok(Self { summary, bound_to: None })
+    }
+
+    /// The identity of the compiled program of the prepared study that started this handle;
+    /// `None` for a handle started without one.
+    #[must_use]
+    pub const fn bound_to(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.bound_to
+    }
+
+    /// Bind this handle to the compiled program of the prepared study that started it.
+    #[must_use]
+    pub(crate) const fn bind(mut self, program: Option<antecedent_core::SemanticDigest>) -> Self {
+        self.bound_to = program;
+        self
     }
 
     /// The family this summary belongs to.
@@ -409,7 +426,7 @@ impl RetainedRefresh {
             Summary::Covariance(fit) => Summary::Covariance(fit.into_summary_only()),
             Summary::Conjugate(fit) => Summary::Conjugate(fit.into_summary_only()),
         };
-        Self { summary }
+        Self { summary, bound_to: self.bound_to }
     }
 
     /// Accept `operation` under the retention of this summary, or refuse it.
@@ -531,7 +548,7 @@ impl RetainedRefresh {
     ) -> Result<SpilledRefresh, CausalError> {
         let _lease = admit(ctx, self.frame_bytes(), "spilling a prepared refresh")?;
         let handle = self.summary.ops().spill_frame(registry, key)?;
-        Ok(SpilledRefresh { handle, family: self.family() })
+        Ok(SpilledRefresh { handle, family: self.family(), bound_to: self.bound_to })
     }
 }
 
@@ -852,11 +869,32 @@ impl RefreshFamilyOps for ConjugateBlockRefresh {
             RefreshMutation::SetMask { id, masked } => self.set_mask(&label, id, masked)?,
             RefreshMutation::Replace { source, rows } => {
                 let rows = ols_rows(rows)?;
+                // The block is replaced; its siblings stay, rebuilt from their retained rows.
+                let mut blocks: Vec<(Arc<str>, String, Vec<RefreshRow>)> = Vec::new();
+                for other in self.labels().filter(|other| *other != &*label) {
+                    let Some(block) = self.block(other).filter(|block| !block.rows().is_empty())
+                    else {
+                        return Err(invalid(format!(
+                            "block {other} keeps no rows, so replacing block {label} would \
+                             discard it; replace the block on a handle that retains rows, or \
+                             start a new refresh"
+                        )));
+                    };
+                    blocks.push((
+                        Arc::from(other),
+                        block.source().to_owned(),
+                        block.rows().to_vec(),
+                    ));
+                }
+                blocks.push((Arc::clone(&label), source.to_string(), rows));
+                blocks.sort_by(|left, right| left.0.cmp(&right.0));
                 let mut fresh = ConjugateBlockRefresh::new(self.prior().clone());
                 if self.retention() != RetentionMode::FullReusable {
                     fresh = fresh.into_summary_only();
                 }
-                fresh.add_block(&label, &source, rows)?;
+                for (block_label, block_source, block_rows) in blocks {
+                    fresh.add_block(&block_label, &block_source, block_rows)?;
+                }
                 *self = fresh;
                 RefreshOutcome::Recomputed
             }
@@ -965,9 +1003,16 @@ pub(crate) fn reload_admitted<T: Spillable>(
 pub struct SpilledRefresh {
     handle: SpillHandle,
     family: RefreshFamily,
+    bound_to: Option<antecedent_core::SemanticDigest>,
 }
 
 impl SpilledRefresh {
+    /// The identity of the compiled program of the prepared study that started the summary.
+    #[must_use]
+    pub const fn bound_to(&self) -> Option<antecedent_core::SemanticDigest> {
+        self.bound_to
+    }
+
     /// Family of the spilled summary.
     #[must_use]
     pub const fn family(&self) -> RefreshFamily {
@@ -1021,6 +1066,6 @@ impl SpilledRefresh {
                 Summary::Conjugate(reload_admitted(ctx, &self.handle)?)
             }
         };
-        Ok(RetainedRefresh { summary })
+        Ok(RetainedRefresh { summary, bound_to: self.bound_to })
     }
 }

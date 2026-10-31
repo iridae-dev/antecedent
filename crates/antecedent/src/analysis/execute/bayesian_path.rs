@@ -2608,6 +2608,7 @@ impl super::Study {
             query,
             &vars,
             (&identified, gaps),
+            self.declared.split.as_ref(),
             ctx,
         )?;
         let DbnFrequentistBlockEstimate { estimate, identification, estimand, block, point } =
@@ -2708,6 +2709,7 @@ impl super::Study {
         query: &TemporalEffectQuery,
         vars: &[VariableId],
         (identified, gaps): (&'a super::super::prepared::CachedDbnPosteriorIdentification, bool),
+        split: Option<&antecedent_data::DiscoveryEstimationSplit>,
         ctx: &ExecutionContext,
     ) -> Result<DbnFrequentistAtoms<'a>, CausalError> {
         let mut budget =
@@ -2756,7 +2758,7 @@ impl super::Study {
                     &atom.estimand,
                     query,
                     &atom.indexer,
-                    None,
+                    split,
                     gaps,
                     ctx,
                 )?

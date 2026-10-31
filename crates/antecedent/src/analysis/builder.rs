@@ -631,6 +631,37 @@ pub struct StudyBuilder {
     mechanisms: Option<Arc<super::structure_route::MechanismProgram>>,
     /// Provenance of a graph posterior accepted from a compiled structure search.
     posterior_provenance: Option<Arc<crate::accepted::StructureProvenance>>,
+    /// Bayesian declarations, kept so that either order with [`Self::inference`] applies them.
+    bayesian_declarations: BayesianDeclarations,
+    /// Whether [`Self::refute`] and [`Self::bootstrap_replicates`] were called, apart from any
+    /// compute budget, so that replacing the budget retracts only what the budget declared.
+    refute_declared: bool,
+    bootstrap_declared: bool,
+}
+
+/// Declarations about the Bayesian inference, made before or after the inference they configure.
+#[derive(Clone, Debug, Default)]
+struct BayesianDeclarations {
+    white_innovation:
+        Option<antecedent_estimate::white_innovation_posterior::InnovationWhitenessGate>,
+    predictive_replicates: Option<crate::inference::PredictiveReplicateBounds>,
+    design_model: Option<crate::DesignPosteriorModel>,
+}
+
+impl BayesianDeclarations {
+    /// Declare on `config` what it does not declare itself: a configuration carrying its own
+    /// value was declared after the builder method and keeps it.
+    fn fill(&self, config: &mut crate::BayesianConfig) {
+        if config.white_innovation.is_none() {
+            config.white_innovation = self.white_innovation;
+        }
+        if config.predictive_replicates.is_none() {
+            config.predictive_replicates = self.predictive_replicates;
+        }
+        if config.design_model.is_none() {
+            config.design_model = self.design_model.clone();
+        }
+    }
 }
 
 // The refusal removes a wrong label, not a capability: the estimator stays
@@ -1253,6 +1284,9 @@ impl StudyBuilder {
             discovery: None,
             mechanisms: None,
             posterior_provenance: None,
+            bayesian_declarations: BayesianDeclarations::default(),
+            refute_declared: false,
+            bootstrap_declared: false,
             data_diagnostics: Some(crate::DataDiagnostics::default()),
         }
     }
@@ -1383,12 +1417,13 @@ impl StudyBuilder {
     ///
     /// An [`AcceptedGraph`] is matrix-axis `accepted`. A bare
     /// [`antecedent_graph::Dag`], [`antecedent_graph::Admg`],
-    /// [`antecedent_graph::Pag`], [`antecedent_graph::Cpdag`], or
-    /// [`antecedent_graph::TemporalDag`] is `explicit`. A
-    /// [`antecedent_graph::TemporalCpdag`] is not [`crate::IntoGraphInput`]
-    /// until the class-preserving temporal identifier lands — use the fallible
-    /// [`AcceptedGraph::temporal_cpdag`] first. [`antecedent_graph::TemporalPag`]
-    /// is the same: use [`AcceptedGraph::temporal_pag`].
+    /// [`antecedent_graph::Pag`], [`antecedent_graph::Cpdag`],
+    /// [`antecedent_graph::TemporalDag`], [`antecedent_graph::TemporalCpdag`],
+    /// [`antecedent_graph::TemporalPag`] or [`antecedent_graph::TemporalAdmg`] is
+    /// `explicit`. A bare CPDAG or temporal CPDAG is not put through the conflict-mark
+    /// review that [`AcceptedGraph::cpdag`] and [`AcceptedGraph::temporal_cpdag`] apply:
+    /// conflict (`x-x`) marks are refused later, when identification enumerates the
+    /// completions. Use the fallible constructors first to refuse them at the boundary.
     ///
     /// Mutually exclusive with [`Self::tiered_background`], which materializes
     /// its own structure: setting both, in either order, is refused
@@ -1536,6 +1571,7 @@ impl StudyBuilder {
     pub fn refute(mut self, suite: RefuteSuite) -> Self {
         self.settings.refute = suite;
         self.settings.refute_explicit = true;
+        self.refute_declared = true;
         self
     }
 
@@ -1544,6 +1580,7 @@ impl StudyBuilder {
     pub fn bootstrap_replicates(mut self, n: u32) -> Self {
         self.settings.bootstrap_replicates = n;
         self.settings.bootstrap_explicit = true;
+        self.bootstrap_declared = true;
         self
     }
 
@@ -1601,15 +1638,10 @@ impl StudyBuilder {
     /// overrides *are* applied. Cancellation is a separate token, not this field.
     #[must_use]
     pub fn compute_budget(mut self, budget: ComputeBudget) -> Self {
-        if budget.bootstrap.is_some() {
-            self.settings.bootstrap_explicit = true;
-        }
-        if budget.validators.is_some() {
-            self.settings.refute_explicit = true;
-        }
-        if budget.n_draws.is_some() {
-            self.settings.n_draws_explicit = true;
-        }
+        // The budget replaces the previous one, so the declarations it carried go with it.
+        self.settings.bootstrap_explicit = self.bootstrap_declared || budget.bootstrap.is_some();
+        self.settings.refute_explicit = self.refute_declared || budget.validators.is_some();
+        self.settings.n_draws_explicit = budget.n_draws.is_some();
         self.execution.compute_budget = budget;
         self
     }
@@ -1757,11 +1789,15 @@ impl StudyBuilder {
         {
             self.declared.estimator = None;
         }
+        let mut mode = mode;
+        if let InferenceMode::Bayesian(cfg) = &mut mode {
+            self.bayesian_declarations.fill(cfg);
+        }
         self.settings.inference = mode;
         self
     }
 
-    /// Declare serially independent innovations on the Bayesian inference already set.
+    /// Declare serially independent innovations on the Bayesian inference, set before or after.
     ///
     /// Equivalent to [`crate::BayesianConfig::white_innovation`]; it leaves a frequentist
     /// study unchanged, and a route that does not read the premise refuses it at build.
@@ -1773,6 +1809,7 @@ impl StudyBuilder {
         if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
             cfg.white_innovation = Some(gate);
         }
+        self.bayesian_declarations.white_innovation = Some(gate);
         self
     }
 
@@ -1786,10 +1823,11 @@ impl StudyBuilder {
     /// more than `max_rows` rows is refused rather than silently unretained.
     #[must_use]
     pub fn bayesian_predictive_replicates(mut self, n_sims: u32, max_rows: u32) -> Self {
+        let bounds = crate::inference::PredictiveReplicateBounds { n_sims, max_rows };
         if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
-            cfg.predictive_replicates =
-                Some(crate::inference::PredictiveReplicateBounds { n_sims, max_rows });
+            cfg.predictive_replicates = Some(bounds);
         }
+        self.bayesian_declarations.predictive_replicates = Some(bounds);
         self
     }
 
@@ -1801,8 +1839,9 @@ impl StudyBuilder {
     #[must_use]
     pub fn bayesian_design_model(mut self, model: crate::DesignPosteriorModel) -> Self {
         if let InferenceMode::Bayesian(cfg) = &mut self.settings.inference {
-            cfg.design_model = Some(model);
+            cfg.design_model = Some(model.clone());
         }
+        self.bayesian_declarations.design_model = Some(model);
         self
     }
 
@@ -2129,6 +2168,62 @@ mod estimator_spec_conflict_tests {
 
     fn toy_builder() -> StudyBuilder {
         Study::tabular(toy_data())
+    }
+
+    fn bayesian_config(builder: &StudyBuilder) -> &crate::BayesianConfig {
+        match &builder.settings.inference {
+            InferenceMode::Bayesian(config) => config,
+            InferenceMode::Frequentist => panic!("expected Bayesian inference"),
+        }
+    }
+
+    #[test]
+    fn a_replaced_compute_budget_retracts_the_declarations_it_carried() {
+        let budget = ComputeBudget {
+            bootstrap: Some(10),
+            n_draws: Some(32),
+            validators: Some(RefuteSuite::Cheap),
+            ..ComputeBudget::default()
+        };
+        let carried = toy_builder().compute_budget(budget);
+        assert!(carried.settings.bootstrap_explicit);
+        assert!(carried.settings.refute_explicit);
+        assert!(carried.settings.n_draws_explicit);
+        let replaced = carried.compute_budget(ComputeBudget::default());
+        assert!(!replaced.settings.bootstrap_explicit);
+        assert!(!replaced.settings.refute_explicit);
+        assert!(!replaced.settings.n_draws_explicit);
+        // A direct declaration is the caller's own and survives the replacement.
+        let direct = toy_builder()
+            .bootstrap_replicates(5)
+            .refute(RefuteSuite::None)
+            .compute_budget(budget)
+            .compute_budget(ComputeBudget::default());
+        assert!(direct.settings.bootstrap_explicit);
+        assert!(direct.settings.refute_explicit);
+    }
+
+    #[test]
+    fn bayesian_declarations_apply_in_either_order_with_the_inference() {
+        let config = || InferenceMode::Bayesian(crate::BayesianConfig::conjugate());
+        let before = toy_builder().bayesian_predictive_replicates(8, 16).inference(config());
+        let after = toy_builder().inference(config()).bayesian_predictive_replicates(8, 16);
+        for builder in [&before, &after] {
+            let bounds = bayesian_config(builder).predictive_replicates;
+            assert_eq!(bounds.map(|b| (b.n_sims, b.max_rows)), Some((8, 16)));
+        }
+        // A configuration declared after the builder method keeps its own value.
+        let mut own = crate::BayesianConfig::conjugate();
+        own.predictive_replicates =
+            Some(crate::inference::PredictiveReplicateBounds { n_sims: 2, max_rows: 4 });
+        let overriding = toy_builder()
+            .bayesian_predictive_replicates(8, 16)
+            .inference(InferenceMode::Bayesian(own));
+        let bounds = bayesian_config(&overriding).predictive_replicates;
+        assert_eq!(bounds.map(|b| (b.n_sims, b.max_rows)), Some((2, 4)));
+        // A frequentist study stays unchanged.
+        let frequentist = toy_builder().bayesian_predictive_replicates(8, 16);
+        assert!(matches!(frequentist.settings.inference, InferenceMode::Frequentist));
     }
 
     #[test]

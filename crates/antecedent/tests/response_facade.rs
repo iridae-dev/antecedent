@@ -694,6 +694,57 @@ fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
     }
 }
 
+/// The plugin-level refuters of an exceedance level refit the exceedance target, not the raw
+/// outcome mean, so every refuted value stays on the probability scale.
+#[test]
+fn exceedance_level_refutation_refits_the_exceedance_target() {
+    let n = 240;
+    let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();
+    let treatment: Vec<f64> = (0..n).map(|i| z[i] + (i as f64 / 11.0).cos()).collect();
+    let outcome: Vec<f64> = (0..n)
+        .map(|i| 10.0 + 2.0 * treatment[i] + 0.8 * z[i] + (i as f64 / 5.0).sin() * 0.3)
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("treatment", treatment.as_slice()),
+        ("outcome", outcome.as_slice()),
+        ("confounder", z.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
+    graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    })
+    .with_outcome_functional(antecedent_core::OutcomeFunctional::exceedance(10.5));
+
+    let result = Study::tabular(data)
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .refute(RefuteSuite::Full)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(53))
+        .unwrap();
+    assert!(!result.refutations.is_empty(), "the exceedance level must be refuted");
+    for report in result.refutations.iter() {
+        assert!(
+            (-1e-9..=1.0 + 1e-9).contains(&report.original_ate),
+            "{} original {} is not a probability",
+            report.refuter,
+            report.original_ate
+        );
+        assert!(
+            report.refuted_ate.is_nan() || (-1.0..=2.0).contains(&report.refuted_ate),
+            "{} refuted value {} is not on the exceedance scale",
+            report.refuter,
+            report.refuted_ate
+        );
+    }
+}
+
 #[test]
 fn prepared_response_refute_is_refused() {
     let (data, graph, query) = mean_curve_study();
@@ -1263,6 +1314,48 @@ fn graph_posterior_response_failed_atom_is_graph_dependent() {
         "{:?}",
         response.estimate
     );
+}
+
+struct CancelAfterIdentification {
+    token: antecedent_core::CancellationToken,
+}
+
+impl antecedent_core::ProgressSink for CancelAfterIdentification {
+    fn report(&self, _fraction: f64, stage: &str) {
+        if stage == "identify.compute" {
+            self.token.cancel();
+        }
+    }
+}
+
+/// A cancellation raised while the atoms are fitted ends the run as a cancellation; it is not
+/// absorbed into unevaluable posterior mass.
+#[test]
+fn graph_posterior_response_cancellation_is_not_unevaluable_mass() {
+    let data = two_covariate_response_data(160, [&|_| true, &|_| true]);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let mut ctx = ExecutionContext::for_tests(5);
+    let token = ctx.cancellation.clone();
+    ctx.progress = Some(Arc::new(CancelAfterIdentification { token }));
+    let outcome = Study::tabular(data)
+        .graph_posterior(two_adjustment_posterior([0.6, 0.4]))
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ctx);
+    match outcome {
+        Err(antecedent::CausalError::Cancelled { .. }) => {}
+        other => panic!(
+            "a cancelled run must report cancellation, got {:?}",
+            other.map(|r| r.structural_response.clone())
+        ),
+    }
 }
 
 /// The prepared handle does not refuse a several-coordinate level of a graph-posterior response:

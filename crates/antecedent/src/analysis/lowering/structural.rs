@@ -364,7 +364,7 @@ fn dirichlet_row_weights(
     let likelihood = LikelihoodModel::new(backend).map_err(declaration_error)?;
     Ok((
         Realization::Bayesian(OrdinaryBayesianLikelihood::new(likelihood, prior.clone())),
-        PosteriorPlan { algorithm: PosteriorAlgorithm::Conjugate, draws, prior },
+        PosteriorPlan { algorithm: PosteriorAlgorithm::BayesianBootstrap, draws, prior },
     ))
 }
 

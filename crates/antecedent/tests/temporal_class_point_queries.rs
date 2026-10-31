@@ -243,6 +243,32 @@ fn conditional_query(sustained: bool) -> TemporalEffectQuery {
 }
 
 #[test]
+fn temporal_class_points_refuse_a_weighted_series_they_would_fit_unweighted() {
+    let columns = conditional_columns();
+    let data = series_from(&columns);
+    let weights: Vec<f64> =
+        (0..columns[0].1.len()).map(|i| if i % 4 == 0 { 0.0 } else { 2.0 }).collect();
+    let weighted = data.with_weights(Arc::from(weights)).unwrap();
+    let builder = bind(
+        Study::series(weighted)
+            .query(CausalQuery::TemporalEffect(conditional_query(false)))
+            .refute(RefuteSuite::None),
+        &conditional_dag(),
+        false,
+        false,
+    );
+    let error = builder
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| {
+            study.run(&ExecutionContext::for_tests(11)).map_err(|error| error.to_string())
+        })
+        .err()
+        .expect("a weighted series cannot be fit without its weights");
+    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+}
+
+#[test]
 fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/temporal_conditional/expected.json"

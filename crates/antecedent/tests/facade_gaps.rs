@@ -297,7 +297,7 @@ fn counterfactual_and_anomaly_via_causal_analysis() {
 }
 
 #[test]
-fn static_mediation_natural_rejected() {
+fn static_mediation_natural_direct_without_a_direct_path_is_identified_zero() {
     let n = 40usize;
     let mut b = CausalSchemaBuilder::new();
     for name in ["t", "m", "y"] {
@@ -349,15 +349,17 @@ fn static_mediation_natural_rejected() {
         [VariableId::from_raw(1)],
         MediationContrast::NaturalDirect,
     );
-    let err = Study::tabular(data)
+    // The only directed path runs through the mediator, so the natural direct effect is zero by
+    // structure and identified, whatever the data say.
+    let ctx = ExecutionContext::for_tests(1);
+    Study::tabular(data)
         .graph(g)
         .query(CausalQuery::Mediation(q))
         .refute(RefuteSuite::None)
         .build()
         .unwrap()
-        .prepare(&ExecutionContext::for_tests(1))
-        .unwrap_err();
-    assert!(err.to_string().contains("reason=effect_not_identified"), "{err}");
+        .prepare(&ctx)
+        .unwrap();
 }
 
 #[test]

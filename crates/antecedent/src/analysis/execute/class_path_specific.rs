@@ -48,6 +48,39 @@ pub(super) struct ClassPathRun<'a, G> {
     )>,
 }
 
+/// The largest share of requested shared replicates that may fail before the interval or
+/// standard error they feed is refused.
+const SHARED_REPLICATE_MAX_FAILURE_SHARE: f64 = 0.5;
+
+/// The failed count of `requested` shared replicates of which `ok` survived.
+///
+/// A shared replicate is dropped when any functional fails on it, so the survivors alone say
+/// nothing about how many were lost. Nothing is requested (`requested == 0`) is not a failure.
+///
+/// # Errors
+/// Fewer than two surviving replicates, or more than the allowed share of the requested
+/// replicates failed, so no spread can be read from them.
+pub(super) fn shared_replicate_failures(requested: u32, ok: usize) -> Result<u32, CausalError> {
+    if requested == 0 {
+        return Ok(0);
+    }
+    let ok = u32::try_from(ok).unwrap_or(u32::MAX);
+    let failed = requested.saturating_sub(ok);
+    let share = f64::from(failed) / f64::from(requested);
+    if ok < 2 || share > SHARED_REPLICATE_MAX_FAILURE_SHARE {
+        return Err(CausalError::Estimate(antecedent_estimate::EstimationError::stats_msg(
+            format!(
+                "insufficient_bootstrap_replicates: {ok} of {requested} shared bootstrap \
+                 replicates evaluated, below the floor of two and at most {} percent failures; \
+                 no standard error or identified-set interval is published from them. Next \
+                 attempt: more replicates, or a larger sample",
+                SHARED_REPLICATE_MAX_FAILURE_SHARE * 100.0
+            ),
+        )));
+    }
+    Ok(failed)
+}
+
 /// Ordered fit products of the identified class completions.
 struct ClassPathEstimates {
     outcomes: Vec<ClassAtomOutcome>,
@@ -281,6 +314,10 @@ impl super::Study {
             let refs: Vec<&antecedent_estimate::PreparedFunctionalEffect> =
                 prepared_completions.iter().map(|(_, prepared)| prepared).collect();
             let draws = fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "path-specific class interval" });
+            }
+            shared_replicate_failures(fitter.bootstrap_replicates, draws.len())?;
             let points: Vec<f64> = evaluated.iter().map(|(_, estimate, _)| estimate.ate).collect();
             if points.len() == refs.len() {
                 mixture.identified_set_interval =
@@ -429,4 +466,20 @@ fn require_functional_estimator(estimator_id: EstimatorId) -> Result<(), CausalE
             "PathSpecific execute requires estimator functional.effect; got {estimator_id}"
         ),
     })
+}
+
+#[cfg(test)]
+mod shared_replicate_tests {
+    use super::*;
+
+    #[test]
+    fn lost_replicates_are_counted_and_a_floor_refuses_a_thin_survivor_set() {
+        assert_eq!(shared_replicate_failures(0, 0).unwrap(), 0);
+        assert_eq!(shared_replicate_failures(100, 100).unwrap(), 0);
+        assert_eq!(shared_replicate_failures(100, 60).unwrap(), 40);
+        assert!(shared_replicate_failures(100, 3).is_err());
+        assert!(shared_replicate_failures(100, 49).is_err());
+        assert!(shared_replicate_failures(4, 1).is_err());
+        assert_eq!(shared_replicate_failures(2, 2).unwrap(), 0);
+    }
 }

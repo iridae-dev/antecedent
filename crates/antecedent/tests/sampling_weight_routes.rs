@@ -23,8 +23,8 @@ use std::sync::Arc;
 use antecedent::prelude::ExecutionContext;
 use antecedent::{PanelDidQuery, RandomizedEffectQuery, Study};
 use antecedent_core::{
-    CausalQuery, Lag, RandomizationDesign, StreamDomain, TemporalEffectQuery, TemporalPolicy,
-    VariableId,
+    CausalQuery, Lag, MediationContrast, MediationQuery, RandomizationDesign, StreamDomain,
+    TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -698,11 +698,7 @@ fn a_weighted_sustained_window_is_weighted_least_squares_on_its_lag_windows() {
             let zeros = weights[first..].iter().filter(|w| **w == 0.0).count() as u64;
             let record = effect.diagnostics.sampling_weights.as_ref().expect("weight record");
             assert_eq!(record.zero_weight_rows, zeros, "{label} [{from}, {until}]");
-            assert_eq!(
-                record.rows_used,
-                (n - first) as u64 - zeros,
-                "{label} [{from}, {until}]"
-            );
+            assert_eq!(record.rows_used, (n - first) as u64 - zeros, "{label} [{from}, {until}]");
         }
     }
 }
@@ -713,7 +709,7 @@ fn a_weighted_sustained_window_is_weighted_least_squares_on_its_lag_windows() {
 /// declared population is not the sample).
 #[test]
 fn a_weighted_multi_step_window_is_row_replication_rescale_invariant_and_unit_weights_are_unweighted()
-{
+ {
     let n = 300;
     let (t, y) = series(n, 61);
     let mut rng = ExecutionContext::for_tests(62).rng.stream_for(StreamDomain::Test, 0x7106);
@@ -828,5 +824,60 @@ fn temporal_weights_refuse_constructions_without_a_weighted_fit() {
         .run(&ctx())
         .unwrap_err()
         .to_string();
+    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+}
+
+/// `t@1 -> m`, `t@1 -> y`, `m -> y`.
+fn mediation_graph() -> TemporalDag {
+    let mut graph = TemporalDag::empty();
+    let t1 = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut graph, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    graph.insert_directed(t1, m0).unwrap();
+    graph.insert_directed(t1, y0).unwrap();
+    graph.insert_directed(m0, y0).unwrap();
+    graph
+}
+
+#[test]
+fn temporal_mediation_refuses_series_weights_it_cannot_read() {
+    let n = 200_usize;
+    let mut rng = ExecutionContext::for_tests(31).rng.stream_for(StreamDomain::Test, 0x7104);
+    let t: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let m: Vec<f64> = (0..n)
+        .map(|i| 0.8 * i.checked_sub(1).map_or(0.0, |j| t[j]) + 0.3 * standard_normal(&mut rng))
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            0.5 * m[i]
+                + 0.2 * i.checked_sub(1).map_or(0.0, |j| t[j])
+                + 0.3 * standard_normal(&mut rng)
+        })
+        .collect();
+    let weights: Vec<f64> = (0..n).map(|i| if i % 2 == 0 { 0.0 } else { 2.0 }).collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [("t", t.as_slice()), ("m", m.as_slice()), ("y", y.as_slice())],
+        1,
+    )
+    .unwrap()
+    .with_weights(Arc::from(weights))
+    .unwrap();
+    let query = MediationQuery::binary(
+        VariableId::from_raw(0),
+        VariableId::from_raw(2),
+        [VariableId::from_raw(1)],
+        MediationContrast::Mediated,
+    )
+    .with_horizons(vec![1])
+    .unwrap();
+    let error = Study::series(data)
+        .graph(mediation_graph())
+        .query(CausalQuery::Mediation(query))
+        .refute(antecedent::RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .map_err(|e| e.to_string())
+        .and_then(|study| study.run(&ctx()).map_err(|e| e.to_string()))
+        .unwrap_err();
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
 }

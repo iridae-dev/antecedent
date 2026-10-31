@@ -35,7 +35,21 @@ impl PreparedStudy {
         })
     }
 
-    fn check_family(&self, family: RefreshFamily) -> Result<(), CausalError> {
+    /// Refuse a handle of another family, or one started by another prepared study.
+    fn check_handle(
+        &self,
+        family: RefreshFamily,
+        bound_to: Option<antecedent_core::SemanticDigest>,
+    ) -> Result<(), CausalError> {
+        if let Some(bound) = bound_to {
+            if self.plan.lowered_program_identity() != Some(bound) {
+                return Err(CausalError::Compile {
+                    message: "this retained refresh was started by another prepared study; \
+                              start a new retained refresh from this study"
+                        .into(),
+                });
+            }
+        }
         let expected = self.retained_refresh_family()?;
         if expected == family {
             Ok(())
@@ -64,7 +78,8 @@ impl PreparedStudy {
         conjugate: Option<(&ConjugateOlsPrior, &str)>,
     ) -> Result<RetainedRefresh, CausalError> {
         let family = self.retained_refresh_family()?;
-        RetainedRefresh::start(family, source, width, rows, conjugate)
+        Ok(RetainedRefresh::start(family, source, width, rows, conjugate)?
+            .bind(self.plan.lowered_program_identity()))
     }
 
     /// Apply one change to a summary started by [`Self::start_retained_refresh`] and compare
@@ -73,13 +88,13 @@ impl PreparedStudy {
     /// when the change or the comparison is refused.
     ///
     /// # Errors
-    /// A handle of another family, and the refusals of [`RetainedRefresh::apply_verified`].
+    /// A handle of another family or another prepared study, and the refusals of [`RetainedRefresh::apply_verified`].
     pub fn apply_retained_refresh(
         &self,
         refresh: &mut RetainedRefresh,
         mutation: &RefreshMutation,
     ) -> Result<RefreshOutcome, CausalError> {
-        self.check_family(refresh.family())?;
+        self.check_handle(refresh.family(), refresh.bound_to())?;
         refresh.apply_verified(mutation)
     }
 
@@ -87,7 +102,7 @@ impl PreparedStudy {
     /// budget and `registry`'s byte budget.
     ///
     /// # Errors
-    /// A handle of another family, and the refusals of [`RetainedRefresh::spill`].
+    /// A handle of another family or another prepared study, and the refusals of [`RetainedRefresh::spill`].
     pub fn spill_retained_refresh(
         &self,
         refresh: &RetainedRefresh,
@@ -95,20 +110,20 @@ impl PreparedStudy {
         registry: &Arc<SpillRegistry>,
         key: &str,
     ) -> Result<SpilledRefresh, CausalError> {
-        self.check_family(refresh.family())?;
+        self.check_handle(refresh.family(), refresh.bound_to())?;
         refresh.spill(ctx, registry, key)
     }
 
     /// Read a spilled summary back under `ctx`'s admission budget.
     ///
     /// # Errors
-    /// A handle of another family, and the refusals of [`SpilledRefresh::reload`].
+    /// A handle of another family or another prepared study, and the refusals of [`SpilledRefresh::reload`].
     pub fn reload_retained_refresh(
         &self,
         spilled: &SpilledRefresh,
         ctx: &ExecutionContext,
     ) -> Result<RetainedRefresh, CausalError> {
-        self.check_family(spilled.family())?;
+        self.check_handle(spilled.family(), spilled.bound_to())?;
         spilled.reload(ctx)
     }
 }

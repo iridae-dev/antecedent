@@ -133,15 +133,21 @@ pub(super) fn overlay_prepared_score_functional(
             response.estimate = antecedent_core::ResponseIdentification::PointIdentified(
                 antecedent_core::ResponseValue::Scalar(estimate.ate),
             );
-            response.uncertainty = antecedent_core::ResponseUncertainty::Scalar {
-                standard_error: estimate.se_analytic(),
-                lower: estimate.ate
-                    - crate::result::reported_se_interval_z() * estimate.se_analytic(),
-                upper: estimate.ate
-                    + crate::result::reported_se_interval_z() * estimate.se_analytic(),
-                level: 0.95,
-                interpretation: antecedent_core::IntervalInterpretation::Confidence,
-                draws: None,
+            let standard_error = estimate.se_analytic();
+            // An interval needs a usable standard error; a missing or degenerate one
+            // is withheld rather than published as a point-width band.
+            response.uncertainty = if standard_error.is_finite() && standard_error > 0.0 {
+                let half_width = crate::result::reported_se_interval_z() * standard_error;
+                antecedent_core::ResponseUncertainty::Scalar {
+                    standard_error,
+                    lower: estimate.ate - half_width,
+                    upper: estimate.ate + half_width,
+                    level: 0.95,
+                    interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                    draws: None,
+                }
+            } else {
+                antecedent_core::ResponseUncertainty::None
             };
         }
     }

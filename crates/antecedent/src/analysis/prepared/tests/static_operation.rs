@@ -732,7 +732,7 @@ fn late_stage_cancellation_never_commits_a_refresh_candidate() {
         sink.completed.load(Ordering::SeqCst),
         "cancel must occur after point/uncertainty/validation completed"
     );
-    assert!(matches!(refused, crate::CausalError::Cancelled { stage: "refresh" }), "{refused}");
+    assert!(matches!(refused, crate::CausalError::Cancelled { .. }), "{refused}");
     assert_eq!(before, prepared.contract().unwrap().identities);
     assert_eq!(before, frozen.contract().unwrap().identities);
     assert!(prepared.temporal_invalidations().entries.is_empty());

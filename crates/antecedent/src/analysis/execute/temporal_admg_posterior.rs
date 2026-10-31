@@ -156,6 +156,21 @@ impl AtomEvalView for WindowAtomEval {
     }
 }
 
+/// Refuse a series that carries observation weights: the lag-aligned window tables the atoms
+/// are fit on do not carry them, so they would be ignored under a sampling-weighted label.
+fn refuse_series_weights(series: &TimeSeriesData) -> Result<(), CausalError> {
+    if series.storage().weights().is_some() {
+        return Err(CausalError::Estimate(
+            antecedent_estimate::sampling_weights::unsupported_route(
+                "sampling weights are read by the frequentist temporal linear adjustment and \
+             sustained contrast; the temporal-ADMG graph-posterior windows have no \
+             sampling-weighted construction",
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// One fitted atom kept for the draw-wise mixture standard error.
 struct AtomFit {
     weight: f64,
@@ -244,6 +259,7 @@ struct WindowPosteriorFinish<'a> {
 struct MixtureSe {
     se: f64,
     replicates: u32,
+    failed: u32,
 }
 
 /// The series variables as window columns, and the count the posterior must cover.
@@ -656,7 +672,7 @@ impl super::Study {
             || "temporal-ADMG graph-posterior envelope: missing estimand".to_string(),
         )?;
         let se = if mixed.mixable_scalar && fits.len() > 1 {
-            self.window_mixture_se(&fits, ctx)
+            self.window_mixture_se(&fits, ctx)?
         } else {
             None
         };
@@ -666,19 +682,34 @@ impl super::Study {
     /// Spread of the draw-wise mixture of the atoms' bootstrap replicates, all evaluated at the
     /// same resampled window table; `None` when the atoms read tables of different lengths (no
     /// common resampled table), no replicates were requested, or the inference is Bayesian.
-    fn window_mixture_se(&self, fits: &[AtomFit], ctx: &ExecutionContext) -> Option<MixtureSe> {
+    ///
+    /// # Errors
+    /// Cancellation or a resource limit reached while refitting the replicates, an estimation
+    /// error of the shared refits, or too few successful replicates to support a standard error.
+    fn window_mixture_se(
+        &self,
+        fits: &[AtomFit],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<MixtureSe>, CausalError> {
         if self.settings.inference.is_bayesian() || self.settings.bootstrap_replicates == 0 {
-            return None;
+            return Ok(None);
         }
-        let periods = fits.first()?.periods;
+        let Some(first) = fits.first() else {
+            return Ok(None);
+        };
+        let periods = first.periods;
         if fits.iter().any(|fit| fit.periods != periods) {
-            return None;
+            return Ok(None);
         }
         let refs: Vec<&PreparedFunctionalEffect> = fits.iter().map(|fit| &fit.prepared).collect();
-        let rows = fits.first()?.fitter.shared_replicate_draws(&refs, ctx).ok()?;
-        if rows.len() < 2 {
-            return None;
+        let rows = first.fitter.shared_replicate_draws(&refs, ctx).map_err(CausalError::from)?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "temporal posterior" });
         }
+        let failed = super::class_path_specific::shared_replicate_failures(
+            self.settings.bootstrap_replicates,
+            rows.len(),
+        )?;
         let total: f64 = fits.iter().map(|fit| fit.weight).sum();
         let mixed: Vec<f64> = rows
             .iter()
@@ -689,19 +720,20 @@ impl super::Study {
         let n = mixed.len() as f64;
         let mean = mixed.iter().sum::<f64>() / n;
         let variance = mixed.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (n - 1.0);
-        variance.is_finite().then(|| MixtureSe {
+        Ok(variance.is_finite().then(|| MixtureSe {
             se: variance.sqrt(),
             replicates: u32::try_from(rows.len()).unwrap_or(u32::MAX),
-        })
+            failed,
+        }))
     }
 
     /// Adopt the mixture standard error on a mixed estimate of several atoms.
     fn adopt_mixture_se(mixed: &mut MixedAtomEvals, se: Option<&MixtureSe>) {
-        if let Some(MixtureSe { se, replicates }) = se {
+        if let Some(MixtureSe { se, replicates, failed }) = se {
             mixed.estimate.uncertainty.bootstrap = BootstrapAccounting {
                 se: Some(*se),
                 replicates_ok: Some(*replicates),
-                replicates_failed: Some(0),
+                replicates_failed: Some(*failed),
                 cancelled: false,
                 early_stopped: false,
             };
@@ -857,6 +889,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         self.ensure_admg_posterior_window_licensed()?;
+        refuse_series_weights(series)?;
         let (variables, variable_count) = window_variables(series, gp)?;
         let max_lag = gp.max_lag().unwrap_or(0);
         let (identified, identify_cached): (Arc<CachedGraphPosteriorIdentification>, bool) =
@@ -1002,6 +1035,7 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         self.ensure_admg_posterior_window_licensed()?;
+        refuse_series_weights(series)?;
         let mut budget =
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let effect =

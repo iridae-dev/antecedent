@@ -72,6 +72,7 @@ struct DbnMediationParts {
     atoms: Vec<crate::result::StructuralResponseAtom>,
     masses: DbnMediationMasses,
     atom_points: Vec<f64>,
+    aggregation_policy: crate::result::StructuralAggregationPolicy,
     horizon: u32,
     identify_cached: bool,
 }
@@ -151,8 +152,13 @@ impl super::Study {
         let total_mass = identified.graphs.total_weight();
         let identified_mass: f64 = weights.iter().sum();
         let unidentified_mass = identified.graphs.unidentified_mass();
-        let incomplete =
-            dbn_mediation_graph_dependent(identification.status, unidentified_mass, failed_mass);
+        let aggregation_policy =
+            resolve_structural_aggregation(&contributing_estimands, any_partial);
+        let incomplete = dbn_mediation_graph_dependent(
+            identification.status,
+            aggregation_policy,
+            (unidentified_mass, failed_mass),
+        );
         if incomplete {
             identification.status = IdentificationStatus::GraphDependent;
         }
@@ -171,7 +177,7 @@ impl super::Study {
         let mut diagnostics = dbn_mediation_diagnostics(
             identification.diagnostics.clone(),
             (&identified, &aggregate, masses),
-            (resolve_structural_aggregation(&contributing_estimands, any_partial), distinct_sets),
+            (aggregation_policy, distinct_sets),
             (designs.len(), identify_cached),
         );
         let mut refutations = Vec::new();
@@ -213,6 +219,7 @@ impl super::Study {
                 atoms,
                 masses,
                 atom_points,
+                aggregation_policy,
                 horizon,
                 identify_cached,
             },
@@ -370,6 +377,7 @@ impl super::Study {
             atoms,
             masses,
             atom_points,
+            aggregation_policy,
             horizon,
             identify_cached,
         } = parts;
@@ -391,8 +399,12 @@ impl super::Study {
             }
             _ => antecedent_estimate::TemporalMediationUncertainty::Unavailable,
         };
-        let structural_response =
-            dbn_mediation_structural_mixture(atoms, masses, (horizon, point), &atom_points);
+        let structural_response = dbn_mediation_structural_mixture(
+            atoms,
+            masses,
+            (horizon, point, aggregation_policy),
+            &atom_points,
+        );
         let mediation_grid = antecedent_estimate::TemporalMediationGrid {
             slices: Arc::from([antecedent_estimate::TemporalMediationSlice {
                 horizon,
@@ -598,12 +610,12 @@ fn dbn_mediation_diagnostics(
 /// graph dependent.
 fn dbn_mediation_graph_dependent(
     status: IdentificationStatus,
-    unidentified_mass: f64,
-    failed_mass: f64,
+    policy: crate::result::StructuralAggregationPolicy,
+    (unidentified_mass, failed_mass): (f64, f64),
 ) -> bool {
     resolve_posterior_status(
         status,
-        crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+        policy,
         PosteriorMassSummary {
             unidentified: unidentified_mass,
             failed: failed_mass,
@@ -617,7 +629,7 @@ fn dbn_mediation_graph_dependent(
 fn dbn_mediation_structural_mixture(
     atoms: Vec<crate::result::StructuralResponseAtom>,
     masses: DbnMediationMasses,
-    (horizon, point): (u32, f64),
+    (horizon, point, aggregation_policy): (u32, f64, crate::result::StructuralAggregationPolicy),
     atom_points: &[f64],
 ) -> crate::result::StructuralResponseMixture {
     let lower = atom_points.iter().copied().fold(f64::INFINITY, f64::min);
@@ -639,9 +651,7 @@ fn dbn_mediation_structural_mixture(
         conditional_on_identified: Some(ResponseValue::Scalar(point)),
         full_mass_scope: true,
         truncated_atoms: 0,
-        aggregation_policy: Some(
-            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
-        ),
+        aggregation_policy: Some(aggregation_policy),
     }
 }
 
@@ -709,4 +719,30 @@ fn dbn_mediation_band_diagnostics(
         )),
     }
     diagnostics
+}
+
+#[cfg(test)]
+mod aggregation_policy_tests {
+    use super::*;
+    use crate::result::StructuralAggregationPolicy;
+
+    #[test]
+    fn disagreeing_atom_estimands_make_the_aggregate_graph_dependent() {
+        let status = IdentificationStatus::NonparametricallyIdentified;
+        assert!(!dbn_mediation_graph_dependent(
+            status,
+            StructuralAggregationPolicy::SameEstimandWeightedMean,
+            (0.0, 0.0),
+        ));
+        assert!(dbn_mediation_graph_dependent(
+            status,
+            StructuralAggregationPolicy::GraphDependentAtoms,
+            (0.0, 0.0),
+        ));
+        assert!(dbn_mediation_graph_dependent(
+            status,
+            StructuralAggregationPolicy::SameEstimandWeightedMean,
+            (0.25, 0.0),
+        ));
+    }
 }

@@ -2,23 +2,23 @@
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
 use super::{
-    Arc, AverageEffectQuery, CausalError, CausalQuery, CausalResponse, ClassEnvelopeRun,
-    ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId, EvalError, ExecuteRun,
-    ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect, GraphClass,
-    GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus, IdentifiedClaim,
-    IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedKeyWeights,
-    IdentifierId, InferenceMode, Instant, Intervention, ObservationMechanismEstimator,
-    ObservationSpec, OverlapPolicy, PhysicalExecutionPlan, PosteriorMassSummary, RefutationRun,
-    RefuteSuite, ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty,
-    ResponseValue, Strategy, StudyResult, TableView, TabularData, VariableId, WeightedGraphSamples,
-    bayesian_gcomp, elapsed_ns, envelope_se_omits_between_atom_variance,
-    envelope_to_identification_result_for, functional_cell_unevaluable,
-    identification_from_cache_or, identification_status_ok_for_case,
+    Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
+    ClassEnvelopeRun, ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind,
+    DiagnosticSeverity, EffectEstimate, EstimandMethod, EstimationWorkspace, EstimatorId,
+    EvalError, ExecuteRun, ExecutionContext, FunctionalDistributionWorkspace, FunctionalEffect,
+    GraphClass, GraphIdentFlag, GraphPosterior, IdentificationResult, IdentificationStatus,
+    IdentifiedClaim, IdentifiedEstimand, IdentifiedExecuteExtras, IdentifiedExecuteFinish,
+    IdentifiedKeyWeights, IdentifierId, InferenceMode, Instant, Intervention,
+    ObservationMechanismEstimator, ObservationSpec, OverlapPolicy, PhysicalExecutionPlan,
+    PosteriorMassSummary, RefutationRun, RefuteSuite, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, Strategy, StudyResult, TableView,
+    TabularData, VariableId, WeightedGraphSamples, bayesian_gcomp, elapsed_ns,
+    envelope_se_omits_between_atom_variance, envelope_to_identification_result_for,
+    functional_cell_unevaluable, identification_from_cache_or, identification_status_ok_for_case,
     identified_set_interval_diagnostics, identify_cached_diagnostic,
     interactive_subsample_graphs_accounted, provenance_ids, report_identify_compute,
-    resolve_posterior_status, response_functional_is_derivative, scalar_identified_set,
-    support_from_functional_eval,
+    resolve_posterior_status, resolve_structural_aggregation, response_functional_is_derivative,
+    scalar_identified_set, support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
 
@@ -116,6 +116,9 @@ struct GraphPosteriorResponseFits {
     subsample_notes: Vec<Diagnostic>,
     atoms: Vec<crate::result::StructuralResponseAtom>,
     weighted: Vec<(u64, f64, CausalResponse)>,
+    /// The estimand and partial-identification flag of each weighted atom, parallel to
+    /// `weighted`.
+    contributing: Vec<(IdentifiedEstimand, bool)>,
     estimand: IdentifiedEstimand,
     failed_mass: f64,
     atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
@@ -134,6 +137,7 @@ struct GraphPosteriorPooled {
     identified_mass: f64,
     total_mass: f64,
     structural_set: Option<antecedent_core::ResponseEnvelope>,
+    aggregation_policy: crate::result::StructuralAggregationPolicy,
 }
 
 /// Predictive checks and the posterior refutation reports added to a Bayesian level.
@@ -236,6 +240,7 @@ impl super::Study {
             identified_mass,
             total_mass,
             structural_set,
+            aggregation_policy,
             ..
         } = pooled;
         let GraphPosteriorResponseFits {
@@ -273,7 +278,7 @@ impl super::Study {
                     conditional_on_identified: Some(conditional),
                     full_mass_scope: true,
                     truncated_atoms: 0,
-                    aggregation_policy: None,
+                    aggregation_policy: Some(aggregation_policy),
                 }),
                 diagnostics: Some(diagnostics),
                 predictive_checks,
@@ -310,8 +315,8 @@ impl super::Study {
         let mut fitter =
             ContinuousResponseEstimator::new(Arc::clone(&fits.estimand.adjustment_set));
         fitter.options = fits.options.clone();
-        let mut estimator = bayesian_gcomp(config, run.ctx);
-        estimator.prior.clone_from(&config.prior);
+        let estimator =
+            resolved_bayesian_response_estimator(config, &fitter, run.data, run.query, run.ctx)?;
         let (status, assumptions) = primary;
         let state = super::bayesian_level_refutation::refute_bayesian_intervention_level(
             &super::bayesian_level_refutation::BayesianLevelRefutationInput {
@@ -366,6 +371,7 @@ impl super::Study {
             &mut subsample_notes,
         )?;
         let mut weighted = Vec::new();
+        let mut contributing = Vec::new();
         let mut atoms = graph_posterior_structural_atoms(&identified.graphs);
         let mut primary = None;
         let mut failed_mass = 0.0;
@@ -382,8 +388,8 @@ impl super::Study {
                 ContinuousResponseEstimator::new(Arc::clone(&atom.estimand.adjustment_set));
             estimator.options = options.clone();
             let scored = if let InferenceMode::Bayesian(cfg) = &self.settings.inference {
-                let mut bayes = bayesian_gcomp(cfg, inner);
-                bayes.prior.clone_from(&cfg.prior);
+                let bayes =
+                    resolved_bayesian_response_estimator(cfg, &estimator, data, query, inner)?;
                 estimator
                     .estimate_bayesian(
                         data,
@@ -410,7 +416,16 @@ impl super::Study {
                 Err(err @ antecedent_estimate::EstimationError::Refused { .. }) => {
                     return Err(err.into());
                 }
-                Err(_) => {
+                Err(err) => {
+                    // Cancellation and resource refusals end the route; only an ordinary
+                    // fit failure leaves the atom's weight unevaluable.
+                    if matches!(err, antecedent_estimate::EstimationError::Capacity(_)) {
+                        return Err(err.into());
+                    }
+                    let err = CausalError::from(err);
+                    if matches!(err, CausalError::Cancelled { .. } | CausalError::Resource { .. }) {
+                        return Err(err);
+                    }
                     failed_mass += weight;
                     for slot in atoms.iter_mut().filter(|candidate| candidate.graph_key == atom.key)
                     {
@@ -437,6 +452,11 @@ impl super::Study {
             if primary.is_none() {
                 primary = Some((atom.estimand.clone(), atom.identification.clone()));
             }
+            contributing.push((
+                atom.estimand.clone(),
+                atom.identification.status == IdentificationStatus::PartiallyIdentified
+                    || response.identification_status == IdentificationStatus::PartiallyIdentified,
+            ));
             weighted.push((atom.key, weight, response));
         }
         let (estimand, identification) = primary.ok_or_else(|| CausalError::Compile {
@@ -451,6 +471,7 @@ impl super::Study {
                 subsample_notes,
                 atoms,
                 weighted,
+                contributing,
                 estimand,
                 failed_mass,
                 atom_scores,
@@ -489,9 +510,13 @@ impl super::Study {
         let first = &weighted[0].2;
         // Unevaluable and subsampled-out mass are as incomplete as unidentified
         // mass: the published value covers only the evaluated atoms.
+        let aggregation_policy = resolve_structural_aggregation(
+            &fits.contributing.iter().map(|(estimand, _)| estimand).collect::<Vec<_>>(),
+            fits.contributing.iter().any(|(_, partial)| *partial),
+        );
         let graph_dependent = resolve_posterior_status(
             identification.status,
-            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+            aggregation_policy,
             PosteriorMassSummary {
                 unidentified: unidentified_mass,
                 failed: failed_mass,
@@ -568,6 +593,7 @@ impl super::Study {
             identified_mass,
             total_mass,
             structural_set,
+            aggregation_policy,
         })
     }
 
@@ -1060,7 +1086,7 @@ impl super::Study {
             }
             _ => self.refute_response_plugin_level(
                 ResponseRefuteInput {
-                    data,
+                    data: &data_est,
                     query,
                     estimand: &estimand,
                     estimate: &estimate,
@@ -1952,6 +1978,39 @@ pub(super) fn response_primary_pair(
     functional: &ResponseFunctional,
 ) -> Result<(VariableId, VariableId), CausalError> {
     crate::analysis::proof_support::require_primary_pair(functional)
+}
+
+/// Posterior g-computation estimator whose prior is resolved against the linear response
+/// problem the ordinary route prepares. A transferred source without a response-specific
+/// mapping is refused rather than replaced by an isotropic prior.
+pub(super) fn resolved_bayesian_response_estimator(
+    config: &BayesianConfig,
+    fitter: &ContinuousResponseEstimator,
+    data: &TabularData,
+    query: &ResponseQuery,
+    ctx: &ExecutionContext,
+) -> Result<antecedent_estimate::BayesianGComputationAte, CausalError> {
+    if config.has_transferred_source() && config.prior_mapping.is_none() && config.prior.is_none() {
+        return Err(CausalError::Unsupported {
+            message: "Bayesian response prior transfer requires a response-specific \
+                      mapping (dose/intervention coordinate to outcome-regression \
+                      coefficients); incompatible catalogs must not fall back to \
+                      isotropic priors",
+        });
+    }
+    let mut bayes = bayesian_gcomp(config, ctx);
+    if config.has_transferred_source() {
+        let (outcome, treatments) = response_prior_targets(&query.functional)?;
+        let prep = fitter
+            .prepare_linear_response_problem(data, outcome, &treatments)
+            .map_err(CausalError::from)?;
+        let (resolved, _) =
+            crate::inference::resolve_bayesian_prior_with_conflict(config, &prep, Some(ctx))?;
+        bayes.prior = resolved;
+    } else {
+        bayes.prior.clone_from(&config.prior);
+    }
+    Ok(bayes)
 }
 
 pub(super) fn response_prior_targets(

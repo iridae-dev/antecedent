@@ -697,7 +697,7 @@ fn assemble(
         statistical.realization =
             Realization::Bayesian(OrdinaryBayesianLikelihood::new(likelihood, prior.clone()));
         statistical.posterior = Some(PosteriorPlan {
-            algorithm: PosteriorAlgorithm::Conjugate,
+            algorithm: PosteriorAlgorithm::BayesianBootstrap,
             draws: config.n_draws,
             prior,
         });

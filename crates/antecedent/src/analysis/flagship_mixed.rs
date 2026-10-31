@@ -729,8 +729,27 @@ impl FlagshipWorkflow {
     ) -> Result<UtilityReplay, FlagshipError> {
         self.authority.require_valid()?;
         require_finite(benefit)?;
+        let previous = (
+            self.temporal_request.benefit_per_unit,
+            self.bayesian_request.utility.benefit_per_unit,
+        );
         self.temporal_request.benefit_per_unit = benefit;
         self.bayesian_request.utility.benefit_per_unit = benefit;
+        let replay = self.replay_utility(benefit, ctx);
+        if replay.is_err() {
+            (
+                self.temporal_request.benefit_per_unit,
+                self.bayesian_request.utility.benefit_per_unit,
+            ) = previous;
+        }
+        replay
+    }
+
+    fn replay_utility(
+        &mut self,
+        benefit: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<UtilityReplay, FlagshipError> {
         let temporal_out =
             execute_temporal_with_receipt(&mut self.temporal, &self.temporal_request, ctx)?;
         let bayesian_out =
@@ -768,7 +787,16 @@ impl FlagshipWorkflow {
         if !(prior_scale.is_finite() && prior_scale > 0.0) {
             return Err(FlagshipError::Route("a prior scale is a finite positive number"));
         }
+        let previous = self.bayesian_request.inference.prior_scale;
         self.bayesian_request.inference.prior_scale = prior_scale;
+        let replay = self.replay_prior(ctx);
+        if replay.is_err() {
+            self.bayesian_request.inference.prior_scale = previous;
+        }
+        replay
+    }
+
+    fn replay_prior(&mut self, ctx: &ExecutionContext) -> Result<PriorReplay, FlagshipError> {
         let bayesian_out =
             execute_bayesian_with_receipt(&mut self.bayesian, &self.bayesian_request, ctx)?;
         self.install(
@@ -804,7 +832,16 @@ impl FlagshipWorkflow {
                 "a replacement period must still contain the retained two-step histories",
             ));
         }
+        let previous = self.temporal_request.period;
         self.temporal_request.period = period;
+        let replay = self.replay_period(ctx);
+        if replay.is_err() {
+            self.temporal_request.period = previous;
+        }
+        replay
+    }
+
+    fn replay_period(&mut self, ctx: &ExecutionContext) -> Result<PeriodReplay, FlagshipError> {
         let temporal_out =
             execute_temporal_with_receipt(&mut self.temporal, &self.temporal_request, ctx)?;
         let temporal_variance = published_temporal_variance(&self.temporal, ctx)?;
@@ -1573,5 +1610,27 @@ mod authority_tests {
             load_decision(&artifact.bytes, Some(&artifact.identity), workflow.authority(), &ctx)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn failed_replays_leave_the_requests_uncommitted() {
+        let ctx = ExecutionContext::for_tests(0xF1A6);
+        let mut workflow =
+            FlagshipWorkflow::execute(&ctx, FlagshipDependence::Independent).unwrap();
+        let cancelled = ExecutionContext::for_tests(0xF1A6);
+        cancelled.cancellation.cancel();
+        let period = workflow.temporal_request.period;
+        let prior_scale = workflow.bayesian_request.inference.prior_scale;
+        let benefit = workflow.benefit;
+        assert!(workflow.period_change((0, 49), &cancelled).is_err());
+        assert_eq!(workflow.temporal_request.period, period);
+        assert!(workflow.prior_change(1.0e-3, &cancelled).is_err());
+        assert_eq!(
+            workflow.bayesian_request.inference.prior_scale.to_bits(),
+            prior_scale.to_bits()
+        );
+        assert!(workflow.utility_only(7.0, &cancelled).is_err());
+        assert_eq!(workflow.temporal_request.benefit_per_unit.to_bits(), benefit.to_bits());
+        assert_eq!(workflow.bayesian_request.utility.benefit_per_unit.to_bits(), benefit.to_bits());
     }
 }

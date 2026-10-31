@@ -577,6 +577,7 @@ impl PreparedStudy {
         if matches!(self.analysis.settings.inference, InferenceMode::Bayesian(_)) {
             return self.refute_bayesian_rerun(prior, data, suite, ctx);
         }
+        let support_status = self.support_after_refute(prior, suite)?;
         let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
 
         let (data_est, query_est, estimand_est) =
@@ -607,6 +608,7 @@ impl PreparedStudy {
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 
         let mut out = prior.clone();
+        out.support_status = support_status;
         out.refutations = reports;
         crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
         out.diagnostics.extend(na_diagnostics);
@@ -621,6 +623,32 @@ impl PreparedStudy {
             format!("second-click refute suite={suite_label}"),
         ));
         self.stamp_refuted(prior, data, suite, out)
+    }
+
+    /// The support status of a prior result once a second click validates it under `suite`.
+    ///
+    /// The status is a property of the validation axis too, so a suite whose cell the build
+    /// would have refused is refused here rather than inheriting the prior's status.
+    fn support_after_refute(
+        &self,
+        prior: &StudyResult,
+        suite: RefuteSuite,
+    ) -> Result<Option<crate::support::CellStatus>, CausalError> {
+        let analysis = &self.analysis;
+        let class = if analysis.graph_posterior.is_some() {
+            analysis.graph.class().as_str()
+        } else {
+            crate::support::matrix_graph_class(
+                &analysis.graph,
+                &analysis.query,
+                analysis.declared.tiered.as_ref(),
+            )
+        };
+        support_after_suite_change(
+            prior.support_status,
+            (&analysis.query, class, analysis.structure_source, &analysis.settings.inference),
+            (analysis.settings.refute, suite),
+        )
     }
 
     /// Second-click refute of a static mediation prior under `suite`.
@@ -640,6 +668,7 @@ impl PreparedStudy {
                 message: "refute prior does not match mediation query".into(),
             });
         }
+        let support_status = self.support_after_refute(prior, suite)?;
         let graph =
             self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
                 message: "static mediation refute requires Dag",
@@ -648,6 +677,7 @@ impl PreparedStudy {
             message: "refute requires prior mediation result",
         })?;
         let mut result = prior.clone();
+        result.support_status = support_status;
         result.refutations = if suite == RefuteSuite::None {
             Vec::new()
         } else {
@@ -675,6 +705,7 @@ impl PreparedStudy {
         // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
         // frozen physical plan is the only path that constructs those artifacts;
         // retain the prior point/identification while replacing validation state.
+        let support_status = self.support_after_refute(prior, suite)?;
         let started = Instant::now();
         let mut analysis = self.analysis.clone();
         analysis.settings.refute = suite;
@@ -692,24 +723,7 @@ impl PreparedStudy {
         out.posterior = validated.view.posterior;
         // A suite whose cell executes unlicensed (the Bayesian intervention-level
         // refuter state) must not inherit the licensed status of the estimate.
-        let suite_cell = crate::support::support_cell_named(
-            &analysis.query,
-            if analysis.graph_posterior.is_some() {
-                analysis.graph.class().as_str()
-            } else {
-                crate::support::matrix_graph_class(
-                    &analysis.graph,
-                    &analysis.query,
-                    analysis.declared.tiered.as_ref(),
-                )
-            },
-            analysis.structure_source,
-            &analysis.settings.inference,
-            suite,
-        );
-        if suite_cell.is_some_and(crate::support::executes_unlicensed) {
-            out.support_status = Some(crate::support::CellStatus::Refused);
-        }
+        out.support_status = support_status;
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));
@@ -1235,5 +1249,68 @@ impl PreparedStudy {
     #[must_use]
     pub fn temporal_invalidations(&self) -> &antecedent_state::InvalidationLog {
         &self.temporal_log
+    }
+}
+
+/// The support status after a second click under `suite` of a handle built under `built`.
+///
+/// A suite whose cell is licensed keeps the prior status. A cell the closed rules mark as
+/// executing unlicensed runs and reports `Refused`. Any other unlicensed cell refuses the click,
+/// as the build would have refused it, provided the cell of the built suite is licensed (a
+/// coordinate the matrix cannot place is not evidence against the click).
+fn support_after_suite_change(
+    prior: Option<crate::support::CellStatus>,
+    (query, class, source, inference): (
+        &CausalQuery,
+        &'static str,
+        crate::support::StructureSource,
+        &InferenceMode,
+    ),
+    (built, suite): (RefuteSuite, RefuteSuite),
+) -> Result<Option<crate::support::CellStatus>, CausalError> {
+    use crate::support::{CellStatus, classify, executes_unlicensed, support_cell_named};
+    let Some(cell) = support_cell_named(query, class, source, inference, suite) else {
+        return Ok(prior);
+    };
+    if classify(cell) == CellStatus::Licensed {
+        return Ok(prior);
+    }
+    if executes_unlicensed(cell) {
+        return Ok(Some(CellStatus::Refused));
+    }
+    let built_licensed = support_cell_named(query, class, source, inference, built)
+        .is_some_and(|built_cell| classify(built_cell) == CellStatus::Licensed);
+    if built_licensed {
+        crate::support::refuse_if_not_applicable(cell).map(Some)
+    } else {
+        Ok(prior)
+    }
+}
+
+#[cfg(test)]
+mod suite_support_tests {
+    use super::*;
+    use crate::support::{CellStatus, StructureSource};
+
+    #[test]
+    fn a_second_click_suite_the_build_would_refuse_is_refused() {
+        let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
+            antecedent_core::VariableId::from_raw(0),
+            antecedent_core::VariableId::from_raw(1),
+        ));
+        let coordinates =
+            (&query, "CoDetermined", StructureSource::Explicit, &InferenceMode::Frequentist);
+        let kept = support_after_suite_change(
+            Some(CellStatus::Licensed),
+            coordinates,
+            (RefuteSuite::None, RefuteSuite::None),
+        );
+        assert_eq!(kept.unwrap(), Some(CellStatus::Licensed));
+        let refused = support_after_suite_change(
+            Some(CellStatus::Licensed),
+            coordinates,
+            (RefuteSuite::None, RefuteSuite::Full),
+        );
+        assert!(matches!(refused, Err(CausalError::Support { .. })), "{refused:?}");
     }
 }

@@ -17,10 +17,10 @@
     reason = "test fixtures: small exact indices, levels and enumerated probabilities"
 )]
 
-use antecedent::{BayesianConfig, CellStatus, InferenceMode, RefuteSuite, Study};
+use antecedent::{BayesianConfig, CausalError, CellStatus, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, ExecutionContext, IdentificationStatus, MediationContrast, MediationQuery,
-    ResponseValue, TemporalEffectQuery, VariableId,
+    CancellationToken, CausalQuery, ExecutionContext, IdentificationStatus, MediationContrast,
+    MediationQuery, ResponseValue, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_discovery::adjacency_mask::set_edge;
@@ -264,6 +264,64 @@ fn the_mixture_standard_error_resamples_blocks_of_windows_at_one_table() {
     assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(60));
     let expected = 0.6 * STRUCTURAL_EFFECT + 0.4 * observational_contrast();
     assert!((estimate.ate - expected).abs() < 0.06, "{} vs {expected}", estimate.ate);
+}
+
+#[test]
+fn cancellation_while_resampling_the_mixture_never_publishes_a_partial_standard_error() {
+    const REPLICATES: u32 = 12;
+    let series = effect_series(1_500, 13);
+    let gp = atom_posterior(3, 1, &[0.6, 0.4], &[true_atom(), omitting_atom()]);
+    let mut checks = 0usize;
+    let mut completed = false;
+    while checks < 4_000 {
+        let mut ctx = ExecutionContext::for_tests(82);
+        ctx.cancellation = CancellationToken::cancel_after_checks(checks);
+        let outcome = Study::series(series.clone())
+            .graph_posterior(gp.clone())
+            .temporal_query(effect_query())
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(REPLICATES)
+            .build()
+            .unwrap()
+            .run(&ctx);
+        match outcome {
+            Err(error) => assert!(
+                matches!(error, CausalError::Cancelled { .. })
+                    || error.peeled().reason_code()
+                        == Some(antecedent_core::reason_code!("cancelled_no_claim")),
+                "k = {checks}: a stop is the typed cancellation: {error:?}"
+            ),
+            Ok(result) => {
+                let boot = &result.estimate().as_effect().unwrap().uncertainty.bootstrap;
+                assert_eq!(boot.replicates_ok, Some(REPLICATES), "k = {checks}");
+                assert_eq!(boot.replicates_failed, Some(0), "k = {checks}");
+                completed = true;
+                break;
+            }
+        }
+        checks += 1 + checks / 8;
+    }
+    assert!(completed, "the run never completed within the poll budgets");
+}
+
+#[test]
+fn a_weighted_series_is_refused_rather_than_fit_unweighted() {
+    let series = effect_series(600, 17);
+    let weights: Vec<f64> = (0..600).map(|i| if i % 3 == 0 { 0.0 } else { 1.5 }).collect();
+    let weighted = series.with_weights(std::sync::Arc::from(weights)).unwrap();
+    let gp = atom_posterior(3, 1, &[0.6, 0.4], &[true_atom(), omitting_atom()]);
+    let outcome = Study::series(weighted)
+        .graph_posterior(gp)
+        .temporal_query(effect_query())
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| {
+            study.run(&ExecutionContext::for_tests(83)).map_err(|error| error.to_string())
+        });
+    let error = outcome.err().expect("a weighted series cannot be fit without its weights");
+    assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
 }
 
 #[test]
