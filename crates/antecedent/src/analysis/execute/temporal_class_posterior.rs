@@ -68,7 +68,13 @@ impl super::Study {
         mut estimate: EffectEstimate,
         policy: StructuralAggregationPolicy,
         ctx: &ExecutionContext,
-    ) -> (EffectEstimate, Option<super::class_envelope_se::SharedCircularBlockSe>, usize) {
+    ) -> Result<
+        (EffectEstimate, Option<super::class_envelope_se::SharedCircularBlockSe>, usize),
+        CausalError,
+    > {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "estimation" });
+        }
         let mut shared_block = None;
         let mut shared_block_designs = 0usize;
         let key_weights = IdentifiedKeyWeights::new(&identified.graphs);
@@ -84,9 +90,23 @@ impl super::Study {
                 if graph_w <= 0.0 {
                     continue;
                 }
-                for fitted in &eval.fitted_designs {
+                // The atom point is normalized inside its class; give its fitted
+                // completions exactly the graph's outer mass for shared resampling.
+                if eval.estimate.as_ref().is_none_or(|estimate| !estimate.ate.is_finite()) {
+                    continue;
+                }
+                let raw: Vec<f64> =
+                    eval.fitted_designs.iter().map(|f| f.completion_weight).collect();
+                let Some(nested) = super::atom_mix::positive_nested_indices(graph_w, &raw) else {
+                    designs.clear();
+                    weights.clear();
+                    indexers.clear();
+                    break;
+                };
+                for (index, weight) in nested {
+                    let fitted = &eval.fitted_designs[index];
                     designs.push(&fitted.design);
-                    weights.push(graph_w * fitted.completion_weight);
+                    weights.push(weight);
                     indexers.push(&fitted.indexer);
                 }
             }
@@ -100,6 +120,9 @@ impl super::Study {
                     0x7C60_C1A5,
                     ctx,
                 );
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "estimation" });
+                }
                 let se_bootstrap = block.se.is_finite().then_some(block.se);
                 let influence = estimate.scores.influence.clone();
                 estimate = EffectEstimate::from_parts(
@@ -126,7 +149,7 @@ impl super::Study {
                 }
             }
         }
-        (estimate, shared_block, shared_block_designs)
+        Ok((estimate, shared_block, shared_block_designs))
     }
 
     /// The pre-refutation diagnostics of a class graph-posterior effect: the
@@ -324,7 +347,7 @@ impl super::Study {
             mixed.estimate,
             mixed.policy,
             ctx,
-        );
+        )?;
         let mut identification = mixed.identification;
         identification.status = resolve_posterior_status(
             identification.status,

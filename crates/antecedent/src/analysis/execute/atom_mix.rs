@@ -399,6 +399,61 @@ pub(super) fn sanitize_atom_uncertainty(
     uncertainty
 }
 
+/// Allocate one graph's weight among its exact point-contributing completions.
+/// Invalid or empty completion weights cannot define a conditional mixture.
+pub(super) fn nested_completion_weights(graph_weight: f64, weights: &[f64]) -> Option<Vec<f64>> {
+    if !graph_weight.is_finite()
+        || graph_weight < 0.0
+        || weights.is_empty()
+        || weights.iter().any(|w| !w.is_finite() || *w < 0.0)
+    {
+        return None;
+    }
+    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+    if scale == 0.0 {
+        return None;
+    }
+    let sum = weights.iter().map(|w| w / scale).sum::<f64>();
+    if !sum.is_finite() || sum <= 0.0 {
+        return None;
+    }
+    Some(weights.iter().map(|w| graph_weight * (w / scale) / sum).collect())
+}
+
+/// Positive inner members and their normalized coefficients; zero-weight designs
+/// must not participate in common-window selection or resampling.
+pub(super) fn positive_nested_indices(
+    graph_weight: f64,
+    weights: &[f64],
+) -> Option<Vec<(usize, f64)>> {
+    Some(
+        nested_completion_weights(graph_weight, weights)?
+            .into_iter()
+            .enumerate()
+            .filter(|(_, weight)| *weight > 0.0)
+            .collect(),
+    )
+}
+
+/// Normalize only when every positive-weight point contributor has a matching input.
+pub(super) fn nested_complete_weights(
+    graph_weight: f64,
+    expected: &[f64],
+    available: &[f64],
+) -> Option<Vec<f64>> {
+    if expected.iter().chain(available).any(|w| !w.is_finite() || *w < 0.0) {
+        return None;
+    }
+    let expected: Vec<f64> = expected.iter().copied().filter(|w| *w > 0.0).collect();
+    let available: Vec<f64> = available.iter().copied().filter(|w| *w > 0.0).collect();
+    if expected.len() != available.len()
+        || expected.iter().zip(&available).any(|(a, b)| a.to_bits() != b.to_bits())
+    {
+        return None;
+    }
+    nested_completion_weights(graph_weight, &expected)
+}
+
 /// Append unidentified posterior samples that are not already in `atoms`.
 ///
 /// Sample order is kept. A key that is already present, including one appended
@@ -658,6 +713,30 @@ mod tests {
             mixed.estimate.scores.influence.as_deref(),
             super::super::mixed_static_influence(&columns, &weights).as_deref()
         );
+    }
+
+    #[test]
+    fn nested_weights_preserve_graph_mass_and_complete_joint_influence() {
+        let a = super::nested_completion_weights(0.5, &[1.0]).unwrap();
+        let b = super::nested_completion_weights(0.5, &[1.0, 1.0, 1.0]).unwrap();
+        let coefficients = [a[0], b[0], b[1], b[2]];
+        let point = coefficients.iter().zip([0.0, 6.0, 6.0, 6.0]).map(|(w, v)| w * v).sum::<f64>();
+        assert!((point - 3.0).abs() < 1e-12);
+        let ifs: [&[f64]; 4] = [&[1.0, -1.0], &[0.0, 0.0], &[0.0, 0.0], &[0.0, 0.0]];
+        let mixed = super::mixed_static_influence(&ifs, &coefficients).unwrap();
+        assert!((mixed[0] - 0.5).abs() < 1e-12 && (mixed[1] + 0.5).abs() < 1e-12);
+        let duplicate = super::nested_completion_weights(0.5, &[1.0, 1.0]).unwrap();
+        assert_eq!(duplicate, vec![0.25, 0.25]);
+        let unequal = super::nested_completion_weights(0.6, &[1.0, 3.0]).unwrap();
+        assert!((unequal[0] - 0.15).abs() < 1e-12 && (unequal[1] - 0.45).abs() < 1e-12);
+        assert_eq!(super::nested_completion_weights(0.0, &[1.0]).unwrap(), vec![0.0]);
+        assert!(super::nested_completion_weights(1.0, &[0.0, 0.0]).is_none());
+        assert!(super::nested_completion_weights(1.0, &[1.0, f64::NAN]).is_none());
+        assert!(super::nested_complete_weights(0.5, &[1.0, 1.0], &[1.0]).is_none());
+        assert_eq!(super::nested_complete_weights(0.5, &[1.0, 0.0], &[1.0]).unwrap(), vec![0.5]);
+        // A zero-mass design cannot narrow the common window or fail a refit.
+        assert_eq!(super::positive_nested_indices(0.5, &[2.0, 0.0]).unwrap(), vec![(0, 0.5)]);
+        assert!(super::nested_complete_weights(0.5, &[1.0, -1.0], &[1.0]).is_none());
     }
 
     #[test]

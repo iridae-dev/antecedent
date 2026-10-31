@@ -1314,7 +1314,8 @@ impl super::Study {
         }
         .map_err(CausalError::from)?;
         let mut response = response;
-        if self.graph_posterior.is_none() && super::derivative_refutation::is_derivative(&query.functional)
+        if self.graph_posterior.is_none()
+            && super::derivative_refutation::is_derivative(&query.functional)
         {
             if let Some(dag) = self.graph.as_dag() {
                 super::structural_zero::apply(&mut response, dag, query);
@@ -1716,7 +1717,10 @@ impl super::Study {
                 let zero_weight_rows = data
                     .complete_case_mask(&ids)
                     .map(|mask| {
-                        mask.iter().zip(source).filter(|(keep, weight)| **keep && **weight == 0.0).count()
+                        mask.iter()
+                            .zip(source)
+                            .filter(|(keep, weight)| **keep && **weight == 0.0)
+                            .count()
                     })
                     .map_err(CausalError::from)?;
                 let record = antecedent_estimate::SamplingWeightRecord {
@@ -1859,7 +1863,11 @@ impl super::Study {
         .with_score_table(Some(table))
         // The influence column is the unweighted, independent-row score; with sampling weights
         // or a declared dependence it is not the influence the reported error is built from.
-        .with_influence(if scalar.is_finite() && !declared_reading { Some(influence) } else { None })
+        .with_influence(if scalar.is_finite() && !declared_reading {
+            Some(influence)
+        } else {
+            None
+        })
         .with_sampling_weights(reading.record)
         .with_exceedance_cdf(cdf)
         .with_joint_covariance(Some(summary.covariance))
@@ -3490,7 +3498,7 @@ fn derivative_identified_set_band(
     }
 }
 
-fn mix_response_influences(
+pub(super) fn mix_response_influences(
     atoms: &[(f64, antecedent_estimate::ResponseInfluence)],
     full_n: usize,
 ) -> Option<antecedent_estimate::ResponseInfluence> {
