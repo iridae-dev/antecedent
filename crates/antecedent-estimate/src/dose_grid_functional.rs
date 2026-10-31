@@ -762,6 +762,9 @@ fn grid_rows(
     numerical: &mut NumericalReport,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<(Vec<DoseLevel>, Vec<DoseDerivative>), EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_stats::StatsError::Cancelled.into());
+    }
     let per_worker = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
     let limit = ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
     if per_worker > limit {
@@ -788,13 +791,9 @@ fn grid_rows(
         antecedent_core::NonZeroThreadCount::new(u32::try_from(workers).unwrap_or(u32::MAX))
             .unwrap_or(antecedent_core::NonZeroThreadCount::MIN),
     );
-    let _lease = ctx.acquire_admission(0, per_worker * workers as u64).map_err(|error| {
-        refuse(
-            antecedent_core::reason_code!("transport_budget_cancel"),
-            "dose_grid.resource_limit",
-            &error.to_string(),
-        )
-    })?;
+    let _lease = ctx
+        .acquire_admission(0, per_worker * workers as u64)
+        .map_err(EstimationError::Admission)?;
     let mut levels = Vec::new();
     let mut derivatives = Vec::new();
     // Grid points are fitted ahead of the row assembly by at most `2 * workers` results, so a
@@ -1074,6 +1073,9 @@ fn evaluate_prepared(
     let mut numerical = NumericalReport { fits: 0, max_abs_influence_sum: 0.0 };
     let (levels, derivatives, contrast) = match request.functional {
         DoseFunctional::Contrast { from, to } => {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_stats::StatsError::Cancelled.into());
+            }
             let bytes = request.dose.len().saturating_mul(128).saturating_add(8192) as u64;
             let limit =
                 ctx.memory_limit_bytes().unwrap_or(u64::MAX).min(ctx.admission.available().bytes());
@@ -1085,13 +1087,7 @@ fn evaluate_prepared(
                 }
                 .into());
             }
-            let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
-                refuse(
-                    antecedent_core::reason_code!("transport_budget_cancel"),
-                    "dose_grid.resource_limit",
-                    &error.to_string(),
-                )
-            })?;
+            let _lease = ctx.acquire_admission(0, bytes).map_err(EstimationError::Admission)?;
             let row =
                 contrast_row(request, declared, quantile, from, to, &labels, &mut numerical, ctx)?;
             (Vec::new(), Vec::new(), Some(row))

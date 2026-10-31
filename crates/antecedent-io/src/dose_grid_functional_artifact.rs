@@ -145,12 +145,24 @@ impl From<DoseGridArtifactError> for IoError {
 impl From<EstimationError> for DoseGridArtifactError {
     fn from(error: EstimationError) -> Self {
         match error {
-            EstimationError::Stats(antecedent_stats::StatsError::Cancelled) => Self::Refused {
+            EstimationError::Stats(antecedent_stats::StatsError::Cancelled)
+            | EstimationError::Admission(antecedent_core::execution::AdmissionError::Cancelled)
+            | EstimationError::Stats(antecedent_stats::StatsError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            )) => Self::Refused {
                 code: antecedent_core::reason_code!("transport_budget_cancel"),
                 detail: "dose_grid.cancelled".into(),
                 message: "dose grid cancelled".into(),
             },
             EstimationError::Stats(error @ antecedent_stats::StatsError::ResourceLimit { .. }) => {
+                Self::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    detail: "dose_grid.resource_limit".into(),
+                    message: error.to_string(),
+                }
+            }
+            EstimationError::Admission(error)
+            | EstimationError::Stats(antecedent_stats::StatsError::Admission(error)) => {
                 Self::Refused {
                     code: antecedent_core::reason_code!("transport_budget_cancel"),
                     detail: "dose_grid.resource_limit".into(),
@@ -785,10 +797,7 @@ impl DoseGridRequestWire {
             declared_rows: (!row.declared.is_plain()).then(|| DoseDeclaredRowsResultWire {
                 rows_used: row.n_rows as u64,
                 zero_weight_rows: row.declared.weights.map_or(0, |w| w.zero_weight_rows),
-                weight_effective_sample_size: row
-                    .declared
-                    .weights
-                    .map(|w| w.effective_sample_size),
+                weight_effective_sample_size: row.declared.weights.map(|w| w.effective_sample_size),
                 weight_sum: row.declared.weights.map(|w| w.weight_sum),
                 clusters: row.declared.clusters.map(|g| g as u64),
                 serial_lag: row.declared.lag.map(|l| l as u64),

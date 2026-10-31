@@ -16,9 +16,10 @@
 use antecedent_io::IoError;
 use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_BIAS_AWARE, DOSE_GRID_BAND_CLOSED,
-    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_DECLARED_ROWS_FEATURE, DOSE_GRID_INFERENCE_CLAIM,
-    DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire, DoseGridArtifactError,
-    DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire, dose_support_table,
+    DOSE_GRID_BIAS_AWARE_FEATURE, DOSE_GRID_CALIBRATION, DOSE_GRID_DECLARED_ROWS_FEATURE,
+    DOSE_GRID_INFERENCE_CLAIM, DoseBiasAwareRequestWire, DoseClaimsWire, DoseFunctionalWire,
+    DoseGridArtifactError, DoseGridArtifactWire, DoseGridConsumeLimits, DoseGridRequestWire,
+    dose_support_table,
 };
 
 const N: usize = 201;
@@ -388,9 +389,75 @@ fn quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
 }
 
 #[test]
+fn admission_errors_preserve_cancellation_and_resource_classification() {
+    use antecedent_core::execution::AdmissionError;
+    use antecedent_estimate::EstimationError;
+    use antecedent_stats::StatsError;
+
+    for error in [
+        EstimationError::Admission(AdmissionError::Cancelled),
+        EstimationError::Stats(StatsError::Admission(AdmissionError::Cancelled)),
+        EstimationError::Stats(StatsError::Cancelled),
+    ] {
+        let refusal = DoseGridArtifactError::from(error);
+        assert_eq!(
+            refusal.refusal(),
+            ("transport_budget_cancel", "dose_grid.cancelled".to_owned())
+        );
+    }
+    for error in [
+        EstimationError::Admission(AdmissionError::Overflow),
+        EstimationError::Stats(StatsError::Admission(AdmissionError::WorkerSpawn)),
+        EstimationError::Stats(StatsError::ResourceLimit {
+            message: "workspace",
+            required_bytes: 10,
+            limit_bytes: 0,
+        }),
+    ] {
+        let refusal = DoseGridArtifactError::from(error);
+        assert_eq!(
+            refusal.refusal(),
+            ("transport_budget_cancel", "dose_grid.resource_limit".to_owned())
+        );
+    }
+    let invalid = DoseGridArtifactError::from(EstimationError::Stats(StatsError::Shape {
+        message: "invalid shape",
+    }));
+    assert_eq!(invalid.refusal(), ("invalid_argument", "dose_grid.invalid_request".to_owned()));
+}
+
+#[test]
+fn entry_cancellation_and_workspace_exhaustion_are_distinct_for_grid_and_contrast() {
+    for kind in ["level", "contrast"] {
+        let cancelled = antecedent_core::ExecutionContext::production(11, 1);
+        cancelled.cancellation.cancel();
+        let before = cancelled.admission.available();
+        let error =
+            DoseGridArtifactWire::seal_with_context(request(kind, 0.01), &cancelled).unwrap_err();
+        assert_eq!(error.refusal(), ("transport_budget_cancel", "dose_grid.cancelled".to_owned()));
+        assert_eq!(cancelled.admission.available(), before);
+
+        let limited =
+            antecedent_core::ExecutionContext::production(11, 1).with_memory_limit(Some(0));
+        let before = limited.admission.available();
+        let error =
+            DoseGridArtifactWire::seal_with_context(request(kind, 0.01), &limited).unwrap_err();
+        assert_eq!(
+            error.refusal(),
+            ("transport_budget_cancel", "dose_grid.resource_limit".to_owned())
+        );
+        assert_eq!(limited.admission.available(), before);
+    }
+    let mut invalid = request("level", 0.01);
+    invalid.outcome.pop();
+    let error = DoseGridArtifactWire::seal(invalid).unwrap_err();
+    assert_eq!(error.refusal(), ("invalid_argument", "dose_grid.invalid_request".to_owned()));
+}
+
+#[test]
 fn context_cancellation_during_grid_work_never_seals_a_partial_artifact() {
     let mut ctx = antecedent_core::ExecutionContext::production(11, 1);
-    // Entry and two grid fits can proceed; cancellation precedes the third fit.
+    // Admission or a grid worker can observe cancellation; neither may seal a partial result.
     ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(3);
     let available = ctx.admission.available();
     let error = DoseGridArtifactWire::seal_with_context(request("level", 0.01), &ctx)
@@ -509,7 +576,8 @@ fn declared_sampling_weights_seal_replay_and_account_for_the_deleted_row() {
             }
         }
         for col in 0..3 {
-            let pivot = (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
+            let pivot =
+                (col..3).max_by(|&p, &q| a[p][col].abs().total_cmp(&a[q][col].abs())).unwrap();
             a.swap(col, pivot);
             for r in col + 1..3 {
                 let f = a[r][col] / a[col][col];
@@ -549,10 +617,7 @@ fn a_changed_weight_cluster_or_lag_is_refused_even_when_the_digests_are_resealed
     // Without resealing, the digests catch the edit first.
     let mut stale = sealed.clone();
     stale.request.cluster.as_mut().unwrap()[3] = 4;
-    assert!(matches!(
-        consume(&stale.export().unwrap()),
-        Err(DoseGridArtifactError::DataMismatch)
-    ));
+    assert!(matches!(consume(&stale.export().unwrap()), Err(DoseGridArtifactError::DataMismatch)));
 
     let mut serial = request("level", 0.1);
     serial.serial_lag = Some(3);
