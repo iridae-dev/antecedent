@@ -1,0 +1,23 @@
+feature_id = "estimate.randomized.cluster_joint_contrast"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["difference in means under complete randomization, with a variance that drops the unobservable variance of treatment effects"] },
+]
+
+implementation_deviations = [
+ "The vector form of the cluster-total Neyman contrast: the arm means of K outcomes and the full K x K covariance of their estimators, rather than K separate variances. The paper analyzes a single outcome; the multivariate bound is derived here from the same finite-population argument. The exact covariance of the contrast equals S1/n1 + S0/n0 - S_tau/N with matrix-valued S; the reported covariance omits the positive-semidefinite S_tau/N term, so it dominates the exact one for every linear combination of the outcomes.",
+ "The covariance is reported for the arm-mean estimators and for their contrast. It is not a statement about any nonlinear function of the outcomes: a function of the means that is propagated through this covariance by the delta method is a separate, uncalibrated construction owned by the decision-evidence layer.",
+ "A normal interval over this covariance needs 30 independently assigned clusters in each arm, as for the marginal cluster interval. Smaller arms keep the covariance without an interval.",
+ "Unit-level complete randomization is the case of one row per cluster. Bernoulli, stratified, factorial, multi-arm and switchback assignment have no joint route and are not covered.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_joint.rs (diagonal equals the marginal cluster Neyman variance; cross-covariance moves the variance of a combination; 2,000 complete allocations of 60 clusters, joint chi-square Wald region coverage of the known effect vector 0.948)",
+]

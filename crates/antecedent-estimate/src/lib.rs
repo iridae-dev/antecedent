@@ -135,6 +135,7 @@ pub mod propensity;
 pub mod quantile;
 pub mod quantile_posterior;
 pub mod randomized_missing;
+pub mod randomized_joint;
 pub mod randomized_neyman;
 pub mod randomized_posterior;
 pub mod randomized_scores;
