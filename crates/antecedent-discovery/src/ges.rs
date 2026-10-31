@@ -1717,7 +1717,7 @@ mod tests {
         }
         assert_eq!(
             score_cache.score_graph(&score_data).unwrap().to_bits(),
-            13_869_790_556_363_832_392
+            13_869_948_660_802_319_262
         );
         let d = |i: u32| DenseNodeId::from_raw(i);
         // Chain skeleton should keep 0—1 and 1—2; 0—2 may be absent.

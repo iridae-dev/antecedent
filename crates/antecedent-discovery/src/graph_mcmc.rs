@@ -519,9 +519,10 @@ fn push_gate_notes(
         format!("gate_moved={}", verdict(summary.all_chains_moved)),
         format!("gate_mcse={}", verdict(mcse_ok)),
         format!(
-            "gate_chain_deviation={} z={:.2} at_param={}",
+            "gate_chain_deviation={} z={:.2} limit={:.2} at_param={}",
             verdict(agreement.deviation_ok()),
             agreement.max_deviation_z,
+            agreement.deviation_limit,
             agreement.worst_param.map_or_else(|| "none".to_string(), |p| p.to_string())
         ),
         format!(

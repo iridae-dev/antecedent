@@ -1740,12 +1740,17 @@ pub(crate) const MIN_INDICATOR_TRANSITIONS: usize = 6;
 /// whatever the chains do, so a chain that rarely changes it cannot move the answer.
 const MIN_RARE_EVENTS: usize = 4 * MIN_INDICATOR_TRANSITIONS;
 
-/// Largest standardised distance between one chain's marginal of an edge and the pooled marginal.
-/// A run holds a few hundred comparisons (indicators times chains) and the batch-means error
-/// behind each rests on [`AGREEMENT_BATCHES`] batches, so its ratio has a Student-t tail:
-/// 6 (two-sided 1e-5 at 19 degrees of freedom) keeps the false refusal rate of a correct run
-/// near 1e-3.
+/// Least standardised distance between one chain's marginal of an edge and the pooled marginal
+/// that refuses a run. A run holds a few hundred comparisons (indicators times chains) and the
+/// batch-means error behind each rests on [`AGREEMENT_BATCHES`] batches, so its ratio has a
+/// Student-t tail; the limit actually applied is the larger of this floor and the Student-t
+/// quantile that keeps the false refusal rate of a correct run at [`FALSE_REFUSAL_RATE`] over
+/// all the comparisons the run makes (it grows with the number of indicators).
 pub(crate) const MAX_CHAIN_DEVIATION_Z: f64 = 6.0;
+
+/// Probability that a correct run is refused by the chain-deviation criterion, over all its
+/// indicator-by-chain comparisons.
+const FALSE_REFUSAL_RATE: f64 = 1e-3;
 
 /// Largest rank-normalised split R̂ of the log target along the chains. The log target is a
 /// continuous summary of the whole graph, so it exposes chains sitting in different regions that
@@ -1769,6 +1774,10 @@ const AGREEMENT_BATCHES: usize = 20;
 pub(crate) struct ChainAgreement {
     /// Largest standardised distance of a chain's marginal from the pooled one.
     pub max_deviation_z: f64,
+    /// Standardised distance above which a run is refused: the floor
+    /// [`MAX_CHAIN_DEVIATION_Z`], or the Student-t quantile holding the false refusal rate at
+    /// [`FALSE_REFUSAL_RATE`] over the comparisons made, whichever is larger.
+    pub deviation_limit: f64,
     /// Trace parameter attaining [`Self::max_deviation_z`].
     pub worst_param: Option<usize>,
     /// Indicators some chain changes fewer than [`MIN_INDICATOR_TRANSITIONS`] times although
@@ -1782,7 +1791,7 @@ impl ChainAgreement {
     /// Chains agree on every judged edge marginal.
     #[must_use]
     pub(crate) fn deviation_ok(&self) -> bool {
-        self.max_deviation_z.is_finite() && self.max_deviation_z <= MAX_CHAIN_DEVIATION_Z
+        self.max_deviation_z.is_finite() && self.max_deviation_z <= self.deviation_limit
     }
 
     /// Every indicator is changed often enough in every chain to be judged. Reported, not
@@ -1819,6 +1828,7 @@ pub(crate) fn graph_chain_agreement(
 ) -> ChainAgreement {
     let unjudgeable = ChainAgreement {
         max_deviation_z: f64::INFINITY,
+        deviation_limit: MAX_CHAIN_DEVIATION_Z,
         worst_param: None,
         unresolved: n_params,
         score_rhat: f64::INFINITY,
@@ -1835,6 +1845,7 @@ pub(crate) fn graph_chain_agreement(
     let batch_len = (n_draws / AGREEMENT_BATCHES).max(1);
     let n_batches = n_draws / batch_len;
     let mut max_deviation_z = 0.0_f64;
+    let mut comparisons = 0usize;
     let mut worst_param = None;
     let mut unresolved = 0usize;
     let mut means = vec![0.0; n_chains];
@@ -1883,6 +1894,7 @@ pub(crate) fn graph_chain_agreement(
                 (changes[c] as f64 / 2.0).max(1.0)
             };
             let error = errors[c].max((variance / units).sqrt());
+            comparisons += 1;
             let z = (means[c] - pooled).abs() / error;
             if z > max_deviation_z {
                 max_deviation_z = z;
@@ -1894,7 +1906,21 @@ pub(crate) fn graph_chain_agreement(
             unresolved += 1;
         }
     }
-    ChainAgreement { max_deviation_z, worst_param, unresolved, score_rhat }
+    let deviation_limit = deviation_limit(comparisons, n_batches);
+    ChainAgreement { max_deviation_z, deviation_limit, worst_param, unresolved, score_rhat }
+}
+
+/// The chain-deviation limit for `comparisons` indicator-by-chain comparisons whose errors rest
+/// on `n_batches` batches: the Student-t quantile (batches less one degrees of freedom) with a
+/// two-sided tail of [`FALSE_REFUSAL_RATE`] split over the comparisons, never below
+/// [`MAX_CHAIN_DEVIATION_Z`].
+fn deviation_limit(comparisons: usize, n_batches: usize) -> f64 {
+    if comparisons == 0 || n_batches < 2 {
+        return MAX_CHAIN_DEVIATION_Z;
+    }
+    let tail = FALSE_REFUSAL_RATE / (2.0 * comparisons as f64);
+    let quantile = antecedent_stats::special::student_t_ppf(1.0 - tail, n_batches as f64 - 1.0);
+    if quantile.is_finite() { quantile.max(MAX_CHAIN_DEVIATION_Z) } else { MAX_CHAIN_DEVIATION_Z }
 }
 
 /// Rank-normalised split R̂ (Vehtari et al., 2021) of one scalar trace; `1` when the trace is
@@ -2210,6 +2236,31 @@ mod tests {
                 f64::from(u8::from(on))
             })
             .collect()
+    }
+
+    #[test]
+    fn the_deviation_limit_holds_the_false_refusal_rate_over_all_comparisons() {
+        // The family-wise two-sided tail of the limit is the declared rate, whatever the
+        // number of comparisons, once it exceeds the floor.
+        for comparisons in [400usize, 1_000, 10_000] {
+            let limit = deviation_limit(comparisons, AGREEMENT_BATCHES);
+            assert!(limit >= MAX_CHAIN_DEVIATION_Z);
+            let family = 2.0
+                * antecedent_stats::special::student_t_sf(limit, AGREEMENT_BATCHES as f64 - 1.0)
+                * comparisons as f64;
+            if limit > MAX_CHAIN_DEVIATION_Z {
+                assert!(
+                    (family - FALSE_REFUSAL_RATE).abs() < 1e-6 * FALSE_REFUSAL_RATE,
+                    "{family}"
+                );
+            }
+        }
+        // More comparisons never lower the limit, and the floor holds when none are made.
+        assert!(
+            deviation_limit(1_000, AGREEMENT_BATCHES) > deviation_limit(100, AGREEMENT_BATCHES)
+        );
+        assert_eq!(deviation_limit(0, AGREEMENT_BATCHES), MAX_CHAIN_DEVIATION_Z);
+        assert_eq!(deviation_limit(500, 1), MAX_CHAIN_DEVIATION_Z);
     }
 
     fn agreement_of(chains: &[Vec<f64>], scores: &[Vec<f64>]) -> ChainAgreement {

@@ -68,7 +68,7 @@ Conditions of the validated 10- and 12-variable workflow:
 | Chains | 4; above 8 variables each runs 8 replicas at inverse temperatures 1, 0.75, 0.56, 0.42, 0.32, 0.24, 0.18, 0.13 (the default 4-replica ladder 1, 1/2, 1/4, 1/8 is kept at 8 or fewer); replica exchange every 10 iterations |
 | Warmup per chain | structure MCMC 3 000 iterations; order MCMC 6 000 |
 | Retained draws per chain | structure MCMC 12 000, order MCMC 24 000, thinned by 2 |
-| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, every chain made a structural move, every chain's edge marginals agree with the pooled ones (at most 6 standard errors, with the excursion error for edges a chain rarely flips), and rank-normalized split R-hat of the log target at most 1.1 |
+| Publication gate | split R-hat below 1.2 over every edge indicator, bulk ESS above 10, every edge's Monte-Carlo standard error at most 0.05, every chain made a structural move, every chain's edge marginals agree with the pooled ones (at most 6 standard errors, or the larger Student-t limit that keeps a correct run's false refusal at 1e-3 over all its edge-by-chain comparisons, with the excursion error for edges a chain rarely flips), and rank-normalized split R-hat of the log target at most 1.1 |
 
 A schedule far shorter than this is refused by the gate rather than published.
 
