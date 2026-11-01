@@ -216,7 +216,11 @@ struct Walker<'a> {
     histories: Vec<HistoryReceipt>,
     decisions: Vec<DecisionReceipt>,
     accounting: f64,
+    leases: Vec<antecedent_core::execution::AdmissionLease>,
 }
+
+/// Receipts are admitted in blocks of this many histories.
+const RECEIPT_BLOCK: usize = 256;
 
 fn delayed_utility(compiled: &Compiled, action: usize) -> &[f64] {
     match &compiled.actions[action].delayed {
@@ -267,6 +271,30 @@ impl Walker<'_> {
         )
     }
 
+    /// Lease the bytes of the next block of history receipts (belief, history key and
+    /// receipt headers; the key length is bounded by the horizon) before they are built.
+    fn admit_receipt(&mut self) -> SequentialResult<()> {
+        if self.histories.len() % RECEIPT_BLOCK != 0 {
+            return Ok(());
+        }
+        let per_receipt = self
+            .compiled
+            .states
+            .saturating_add(self.compiled.horizon.saturating_mul(4))
+            .saturating_mul(std::mem::size_of::<f64>())
+            .saturating_add(512);
+        let bytes = u64::try_from(per_receipt.saturating_mul(RECEIPT_BLOCK)).unwrap_or(u64::MAX);
+        let lease = self.ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => cancelled(),
+            _ => limit_exceeded(
+                "the memory admitted for history receipts",
+                self.ctx.memory_limit_bytes().unwrap_or(u64::MAX),
+            ),
+        })?;
+        self.leases.push(lease);
+        Ok(())
+    }
+
     // Create receipts in the same pre-order as the recursive traversal.
     fn enter(&mut self, node: Node) -> SequentialResult<Entered> {
         self.nodes += 1;
@@ -285,6 +313,7 @@ impl Walker<'_> {
                 self.limits.max_receipts as u64,
             ));
         }
+        self.admit_receipt()?;
         let compiled = self.compiled;
         let time = node.history.len();
         let mut due_now = 0.0;
@@ -541,6 +570,7 @@ pub(crate) fn walk(
         histories: Vec::new(),
         decisions: Vec::new(),
         accounting: 0.0,
+        leases: Vec::new(),
     };
     let root = HistoryKey::root();
     let value = walker.visit(Node {

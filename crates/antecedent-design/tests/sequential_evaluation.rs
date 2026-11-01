@@ -1735,3 +1735,14 @@ fn deep_single_branch_horizon_uses_bounded_native_stack() {
         assert_eq!(receipt.continuation_value, (1_026 - time) as f64);
     }
 }
+
+#[test]
+fn history_receipts_are_admitted_against_the_memory_limit() {
+    let model = build(&base_spec(true));
+    let policy = policy_of("v", &inspect_twice());
+    let tight = ctx().with_memory_limit(Some(64));
+    let err = evaluate_policy(&model, &policy, EvaluationLimits::default(), &tight).unwrap_err();
+    assert_eq!(err.detail, "sequential_evaluation.limit_exceeded");
+    let roomy = ctx().with_memory_limit(Some(1 << 30));
+    assert!(evaluate_policy(&model, &policy, EvaluationLimits::default(), &roomy).is_ok());
+}

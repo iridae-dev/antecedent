@@ -123,7 +123,7 @@ impl PythonExecution {
             return Err(crate::value_err("threads must be positive"));
         }
         let mut context = ExecutionContext::production(seed, crate::resolve_user_threads(threads))
-            .with_memory_limit(memory_bytes);
+            .with_shared_memory_limit(memory_bytes);
         if let Some(limit) = exposure_probability_work_limit {
             context = context.with_exposure_probability_work_limit(limit);
         }

@@ -330,11 +330,18 @@ impl ExecutionContext {
     /// [`Self::with_memory_limit`].
     #[must_use]
     pub fn with_shared_memory_limit(mut self, limit: Option<u64>) -> Self {
-        if let Some(bytes) = limit {
-            self.admission = AdmissionPool::process_shared(self.admission.thread_budget(), bytes);
-            self
-        } else {
-            self.with_memory_limit(None)
+        self.set_shared_memory_limit(limit);
+        self
+    }
+
+    /// In-place form of [`Self::with_shared_memory_limit`].
+    pub fn set_shared_memory_limit(&mut self, limit: Option<u64>) {
+        match limit {
+            Some(bytes) => {
+                self.admission =
+                    AdmissionPool::process_shared(self.admission.thread_budget(), bytes);
+            }
+            None => self.set_memory_limit(None),
         }
     }
 
