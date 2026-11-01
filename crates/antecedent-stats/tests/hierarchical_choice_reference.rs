@@ -30,7 +30,11 @@ fn counts(value: &Value) -> Vec<Vec<u32>> {
         .expect("rows")
         .iter()
         .map(|row| {
-            row.as_array().expect("row").iter().map(|x| x.as_u64().expect("count") as u32).collect()
+            row.as_array()
+                .expect("row")
+                .iter()
+                .map(|x| u32::try_from(x.as_u64().expect("count")).expect("count fits"))
+                .collect()
         })
         .collect()
 }

@@ -214,7 +214,7 @@ fn mixture_marginal_quantile_interval_and_exceedance_match_enumeration() {
         assert_eq!(marginal.atoms().len(), atoms.len());
         for (got, want) in marginal.atoms().iter().zip(atoms) {
             let w = fs(want);
-            assert_eq!(got.0, w[0]);
+            assert_eq!(got.0.to_bits(), w[0].to_bits());
             near(got.1, w[1], "atom mass");
         }
         near(marginal.mean(), f(&case["mean"]), "mixture marginal mean");

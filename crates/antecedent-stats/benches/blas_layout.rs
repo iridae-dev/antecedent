@@ -370,6 +370,10 @@ fn study_qr(record: &mut Record, shapes: &[(usize, usize)], smoke: bool) {
     }
 }
 
+#[allow(
+    clippy::type_complexity,
+    reason = "benchmark callbacks and shapes describe the timing harness"
+)]
 fn singular_values(
     x: &[f64],
     n: usize,
@@ -412,7 +416,7 @@ fn study_svd(record: &mut Record, shapes: &[(usize, usize)], smoke: bool) {
         for workers in WORKERS {
             assert_close(&singular_values(&x, n, p, workers, None), &expected, "singular values");
             let mut timing = None;
-            let mut driver = |run: &mut dyn FnMut()| timing = Some(sample(smoke, || run()));
+            let mut driver = |mut run: &mut dyn FnMut()| timing = Some(sample(smoke, &mut run));
             let _ = singular_values(&x, n, p, workers, Some(&mut driver));
             let bytes = scratch_requirement_bytes(LayoutOp::ThinSvd, n, p, workers);
             if let Some(timing) = timing {
@@ -429,6 +433,10 @@ fn symmetric(n: usize) -> Mat<f64> {
     })
 }
 
+#[allow(
+    clippy::type_complexity,
+    reason = "benchmark callbacks and shapes describe the timing harness"
+)]
 fn eigenvalues(
     matrix: &Mat<f64>,
     workers: u32,
@@ -466,7 +474,7 @@ fn study_eigen(record: &mut Record, orders: &[usize], smoke: bool) {
         for workers in WORKERS {
             assert_close(&eigenvalues(&matrix, workers, None), &expected, "eigenvalues");
             let mut timing = None;
-            let mut driver = |run: &mut dyn FnMut()| timing = Some(sample(smoke, || run()));
+            let mut driver = |mut run: &mut dyn FnMut()| timing = Some(sample(smoke, &mut run));
             let _ = eigenvalues(&matrix, workers, Some(&mut driver));
             let bytes = scratch_requirement_bytes(LayoutOp::SymmetricEigen, n, n, workers);
             if let Some(timing) = timing {
@@ -481,6 +489,10 @@ fn wants(op: &str) -> bool {
         .map_or(true, |list| list.split(',').any(|item| item.trim() == op))
 }
 
+#[allow(
+    clippy::type_complexity,
+    reason = "benchmark callbacks and shapes describe the timing harness"
+)]
 fn main() {
     let measuring = std::env::args().any(|arg| arg == "--bench");
     let smoke = !measuring;

@@ -80,7 +80,7 @@ fn inverse_censoring_weights_match_the_multiprecision_conditional_survival() {
     }
     for (i, (got, w)) in fit.weights.iter().zip(texts(&want["weights"])).enumerate() {
         if w == 0.0 {
-            assert_eq!(*got, 0.0, "censored row {i}");
+            assert_eq!(got.abs().to_bits(), 0.0_f64.to_bits(), "censored row {i}");
         } else {
             close(*got, w, 1e-6, &format!("weight {i}"));
         }
@@ -90,7 +90,7 @@ fn inverse_censoring_weights_match_the_multiprecision_conditional_survival() {
         .survival_before
         .iter()
         .zip(&event)
-        .filter(|(_, e)| **e == 1.0)
+        .filter(|(_, e)| e.to_bits() == 1.0_f64.to_bits())
         .map(|(s, _)| *s)
         .fold(f64::INFINITY, f64::min);
     assert!(

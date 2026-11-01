@@ -28,7 +28,12 @@ fn vec_of(value: &Value) -> Vec<f64> {
 }
 
 fn counts_of(value: &Value) -> Vec<u32> {
-    value.as_array().expect("array").iter().map(|v| v.as_u64().expect("count") as u32).collect()
+    value
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|v| u32::try_from(v.as_u64().expect("count")).expect("count fits"))
+        .collect()
 }
 
 fn close(got: f64, want: f64, relative: f64, what: &str) {
@@ -59,7 +64,7 @@ fn unbalanced_replicates_give_the_one_way_random_effects_components() {
         1e-11,
         "variance of the within variance",
     );
-    assert_eq!(c.within_df, rep["df"].as_f64().unwrap());
+    assert_eq!(c.within_df.to_bits(), rep["df"].as_f64().unwrap().to_bits());
     all_close(&influence, &vec_of(&rep["xi"]), 1e-10, "influence");
 }
 

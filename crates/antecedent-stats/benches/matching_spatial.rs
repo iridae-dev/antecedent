@@ -46,6 +46,7 @@ fn clustered(n: usize, dim: usize, seed: u64) -> Vec<f64> {
     let centres: Vec<f64> = (0..8 * dim).map(|_| rng.next() * 10.0).collect();
     let mut out = Vec::with_capacity(n * dim);
     for _ in 0..n {
+        #[allow(clippy::cast_sign_loss, reason = "the generator produces values in [0, 1)")]
         let centre = ((rng.next() * 8.0) as usize).min(7);
         for d in 0..dim {
             out.push(centres[centre * dim + d] + rng.next() - 0.5);
@@ -73,6 +74,7 @@ fn scan_nearest(donors: &[f64], dim: usize, query: &[f64]) -> (usize, f64) {
     best
 }
 
+#[allow(clippy::too_many_lines, reason = "benchmark cases share the same generated data")]
 fn bench_spatial(c: &mut Criterion) {
     let ctx = ExecutionContext::for_tests(1);
     let mut group = c.benchmark_group("spatial");

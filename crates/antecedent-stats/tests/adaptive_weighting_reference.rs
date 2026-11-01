@@ -57,7 +57,7 @@ fn scores_and_weighted_estimates_match_the_reference() {
             .as_array()
             .expect("probabilities")
             .iter()
-            .flat_map(|row| numbers(row))
+            .flat_map(numbers)
             .collect();
         let outcomes = numbers(&case["outcomes"]);
         let prior = OutcomeModelPrior {
@@ -75,12 +75,13 @@ fn scores_and_weighted_estimates_match_the_reference() {
         for estimate in case["estimates"].as_array().expect("estimates") {
             let estimand = match estimate["estimand"]["contrast"].as_array() {
                 Some(pair) => Estimand::Contrast {
-                    plus: pair[0].as_u64().expect("plus") as usize,
-                    minus: pair[1].as_u64().expect("minus") as usize,
+                    plus: usize::try_from(pair[0].as_u64().expect("plus")).expect("arm fits"),
+                    minus: usize::try_from(pair[1].as_u64().expect("minus")).expect("arm fits"),
                 },
-                None => {
-                    Estimand::ArmMean(estimate["estimand"]["arm"].as_u64().expect("arm") as usize)
-                }
+                None => Estimand::ArmMean(
+                    usize::try_from(estimate["estimand"]["arm"].as_u64().expect("arm"))
+                        .expect("arm fits"),
+                ),
             };
             let scheme = if estimate["scheme"] == "uniform" {
                 WeightScheme::Uniform
@@ -169,7 +170,7 @@ fn expected_weighted_sum(arm: usize, scheme: WeightScheme, mu: [f64; 2], contras
             assigned.push(a);
             outcomes.push(y as f64);
             n[a] += 1;
-            s[a] += y as u32;
+            s[a] += u32::try_from(y).expect("outcome fits");
         }
         let scores = adaptive_scores(
             2,

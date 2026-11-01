@@ -85,7 +85,7 @@ fn the_shared_replicate_interval_matches_the_exact_construction() {
             &points,
             &draws,
             case["scale"].as_f64().unwrap(),
-            case["rows"].as_u64().unwrap() as usize,
+            usize::try_from(case["rows"].as_u64().unwrap()).expect("rows fit"),
             case["level"].as_f64().unwrap(),
         )
         .unwrap_or_else(|| panic!("{name}"));
