@@ -151,7 +151,7 @@ fn maximum_count_is_bounded_and_survives_refresh_mutations() {
     assert_eq!(snapshot.ledger.effective_n, n);
     assert_eq!(snapshot.xtx, vec![expected, 2.0 * expected, 2.0 * expected, 4.0 * expected]);
     assert_eq!(snapshot.xty, vec![3.0 * expected, 6.0 * expected]);
-    assert_eq!(snapshot.yty, 9.0 * expected);
+    assert_eq!(snapshot.yty.to_bits(), (9.0 * expected).to_bits());
     fit.check_against_fresh().unwrap();
 
     fit.set_mask(1, true).unwrap();

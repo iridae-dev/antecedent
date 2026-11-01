@@ -49,14 +49,14 @@ fn rate_survives_a_response_offset_of_one_hundred_million() {
     let mut posterior = ConjugateOlsPosterior::new(&prior);
     posterior.update(&prior, "first", &block(0..4)).unwrap();
     let first = posterior.summary(&prior).unwrap();
-    close(first.mean[0], 100_000_000.167_562_058_746_881, 1e-12, "first intercept");
+    close(first.mean[0], 100_000_000.167_562_05, 1e-12, "first intercept");
     close(first.mean[1], 0.339_088_554_833_278_96, 1e-7, "first slope");
     close(first.shape, 5.0, 0.0, "first shape");
     close(first.rate, 2.159_455_131_242_424_5, 1e-6, "first rate");
 
     posterior.update(&prior, "second", &block(4..8)).unwrap();
     let both = posterior.summary(&prior).unwrap();
-    close(both.mean[0], 100_000_000.374_166_183_312_137_4, 1e-12, "pooled intercept");
+    close(both.mean[0], 100_000_000.374_166_19, 1e-12, "pooled intercept");
     close(both.mean[1], 0.319_213_635_199_249_6, 1e-7, "pooled slope");
     close(both.shape, 7.0, 0.0, "pooled shape");
     close(both.rate, 2.626_524_009_587_208, 1e-6, "pooled rate");
@@ -76,7 +76,7 @@ fn rate_of_the_second_block_alone_and_of_a_posterior_used_as_a_prior() {
     chained.update(&next, "second", &block(4..8)).unwrap();
     let summary = chained.summary(&next).unwrap();
     close(summary.rate, 2.626_524_009_587_208, 1e-6, "chained rate");
-    close(summary.mean[0], 100_000_000.374_166_183_312_137_4, 1e-12, "chained intercept");
+    close(summary.mean[0], 100_000_000.374_166_19, 1e-12, "chained intercept");
 }
 
 #[test]

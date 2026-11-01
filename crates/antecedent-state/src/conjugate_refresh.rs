@@ -355,13 +355,12 @@ impl ConjugateOlsPosterior {
     pub fn summary(&self, prior: &ConjugateOlsPrior) -> Result<ConjugateOlsSummary, StateError> {
         self.check_prior(prior)?;
         let p = self.prior.ncols();
-        let (mean, scale) = match self.centred_solution() {
-            Some(solution) => (solution.mean, solution.inverse),
-            None => {
-                let scale = invert_square(&self.precision, p)
-                    .ok_or_else(|| StateError::Numerical("singular posterior precision".into()))?;
-                (multiply(&scale, p, &self.eta), scale)
-            }
+        let (mean, scale) = if let Some(solution) = self.centred_solution() {
+            (solution.mean, solution.inverse)
+        } else {
+            let scale = invert_square(&self.precision, p)
+                .ok_or_else(|| StateError::Numerical("singular posterior precision".into()))?;
+            (multiply(&scale, p, &self.eta), scale)
         };
         let residual = match &self.pooled {
             Some(pooled) => pooled.residual_sum_of_squares(&mean).ok_or_else(|| {

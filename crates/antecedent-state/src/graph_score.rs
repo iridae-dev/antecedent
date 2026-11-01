@@ -671,7 +671,7 @@ fn solve_square(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
     let scale = a.iter().flatten().fold(0.0_f64, |m, v| m.max(v.abs()));
     for c in 0..k {
         let pivot = (c..k).max_by(|&p, &q| a[p][c].abs().total_cmp(&a[q][c].abs()))?;
-        if !(a[pivot][c].abs() > 1e-12 * scale) {
+        if a[pivot][c].abs().partial_cmp(&(1e-12 * scale)) != Some(std::cmp::Ordering::Greater) {
             return None;
         }
         a.swap(c, pivot);

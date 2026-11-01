@@ -16,13 +16,17 @@ fn agree(label: &str, name: &str, step: usize, actual: f64, expected: f64, relat
     );
 }
 
+fn index(value: &Value) -> usize {
+    usize::try_from(value.as_u64().unwrap()).unwrap()
+}
+
 #[test]
 fn every_operation_leaves_the_exact_least_squares_result() {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/ols_refresh_reference.json")).unwrap();
     for scenario in reference["scenarios"].as_array().unwrap() {
         let name = scenario["name"].as_str().unwrap();
-        let ncols = scenario["ncols"].as_u64().unwrap() as usize;
+        let ncols = index(&scenario["ncols"]);
         let rows: Vec<RefreshRow> = scenario["rows"]
             .as_array()
             .unwrap()
@@ -50,7 +54,7 @@ fn every_operation_leaves_the_exact_least_squares_result() {
             match op[0].as_str().unwrap() {
                 "append" => {
                     for id in op[1].as_array().unwrap() {
-                        fit.append_row("source", &rows[id.as_u64().unwrap() as usize]).unwrap();
+                        fit.append_row("source", &rows[index(id)]).unwrap();
                     }
                 }
                 "window" => {
@@ -58,7 +62,7 @@ fn every_operation_leaves_the_exact_least_squares_result() {
                         .as_array()
                         .unwrap()
                         .iter()
-                        .map(|id| rows[id.as_u64().unwrap() as usize].clone())
+                        .map(|id| rows[index(id)].clone())
                         .collect();
                     fit.append_window("source", &window).unwrap();
                 }
@@ -66,7 +70,11 @@ fn every_operation_leaves_the_exact_least_squares_result() {
                     fit.evict_row(op[1].as_u64().unwrap()).unwrap();
                 }
                 "count" => {
-                    fit.set_count(op[1].as_u64().unwrap(), op[2].as_u64().unwrap() as u32).unwrap();
+                    fit.set_count(
+                        op[1].as_u64().unwrap(),
+                        u32::try_from(op[2].as_u64().unwrap()).unwrap(),
+                    )
+                    .unwrap();
                 }
                 "mask" => {
                     fit.set_mask(op[1].as_u64().unwrap(), op[2].as_bool().unwrap()).unwrap();

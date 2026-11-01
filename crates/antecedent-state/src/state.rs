@@ -794,10 +794,7 @@ mod tests {
         state.refresh_results_at(current, &[(other, 17, 8)]).unwrap();
         let before = format!("{:?}", (&state.cached_results, &state.cache_budget, &state.queries));
         let changed = publication(q, &identities(11, 20));
-        assert!(matches!(
-            state.publish_results(&[changed.clone()]),
-            Err(StateError::InvalidEvent(_))
-        ));
+        assert!(matches!(state.publish_results(&[changed]), Err(StateError::InvalidEvent(_))));
         assert!(matches!(state.refresh_results(&[(q, 3, 8)]), Err(StateError::InvalidEvent(_))));
         assert!(matches!(
             state.publish_results_at(old_version, &[changed]),

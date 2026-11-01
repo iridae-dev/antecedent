@@ -60,7 +60,7 @@ fn assert_weighted(fit: &WeightedOlsRefresh, expected: (f64, f64, f64, usize)) {
     close(beta[0], expected.0, "intercept");
     close(beta[1], expected.1, "slope");
     close(snapshot.residual_variance.expect("sigma2"), expected.2, "residual variance");
-    assert_eq!(snapshot.ledger.live_rows as usize, expected.3);
+    assert_eq!(usize::try_from(snapshot.ledger.live_rows).unwrap(), expected.3);
     fit.check_against_fresh().expect("cached result equals the fresh rebuild");
 }
 
@@ -123,7 +123,7 @@ fn every_weight_and_update_form_recomputes_to_the_closed_form_on_the_rest() {
     windowed.check_against_fresh().unwrap();
 
     let mut replaced = WeightedOlsRefresh::from_rows("s", 2, wrows(0..12)).unwrap();
-    let new_weights: Vec<f64> = (0..12).map(|i| 1.0 + 0.1 * i as f64).collect();
+    let new_weights: Vec<f64> = (0..12).map(|i| 1.0 + 0.1 * f64::from(i)).collect();
     replaced.replace_weights(&new_weights).unwrap();
     assert_weighted(&replaced, reference(&points(&all, |i| 1.0 + 0.1 * i as f64)));
     assert!(replaced.replace_weights(&new_weights[..3]).is_err());
@@ -151,15 +151,21 @@ fn scaling_every_weight_keeps_the_fit_and_scales_the_variance_and_the_weight_tot
 fn overflowing_weight_scaling_refuses_without_mutating_the_snapshot() {
     let mut fit = WeightedOlsRefresh::from_rows("s", 2, wrows(0..12)).unwrap();
     let before = fit.snapshot();
-    let weights: Vec<f64> = fit.rows().iter().map(|r| r.weight()).collect();
+    let weights: Vec<f64> = fit.rows().iter().map(antecedent_state::WeightedRow::weight).collect();
     // Individual products overflow.
     assert!(fit.scale_weights(f64::MAX).is_err());
     assert_eq!(fit.snapshot(), before);
-    assert_eq!(fit.rows().iter().map(|r| r.weight()).collect::<Vec<_>>(), weights);
+    assert_eq!(
+        fit.rows().iter().map(antecedent_state::WeightedRow::weight).collect::<Vec<_>>(),
+        weights
+    );
     // Individual products remain finite, but the squared-weight sum overflows.
     assert!(fit.scale_weights(1e200).is_err());
     assert_eq!(fit.snapshot(), before);
-    assert_eq!(fit.rows().iter().map(|r| r.weight()).collect::<Vec<_>>(), weights);
+    assert_eq!(
+        fit.rows().iter().map(antecedent_state::WeightedRow::weight).collect::<Vec<_>>(),
+        weights
+    );
 }
 
 #[test]
@@ -397,7 +403,7 @@ fn two_pass(ids: &[usize]) -> (Vec<f64>, Vec<f64>) {
 fn assert_scatter(fit: &CovarianceRefresh, ids: &[usize]) {
     let (mean, cov) = two_pass(ids);
     let snapshot = fit.snapshot();
-    assert_eq!(snapshot.n as usize, ids.len());
+    assert_eq!(usize::try_from(snapshot.n).unwrap(), ids.len());
     for (a, b) in snapshot.mean.iter().zip(&mean) {
         close(*a, *b, "mean");
     }

@@ -379,7 +379,7 @@ impl LinearOlsSuffStats {
         };
         let dim = self.ncols + 1;
         let dof = moments.n as f64 - self.ncols as f64;
-        if !(dof > 0.0) {
+        if dof.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return false;
         }
         let total = moments.m2[self.ncols * dim + self.ncols].max(0.0) / dof;
@@ -724,7 +724,7 @@ pub(crate) fn solve_shifted_normal(
     ybar: f64,
 ) -> Option<ShiftedNormalSolution> {
     let p = mu.len();
-    if p == 0 || b.len() != p * p || c.len() != p || !(n > 0.0) {
+    if p == 0 || b.len() != p * p || c.len() != p || n <= 0.0 || n.is_nan() {
         return None;
     }
     let norm = mu.iter().map(|v| v * v).sum::<f64>().sqrt();
@@ -771,7 +771,7 @@ pub(crate) fn solve_shifted_normal(
     }
     let shift = n * alpha * alpha;
     let diagonal = t[0] + shift;
-    if !(diagonal > 0.0) || !diagonal.is_finite() {
+    if diagonal <= 0.0 || !diagonal.is_finite() {
         return None;
     }
     let mut scale = vec![1.0; p];
