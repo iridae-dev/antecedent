@@ -210,7 +210,7 @@ class AteAnalysisResult:
     )
     assumptions: list[str]
     support_diagnostics: list[str]
-    ate: float
+    ate: float | None
     se_analytic: float
     se_bootstrap: float | None
     bootstrap_replicates_failed: int | None
@@ -294,9 +294,9 @@ class AteAnalysisResult:
     mediation_mediated: float | None
     mediation_horizons: list[int]
     mediation_effects: list[float]
-    mediation_totals: list[float]
-    mediation_directs: list[float]
-    mediation_mediated_effects: list[float]
+    mediation_totals: list[float | None]
+    mediation_directs: list[float | None]
+    mediation_mediated_effects: list[float | None]
     mediation_identification_statuses: list[str]
     mediation_methods: list[str]
     mediation_adjustments: list[list[tuple[int, int]]]
@@ -1354,9 +1354,9 @@ class AnalysisResult:
     mediation_mediated: float | None
     mediation_horizons: list[int]
     mediation_effects: list[float]
-    mediation_totals: list[float]
-    mediation_directs: list[float]
-    mediation_mediated_effects: list[float]
+    mediation_totals: list[float | None]
+    mediation_directs: list[float | None]
+    mediation_mediated_effects: list[float | None]
     mediation_identification_statuses: list[str]
     mediation_methods: list[str]
     mediation_adjustments: list[list[tuple[int, int]]]

@@ -593,8 +593,9 @@ pub(crate) struct AteAnalysisResult {
     /// replicate and draw counts), primary first, as JSON.
     #[pyo3(get)]
     pub(crate) interval_bindings_json: Option<String>,
+    /// Scalar contrast when one exists; `None` for a function-valued result.
     #[pyo3(get)]
-    ate: f64,
+    ate: Option<f64>,
     #[pyo3(get)]
     se_analytic: f64,
     #[pyo3(get)]
@@ -816,11 +817,11 @@ pub(crate) struct AteAnalysisResult {
     #[pyo3(get)]
     mediation_effects: Vec<f64>,
     #[pyo3(get)]
-    mediation_totals: Vec<f64>,
+    mediation_totals: Vec<Option<f64>>,
     #[pyo3(get)]
-    mediation_directs: Vec<f64>,
+    mediation_directs: Vec<Option<f64>>,
     #[pyo3(get)]
-    mediation_mediated_effects: Vec<f64>,
+    mediation_mediated_effects: Vec<Option<f64>>,
     #[pyo3(get)]
     mediation_identification_statuses: Vec<String>,
     #[pyo3(get)]

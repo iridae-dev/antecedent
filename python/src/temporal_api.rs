@@ -209,11 +209,11 @@ pub(crate) struct AnalysisResult {
     #[pyo3(get)]
     pub(crate) mediation_effects: Vec<f64>,
     #[pyo3(get)]
-    pub(crate) mediation_totals: Vec<f64>,
+    pub(crate) mediation_totals: Vec<Option<f64>>,
     #[pyo3(get)]
-    pub(crate) mediation_directs: Vec<f64>,
+    pub(crate) mediation_directs: Vec<Option<f64>>,
     #[pyo3(get)]
-    pub(crate) mediation_mediated_effects: Vec<f64>,
+    pub(crate) mediation_mediated_effects: Vec<Option<f64>>,
     #[pyo3(get)]
     pub(crate) mediation_identification_statuses: Vec<String>,
     #[pyo3(get)]

@@ -850,7 +850,7 @@ pub(crate) fn ate_result_from_analysis(
         certificate_json,
         missing_data_json: crate::missing_report::report_json(result.missing_data().as_ref()),
         interval_bindings_json: crate::interval_binding_api::bindings_json(result),
-        ate: effect.map_or(f64::NAN, |estimate| estimate.ate),
+        ate: effect.map(|estimate| estimate.ate).filter(|ate| ate.is_finite()),
         se_analytic: effect.map_or(f64::NAN, antecedent_estimate::EffectEstimate::se_analytic),
         se_bootstrap: effect.and_then(antecedent_estimate::EffectEstimate::se_bootstrap),
         bootstrap_replicates_failed: effect
@@ -1038,15 +1038,15 @@ pub(crate) fn ate_result_from_analysis(
         mediation_effects: mediation_slices.iter().map(|slice| slice.estimate.effect.ate).collect(),
         mediation_totals: mediation_slices
             .iter()
-            .map(|slice| slice.estimate.total.unwrap_or(f64::NAN))
+            .map(|slice| slice.estimate.total)
             .collect(),
         mediation_directs: mediation_slices
             .iter()
-            .map(|slice| slice.estimate.direct.unwrap_or(f64::NAN))
+            .map(|slice| slice.estimate.direct)
             .collect(),
         mediation_mediated_effects: mediation_slices
             .iter()
-            .map(|slice| slice.estimate.mediated.unwrap_or(f64::NAN))
+            .map(|slice| slice.estimate.mediated)
             .collect(),
         mediation_identification_statuses: mediation_slices
             .iter()

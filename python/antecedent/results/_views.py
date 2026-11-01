@@ -111,9 +111,9 @@ class TemporalMediationSliceView(ResultModel):
     method: str
     adjustment: tuple[tuple[int, int], ...]
     effect: float
-    total: float
-    direct: float
-    mediated: float
+    total: float | None
+    direct: float | None
+    mediated: float | None
     uncertainty_kind: str
     standard_deviation: float | None = None
     q025: float | None = None

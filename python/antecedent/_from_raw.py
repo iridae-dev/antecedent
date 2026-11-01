@@ -1481,9 +1481,9 @@ def _wrap_ate(
             TemporalMediationSliceView(
                 horizon=int(values[0]),
                 effect=float(values[1]),
-                total=float(values[2]),
-                direct=float(values[3]),
-                mediated=float(values[4]),
+                total=None if values[2] is None else float(values[2]),
+                direct=None if values[3] is None else float(values[3]),
+                mediated=None if values[4] is None else float(values[4]),
                 identification_status=str(values[5]),
                 method=str(values[6]),
                 adjustment=tuple((int(variable), int(offset)) for variable, offset in values[7]),
