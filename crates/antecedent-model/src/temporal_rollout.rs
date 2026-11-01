@@ -19,7 +19,8 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CausalRng, ExecutionContext, InterventionSequence};
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
+use antecedent_core::{CausalRng, ExecutionContext, Intervention, InterventionSequence};
 
 use crate::batch::{MechanismWorkspace, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::CompiledCausalModel;
@@ -67,6 +68,9 @@ pub struct TemporalPath {
     pub n_nodes: usize,
     /// One batch per step, in time order.
     pub steps: Vec<ValueBatch>,
+    /// The admission the path's own bytes hold on the pool it was rolled out under, until the
+    /// last clone of the path is dropped.
+    _retention: Option<Arc<AdmissionLease>>,
 }
 
 impl TemporalPath {
@@ -83,13 +87,60 @@ impl TemporalPath {
     }
 }
 
+/// Worst-case heap of one step's overlay for `sequence`: the per-node vectors, the evaluation
+/// order, and one compiled program (a bounded expression, its ops, reads and callbacks) per
+/// program-bearing intervention, at most one per node. The window adds no allocation: it only
+/// bounds which lags a program may read. `None` on overflow.
+fn overlay_bytes(model: &CompiledCausalModel, sequence: &InterventionSequence) -> Option<usize> {
+    use std::mem::size_of;
+    /// Bytes charged to one compiled program: [`MAX_EXPR_NODES`] expression nodes held three
+    /// ways (expression, ops, callbacks) at a conservative `128` bytes each.
+    const PROGRAM_BYTES: usize = antecedent_core::value_expr::MAX_EXPR_NODES * 128;
+    let per_node = size_of::<Option<f64>>()
+        + size_of::<f64>()
+        + size_of::<Option<antecedent_core::StochasticPolicy>>()
+        + size_of::<Option<antecedent_core::MechanismOverride>>()
+        + size_of::<bool>()
+        + size_of::<Option<NodeProgram>>();
+    let mut programs = 0_usize;
+    // A nested sequence may not itself nest, so two levels cover every intervention.
+    for step in sequence.steps.iter() {
+        match &step.intervention {
+            Intervention::Transform { .. } | Intervention::Assign { .. } => programs += 1,
+            Intervention::Sequence(inner) => {
+                programs += inner
+                    .steps
+                    .iter()
+                    .filter(|s| {
+                        matches!(
+                            s.intervention,
+                            Intervention::Transform { .. } | Intervention::Assign { .. }
+                        )
+                    })
+                    .count();
+            }
+            _ => {}
+        }
+    }
+    let n_nodes = model.n_nodes();
+    model
+        .parent_gathers
+        .len()
+        .checked_mul(size_of::<u32>())?
+        .checked_add(n_nodes.checked_mul(per_node)?)?
+        .checked_add(programs.min(n_nodes).checked_mul(PROGRAM_BYTES)?)
+}
+
 /// Roll a model out over `plan.n_steps` steps under `plan.sequence`.
 ///
 /// # Errors
 ///
 /// Shape errors (a history batch or retained noise that does not match the model), an
 /// invalid schedule or program, a program reading deeper than the history that exists at a
-/// step (`policy_history_unavailable`), cancellation, or a mechanism or program failure.
+/// step (`policy_history_unavailable`), cancellation, a pool that cannot admit the path and
+/// its scratch ([`ModelError::ResourceLimit`]), or a mechanism or program failure.
+///
+/// The returned path keeps its own bytes admitted on `ctx`'s pool until it is dropped.
 pub fn rollout_temporal(
     model: &CompiledCausalModel,
     plan: &TemporalPlan<'_>,
@@ -164,9 +215,10 @@ pub fn rollout_temporal_with_history_availability(
     if ctx.cancellation.is_cancelled() {
         return Err(ModelError::Cancelled);
     }
-    // The lease covers the history buffer, retained path, gather and workspace
-    // scratch, and output/Arc headers through this call. Returned path lifetime
-    // remains governed by the caller's retention policy.
+    // Two leases. The path's own bytes (its columns and step headers) are the result: that
+    // lease moves into the returned `TemporalPath` and is held until the path is dropped. The
+    // history buffer, gather and workspace scratch and one step's overlay are transient and
+    // held through this call.
     let path_cells = block
         .checked_mul(plan.n_steps)
         .ok_or_else(|| shape_error("temporal path size overflows"))?;
@@ -174,28 +226,34 @@ pub fn rollout_temporal_with_history_availability(
         .checked_mul(2)
         .and_then(|v| v.checked_add(n_rows))
         .ok_or_else(|| shape_error("temporal scratch size overflows"))?;
-    let payload = cells
-        .checked_add(path_cells)
-        .and_then(|v| v.checked_add(scratch_cells))
-        .and_then(|v| v.checked_mul(std::mem::size_of::<f64>()))
-        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
     let headers = plan
         .n_steps
         .checked_mul(std::mem::size_of::<ValueBatch>() + 2 * std::mem::size_of::<usize>())
         .ok_or_else(|| shape_error("temporal rollout header size overflows"))?;
-    let bytes = payload
-        .checked_add(headers)
+    let retained_bytes = path_cells
+        .checked_mul(std::mem::size_of::<f64>())
+        .and_then(|v| v.checked_add(headers))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
+    let scratch_bytes = cells
+        .checked_add(scratch_cells)
+        .and_then(|v| v.checked_mul(std::mem::size_of::<f64>()))
+        .and_then(|v| v.checked_add(overlay_bytes(model, plan.sequence)?))
         .and_then(|v| v.checked_add(4096))
         .and_then(|v| u64::try_from(v).ok())
         .ok_or_else(|| shape_error("temporal rollout byte size overflows"))?;
-    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
-        antecedent_core::execution::AdmissionError::Cancelled => ModelError::Cancelled,
-        _ => ModelError::ResourceLimit {
-            message: "temporal rollout buffers",
-            required_bytes: bytes,
-            limit_bytes: ctx.admission().available().bytes(),
-        },
-    })?;
+    let admit = |bytes: u64| {
+        ctx.acquire_admission(0, bytes).map_err(|error| match error {
+            AdmissionError::Cancelled => ModelError::Cancelled,
+            _ => ModelError::ResourceLimit {
+                message: "temporal rollout buffers",
+                required_bytes: bytes,
+                limit_bytes: ctx.admission().available().bytes(),
+            },
+        })
+    };
+    let retention = Arc::new(admit(retained_bytes)?);
+    let _scratch = admit(scratch_bytes)?;
 
     let mut path: Vec<ValueBatch> = Vec::with_capacity(plan.n_steps);
     let mut buf = vec![0.0; cells];
@@ -279,5 +337,87 @@ pub fn rollout_temporal_with_history_availability(
         }
         path.push(ValueBatch { n_rows, n_nodes, values: Arc::from(&buf[..block]) });
     }
-    Ok(TemporalPath { n_rows, n_nodes, steps: path })
+    Ok(TemporalPath { n_rows, n_nodes, steps: path, _retention: Some(retention) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compile::{CompiledMechanismStore, MechanismSlot};
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    fn model() -> CompiledCausalModel {
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        CompiledCausalModel::compile(graph).unwrap().with_mechanisms(CompiledMechanismStore {
+            slots: Arc::from([
+                MechanismSlot::LinearGaussian { intercept: 1.0, coeffs: Arc::from([]), sigma: 1.0 },
+                MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([0.5]),
+                    sigma: 1.0,
+                },
+            ]),
+        })
+    }
+
+    fn plan(sequence: &InterventionSequence, n_steps: usize, window: u32) -> TemporalPlan<'_> {
+        TemporalPlan { sequence, n_steps, n_rows: 64, window, initial_history: &[] }
+    }
+
+    #[test]
+    fn the_returned_path_keeps_its_bytes_admitted_until_it_is_dropped() {
+        let model = model();
+        let sequence = InterventionSequence::new(vec![]);
+        let pool = AdmissionPool::fixed(1, 10_000_000);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let mut ws = MechanismWorkspace::default();
+        let mut rng = CausalRng::from_seed(2);
+        let path = rollout_temporal(
+            &model,
+            &plan(&sequence, 8, 0),
+            TemporalNoise::Draw(&mut rng),
+            &mut ws,
+            &ctx,
+        )
+        .unwrap();
+        // Scratch is released on return; the path's columns stay charged.
+        let held = 10_000_000 - pool.available().bytes();
+        let columns = (path.n_rows * path.n_nodes * path.steps.len() * 8) as u64;
+        assert!(held >= columns && held < 2 * columns + 4096, "held {held}, columns {columns}");
+        let clone = path.clone();
+        drop(path);
+        assert_eq!(10_000_000 - pool.available().bytes(), held);
+        drop(clone);
+        assert_eq!(pool.available().bytes(), 10_000_000);
+    }
+
+    #[test]
+    fn a_pool_short_of_the_declared_window_or_path_is_refused_and_a_cancelled_context_stops() {
+        let model = model();
+        let sequence = InterventionSequence::new(vec![]);
+        let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(50_000));
+        let mut ws = MechanismWorkspace::default();
+        let mut rng = CausalRng::from_seed(2);
+        let mut run = |plan: &TemporalPlan<'_>, ctx: &ExecutionContext| {
+            rollout_temporal(&model, plan, TemporalNoise::Draw(&mut rng), &mut ws, ctx)
+        };
+        assert!(run(&plan(&sequence, 2, 0), &limited).is_ok());
+        // The declared window alone overflows the pool.
+        assert!(matches!(
+            run(&plan(&sequence, 2, 1_000_000), &limited),
+            Err(ModelError::ResourceLimit { .. })
+        ));
+        // So does a path that would be retained.
+        assert!(matches!(
+            run(&plan(&sequence, 100_000, 0), &limited),
+            Err(ModelError::ResourceLimit { .. })
+        ));
+        // A refusal leaves nothing charged.
+        assert_eq!(limited.admission().available().bytes(), 50_000);
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(run(&plan(&sequence, 2, 0), &cancelled), Err(ModelError::Cancelled)));
+    }
 }

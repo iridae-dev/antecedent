@@ -47,9 +47,18 @@ use antecedent_stats::ci::{
 use crate::error::ModelError;
 
 /// Most relabellings enumerated and held in memory when `n!` fits the request. A larger
-/// request over a small graph is sampled instead (reported as not exhaustive), so any
-/// `n_permutations` is accepted while memory stays bounded.
+/// request over a small graph is sampled instead (reported as not exhaustive), so memory stays
+/// bounded; total work is bounded separately by [`MAX_FALSIFICATION_WORK`].
 pub const MAX_ENUMERATED_RELABELLINGS: usize = 1 << 20;
+
+/// Most relabelling work one [`falsify_graph`] run may request, in elementary steps: every
+/// relabelling costs its Markov-equivalence signature (`n^2`), its shuffle (`n`) and one key per
+/// local Markov implication (the size of its conditioning set, plus the pair). Cached CI tests
+/// are free in [`GraphFalsificationConfig::max_ci_tests`], so that ceiling does not bound this
+/// loop; a request over this limit is refused up front (a typed refusal, distinct from the
+/// `Incomplete` outcome of an exhausted CI-test budget) instead of being run to the end of a
+/// caller-sized `n_permutations`.
+pub const MAX_FALSIFICATION_WORK: u128 = 10_000_000_000;
 
 /// Default ceiling on distinct conditional-independence tests a run may evaluate.
 pub const DEFAULT_MAX_CI_TESTS: usize = 200_000;
@@ -585,8 +594,8 @@ fn limitations(config: &GraphFalsificationConfig, replicates: Option<u32>) -> Ve
 ///
 /// # Errors
 ///
-/// Invalid configuration, a graph that is not a static DAG over at least two data columns,
-/// unobserved or non-finite data, an unknown or non-frequentist CI test, or a CI-test failure.
+/// Invalid configuration, relabelling work over [`MAX_FALSIFICATION_WORK`] (a typed refusal),
+/// a graph that is not a static DAG over at least two data columns, unobserved or non-finite data, an unknown or non-frequentist CI test, or a CI-test failure.
 /// Budget exhaustion and cancellation are reported as [`GraphFalsificationOutcome::Incomplete`].
 #[allow(
     clippy::too_many_lines,
@@ -708,6 +717,21 @@ pub fn falsify_graph(
             limit_bytes: ctx.admission().available().bytes(),
         },
     })?;
+    let key_steps: u128 = implications.iter().map(|i| i.conditioning.len() as u128 + 2).sum();
+    let per_relabelling = (n as u128) * (n as u128 + 2) + key_steps;
+    let work = per_relabelling.saturating_mul(count as u128);
+    if work > MAX_FALSIFICATION_WORK {
+        return Err(ModelError::Unsupported {
+            message: format!(
+                "{}{}: graph_falsification.work_limit: {count} relabellings of a {n}-node graph \
+                 with {} implications cost {work} steps, over the limit of \
+                 {MAX_FALSIFICATION_WORK}. Next attempt: fewer relabellings",
+                antecedent_core::reason_code::PREFIX,
+                antecedent_core::reason_code!("execution_resource_limit"),
+                implications.len(),
+            ),
+        });
+    }
     let (permutations, exhaustive) = draw_permutations(n, config.n_permutations, &mut rng, ctx)?;
     let mut equivalent_permutations = 0usize;
     for perm in permutations.iter() {
@@ -1147,6 +1171,25 @@ mod tests {
             falsify_graph(&graph(8, &TRUE_PAIRS), &data, &unlimited_count, &limited),
             Err(ModelError::ResourceLimit { .. })
         ));
+    }
+
+    #[test]
+    fn relabelling_work_is_bounded_whatever_the_cache_and_pool_hold() {
+        // Twelve nodes: 12! exceeds the enumeration limit, so the relabellings are sampled.
+        let mut rng = CausalRng::from_seed(3);
+        let columns: Vec<Vec<f64>> =
+            (0..12).map(|_| (0..50).map(|_| normal(&mut rng)).collect()).collect();
+        let data = table(&columns);
+        let chain: Vec<(u32, u32)> = (0..11).map(|i| (i, i + 1)).collect();
+        let ctx = ExecutionContext::for_tests(1);
+        let huge = config(1_000_000_000);
+        let error = falsify_graph(&graph(12, &chain), &data, &huge, &ctx).unwrap_err();
+        let ModelError::Unsupported { message } = error else { panic!("{error:?}") };
+        assert!(message.contains("graph_falsification.work_limit"), "{message}");
+        assert!(message.contains("execution_resource_limit"), "{message}");
+        // The default request is far below the limit.
+        let data = linear_pairs(500, 5);
+        assert!(falsify_graph(&graph(8, &TRUE_PAIRS), &data, &config(300), &ctx).is_ok());
     }
 
     #[test]
