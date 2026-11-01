@@ -25,24 +25,6 @@ scope_fixture = { path = "crates/antecedent-io/tests/distribution_artifact.rs", 
 
 [[bound]]
 record = "transport.shared_scenario_covariance"
-key = "max_completions"
-implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]
-documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_SCENARIOS" }]
-guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{' }
-refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = '\bindependent_rows_bounds_and_arguments_refuse\b' }
-
-[[bound]]
-record = "transport.shared_scenario_covariance"
-key = "max_replicates"
-implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_REPLICATES" }]
-documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_REPLICATES" }]
-guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if \*replicates > limits\.max_replicates \{' }
-refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if \*replicates > limits\.max_replicates \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = '\bindependent_rows_bounds_and_arguments_refuse\b' }
-
-[[bound]]
-record = "transport.shared_scenario_covariance"
 key = "max_exact_rows"
 implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_EXACT_ROWS" }]
 documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_EXACT_ROWS" }]
@@ -1372,22 +1354,6 @@ implementation = [{ path = "crates/antecedent-contract/src/composition_verificat
 documentation = [{ path = "crates/antecedent-contract/src/composition_verification/graph.rs", constant = "MAX_NODES" }]
 guard = { path = "crates/antecedent-io-core/src/composition_verification_artifact.rs", pattern = 'if wire\.nodes\.len\(\) > MAX_NODES \{' }
 refusal = { path = "crates/antecedent-io-core/src/composition_verification_artifact.rs", pattern = 'MAX_NODES \{\s*return Err\(CompositionVerificationArtifactError::LimitsExceeded\("nodes"\)' }
-
-[[bound]]
-record = "interface_contract.scientific_interface"
-key = "max_ports"
-implementation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_INTERFACE_PORTS" }]
-documentation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_INTERFACE_PORTS" }]
-guard = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'wire\.produces\.len\(\) > limits\.max_ports \|\| wire\.consumes\.len\(\) > limits\.max_ports' }
-refusal = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'limits\.max_ports \{\s*return Err\(Failure::LimitsExceeded\("ports"\)' }
-
-[[bound]]
-record = "interface_contract.scientific_interface"
-key = "max_port_set_items"
-implementation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_PORT_SET_ITEMS" }]
-documentation = [{ path = "crates/antecedent-contract/src/interface_contract/declaration.rs", constant = "MAX_PORT_SET_ITEMS" }]
-guard = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'if values\.len\(\) > limits\.max_set_items \{' }
-refusal = { path = "crates/antecedent-io-core/src/interface_contract_artifact.rs", pattern = 'limits\.max_set_items \{\s*return Err\(Failure::LimitsExceeded' }
 
 [[bound]]
 record = "joint_law.dependence_envelope"

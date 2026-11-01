@@ -12,6 +12,13 @@ source guard, the original refusal path and an original executing fixture for th
 family. A fixture entry is not a claim that every listed cap was independently
 stress-tested.
 
+Some consumer limits are not global limits on the corresponding in-memory operation.
+The shared-scenario covariance artifact reader permits at most 64 scenarios and defaults
+to 2,000 bootstrap replicates; its consumer limits can lower the replicate bound or set
+another bound where the API permits it. The scientific-interface artifact reader defaults
+to 256 produced and 256 consumed ports, and 1,024 set items per port; callers can provide
+different intake limits. These limits do not cap construction of an in-memory interface.
+
 Measured inference adds exact protocol restrictions to these general native
 input limits. A native maximum does not mean its entire range was measured:
 for example, nested Fisher uses 1000..4000 observations, the fixed-prior nested
@@ -30,8 +37,6 @@ markers below and compares it. Prose outside those markers is not read.
 | --- | --- | ---: | --- |
 | distribution.joint_alignment | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
 | distribution.joint_alignment | max_coordinates | 1024 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
-| transport.shared_scenario_covariance | max_completions | 64 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
-| transport.shared_scenario_covariance | max_replicates | 2000 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_exact_rows | 24 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_exact_compositions | 4000000 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_table_rows | 10000 | `crates/antecedent-io/src/scenario_covariance_artifact.rs` |
@@ -87,11 +92,6 @@ markers below and compares it. Prose outside those markers is not read.
 | sensitivity.marginal_structural_model | max_strata | 1048576 | `crates/antecedent-validate/src/msm_sensitivity.rs` |
 | sensitivity.marginal_structural_model | max_empirical_strata | 4096 | `python/antecedent/msm_sensitivity.py` |
 | sensitivity.marginal_structural_model | max_grid_points | 8192 | `crates/antecedent-validate/src/msm_sensitivity.rs` |
-| sensitivity.missing_outcome_departure | max_rows | 67108864 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
-| sensitivity.missing_outcome_departure | max_covariates | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
-| sensitivity.missing_outcome_departure | max_grid_points | 4096 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
-| sensitivity.missing_outcome_departure | max_decisions | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
-| sensitivity.missing_outcome_departure | max_bootstrap_replicates | 5000 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 | recalculation.frozen_scores_artifact | max_bytes | 134217728 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.frozen_scores_artifact | max_rows | 2097152 | `crates/antecedent-io-core/src/frozen_scores_artifact.rs` |
 | recalculation.operation_inventory | max_external_branches | 8 | `crates/antecedent-core/src/recalc.rs` |
@@ -173,8 +173,9 @@ markers below and compares it. Prose outside those markers is not read.
 | measurement.probabilistic_categorical | max_categories | 16 | `crates/antecedent-stats/src/measurement_error.rs` |
 | measurement.external_latent_posterior | max_imputations | 10000 | `crates/antecedent-io-core/src/measurement_model_wire.rs` |
 | measurement.model_contract | max_artifact_bytes | 8388608 | `crates/antecedent-io-core/src/measurement_model_wire.rs` |
-| scientific_bridge.typed_bridges | max_assumptions | 64 | `crates/antecedent-contract/src/bridge/contract.rs` |
-| scientific_bridge.typed_bridges | max_validation_trials | 4096 | `crates/antecedent-contract/src/bridge/mapping.rs` |
+| scientific_bridge.distribution_bridges | max_assumptions | 64 | `crates/antecedent-contract/src/bridge/contract.rs` |
+| scientific_bridge.distribution_bridges | max_validation_trials | 4096 | `crates/antecedent-contract/src/bridge/mapping.rs` |
+| scientific_bridge.distribution_bridges | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
 | sequential_evaluation.policy_evaluation | max_states | 4096 | `crates/antecedent-design/src/sequential_evaluation.rs` |
 | sequential_evaluation.policy_evaluation | max_actions | 1024 | `crates/antecedent-design/src/sequential_evaluation.rs` |
 | sequential_evaluation.policy_evaluation | max_horizon | 1024 | `crates/antecedent-design/src/sequential_evaluation.rs` |
@@ -186,8 +187,6 @@ markers below and compares it. Prose outside those markers is not read.
 | predictive_assessment.proper_scores | max_law_atoms | 1048576 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
 | predictive_assessment.proper_scores | max_joint_dimension | 1024 | `crates/antecedent-validate/src/predictive_assessment/law.rs` |
 | composition_verification.claim_revalidation | max_nodes | 512 | `crates/antecedent-contract/src/composition_verification/graph.rs` |
-| interface_contract.scientific_interface | max_ports | 256 | `crates/antecedent-contract/src/interface_contract/declaration.rs` |
-| interface_contract.scientific_interface | max_port_set_items | 1024 | `crates/antecedent-contract/src/interface_contract/declaration.rs` |
 | joint_law.dependence_envelope | max_marginal_atoms | 100000 | `crates/antecedent-stats/src/joint_law.rs` |
 | joint_law.dependence_envelope | max_lattice_checks | 4000000 | `crates/antecedent-stats/src/joint_law.rs` |
 | joint_law.linear_moment_propagation | max_terms | 256 | `crates/antecedent-stats/src/joint_law.rs` |
@@ -195,7 +194,7 @@ markers below and compares it. Prose outside those markers is not read.
 | cross_world_execution.finite_markovian_scm | max_variables | 4096 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
 | cross_world_execution.finite_markovian_scm | max_worlds | 256 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
 | cross_world_execution.finite_markovian_scm | max_units | 4000000 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
-| cross_world_execution.finite_markovian_scm | max_joint_exogenous_states | 65536 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
+| cross_world_execution.finite_markovian_scm | max_enumerated_joint_exogenous_states | 65536 | `crates/antecedent-counterfactual/src/selective/finite_scm.rs` |
 | cross_world_execution.finite_markovian_scm | max_elimination_table_entries | 4194304 | `crates/antecedent-counterfactual/src/selective/factorized.rs` |
 | cross_world_execution.finite_markovian_scm | max_elimination_variables | 8192 | `crates/antecedent-counterfactual/src/selective/factorized.rs` |
 | cross_world_execution.finite_markovian_scm | max_elimination_work | 4294967296 | `crates/antecedent-counterfactual/src/selective/factorized.rs` |
@@ -235,6 +234,11 @@ markers below and compares it. Prose outside those markers is not read.
 | discovery.sample_split_parent_set_effect | min_variables | 10 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
 | discovery.sample_split_parent_set_effect | max_variables | 20 | `crates/antecedent-io/src/measured_inference/split_parent_set_effect.rs` |
 | transport.cpdag_class_envelope | max_joint_cells | 33554432 | `crates/antecedent/src/analysis/discovered_transport_estimate.rs` |
+| sensitivity.missing_outcome_departure | max_rows | 67108864 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_covariates | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_grid_points | 4096 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_decisions | 64 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
+| sensitivity.missing_outcome_departure | max_bootstrap_replicates | 5000 | `crates/antecedent-validate/src/mnar_sensitivity.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.
