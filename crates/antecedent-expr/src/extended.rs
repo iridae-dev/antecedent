@@ -315,12 +315,16 @@ impl QuantitySum {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "These fixtures assert exact representable values or bit-preserving round trips."
+)]
 mod tests {
     use super::*;
 
     #[test]
     fn split_and_rejoin_round_trip_including_subnormals() {
-        for x in [1.0, -3.5, 1e-300, 5e-324, 1.7e308, -2.2250738585072014e-308, 0.1] {
+        for x in [1.0, -3.5, 1e-300, 5e-324, 1.7e308, -2.225_073_858_507_201_4e-308, 0.1] {
             assert_eq!(Extended::from_f64(x).to_f64().to_bits(), x.to_bits(), "{x}");
         }
         assert_eq!(Extended::from_f64(0.0).to_f64(), 0.0);

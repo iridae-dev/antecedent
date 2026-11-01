@@ -277,6 +277,10 @@ const DOT_LANES: usize = 4;
 /// pipelines and vectorises, and this fixed order is the one reduction every Gram entry,
 /// target product and refinement product uses, so the lone and shared-batch paths stay
 /// bit-identical.
+#[allow(
+    clippy::inline_always,
+    reason = "Inlining enables the measured fixed-order vectorized reduction."
+)]
 #[inline(always)]
 fn lane_sum(len: usize, term: impl Fn(usize) -> f64) -> f64 {
     let blocks = len / DOT_LANES;
@@ -753,6 +757,11 @@ pub fn partial_correlation_batch(
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    clippy::cast_sign_loss,
+    reason = "Exact zero and bounded nonnegative fixture indices are intentional."
+)]
 mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
@@ -853,7 +862,7 @@ mod tests {
             let b: Vec<f64> = (0..len).map(|_| unit()).collect();
             let exact = CompensatedSum::of(a.iter().zip(&b).map(|(p, q)| p * q));
             let got = dot(&a, &b);
-            assert!((got - exact).abs() <= 1e-14 * (1.0 + len as f64), "len {len}");
+            assert!((got - exact).abs() <= 1e-14 * (1.0 + f64::from(len)), "len {len}");
             // Fixed order: a repeat is bit-identical.
             assert_eq!(got.to_bits(), dot(&a, &b).to_bits());
         }

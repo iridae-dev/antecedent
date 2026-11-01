@@ -42,6 +42,10 @@ fn context() -> ExecutionContext {
 }
 
 /// Build and fill an owned buffer of `words` u64 values, then drop it.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "The fixture exercises the fallible measurement interface."
+)]
 fn build_buffer(words: usize) -> Result<usize, ()> {
     let buffer = vec![7u64; words];
     Ok(black_box(&buffer).len())

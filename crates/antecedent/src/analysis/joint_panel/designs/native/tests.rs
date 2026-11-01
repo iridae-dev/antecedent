@@ -1063,6 +1063,7 @@ fn compiled_native_design_full_procedure_calibration() {
                         unit.outcome = 3.0 * f64::from(unit.received) + normal(&mut rng);
                     }
                 }
+                _ => panic!("calibration fixture contains an unsupported joint design"),
             }
             let ctx = ExecutionContext::for_tests(70000 + repetition);
             let prepared = match PreparedNativeJointDesign::compile(recipe, &ctx) {

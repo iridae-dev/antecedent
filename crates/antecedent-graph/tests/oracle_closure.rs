@@ -13,8 +13,7 @@ fn fixture(path: &str) -> serde_json::Value {
 fn cpdag_edge(edge: &str) -> (DenseNodeId, DenseNodeId, bool) {
     let (pair, directed) = edge
         .split_once("->")
-        .map(|p| (p, true))
-        .unwrap_or_else(|| (edge.split_once("--").unwrap(), false));
+        .map_or_else(|| (edge.split_once("--").unwrap(), false), |p| (p, true));
     let node = |text: &str| DenseNodeId::from_raw(text.parse().unwrap());
     (node(pair.0), node(pair.1), directed)
 }

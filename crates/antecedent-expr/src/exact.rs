@@ -226,9 +226,11 @@ const MARGINAL_SHARDS: usize = 8;
 /// One shard of the marginal-table cache, keyed by the strictly ascending axis list itself so
 /// any number of axes is cacheable and a hit allocates nothing. `order` maps each entry's last
 /// use tick to its key, so the least recently used entry is the first of the map.
+type MarginalCacheEntries = HashMap<Arc<[usize]>, (u64, Arc<[f64]>)>;
+
 #[derive(Debug)]
 struct MarginalShard {
-    entries: HashMap<Arc<[usize]>, (u64, Arc<[f64]>)>,
+    entries: MarginalCacheEntries,
     order: BTreeMap<u64, Arc<[usize]>>,
     clock: u64,
 }
@@ -287,6 +289,10 @@ impl ExactDiscreteLaw {
     ///
     /// # Errors
     /// Invalid identities, domains, shape, interventions, or probability mass.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Construction validates the whole discrete law before admitting it."
+    )]
     pub fn try_new(
         population: impl Into<Arc<str>>,
         regime: RegimeId,
@@ -857,7 +863,10 @@ fn world_digest(
     assignments: &[InterventionAssignment],
 ) -> Result<u64, ExactLawError> {
     poll_world()?;
-    let mut h = PollHasher { inner: Default::default(), cancelled: false };
+    let mut h = PollHasher {
+        inner: std::collections::hash_map::DefaultHasher::default(),
+        cancelled: false,
+    };
     population.hash(&mut h);
     regime.hash(&mut h);
     for assignment in assignments {
@@ -1229,24 +1238,23 @@ impl ExactTransportData {
             }
         }
         poll_world()?;
-        match selected {
-            Some(index) => Ok(index),
-            None => {
-                let population = Arc::from(spec.population);
-                poll_world()?;
-                let variables = Arc::from(spec.variables);
-                poll_world()?;
-                let interventions = Arc::from(spec.intervention);
-                poll_world()?;
-                Err(ExactLawError {
-                    kind: "missing_exact_provider",
-                    population,
-                    regime: spec.regime,
-                    variables,
-                    conditioning: Arc::from([]),
-                    interventions,
-                })
-            }
+        if let Some(index) = selected {
+            Ok(index)
+        } else {
+            let population = Arc::from(spec.population);
+            poll_world()?;
+            let variables = Arc::from(spec.variables);
+            poll_world()?;
+            let interventions = Arc::from(spec.intervention);
+            poll_world()?;
+            Err(ExactLawError {
+                kind: "missing_exact_provider",
+                population,
+                regime: spec.regime,
+                variables,
+                conditioning: Arc::from([]),
+                interventions,
+            })
         }
     }
 
@@ -1398,6 +1406,10 @@ impl DistributionProvider for ExactTransportData {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "These fixtures assert exact representable values or bit-preserving round trips."
+)]
 mod tests {
     #[test]
     fn empirical_counts_must_reconcile_with_the_table() {

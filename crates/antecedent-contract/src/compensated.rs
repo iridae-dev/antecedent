@@ -46,6 +46,7 @@ pub(crate) fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp, reason = "These tests check exact cancellation and identity values.")]
 mod tests {
     use super::*;
 

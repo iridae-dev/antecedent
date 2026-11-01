@@ -499,6 +499,7 @@ fn widen(range: SummaryRange, value: f64) -> SummaryRange {
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp, reason = "These fixtures assert exact identity values.")]
 mod tests {
     use std::collections::HashSet;
 
@@ -634,16 +635,16 @@ mod tests {
             reconcile_priors(model.margin_prior, model.cost_prior, model.pooling_weight).unwrap();
         let (theta_lo, theta_hi, theta_n) = (-9.0, 9.0, 721);
         let (phi_lo, phi_hi, phi_n) = (-14.0, 14.0, 1121);
-        let theta_step = (theta_hi - theta_lo) / (theta_n - 1) as f64;
-        let phi_step = (phi_hi - phi_lo) / (phi_n - 1) as f64;
+        let theta_step = (theta_hi - theta_lo) / f64::from(theta_n - 1);
+        let phi_step = (phi_hi - phi_lo) / f64::from(phi_n - 1);
         let (mut mass, mut e_t, mut e_p, mut e_tt, mut e_pp, mut e_tp) =
             (0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         for i in 0..theta_n {
-            let theta = theta_lo + theta_step * i as f64;
+            let theta = theta_lo + theta_step * f64::from(i);
             // marginal likelihood of y2 given theta, integrating phi
             let mut marginal = 0.0;
             for j in 0..phi_n {
-                let phi = phi_lo + phi_step * j as f64;
+                let phi = phi_lo + phi_step * f64::from(j);
                 marginal +=
                     normal_pdf(phi, model.specific_prior.mean, model.specific_prior.variance)
                         * normal_pdf(
@@ -661,7 +662,7 @@ mod tests {
                 )
                 * marginal.powf(eta);
             for j in 0..phi_n {
-                let phi = phi_lo + phi_step * j as f64;
+                let phi = phi_lo + phi_step * f64::from(j);
                 let conditional =
                     normal_pdf(phi, model.specific_prior.mean, model.specific_prior.variance)
                         * normal_pdf(

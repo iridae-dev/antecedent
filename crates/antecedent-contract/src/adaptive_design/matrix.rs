@@ -260,6 +260,11 @@ const FIXED_SAMPLE_ONLY: &[InferenceParadigm] = &[InferenceParadigm::Frequentist
 
 /// What the engine does with `cell`. Total over the product of the axes.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    clippy::match_same_arms,
+    reason = "Separate matrix cells make each supported procedure and its scope explicit."
+)]
 pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
     use AssignmentFamily as A;
     use MonitoringStrategy as M;

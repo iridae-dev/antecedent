@@ -38,13 +38,13 @@ struct UnrolledTemporalAdmgInner {
     variables: Vec<VariableId>,
     position: std::collections::HashMap<VariableId, usize>,
     periods: u32,
-    _lease: Option<antecedent_core::execution::AdmissionLease>,
+    lease: Option<antecedent_core::execution::AdmissionLease>,
 }
 impl UnrolledTemporalAdmg {
     /// Whether this window carries an admission lease.
     #[must_use]
     pub fn is_admitted(&self) -> bool {
-        self.inner._lease.is_some()
+        self.inner.lease.is_some()
     }
     /// The window graph. A caller explicitly cloning this borrowed graph owns
     /// and must separately account for that independent copy.
@@ -352,6 +352,10 @@ impl TemporalAdmg {
     /// The returned handle and its clones share the retained admission.
     /// # Errors
     /// Invalid dimensions, logical/byte limits, cancellation or graph construction.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "The bounded graph quote and admission remain coupled to their allocation."
+    )]
     pub fn unroll_window_over_within(
         &self,
         periods: u32,
@@ -541,6 +545,10 @@ impl TemporalAdmg {
         self.unroll_window_over_inner(periods, variable_count, Some(ctx), Some(lease))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "The finite unroll keeps its checked edge and node construction together."
+    )]
     fn unroll_window_over_inner(
         &self,
         periods: u32,
@@ -685,7 +693,7 @@ impl TemporalAdmg {
                 variables,
                 position,
                 periods,
-                _lease: lease,
+                lease,
             }),
         })
     }

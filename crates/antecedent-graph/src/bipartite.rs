@@ -64,18 +64,15 @@ fn augment(
             continue;
         }
         seen[variable] = true;
-        match matched[variable] {
-            Some(other) => {
-                via.push(variable);
-                stack.push((other, 0));
+        if let Some(other) = matched[variable] {
+            via.push(variable);
+            stack.push((other, 0));
+        } else {
+            matched[variable] = Some(equation);
+            for (entered, (parent, _)) in via.iter().zip(&stack).rev() {
+                matched[*entered] = Some(*parent);
             }
-            None => {
-                matched[variable] = Some(equation);
-                for (entered, (parent, _)) in via.iter().zip(&stack).rev() {
-                    matched[*entered] = Some(*parent);
-                }
-                return true;
-            }
+            return true;
         }
     }
     false

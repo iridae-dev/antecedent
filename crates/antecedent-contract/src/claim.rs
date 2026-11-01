@@ -1123,10 +1123,9 @@ pub struct CheckedWorldPointLimits {
 
 fn outer_action_count(world: &antecedent_core::InterventionWorld) -> usize {
     let action = world.action();
-    action.at_decision_interventions().map_or_else(
-        || action.structural_actions().map_or(1, |items| items.len()),
-        |items| items.len(),
-    )
+    action
+        .at_decision_interventions()
+        .map_or_else(|| action.structural_actions().map_or(1, <[_]>::len), <[_]>::len)
 }
 
 /// Why a checked world-point composition cannot be evaluated.
@@ -1283,6 +1282,10 @@ pub fn admit_composition_targets<'a>(
 /// The count must match the iterator and remain within the caller's term limit.
 /// # Errors
 /// Cancellation or a work/evidence limit.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded quote accounts for related inputs in one traversal."
+)]
 pub fn quote_claim_premises<'a>(
     claims: impl Iterator<Item = &'a ClaimEnvelope>,
     parent_count: usize,
@@ -1513,6 +1516,10 @@ pub fn composition_claim_premises_identity(claim: &ClaimEnvelope) -> SemanticDig
 /// numerical operands or result fail verification, or the caller's limits are
 /// exceeded. See [`CheckedWorldPointLimits`] for caller-selected bounds. Cancellation
 /// is checked between bounded stages; individual canonical hashes and sorts do not poll.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded composition keeps its dependent validation steps together."
+)]
 pub fn compose_checked_world_points(
     target: &ScientificTarget,
     parents: &[WorldPointParent<'_>],
@@ -1709,6 +1716,10 @@ pub fn compose_checked_world_points(
 /// is refused. Use the facade's checked Study claim composer to construct a new
 /// target and point from retained prepared programs and trusted parent envelopes.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bounded composition keeps its dependent validation steps together."
+)]
 pub fn compose_claims(
     parents: &[&ClaimEnvelope],
     operation: ClaimOperation,
@@ -2133,7 +2144,7 @@ mod tests {
         let all = relay(all_weaker);
         assert_ne!(all.claim.claim_id, weakened.claim.claim_id);
         for axis in ["identification", "support", "evaluated"] {
-            assert!(all.receipt.omitted.iter().any(|field| &**field == format!("domains.{axis}")));
+            assert!(all.receipt.omitted.iter().any(|field| **field == format!("domains.{axis}")));
         }
     }
 

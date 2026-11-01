@@ -52,6 +52,10 @@ impl TemporalPag {
     }
 
     /// Unfold using one caller-owned budget and a lease retained with the graph.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "The bounded graph materialization retains its shared admission and validation."
+    )]
     pub fn unfold_within(
         &self,
         indexer: TemporalIndexer,

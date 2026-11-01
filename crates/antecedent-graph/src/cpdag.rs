@@ -469,6 +469,10 @@ impl TemporalCpdag {
     ///
     /// A lagged node is itself. An untagged context is the contemporaneous node of its
     /// variable, a root (a context is never caused by a system node).
+    #[allow(
+        clippy::match_on_vec_items,
+        reason = "The node index is validated by the enclosing graph traversal."
+    )]
     fn dag_node(&self, id: usize) -> Result<NodeRef, GraphError> {
         match self.nodes[id] {
             node @ NodeRef::Lagged { .. } => Ok(node),

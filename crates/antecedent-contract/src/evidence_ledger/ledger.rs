@@ -954,8 +954,8 @@ impl EvidenceLedger {
 
     fn check_borrowing(
         &self,
-        priors: &mut Vec<SourceId>,
-        likelihood: &mut Vec<SourceId>,
+        priors: &mut [SourceId],
+        likelihood: &mut [SourceId],
         facts: &mut CombinationFacts,
     ) -> Result<(), LedgerError> {
         if likelihood.is_empty() {
@@ -964,7 +964,7 @@ impl EvidenceLedger {
                 "borrowing needs at least one likelihood-bearing source"
             ));
         }
-        let mut all = priors.clone();
+        let mut all = priors.to_vec();
         all.extend(likelihood.iter().copied());
         let ids = self.check_listed(&all)?;
         for prior in priors.iter() {
@@ -1000,8 +1000,8 @@ impl EvidenceLedger {
 
     fn check_transport(
         &self,
-        transported: &mut Vec<SourceId>,
-        native: &mut Vec<SourceId>,
+        transported: &mut [SourceId],
+        native: &mut [SourceId],
         facts: &mut CombinationFacts,
     ) -> Result<(), LedgerError> {
         if transported.is_empty() {
@@ -1017,7 +1017,7 @@ impl EvidenceLedger {
             )
             .with_sources([*id]));
         }
-        let mut all = transported.clone();
+        let mut all = transported.to_vec();
         all.extend(native.iter().copied());
         let ids = self.check_listed(&all)?;
         for id in transported.iter() {

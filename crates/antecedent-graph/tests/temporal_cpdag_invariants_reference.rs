@@ -202,7 +202,7 @@ fn check_completion(g: &TemporalCpdag, ids: &[DenseNodeId], model: &Model) {
     }
     let mut got: Vec<(usize, usize)> = skeleton
         .edges()
-        .filter_map(|e| e.parent_child())
+        .filter_map(antecedent_graph::MarkedEdge::parent_child)
         .map(|(p, c)| {
             (ids.iter().position(|x| *x == p).unwrap(), ids.iter().position(|x| *x == c).unwrap())
         })

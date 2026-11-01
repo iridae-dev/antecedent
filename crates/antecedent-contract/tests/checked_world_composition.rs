@@ -109,6 +109,11 @@ fn fixture() -> (ScientificTarget, ScientificTarget, ScientificTarget, ClaimEnve
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    clippy::float_cmp,
+    reason = "The end-to-end fixture checks exact representable points and their refusal paths together."
+)]
 fn checked_world_points_compute_the_declared_target_and_refuse_forgery() {
     let (target, first, second, p0, p1) = fixture();
     let inputs = [

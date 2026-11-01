@@ -151,7 +151,7 @@ fn compare(n: usize, directed: &[(usize, usize)], bidirected: &[(usize, usize)])
     let mut ws = SigmaSeparationWorkspace::new();
     let (mut sep, mut open) = (0u64, 0u64);
     for mask in 0..(1usize << n) {
-        let c: Vec<bool> = (0..n).map(|v| mask >> v & 1 == 1).collect();
+        let c: Vec<bool> = (0..n).map(|v| (mask >> v) & 1 == 1).collect();
         let z: Vec<DenseNodeId> = (0..n).filter(|&v| c[v]).map(id).collect();
         for x in 0..n {
             for y in 0..n {
@@ -181,7 +181,7 @@ fn unordered_pairs(n: usize) -> Vec<(usize, usize)> {
 }
 
 fn pick(pairs: &[(usize, usize)], code: u64) -> Vec<(usize, usize)> {
-    pairs.iter().enumerate().filter(|(k, _)| code >> k & 1 == 1).map(|(_, p)| *p).collect()
+    pairs.iter().enumerate().filter(|(k, _)| (code >> k) & 1 == 1).map(|(_, p)| *p).collect()
 }
 
 #[test]

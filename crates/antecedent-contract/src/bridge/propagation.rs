@@ -1565,6 +1565,7 @@ pub(super) fn validate_finite_affine_mapping(
 }
 
 #[cfg(test)]
+#[allow(clippy::float_cmp, reason = "These fixtures check exact representable propagation values.")]
 mod tests {
     use std::sync::Arc;
 
@@ -1913,7 +1914,7 @@ mod tests {
         let independent = contract.propagate_affine_uncertainty(4.0, 0.25).unwrap();
         assert_eq!(independent.plug_in_mean.to_bits(), 8.0_f64.to_bits());
         assert_eq!(independent.mean.to_bits(), independent.plug_in_mean.to_bits());
-        // 4^2 * 0.0625 + 2^2 * 0.25 + 0.0625 * 0.25 = 1 + 1 + 0.015625.
+        // 4^2 * 0.0625 + 2^2 * 0.25 + 0.0625 * 0.25 = 1 + 1 + 0.015_625.
         assert_eq!(independent.variance.to_bits(), 2.015_625_f64.to_bits());
         assert_eq!(independent.assumptions[0].id, "hypothetical-bias");
 
@@ -2268,6 +2269,10 @@ mod tests {
 
 #[cfg(test)]
 mod joint_tests {
+    #![allow(
+        clippy::unnecessary_wraps,
+        reason = "The fixture returns the optional dependence accepted by the tested API."
+    )]
     use super::super::super::kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
     use super::super::super::mapping::BridgeMapping;
     use super::super::{BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeScope};
@@ -2348,14 +2353,14 @@ mod joint_tests {
     /// `exp(z0 + z1 + z2)` over a correlated normal vector is lognormal with
     /// `L = z0 + z1 + z2 ~ N(m, v)`: a closed-form reference.
     fn lognormal_law() -> (JointLaw, f64, f64, f64, f64) {
-        let covariance = vec![0.01, 0.0025, 0.0, 0.0025, 0.0225, -0.005, 0.0, -0.005, 0.015625];
+        let covariance = vec![0.01, 0.0025, 0.0, 0.0025, 0.0225, -0.005, 0.0, -0.005, 0.015_625];
         let law = JointLaw::new(
             vec!["a".into(), "b".into(), "c".into()],
             vec![0.1, -0.2, 0.3],
             covariance,
         )
         .unwrap();
-        let v: f64 = 0.01 + 0.0225 + 0.015625 + 2.0 * (0.0025 + 0.0 - 0.005);
+        let v: f64 = 0.01 + 0.0225 + 0.015_625 + 2.0 * (0.0025 + 0.0 - 0.005);
         let m: f64 = 0.2;
         let mean = (m + 0.5 * v).exp();
         let variance = (v.exp() - 1.0) * (2.0 * m + v).exp();

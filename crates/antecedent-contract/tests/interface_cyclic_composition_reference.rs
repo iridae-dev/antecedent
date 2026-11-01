@@ -75,7 +75,7 @@ fn run(vertices: usize, self_loops: bool, lines: &mut std::str::Lines<'_>, expec
         let edges: Vec<(usize, usize)> = listing
             .iter()
             .enumerate()
-            .filter(|(k, _)| mask >> k & 1 == 1)
+            .filter(|(k, _)| (mask >> k) & 1 == 1)
             .map(|(_, e)| *e)
             .collect();
         let connections: Vec<ComponentConnection> = edges

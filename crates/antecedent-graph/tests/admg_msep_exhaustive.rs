@@ -117,7 +117,9 @@ impl Oracle {
     }
 }
 
-fn edges_of(n: usize, code: u64) -> (Vec<(usize, usize)>, Vec<(usize, usize)>) {
+type Edges = Vec<(usize, usize)>;
+
+fn edges_of(n: usize, code: u64) -> (Edges, Edges) {
     let (mut directed, mut bidirected) = (Vec::new(), Vec::new());
     let mut rest = code;
     for i in 0..n {
@@ -158,7 +160,7 @@ fn check_graph(n: usize, code: u64, ws: &mut DSeparationWorkspace) -> (usize, us
                 let mut zmask = vec![false; n];
                 let mut z = Vec::new();
                 for (k, &v) in others.iter().enumerate() {
-                    if sub >> k & 1 == 1 {
+                    if (sub >> k) & 1 == 1 {
                         zmask[v] = true;
                         z.push(id(v));
                     }
@@ -191,7 +193,7 @@ fn every_four_node_admg_matches_the_path_definition() {
         checked += c;
         connected += k;
     }
-    assert_eq!(checked, 4u64.pow(6) as usize * 6 * 4);
+    assert_eq!(checked, 4usize.pow(6) * 6 * 4);
     assert!(connected > 20_000 && checked - connected > 5_000, "{connected}/{checked}");
 }
 
@@ -267,7 +269,7 @@ fn dag_arcs(n: usize, code: u64) -> Vec<(usize, usize)> {
     let mut bit = 0;
     for i in 0..n {
         for j in (i + 1)..n {
-            if code >> bit & 1 == 1 {
+            if (code >> bit) & 1 == 1 {
                 arcs.push((i, j));
             }
             bit += 1;
@@ -288,7 +290,7 @@ fn projection_agrees(n: usize, code: u64, ws: &mut DSeparationWorkspace) -> usiz
     for mask in 0usize..(1 << n) {
         // Observed nodes in descending index order, so dense ids of the projection differ from the
         // original ones.
-        let observed: Vec<usize> = (0..n).rev().filter(|&v| mask >> v & 1 == 1).collect();
+        let observed: Vec<usize> = (0..n).rev().filter(|&v| (mask >> v) & 1 == 1).collect();
         if observed.len() < 2 {
             continue;
         }
@@ -302,7 +304,7 @@ fn projection_agrees(n: usize, code: u64, ws: &mut DSeparationWorkspace) -> usiz
                     let chosen: Vec<usize> = rest
                         .iter()
                         .enumerate()
-                        .filter(|(b, _)| sub >> b & 1 == 1)
+                        .filter(|(b, _)| (sub >> b) & 1 == 1)
                         .map(|(_, &m)| m)
                         .collect();
                     let mut zmask = vec![false; n];

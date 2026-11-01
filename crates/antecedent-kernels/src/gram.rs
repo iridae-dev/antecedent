@@ -214,6 +214,10 @@ pub fn invert_square(a_in: &[f64], n: usize) -> Option<Vec<f64>> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::float_cmp,
+    reason = "These fixtures check exact solutions and power-of-two scales."
+)]
 mod tests {
     use super::*;
 

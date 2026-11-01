@@ -62,11 +62,10 @@ fn all_dags(n: usize) -> Vec<Arcs> {
     out
 }
 
+type Invariants = (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize, usize)>);
+
 /// (skeleton, unshielded colliders) of a DAG.
-fn invariant(
-    n: usize,
-    arcs: &[(usize, usize)],
-) -> (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize, usize)>) {
+fn invariant(n: usize, arcs: &[(usize, usize)]) -> Invariants {
     let adjacent = |a: usize, b: usize| arcs.contains(&(a, b)) || arcs.contains(&(b, a));
     let skeleton = arcs.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
     let mut colliders = BTreeSet::new();

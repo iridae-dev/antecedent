@@ -135,7 +135,7 @@ impl Mixed {
         let n = self.n;
         let mut out = Vec::new();
         for mask in 0..(1usize << n) {
-            let z: Vec<bool> = (0..n).map(|v| mask >> v & 1 == 1).collect();
+            let z: Vec<bool> = (0..n).map(|v| (mask >> v) & 1 == 1).collect();
             for (x, y) in pairs(n) {
                 if z[x] || z[y] {
                     continue;
@@ -153,7 +153,7 @@ impl Mixed {
                 continue;
             }
             let separable = (0..(1usize << n)).any(|mask| {
-                let z: Vec<bool> = (0..n).map(|v| mask >> v & 1 == 1).collect();
+                let z: Vec<bool> = (0..n).map(|v| (mask >> v) & 1 == 1).collect();
                 !z[x] && !z[y] && self.msep(x, y, &z)
             });
             if !separable {
@@ -170,7 +170,7 @@ fn all_codes(n: usize) -> Vec<Code> {
         .map(|mut c| {
             (0..k)
                 .map(|_| {
-                    let s = (c % 4) as u8;
+                    let s = u8::try_from(c % 4).unwrap();
                     c /= 4;
                     s
                 })

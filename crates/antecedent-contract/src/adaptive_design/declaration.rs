@@ -588,6 +588,9 @@ impl AdaptiveDesignContract {
         clippy::result_large_err,
         reason = "a structured refusal preserves the requested index"
     )]
+    ///
+    /// # Panics
+    /// Panics only if the validated contract invariant requiring interim analyses is violated.
     pub fn analysis_units(&self, look: usize) -> Result<Vec<usize>, ExternalRefusal> {
         let looks = self.declaration.interim_analyses.as_ref().expect("validated contract");
         let availability = self.declaration.availability.as_ref().expect("validated contract");
@@ -663,6 +666,10 @@ impl AdaptiveDesignContract {
 #[allow(
     clippy::result_large_err,
     reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "The shared authorization API borrows the declared procedure cell."
 )]
 pub(super) fn authorize_cell(
     cell: &ProcedureCell,

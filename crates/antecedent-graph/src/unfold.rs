@@ -73,6 +73,10 @@ impl TemporalDag {
     /// from the borrowed `dag` is caller-owned.
     /// # Errors
     /// Cancellation, logical limits, admission, or invalid graph coordinates.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "The bounded graph materialization retains its shared admission and validation."
+    )]
     pub fn unfold_within(
         &self,
         indexer: TemporalIndexer,
