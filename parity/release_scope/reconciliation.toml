@@ -835,7 +835,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/white_innovation_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/white_innovation_route.rs"]
+fixtures = ["crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_least_squares_posterior_with_its_premise_recorded"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/checked_bayesian_temporal_dag_lifecycle.rs::bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency;crates/antecedent/tests/white_innovation_route.rs"]
 
 [[row]]
@@ -889,7 +889,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/penalized_propensity_posterior.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/treatment_score_product.rs"]
+fixtures = ["crates/antecedent/tests/treatment_score_product.rs::the_product_matches_newton_modes_and_laplace_score_moments"]
 consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume;crates/antecedent/tests/treatment_score_product.rs"]
 
 [[row]]
@@ -898,8 +898,8 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_penalized_score.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_treatment_score_product.rs"]
-consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume;crates/antecedent/tests/temporal_treatment_score_product.rs"]
+fixtures = ["crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::the_penalized_score_interval_is_the_subject_influence_sandwich_of_the_ridge_mode", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_dependent_series_refuses_the_penalized_score_interval", "crates/antecedent/tests/temporal_treatment_score_product.rs::the_penalized_score_is_the_ridge_mode_with_an_unpenalized_intercept", "crates/antecedent/tests/temporal_treatment_score_product.rs::a_single_dependent_series_is_refused_with_its_next_attempt"]
+consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume;crates/antecedent/tests/temporal_treatment_score_product.rs::the_retained_artifact_is_refit_on_load_and_refused_when_forged"]
 
 [[row]]
 id = "P02.penalized_propensity.temporal.bayesian"
@@ -907,7 +907,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_penalized_score.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/temporal_treatment_score_product.rs"]
+fixtures = ["crates/antecedent/tests/temporal_treatment_score_product.rs::the_posterior_score_is_a_laplace_mean_not_the_mode_probability"]
 consumer = ["crates/antecedent/src/analysis/array_fits.rs::consume;crates/antecedent/tests/temporal_treatment_score_product.rs"]
 
 [[row]]
@@ -916,7 +916,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_robust_ate.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/bayesian_robust_ate.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_robust_ate.rs::bayesian_robust_ate_all_observed_staged_known_truth"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_robust_ate.rs"]
 
 [[row]]
@@ -925,7 +925,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/sequential_aipw_inference.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs::sequential_contrast_wald_matches_the_pinned_reference_and_round_trips"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs"]
 
 [[row]]
@@ -934,7 +934,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/sequential_aipw_inference.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs::sequential_contrast_posterior_is_the_modular_dirichlet_posterior"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs"]
 
 [[row]]
@@ -943,7 +943,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/policy_value_posterior.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/bayesian_policy_regime_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_policy_regime_routes.rs::binary_policy_posterior_runs_through_the_study_flow_and_matches_hand_scores"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_policy_regime_routes.rs"]
 
 [[row]]
@@ -952,7 +952,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/policy_value_posterior.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/bayesian_policy_regime_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_policy_regime_routes.rs::sequential_regime_posterior_runs_through_the_study_flow_and_matches_hand_scores"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_policy_regime_routes.rs"]
 
 [[row]]
@@ -961,7 +961,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian/gcomp.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs::bayesian_gcomp_on_the_treated_and_untreated_recovers_each_arms_model_based_effect"]
 consumer = ["crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact;python/tests/test_unlicensed_design_routes.py"]
 
 [[row]]
@@ -970,8 +970,8 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/history_match.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/unlicensed_design_routes.rs"]
-consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs"]
+fixtures = ["crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::the_serial_interval_equals_the_period_series_long_run_variance_of_the_matched_pairs", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_three_period_hand_case_pins_the_newey_west_arithmetic", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::a_missing_period_does_not_invent_an_adjacency", "crates/antecedent-estimate/tests/dependence_aware_interval_reference.rs::matches_in_a_single_period_refuse_a_serial_interval_with_a_typed_reason", "crates/antecedent/tests/unlicensed_design_routes.rs::period_history_match_matches_the_brute_force_reference_and_round_trips"]
+consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/unlicensed_design_routes.rs::period_history_match_matches_the_brute_force_reference_and_round_trips"]
 
 [[row]]
 id = "P04.temporal.bayesian"
@@ -979,7 +979,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/history_outcome_model.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_arm_effect_routes.rs::the_history_outcome_model_reports_a_model_based_effect_on_the_treated"]
 consumer = ["crates/antecedent-io-core/src/posterior.rs::decode_posterior_artifact;python/tests/test_unlicensed_design_routes.py"]
 
 [[row]]
@@ -988,7 +988,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/bayesian_path.rs", "crates/antecedent-prob"]
-fixtures = ["crates/antecedent/tests/tiered_bayesian.rs"]
+fixtures = ["crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs::bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/checked_bayesian_static_class_effect_route_evidence.rs::bayesian_static_class_effect_executes_from_retained_plan_after_builder_is_dropped;crates/antecedent/tests/tiered_bayesian.rs"]
 
 [[row]]
@@ -997,7 +997,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_response/bayes.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/white_innovation_route.rs"]
+fixtures = ["crates/antecedent/tests/white_innovation_route.rs::a_declared_premise_gives_the_untempered_curve_at_one_step_with_its_premise_recorded"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency;python/tests/test_white_innovation_route.py"]
 
 [[row]]
@@ -1024,7 +1024,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/continuous_dose_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs::dose_policy_posterior_matches_the_per_group_conjugate_reference"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
 
 [[row]]
@@ -1033,7 +1033,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_with_a_bias_aware_band"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1042,7 +1042,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1051,7 +1051,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/smoothed_dose_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/smoothed_dose_posterior_facade.rs"]
+fixtures = ["crates/antecedent/tests/smoothed_dose_posterior_facade.rs::posterior_covers_the_closed_form_smoothed_target_under_both_designs"]
 consumer = ["crates/antecedent/src/analysis/smoothed_dose.rs::consume_smoothed_dose_posterior_artifact;crates/antecedent/tests/smoothed_dose_posterior_facade.rs"]
 
 [[row]]
@@ -1060,7 +1060,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1069,7 +1069,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1087,7 +1087,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/dose_grid_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
+fixtures = ["crates/antecedent-estimate/src/dose_grid_posterior.rs::level_posterior_matches_the_conjugate_reference_and_keeps_the_covariance"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
 
 [[row]]
@@ -1096,7 +1096,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_with_a_bias_aware_band"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1105,7 +1105,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/dose.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_dose_targets_recover_the_curve_under_the_bayesian_bootstrap_and_the_smoothed_curve"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1114,7 +1114,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/quantile_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs::quantile_posterior_matches_the_dirichlet_reference_and_keeps_joint_draws"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
 
 [[row]]
@@ -1123,7 +1123,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/randomized_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs::the_default_bayesian_route_is_the_finite_population_posterior_of_the_design_based_target"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_randomized_routes.rs"]
 
 [[row]]
@@ -1132,7 +1132,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/randomized_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs::many_arms_report_every_arm_against_the_reference"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_randomized_routes.rs"]
 
 [[row]]
@@ -1150,7 +1150,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/randomized_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs::the_factorial_main_effects_and_interaction_match_the_exact_moments"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_randomized_routes.rs"]
 
 [[row]]
@@ -1159,7 +1159,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/switchback_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_randomized_routes.rs::the_switchback_posterior_matches_the_whitened_least_squares_reference"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_randomized_routes.rs"]
 
 [[row]]
@@ -1168,7 +1168,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs", "crates/antecedent-stats"]
-fixtures = ["crates/antecedent/tests/repeated_measures_posterior_facade.rs"]
+fixtures = ["crates/antecedent/tests/repeated_measures_posterior_facade.rs::the_posterior_matches_the_hand_calculation"]
 consumer = ["crates/antecedent/src/analysis/repeated_measures_posterior_report.rs::load_repeated_measures_posterior_report;crates/antecedent/tests/repeated_measures_posterior_facade.rs"]
 
 [[row]]
@@ -1177,7 +1177,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/contrasts.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::the_bayesian_bootstrap_recovers_the_multi_arm_factorial_and_interference_effects"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1186,7 +1186,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/survival_posterior.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_posterior_routes.rs::survival_posterior_matches_the_gamma_hazard_reference_and_keeps_joint_draws"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/bayesian_design_posterior_routes.rs"]
 
 [[row]]
@@ -1204,7 +1204,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_design/survival.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/temporal_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/temporal_design_routes.rs::regime_survival_recovers_the_contrast_with_both_procedures"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/temporal_design_routes.rs"]
 
 [[row]]
@@ -1213,7 +1213,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_panel_did.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs::panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_design_routes.rs"]
 
 [[row]]
@@ -1222,7 +1222,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_panel_did.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs::panel_did_posterior_matches_the_closed_form_and_keeps_premises_declared"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_design_routes.rs"]
 
 [[row]]
@@ -1240,8 +1240,8 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_panel_did.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs"]
-consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/augmented_panel_did_bayesian.rs::the_bayesian_augmented_panel_posterior_matches_the_arm_regression_reference_and_the_truth"]
+consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/augmented_panel_did_bayesian.rs::the_bayesian_augmented_panel_posterior_matches_the_arm_regression_reference_and_the_truth"]
 
 [[row]]
 id = "P11.staggered.temporal.bayesian"
@@ -1249,7 +1249,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_staggered_event_study.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs"]
+fixtures = ["crates/antecedent-estimate/src/bayesian_staggered_event_study/tests.rs::event_time_posteriors_match_the_analytic_group_coefficient_posterior"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_design_routes.rs"]
 
 [[row]]
@@ -1267,7 +1267,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_synthetic_control.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs::synthetic_control_posterior_recovers_the_effect_and_records_convergence"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_design_routes.rs"]
 
 [[row]]
@@ -1276,7 +1276,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs"]
+fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/quasi_rollout_routes.rs"]
 
 [[row]]
@@ -1285,7 +1285,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs"]
+fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"]
 
 [[row]]
@@ -1294,7 +1294,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/bayesian_local_ratio.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs"]
+fixtures = ["crates/antecedent/tests/bayesian_design_routes.rs::local_ratio_recovers_the_known_ratio_and_withholds_the_interval_when_weak"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;crates/antecedent/tests/bayesian_design_routes.rs"]
 
 [[row]]
@@ -1303,7 +1303,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs"]
+fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"]
 
 [[row]]
@@ -1312,7 +1312,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/checked_local_polynomial_ratio/design.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs"]
+fixtures = ["crates/antecedent/tests/quasi_rollout_routes.rs::a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design"]
 consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact;python/tests/test_quasi_rollout.py"]
 
 [[row]]
@@ -1321,7 +1321,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/temporal_response/bayes.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs"]
+fixtures = ["crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs"]
 
 [[row]]
@@ -1330,7 +1330,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/gcm.rs", "crates/antecedent-counterfactual"]
-fixtures = ["crates/antecedent/tests/counterfactual_noise_posterior.rs"]
+fixtures = ["crates/antecedent/tests/counterfactual_noise_posterior.rs::bayesian_unit_effects_integrate_the_categorical_noise_posterior"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/checked_bayesian_counterfactual_route_evidence.rs::bayesian_counterfactual_accepted_and_explicit_lifecycle_exposes_dependency_boundary;crates/antecedent/tests/counterfactual_noise_posterior.rs"]
 
 [[row]]
@@ -1339,7 +1339,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/temporal_path.rs", "crates/antecedent-counterfactual"]
-fixtures = ["crates/antecedent/tests/temporal_counterfactual_posterior.rs", "crates/antecedent/tests/temporal_cross_world_effect.rs::cross_world_artifacts_are_consumed_with_the_point_they_publish"]
+fixtures = ["crates/antecedent/tests/temporal_counterfactual_posterior.rs::the_bayesian_temporal_counterfactual_is_the_posterior_of_the_slope_times_the_contrast", "crates/antecedent/tests/temporal_cross_world_effect.rs::cross_world_artifacts_are_consumed_with_the_point_they_publish"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/temporal_cross_world_effect.rs::cross_world_artifacts_are_consumed_with_the_point_they_publish;crates/antecedent/tests/temporal_counterfactual_posterior.rs"]
 
 [[row]]
@@ -1402,7 +1402,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/conditional_admg.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/admg_conditional_effect.rs"]
+fixtures = ["crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
 
 [[row]]
@@ -1411,7 +1411,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/conditional_admg.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/admg_conditional_effect.rs"]
+fixtures = ["crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/admg_conditional_effect.rs::admg_conditional_effect_coordinates_execute_from_the_retained_plan"]
 
 [[row]]
@@ -1438,7 +1438,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/functional_distribution.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/bayesian_functional_routes.rs"]
+fixtures = ["crates/antecedent/tests/admg_functional_effect_route_evidence.rs::admg_explicit_bayesian_none"]
 consumer = ["crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result;crates/antecedent/tests/checked_admg_graph_posterior_effect_route_evidence.rs::admg_graph_posterior_effect_is_sealed_for_both_inference_modes;crates/antecedent/tests/bayesian_functional_routes.rs"]
 
 [[row]]
@@ -1483,7 +1483,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-state/src/ols_refresh.rs", "crates/antecedent-state"]
-fixtures = ["crates/antecedent-state/tests/ols_refresh_contract.rs"]
+fixtures = ["crates/antecedent-state/tests/ols_refresh_contract.rs::appended_rows_and_windows_equal_the_reference_without_a_rebuild"]
 consumer = ["crates/antecedent/src/period_refresh.rs::OlsRefresh;crates/antecedent-state/tests/ols_refresh_contract.rs"]
 
 [[row]]
@@ -1492,7 +1492,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-state/src/conjugate_refresh.rs", "crates/antecedent-state"]
-fixtures = ["crates/antecedent-state/tests/conjugate_refresh_oracle.rs"]
+fixtures = ["crates/antecedent-state/tests/conjugate_refresh_oracle.rs::sequential_blocks_equal_the_batch_posterior"]
 consumer = ["crates/antecedent/src/period_refresh.rs::ConjugateOlsPosterior;crates/antecedent-state/tests/conjugate_refresh_oracle.rs"]
 
 [[row]]
@@ -1501,7 +1501,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/period_refresh.rs", "crates/antecedent-estimate"]
-fixtures = ["crates/antecedent/tests/period_refresh_lifecycle.rs"]
+fixtures = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_declared_invariant_period_extends_and_equals_one_batch_fit"]
 consumer = ["crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact;crates/antecedent/tests/period_refresh_lifecycle.rs"]
 
 [[row]]
@@ -1510,7 +1510,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/period_refresh.rs", "crates/antecedent-state"]
-fixtures = ["crates/antecedent/tests/period_refresh_lifecycle.rs"]
+fixtures = ["crates/antecedent/tests/period_refresh_lifecycle.rs::a_prior_refresh_equals_the_batch_posterior_when_the_model_survives_and_restarts_otherwise"]
 consumer = ["crates/antecedent/src/analysis/temporal_extensions.rs::consume_period_refresh_artifact;crates/antecedent/tests/period_refresh_lifecycle.rs"]
 
 [[row]]
@@ -1519,7 +1519,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/linear_adjustment_route_evidence.rs::dag_explicit_frequentist_none_linear_adjustment_coordinate", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1528,7 +1528,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_dag_ate_route_evidence.rs::bayesian_dag_ate_retains_proof_prior_validation_and_draws_across_refresh", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1537,7 +1537,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_temporal_dag_effect_route_evidence.rs::fixed_temporal_contrasts_execute_from_retained_proof_and_procedure", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1546,7 +1546,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/execute/compile.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
+fixtures = ["scripts/test_route_manifest_diff.py::test_the_working_tree_loses_no_capability_the_published_predecessor_had", "crates/antecedent/tests/licensed_compiler.rs::every_licensed_cell_completes_the_compiler_path", "crates/antecedent/tests/checked_bayesian_temporal_response_route_evidence.rs::bayesian_temporal_responses_are_sealed_refreshable_and_have_precise_artifact_dependency", "scripts/test_gate_retained_routes.py"]
 consumer = ["scripts/gate_retained_routes.py;crates/antecedent-io-core/src/contract_section/consume.rs::consume_analysis_result"]
 
 [[row]]
@@ -1555,7 +1555,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["scripts/closure_audit.py"]
-fixtures = ["scripts/test_closure_audit.py::test_every_unresolved_mandatory_row_is_listed_with_its_missing_element"]
+fixtures = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 consumer = ["scripts/gate_release.sh"]
 
 [[row]]
@@ -1564,7 +1564,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["scripts/closure_audit.py"]
-fixtures = ["scripts/test_closure_audit.py::test_a_counterpart_without_a_verified_attempt_is_reported"]
+fixtures = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 consumer = ["scripts/gate_release.sh"]
 
 [[row]]
@@ -1573,7 +1573,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["scripts/closure_audit.py"]
-fixtures = ["scripts/test_closure_audit.py::test_a_missing_consumer_is_reported_per_child"]
+fixtures = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 consumer = ["scripts/gate_release.sh"]
 
 [[row]]
@@ -1582,7 +1582,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["scripts/closure_audit.py"]
-fixtures = ["scripts/test_closure_audit.py::test_a_narrowed_promise_is_listed_with_its_adjusted_claim"]
+fixtures = ["scripts/test_closure_report_rows.py::test_the_report_lists_every_unresolved_row_and_the_release_fails_on_each"]
 consumer = ["scripts/gate_release.sh"]
 
 [[row]]
@@ -1591,7 +1591,7 @@ source = "method_children"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/joint_contrast_binding.rs", "crates/antecedent"]
-fixtures = ["crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal", "crates/antecedent/tests/numeric_pins.rs::three_factor_interaction_batch_withholds_instead_of_using_first_four_cells"]
+fixtures = ["crates/antecedent/tests/numeric_pins.rs::batch_family_contrasts_retain_checked_worlds_after_builder_disposal", "crates/antecedent/tests/numeric_pins.rs::three_factor_interaction_batch_publishes_the_three_way_contrast"]
 consumer = ["crates/antecedent/src/analysis/batch.rs::prepare_cells"]
 
 [[row]]
@@ -1880,16 +1880,16 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent-discovery/src/cyclic_fci.rs"]
 fixtures = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent-discovery/src/cyclic_fci.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19"
 source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
-owner = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
+owner = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/ou_trajectory.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
 fixtures = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y18.1"
@@ -1898,7 +1898,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs"]
 fixtures = ["crates/antecedent-identify/src/cyclic_id.rs", "crates/antecedent-identify/src/cyclic_calculus.rs", "crates/antecedent-io/src/cyclic_functional.rs", "crates/antecedent-io/src/cyclic_gaussian_functional.rs", "crates/antecedent-estimate/src/cyclic_gaussian_functional.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y18.2"
@@ -1907,7 +1907,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-discovery/src/cyclic_fci.rs"]
 fixtures = ["crates/antecedent-discovery/src/cyclic_fci.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.1"
@@ -1916,7 +1916,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs"]
 fixtures = ["crates/antecedent-model/src/nonlinear_equilibrium.rs", "crates/antecedent-model/src/mechanism_expr.rs", "crates/antecedent-model/src/local_cyclic.rs", "crates/antecedent-model/src/system_compile.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.2"
@@ -1925,7 +1925,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs"]
 fixtures = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-model/src/equilibrium_polynomial.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.3"
@@ -1934,7 +1934,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs"]
 fixtures = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/cyclic_gradient.rs", "crates/antecedent-estimate/src/cyclic_adam.rs", "crates/antecedent-model/src/linear_moments.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.4"
@@ -1943,7 +1943,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/polynomial_scm.rs"]
 fixtures = ["crates/antecedent-estimate/src/cyclic_likelihood.rs", "crates/antecedent-estimate/src/polynomial_scm.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.5"
@@ -1952,7 +1952,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs"]
 fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/cyclic_dynamics.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.6"
@@ -1960,8 +1960,8 @@ source = "scope_amendment_2026_10_20"
 list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/ou_trajectory.rs"]
-fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent-estimate/src/ou_trajectory.rs", "python/tests/test_ou_trajectory.py", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+fixtures = ["crates/antecedent-model/src/continuous_cyclic.rs", "crates/antecedent-estimate/src/ou_mechanisms.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.7"
@@ -1970,7 +1970,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs"]
 fixtures = ["crates/antecedent-model/src/equation_system.rs", "crates/antecedent-estimate/src/constraint_likelihood.rs", "crates/antecedent-graph/src/bipartite.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "Y19.8"
@@ -1979,7 +1979,7 @@ list = "mandatory"
 status = "reconciled"
 owner = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs"]
 fixtures = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_system_artifact.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent/tests/cyclic_family_fixtures.rs", "crates/antecedent/tests/cyclic_independent_consumer.rs", "crates/antecedent/tests/cyclic_dag_regression.rs", "crates/antecedent-io/tests/cyclic_family_typed.rs", "crates/antecedent-estimate/tests/recovery_held_out_regimes.rs", "python/tests/test_cyclic.py"]
-consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs"]
+consumer = ["crates/antecedent/src/analysis/cyclic.rs", "crates/antecedent/src/analysis/cyclic_evidence.rs", "crates/antecedent-io/src/cyclic_family_artifact.rs", "crates/antecedent-io/src/cyclic_family_contract.rs", "crates/antecedent-io/src/cyclic_family_program.rs", "crates/antecedent-io/src/cyclic_family_worlds.rs", "python/src/cyclic_system_api.rs", "crates/antecedent-identify/src/experiment_moments_noisy.rs", "crates/antecedent-estimate/src/experimental_fit.rs", "crates/antecedent-estimate/src/recovery.rs"]
 
 [[row]]
 id = "G08"
