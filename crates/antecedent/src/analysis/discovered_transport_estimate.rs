@@ -884,12 +884,12 @@ fn samples_of(
 }
 
 /// Preserve typed operational failures at the discovered transport IO boundary.
-#[doc(hidden)]
 #[must_use]
 #[allow(
     clippy::needless_pass_by_value,
     reason = "the operation accepts owned input as part of its interface"
 )]
+#[doc(hidden)]
 pub fn discovered_transport_io_failure(error: IoError) -> DiscoveredTransportError {
     use antecedent_core::execution::AdmissionError;
     use antecedent_identify::discovered_transport::{
