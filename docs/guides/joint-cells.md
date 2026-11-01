@@ -2,7 +2,7 @@
 
 Estimate the outcome under each joint setting of several binary treatments, such as `do(T_1 = a_1, .., T_k = a_k)` for up to {{bound:estimate.factorized_joint_cells.max_components}} components, and contrast the settings (for example the interaction of two treatments). You declare how a derived treatment is built from its source columns (`antecedent.derived.DerivedTreatment`, Rust `DerivedTreatmentDeclaration`), and a factorized-propensity doubly robust estimator evaluates the cells (`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`: you get point estimates for the cells and contrasts, with no interval. For coordinated programs over time, see [fit and compare coordinated intervention programs](joint-intervention-responses.md).
 
-One fit accepts at most {{bound:estimate.factorized_joint_cells.max_folds}} cross-fitting folds and at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
+The previously documented evidence scope used at most {{bound:estimate.factorized_joint_cells.historical_evidence_max_folds}} cross-fitting folds; that ceiling is not a claim that every configuration below it was independently verified. The current fit requires at least {{bound:estimate.factorized_joint_cells.runtime_min_folds}} folds; its fold plan separately limits folds by the row count and its {{bound:estimate.factorized_joint_cells.runtime_fold_index_capacity}}-value index representation. It accepts at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
 
 ```python
 from antecedent.derived import DerivedTreatment, SourceColumn, factorized_joint_cells

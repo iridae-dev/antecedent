@@ -1,6 +1,6 @@
 # Estimate with a penalized propensity (ridge or lasso AIPW)
 
-The tuning grid accepts at most {{bound:estimate.penalized_propensity_aipw.max_grid}} penalty candidates and at most {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} inner folds.
+The previously documented evidence scope allowed at most {{bound:estimate.penalized_propensity_aipw.historical_evidence_max_grid}} penalty candidates and {{bound:estimate.penalized_propensity_aipw.historical_evidence_max_inner_folds}} inner folds; these figures do not imply that every configuration in that envelope has measured coverage. The constructor requires a nonempty grid of finite positive penalties and at least {{bound:estimate.penalized_propensity_aipw.runtime_min_inner_folds}} folds without imposing those fixed caps. The fold plan separately limits folds by the training-row count and its {{bound:estimate.penalized_propensity_aipw.runtime_fold_index_capacity}}-value index representation. The constructor copies the grid before execution-context memory admission. Calibrated intervals remain qualified by the exact recorded configuration.
 
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
@@ -235,7 +235,7 @@ advance and triggered only by a fit failure.
 
 | code | detail | when |
 | --- | --- | --- |
-| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty or oversized grid, non-positive or non-finite penalty, inner folds outside 2 to {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} |
+| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty grid, non-positive or non-finite penalty, or fewer than two inner folds; the fold plan separately enforces its row-count and index-representation limits |
 | `invalid_argument` | `penalized_propensity.fallback_with_penalty` | a fallback declared beside a penalized primary |
 | `route_not_supported` | `penalized_propensity.scope` | a ridge penalty with a non-mean functional, a population other than `AllObserved`, or trimming |
 | `selection_inference_not_licensed` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |
