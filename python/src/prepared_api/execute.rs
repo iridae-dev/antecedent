@@ -171,7 +171,7 @@ impl PyPreparedAnalysis {
     fn reexecute_retarget(
         &mut self,
         py: Python<'_>,
-        artifact: Vec<u8>,
+        artifact: &[u8],
         seed: u64,
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,

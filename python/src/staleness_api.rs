@@ -89,7 +89,7 @@ impl PyPreparedAnalysis {
 #[pyo3(signature = (artifact, names, columns, *, policy_json=None, seed=1, threads=None))]
 fn staleness_from_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
     policy_json: Option<String>,

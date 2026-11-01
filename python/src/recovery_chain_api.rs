@@ -285,7 +285,7 @@ fn recover_recovery_chain(
 #[pyo3(signature = (artifact, *, seed=0, memory_bytes=None, cancel=None))]
 fn consume_recovery_chain_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     seed: u64,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,

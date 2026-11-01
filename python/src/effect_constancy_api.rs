@@ -77,7 +77,7 @@ fn evaluate_effect_constancy(
 #[pyo3(signature = (artifact, expected_identity_json=None))]
 fn consume_effect_constancy_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<EffectConstancyIdentity> = match expected_identity_json {

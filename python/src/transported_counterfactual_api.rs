@@ -86,7 +86,7 @@ fn evaluate_transported_counterfactual(
 #[pyo3(signature = (artifact, expected_identity_json=None))]
 fn consume_transported_counterfactual_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<TransportedCounterfactualIdentity> = match expected_identity_json {

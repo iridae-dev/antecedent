@@ -149,7 +149,7 @@ fn evaluate_nonlinear_mediation(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None, data=None))]
 fn consume_nonlinear_mediation_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     memory_limit_bytes: Option<u64>,
     data: Option<MediationColumns<'_>>,

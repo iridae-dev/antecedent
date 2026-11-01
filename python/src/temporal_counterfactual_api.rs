@@ -99,7 +99,7 @@ fn evaluate_temporal_counterfactual(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, seed=0))]
 fn consume_temporal_counterfactual_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     seed: u64,
 ) -> PyResult<ConsumePayload> {
@@ -195,7 +195,7 @@ fn evaluate_general_temporal_counterfactual(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, seed=0))]
 fn consume_general_temporal_counterfactual_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     seed: u64,
 ) -> PyResult<ConsumePayload> {

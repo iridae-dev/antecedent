@@ -142,7 +142,7 @@ fn evaluate_vector_treatment(
 #[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None))]
 fn consume_vector_treatment_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<ConsumePayload> {
