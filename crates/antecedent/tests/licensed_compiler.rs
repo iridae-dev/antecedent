@@ -2460,6 +2460,7 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         && !bayesian_distribution_replay_dependency_only(&without_refutation_replay)
         && !class_distribution_replay_dependency_only(&without_refutation_replay)
         && !graph_posterior_distribution_replay_dependency_only(&without_refutation_replay)
+        && !combined_checked_and_family_replay_dependencies(&without_refutation_replay)
     {
         return Err(format!(
             "{expected}: consume did not accept a verified program: {:?}",
@@ -2482,6 +2483,8 @@ fn compiler_fixture_handles_derivatives_and_compact_refutation_replay() {
     for coordinate in [
         "AverageDerivative:Dag:explicit:Bayesian:none",
         "PointDerivative:Cpdag:graph_posterior:Bayesian:none",
+        "InterventionResponse:Admg:explicit:Frequentist:cheap",
+        "InterventionalDistribution:Cpdag:explicit:Bayesian:cheap",
         "AverageEffect:Dag:explicit:Frequentist:cheap",
         "PulseEffect:TemporalDag:graph_posterior:Frequentist:cheap",
     ] {
@@ -2921,6 +2924,31 @@ fn sealed_checked_operation_dependency_only(
                     .strip_prefix("dependencies.checked_")
                     .is_some_and(|family| family.ends_with("_operation"))
         })
+}
+
+/// Independent compact-export limitations can occur together. Check each
+/// subset using the same family-specific predicates as a single limitation.
+fn combined_checked_and_family_replay_dependencies(
+    consumed: &antecedent_io::AnalysisResultConsumption,
+) -> bool {
+    let (checked, family): (Vec<_>, Vec<_>) =
+        consumed.acceptance.unresolved.iter().cloned().partition(|reason| {
+            reason
+                .as_ref()
+                .strip_prefix("dependencies.checked_")
+                .is_some_and(|name| name.ends_with("_operation"))
+        });
+    if checked.is_empty() || family.is_empty() {
+        return false;
+    }
+    let mut checked_result = consumed.clone();
+    checked_result.acceptance.unresolved = checked.into();
+    let mut family_result = consumed.clone();
+    family_result.acceptance.unresolved = family.into();
+    sealed_checked_operation_dependency_only(&checked_result)
+        && (functional_effect_replay_dependency_only(&family_result)
+            || class_distribution_replay_dependency_only(&family_result)
+            || graph_posterior_distribution_replay_dependency_only(&family_result))
 }
 
 /// The functional-effect programs export a readable claim without the replay
