@@ -46,11 +46,13 @@ Refused by design, each with a `joint_sensitivity.*` detail:
 
 ## Declared bounds
 
-At most {{bound:sensitivity.joint_mechanism.max_factors}} factors declared (the outcome kernel and the shared parent marginal), {{bound:sensitivity.joint_mechanism.max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.max_outcome_categories}} outcome categories,
-a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.max_frontier_points}} points, at most {{bound:sensitivity.joint_mechanism.max_operations}} search operations, a bisection depth of
+At most {{bound:sensitivity.joint_mechanism.max_factors}} factors declared (the outcome kernel and the shared parent marginal), {{bound:sensitivity.joint_mechanism.runtime_max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.runtime_max_outcome_categories}} outcome categories,
+a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.runtime_max_frontier_points}} points, at most {{bound:sensitivity.joint_mechanism.max_operations}} search operations, a bisection depth of
 {{bound:sensitivity.joint_mechanism.max_bisection_iterations}} iterations per frontier line, and a declared memory cap of at most 512 MiB (default
 64 MiB). The public interval admits 199 to {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} bootstrap replicates at level 0.95; the internal estimator retains the same upper cap. A request outside the public bounds refuses as
 `joint_sensitivity.bounds_exceeded`.
+
+The earlier recorded evidence bounds were {{bound:sensitivity.joint_mechanism.historical_evidence_max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.historical_evidence_max_outcome_categories}} outcome categories, and {{bound:sensitivity.joint_mechanism.historical_evidence_max_frontier_points}} frontier points. These historical bounds do not establish numerical verification or calibration for the wider runtime ceilings.
 
 The parent-level and outcome-category bounds are checked on the law's shape,
 after the proof, formula and provider checks and before any cell of the law is

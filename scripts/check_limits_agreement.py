@@ -660,19 +660,37 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "sensitivity.joint_mechanism",
-        "max_parent_levels",
+        "historical_evidence_max_parent_levels",
+        rust=(S("sensitivity.joint_mechanism", "max_parent_levels"),),
+        note="historical evidence scope, not a current runtime ceiling",
+    ),
+    Bound(
+        "sensitivity.joint_mechanism",
+        "runtime_max_parent_levels",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_PARENT_LEVELS"),),
         refusal=r"More than (\d+) parent levels",
     ),
     Bound(
         "sensitivity.joint_mechanism",
-        "max_outcome_categories",
+        "historical_evidence_max_outcome_categories",
+        rust=(S("sensitivity.joint_mechanism", "max_outcome_categories"),),
+        note="historical evidence scope, not a current runtime ceiling",
+    ),
+    Bound(
+        "sensitivity.joint_mechanism",
+        "runtime_max_outcome_categories",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES"),),
         refusal=r"or (\d+) outcome categories",
     ),
     Bound(
         "sensitivity.joint_mechanism",
-        "max_frontier_points",
+        "historical_evidence_max_frontier_points",
+        rust=(S("sensitivity.joint_mechanism", "max_frontier_points"),),
+        note="historical evidence scope, not a current runtime ceiling",
+    ),
+    Bound(
+        "sensitivity.joint_mechanism",
+        "runtime_max_frontier_points",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_FRONTIER_POINTS"),),
         refusal=r"grid outside 1-(\d+)",
     ),
@@ -1203,6 +1221,21 @@ def check(
         short = rec["id"]
         short_ids.add(short)
         bounds = rec.get("bounds", {})
+        if short == "sensitivity.joint_mechanism":
+            for dimension in ("parent_levels", "outcome_categories", "frontier_points"):
+                historical = bounds.get(f"historical_evidence_max_{dimension}")
+                runtime = bounds.get(f"runtime_max_{dimension}")
+                if (
+                    not _is_int(historical)
+                    or not _is_int(runtime)
+                    or historical < 1
+                    or runtime < 1
+                    or historical > runtime
+                ):
+                    errors.append(
+                        f"{short}: historical evidence bound "
+                        f"for {dimension} must be an integer no larger than the runtime ceiling"
+                    )
         numeric = {k: v for k, v in bounds.items() if _is_int(v)}
         label = rec["id"]
         frozen = rec.get("status") == "frozen"
@@ -1448,6 +1481,83 @@ def _syn_tree(dest: Path) -> None:
 
 def self_test() -> int:
     failures: list[str] = []
+
+    # The old evidence scope and the wider runtime caps are different claims.
+    # Both sources, the runtime refusal and their ordering must fail closed.
+    joint_id = "sensitivity.joint_mechanism"
+    joint_rows = tuple(
+        row for row in MAPPING
+        if row.record == joint_id
+        and row.key.startswith(("historical_evidence_max_", "runtime_max_"))
+    )
+    if len(joint_rows) != 6:
+        failures.append("joint sensitivity must map all six historical and runtime limits")
+    else:
+        with tempfile.TemporaryDirectory() as joint_root:
+            root = Path(joint_root)
+            record_path = root / RECORDS
+            snapshot_path = root / "parity/release_snapshots/v2.2.0.toml"
+            rust_path = root / JOINT
+            guide_path = root / "docs/guides/joint.md"
+            for path in (record_path, snapshot_path, rust_path, guide_path):
+                path.parent.mkdir(parents=True, exist_ok=True)
+            record = '''[[record]]
+id = "sensitivity.joint_mechanism"
+status = "in_progress"
+bounds = { historical_evidence_max_parent_levels = 64, historical_evidence_max_outcome_categories = 32, historical_evidence_max_frontier_points = 33, runtime_max_parent_levels = 4096, runtime_max_outcome_categories = 1024, runtime_max_frontier_points = 257 }
+[[record.refusals]]
+detail = "joint_sensitivity.bounds_exceeded"
+when = "More than 4096 parent levels or 1024 outcome categories, grid outside 1-257."
+'''
+            snapshot = '''[[record]]
+id = "sensitivity.joint_mechanism"
+bounds = { max_parent_levels = 64, max_outcome_categories = 32, max_frontier_points = 33 }
+'''
+            rust = '''pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 4096;
+pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 1024;
+pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
+'''
+            record_path.write_text(record, encoding="utf-8")
+            snapshot_path.write_text(snapshot, encoding="utf-8")
+            rust_path.write_text(rust, encoding="utf-8")
+            guide_path.write_text(
+                "\n".join(f"{{{{bound:{joint_id}.{row.key}}}}}" for row in joint_rows),
+                encoding="utf-8",
+            )
+
+            def joint_errors() -> list[str]:
+                return check(root, mapping=joint_rows, nonint=(), cells=frozenset({joint_id}))[0]
+
+            if joint_errors():
+                failures.append("valid separate historical and runtime joint limits must pass")
+            for dimension, historical, runtime, refusal in (
+                ("parent_levels", 64, 4096, "More than 4096 parent levels"),
+                ("outcome_categories", 32, 1024, "or 1024 outcome categories"),
+                ("frontier_points", 33, 257, "grid outside 1-257"),
+            ):
+                mutations = (
+                    (record_path, f"historical_evidence_max_{dimension} = {historical}", f"historical_evidence_max_{dimension} = {historical + 1}", "historical evidence"),
+                    (record_path, f"runtime_max_{dimension} = {runtime}", f"runtime_max_{dimension} = {runtime + 1}", "runtime record"),
+                    (rust_path, f"JOINT_SENSITIVITY_MAX_{dimension.upper()}: usize = {runtime}", f"JOINT_SENSITIVITY_MAX_{dimension.upper()}: usize = {runtime + 1}", "runtime constant"),
+                    (record_path, refusal, refusal.replace(str(runtime), str(runtime - 1)), "runtime refusal"),
+                    (snapshot_path, f"max_{dimension} = {historical}", f"max_{dimension} = {historical + 1}", "historical snapshot"),
+                )
+                for path, before, after, label in mutations:
+                    original = path.read_text(encoding="utf-8")
+                    if before not in original:
+                        failures.append(f"{label} mutation fixture for {dimension} is missing")
+                        continue
+                    path.write_text(original.replace(before, after), encoding="utf-8")
+                    if not joint_errors():
+                        failures.append(f"{label} mutation for {dimension} must fail closed")
+                    path.write_text(original, encoding="utf-8")
+                record_path.write_text(
+                    record.replace(f"runtime_max_{dimension} = {runtime}", f"runtime_max_{dimension} = {historical - 1}"),
+                    encoding="utf-8",
+                )
+                if not any("no larger than the runtime ceiling" in error for error in joint_errors()):
+                    failures.append(f"historical {dimension} above the runtime ceiling must fail closed")
+                record_path.write_text(record, encoding="utf-8")
 
     ridge_source = "pub fn new(lambdas: &[f64], inner_folds: usize) {\n        lambdas.to_vec();\n    }"
     if "before execution-context admission" not in ridge_resource_finding(ridge_source):
