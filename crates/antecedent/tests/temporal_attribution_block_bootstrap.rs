@@ -129,7 +129,8 @@ fn block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval() {
     assert_eq!(binding.dependence, "circular_block:row_block");
     assert!(
         result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.frequentist_bootstrap"
-            && d.message.contains("circular-block multinomial bootstrap")),
+            && d.message.contains("run-aware circular-block bootstrap")
+            && d.message.contains("wrap only within their own run")),
         "block disclosure"
     );
 }
