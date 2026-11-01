@@ -60,7 +60,7 @@ def test_the_posterior_is_the_conjugate_closed_form_of_the_counts():
     session = ci.ChoiceInferenceSession.prepare(study())
     result = require_success(session.analyze(ci.Posterior(look=0)))
     counts = [sum(r.counts[k] for r in respondents(12)) for k in range(3)]
-    alpha = [1.0 + 0.5 * s + c for s, c in zip((10.0, 5.0, 5.0), counts)]
+    alpha = [1.0 + 0.5 * s + c for s, c in zip((10.0, 5.0, 5.0), counts, strict=True)]
     assert result.alpha == pytest.approx(alpha)
     assert result.mean == pytest.approx([a / sum(alpha) for a in alpha])
     assert result.borrowed_observations == pytest.approx(10.0)
