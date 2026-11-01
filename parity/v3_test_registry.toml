@@ -1762,7 +1762,7 @@ id = "adaptive-design"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/adaptive_design.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1770,7 +1770,7 @@ id = "callback-protocol"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/callback_protocol.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1778,7 +1778,7 @@ id = "composition-provenance"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/composition_provenance.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1786,7 +1786,7 @@ id = "composition-verification"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/composition_verification.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1794,7 +1794,7 @@ id = "evidence-ledger"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/evidence_ledger.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1802,7 +1802,7 @@ id = "evidence-obligation"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/evidence_obligation.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1810,7 +1810,7 @@ id = "interface-adapters"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/interface_adapters.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1818,7 +1818,7 @@ id = "interface-contract"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/interface_contract.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1826,7 +1826,7 @@ id = "native-response-coordinates"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/native_response_coordinates.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1834,7 +1834,7 @@ id = "program-binding"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/program_binding.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1842,7 +1842,7 @@ id = "provider-transport"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/provider_transport.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1850,7 +1850,7 @@ id = "scientific-bridge"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/scientific_bridge.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1858,7 +1858,7 @@ id = "transport-identity-binding"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/transport_identity_binding.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1866,7 +1866,7 @@ id = "transport-revalidation"
 crate = "antecedent-contract"
 cargo_target = "suite_01"
 path = "crates/antecedent-contract/tests/transport_revalidation.rs"
-suite_map_line = "suite_01: adaptive_design, callback_protocol, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3629,7 +3629,7 @@ id = "adaptive-inference-result-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/adaptive_inference_result_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3637,7 +3637,7 @@ id = "artifact-compat-adaptive-result"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/artifact_compat_adaptive_result.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3645,7 +3645,7 @@ id = "io-artifact-compat-inherited"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/artifact_compat_inherited.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3653,7 +3653,7 @@ id = "artifact-compat-predictive-adaptive-golden"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/artifact_compat_predictive_adaptive_golden.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3661,7 +3661,7 @@ id = "artifact-compat-recalc-receipt"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/artifact_compat_recalc_receipt.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3669,7 +3669,7 @@ id = "bayesian-posterior-row-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/bayesian_posterior_row_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3677,7 +3677,7 @@ id = "categorical-treatment-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/categorical_treatment_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3685,7 +3685,7 @@ id = "cohort-interval-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/cohort_interval_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3693,7 +3693,7 @@ id = "compact-export"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/compact_export.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3701,7 +3701,7 @@ id = "composition-cross-surface"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/composition_cross_surface.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3709,7 +3709,7 @@ id = "cpdag-completion-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/cpdag_completion_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3717,7 +3717,7 @@ id = "cross-surface-external-claim"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/cross_surface_external_claim.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3725,7 +3725,7 @@ id = "cross-surface-joint-law"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/cross_surface_joint_law.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3733,7 +3733,7 @@ id = "distribution-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/distribution_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3741,7 +3741,7 @@ id = "distribution-meanings"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/distribution_meanings.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3749,7 +3749,7 @@ id = "dose-grid-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/dose_grid_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3757,7 +3757,7 @@ id = "effect-constancy-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/effect_constancy_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3765,7 +3765,7 @@ id = "external-binding-wire"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/external_binding_wire.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3773,7 +3773,7 @@ id = "external-claim-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/external_claim_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3781,7 +3781,7 @@ id = "external-column-claim-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/external_column_claim_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3789,7 +3789,7 @@ id = "flagship-decision-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/flagship_decision_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3797,7 +3797,7 @@ id = "frozen-scores-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/frozen_scores_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3805,7 +3805,7 @@ id = "joint-bayesian-source-dependence-ledger"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/joint_bayesian_source_dependence_ledger.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3813,7 +3813,7 @@ id = "joint-bayesian-transport-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3821,7 +3821,7 @@ id = "joint-bayesian-transport-model-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3829,7 +3829,7 @@ id = "latent-class-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/latent_class_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3837,7 +3837,7 @@ id = "learned-joint-transport-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3845,7 +3845,7 @@ id = "mechanism-discrepancy-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/mechanism_discrepancy_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3853,7 +3853,7 @@ id = "msm-sensitivity-adapter"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3861,7 +3861,7 @@ id = "native-contract-identity"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/native_contract_identity.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3869,7 +3869,7 @@ id = "nested-markov-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/nested_markov_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3877,7 +3877,7 @@ id = "nested-markov-bayesian-artifact"
 crate = "antecedent-io"
 cargo_target = "suite_01"
 path = "crates/antecedent-io/tests/nested_markov_bayesian_artifact.rs"
-suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5503,7 +5503,7 @@ id = "dbn-mediation-horizon-mass"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/dbn_mediation_horizon_mass.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5511,7 +5511,7 @@ id = "dbn-posterior-atom-identity"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/dbn_posterior_atom_identity.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5519,7 +5519,7 @@ id = "dbn-sustained-validation"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/dbn_sustained_validation.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5534,7 +5534,7 @@ id = "decision-exit-gate"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/decision_exit_gate.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5542,7 +5542,7 @@ id = "decision-reliability-derived-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/decision_reliability_derived_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5550,7 +5550,7 @@ id = "decision-reliability-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/decision_reliability_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5558,7 +5558,7 @@ id = "dense-prior-hydration"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/dense_prior_hydration.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5580,7 +5580,7 @@ id = "derived-treatment"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/derived_treatment.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5595,7 +5595,7 @@ id = "design-state"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/design_state.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5610,7 +5610,7 @@ id = "discovered-transport-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/discovered_transport_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5618,7 +5618,7 @@ id = "discretized-composition-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/discretized_composition_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5626,7 +5626,7 @@ id = "distribution-route-evidence"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/distribution_route_evidence.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5634,7 +5634,7 @@ id = "dml-scores-retarget"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/dml_scores_retarget.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5642,7 +5642,7 @@ id = "effect-constancy-consumers"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/effect_constancy_consumers.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5650,7 +5650,7 @@ id = "envelope-prior-anchor"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/envelope_prior_anchor.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5658,7 +5658,7 @@ id = "envelope-refuter-targets"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/envelope_refuter_targets.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5666,7 +5666,7 @@ id = "estimate-conformance"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/estimate_conformance.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5674,7 +5674,7 @@ id = "estimate-linear-gaussian-ate"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/estimate_linear_gaussian_ate.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5682,7 +5682,7 @@ id = "estimate-noisy-estimators"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/estimate_noisy_estimators.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5691,7 +5691,7 @@ crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/evidence_ledger_facade.rs"
 calibration_acceptance_assertions = ["a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"]
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5706,7 +5706,7 @@ id = "examples-run"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/examples_run.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5714,7 +5714,7 @@ id = "facade-gaps"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/facade_gaps.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5743,7 +5743,7 @@ id = "frontdoor-iv-route-evidence"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/frontdoor_iv_route_evidence.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5772,7 +5772,7 @@ id = "graph-interchange"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/graph_interchange.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5780,7 +5780,7 @@ id = "graph-posterior-repeated-atoms"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/graph_posterior_repeated_atoms.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5788,7 +5788,7 @@ id = "graph-typed-inputs"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/graph_typed_inputs.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5824,7 +5824,7 @@ id = "interface-contract-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/interface_contract_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5832,7 +5832,7 @@ id = "interference-interval-route"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/interference_interval_route.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5840,7 +5840,7 @@ id = "inverse-cohort-source-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/inverse_cohort_source_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -5848,7 +5848,7 @@ id = "inverse-composition-refusals-facade"
 crate = "antecedent"
 cargo_target = "suite_04"
 path = "crates/antecedent/tests/inverse_composition_refusals_facade.rs"
-suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -20866,4 +20866,446 @@ id = "choice-inference-python"
 crate = "python"
 cargo_target = "script"
 path = "python/tests/test_choice_inference.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-tests-checked-claim-synthesis-rs"
+crate = "antecedent"
+cargo_target = "checked_claim_synthesis"
+path = "crates/antecedent/tests/checked_claim_synthesis.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-tests-decision-evidence-workflow-rs"
+crate = "antecedent"
+cargo_target = "suite_04"
+path = "crates/antecedent/tests/decision_evidence_workflow.rs"
+suite_map_line = "suite_04: dbn_mediation_horizon_mass, dbn_posterior_atom_identity, dbn_sustained_validation, decision_exit_gate, decision_evidence_workflow, decision_reliability_derived_facade, decision_reliability_facade, dense_prior_hydration, derived_treatment, design_state, discovered_transport_facade, discretized_composition_facade, distribution_route_evidence, dml_scores_retarget, effect_constancy_consumers, envelope_prior_anchor, envelope_refuter_targets, estimate_conformance, estimate_linear_gaussian_ate, estimate_noisy_estimators, evidence_ledger_facade, examples_run, facade_gaps, frontdoor_iv_route_evidence, graph_interchange, graph_posterior_repeated_atoms, graph_typed_inputs, interface_contract_facade, interference_interval_route, inverse_cohort_source_facade, inverse_composition_refusals_facade"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-contract-tests-checked-world-composition-rs"
+crate = "antecedent-contract"
+cargo_target = "checked_world_composition"
+path = "crates/antecedent-contract/tests/checked_world_composition.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-checked-panel-did-rollout-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/checked_panel_did/rollout.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-checked-temporal-class-mediation-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/checked_temporal_class_mediation.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-class-attribution-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/class_attribution.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-class-path-specific-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/class_path_specific.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-class-posterior-response-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/class_posterior_response.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-cross-world-posterior-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/cross_world_posterior.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-dbn-mediation-frequentist-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/dbn_mediation_frequentist.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-temporal-class-point-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/temporal_class_point.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-temporal-class-posterior-response-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/temporal_class_posterior_response.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-identification-cache-temporal-class-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/identification_cache/temporal_class.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-joint-panel-designs-randomized-outcome-guard-tests-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-prepared-lifecycle-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/lifecycle.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-resource-policy-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/resource_policy.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-structure-route-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/structure_route.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-attribution-src-temporal-resampling-rs"
+crate = "antecedent-attribution"
+cargo_target = "lib"
+path = "crates/antecedent-attribution/src/temporal_resampling.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-core-src-query-counterfactual-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/counterfactual.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-core-src-query-discover-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/discover.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-core-src-query-distribution-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/distribution.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-core-src-query-nested-counterfactual-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/nested_counterfactual.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-core-src-query-temporal-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/query/temporal.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-core-src-treatment-indicator-rs"
+crate = "antecedent-core"
+cargo_target = "lib"
+path = "crates/antecedent-core/src/treatment_indicator.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-evidence-derive-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_evidence/derive.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-evidence-expr-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_evidence/expr.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-evidence-mod-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_evidence/mod.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-evidence-plan-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_evidence/plan.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-evidence-proxy-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_evidence/proxy.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-design-src-decision-evidence-reuse-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/decision_evidence/reuse.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-discovery-src-engine-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/engine.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-joint-design-adaptive-regime-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/joint_design/adaptive_regime.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-randomized-joint-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/randomized_joint.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-estimate-src-temporal-response-plan-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/temporal_response/plan.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-io-core-src-trace-rs"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/trace.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-learn-src-aipw-crossfit-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/aipw_crossfit.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-learn-src-crossfit-plan-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/crossfit_plan.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-learn-src-dr-replay-rs"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/dr_replay.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-stats-src-adaptive-inference-dirichlet-choice-rs"
+crate = "antecedent-stats"
+cargo_target = "lib"
+path = "crates/antecedent-stats/src/adaptive_inference/dirichlet_choice.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-gcm-api-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/gcm_api.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-identification-details-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/identification_details.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-adaptive-policy-json-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_adaptive_policy_json.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-adaptive-policy-source-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_adaptive_policy_source.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-candidate-screen-ids-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_candidate_screen_ids.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-decision-evidence-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_decision_evidence.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-gcm-finite-levels-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_gcm_finite_levels.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-gcm-unit-change-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_gcm_unit_change.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-graph-io-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_graph_io.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-graph-posterior-prepare-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_graph_posterior_prepare.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-graphs-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_graphs.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-joint-law-declarations-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_law_declarations.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-prepare-describe-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_prepare_describe.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-prepare-design-args-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_prepare_design_args.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-prepare-options-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_prepare_options.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-prepared-rebind-validators-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_prepared_rebind_validators.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-prepared-retarget-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_prepared_retarget.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-quasi-payload-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_quasi_payload.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-randomization-test-policy-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_randomization_test_policy.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-refutation-scope-metadata-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_refutation_scope_metadata.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-state-api-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_state_api.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-temporal-design-prepare-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_design_prepare.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-temporal-materialization-policy-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_temporal_materialization_policy.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-transport-grid-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_transport_grid.py"
 gates = ["inventory"]
