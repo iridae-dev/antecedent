@@ -2017,3 +2017,41 @@ fn plugin_gradient_interval_internal_refuses_what_it_does_not_construct() {
         .unwrap_err();
     assert!(error.to_string().contains("Jacobian and directional"), "{error}");
 }
+
+#[test]
+fn intervention_response_respects_analysis_mask_and_matches_selected_rows() {
+    let n = 100_u32;
+    let a: Vec<f64> = (0..n).map(|i| f64::from(i % 50) / 50.0).collect();
+    let y: Vec<f64> =
+        a.iter().enumerate().map(|(i, a)| 2.0 * a + if i < 50 { 1.0 } else { 10.0 }).collect();
+    let full = TabularData::from_f64_columns([("a", a.as_slice()), ("y", y.as_slice())]).unwrap();
+    let selected = TabularData::from_f64_columns([("a", &a[..50]), ("y", &y[..50])]).unwrap();
+    let mask =
+        antecedent_data::ValidityBitmap::from_bools(&(0..n).map(|i| i < 50).collect::<Vec<_>>());
+    let masked = full.with_analysis_mask(mask).unwrap();
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.5))]),
+    });
+    let estimate = |data: &TabularData| {
+        let response = ContinuousResponseEstimator::new([])
+            .estimate_identified(
+                data,
+                &query,
+                IdentificationStatus::NonparametricallyIdentified,
+                AssumptionSet::new(),
+            )
+            .unwrap();
+        let ResponseIdentification::PointIdentified(ResponseValue::Scalar(value)) =
+            response.estimate
+        else {
+            panic!("scalar response")
+        };
+        value
+    };
+    let (masked_value, selected_value, full_value) =
+        (estimate(&masked), estimate(&selected), estimate(&full));
+    assert!((masked_value - selected_value).abs() < 1e-10);
+    assert!((masked_value - 2.0).abs() < 0.01);
+    assert!((full_value - masked_value).abs() > 4.0);
+}

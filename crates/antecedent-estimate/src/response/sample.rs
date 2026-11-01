@@ -81,9 +81,11 @@ impl CompleteSample {
             treatments.iter().map(|&v| data.float64_values(v)).collect::<Result<_, _>>()?;
         let adjustment_values: Vec<Vec<f64>> =
             adjustment.iter().map(|&v| data.float64_values(v)).collect::<Result<_, _>>()?;
+        let analysis_mask = data.storage().analysis_mask();
         let keep: Vec<usize> = (0..data.row_count())
             .filter(|&i| {
-                y[i].is_finite()
+                analysis_mask.is_none_or(|mask| mask.is_valid(i))
+                    && y[i].is_finite()
                     && treatment_values.iter().all(|c| c[i].is_finite())
                     && adjustment_values.iter().all(|c| c[i].is_finite())
             })
