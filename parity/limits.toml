@@ -686,9 +686,10 @@ record = "composition.native_authority"
 key = "max_coordinates"
 implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
-guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates' }
+refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates \{\s*return Err\(IoError::TooLarge\)' }
 scope_fixture = { path = "python/tests/test_composition.py", pattern = "\\btest_composition_boundary_caller_native_constructor_refuses_before_coercion\\b" }
+
 
 [[bound]]
 record = "composition.rollout_state"
@@ -767,9 +768,10 @@ record = "recalculation.external_callback"
 key = "max_artifact_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/external_callback_artifact.rs", constant = "MAX_CALLBACK_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/external_callback_artifact.rs", constant = "MAX_CALLBACK_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/external_callback_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_CALLBACK_ARTIFACT_BYTES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/external_callback_artifact.rs", pattern = "if\\ bytes\\.len\\(\\)\\ >\\ MAX_CALLBACK_ARTIFACT_BYTES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/external_callback_artifact.rs", pattern = 'bytes\.len\(\) > max_bytes' }
+refusal = { path = "crates/antecedent-io-core/src/external_callback_artifact.rs", pattern = 'bytes\.len\(\) > max_bytes \{\s*return Err\(' }
 scope_fixture = { path = "crates/antecedent/tests/recalc_external.rs", pattern = "\\bpure_invalid_planning_and_cooperative_budget_and_cancel_refusals\\b" }
+
 
 [[bound]]
 record = "recalculation.external_callback"
@@ -1408,8 +1410,9 @@ record = "joint_law.aligned_nonlinear_functional"
 key = "max_draws"
 implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_DRAWS" }]
 documentation = [{ path = "docs/joint-law-propagation.md", pattern = "Aligned draws:\\s+(\\d+) per column" }]
-guard = { path = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", pattern = "n > MAX_DISTRIBUTION_DRAWS" }
-refusal = { path = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", pattern = "n > MAX_DISTRIBUTION_DRAWS \\{\\s*Err\\(too_large" }
+guard = { path = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", pattern = 'n > limits\.max_draws' }
+refusal = { path = "crates/antecedent-io-core/src/joint_law_propagation_artifact.rs", pattern = 'n > limits\.max_draws \{\s*Err\(too_large' }
+
 
 [[bound]]
 record = "cross_world_execution.finite_markovian_scm"

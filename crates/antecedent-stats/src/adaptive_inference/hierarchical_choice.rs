@@ -170,7 +170,8 @@ impl HierarchicalChoicePosterior {
         let max_n = (0..k)
             .map(|j| histograms.iter().map(|(h, _)| h[j] as usize).max().unwrap_or(0))
             .collect();
-        let max_m = totals.iter().map(|m| *m as usize).max().unwrap_or(0);
+        let max_m = usize::try_from(totals.iter().copied().max().unwrap_or(0))
+            .map_err(|_| Error::Limit("choice count exceeds platform capacity"))?;
         let a0: f64 = prior.shapes.iter().sum();
         let ln_dirichlet_norm =
             ln_gamma(a0) - prior.shapes.iter().map(|a| ln_gamma(*a)).sum::<f64>();
@@ -218,9 +219,9 @@ impl HierarchicalChoicePosterior {
         for (h, mult) in &self.histograms {
             let mut one = 0.0;
             let mut m = 0usize;
-            for j in 0..self.options {
-                one += s.prefix[j][h[j] as usize];
-                m += h[j] as usize;
+            for (j, &count) in h.iter().enumerate() {
+                one += s.prefix[j][count as usize];
+                m += count as usize;
             }
             ll += mult * (one - s.kappa[m]);
         }
