@@ -15,6 +15,7 @@ from ._native import (
     GraphScoreCache,
     RollingMechanismDiagnostics,
 )
+from ._validate import count as _count
 from .errors import CausalStateError, CausalTypeError, CausalValueError
 from .execution import CachePolicy, Execution
 
@@ -222,12 +223,17 @@ class RefreshObservation:
 
     def _wire(self) -> dict[str, Any]:
         return {
-            "id": int(self.id),
+            "id": _id(self.id, "id"),
             "x": list(self.x),
             "y": float(self.y),
             "weight": float(self.weight),
             "masked": bool(self.masked),
         }
+
+
+def _id(value: object, what: str) -> int:
+    """An identifier or count as an integer; a fractional or boolean value is refused."""
+    return _count(value, what, minimum=0, type_error=CausalValueError)
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,22 +255,22 @@ class RefreshMutation:
     @classmethod
     def window(cls, max_rows: int) -> RefreshMutation:
         """Keep the most recently appended ``max_rows`` rows; recomputed."""
-        return cls._make("window", max_rows=int(max_rows))
+        return cls._make("window", max_rows=_id(max_rows, "max_rows"))
 
     @classmethod
     def evict(cls, row_id: int) -> RefreshMutation:
         """Remove one retained row; recomputed."""
-        return cls._make("evict", id=int(row_id))
+        return cls._make("evict", id=_id(row_id, "row_id"))
 
     @classmethod
     def set_weight(cls, row_id: int, weight: float) -> RefreshMutation:
         """Change the weight of one retained row; recomputed."""
-        return cls._make("set_weight", id=int(row_id), weight=float(weight))
+        return cls._make("set_weight", id=_id(row_id, "row_id"), weight=float(weight))
 
     @classmethod
     def set_mask(cls, row_id: int, masked: bool) -> RefreshMutation:
         """Change the mask of one retained row; recomputed."""
-        return cls._make("set_mask", id=int(row_id), masked=bool(masked))
+        return cls._make("set_mask", id=_id(row_id, "row_id"), masked=bool(masked))
 
     @classmethod
     def replace(cls, source: str, rows: Sequence[RefreshObservation]) -> RefreshMutation:

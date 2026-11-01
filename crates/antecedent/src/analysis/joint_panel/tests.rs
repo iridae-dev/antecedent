@@ -1474,10 +1474,14 @@ fn panel_source_refuses_a_categorical_channel_instead_of_coding_it() {
 #[test]
 fn panel_source_refuses_repeated_clusters_and_lag_orders_it_does_not_model() {
     // Each unit is one cluster of the group-intercept law; a repeated label is not a cluster.
-    let repeated = declared_panel_with([0, 1, 1, 3], |_, _| {}, |series| series);
+    // The panel type refuses the repeated label before any engine sees it.
+    let units = [0, 1, 1, 3]
+        .into_iter()
+        .map(|unit_id| PanelUnit { unit_id, series: declared_series(&declared_columns()) })
+        .collect::<Vec<_>>();
     assert!(matches!(
-        prepare_declared(repeated, |_| {}),
-        Err(JointPanelError::Engine(engine::PanelError::Invalid(_)))
+        PanelData::try_new(Arc::from(units)),
+        Err(antecedent_data::DataError::Duplicate { .. })
     ));
     // The serial law is the stationary AR(1) with two pre-period rows, or none at all.
     for lag_order in [1, 3, 5] {

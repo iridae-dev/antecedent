@@ -532,7 +532,7 @@ fn temporal_dependent_interval_measured(
     crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let numerical_bytes = units
         .as_ref()
-        .map_or(0, |u| u.iter().map(|(_, h)| h.len()).sum::<usize>())
+        .map_or(0, |u| u.iter().fold(0_usize, |total, (_, h)| total.saturating_add(h.len())))
         .saturating_mul(128);
     crate::measured_inference_api::before_work(
         0,

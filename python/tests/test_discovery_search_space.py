@@ -96,6 +96,18 @@ def test_lpcmci_counts_exactly_the_definitely_directed_edges_of_its_graph():
     assert all({edge.at_source, edge.at_target} <= marked for edge in result.graph_edges)
 
 
+def test_lpcmci_reports_circle_edges_not_cpdag_undirected_edges():
+    names, cols = _driven_pair()
+    result = DISCOVERY.LPCMCI(max_lag=1, alpha=0.01, fdr=False).run(
+        (names, cols), execution=antecedent.Execution(seed=3)
+    )
+    circled = sum(
+        1 for edge in result.graph_edges if "circle" in {edge.at_source, edge.at_target}
+    )
+    assert result.pag_circle_edges == circled
+    assert result.cpdag_undirected_edges == 0
+
+
 def test_the_multi_environment_search_admits_the_same_time_adjacency():
     environments = []
     for seed in (21, 22):

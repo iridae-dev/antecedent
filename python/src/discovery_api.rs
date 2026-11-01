@@ -136,6 +136,11 @@ fn static_pag_definite_directed_count(pag: &Pag) -> u64 {
     directed
 }
 
+/// Edges with a circle endpoint: the PAG-appropriate analogue of a CPDAG's undirected count.
+fn circle_edge_count(edges: &[GraphEdge]) -> u64 {
+    edges.iter().filter(|e| e.at_source == "circle" || e.at_target == "circle").count() as u64
+}
+
 /// One discovered lagged link for Python.
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
@@ -229,8 +234,13 @@ pub(crate) struct PcmciDiscoveryResult {
     pub(crate) cpdag_nodes: u64,
     #[pyo3(get)]
     pub(crate) cpdag_directed_edges: u64,
+    /// Undirected edges of a CPDAG result; always 0 for PAG results (FCI, RFCI, LPCMCI),
+    /// which have circle endpoints instead (see `pag_circle_edges`).
     #[pyo3(get)]
     pub(crate) cpdag_undirected_edges: u64,
+    /// Edges of a PAG result with at least one circle endpoint; `None` for non-PAG results.
+    #[pyo3(get)]
+    pub(crate) pag_circle_edges: Option<u64>,
     /// Oriented graph body (CPDAG/PAG marks); empty for lagged-only PCMCI.
     #[pyo3(get)]
     pub(crate) graph_edges: Vec<GraphEdge>,
@@ -271,6 +281,12 @@ impl PcmciDiscoveryResult {
     fn with_row_accounting(mut self, accounting: &antecedent_data::RowAccounting) -> Self {
         self.row_accounting_json =
             Some(crate::missing_report::accounting_json(accounting).to_string());
+        self
+    }
+
+    /// Record the circle-bearing edges of a PAG result, counted from the edges it returns.
+    fn with_pag_circle_edges(mut self, count: u64) -> Self {
+        self.pag_circle_edges = Some(count);
         self
     }
 
@@ -651,6 +667,7 @@ fn discovery_result_fields(
         cpdag_nodes,
         cpdag_directed_edges,
         cpdag_undirected_edges,
+        pag_circle_edges: None,
         graph_edges,
         variable_names: names.to_vec(),
         background_knowledge: None,
@@ -1117,6 +1134,7 @@ fn discover_fci(
         let pending = result.review.pending_circles.len() as u64;
         let directed = static_pag_definite_directed_count(pag);
         let graph_edges = static_pag_graph_edges(&names, pag)?;
+        let circle_edges = circle_edge_count(&graph_edges);
 
         let slot = ReviewSlot::Pag(result.evidence.graph.clone(), result.review.clone());
         Ok(discovery_result_fields(
@@ -1130,9 +1148,10 @@ fn discover_fci(
             ci_name,
             pag.node_count() as u64,
             directed,
-            pending,
+            0,
             graph_edges,
         )
+        .with_pag_circle_edges(circle_edges)
         .with_knowledge(identity)
         .with_review(slot, &names)
         .with_route(route))
@@ -1195,6 +1214,7 @@ fn discover_rfci(
         let pending = result.review.pending_circles.len() as u64;
         let directed = static_pag_definite_directed_count(pag);
         let graph_edges = static_pag_graph_edges(&names, pag)?;
+        let circle_edges = circle_edge_count(&graph_edges);
 
         let slot = ReviewSlot::Pag(result.evidence.graph.clone(), result.review.clone());
         Ok(discovery_result_fields(
@@ -1208,9 +1228,10 @@ fn discover_rfci(
             ci_name,
             pag.node_count() as u64,
             directed,
-            pending,
+            0,
             graph_edges,
         )
+        .with_pag_circle_edges(circle_edges)
         .with_knowledge(identity)
         .with_review(slot, &names)
         .with_route(route))
@@ -1357,6 +1378,7 @@ fn discover_lpcmci(
             let pending = result.review.pending_circles.len() as u64;
             let directed = pag_definite_directed_edge_count(pag);
             let graph_edges = pag_graph_edges(names, pag)?;
+            let circle_edges = circle_edge_count(&graph_edges);
             let slot =
                 ReviewSlot::TemporalPag(result.evidence.graph.clone(), result.review.clone());
             Ok(discovery_result_fields(
@@ -1370,9 +1392,10 @@ fn discover_lpcmci(
                 ci_name,
                 pag.node_count() as u64,
                 directed,
-                pending, // undirected field reused as circle-pending count
+                0,
                 graph_edges,
             )
+            .with_pag_circle_edges(circle_edges)
             .with_review(slot, names)
             .with_route(route))
         },

@@ -107,3 +107,17 @@ def test_discover_pcmci_conformance_exact_lag1_dual():
         (link.source, link.source_lag, link.target, link.target_lag) for link in result.links
     }
     assert recovered == _TRUE_LAG1_PARENTS, recovered
+
+
+def test_fci_and_rfci_count_circle_edges_not_cpdag_undirected_edges():
+    rng = np.random.default_rng(4)
+    z = rng.normal(size=400)
+    x = z + 0.5 * rng.normal(size=400)
+    y = x + z + 0.5 * rng.normal(size=400)
+    for method in (antecedent.discovery.FCI, antecedent.discovery.RFCI):
+        result = method(alpha=0.05, fdr=False).run({"x": x, "y": y, "z": z})
+        circled = sum(
+            1 for edge in result.graph_edges if "circle" in {edge.at_source, edge.at_target}
+        )
+        assert result.pag_circle_edges == circled
+        assert result.cpdag_undirected_edges == 0

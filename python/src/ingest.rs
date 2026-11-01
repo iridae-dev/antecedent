@@ -421,16 +421,19 @@ pub(crate) fn columns_to_ingested(
         let mut owned = Vec::with_capacity(columns.len());
         for (name, column) in names.iter().zip(columns) {
             let (values, strided) = column.owned_range(name, offset, offset + len)?;
-            noncontiguous += u64::from(strided);
+            noncontiguous = noncontiguous.saturating_add(u64::from(strided));
             owned.push(antecedent_data::F64Buffer::owned(values));
         }
-        let ncols = owned.len() as u64;
+        let ncols = u64::try_from(owned.len()).unwrap_or(u64::MAX);
+        let unit_bytes = u64::try_from(len)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(std::mem::size_of::<f64>() as u64);
         units.push(ColumnBatch {
             names: names.to_vec(),
             columns: owned,
             receipt: NumpyIngestReceipt {
                 owned_copies: ncols,
-                bytes_copied: ncols * (len * std::mem::size_of::<f64>()) as u64,
+                bytes_copied: ncols.saturating_mul(unit_bytes),
                 noncontiguous_columns: noncontiguous,
             },
         });

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, TypedDict
 
+from ._validate import count as _count
 from .errors import CausalStateError, CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
 from .outcomes import Outcome, capture_outcome
@@ -86,6 +87,11 @@ class DistributionBinding(TypedDict):
     depends_on: list[int]
 
 
+def _id(value: object, what: str) -> int:
+    """An identifier as an integer; a fractional or boolean value is refused, never truncated."""
+    return _count(value, what, minimum=0, type_error=CausalValueError)
+
+
 def _row_indices(rows: Sequence[int]) -> list[int]:
     result: list[int] = []
     for row in rows:
@@ -119,11 +125,11 @@ class PopulationRegistry:
         """Bind weights; AIPW requires declared covariate IDs in ``depends_on``."""
         values = [float(w) for w in weights]
         if depends_on is None:
-            self.distributions[int(distribution_id)] = values
+            self.distributions[_id(distribution_id, "distribution_id")] = values
         else:
-            self.distributions[int(distribution_id)] = {
+            self.distributions[_id(distribution_id, "distribution_id")] = {
                 "weights": values,
-                "depends_on": [int(v) for v in depends_on],
+                "depends_on": [_id(v, "depends_on") for v in depends_on],
             }
 
 
@@ -195,7 +201,7 @@ class CustomDistribution(Population):
     distribution_id: int
 
     def _wire(self) -> dict[str, object]:
-        return {"kind": "custom_distribution", "id": int(self.distribution_id)}
+        return {"kind": "custom_distribution", "id": _id(self.distribution_id, "distribution_id")}
 
 
 def target_all() -> AllRows:
@@ -219,7 +225,7 @@ def target_rows(rows: Sequence[int]) -> Rows:
 
 
 def target_custom_distribution(distribution_id: int) -> CustomDistribution:
-    return CustomDistribution(int(distribution_id))
+    return CustomDistribution(_id(distribution_id, "distribution_id"))
 
 
 def coerce_target_population(spec: object) -> dict[str, object] | None:

@@ -1215,6 +1215,7 @@ class PcmciDiscoveryResult:
     cpdag_nodes: int
     cpdag_directed_edges: int
     cpdag_undirected_edges: int
+    pag_circle_edges: int | None
     graph_edges: list[GraphEdge]
     variable_names: list[str]
     background_knowledge: str | None

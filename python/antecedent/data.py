@@ -40,6 +40,7 @@ from ._table_file import (
 )
 from ._table_snapshot import Table as Table
 from ._table_snapshot import table as table
+from ._validate import count as _count
 from .errors import CausalValueError
 
 
@@ -86,10 +87,17 @@ class PanelFrame:
 
     def __post_init__(self) -> None:
         snapshots = _own_frame_parts(self.names, self.unit_columns, self._snapshots)
-        if len(self.unit_ids) != len(snapshots) or len(set(self.unit_ids)) != len(self.unit_ids):
+        # Identifiers are integers; a fractional or boolean id is refused, never truncated.
+        ids = tuple(
+            _count(
+                unit, f"unit_ids[{index}]", minimum=0, maximum=2**32 - 1, type_error=CausalValueError
+            )
+            for index, unit in enumerate(self.unit_ids)
+        )
+        if len(ids) != len(snapshots) or len(set(ids)) != len(ids):
             raise ValueError("panel needs one distinct unit id per series")
         object.__setattr__(self, "names", tuple(self.names))
-        object.__setattr__(self, "unit_ids", tuple(self.unit_ids))
+        object.__setattr__(self, "unit_ids", ids)
         object.__setattr__(self, "unit_columns", tuple(tuple(part.values()) for part in snapshots))
         object.__setattr__(self, "_snapshots", snapshots)
 

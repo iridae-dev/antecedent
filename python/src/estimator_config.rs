@@ -1179,11 +1179,55 @@ fn invalid(message: String) -> PyErr {
     )
 }
 
+/// Keys that only qualify another key: `(companion, owner)`. A companion without its owner
+/// would be read by nothing, so it is refused rather than silently dropped.
+const COMPANION_KEYS: &[(&str, &str)] = &[
+    ("se_lag", "se_kind"),
+    ("fit_lambda", "fit_kind"),
+    ("fit_c", "fit_kind"),
+    ("caliper_scale", "caliper"),
+    ("min_clusters", "source_cluster_ids"),
+];
+
+/// The first companion key that no key present would read, as a refusal message.
+///
+/// `fit_lambda` is read by `fit_kind` `ridge`/`lasso` only and `fit_c` by `huber` only;
+/// `se_lag` by the lag-parameterized `se_kind` tags, which [`build_se_kind`] checks itself.
+fn orphan_companion(has: &dyn Fn(&str) -> bool, fit_kind: Option<&str>) -> Option<String> {
+    for (companion, owner) in COMPANION_KEYS {
+        if has(companion) && !has(owner) {
+            return Some(format!(
+                "estimator_config[{companion:?}] has no effect without {owner:?}; \
+                 it is refused rather than ignored"
+            ));
+        }
+    }
+    let reader: [(&str, &[&str]); 2] = [("fit_lambda", &["ridge", "lasso"]), ("fit_c", &["huber"])];
+    for (companion, kinds) in reader {
+        if has(companion) && fit_kind.is_some_and(|kind| !kinds.contains(&kind)) {
+            return Some(format!(
+                "estimator_config[{companion:?}] is only read when fit_kind is {}, got {:?}; \
+                 it is refused rather than ignored",
+                kinds.join(" or "),
+                fit_kind.unwrap_or_default(),
+            ));
+        }
+    }
+    None
+}
+
 fn build_configured_spec(
     resolved_id: &str,
     dict: &Bound<'_, PyDict>,
     ambient_bootstrap: u32,
 ) -> PyResult<EstimatorSpec> {
+    let has = |key: &str| dict.contains(key).unwrap_or(false);
+    if let Some(message) = orphan_companion(&has, get_string(dict, "fit_kind")?.as_deref()) {
+        return Err(crate::with_reason_code(
+            crate::value_err(message),
+            antecedent_core::reason_code!("invalid_argument"),
+        ));
+    }
     let bootstrap = get_u32(dict, "bootstrap_replicates")?.unwrap_or(ambient_bootstrap);
     let se_kind = build_se_kind(dict)?;
     let cluster_ids = get_u32_list(dict, "cluster_ids")?;
@@ -1569,4 +1613,44 @@ fn build_configured_spec(
             )));
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::orphan_companion;
+
+    fn refusal(keys: &[&str], fit_kind: Option<&str>) -> Option<String> {
+        orphan_companion(&|key| keys.contains(&key), fit_kind)
+    }
+
+    #[test]
+    fn companions_without_their_owner_are_refused() {
+        for (companion, owner) in [
+            ("se_lag", "se_kind"),
+            ("fit_lambda", "fit_kind"),
+            ("fit_c", "fit_kind"),
+            ("caliper_scale", "caliper"),
+            ("min_clusters", "source_cluster_ids"),
+        ] {
+            let message = refusal(&[companion], None).expect("orphan companion refused");
+            assert!(message.contains(companion) && message.contains(owner), "{message}");
+            assert!(refusal(&[companion, owner], None).is_none());
+        }
+    }
+
+    #[test]
+    fn fit_parameters_are_read_only_by_their_fit_kind() {
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("ridge")).is_none());
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("lasso")).is_none());
+        assert!(refusal(&["fit_kind", "fit_c"], Some("huber")).is_none());
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("ols")).is_some());
+        assert!(refusal(&["fit_kind", "fit_lambda"], Some("huber")).is_some());
+        assert!(refusal(&["fit_kind", "fit_c"], Some("ridge")).is_some());
+        assert!(refusal(&["fit_kind", "fit_c", "fit_lambda"], Some("huber")).is_some());
+    }
+
+    #[test]
+    fn no_companions_is_accepted() {
+        assert!(refusal(&["se_kind", "bootstrap_replicates"], None).is_none());
+    }
 }

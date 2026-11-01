@@ -30,15 +30,20 @@ pub struct PanelData {
 }
 
 impl PanelData {
-    /// Construct from units; all must share an identical schema.
+    /// Construct from units; all must share an identical schema and carry distinct unit ids.
     ///
     /// # Errors
     ///
-    /// Empty list or schema mismatch.
+    /// Empty list, schema mismatch, or a repeated `unit_id` ([`DataError::Duplicate`]).
     pub fn try_new(units: impl Into<Arc<[PanelUnit]>>) -> Result<Self, DataError> {
         let units = units.into();
         if units.is_empty() {
             return Err(DataError::empty("panel data units"));
+        }
+        let mut ids: Vec<u32> = units.iter().map(|u| u.unit_id).collect();
+        ids.sort_unstable();
+        if ids.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(DataError::duplicate("panel unit id"));
         }
         let schema = Arc::new(units[0].series.schema().clone());
         for u in units.iter().skip(1) {
@@ -111,7 +116,7 @@ impl PanelData {
     ///
     /// # Errors
     ///
-    /// `index` is past the units.
+    /// `index` is past the units, or another unit already carries `unit_id`.
     pub fn with_unit_id(&self, index: usize, unit_id: u32) -> Result<Self, DataError> {
         let mut units: Vec<PanelUnit> = self.units.to_vec();
         let Some(slot) = units.get_mut(index) else {
@@ -181,5 +186,29 @@ mod tests {
         .unwrap();
         assert_eq!(panel.unit_count(), 2);
         assert_eq!(panel.total_rows(), 22);
+    }
+
+    fn unit(unit_id: u32) -> PanelUnit {
+        PanelUnit { unit_id, series: float_series(10, 2) }
+    }
+
+    #[test]
+    fn rejects_a_repeated_unit_id() {
+        assert!(matches!(
+            PanelData::try_new(Arc::from([unit(3), unit(4), unit(3)])),
+            Err(DataError::Duplicate { what: "panel unit id" })
+        ));
+    }
+
+    #[test]
+    fn relabelling_keeps_unit_ids_distinct() {
+        let panel = PanelData::try_new(Arc::from([unit(0), unit(1)])).unwrap();
+        assert_eq!(panel.with_unit_id(1, 5).unwrap().unit(1).unwrap().unit_id, 5);
+        assert_eq!(panel.with_unit_id(1, 1).unwrap().unit(1).unwrap().unit_id, 1);
+        assert!(matches!(
+            panel.with_unit_id(1, 0),
+            Err(DataError::Duplicate { what: "panel unit id" })
+        ));
+        assert!(panel.with_unit_series(0, float_series(7, 2)).is_ok());
     }
 }

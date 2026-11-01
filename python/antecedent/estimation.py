@@ -703,7 +703,7 @@ def _frame_payload(
             {
                 "kind": "panel",
                 "unit_columns": [list(cols) for cols in data.unit_columns],
-                "unit_ids": [int(i) for i in data.unit_ids],
+                "unit_ids": list(data.unit_ids),
             },
         )
     if isinstance(data, MultiEnvFrame):
