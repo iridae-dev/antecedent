@@ -84,7 +84,7 @@ use crate::error::IdentificationError;
 use closure::{Closure, ItemSource, Seed, close, reachable, regime_measured_is_factor};
 use network::{Built, Conflict, Factored, Level, WorldIdx, build_network, factorize, separated};
 pub use witness::{CounterfactualTransportWitness, CounterfactualTransportWitnessCheck};
-use witness::{WitnessOutcome, WitnessProblem, search_witness, verify_witness};
+use witness::{WitnessMeter, WitnessOutcome, WitnessProblem, search_witness, verify_witness};
 
 /// The contract a derivation attests.
 pub const COUNTERFACTUAL_TRANSPORT_CONTRACT: &str =
@@ -1654,6 +1654,16 @@ struct Search<'c> {
     failures: Vec<String>,
 }
 
+impl WitnessMeter for Search<'_> {
+    fn charge(&mut self, depth: usize, bytes: u64, leaves: Option<u64>) -> Result<(), SearchStop> {
+        self.work(depth, bytes, leaves)
+    }
+
+    fn operations_remaining(&self) -> u64 {
+        u64::try_from(self.budget.operations_remaining()).unwrap_or(u64::MAX)
+    }
+}
+
 impl Search<'_> {
     fn charge(&mut self, depth: usize, bytes: u64) -> Result<(), SearchStop> {
         self.budget.charge(depth, bytes).inspect_err(|stop| {
@@ -2402,7 +2412,7 @@ fn run_stages(
             .unwrap_or(u64::MAX)
             .saturating_mul(witness::SIMULATIONS_PER_OPERATION),
     };
-    match search_witness(&wp, &mut |depth, bytes, leaves| search.work(depth, bytes, leaves))? {
+    match search_witness(&wp, search)? {
         WitnessOutcome::Found(witness) => {
             let check = verify_witness(&wp, &witness).map_err(|_| {
                 Abort::Error(IdentificationError::invalid_derivation(INVALID_WITNESS))
@@ -2902,6 +2912,38 @@ mod tests {
         let derivation = decision.derivation().expect("the source do(0) law identifies");
         assert!(derivation.cited.iter().any(|entry| entry.regime == RegimeId::from_raw(1)));
         derivation.replay_checked(&ExecutionContext::for_tests(1)).unwrap();
+    }
+
+    /// The witness search pays its simulations out of the one shared budget: a budget too
+    /// small to pay for it ends in no witness at all (never an unpaid one).
+    #[test]
+    fn the_witness_search_is_bounded_by_the_shared_operations() {
+        let problem =
+            CounterfactualTransportProblem::new(&binary(&[0, 1]), &[(v(0), v(1))], &[(v(0), v(1))])
+                .unwrap();
+        let cat = catalog(vec![regime(0, "target", &[], &[0, 1])]);
+        let query = interventional_query(0, 1.0, 1, vec![source(&[], &[])]);
+        let ctx = ExecutionContext::for_tests(1);
+        let outcome = |operations: usize| {
+            identify_counterfactual_transport(
+                &problem,
+                &query,
+                &cat,
+                SearchLimits { operations, depth: COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS.depth },
+                &ctx,
+            )
+        };
+        let found = |operations: usize| {
+            matches!(
+                outcome(operations),
+                Ok(CounterfactualTransportDecision::ProvenNonTransportable(_))
+            )
+        };
+        let default = COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS.operations;
+        assert!(found(default));
+        // One operation pays for nothing of the search: no obstruction, a typed stop.
+        assert!(!found(1));
+        assert!(matches!(outcome(1), Ok(_) | Err(IdentificationError::Budget { .. })));
     }
 
     #[test]

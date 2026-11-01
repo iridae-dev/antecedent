@@ -325,6 +325,7 @@ pub(crate) fn identify_meta_catalog_metered(
     let state = engine.initial()?;
     let mut obligations = Vec::new();
     let mut had_derivation = false;
+    let mut exhausted = None;
     for strategy in 0..3 {
         if strategy == 2 {
             engine.source_catalog = Some(catalog);
@@ -333,7 +334,12 @@ pub(crate) fn identify_meta_catalog_metered(
         if let Some(root_step) = engine.solve(state.clone(), strategy != 0, 0)? {
             had_derivation = true;
             let proof = engine.solved_derivation(root_step, sources.clone())?;
-            proof.check_catalog_binding_resources(catalog, limits, ctx)?;
+            if !defer_exhaustion(
+                proof.check_catalog_binding_resources(catalog, limits, ctx),
+                &mut exhausted,
+            )? {
+                continue;
+            }
             match proof.bind_catalog_validated(catalog) {
                 Ok(mut bound) => {
                     bound.searched =
@@ -348,6 +354,11 @@ pub(crate) fn identify_meta_catalog_metered(
             }
         }
     }
+    // A derivation that could not be bound for want of budget leaves the search
+    // inconclusive: report the exhaustion, never a not-certified or missing-evidence verdict.
+    if let Some(error) = exhausted {
+        return Err(error);
+    }
     let searched = ["target_only_id", "canonical_meta_sid", "catalog_available_meta_sid"]
         .map(Arc::from)
         .into();
@@ -355,6 +366,25 @@ pub(crate) fn identify_meta_catalog_metered(
         Ok(CatalogTransportResult::MissingEvidence { searched, obligations: obligations.into() })
     } else {
         Ok(CatalogTransportResult::NotCertified { searched, obligations: obligations.into() })
+    }
+}
+
+/// Fold the binding preflight of one strategy's derivation into the search: `Ok(true)` to bind
+/// it, `Ok(false)` to skip it. A derivation too large to bind within the budget is not a verdict
+/// on the catalog (a later strategy may derive a smaller one), so its budget stop is remembered
+/// in `exhausted` (the first one) and the loop goes on. Cancellation and every other failure end
+/// the search at once.
+fn defer_exhaustion(
+    preflight: Result<(), IdentificationError>,
+    exhausted: &mut Option<IdentificationError>,
+) -> Result<bool, IdentificationError> {
+    match preflight {
+        Ok(()) => Ok(true),
+        Err(error @ IdentificationError::Budget { .. }) => {
+            exhausted.get_or_insert(error);
+            Ok(false)
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -499,6 +529,25 @@ mod tests {
         assert!(matches!(
             identify_meta_transport(&graph(), &q, SidLimits { steps: 1, depth: 1 }, &ctx),
             Err(IdentificationError::Budget { .. })
+        ));
+    }
+
+    #[test]
+    fn a_binding_preflight_budget_stop_is_deferred_not_fatal() {
+        let mut exhausted = None;
+        assert!(defer_exhaustion(Ok(()), &mut exhausted).unwrap());
+        assert!(exhausted.is_none());
+        let first = IdentificationError::budget(IdentificationBudget::Binding);
+        let second = IdentificationError::budget(IdentificationBudget::BindingMemory);
+        assert!(!defer_exhaustion(Err(first), &mut exhausted).unwrap());
+        assert!(!defer_exhaustion(Err(second), &mut exhausted).unwrap());
+        assert!(matches!(
+            exhausted,
+            Some(IdentificationError::Budget { budget: IdentificationBudget::Binding })
+        ));
+        assert!(matches!(
+            defer_exhaustion(Err(IdentificationError::Cancelled), &mut exhausted),
+            Err(IdentificationError::Cancelled)
         ));
     }
 

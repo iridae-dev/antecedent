@@ -164,9 +164,6 @@ fn matching_index_keeps_its_context_free_entry_points() {
 #[test]
 fn retired_ceilings_keep_their_released_values() {
     assert_eq!(antecedent_identify::sid::temporal_sequence::TEMPORAL_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::sid::scenarios::SCENARIO_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::MZ_TRANSPORT_MAX_OBSERVED, 12);
-    assert_eq!(antecedent_identify::sid::MZ_TRANSPORT_MAX_OBSERVED, 12);
     assert_eq!(antecedent_identify::sid::cpdag_completion::CPDAG_MAX_NODES, 6);
     assert_eq!(
         antecedent_identify::sid::cpdag_completion::CPDAG_BOUNDS_EXCEEDED_DETAIL,

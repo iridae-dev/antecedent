@@ -87,8 +87,6 @@ pub use recovery_chain::{
     ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
     verify_chain_witness,
 };
-#[allow(deprecated, reason = "the retained released name stays reachable")]
-pub use sid::MZ_TRANSPORT_MAX_OBSERVED;
 pub use sid::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
     ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS,

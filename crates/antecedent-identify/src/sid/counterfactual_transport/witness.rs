@@ -48,6 +48,32 @@ use super::network::{Built, Input, Network, WorldIdx, build_network};
 /// cannot pay for, and the tables are charged to the memory budget before they are built.
 pub(super) const SIMULATIONS_PER_OPERATION: u64 = 1 << 8;
 
+/// What the witness search charges its work against: the caller's shared budget.
+pub(super) trait WitnessMeter {
+    /// Charge one operation at `depth` whose live state needs `bytes`; `leaves` is the local
+    /// enumeration position, informational only.
+    fn charge(&mut self, depth: usize, bytes: u64, leaves: Option<u64>) -> Result<(), SearchStop>;
+
+    /// Operations the shared budget still allows.
+    fn operations_remaining(&self) -> u64;
+}
+
+/// Charge `simulations` simulations to the shared budget, [`SIMULATIONS_PER_OPERATION`] to the
+/// operation (at least one), polling cancellation as it goes. `Ok(false)` when the remaining
+/// operations cannot pay for them: nothing is charged and the caller skips the work.
+fn charge_simulations(meter: &mut dyn WitnessMeter, simulations: u64) -> Result<bool, SearchStop> {
+    let operations = simulations.div_ceil(SIMULATIONS_PER_OPERATION).max(1);
+    if operations > meter.operations_remaining() {
+        return Ok(false);
+    }
+    for _ in 0..operations {
+        meter.charge(0, 0, None)?;
+    }
+    Ok(true)
+}
+
+const UNAFFORDABLE: &str = "an attempt needs more simulations than the remaining budget pays for";
+
 /// The product of `factors`, or `None` when it does not fit `usize`.
 fn checked_product(factors: impl IntoIterator<Item = usize>) -> Option<usize> {
     factors.into_iter().try_fold(1usize, usize::checked_mul)
@@ -505,6 +531,29 @@ struct Counts {
     denominator: Vec<i128>,
 }
 
+/// Simulations one attempt (one clique against one baseline) runs: one per response-function
+/// state of the clique, of the baseline's rest, and of every regime of the family. `None` when
+/// the state spaces are not representable.
+fn attempt_simulations(
+    model: &Model<'_>,
+    layout: &Layout,
+    clique: &[usize],
+    baseline: Baseline,
+) -> Option<u64> {
+    let states = checked_product(clique.iter().map(|&v| model.nfun[v]))?;
+    let rest_states = match baseline {
+        Baseline::Uniform => {
+            checked_product((0..model.n).filter(|v| !clique.contains(v)).map(|v| model.nfun[v]))?
+        }
+        _ => 1,
+    };
+    Some(
+        (states as u64)
+            .saturating_mul(rest_states.max(1) as u64)
+            .saturating_mul(layout.simulations.max(1)),
+    )
+}
+
 fn collect_counts(
     model: &Model<'_>,
     layout: &Layout,
@@ -523,12 +572,6 @@ fn collect_counts(
         _ => Vec::new(),
     };
     let rest_states = checked_product(rest_radices.iter().copied())?;
-    let work = (states as u64)
-        .saturating_mul(rest_states.max(1) as u64)
-        .saturating_mul(layout.simulations.max(1));
-    if work > model.wp.simulations {
-        return None;
-    }
     let mut counts = Counts {
         cells: vec![vec![0i128; states]; layout.rows],
         numerator: vec![0; states],
@@ -641,14 +684,14 @@ fn extend_cliques(
     current: &mut Vec<usize>,
     candidates: u32,
     out: &mut Vec<Vec<usize>>,
-    charge: &mut dyn FnMut(usize, u64, Option<u64>) -> Result<(), SearchStop>,
+    charge: &mut dyn WitnessMeter,
 ) -> Result<(), SearchStop> {
     let mut remaining = candidates;
     while remaining != 0 {
         let v = remaining.trailing_zeros() as usize;
         remaining &= remaining - 1;
         current.push(v);
-        charge(0, (out.len() as u64 + 1).saturating_mul(64), Some(out.len() as u64 + 1))?;
+        charge.charge(0, (out.len() as u64 + 1).saturating_mul(64), Some(out.len() as u64 + 1))?;
         out.push(current.clone());
         let above = u32::MAX.checked_shl(u32::try_from(v + 1).unwrap_or(32)).unwrap_or(0);
         let next = candidates & problem.bidirected_mask[v] & above;
@@ -665,7 +708,7 @@ fn extend_cliques(
 )]
 pub(super) fn search_witness(
     wp: &WitnessProblem<'_>,
-    charge: &mut dyn FnMut(usize, u64, Option<u64>) -> Result<(), SearchStop>,
+    charge: &mut dyn WitnessMeter,
 ) -> Result<WitnessOutcome, SearchStop> {
     let model = match Model::new(wp) {
         Ok(model) => model,
@@ -692,7 +735,21 @@ pub(super) fn search_witness(
             continue;
         }
         for baseline in Baseline::ALL {
-            charge(0, (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16), None)?;
+            charge.charge(
+                0,
+                (states as u64).saturating_mul(layout.rows as u64).saturating_mul(16),
+                None,
+            )?;
+            // The simulations of every attempt are charged to the shared budget as they are
+            // run, so the work of the whole search stays within the operations the caller gave
+            // it. An attempt the budget left cannot pay for is skipped, never run unpaid.
+            let Some(work) = attempt_simulations(&model, &layout, clique, baseline) else {
+                continue;
+            };
+            if !charge_simulations(charge, work)? {
+                reasons.push(UNAFFORDABLE.to_owned());
+                continue;
+            }
             let Some((counts, m, _)) = collect_counts(&model, &layout, clique, baseline) else {
                 continue;
             };
@@ -764,7 +821,12 @@ pub(super) fn search_witness(
                     first_value: String::new(),
                     second_value: String::new(),
                 };
-                // Fill the recorded values from the verifier itself.
+                // Fill the recorded values from the verifier itself: two further passes over the
+                // same simulations (the pair evaluation, then the verification), charged too.
+                if !charge_simulations(charge, work.saturating_mul(2))? {
+                    reasons.push(UNAFFORDABLE.to_owned());
+                    continue;
+                }
                 match evaluate_pair(&model, &layout, &record) {
                     Ok((a, b, _)) if a != b => {
                         let mut record = record;
@@ -955,4 +1017,72 @@ pub(super) fn verify_witness(
         first_value: record.first_value.clone(),
         second_value: record.second_value.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A meter over a fixed number of operations that records what it was charged.
+    struct Counting {
+        remaining: u64,
+        charged: u64,
+        stop_after: Option<u64>,
+    }
+
+    impl WitnessMeter for Counting {
+        fn charge(&mut self, _: usize, _: u64, _: Option<u64>) -> Result<(), SearchStop> {
+            if self.stop_after == Some(self.charged) {
+                return Err(SearchStop::Cancelled);
+            }
+            self.remaining -= 1;
+            self.charged += 1;
+            Ok(())
+        }
+
+        fn operations_remaining(&self) -> u64 {
+            self.remaining
+        }
+    }
+
+    fn meter(remaining: u64) -> Counting {
+        Counting { remaining, charged: 0, stop_after: None }
+    }
+
+    #[test]
+    fn simulations_are_charged_cumulatively_one_operation_per_block() {
+        let block = SIMULATIONS_PER_OPERATION;
+        let mut meter = meter(10);
+        // A partial block, and zero simulations, still cost one operation.
+        assert_eq!(charge_simulations(&mut meter, 1), Ok(true));
+        assert_eq!(charge_simulations(&mut meter, 0), Ok(true));
+        assert_eq!(meter.charged, 2);
+        // Two and a bit blocks cost three.
+        assert_eq!(charge_simulations(&mut meter, 2 * block + 1), Ok(true));
+        assert_eq!(meter.charged, 5);
+        // Each attempt may no longer run the whole budget: the shared remainder shrinks, and
+        // an attempt it cannot pay for is refused with nothing charged.
+        assert_eq!(charge_simulations(&mut meter, 6 * block), Ok(false));
+        assert_eq!((meter.charged, meter.remaining), (5, 5));
+        assert_eq!(charge_simulations(&mut meter, 5 * block), Ok(true));
+        assert_eq!(meter.remaining, 0);
+        assert_eq!(charge_simulations(&mut meter, 1), Ok(false));
+    }
+
+    #[test]
+    fn a_stop_while_charging_simulations_is_propagated() {
+        let mut meter = Counting { remaining: 100, charged: 0, stop_after: Some(3) };
+        assert_eq!(
+            charge_simulations(&mut meter, 10 * SIMULATIONS_PER_OPERATION),
+            Err(SearchStop::Cancelled)
+        );
+        assert_eq!(meter.charged, 3);
+    }
+
+    #[test]
+    fn a_saturated_simulation_count_is_never_affordable() {
+        let mut meter = meter(1_000);
+        assert_eq!(charge_simulations(&mut meter, u64::MAX), Ok(false));
+        assert_eq!(meter.charged, 0);
+    }
 }

@@ -3914,7 +3914,6 @@ pub const antecedent_identify::MIXED_SOURCE_RULE_SET: &str
 pub const antecedent_identify::MZ_TRANSPORT_DEFAULT_LIMITS: antecedent_core::search::SearchLimits
 pub const antecedent_identify::MZ_TRANSPORT_MAX_CANDIDATE_REGIMES: usize
 pub const antecedent_identify::MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE: usize
-pub const antecedent_identify::MZ_TRANSPORT_MAX_OBSERVED: usize
 pub const antecedent_identify::MZ_TRANSPORT_MAX_SOURCES: usize
 pub const antecedent_identify::MZ_TRANSPORT_MEMORY_BYTES: u64
 pub const antecedent_identify::NO_LATENT_TO_OUTCOME: &str
@@ -3958,7 +3957,6 @@ pub const antecedent_identify::sid::cpdag_completion::CPDAG_NOT_A_CPDAG_DETAIL: 
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_NO_EVIDENCE_DETAIL: &str
 pub const antecedent_identify::sid::cpdag_completion::CPDAG_SELECTION_OR_LATENT_DETAIL: &str
 pub const antecedent_identify::sid::scenarios::SCENARIO_MAX_COUNT: usize
-pub const antecedent_identify::sid::scenarios::SCENARIO_MAX_OBSERVED: usize
 pub const antecedent_identify::sid::scenarios::SCENARIO_UNEVALUATED_DETAIL: &str
 pub const antecedent_identify::sid::scenarios::SCENARIO_WEIGHT_TOLERANCE: f64
 pub const antecedent_identify::sid::temporal_initial_shift::INITIAL_SHIFT_SOURCE_RULE: &str
@@ -6201,7 +6199,6 @@ pub use antecedent_identify::sid::MIXED_SOURCE_RULE_SET = antecedent_identify::M
 pub use antecedent_identify::sid::MZ_TRANSPORT_DEFAULT_LIMITS = antecedent_identify::MZ_TRANSPORT_DEFAULT_LIMITS
 pub use antecedent_identify::sid::MZ_TRANSPORT_MAX_CANDIDATE_REGIMES = antecedent_identify::MZ_TRANSPORT_MAX_CANDIDATE_REGIMES
 pub use antecedent_identify::sid::MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE = antecedent_identify::MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE
-pub use antecedent_identify::sid::MZ_TRANSPORT_MAX_OBSERVED = antecedent_identify::MZ_TRANSPORT_MAX_OBSERVED
 pub use antecedent_identify::sid::MZ_TRANSPORT_MAX_SOURCES = antecedent_identify::MZ_TRANSPORT_MAX_SOURCES
 pub use antecedent_identify::sid::MZ_TRANSPORT_MEMORY_BYTES = antecedent_identify::MZ_TRANSPORT_MEMORY_BYTES
 pub use antecedent_identify::sid::MetaSource = antecedent_identify::MetaSource

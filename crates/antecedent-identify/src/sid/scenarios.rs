@@ -82,17 +82,7 @@ use super::{
 
 /// Scenarios in one set under the earlier fixed ceiling. Kept for callers that wish to
 /// bound a *supplied* list themselves through [`TransportScenarioSet::try_new_within`].
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced by try_new: the decision charges each scenario to its search budget"
-)]
 pub const SCENARIO_MAX_COUNT: usize = 64;
-/// Observed variables in each scenario graph under the earlier fixed ceiling.
-#[deprecated(
-    since = "2.4.1",
-    note = "no longer enforced: scenario graphs of any size are admitted"
-)]
-pub const SCENARIO_MAX_OBSERVED: usize = 12;
 /// Tolerance on declared weights summing to at most one.
 pub const SCENARIO_WEIGHT_TOLERANCE: f64 = 1e-12;
 
@@ -555,9 +545,9 @@ impl TransportScenarioSet {
 pub enum ScenarioQuestion {
     /// `P*(y | do(x))`, decided by the classical catalog sID route.
     Classical(ClassicalTransportQuery),
-    /// `P*(y | do(x), w)`, decided by the bounded ADMG conditional transport
-    /// route: at most 6 observed variables, 0-3 treatments and 1-3
-    /// conditioned variables.
+    /// `P*(y | do(x), w)`, decided by the ADMG conditional transport route,
+    /// bounded by the set's search budget and memory charge only (the route's
+    /// observed, treatment and conditioned counts are parse bounds for stored records).
     Conditional(ConditionalTransportQuery),
 }
 
