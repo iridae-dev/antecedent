@@ -502,9 +502,6 @@ impl Simulation<'_> {
             })
             .collect();
         let k = *treatment_arms;
-        let rows: usize = samples.iter().map(Vec::len).sum();
-        let binary = self.request.assumptions.outcome.is_binary();
-        let df = (!binary).then_some(rows as f64 - (k + 1) as f64);
         let first = complete_unit_itt(&samples[1], &samples[0]);
         let estimate = first.map_or(f64::NAN, |fit| fit.effect);
         match comparison {
@@ -522,10 +519,19 @@ impl Simulation<'_> {
                 }
             }
             ArmComparison::ManyToOne { multiplicity, power } => {
-                let critical: Vec<f64> = self.result.analytic.family.as_ref().map_or_else(
-                    || vec![critical_value(self.alpha() / k as f64, df, self.two_sided()); k],
-                    |family| family.critical.clone(),
-                );
+                // The critical values are the analytic planner's, never re-derived here: a
+                // Holm or Dunnett family simulated with Bonferroni values would report the
+                // wrong power. `simulate` refuses a result that does not carry them.
+                let Some(critical) = self
+                    .result
+                    .analytic
+                    .family
+                    .as_ref()
+                    .map(|family| family.critical.as_slice())
+                    .filter(|critical| critical.len() == k)
+                else {
+                    return Record::default();
+                };
                 let statistics: Vec<f64> = samples[1..]
                     .iter()
                     .map(|arm| {
@@ -553,7 +559,7 @@ impl Simulation<'_> {
                             })
                             .collect();
                         ordered.sort_by(|a, b| b.total_cmp(a));
-                        ordered.iter().zip(&critical).take_while(|(t, c)| **t >= **c).count()
+                        ordered.iter().zip(critical).take_while(|(t, c)| **t >= **c).count()
                     }
                 };
                 let share = rejected as f64 / k as f64;
@@ -750,6 +756,30 @@ fn mean_and_se(values: impl Iterator<Item = f64> + Clone) -> (f64, f64, f64) {
     (mean, variance.sqrt(), (variance / n as f64).sqrt())
 }
 
+/// A many-to-one comparison is simulated with the critical values the analytic planner derived
+/// for its multiplicity correction (Bonferroni, Holm steps, Dunnett); a result without them
+/// cannot be simulated faithfully.
+fn refuse_missing_family(
+    request: &PlanningRequest,
+    result: &PlanningResult,
+) -> Result<(), CausalError> {
+    let PlannedDesign::MultiArm { treatment_arms, comparison } = request.effective_design() else {
+        return Ok(());
+    };
+    let ArmComparison::ManyToOne { multiplicity, .. } = comparison else { return Ok(()) };
+    let carried = result.analytic.family.as_ref().map_or(0, |family| family.critical.len());
+    if carried == treatment_arms {
+        return Ok(());
+    }
+    Err(CausalError::Compile {
+        message: format!(
+            "the many-to-one comparison under {multiplicity:?} is simulated with the analytic \
+             planner's critical values, and this result carries {carried} for {treatment_arms} \
+             comparisons; next attempt: plan the request analytically and simulate that result"
+        ),
+    })
+}
+
 /// Simulate the plan `result` of `request`: `spec.replicates` keyed replicates
 /// under `ctx`, reduced in replicate order.
 ///
@@ -762,6 +792,7 @@ pub(crate) fn simulate(
     spec: SimulationSpec,
     ctx: &ExecutionContext,
 ) -> Result<SimulatedCharacteristics, CausalError> {
+    refuse_missing_family(request, result)?;
     let simulation = Simulation { request, design: request.effective_design(), result };
     let replicates = spec.replicates as usize;
     let records = ctx.map_indexed(replicates, |index, inner| {
@@ -806,4 +837,62 @@ pub(crate) fn simulate(
         sequential,
         agreement_z,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_design::planning::{
+        PlanningAssumptions, PlanningGoal, SimulationSpec as Spec, plan_analytic,
+    };
+
+    use super::*;
+
+    fn request(multiplicity: Multiplicity) -> PlanningRequest {
+        PlanningRequest::new(
+            PlannedDesign::MultiArm {
+                treatment_arms: 3,
+                comparison: ArmComparison::ManyToOne { multiplicity, power: FamilyPower::All },
+            },
+            PlanningAssumptions::continuous(1.0).with_effect(0.45),
+            PlanningCriterion::Power { target: 0.8 },
+            PlanningGoal::Evaluate { units: 240 },
+        )
+    }
+
+    #[test]
+    fn a_many_to_one_result_without_the_planners_critical_values_is_refused() {
+        let ctx = ExecutionContext::for_tests(3);
+        let spec = Spec { replicates: 20, seed: 1 };
+        for multiplicity in [Multiplicity::Bonferroni, Multiplicity::Holm, Multiplicity::Dunnett] {
+            let request = request(multiplicity);
+            let mut result = plan_analytic(&request).unwrap();
+            assert!(simulate(&request, &result, spec, &ctx).is_ok());
+            result.analytic.family = None;
+            let error = simulate(&request, &result, spec, &ctx).unwrap_err().to_string();
+            assert!(error.contains("analytic planner's critical values"), "{error}");
+            assert!(error.contains("carries 0 for 3"), "{error}");
+        }
+    }
+
+    #[test]
+    fn holm_simulation_uses_the_holm_steps_of_the_analytic_planner() {
+        let holm = plan_analytic(&request(Multiplicity::Holm)).unwrap();
+        let bonferroni = plan_analytic(&request(Multiplicity::Bonferroni)).unwrap();
+        let steps = &holm.analytic.family.as_ref().unwrap().critical;
+        let flat = &bonferroni.analytic.family.as_ref().unwrap().critical;
+        assert!(steps[0] > steps[2], "Holm steps down: {steps:?}");
+        assert!((steps[0] - flat[0]).abs() < 1e-12, "the first Holm step is Bonferroni");
+        assert!(holm.analytic.value > bonferroni.analytic.value, "Holm all-power exceeds");
+
+        let ctx = ExecutionContext::for_tests(3);
+        let request = request(Multiplicity::Holm);
+        let simulated =
+            simulate(&request, &holm, Spec { replicates: 3_000, seed: 7 }, &ctx).unwrap();
+        let gap = (simulated.value - holm.analytic.value).abs();
+        assert!(gap <= 4.0 * simulated.monte_carlo_se + 0.025, "{gap}");
+        assert!(
+            (simulated.value - bonferroni.analytic.value).abs() > 0.0,
+            "the simulated value is Holm's, not the flat correction's"
+        );
+    }
 }

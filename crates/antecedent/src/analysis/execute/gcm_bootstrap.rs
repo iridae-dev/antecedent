@@ -60,6 +60,14 @@ pub(super) fn require_series_resampling(
     )
 }
 
+/// Live `f64` cells of a whole-table row bootstrap over `columns` float columns of `n` rows:
+/// the columns read once up front, the resampled copy of every column of the replicate in
+/// flight (the resampled table shares those buffers), and the replicate's row-index vector.
+/// Pass the result as the `rows` of [`admit_replicates`].
+pub(super) fn resampled_table_cells(n: usize, columns: usize) -> Option<usize> {
+    columns.checked_mul(2)?.checked_add(1)?.checked_mul(n)
+}
+
 /// Lease `replicates * columns` replicate values plus one count vector of `rows` on
 /// the execution pool before anything is allocated.
 pub(super) fn admit_replicates(
@@ -189,4 +197,20 @@ pub(super) fn bootstrap_diagnostic_over(
         ("replicates_failed", failed.to_string()),
         ("calibration", "unmeasured".to_owned()),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resampled_table_cells;
+
+    #[test]
+    fn a_table_bootstrap_leases_the_source_columns_and_the_replicate_copy() {
+        // 100 rows, 4 columns: 400 source cells, 400 resampled cells, 100 row indices.
+        assert_eq!(resampled_table_cells(100, 4), Some(900));
+        // Strictly more than the source table plus the index vector alone (the old lease).
+        assert!(resampled_table_cells(100, 4).unwrap() > 100 * (4 + 1));
+        assert_eq!(resampled_table_cells(0, 4), Some(0));
+        assert_eq!(resampled_table_cells(usize::MAX, 2), None);
+        assert_eq!(resampled_table_cells(2, usize::MAX), None);
+    }
 }

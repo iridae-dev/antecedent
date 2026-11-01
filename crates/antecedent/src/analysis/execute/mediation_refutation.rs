@@ -10,7 +10,7 @@
 //! jointly under subsets and, under full validation, a joint bootstrap.
 //!
 //! Over a CPDAG or a PAG the class does not determine one functional, so the suite runs on
-//! every distinct identified member (distinct by the value of the requested contrast), each
+//! every distinct identified member (distinct by the values of the three components together), each
 //! member read through its own proofs of the three components.
 //!
 //! The state executes under both inference modes and is unlicensed: its verdicts are checks,
@@ -206,12 +206,13 @@ impl super::Study {
         let MemberProofs { per_slot, requested, estimator_id } = proofs;
         let Some(requested_cases) = per_slot[requested].as_ref() else { return Ok(Vec::new()) };
 
-        // One member per distinct value of the requested contrast.
+        // One member per distinct decomposition: the three plug-in values together. Two cases
+        // that agree on the requested contrast but split it differently into direct and
+        // indirect parts are different members; the suite refits every component, so keying on
+        // the requested value alone would silently drop one of the decompositions.
         let mut members: Vec<(usize, [Option<IdentifiedComponent>; 3])> = Vec::new();
-        let mut seen: Vec<f64> = Vec::new();
         for index in 0..requested_cases.len() {
-            // The requested contrast decides whether the case is a new member; the other
-            // components are only fitted for a case that is.
+            // The requested contrast must identify and evaluate for the case to be a member.
             let Some(requested_result) = per_slot[requested]
                 .as_ref()
                 .and_then(|cases| cases.get(index))
@@ -225,10 +226,6 @@ impl super::Study {
             else {
                 continue;
             };
-            if seen.iter().any(|earlier| (earlier - value).abs() <= 1e-9 * earlier.abs().max(1.0)) {
-                continue;
-            }
-            seen.push(value);
             let mut owned: [Option<IdentifiedComponent>; 3] = [None, None, None];
             for (slot, cases) in per_slot.iter().enumerate() {
                 if slot == requested {
@@ -245,6 +242,9 @@ impl super::Study {
                 if let Some(other) = plug_in_value(data, &estimand, result, roles, ctx) {
                     owned[slot] = Some((result.clone(), estimand, other));
                 }
+            }
+            if members.iter().any(|(_, earlier)| same_decomposition(earlier, &owned)) {
+                continue;
             }
             members.push((index, owned));
         }
@@ -263,6 +263,28 @@ impl super::Study {
         }
         Ok(reports)
     }
+}
+
+/// Whether two members read the same decomposition.
+fn same_decomposition(
+    left: &[Option<IdentifiedComponent>; 3],
+    right: &[Option<IdentifiedComponent>; 3],
+) -> bool {
+    let values = |members: &[Option<IdentifiedComponent>; 3]| {
+        members.each_ref().map(|slot| slot.as_ref().map(|(_, _, value)| *value))
+    };
+    same_values(&values(left), &values(right))
+}
+
+/// Every component is identified in both or in neither, and the identified components agree
+/// in value. Agreement on one component (the requested contrast) is not enough: the same total
+/// can split into different direct and indirect parts.
+fn same_values(left: &[Option<f64>; 3], right: &[Option<f64>; 3]) -> bool {
+    left.iter().zip(right).all(|pair| match pair {
+        (Some(a), Some(b)) => (a - b).abs() <= 1e-9 * a.abs().max(1.0),
+        (None, None) => true,
+        _ => false,
+    })
 }
 
 /// The proofs of the cases of a class and the contrast the study asked for.
@@ -314,4 +336,19 @@ pub(super) fn plug_in_value(
     let estimate =
         estimator.estimate(&prepared, &mut FunctionalDistributionWorkspace::default(), ctx).ok()?;
     estimate.ate.is_finite().then_some(estimate.ate)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_values;
+
+    #[test]
+    fn members_that_share_the_requested_contrast_but_split_it_differently_are_distinct() {
+        // Total, natural direct, natural indirect.
+        let first = [Some(1.0), Some(0.6), Some(0.4)];
+        assert!(same_values(&first, &[Some(1.0), Some(0.6), Some(0.4 + 1e-12)]));
+        assert!(!same_values(&first, &[Some(1.0), Some(0.2), Some(0.8)]), "same total, new split");
+        assert!(!same_values(&first, &[Some(1.0), Some(0.6), None]), "identified in one only");
+        assert!(same_values(&[Some(1.0), None, None], &[Some(1.0), None, None]));
+    }
 }

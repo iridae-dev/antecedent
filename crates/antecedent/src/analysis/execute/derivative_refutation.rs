@@ -384,11 +384,8 @@ fn bootstrap_stability(
                 ));
             }
         };
-    let width = ids.len().checked_add(1).ok_or_else(|| CausalError::Resource {
-        message: "derivative bootstrap width overflow".to_owned(),
-    })?;
-    let rows = n.checked_mul(width).ok_or_else(|| CausalError::Resource {
-        message: "derivative bootstrap size overflow".to_owned(),
+    let rows = super::gcm_bootstrap::resampled_table_cells(n, ids.len()).ok_or_else(|| {
+        CausalError::Resource { message: "derivative bootstrap size overflow".to_owned() }
     })?;
     let _admitted = super::gcm_bootstrap::admit_replicates(ctx, replicates, 1, rows)?;
     let mut values = Vec::with_capacity(usize::try_from(replicates).unwrap_or(0));
