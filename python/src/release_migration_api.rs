@@ -99,7 +99,7 @@ fn consume_previous_release(artifact: &[u8], level: f64) -> PyResult<Adopted> {
     crate::catch_ffi(|| {
         let target = declared_target(level)?;
         let adopted =
-            consume_previous_release_artifact(&artifact, &target).map_err(|e| release_err(&e))?;
+            consume_previous_release_artifact(artifact, &target).map_err(|e| release_err(&e))?;
         Ok((
             adopted.score_row_digest.to_vec(),
             adopted.target_digest.to_vec(),
@@ -165,7 +165,7 @@ fn consume_previous_routes(artifact: &[u8], methods: Vec<MethodRow>) -> PyResult
             })
             .collect();
         let migrated =
-            consume_previous_route_records(&artifact, &current).map_err(|e| release_err(&e))?;
+            consume_previous_route_records(artifact, &current).map_err(|e| release_err(&e))?;
         let rows: Vec<Json> = migrated
             .iter()
             .map(|record| {

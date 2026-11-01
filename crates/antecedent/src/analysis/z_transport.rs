@@ -1461,6 +1461,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked through both routes")]
     fn prepared_exact_and_empirical_z_routes_match_known_truth_point_only() {
         for empirical in [false, true] {
             let (diagram, functional, data, assignment) = fixture(empirical);

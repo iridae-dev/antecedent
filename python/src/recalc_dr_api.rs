@@ -440,12 +440,7 @@ impl PyDrSession {
         let previous = self.inner.identities().clone();
         let caps = self.capabilities();
         let session = &mut self.inner;
-        let ran = detach_catch(py, move || {
-            Ok({
-                let ran = execute_dr_with_receipt(session, &request, &ctx);
-                ran
-            })
-        })?;
+        let ran = detach_catch(py, move || Ok(execute_dr_with_receipt(session, &request, &ctx)))?;
         match ran {
             Ok(outcome) => {
                 let counts: BTreeMap<_, _> = outcome

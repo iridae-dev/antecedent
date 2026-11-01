@@ -189,6 +189,10 @@ impl ZTransportArtifactWire {
     ///
     /// # Errors
     /// The premises do not encode, or the program does not match the functional.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "one artifact: premises, data, point, the names that bind it, and the context"
+    )]
     pub fn checked(
         diagram: &SelectionDiagram,
         functional: &BoundZTransportFunctional,

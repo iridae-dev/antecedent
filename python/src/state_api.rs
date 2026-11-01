@@ -608,7 +608,7 @@ impl PyCausalState {
         seed: u64,
     ) -> PyResult<()> {
         if self.inner.suff_stats.particle_filters.contains_key(key.as_str()) {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            return Err(crate::value_err(format!(
                 "particle filter `{key}` already exists; refusing to discard its state"
             )));
         }
