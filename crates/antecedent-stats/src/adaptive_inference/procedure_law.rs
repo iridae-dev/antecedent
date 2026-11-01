@@ -62,7 +62,7 @@ pub const MAX_LAW_STATES: usize = 1_000_000;
 /// Most unit expansions one law may perform.
 pub const MAX_LAW_WORK: u64 = 60_000_000;
 
-const CANCEL_STRIDE: u64 = 1024;
+pub(crate) const CANCEL_STRIDE: u64 = 1024;
 
 /// Width of the band around a stopping threshold inside which a posterior
 /// quantity is read as equal to the threshold.
@@ -212,7 +212,7 @@ fn posteriors(prior: BetaPrior, counts: &[u16]) -> Result<Vec<BetaPosterior>, Er
         .collect()
 }
 
-fn remember<V>(cache: &mut BTreeMap<Vec<u16>, V>, limit: usize, key: &[u16], value: V) {
+pub(crate) fn remember<V>(cache: &mut BTreeMap<Vec<u16>, V>, limit: usize, key: &[u16], value: V) {
     if cache.len() >= limit {
         cache.clear();
     }
@@ -557,7 +557,7 @@ impl Layout {
 
 type StateMap = BTreeMap<Vec<u16>, f64>;
 
-fn check_states(live: usize) -> Result<(), Error> {
+pub(crate) fn check_states(live: usize) -> Result<(), Error> {
     if live > MAX_LAW_STATES {
         return Err(Error::Capacity(CapacityError::LawStates {
             limit: MAX_LAW_STATES as u64,
