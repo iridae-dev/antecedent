@@ -425,27 +425,30 @@ record = "counterfactual.transported_additive"
 key = "max_mechanisms"
 implementation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_MECHANISMS" }]
 documentation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_MECHANISMS" }]
-guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.model\\.mechanisms\\.len\\(\\)\\ >\\ MAX_MECHANISMS\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.model\\.mechanisms\\.len\\(\\)\\ >\\ MAX_MECHANISMS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs", pattern = "\\bx8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness\\b" }
+guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = 'request\.model\.mechanisms\.len\(\) > limits\.max_mechanisms' }
+refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = 'request\.model\.mechanisms\.len\(\) > limits\.max_mechanisms[\s\S]{0,400}?return Err\(Failure::LimitsExceeded\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/transported_counterfactual_artifact.rs", pattern = '\bcaller_limits_refuse_what_the_defaults_admit\b' }
+
 
 [[bound]]
 record = "counterfactual.transported_additive"
 key = "max_support_points"
 implementation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_SUPPORT_POINTS" }]
 documentation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_SUPPORT_POINTS" }]
-guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.source_law\\.points\\.len\\(\\)\\ >\\ MAX_SUPPORT_POINTS" }
-refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.source_law\\.points\\.len\\(\\)\\ >\\ MAX_SUPPORT_POINTS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs", pattern = "\\bx8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness\\b" }
+guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = 'request\.source_law\.points\.len\(\) > limits\.max_support_points' }
+refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = 'request\.source_law\.points\.len\(\) > limits\.max_support_points[\s\S]{0,400}?return Err\(Failure::LimitsExceeded\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/transported_counterfactual_artifact.rs", pattern = '\bcaller_limits_refuse_what_the_defaults_admit\b' }
+
 
 [[bound]]
 record = "counterfactual.transported_additive"
 key = "max_declarations"
 implementation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_DECLARATIONS" }]
 documentation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_DECLARATIONS" }]
-guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.selections\\.len\\(\\)\\ >\\ MAX_DECLARATIONS" }
-refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.selections\\.len\\(\\)\\ >\\ MAX_DECLARATIONS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs", pattern = "\\bx8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness\\b" }
+guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = 'request\.selections\.len\(\) > limits\.max_declarations' }
+refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = 'request\.selections\.len\(\) > limits\.max_declarations[\s\S]{0,400}?return Err\(Failure::LimitsExceeded\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/transported_counterfactual_artifact.rs", pattern = '\bcaller_limits_refuse_what_the_defaults_admit\b' }
+
 
 [[bound]]
 record = "counterfactual.transported_additive"
