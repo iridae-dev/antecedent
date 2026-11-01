@@ -659,8 +659,9 @@ fn labels(prefix: &str, n: usize) -> Vec<Arc<str>> {
 ///
 /// A switchback with one period per sequence has the same unit-period
 /// Horvitz-Thompson contrast and the same sample score sandwich variance as the
-/// Bernoulli design. The only differences are the Student `t` critical value on
-/// the sequences (vs the normal) and the meaning of the variance field.
+/// Bernoulli design. The interval critical values differ: Student `t` on the
+/// sequences versus the normal for independent Bernoulli assignment. The reported
+/// variance fields have different meanings.
 #[test]
 fn one_period_switchback_reproduces_the_bernoulli_horvitz_thompson_contrast() {
     let (assigned, outcomes) = trial_rows();
@@ -673,7 +674,8 @@ fn one_period_switchback_reproduces_the_bernoulli_horvitz_thompson_contrast() {
     let effect = scores.iter().sum::<f64>() / n;
     let sandwich = scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / ((n - 1.0) * n);
     let se = sandwich.sqrt();
-    let design_variance = outcomes.iter().map(|v| 2.0 * v * v).sum::<f64>() / (n * n);
+    // The observed-arm bound divides each squared outcome by its assignment probability squared.
+    let design_variance = outcomes.iter().map(|v| 4.0 * v * v).sum::<f64>() / (n * n);
 
     let data = table(&[("outcome", &outcomes)]);
     let bernoulli_query = RandomizedEffectQuery::bernoulli_itt(
@@ -721,8 +723,8 @@ fn one_period_switchback_reproduces_the_bernoulli_horvitz_thompson_contrast() {
     assert!((effect - s_lower - STUDENT_T975_DF99 * se).abs() < 1e-9);
     assert_eq!(b.uncertainty.as_ref(), "bernoulli_ht_score_normal_interval");
     assert_eq!(s.uncertainty.as_ref(), "switchback_independent_sequence_student_interval");
-    // The variance field means different things: a Bernoulli design variance bound
-    // against the switchback sequence sandwich.
+    // The Bernoulli field is the observed-arm design bound; the switchback field
+    // is the independent-sequence sandwich used by its interval.
     assert!((b.variance_upper_bound - design_variance).abs() < 1e-12);
     assert!((s.variance_upper_bound - sandwich).abs() < 1e-12);
     assert!((b.variance_upper_bound - s.variance_upper_bound).abs() > 0.01);
