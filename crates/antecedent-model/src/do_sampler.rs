@@ -427,6 +427,18 @@ impl McmcDoSampler {
         ws: &mut MechanismWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<DoSampleResult, ModelError> {
+        if !self.proposal_sd.is_finite() || self.proposal_sd <= 0.0 {
+            return Err(ModelError::Shape {
+                message: "the MCMC proposal_sd must be finite and positive".into(),
+            });
+        }
+        let iters = n_samples
+            .checked_mul(self.thin.max(1))
+            .and_then(|kept| kept.checked_add(self.burn_in))
+            .filter(|&iters| iters <= MAX_MCMC_ITERATIONS)
+            .ok_or_else(|| ModelError::Shape {
+                message: "burn_in + n_samples * thin exceeds the supported chain length".into(),
+            })?;
         let pilot = sample_interventional(model, interventions, n_samples.max(64), rng, ws, ctx)?;
         let dense = model
             .dense_of(self.outcome)
@@ -448,7 +460,6 @@ impl McmcDoSampler {
         let mut total = 0usize;
         let _admitted = crate::sample::admit_cells(Some(ctx), n_samples, 1)?;
         let mut out = Vec::with_capacity(n_samples);
-        let iters = self.burn_in + n_samples * self.thin.max(1);
         // Degenerate pilot (near-zero bandwidth) → independent draws from the pilot
         // empirical measure (random-walk MH cannot move).
         let degenerate =
@@ -460,6 +471,9 @@ impl McmcDoSampler {
         let mut p_cur =
             if degenerate { f64::NAN } else { KdeDoSampler::density(&kde, current).max(1e-300) };
         for i in 0..iters {
+            if i % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                return Err(ModelError::Cancelled);
+            }
             if degenerate {
                 #[allow(
                     clippy::cast_possible_truncation,
@@ -502,6 +516,9 @@ impl McmcDoSampler {
         })
     }
 }
+
+/// Longest random-walk chain (burn-in plus thinned draws) one call may run.
+pub const MAX_MCMC_ITERATIONS: usize = 1_000_000_000;
 
 /// Convenience: interventional mean of a variable from ancestral sampling.
 ///
@@ -862,5 +879,14 @@ mod tests {
             .unwrap();
         assert_eq!(mcmc.values.len(), 30);
         assert!(mcmc.accept_rate.unwrap() > 0.0);
+
+        // Unusable chain controls are refused before any sampling work.
+        let outcome = VariableId::from_raw(1);
+        let wrapping = McmcDoSampler { thin: 1 << 63, ..McmcDoSampler::new(outcome) };
+        let nan_step = McmcDoSampler { proposal_sd: f64::NAN, ..McmcDoSampler::new(outcome) };
+        let endless = McmcDoSampler { burn_in: usize::MAX, ..McmcDoSampler::new(outcome) };
+        for sampler in [wrapping, nan_step, endless] {
+            assert!(sampler.sample(&model, &iv, 30, &mut rng, &mut ws, &ctx).is_err());
+        }
     }
 }

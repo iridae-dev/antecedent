@@ -389,6 +389,13 @@ fn initial_history(
     let n_nodes = fitted.inner.model.n_nodes();
     let mut initial = Vec::new();
     for step in history.iter().flatten() {
+        // The supplied columns are the only evidence of `n_rows`: check them before sizing.
+        if let Some((name, column)) = step.iter().find(|(_, column)| column.len() != n_rows) {
+            return Err(value_err(format!(
+                "history column {name:?} has {} values for {n_rows} rows",
+                column.len()
+            )));
+        }
         let mut values = vec![0.0; n_rows.saturating_mul(n_nodes)];
         let mut seen = 0usize;
         for (name, column) in step {

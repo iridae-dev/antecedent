@@ -74,7 +74,8 @@ impl RollingMechanismDiagnostics {
             bytes: 0,
             charged_bytes: 0,
             ols: LinearOlsSuffStats::new(ncols)?,
-            ring: VecDeque::with_capacity(window),
+            // The window is a bound, not a reservation: the ring grows with the rows actually seen.
+            ring: VecDeque::with_capacity(window.min(4096)),
         })
     }
 

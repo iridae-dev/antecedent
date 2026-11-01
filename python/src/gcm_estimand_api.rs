@@ -444,6 +444,20 @@ impl PyFittedGcm {
                 "unknown do-sampler {method:?}; choose \"weighting\", \"kde\" or \"mcmc\""
             )));
         }
+        // A control the chosen sampler does not read is refused, never silently dropped.
+        let applicable = |name: &str, given: bool, methods: &[&str]| -> PyResult<()> {
+            if given && !methods.contains(&method.as_str()) {
+                return Err(crate::value_err(format!(
+                    "{name} does not apply to the {method:?} do-sampler"
+                )));
+            }
+            Ok(())
+        };
+        applicable("bandwidth", bandwidth.is_some(), &["kde"])?;
+        applicable("proposal_sd", proposal_sd.is_some(), &["mcmc"])?;
+        applicable("burn_in", burn_in.is_some(), &["mcmc"])?;
+        applicable("thin", thin.is_some(), &["mcmc"])?;
+        applicable("root_match_tolerance", root_match_tolerance.is_some(), &["weighting"])?;
         let weighting_level = if method == "weighting" {
             match interventions.iter().collect::<Vec<_>>().as_slice() {
                 [(name, level)] => Some((variable_of(&data, name)?, **level)),
