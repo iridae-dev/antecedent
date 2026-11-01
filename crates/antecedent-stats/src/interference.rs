@@ -232,6 +232,10 @@ pub fn admit_exposure_probability_work_for_shape(
 /// Compute exposure probabilities exactly when the support is small enough, otherwise by Monte
 /// Carlo. Exact enumeration is used for at most 20 Bernoulli units or 20 randomization units /
 /// clusters.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one routine implements the exact and Monte Carlo design branches"
+)]
 pub fn exposure_probabilities(
     design: &AssignmentDesign,
     incoming: &[Vec<(usize, f64)>],

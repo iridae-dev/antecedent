@@ -131,6 +131,10 @@ impl ResampledLeastSquares {
     ///
     /// # Errors
     /// Execution-attempt failure, as for the ordinary least-squares backend.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one routine owns the guarded resampled solve and fallback"
+    )]
     pub fn try_coefficients(
         &self,
         rows: &[usize],

@@ -1674,6 +1674,10 @@ pub fn moment_matched_normal_table(
 
 /// Construct the same joint table with an explicit work ceiling and cancellation context.
 /// Bind an `ExecutionContext` using `numerical_admission::with_context` to cancel.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one routine owns the bounded table construction and accounting"
+)]
 pub fn moment_matched_normal_table_with_work_limit(
     means: &[f64],
     covariance: &[f64],

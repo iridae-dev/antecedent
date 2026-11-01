@@ -1007,6 +1007,7 @@ pub fn exact_fixed_contrast_law(
         // the total that the exact undefined mass `p^n + q^n` leaves.
         let (ln_p, ln_q) = (p.ln(), q.ln());
         let units = f64::from(n);
+        #[allow(clippy::cast_sign_loss, reason = "the mode is clamped between one and n - 1")]
         let mode = ((units + 1.0) * p).floor().clamp(1.0, units - 1.0) as u32;
         let ln_mode = ln_gamma(units + 1.0)
             - ln_gamma(f64::from(mode) + 1.0)

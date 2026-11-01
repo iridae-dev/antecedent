@@ -93,7 +93,7 @@ pub fn intern_cluster_tuples(
                 labels[j] = dimensions[selected[j]][r];
             }
             // `k <= 4`, so the narrowing cannot truncate.
-            let key = ClusterTuple { labels, len: k as u8 };
+            let key = ClusterTuple { labels, len: u8::try_from(k).expect("at most four labels") };
             let id = *map.entry(key).or_insert_with(|| {
                 let id = next;
                 next = next.saturating_add(1);

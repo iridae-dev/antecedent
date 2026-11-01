@@ -895,6 +895,7 @@ pub fn fit_2sls_from_moments(moments: &IvMoments<'_>) -> Result<TwoSlsMomentFit,
 /// # Errors
 ///
 /// Moments that do not match their column counts, or a singular exogenous or instrument block.
+#[allow(clippy::too_many_lines, reason = "the confidence set keeps its analytic cases together")]
 pub fn anderson_rubin_confidence_set_from_moments(
     moments: &IvMoments<'_>,
     level: f64,

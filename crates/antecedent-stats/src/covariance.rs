@@ -670,6 +670,10 @@ fn basis_rank_tolerance(nrows: usize) -> f64 {
 /// Householder QR of the column-equilibrated, weight-scaled design.
 ///
 /// Refuses a design with fewer rows than columns or a numerically dependent column.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the QR basis and rank checks form one numerical procedure"
+)]
 fn sandwich_basis(
     x_colmajor: &[f64],
     nrows: usize,
@@ -722,7 +726,9 @@ fn sandwich_basis(
         }
     }
     let tol = basis_rank_tolerance(nrows);
-    if (0..ncols).any(|k| !(a[k * nrows + k].abs() > tol)) {
+    if (0..ncols)
+        .any(|k| a[k * nrows + k].abs().partial_cmp(&tol) != Some(std::cmp::Ordering::Greater))
+    {
         return Err(singular());
     }
     // R⁻¹ by back substitution (upper triangular, row-major), then T = D⁻¹ R⁻¹.

@@ -366,7 +366,8 @@ fn irls_fit(
     clippy::needless_range_loop,
     clippy::too_many_arguments,
     clippy::too_many_lines,
-    reason = "index-based loop over parallel arrays; one routine owns the damped update"
+    clippy::type_complexity,
+    reason = "parallel arrays and an optional objective belong to the damped update"
 )]
 fn irls_fit_scaled(
     design: GlmDesignRef<'_>,

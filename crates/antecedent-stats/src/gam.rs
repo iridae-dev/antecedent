@@ -614,7 +614,7 @@ pub fn fit_gam_fixed_weighted_design(
             .flat_map(|col| col.iter().zip(&roots).map(|(v, root)| v * root))
             .collect();
         let smoother =
-            PenalizedSmoother::with_penalty(&weighted, n, spec.n_basis, penalties[j].clone())?;
+            PenalizedSmoother::with_penalty(&weighted, n, spec.n_basis, penalties[j].clone());
         let Ok(factor) = smoother.factor(spec.lambda) else { return Ok(None) };
         edf_approx += smoother.edf(&factor) - 1.0;
         off += spec.n_basis - 1;
@@ -707,9 +707,9 @@ pub fn fit_gam_weighted_design(
         .zip(specs)
         .map(|(basis, spec)| {
             let penalty = roughness_penalty(spec.penalty, spec.knots.as_deref(), spec.n_basis)?;
-            PenalizedSmoother::with_penalty(basis, nrows, spec.n_basis, penalty)
+            Ok(PenalizedSmoother::with_penalty(basis, nrows, spec.n_basis, penalty))
         })
-        .collect::<Result<_, _>>()?;
+        .collect::<Result<_, StatsError>>()?;
     let mut factors: Vec<Option<PenalizedFactor>> = (0..specs.len()).map(|_| None).collect();
     let mut boundary_lambda = vec![false; specs.len()];
     // Auto-λ is re-selected against the current partial residuals every sweep until a full
@@ -1448,18 +1448,13 @@ struct PencilSpectrum {
 impl PenalizedSmoother {
     #[cfg(test)]
     fn new(basis: &[f64], nrows: usize, n_basis: usize) -> Result<Self, StatsError> {
-        Self::with_penalty(basis, nrows, n_basis, second_difference_penalty(n_basis)?)
+        Ok(Self::with_penalty(basis, nrows, n_basis, second_difference_penalty(n_basis)?))
     }
 
-    fn with_penalty(
-        basis: &[f64],
-        nrows: usize,
-        n_basis: usize,
-        penalty: Vec<f64>,
-    ) -> Result<Self, StatsError> {
+    fn with_penalty(basis: &[f64], nrows: usize, n_basis: usize, penalty: Vec<f64>) -> Self {
         let mut xtx = vec![0.0; n_basis * n_basis];
         form_xtx(basis, nrows, n_basis, &mut xtx);
-        Ok(Self { n_basis, xtx, penalty, spectrum: std::cell::OnceCell::new() })
+        Self { n_basis, xtx, penalty, spectrum: std::cell::OnceCell::new() }
     }
 
     /// Cholesky factor of `B'B + λP`.
@@ -1507,8 +1502,8 @@ impl PenalizedSmoother {
         let mut solved = vec![0.0; k];
         let mut edf = 0.0;
         for j in 0..k {
-            for i in 0..k {
-                column[i] = self.xtx[i * k + j];
+            for (i, value) in column.iter_mut().enumerate() {
+                *value = self.xtx[i * k + j];
             }
             antecedent_kernels::chol_solve_into(
                 &factor.chol,
@@ -1540,8 +1535,8 @@ impl PenalizedSmoother {
         let mut column = vec![0.0; k];
         let mut solved = vec![0.0; k];
         for j in 0..k {
-            for i in 0..k {
-                column[i] = self.penalty[i * k + j];
+            for (i, value) in column.iter_mut().enumerate() {
+                *value = self.penalty[i * k + j];
             }
             antecedent_kernels::forward_solve_into(&chol0, k, &column, &mut solved);
             for i in 0..k {

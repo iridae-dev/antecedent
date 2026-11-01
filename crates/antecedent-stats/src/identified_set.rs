@@ -155,7 +155,7 @@ fn sample_sd(values: impl Iterator<Item = f64>) -> f64 {
 /// `r = Δ̃ / max_g σ_g ≥ 0`, by bisection between the one- and two-sided values.
 #[must_use]
 pub fn imbens_manski_critical_value(level: f64, standardized_width: f64) -> f64 {
-    if !level.is_finite() || !(0.0 < level && level < 1.0) {
+    if !(level.is_finite() && 0.0 < level && level < 1.0) {
         return f64::NAN;
     }
     let two_sided = norm_inv(0.5 + level / 2.0);
