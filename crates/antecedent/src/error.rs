@@ -493,6 +493,8 @@ impl StageError for ValidationError {
                 }
             }
             Self::Cancelled
+            | Self::Data(DataError::Cancelled)
+            | Self::Estimation(EstimationError::Data(DataError::Cancelled))
             | Self::Discovery(DiscoveryError::Cancelled)
             | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
             Self::Prob(ProbError::Cancelled { stage })
@@ -738,6 +740,7 @@ impl From<EstimationError> for CausalError {
                 lift_admission(error, STAGE_MODEL)
             }
             EstimationError::Stats(StatsError::Cancelled)
+            | EstimationError::Data(DataError::Cancelled)
             | EstimationError::Learner(LearnError::Cancelled)
             | EstimationError::Learner(LearnError::Stats(StatsError::Cancelled))
             | EstimationError::Tile(antecedent_estimate::TileError::Cancelled)
@@ -1291,6 +1294,22 @@ mod tests {
         assert!(matches!(
             CausalError::from(ValidationError::Estimation(EstimationError::Prob(error()))),
             CausalError::Cancelled { stage: "hmc.cancelled" }
+        ));
+    }
+
+    #[test]
+    fn data_cancellation_is_operational_through_estimation_and_validation() {
+        use antecedent_data::DataError;
+        use antecedent_estimate::EstimationError;
+        assert!(matches!(
+            CausalError::from(EstimationError::Data(DataError::Cancelled)),
+            CausalError::Cancelled { stage: super::STAGE_MODEL }
+        ));
+        assert!(matches!(
+            CausalError::from(ValidationError::Estimation(EstimationError::Data(
+                DataError::Cancelled
+            ))),
+            CausalError::Cancelled { stage: super::STAGE_VALIDATE }
         ));
     }
 
