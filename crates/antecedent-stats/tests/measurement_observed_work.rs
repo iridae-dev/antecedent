@@ -86,7 +86,8 @@ fn copied_and_allocated_bytes_follow_the_design_the_engine_built() {
     for (record, rows, covariates) in
         [(&small, 400, 2), (&more_rows, 1600, 2), (&more_columns, 400, 8)]
     {
-        let matrix_bytes = (rows * (2 + covariates) * 8) as u64;
+        let matrix_bytes =
+            u64::try_from(rows * (2 + covariates) * 8).expect("positive matrix size");
         assert!(record.observed("allocation_bytes"));
         assert!(
             record.allocation_bytes >= matrix_bytes,

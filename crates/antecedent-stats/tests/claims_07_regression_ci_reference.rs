@@ -30,8 +30,12 @@ fn check(test: &dyn ConditionalIndependenceTest, label: &str) {
         let name = case["name"].as_str().unwrap();
         let owned: Vec<Vec<f64>> = case["columns"].as_array().unwrap().iter().map(floats).collect();
         let cols: Vec<&[f64]> = owned.iter().map(Vec::as_slice).collect();
-        let z: Vec<usize> =
-            case["z"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect();
+        let z: Vec<usize> = case["z"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture index fits"))
+            .collect();
         let want_r = case["r"].as_f64().unwrap();
         let want_p = case["p"].as_f64().unwrap();
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: z.len() }];

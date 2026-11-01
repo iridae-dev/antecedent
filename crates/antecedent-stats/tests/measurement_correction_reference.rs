@@ -143,7 +143,7 @@ fn categorical_inputs(case: &Value) -> (Vec<ObservedClassSummary>, ConfusionMatr
         .map(|v| v.as_u64().expect("count"))
         .collect();
     let confusion = ConfusionMatrix::from_validation_counts(
-        case["levels"].as_u64().expect("levels") as usize,
+        usize::try_from(case["levels"].as_u64().expect("levels")).expect("levels fit"),
         &validation,
     )
     .expect("confusion");

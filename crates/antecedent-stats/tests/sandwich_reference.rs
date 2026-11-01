@@ -50,13 +50,18 @@ fn sandwich_covariances_match_exact_arithmetic() {
     for case in doc["covariance"].as_array().unwrap() {
         let kind_name = case["kind"].as_str().unwrap();
         let design = case["design"].as_str().unwrap();
-        let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
+        let (n, p) = (
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+        );
         let (x, e, want) = (floats(&case["x"]), floats(&case["e"]), floats(&case["cov"]));
         let cond = case["cond"].as_f64().unwrap();
         let groups: Vec<u32> = case.get("groups").map(ints).unwrap_or_default();
         let groups2: Vec<u32> = case.get("groups2").map(ints).unwrap_or_default();
         let time: Vec<i64> = case.get("time").map(ints).unwrap_or_default();
-        let lag = case.get("lag").map_or(0, |l| l.as_u64().unwrap() as usize);
+        let lag = case
+            .get("lag")
+            .map_or(0, |l| usize::try_from(l.as_u64().unwrap()).expect("fixture value fits"));
         let weights = case.get("weights").map(floats);
         let dims: [&[u32]; 2] = [&groups, &groups2];
         let got = match kind_name {
@@ -138,8 +143,11 @@ fn bell_mccaffrey_variance_and_degrees_of_freedom_match_the_dense_definition() {
     let doc: Value = serde_json::from_str(REFERENCE).unwrap();
     let mut failures = Vec::new();
     for case in doc["bell_mccaffrey"].as_array().unwrap() {
-        let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
-        let coef = case["coef"].as_u64().unwrap() as usize;
+        let (n, p) = (
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+        );
+        let coef = usize::try_from(case["coef"].as_u64().unwrap()).expect("fixture value fits");
         let (x, e) = (floats(&case["x"]), floats(&case["e"]));
         let (var, df) = (case["variance"].as_f64().unwrap(), case["df"].as_f64().unwrap());
         let cond = case["cond"].as_f64().unwrap();
@@ -173,7 +181,10 @@ fn least_squares_solves_match_exact_normal_equations() {
     let doc: Value = serde_json::from_str(REFERENCE).unwrap();
     let mut failures = Vec::new();
     for case in doc["least_squares"].as_array().unwrap() {
-        let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
+        let (n, p) = (
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+        );
         let (x, y, w) = (floats(&case["x"]), floats(&case["y"]), floats(&case["w"]));
         let (coef, coef_w) = (floats(&case["coef"]), floats(&case["coef_w"]));
         let cond = case["cond"].as_f64().unwrap();
@@ -228,8 +239,11 @@ fn rank_deficient_designs_are_refused_or_solved_to_the_exact_minimum_norm() {
     let doc: Value = serde_json::from_str(REFERENCE).unwrap();
     let mut failures = Vec::new();
     for case in doc["rank_deficient"].as_array().unwrap() {
-        let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
-        let rank = case["rank"].as_u64().unwrap() as usize;
+        let (n, p) = (
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+        );
+        let rank = usize::try_from(case["rank"].as_u64().unwrap()).expect("fixture value fits");
         let (x, y, coef) = (floats(&case["x"]), floats(&case["y"]), floats(&case["coef"]));
         let k = case["case"].as_u64().unwrap();
         let mut ws = LeastSquaresWorkspace::default();
@@ -285,7 +299,10 @@ fn huber_regression_reaches_the_exact_fixed_point_of_its_estimating_equation() {
     let mut failures = Vec::new();
     for case in doc["huber"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
+        let (n, p) = (
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+        );
         let (x, y, want) = (floats(&case["x"]), floats(&case["y"]), floats(&case["coef"]));
         let want_scale = case["scale"].as_f64().unwrap();
         let mut ws = LeastSquaresWorkspace::default();

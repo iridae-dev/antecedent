@@ -48,7 +48,7 @@ fn block_test_matches_wilks_lambda_bartlett_p_and_leading_canonical_correlation(
                 &ExecutionContext::for_tests(3),
             )
             .unwrap();
-        assert_eq!(got.df, case["df"].as_f64().unwrap(), "{name}");
+        assert_eq!(got.df.to_bits(), case["df"].as_f64().unwrap().to_bits(), "{name}");
         assert!(
             rel(got.p_value, case["p"].as_f64().unwrap()) < 1e-9,
             "{name}: p {} vs {}",
@@ -118,7 +118,7 @@ fn robust_partial_correlation_matches_van_der_waerden_scores() {
             got.statistic,
             case["r"]
         );
-        assert_eq!(got.df, case["df"].as_f64().unwrap(), "{name}");
+        assert_eq!(got.df.to_bits(), case["df"].as_f64().unwrap().to_bits(), "{name}");
         assert!(
             rel(got.p_value, case["p"].as_f64().unwrap()) < 1e-6,
             "{name}: p {} vs {}",

@@ -50,12 +50,12 @@ impl Sweep {
 
     fn check(&mut self, at: String, got: f64, want: f64) {
         let e = if got.is_finite() { rel(got, want) } else { f64::INFINITY };
-        if e > self.worst {
-            self.worst = e;
-            self.worst_at = at.clone();
-        }
         if e > self.tol {
             self.failures.push(format!("{at}: got {got:e} want {want:e} rel {e:e}"));
+        }
+        if e > self.worst {
+            self.worst = e;
+            self.worst_at = at;
         }
     }
 
@@ -119,8 +119,8 @@ fn kernel_normal_family_matches_high_precision() {
     s.finish(&mut sink);
     let mut s = Sweep::new("norm_inv", 1e-15);
     for r in rows(&doc, "norm_inv") {
-        if r[0] == 0.5 {
-            assert_eq!(norm_inv(0.5), 0.0);
+        if r[0].to_bits() == 0.5_f64.to_bits() {
+            assert_eq!(norm_inv(0.5).abs().to_bits(), 0.0_f64.to_bits());
             continue;
         }
         s.check(format!("norm_inv({:e})", r[0]), norm_inv(r[0]), r[1]);

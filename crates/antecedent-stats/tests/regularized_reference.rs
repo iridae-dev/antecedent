@@ -29,7 +29,7 @@ fn cols(v: &Value) -> Vec<Vec<f64>> {
 }
 
 fn us(v: &Value) -> usize {
-    v.as_u64().unwrap() as usize
+    usize::try_from(v.as_u64().unwrap()).expect("fixture value fits")
 }
 
 fn flatten(cols: &[Vec<f64>]) -> Vec<f64> {
@@ -90,7 +90,11 @@ fn elastic_net_converged_to_tight_tolerance_matches_the_exact_active_set_solutio
             assert!(err <= 1e-9, "enet case {k} coef {j}: {} vs {}", fit.coefficients[j], want[j]);
             // A coordinate the exact solution zeroes is exactly zero (soft thresholding).
             if want[j] == 0.0 {
-                assert_eq!(fit.coefficients[j], 0.0, "enet case {k} coef {j} should be zero");
+                assert_eq!(
+                    fit.coefficients[j].abs().to_bits(),
+                    0.0_f64.to_bits(),
+                    "enet case {k} coef {j} should be zero"
+                );
             }
         }
         let a0 = f(&case["intercept"]);
@@ -128,6 +132,6 @@ fn soft_threshold_is_the_proximal_operator_of_the_l1_norm() {
     for &(z, g, want) in
         &[(3.0, 1.0, 2.0), (-3.0, 1.0, -2.0), (0.5, 1.0, 0.0), (-1.0, 1.0, 0.0), (1.0, 0.0, 1.0)]
     {
-        assert_eq!(soft_threshold(z, g), want);
+        assert_eq!(soft_threshold(z, g).partial_cmp(&want), Some(std::cmp::Ordering::Equal));
     }
 }

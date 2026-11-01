@@ -575,19 +575,22 @@ mod resolution_tests {
     fn block_resolution_counts_arrangements_including_a_short_final_block() {
         let test = PartialCorrelation::new();
         let significance = SignificanceMethod::BlockShuffle { replicates: 999, block_size: 50 };
-        assert_eq!(test.min_attainable_p(significance), 0.001);
-        assert_eq!(test.min_resolvable_p(significance, 100), 0.5);
-        assert_eq!(test.min_resolvable_p(significance, 101), 1.0 / 6.0);
-        assert_eq!(test.min_resolvable_p(significance, 50), 1.0);
+        assert_eq!(test.min_attainable_p(significance).to_bits(), 0.001_f64.to_bits());
+        assert_eq!(test.min_resolvable_p(significance, 100).to_bits(), 0.5_f64.to_bits());
+        assert_eq!(test.min_resolvable_p(significance, 101).to_bits(), (1.0_f64 / 6.0).to_bits());
+        assert_eq!(test.min_resolvable_p(significance, 50).to_bits(), 1.0_f64.to_bits());
         assert!(ensure_alpha_resolvable(test.min_resolvable_p(significance, 100), 0.05).is_err());
         assert!(ensure_alpha_resolvable(test.min_resolvable_p(significance, 1000), 0.05).is_ok());
-        assert_eq!(test.min_resolvable_p(SignificanceMethod::Analytic, 2), 0.0);
+        assert_eq!(
+            test.min_resolvable_p(SignificanceMethod::Analytic, 2).to_bits(),
+            0.0_f64.to_bits()
+        );
     }
 
     #[test]
     fn huge_arrangement_counts_do_not_overflow_or_loop_over_all_rows() {
-        assert_eq!(arrangement_min_p(usize::MAX, 1), 0.0);
-        assert_eq!(arrangement_min_p(0, 1), 1.0);
+        assert_eq!(arrangement_min_p(usize::MAX, 1).to_bits(), 0.0_f64.to_bits());
+        assert_eq!(arrangement_min_p(0, 1).to_bits(), 1.0_f64.to_bits());
     }
 }
 

@@ -42,18 +42,15 @@ fn support(design: &str) -> Vec<(Vec<bool>, f64)> {
     let per_unit = [0.5, 0.4, 0.6, 0.5, 0.3, 0.7];
     let mut out = Vec::new();
     for mask in 0..(1_u32 << N) {
-        let a: Vec<bool> = (0..N).map(|i| mask >> i & 1 == 1).collect();
-        match design {
-            "complete" => {
-                if mask.count_ones() == 3 {
-                    out.push((a, 1.0 / 20.0));
-                }
+        let a: Vec<bool> = (0..N).map(|i| (mask >> i) & 1 == 1).collect();
+        if design == "complete" {
+            if mask.count_ones() == 3 {
+                out.push((a, 1.0 / 20.0));
             }
-            _ => {
-                let p: f64 =
-                    (0..N).map(|i| if a[i] { per_unit[i] } else { 1.0 - per_unit[i] }).product();
-                out.push((a, p));
-            }
+        } else {
+            let p: f64 =
+                (0..N).map(|i| if a[i] { per_unit[i] } else { 1.0 - per_unit[i] }).product();
+            out.push((a, p));
         }
     }
     out
@@ -95,9 +92,9 @@ fn exposure_probabilities_equal_independent_enumeration() {
                 0,
             )
             .unwrap();
-            for i in 0..N {
+            for (i, &expected_value) in expected.iter().enumerate() {
                 assert!(
-                    (got.probabilities[i] - expected[i]).abs() <= 1e-12,
+                    (got.probabilities[i] - expected_value).abs() <= 1e-12,
                     "{name} level {level:?} unit {i}: {} vs {}",
                     got.probabilities[i],
                     expected[i]
@@ -170,8 +167,8 @@ fn horvitz_thompson_is_unbiased_and_its_variance_bound_dominates_over_the_whole_
         // The Hajek ratio is only consistent, not unbiased, but it must lie in the outcome range.
         let hajek_mean = e_hajek_num / mass_present;
         let (lo, hi) = (
-            y_level.iter().cloned().fold(f64::INFINITY, f64::min),
-            y_level.iter().cloned().fold(f64::NEG_INFINITY, f64::max),
+            y_level.iter().copied().fold(f64::INFINITY, f64::min),
+            y_level.iter().copied().fold(f64::NEG_INFINITY, f64::max),
         );
         assert!(hajek_mean > lo - 5.0 && hajek_mean < hi + 5.0);
     }
@@ -225,7 +222,7 @@ fn unreachable_exposure_for_some_unit_is_refused_not_averaged_in() {
     )
     .unwrap()
     .probabilities;
-    assert_eq!(pi[2], 0.0);
+    assert_eq!(pi[2].abs().to_bits(), 0.0_f64.to_bits());
     let a = [true, true, true, true, true, true];
     let observed = exposures(&a, &net, &ExposureMapping::NeighborCount).unwrap();
     let outcomes = vec![1.0; N];

@@ -45,7 +45,9 @@ fn check(kind: &str) {
         let test: Box<dyn ConditionalIndependenceTest> = if kind == "dcor" {
             Box::new(Gpdc::new())
         } else {
-            Box::new(KnnDependence::new(case["k"].as_u64().unwrap() as usize))
+            Box::new(KnnDependence::new(
+                usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits"),
+            ))
         };
         let result = test
             .test_batch_adhoc(

@@ -36,8 +36,9 @@ fn regime_values_match_the_exact_rational_references() {
             .unwrap();
     for case in file["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let n = case["n"].as_u64().unwrap() as usize;
-        let periods = case["periods"].as_u64().unwrap() as usize;
+        let n = usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits");
+        let periods =
+            usize::try_from(case["periods"].as_u64().unwrap()).expect("fixture value fits");
         let floor = case["floor"].as_f64().unwrap();
         let (actions, treatment) = (bools(&case["actions"]), bools(&case["treatment"]));
         let (p, c) = (floats(&case["p"]), floats(&case["c"]));

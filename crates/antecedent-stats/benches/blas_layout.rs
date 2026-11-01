@@ -416,7 +416,7 @@ fn study_svd(record: &mut Record, shapes: &[(usize, usize)], smoke: bool) {
         for workers in WORKERS {
             assert_close(&singular_values(&x, n, p, workers, None), &expected, "singular values");
             let mut timing = None;
-            let mut driver = |mut run: &mut dyn FnMut()| timing = Some(sample(smoke, &mut run));
+            let mut driver = |run: &mut dyn FnMut()| timing = Some(sample(smoke, run));
             let _ = singular_values(&x, n, p, workers, Some(&mut driver));
             let bytes = scratch_requirement_bytes(LayoutOp::ThinSvd, n, p, workers);
             if let Some(timing) = timing {
@@ -474,7 +474,7 @@ fn study_eigen(record: &mut Record, orders: &[usize], smoke: bool) {
         for workers in WORKERS {
             assert_close(&eigenvalues(&matrix, workers, None), &expected, "eigenvalues");
             let mut timing = None;
-            let mut driver = |mut run: &mut dyn FnMut()| timing = Some(sample(smoke, &mut run));
+            let mut driver = |run: &mut dyn FnMut()| timing = Some(sample(smoke, run));
             let _ = eigenvalues(&matrix, workers, Some(&mut driver));
             let bytes = scratch_requirement_bytes(LayoutOp::SymmetricEigen, n, n, workers);
             if let Some(timing) = timing {

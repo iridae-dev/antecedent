@@ -54,7 +54,8 @@ fn gls_pooling_matches_the_explicit_covariance_solve() {
             Ok(fit) => fit,
             Err(e) => panic!("{case}: {e}"),
         };
-        let tolerance = if covariance.iter().any(|c| *c == 1e8) { 1e-7 } else { 1e-9 };
+        let tolerance =
+            if covariance.iter().any(|c| c.to_bits() == 1e8_f64.to_bits()) { 1e-7 } else { 1e-9 };
         close(got.estimate, number(&case["estimate"]), tolerance, &format!("estimate {case}"));
         close(got.variance, number(&case["variance"]), tolerance, &format!("variance {case}"));
         close_all(

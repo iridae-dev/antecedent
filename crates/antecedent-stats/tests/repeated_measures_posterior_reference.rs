@@ -29,7 +29,7 @@ fn number(value: &Value) -> f64 {
 }
 
 fn structure(value: &Value) -> OutcomeStructure {
-    let m = value["m"].as_u64().expect("m") as u32;
+    let m = u32::try_from(value["m"].as_u64().expect("m")).expect("fixture value fits");
     match value["kind"].as_str().expect("kind") {
         "cs" => OutcomeStructure::RepeatedMeasures {
             measurements: m,
@@ -80,7 +80,7 @@ fn posteriors_match_the_multivariate_normal_reference() {
             .iter()
             .zip(&measurements)
             .map(|(u, m)| UnitRecord {
-                arm: u["arm"].as_u64().expect("arm") as usize,
+                arm: usize::try_from(u["arm"].as_u64().expect("arm")).expect("fixture value fits"),
                 measurements: m,
                 assignment_probability: number(&u["probability"]),
             })
@@ -90,8 +90,10 @@ fn posteriors_match_the_multivariate_normal_reference() {
             selection: SelectionMechanism::DependsOnObservedHistory,
             priors: &priors,
             units: &units,
-            plus: case["plus"].as_u64().expect("plus") as usize,
-            minus: case["minus"].as_u64().expect("minus") as usize,
+            plus: usize::try_from(case["plus"].as_u64().expect("plus"))
+                .expect("fixture value fits"),
+            minus: usize::try_from(case["minus"].as_u64().expect("minus"))
+                .expect("fixture value fits"),
             credible_level: number(&case["level"]),
         };
         let got = repeated_measures_posterior(&request)

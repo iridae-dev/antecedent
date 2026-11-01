@@ -29,11 +29,11 @@ fn reference() -> Value {
 fn request(case: &Value, seed: u64) -> SimulationRequest {
     let e = &case["estimand"];
     let estimand = if e[0] == "arm" {
-        Estimand::ArmMean(e[1].as_u64().unwrap() as usize)
+        Estimand::ArmMean(usize::try_from(e[1].as_u64().unwrap()).expect("fixture value fits"))
     } else {
         Estimand::Contrast {
-            plus: e[1].as_u64().unwrap() as usize,
-            minus: e[2].as_u64().unwrap() as usize,
+            plus: usize::try_from(e[1].as_u64().unwrap()).expect("fixture value fits"),
+            minus: usize::try_from(e[2].as_u64().unwrap()).expect("fixture value fits"),
         }
     };
     SimulationRequest {
@@ -132,7 +132,7 @@ fn the_simulated_law_agrees_with_the_exact_law_of_the_procedure() {
         );
         // The stopped estimator is biased for the arm contrast exactly as the exact law says;
         // nothing here is a coverage statement.
-        assert_eq!(summary.defined as f64, defined);
+        assert_eq!((summary.defined as f64).to_bits(), defined.to_bits());
     }
 }
 

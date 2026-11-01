@@ -36,12 +36,17 @@ fn nystrom_residuals_match_the_fifty_digit_reference() {
         let data: Vec<Vec<f64>> = case["columns"].as_array().unwrap().iter().map(floats).collect();
         let cols: Vec<&[f64]> = data.iter().map(Vec::as_slice).collect();
         let n = cols[0].len();
-        let z: Vec<usize> =
-            case["z"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect();
+        let z: Vec<usize> = case["z"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture index fits"))
+            .collect();
         let gp = GpdcNystrom {
             length_scale: case["ell"].as_f64().unwrap(),
             ridge: case["ridge"].as_f64().unwrap(),
-            inducing_points: case["m"].as_u64().unwrap() as usize,
+            inducing_points: usize::try_from(case["m"].as_u64().unwrap())
+                .expect("fixture size fits"),
             ..GpdcNystrom::new()
         };
         if !z.is_empty() {
@@ -50,7 +55,7 @@ fn nystrom_residuals_match_the_fifty_digit_reference() {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|v| v.as_u64().unwrap() as usize)
+                .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture index fits"))
                 .collect();
             assert_eq!(nystrom_inducing_rows(n, m, gp.inducing_seed, &z), rows, "{name}: draw");
         }

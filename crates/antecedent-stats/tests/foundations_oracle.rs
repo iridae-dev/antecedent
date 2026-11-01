@@ -418,7 +418,11 @@ fn rng_stream_and_gaussian_sampler_match_frozen_scipy_battery() {
     assert!(close(bin_chi, expected["uniform"]["bin20_chi_square"].as_f64().unwrap(), 1e-9, 1e-9));
     let mut cells = [[0usize; 10]; 10];
     for pair in uniforms.chunks_exact(2) {
-        cells[((pair[0] * 10.0) as usize).min(9)][((pair[1] * 10.0) as usize).min(9)] += 1;
+        #[allow(clippy::cast_sign_loss, reason = "uniform draws are nonnegative")]
+        let row = ((pair[0] * 10.0) as usize).min(9);
+        #[allow(clippy::cast_sign_loss, reason = "uniform draws are nonnegative")]
+        let column = ((pair[1] * 10.0) as usize).min(9);
+        cells[row][column] += 1;
     }
     let expected_cell = (n / 2) as f64 / 100.0;
     let pair_chi: f64 =

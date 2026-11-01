@@ -880,9 +880,9 @@ mod log_sum_exp_tests {
     #[test]
     fn massless_inputs_give_negative_infinity_not_nan() {
         let (z, _) = log_sum_exp_weighted(&[f64::NEG_INFINITY, f64::NEG_INFINITY], &[1.0, 1.0]);
-        assert_eq!(z, f64::NEG_INFINITY);
+        assert!(z.is_infinite() && z.is_sign_negative());
         let (z, _) = log_sum_exp_weighted(&[0.0, 1.0], &[0.0, 0.0]);
-        assert_eq!(z, f64::NEG_INFINITY);
+        assert!(z.is_infinite() && z.is_sign_negative());
         let (z, peak) = log_sum_exp_weighted(&[0.0, 0.0], &[1.0, 1.0]);
         assert!((z - 2.0_f64.ln()).abs() < 1e-15 && peak == 0.0);
     }

@@ -159,6 +159,24 @@ impl StatsError {
     }
 }
 
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for StatsError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
+                    Self::Cancelled
+                } else {
+                    Self::Admission(error)
+                }
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}
+
 #[cfg(test)]
 mod singular_route_tests {
     use super::StatsError;
@@ -181,23 +199,5 @@ mod singular_route_tests {
         assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
         assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
         assert!(CallbackFailure::in_chain(&StatsError::Cancelled).is_none());
-    }
-}
-
-impl<E> From<antecedent_core::execution::MapExecutionError<E>> for StatsError
-where
-    Self: From<E>,
-{
-    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
-        match error {
-            antecedent_core::execution::MapExecutionError::Admission(error) => {
-                if matches!(error, antecedent_core::execution::AdmissionError::Cancelled) {
-                    Self::Cancelled
-                } else {
-                    Self::Admission(error)
-                }
-            }
-            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
-        }
     }
 }

@@ -257,7 +257,7 @@ fn separated_logistic_fits_are_flagged_refused_and_ridge_refit_on_request() {
             "{name}: mle_exists {exists} separated {} converged {} refused {:?}",
             fit.separated,
             fit.converged,
-            refused.as_ref().err().map(|e| e.to_string())
+            refused.as_ref().err().map(ToString::to_string)
         );
         if exists {
             if fit.separated || refused.is_err() {

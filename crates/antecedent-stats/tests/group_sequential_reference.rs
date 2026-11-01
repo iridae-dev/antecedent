@@ -101,7 +101,7 @@ fn stagewise_p_values_match_the_independent_recursion() {
     for case in reference["stagewise"].as_array().expect("stagewise") {
         let fractions = numbers(&case["fractions"]);
         let critical = numbers(&case["critical"]);
-        let look = case["look"].as_u64().expect("look") as usize;
+        let look = usize::try_from(case["look"].as_u64().expect("look")).expect("look fits");
         let observed = StagewiseLook { look, statistic: case["statistic"].as_f64().expect("stat") };
         let got = stagewise_upper_p_value(
             &fractions,

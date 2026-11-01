@@ -129,7 +129,11 @@ fn exact_miss_probability_equals_the_reference_and_respects_the_level() {
             case["tuning"].as_f64().expect("tuning"),
         )
         .expect("sequence");
-        let got = miss_probability(state, p, case["n"].as_u64().expect("n") as usize);
+        let got = miss_probability(
+            state,
+            p,
+            usize::try_from(case["n"].as_u64().expect("n")).expect("fixture value fits"),
+        );
         let want = number(&case["probability"]);
         assert!((got - want).abs() <= 1e-12, "{case}: {got} vs {want}");
         assert!(got <= alpha, "Ville's inequality bounds the miss probability: {case}");

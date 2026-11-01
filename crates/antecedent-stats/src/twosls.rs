@@ -1454,7 +1454,7 @@ mod tests {
                 (Some((lo, hi, level)), Some((want_lo, want_hi, want_level))) => {
                     close(lo, want_lo, "AR lower");
                     close(hi, want_hi, "AR upper");
-                    assert_eq!(level, want_level);
+                    assert_eq!(level.to_bits(), want_level.to_bits());
                 }
                 (None, None) => {}
                 other => panic!("AR sets disagree: {other:?}"),

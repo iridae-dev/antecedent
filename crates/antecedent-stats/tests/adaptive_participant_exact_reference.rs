@@ -163,7 +163,7 @@ fn the_exploration_floor_is_the_normalized_clamp_of_its_definition() {
 }
 
 /// One completed participant of arm 1 with no success among two responses leaves the control a
-/// posterior expected loss of exactly 1/20 (the exact value of E[(theta_1 - theta_0)+] for
+/// posterior expected loss of exactly 1/20 (the exact value of `E[(theta_1 - theta_0)+]` for
 /// Beta(1, 1) against Beta(1, 3)); the integral evaluates it to 0.04999999999999927. A threshold
 /// of exactly 1/20 must not stop at "loss below the threshold" on the strength of that rounding,
 /// and a threshold a little above must.

@@ -2389,7 +2389,7 @@ mod tests {
         let slope = |penalty: RoughnessPenalty| {
             let spec = [SmoothSpec::new(0, 6, 1.0).with_penalty(penalty)];
             let fit = fit_gam(
-                &PredictorMatrix::new(&x, n as usize, 1),
+                &PredictorMatrix::new(&x, usize::try_from(n).expect("positive fixture size"), 1),
                 &y,
                 &spec,
                 &GamOptions { max_iter: 500, tol: 1e-12 },

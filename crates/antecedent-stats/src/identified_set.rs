@@ -478,7 +478,7 @@ mod tests {
     fn low_level_imbens_manski_critical_values_stay_nonnegative() {
         for level in [0.1, 0.4, 0.5] {
             for width in [10.0, f64::INFINITY] {
-                assert_eq!(imbens_manski_critical_value(level, width), 0.0);
+                assert_eq!(imbens_manski_critical_value(level, width).to_bits(), 0.0_f64.to_bits());
             }
             let critical = imbens_manski_critical_value(level, 0.0);
             assert!(critical >= 0.0);

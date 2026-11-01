@@ -58,7 +58,7 @@ fn weights_and_tail_restriction_equal_the_rational_product_limit() {
                     .weights
                     .iter()
                     .zip(time.iter().zip(&event))
-                    .filter(|(_, (ti, di))| **ti <= t && **di == 1.0)
+                    .filter(|(_, (ti, di))| **ti <= t && di.to_bits() == 1.0_f64.to_bits())
                     .map(|(w, _)| w)
                     .sum::<f64>()
                     / n;
@@ -98,12 +98,16 @@ fn selected_outcome_pseudo_values_are_exactly_unbiased_over_every_selection_patt
         let mut total_probability = 0.0;
         for pattern in 0..(1_u32 << n) {
             let indicator: Vec<f64> = (0..n).map(|i| f64::from((pattern >> i) & 1)).collect();
-            let probability: f64 =
-                (0..n).map(|i| if indicator[i] == 1.0 { p[i] } else { 1.0 - p[i] }).product();
+            let probability: f64 = (0..n)
+                .map(
+                    |i| if indicator[i].to_bits() == 1.0_f64.to_bits() { p[i] } else { 1.0 - p[i] },
+                )
+                .product();
             total_probability += probability;
             // Unselected outcomes are ignored: scramble them to prove it.
-            let observed: Vec<f64> =
-                (0..n).map(|i| if indicator[i] == 1.0 { y[i] } else { f64::NAN }).collect();
+            let observed: Vec<f64> = (0..n)
+                .map(|i| if indicator[i].to_bits() == 1.0_f64.to_bits() { y[i] } else { f64::NAN })
+                .collect();
             let pseudo = selected_outcome_pseudo_values(&observed, &indicator, &p, model).unwrap();
             for (e, v) in expected.iter_mut().zip(&pseudo) {
                 *e += probability * v;

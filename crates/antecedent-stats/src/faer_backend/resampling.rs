@@ -306,6 +306,11 @@ mod tests {
         assert!(ResampledLeastSquares::prepare(&x, n, p, &y, &bounded).is_none());
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the test generator samples indices from a nonnegative bounded uniform value"
+    )]
     fn compare_wide_resamples(n: usize, replicates: usize) {
         let p = 22;
         let mut state = 317_u64;

@@ -55,8 +55,12 @@ fn partial_correlation_matches_multiprecision_residualization() {
         let name = case["name"].as_str().unwrap();
         let owned: Vec<Vec<f64>> = case["columns"].as_array().unwrap().iter().map(floats).collect();
         let cols: Vec<&[f64]> = owned.iter().map(Vec::as_slice).collect();
-        let z: Vec<usize> =
-            case["z"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect();
+        let z: Vec<usize> = case["z"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+            .collect();
         let want_r = case["r"].as_f64().unwrap();
         let want_p = case["p"].as_f64().unwrap();
         let want_ci = floats(&case["ci"]);
@@ -147,7 +151,9 @@ fn g_squared_matches_exact_contingency_arithmetic() {
             let z_b: Vec<f64> = z.iter().map(|s| (s / 2.0).floor()).collect();
             let two = run(&GSquared::new(), &[&x, &y, &z_a, &z_b], &[2, 3], ConfidenceMethod::None)
                 .unwrap();
-            if two.df != got.df || rel(two.statistic, got.statistic) > 1e-13 {
+            if two.df.partial_cmp(&got.df) != Some(std::cmp::Ordering::Equal)
+                || rel(two.statistic, got.statistic) > 1e-13
+            {
                 failures.push(format!("{name}: two-column strata differ: {two:?} vs {got:?}"));
             }
         }

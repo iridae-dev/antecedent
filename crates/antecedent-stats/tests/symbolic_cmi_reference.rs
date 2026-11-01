@@ -43,7 +43,7 @@ fn check(
     for (index, case) in doc[set].as_array().unwrap().iter().enumerate() {
         let name = case["name"].as_str().unwrap();
         let (x, y, z) = (floats(&case["x"]), floats(&case["y"]), floats(&case["z"]));
-        let conditioned = z.iter().any(|v| *v != z[0]);
+        let conditioned = z.iter().any(|v| v.partial_cmp(&z[0]) != Some(std::cmp::Ordering::Equal));
         let columns: Vec<&[f64]> = vec![&x, &y, &z];
         let z_flat: Vec<usize> = if conditioned { vec![2] } else { Vec::new() };
         let queries = [CiQuery { x: 0, y: 1, z_start: 0, z_len: z_flat.len() }];

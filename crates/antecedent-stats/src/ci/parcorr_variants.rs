@@ -1022,12 +1022,12 @@ mod tests {
             .unwrap();
         let result = &out.results[0];
         assert!(
-            (result.statistic - (-0.049_863_723_895_505_892_785)).abs() < 1e-12,
+            (result.statistic - (-0.049_863_723_895_505_89)).abs() < 1e-12,
             "statistic {}",
             result.statistic
         );
         assert!(
-            (result.p_value - 0.884_242_941_130_385_485_54).abs() < 1e-10,
+            (result.p_value - 0.884_242_941_130_385_5).abs() < 1e-10,
             "p-value {}",
             result.p_value
         );
