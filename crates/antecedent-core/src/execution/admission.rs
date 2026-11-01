@@ -212,6 +212,21 @@ impl AdmissionPool {
         }
     }
 
+    /// The process-wide pool for this `threads` and `bytes` budget.
+    ///
+    /// Every call with the same budget returns a handle on the same pool, so concurrent
+    /// requests that each ask for a limit of `bytes` draw on one budget instead of each
+    /// receiving its own ([`Self::fixed`] makes a fresh pool per call, which multiplies a
+    /// per-request limit by the number of concurrent requests).
+    #[must_use]
+    pub fn process_shared(threads: u32, bytes: u64) -> Self {
+        use std::collections::HashMap;
+        use std::sync::OnceLock;
+        static POOLS: OnceLock<Mutex<HashMap<(u32, u64), AdmissionPool>>> = OnceLock::new();
+        let mut pools = lock_mutex(POOLS.get_or_init(|| Mutex::new(HashMap::new())));
+        pools.entry((threads, bytes)).or_insert_with(|| Self::fixed(threads, bytes)).clone()
+    }
+
     /// CPU and RAM no open lease holds.
     ///
     /// Cancellation does not free reservations still held by workers or retained buffers.

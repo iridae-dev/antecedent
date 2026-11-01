@@ -304,7 +304,9 @@ impl ExecutionContext {
     }
 
     /// Replace this context's pool with a fresh one of the same thread budget and a byte
-    /// capacity of `limit` (`None` is unlimited). Clones taken earlier keep their pool. A
+    /// capacity of `limit` (`None` is unlimited). The limit is per context: N concurrent
+    /// contexts each get `limit` (see [`Self::with_shared_memory_limit`] for one process-wide
+    /// budget). Clones taken earlier keep their pool. A
     /// limit the pool already has leaves the pool, and everything sharing it, in place.
     #[must_use]
     pub fn with_memory_limit(mut self, limit: Option<u64>) -> Self {
@@ -320,6 +322,20 @@ impl ExecutionContext {
         }
         self.admission =
             AdmissionPool::fixed(self.admission.thread_budget(), limit.unwrap_or(u64::MAX));
+    }
+
+    /// Like [`Self::with_memory_limit`], but the pool is the process-wide one for this thread
+    /// budget and `limit`: every context built with the same limit shares one byte budget, so
+    /// the limit bounds the process, not each request. `None` is unlimited and behaves as
+    /// [`Self::with_memory_limit`].
+    #[must_use]
+    pub fn with_shared_memory_limit(mut self, limit: Option<u64>) -> Self {
+        if let Some(bytes) = limit {
+            self.admission = AdmissionPool::process_shared(self.admission.thread_budget(), bytes);
+            self
+        } else {
+            self.with_memory_limit(None)
+        }
     }
 
     /// The pool later acquires decrement.

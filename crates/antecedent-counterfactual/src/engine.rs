@@ -494,6 +494,12 @@ impl CounterfactualEngine {
         // Columnar: values[world * (stored_width * n_units) + slot * n_units + unit]
         let stored: Option<Vec<DenseNodeId>> = outcomes_only.then(|| outcome_dense.clone());
         let stored_width = stored.as_ref().map_or(n_nodes, Vec::len);
+        let cells = n_worlds
+            .checked_mul(stored_width)
+            .and_then(|c| c.checked_mul(n_units))
+            .zip(n_units.checked_mul(n_nodes))
+            .and_then(|(all, values)| all.checked_add(values));
+        let _lease = crate::error::admit_cells(ctx, "counterfactual world values", cells)?;
         let mut all = vec![0.0; n_worlds * stored_width * n_units];
         let mut notes = Vec::new();
         notes.push(Arc::from(format!("noise_inference={:?}", exo.kind)));

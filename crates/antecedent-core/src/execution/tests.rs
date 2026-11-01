@@ -1028,3 +1028,31 @@ fn serial_numerical_admission_reuses_only_the_current_pool_worker() {
     assert_eq!(pool.available().threads(), 1);
     assert_eq!(pool.available().bytes(), 16);
 }
+
+#[test]
+fn a_per_context_limit_multiplies_but_a_shared_limit_bounds_the_process() {
+    const LIMIT: u64 = 1_234_567;
+    // Per context: two requests each hold the whole limit.
+    let (a, b) = (
+        ExecutionContext::for_tests(0).with_memory_limit(Some(LIMIT)),
+        ExecutionContext::for_tests(0).with_memory_limit(Some(LIMIT)),
+    );
+    let _first = a.acquire_admission(0, LIMIT).expect("first");
+    let _second = b.acquire_admission(0, LIMIT).expect("independent pool");
+    // Shared: the second request finds the budget held.
+    let (c, d) = (
+        ExecutionContext::for_tests(0).with_shared_memory_limit(Some(LIMIT + 1)),
+        ExecutionContext::for_tests(0).with_shared_memory_limit(Some(LIMIT + 1)),
+    );
+    let held = c.acquire_admission(0, LIMIT + 1).expect("first");
+    assert!(d.acquire_admission(0, 1).is_err(), "one budget across contexts");
+    drop(held);
+    assert!(d.acquire_admission(0, 1).is_ok(), "released memory is available to the other");
+    // A different limit is a different budget; `None` stays unlimited and unshared.
+    let e = ExecutionContext::for_tests(0).with_shared_memory_limit(Some(LIMIT + 2));
+    assert!(e.acquire_admission(0, LIMIT + 2).is_ok());
+    assert_eq!(
+        ExecutionContext::for_tests(0).with_shared_memory_limit(None).memory_limit_bytes(),
+        None
+    );
+}

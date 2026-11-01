@@ -539,6 +539,7 @@ pub fn sample_conditional_interventional_reported(
         )
     });
     if discrete_evidence {
+        let _accepted_admitted = admit_cells(Some(ctx), n_rows, n_nodes)?;
         let mut accepted = vec![0.0; n_rows * n_nodes];
         let mut got = 0usize;
         let max_attempts = n_rows.saturating_mul(100).max(100);
