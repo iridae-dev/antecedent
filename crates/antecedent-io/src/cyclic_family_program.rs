@@ -668,6 +668,7 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
                 _ => None,
             };
             if let Some(worlds) = worlds {
+                super::worlds::check_world_count(worlds.len())?;
                 worlds
                     .iter()
                     .map(|world| compile_equilibrium(model, world))
@@ -774,6 +775,7 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
         },
         R::System { request } => {
             request.model.validate()?;
+            super::worlds::check_world_count(request.worlds.len())?;
             request
                 .worlds
                 .iter()

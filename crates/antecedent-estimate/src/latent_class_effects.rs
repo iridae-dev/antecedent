@@ -128,6 +128,11 @@ use crate::vector_treatment::DesignSummary;
 /// class count is bounded by the rows-per-class and design-support identifiability checks.
 pub const LATENT_CLASS_MAX_CLASSES: usize = 4;
 
+/// Most EM restarts a configuration may request; more is refused.
+pub const LATENT_CLASS_MAX_RESTARTS: usize = 1_000;
+/// Most EM iterations per restart a configuration may request; more is refused.
+pub const LATENT_CLASS_MAX_ITERATIONS: usize = 100_000;
+
 /// Inference claim of the route.
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
 
@@ -386,7 +391,9 @@ fn validate_config(config: &LatentClassConfig) -> Result<(), EstimationError> {
         ));
     }
     let bad = config.restarts == 0
+        || config.restarts > LATENT_CLASS_MAX_RESTARTS
         || config.max_iterations == 0
+        || config.max_iterations > LATENT_CLASS_MAX_ITERATIONS
         || !(config.tolerance.is_finite() && config.tolerance > 0.0)
         || !(config.min_class_weight >= 0.0 && config.min_class_weight <= 0.5)
         || !(config.min_separation >= 0.0 && config.min_separation <= 1.0)

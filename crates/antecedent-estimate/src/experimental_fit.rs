@@ -2415,7 +2415,7 @@ pub fn posterior_recovery(
     fit: &ExperimentalRecoveryFit,
     spec: &PosteriorSpec,
 ) -> Result<RecoveredEstimate, ExperimentalFitError> {
-    if spec.draws == 0 {
+    if spec.draws == 0 || spec.burn_in.checked_add(spec.draws).is_none() {
         return Err(ExperimentalFitError::DrawCount);
     }
     let n = fit.nodes.len();

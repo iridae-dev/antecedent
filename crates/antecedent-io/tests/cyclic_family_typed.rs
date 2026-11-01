@@ -516,6 +516,43 @@ fn a_recovered_law_refuses_actions_other_than_hard_clamps_at_compilation() {
     assert!(message.contains("hard clamps only") && message.contains("next attempt"), "{message}");
 }
 
+#[test]
+fn a_request_is_refused_before_any_work_is_sized_by_its_world_or_unit_count() {
+    // Worlds: the count is bounded before a world is admitted or compiled.
+    let worlds = (0..10_001).map(|id| world(id, vec![])).collect();
+    let many = linear_request(vec![0.0, 0.4, 0.5, 0.0], worlds, CertificateDemandWire::Required);
+    let message = refusal_text(CompiledCyclicFamilyProgram::compile(&many, &ctx()).unwrap_err());
+    assert!(message.contains("more worlds than the request limit"), "{message}");
+    // Units: a design over more units than a recovered law admits is refused at compilation.
+    let mut request =
+        recovery_request(COMPLETE, RecoveryInferenceWire::AsymptoticNormal { draws: 4, seed: 1 });
+    if let CyclicFamilyRequest::ExperimentalRecovery { regimes, .. } = &mut request {
+        regimes[0].units = (0..65).collect();
+    }
+    let message = refusal_text(CompiledCyclicFamilyProgram::compile(&request, &ctx()).unwrap_err());
+    assert!(message.contains("more units than a recovered law admits"), "{message}");
+}
+
+#[test]
+fn a_posterior_burn_in_beyond_the_sweep_limit_is_refused_at_execution() {
+    for burn_in in [usize::MAX, 10_001] {
+        let request = recovery_request(
+            COMPLETE,
+            RecoveryInferenceWire::Posterior {
+                prior: RecoveryPriorWire {
+                    coefficients: CoefficientPriorWire::Flat,
+                    disturbance: DisturbancePriorWire::Known { variances: vec![1.0, 1.0] },
+                },
+                draws: 4,
+                burn_in,
+                seed: 3,
+            },
+        );
+        let message = refusal_text(request.execute(&ctx()).unwrap_err());
+        assert!(message.contains("posterior draw limit"), "{message}");
+    }
+}
+
 fn ou_problem() -> OuInferenceProblem {
     let mut stream = Stream(0x5eed_0f00);
     OuInferenceProblem {

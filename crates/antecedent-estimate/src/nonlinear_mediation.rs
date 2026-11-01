@@ -46,9 +46,10 @@ pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
 pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";
 /// Replicate-id scheme of the bootstrap.
 pub(crate) const NONLINEAR_MEDIATION_REPLICATE_SCHEME: &str = "splitmix64 stream seeded by seed_mix(seed ^ mix64(replicate_id + 1)); n row draws with replacement";
-/// Reference outcome polynomial degree; not enforced (rank checks refuse ill-posed fits).
+/// Largest outcome polynomial degree; a larger declaration is refused.
 pub const NONLINEAR_MEDIATION_MAX_DEGREE: usize = 4;
-/// Reference Gauss-Hermite node count; not enforced (the node count scales with the degree).
+/// Largest Gauss-Hermite node count (the rule costs quadratic work in it); a larger declaration
+/// is refused.
 pub const NONLINEAR_MEDIATION_MAX_NODES: usize = 64;
 
 /// Which mediation estimand is requested.
@@ -342,6 +343,20 @@ fn validate(
             invalid,
             "nonlinear_mediation.invalid_nodes",
             "node count must be at least 1",
+        ));
+    }
+    if config.outcome_degree > NONLINEAR_MEDIATION_MAX_DEGREE {
+        return Err(refuse(
+            invalid,
+            "nonlinear_mediation.degree_above_limit",
+            "outcome degree exceeds the supported maximum",
+        ));
+    }
+    if config.quadrature_nodes > NONLINEAR_MEDIATION_MAX_NODES {
+        return Err(refuse(
+            invalid,
+            "nonlinear_mediation.nodes_above_limit",
+            "node count exceeds the supported maximum",
         ));
     }
     if !(config.integration_tolerance.is_finite() && config.integration_tolerance > 0.0) {

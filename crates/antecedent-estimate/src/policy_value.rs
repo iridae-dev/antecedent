@@ -1033,6 +1033,10 @@ pub fn uplift_by_score_bin(
     {
         return Err("uplift arrays and non-zero bin count must align");
     }
+    if bin_count > n {
+        // Every bin must hold a row, so this cannot succeed; refuse before sizing by it.
+        return Err("every score bin must contain evaluation rows");
+    }
     let mut values = vec![Vec::<f64>::new(); bin_count];
     for i in 0..n {
         let pi = propensity[if propensity.len() == 1 { 0 } else { i }];
@@ -1086,6 +1090,12 @@ mod tests {
         assert!(bins[0].standard_error.is_nan());
         assert!((bins[1].effect - 1.0).abs() < 1e-12);
         assert!((bins[1].standard_error - 3.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn uplift_bin_count_beyond_the_rows_is_refused_without_sizing_by_it() {
+        let refused = uplift_by_score_bin(&[1.0], &[true], &[0], &[0.5], 1 << 40);
+        assert_eq!(refused.unwrap_err(), "every score bin must contain evaluation rows");
     }
 
     #[test]

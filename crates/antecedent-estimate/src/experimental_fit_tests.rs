@@ -486,6 +486,21 @@ fn rank_deficient_and_uncovered_rows_keep_their_unresolved_directions() {
 }
 
 #[test]
+fn a_burn_in_that_overflows_the_sweep_count_is_refused() {
+    let fit = deficient_dataset().fit(&ExperimentalFitOptions::default());
+    let spec = PosteriorSpec {
+        prior: RecoveryPrior {
+            coefficients: CoefficientPrior::Normal { mean: 0.0, variance: 1.0 },
+            disturbance: DisturbancePrior::Known { variances: vec![1.0, 1.0, 0.01] },
+        },
+        draws: 4,
+        burn_in: usize::MAX,
+        seed: 5,
+    };
+    assert!(matches!(posterior_recovery(&fit, &spec), Err(ExperimentalFitError::DrawCount)));
+}
+
+#[test]
 fn a_strong_prior_does_not_repair_a_null_direction() {
     let fit = deficient_dataset().fit(&ExperimentalFitOptions::default());
     let known = PosteriorSpec {

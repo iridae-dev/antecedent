@@ -197,6 +197,23 @@ fn mediation_exact_scm_recovers_closed_form_effects() {
 }
 
 #[test]
+fn mediation_refuses_a_degree_or_node_count_above_the_supported_maximum() {
+    let g = grid(&base_scm());
+    let ignorable = NonlinearMediationPremises::sequentially_ignorable();
+    for config in [
+        NonlinearMediationConfig { outcome_degree: 5, ..config(16) },
+        NonlinearMediationConfig { outcome_degree: usize::MAX, ..config(16) },
+        config(65),
+        config(1 << 20),
+    ] {
+        assert!(
+            matches!(run(&g, &ignorable, &config), Err(EstimationError::Refused { .. })),
+            "{config:?}"
+        );
+    }
+}
+
+#[test]
 fn mediation_quadrature_error_check_reports_and_refuses() {
     // Cubic outcome: E[M^3 | a'] = mu^3 + 3*mu*sigma2 depends on mu, so the sigma2 integration
     // term does not cancel from the contrasts and the node count matters.

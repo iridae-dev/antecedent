@@ -173,12 +173,27 @@ impl CyclicWorldWire {
     }
 }
 
+/// Most worlds one request may declare. Each world is admitted, compiled and, on a model that
+/// compiles per world, re-validated, so the count is bounded before any of that work.
+pub(super) const MAX_WORLDS: usize = 10_000;
+/// Most nodes a recovered law carries.
+pub(super) const MAX_RECOVERED_NODES: usize = 64;
+
+/// Refuse a world count above [`MAX_WORLDS`] before sizing any work by it.
+pub(super) fn check_world_count(count: usize) -> Result<(), CyclicArtifactError> {
+    if count > MAX_WORLDS {
+        return Err(invalid("typed cyclic worlds: more worlds than the request limit"));
+    }
+    Ok(())
+}
+
 fn world_requests(
     worlds: &[CyclicWorldWire],
 ) -> Result<Vec<CyclicWorldRequest>, CyclicArtifactError> {
     if worlds.is_empty() {
         return Err(invalid("typed cyclic worlds: at least one world is required"));
     }
+    check_world_count(worlds.len())?;
     let mut seen = BTreeSet::new();
     worlds
         .iter()
@@ -1185,7 +1200,7 @@ impl RecoveredLawProduct {
     }
 
     fn law(&self) -> Result<RecoveredCoefficientUncertainty, CyclicArtifactError> {
-        if self.draws.is_empty() || self.nodes.len() > 64 {
+        if self.draws.is_empty() || self.nodes.len() > MAX_RECOVERED_NODES {
             return Err(invalid("a recovered law needs a draw and at most 64 nodes"));
         }
         let ids: Vec<VariableId> = self.nodes.iter().copied().map(VariableId::from_raw).collect();
@@ -1508,6 +1523,13 @@ pub(super) fn experimental_recovery_plans(
     check_experiment(regimes, samples, source_id, certifying_evidence)?;
     check_recovery_design(options, inference)?;
     let units = retained_units(regimes, dropped);
+    if units.len() > MAX_RECOVERED_NODES {
+        // The design's unresolved directions are quadratic in the retained units; the
+        // recovered law admits no more, so refuse before any pass is sized by them.
+        return Err(invalid(
+            "experimental recovery retains more units than a recovered law admits",
+        ));
+    }
     let variables = variables_of(&units)?;
     if variables.position(VariableId::from_raw(outcome)).is_none() {
         return Err(invalid(
@@ -1628,7 +1650,7 @@ fn estimate_law(
             bootstrap_experimental_recovery(&rows, &options, &spec, ctx)
         }
         RecoveryInferenceWire::Posterior { prior, draws, burn_in, seed } => {
-            if *draws > MAX_DRAWS {
+            if *draws > MAX_DRAWS || *burn_in > MAX_DRAWS {
                 return Err(invalid("posterior draw limit"));
             }
             let fit = fit_experimental_recovery(&rows, &options).map_err(|e| fit_error(&e))?;

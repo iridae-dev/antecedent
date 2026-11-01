@@ -353,6 +353,15 @@ fn latent_premise_and_configuration_refusals() {
     assert_eq!(code, "invalid_argument");
     assert!(message.contains("latent_class.too_few_rows"), "{message}");
 
+    for (restarts, max_iterations) in [(usize::MAX, 500), (10, usize::MAX)] {
+        let mut heavy = config(1);
+        heavy.restarts = restarts;
+        heavy.max_iterations = max_iterations;
+        let (code, message) = refusal(fit(&data, &heavy));
+        assert_eq!(code, "invalid_argument");
+        assert!(message.contains("latent_class.invalid_config"), "{message}");
+    }
+
     let mut constant = build();
     constant.a = vec![1.0; constant.a.len()];
     let (code, message) = refusal(fit(&constant, &config(1)));
