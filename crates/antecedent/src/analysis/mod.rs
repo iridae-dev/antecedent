@@ -90,6 +90,7 @@ pub(crate) use string_enum;
 pub mod api;
 
 pub mod adaptive_inference;
+pub mod choice_inference;
 pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
@@ -257,6 +258,10 @@ pub use adaptive_inference::{
     AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
     ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact,
+};
+pub use choice_inference::{
+    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
+    consume_choice_inference_result_artifact,
 };
 pub use adaptive_participant_procedure::{
     ParticipantHistoryReport, ParticipantProcedure, ParticipantRunReport,

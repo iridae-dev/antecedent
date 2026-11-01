@@ -26,14 +26,13 @@
 use antecedent_contract::adaptive_design::{
     AssignmentFamily, ChoiceDesignContract, ChoiceDesignDeclaration, ChoiceLook, ChoiceRespondent,
     InferenceParadigm, MonitoringStrategy, OutcomeStructure, ProcedureCell, RetainedChoiceSource,
-    StoppingRuleKind, StoppingSpec,
+    StoppingRuleKind,
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::adaptive_inference::AdaptiveInferenceError;
 use antecedent_estimate::choice_inference::{
-    ChoiceConflictPolicy, ChoiceSourceCounts, ChoiceStoppingRule, HierarchicalChoicePrior,
-    choice_posterior, choice_stopping_decision, hierarchical_choice_posterior,
-    hierarchical_stopping_decision, qualify_choice_prior,
+    HierarchicalChoicePrior, choice_posterior, choice_stopping_decision, contract_stopping_rule,
+    hierarchical_choice_posterior, hierarchical_stopping_decision, qualify_contract_prior,
 };
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     AdaptiveMonitoringContractError, RuleWire, rule_from_wire, rule_to_wire,
@@ -217,43 +216,6 @@ fn pooled_counts(
     Ok(counts)
 }
 
-fn stopping_rule(contract: &ChoiceDesignContract) -> Result<ChoiceStoppingRule, ChoiceResultError> {
-    match contract.declaration().stopping_rule.map(|r| r.spec) {
-        Some(StoppingSpec::PosteriorProbabilityBest { threshold }) => Ok(ChoiceStoppingRule {
-            min_probability_best: Some(threshold),
-            max_expected_loss: None,
-            min_observations: 0,
-        }),
-        Some(StoppingSpec::PosteriorExpectedLoss { loss_threshold }) => Ok(ChoiceStoppingRule {
-            min_probability_best: None,
-            max_expected_loss: Some(loss_threshold),
-            min_observations: 0,
-        }),
-        _ => Err(request_invalid(
-            "choice_inference.rule_not_posterior",
-            "the contract's stopping rule is not a posterior rule",
-        )),
-    }
-}
-
-/// The prior the contract's retained sources qualify, with how many of them conflict.
-fn qualified_prior(
-    contract: &ChoiceDesignContract,
-) -> Result<antecedent_estimate::choice_inference::QualifiedChoicePrior, ChoiceResultError> {
-    let declaration = contract.declaration();
-    let sources: Vec<ChoiceSourceCounts<'_>> = declaration
-        .retained_sources
-        .iter()
-        .map(|s| ChoiceSourceCounts {
-            label: &s.label,
-            counts: &s.counts,
-            discount: s.discount,
-            transferred: s.population != declaration.population,
-        })
-        .collect();
-    Ok(qualify_choice_prior(&declaration.initial_prior, &sources, ChoiceConflictPolicy::Report)?)
-}
-
 fn hierarchical_inputs(
     contract: &ChoiceDesignContract,
     look: usize,
@@ -309,11 +271,12 @@ pub fn compute_choice_result(
     let look = spec.look() as usize;
     match spec {
         ChoiceResultSpec::Posterior { .. } | ChoiceResultSpec::Stopping { .. } => {
-            let prior = qualified_prior(contract)?;
+            let prior = qualify_contract_prior(contract)?;
             let counts = pooled_counts(contract, look)?;
             let posterior = choice_posterior(&prior.alpha, &counts, ctx)?;
             if matches!(spec, ChoiceResultSpec::Stopping { .. }) {
-                let decision = choice_stopping_decision(&posterior, stopping_rule(contract)?)?;
+                let decision =
+                    choice_stopping_decision(&posterior, contract_stopping_rule(contract)?)?;
                 return Ok(ChoiceResult {
                     paradigm,
                     method: "dirichlet_posterior_stopping",
@@ -374,7 +337,8 @@ pub fn compute_choice_result(
             )?;
             let result = hierarchical_choice_posterior(&prior, &respondents, ctx)?;
             if matches!(spec, ChoiceResultSpec::HierarchicalStopping { .. }) {
-                let decision = hierarchical_stopping_decision(&result, stopping_rule(contract)?)?;
+                let decision =
+                    hierarchical_stopping_decision(&result, contract_stopping_rule(contract)?)?;
                 return Ok(ChoiceResult {
                     paradigm,
                     method: "hierarchical_dirichlet_multinomial_stopping",

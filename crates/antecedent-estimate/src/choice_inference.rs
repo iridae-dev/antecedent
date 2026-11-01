@@ -32,7 +32,8 @@ use crate::adaptive_inference::{
 };
 
 pub use antecedent_stats::adaptive_inference::{
-    ChoiceStoppingRule, HierarchicalChoicePrior, MAX_CHOICE_OPTIONS,
+    ChoiceKernel, ChoiceProcedureSpec, ChoiceStoppingRule, HierarchicalChoicePrior,
+    MAX_CHOICE_OPTIONS,
 };
 
 /// Log Bayes factor above which a source is flagged as conflicting with the rest (`ln 10`).
@@ -334,6 +335,140 @@ pub fn hierarchical_stopping_decision(
     )
 }
 
+/// The prior a choice contract's retained sources qualify, conflicts reported and not refused.
+///
+/// # Errors
+/// Shapes or counts out of domain (a validated contract has none).
+pub fn qualify_contract_prior(
+    contract: &antecedent_contract::adaptive_design::ChoiceDesignContract,
+) -> Result<QualifiedChoicePrior, AdaptiveInferenceError> {
+    let declaration = contract.declaration();
+    let sources: Vec<ChoiceSourceCounts<'_>> = declaration
+        .retained_sources
+        .iter()
+        .map(|s| ChoiceSourceCounts {
+            label: &s.label,
+            counts: &s.counts,
+            discount: s.discount,
+            transferred: s.population != declaration.population,
+        })
+        .collect();
+    qualify_choice_prior(&declaration.initial_prior, &sources, ChoiceConflictPolicy::Report)
+}
+
+/// The stopping rule a choice contract declares, as the rule the procedure law evaluates.
+///
+/// # Errors
+/// A contract whose rule is not a posterior rule.
+pub fn contract_stopping_rule(
+    contract: &antecedent_contract::adaptive_design::ChoiceDesignContract,
+) -> Result<ChoiceStoppingRule, AdaptiveInferenceError> {
+    use antecedent_contract::adaptive_design::StoppingSpec;
+    match contract.declaration().stopping_rule.map(|r| r.spec) {
+        Some(StoppingSpec::PosteriorProbabilityBest { threshold }) => Ok(ChoiceStoppingRule {
+            min_probability_best: Some(threshold),
+            max_expected_loss: None,
+            min_observations: 0,
+        }),
+        Some(StoppingSpec::PosteriorExpectedLoss { loss_threshold }) => Ok(ChoiceStoppingRule {
+            min_probability_best: None,
+            max_expected_loss: Some(loss_threshold),
+            min_observations: 0,
+        }),
+        _ => Err(invalid(
+            "choice_inference.rule_not_posterior",
+            "the contract's stopping rule is not a posterior rule",
+        )),
+    }
+}
+
+/// The sequential procedure a categorical-choice contract ran under: batches of respondents at
+/// its looks, its qualified prior and its stopping rule. The contract's one-choice-per-respondent
+/// rule makes a batch of respondents a batch of choices.
+///
+/// # Errors
+/// A repeated-choice contract (its law is hierarchical, not this one) or a rule that is not a
+/// posterior rule.
+pub fn contract_procedure_spec(
+    contract: &antecedent_contract::adaptive_design::ChoiceDesignContract,
+) -> Result<ChoiceProcedureSpec, AdaptiveInferenceError> {
+    use antecedent_contract::adaptive_design::OutcomeStructure;
+    if contract.cell().outcome != OutcomeStructure::CategoricalChoice {
+        return Err(invalid(
+            "choice_inference.route_outcome_mismatch",
+            "the enumerated procedure law is the pooled Dirichlet procedure's; a repeated-choice study has a hierarchical posterior",
+        ));
+    }
+    let looks = contract.declaration().looks.as_ref().expect("validated contract");
+    let mut previous = 0;
+    let batches = looks
+        .iter()
+        .map(|l| {
+            let batch = l.respondents - previous;
+            previous = l.respondents;
+            batch
+        })
+        .collect();
+    Ok(ChoiceProcedureSpec {
+        prior: qualify_contract_prior(contract)?.alpha,
+        batches,
+        rule: contract_stopping_rule(contract)?,
+    })
+}
+
+/// The exact law of a sequential choice procedure under a declared kernel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ChoiceOperatingCharacteristics {
+    /// Probability that the procedure ends selecting each option.
+    pub selection: Vec<f64>,
+    /// Probability that it ends without selecting an option.
+    pub undecided: f64,
+    /// Expected respondents enrolled.
+    pub expected_enrolled: f64,
+    /// Probability that the rule stops at each look.
+    pub rule_stop: Vec<f64>,
+    /// Probability that the planned horizon is reached.
+    pub horizon_probability: f64,
+    /// Work units the enumeration used.
+    pub work_units: u64,
+    /// What these probabilities are.
+    pub statement: &'static str,
+    /// The closed claim that these are error rates of the procedure for any other truth.
+    pub guarantee: WithheldGuarantee,
+}
+
+/// What an operating characteristic is.
+pub const OPERATING_CHARACTERISTICS_STATEMENT: &str = "exact probabilities of the declared procedure under the declared kernel only (a fixed truth, or the declared Dirichlet prior predictive); not a bound over other truths and not a coverage statement";
+
+/// The exact operating characteristics of a sequential choice procedure by dynamic programming
+/// over the observed counts.
+///
+/// # Errors
+/// More than four options, a rule or kernel outside its domain, a size bound exceeded, or
+/// cancellation.
+pub fn choice_operating_characteristics(
+    spec: &ChoiceProcedureSpec,
+    kernel: &ChoiceKernel,
+    ctx: &ExecutionContext,
+) -> Result<ChoiceOperatingCharacteristics, AdaptiveInferenceError> {
+    refuse_if_interrupted(ctx)?;
+    let law = numerics::enumerate_choice_law(spec, kernel, &|| ctx.cancellation.is_cancelled())
+        .map_err(|e| numeric_error(&e))?;
+    let (selection, undecided) = law.selection_probabilities(spec.prior.len());
+    Ok(ChoiceOperatingCharacteristics {
+        selection,
+        undecided,
+        expected_enrolled: law.expected_enrolled(),
+        rule_stop: law.rule_stop_probabilities(),
+        horizon_probability: law.horizon_probability(),
+        work_units: law.work_units,
+        statement: OPERATING_CHARACTERISTICS_STATEMENT,
+        guarantee: WithheldGuarantee::closed(
+            "choice_inference.operating_characteristics_conditional",
+        ),
+    })
+}
+
 /// Query axis of every choice-study record.
 pub const QUERY: &str = "ChoiceExperimentShare";
 /// Estimator of the pooled Dirichlet posterior of one option's share.
@@ -481,6 +616,29 @@ mod tests {
         assert!((p.probability_best.iter().sum::<f64>() - 1.0).abs() < 1e-9);
         assert_eq!(p.guarantee.code, "cell_not_licensed");
         assert!(p.guarantee.refusal("a credible interval").message.contains("not licensed"));
+    }
+
+    #[test]
+    fn operating_characteristics_are_the_stats_law_with_the_guarantee_closed() {
+        let spec = ChoiceProcedureSpec {
+            prior: vec![1.0; 2],
+            batches: vec![4; 4],
+            rule: ChoiceStoppingRule {
+                min_probability_best: Some(0.85),
+                max_expected_loss: None,
+                min_observations: 4,
+            },
+        };
+        let oc = choice_operating_characteristics(
+            &spec,
+            &ChoiceKernel::Fixed { theta: vec![0.7, 0.3] },
+            &ctx(),
+        )
+        .unwrap();
+        let mass: f64 = oc.selection.iter().sum::<f64>() + oc.undecided;
+        assert!((mass - 1.0).abs() < 1e-12);
+        assert!(oc.selection[0] > oc.selection[1]);
+        assert_eq!(oc.guarantee.code, "cell_not_licensed");
     }
 
     #[test]
