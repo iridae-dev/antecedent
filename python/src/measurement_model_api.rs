@@ -47,7 +47,7 @@ use crate::provider_api::PyProviderVerificationReceipt;
 use crate::transport_common::execution_context;
 
 /// Largest declaration this bridge parses, in bytes of JSON text.
-const MAX_DECLARATION_BYTES: usize = 64 * 1024 * 1024;
+const MAX_DECLARATION_BYTES: usize = 16 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // JSON access: malformed declarations are input errors, never refusals.

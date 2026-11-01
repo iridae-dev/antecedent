@@ -49,6 +49,9 @@ fn opt_num(spec: &Value, key: &str) -> PyResult<Option<f64>> {
     }
 }
 
+/// Largest policy-search configuration parsed, in bytes of JSON text (a `Value` tree is 10-30x it).
+const MAX_CONFIG_BYTES: usize = 16 * 1024 * 1024;
+
 /// A count that may be absent; a present value that is not a non-negative integer is an error.
 fn opt_count(spec: &Value, key: &str) -> PyResult<Option<u64>> {
     match spec.get(key) {
@@ -533,6 +536,7 @@ fn adaptive_policy_search(
     source: Py<PyAny>,
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<String> {
+    crate::bridge::check_declared_size(config_json, MAX_CONFIG_BYTES, "policy search config")?;
     let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
     run_config(&config, &[], &PySource::bind(source)?, cancel)
 }
@@ -555,6 +559,7 @@ impl crate::gcm_api::PyFittedGcm {
         config_json: &str,
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<String> {
+        crate::bridge::check_declared_size(config_json, MAX_CONFIG_BYTES, "policy search config")?;
         let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
         let names: Vec<String> = self.names.to_vec();
         let spec = config.get("model_source").ok_or_else(|| bad("model_source is required"))?;

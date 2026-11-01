@@ -292,7 +292,7 @@ fn linear_moments_call(
 ) -> Refused<ClaimParts> {
     let op = tri!(operation(operation_name));
     let rows: Vec<Json> =
-        tri!(serde_json::from_str(inputs_json).map_err(|e| invalid_json(format!("inputs: {e}"))));
+        tri!(parse_bounded(inputs_json).map_err(|e| invalid_json(format!("inputs: {e}"))));
     let mut inputs = Vec::with_capacity(rows.len());
     for row in &rows {
         let role_name = match row.get("role") {
@@ -359,9 +359,8 @@ fn joint_law_mixture(
     components_json: &str,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<ClaimParts> {
-    let rows: Vec<Json> = tri!(
-        serde_json::from_str(components_json).map_err(|e| invalid_json(format!("components: {e}")))
-    );
+    let rows: Vec<Json> =
+        tri!(parse_bounded(components_json).map_err(|e| invalid_json(format!("components: {e}"))));
     let mut components = Vec::with_capacity(rows.len());
     for row in &rows {
         components.push(MixtureComponent {
@@ -387,7 +386,7 @@ fn joint_law_mixture_undeclared(
     variances: Vec<f64>,
 ) -> Refused<ClaimParts> {
     let ids: Vec<String> =
-        tri!(serde_json::from_str(ids_json).map_err(|e| invalid_json(format!("ids: {e}"))));
+        tri!(parse_bounded(ids_json).map_err(|e| invalid_json(format!("ids: {e}"))));
     let declared = PropagationRequest {
         operation: PropagationOperation::Mixture,
         inputs: ids
@@ -418,8 +417,7 @@ fn joint_law_mixture_undeclared(
 }
 
 fn query(text: &str) -> Result<EnvelopeQueryWire, String> {
-    let value: Json =
-        serde_json::from_str(text).map_err(|e| invalid_json(format!("query: {e}")))?;
+    let value: Json = parse_bounded(text).map_err(|e| invalid_json(format!("query: {e}")))?;
     let number = |key: &str| {
         value
             .get(key)
@@ -680,9 +678,8 @@ fn joint_law_mixture_exceedance(
     threshold: f64,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<ClaimParts> {
-    let rows: Vec<Json> = tri!(
-        serde_json::from_str(components_json).map_err(|e| invalid_json(format!("components: {e}")))
-    );
+    let rows: Vec<Json> =
+        tri!(parse_bounded(components_json).map_err(|e| invalid_json(format!("components: {e}"))));
     let mut components = Vec::with_capacity(rows.len());
     for row in &rows {
         let draws = match row.get("draws") {
@@ -710,6 +707,17 @@ fn joint_law_mixture_exceedance(
     }
     let ctx = execution_context(0, None, cancel);
     finish(py, propagate_mixture_exceedance(&components, threshold, &ctx))
+}
+
+/// Largest JSON text this module parses, in bytes (a `Value` tree is 10-30x its text).
+const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
+
+/// Parse JSON text after bounding its size; the error is its description.
+fn parse_bounded<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, String> {
+    if text.len() > MAX_JSON_BYTES {
+        return Err(format!("the text is larger than the {MAX_JSON_BYTES}-byte limit"));
+    }
+    serde_json::from_str(text).map_err(|error| error.to_string())
 }
 
 /// The spread of a transported claim from the aligned draws of its three pieces (columns of

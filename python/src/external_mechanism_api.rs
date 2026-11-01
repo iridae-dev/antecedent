@@ -295,6 +295,11 @@ fn external_consume(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let ctx = execution_context(max_bytes, cancel);
+    crate::bridge::check_declared_len(
+        artifact.len(),
+        MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES,
+        "external artifact",
+    )?;
     let artifact = artifact.to_vec();
     let expected_identity = expected_identity.to_owned();
     let resolver = resolver_of(resolver);
@@ -313,6 +318,11 @@ fn external_consume(
 /// Recorded mechanism identities of an artifact, without a resolver or any execution.
 #[pyfunction]
 fn external_inspect(py: Python<'_>, artifact: &[u8]) -> PyResult<String> {
+    crate::bridge::check_declared_len(
+        artifact.len(),
+        MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES,
+        "external artifact",
+    )?;
     let artifact = artifact.to_vec();
     crate::detach_catch(py, move || {
         let inspection = inspect_external_cyclic_artifact(&artifact)

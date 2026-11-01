@@ -201,7 +201,12 @@ impl ExternalMeanProvider for PythonProvider {
             response_from_wire(&response)
                 .map_err(|cause| invalid("external_recalc.invalid_output", format!("{cause:?}")))
         })
-        .map_err(|cause| CallbackFailure { message: cause.to_string() })
+        .map_err(|cause| {
+            // A non-`Exception` (Ctrl-C, `SystemExit`) cancels the run and is re-raised by the
+            // caller's interrupt scope; the structured failure carries a bounded description.
+            let failure = crate::interrupt::callback_failure("external provider raised", cause);
+            CallbackFailure { message: failure.description().chars().take(512).collect() }
+        })
     }
 }
 #[pyclass(name = "ExternalCallbackProviderHandle", skip_from_py_object)]
@@ -305,11 +310,15 @@ impl PyCallbackSession {
         ctx.rng = antecedent_core::RngFactory::from_seed(req.seed);
         let mut actual = provider.map(|provider| provider.clone_actual_provider(py)).transpose()?;
         let mut session = std::mem::take(&mut self.inner);
-        let ran = py.detach(|| {
-            session.execute(&req, actual.as_mut().map(|p| p as &mut dyn ExternalMeanProvider), &ctx)
+        let ran = crate::detach_catch(py, || {
+            Ok(session.execute(
+                &req,
+                actual.as_mut().map(|p| p as &mut dyn ExternalMeanProvider),
+                &ctx,
+            ))
         });
         self.inner = session;
-        match ran {
+        match ran? {
             Err(cause) => Ok((None, None, None, Some(error(&cause, req.branch)?))),
             Ok(out) => {
                 let (wire, receipt, refusal) = crate::recalc_family_api::payload(
