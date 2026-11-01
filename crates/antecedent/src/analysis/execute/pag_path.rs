@@ -248,7 +248,9 @@ impl ClassAteAtoms {
         let se = match declared_dependence {
             // One contributing completion is the pooled estimate: its own error already reads
             // the declared dependence, with the estimator's finite-sample factors.
-            Some(_) if n_contributing == 1 => mix_weighted_analytic_se(self.se_items.iter().copied()),
+            Some(_) if n_contributing == 1 => {
+                mix_weighted_analytic_se(self.se_items.iter().copied())
+            }
             // Several completions share the rows: the error of their frozen-weight mixture is
             // the declared sandwich over the mixed influence values.
             Some(inference) if self.atom_ifs.len() == n_contributing => {

@@ -24,7 +24,8 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         self.0 >> 11
     }
 
@@ -101,12 +102,14 @@ fn product_grid_errors_are_exactly_uncorrelated_and_independent() {
     let sxy: f64 = cols[0].iter().zip(&cols[1]).map(|(a, b)| (a - m0) * (b - m1)).sum();
     let sxx: f64 = cols[0].iter().map(|a| (a - m0) * (a - m0)).sum();
     assert!((sxy / sxx - 0.8).abs() < 1e-12);
-    let resid: Vec<f64> = cols[0].iter().zip(&cols[1]).map(|(a, b)| (b - m1) - 0.8 * (a - m0)).collect();
+    let resid: Vec<f64> =
+        cols[0].iter().zip(&cols[1]).map(|(a, b)| (b - m1) - 0.8 * (a - m0)).collect();
     let d = DistanceY::new(&cols[0]).correlate(&resid);
     assert!(d.abs() < 1e-7, "independent product errors have dcor {d}");
     // Dependence is detected in the wrong direction.
     let sxy_rev = sxy / cols[1].iter().map(|b| (b - m1) * (b - m1)).sum::<f64>();
-    let rev: Vec<f64> = cols[0].iter().zip(&cols[1]).map(|(a, b)| (a - m0) - sxy_rev * (b - m1)).collect();
+    let rev: Vec<f64> =
+        cols[0].iter().zip(&cols[1]).map(|(a, b)| (a - m0) - sxy_rev * (b - m1)).collect();
     assert!(DistanceY::new(&cols[1]).correlate(&rev) > 0.05);
 }
 
@@ -115,12 +118,14 @@ fn dcor_definition(x: &[f64], y: &[f64]) -> f64 {
     let n = x.len();
     let centred = |v: &[f64]| -> Vec<f64> {
         let d: Vec<f64> = (0..n * n).map(|k| (v[k / n] - v[k % n]).abs()).collect();
-        let row: Vec<f64> = (0..n).map(|i| d[i * n..(i + 1) * n].iter().sum::<f64>() / n as f64).collect();
+        let row: Vec<f64> =
+            (0..n).map(|i| d[i * n..(i + 1) * n].iter().sum::<f64>() / n as f64).collect();
         let grand = row.iter().sum::<f64>() / n as f64;
         (0..n * n).map(|k| d[k] - row[k / n] - row[k % n] + grand).collect()
     };
     let (a, b) = (centred(x), centred(y));
-    let mean = |u: &[f64], v: &[f64]| u.iter().zip(v).map(|(p, q)| p * q).sum::<f64>() / (n * n) as f64;
+    let mean =
+        |u: &[f64], v: &[f64]| u.iter().zip(v).map(|(p, q)| p * q).sum::<f64>() / (n * n) as f64;
     let (vxy, vxx, vyy) = (mean(&a, &b), mean(&a, &a), mean(&b, &b));
     (vxy / (vxx * vyy).sqrt()).sqrt()
 }
@@ -130,7 +135,8 @@ fn distance_correlation_matches_its_definition() {
     let mut rng = Lcg(5);
     for (n, power) in [(40usize, 1.0), (57, 2.0), (80, 3.0)] {
         let x: Vec<f64> = (0..n).map(|_| rng.unit() - 0.4).collect();
-        let y: Vec<f64> = x.iter().map(|v| v.powf(power).abs() + 0.2 * (rng.unit() - 0.5)).collect();
+        let y: Vec<f64> =
+            x.iter().map(|v| v.powf(power).abs() + 0.2 * (rng.unit() - 0.5)).collect();
         let want = dcor_definition(&x, &y);
         let got = DistanceY::new(&x).correlate(&y);
         assert!((got - want).abs() < 1e-10, "n={n}: {got} vs {want}");
@@ -178,28 +184,34 @@ fn assert_recovers(model: &Model, g: usize, shapes: &[usize], label: &str) {
     // still be a linear extension of the generating graph.
     let config = result.algorithm.config.to_string();
     let listed = &config[config.find("order=[").unwrap() + 7..];
-    let found: Vec<usize> = listed[..listed.find(']').unwrap()]
-        .split(',')
-        .map(|t| t.trim().parse().unwrap())
-        .collect();
+    let found: Vec<usize> =
+        listed[..listed.find(']').unwrap()].split(',').map(|t| t.trim().parse().unwrap()).collect();
     let position = |v: usize| found.iter().position(|&u| u == v).unwrap();
     for (c, ps) in model.parents.iter().enumerate() {
         for &(p, _) in ps {
-            assert!(position(p) < position(c), "{label}: order {found:?} puts {c} before its parent {p}");
+            assert!(
+                position(p) < position(c),
+                "{label}: order {found:?} puts {c} before its parent {p}"
+            );
         }
     }
 }
 
 #[test]
 fn known_structures_are_recovered_exactly() {
-    let chain = Model { parents: vec![vec![], vec![(0, 0.9)], vec![(1, -0.8)]], order: vec![0, 1, 2] };
+    let chain =
+        Model { parents: vec![vec![], vec![(0, 0.9)], vec![(1, -0.8)]], order: vec![0, 1, 2] };
     assert_recovers(&chain, 7, &[0, 1, 2], "chain");
-    let reversed_ids = Model { parents: vec![vec![(1, 0.7)], vec![(2, -0.9)], vec![]], order: vec![2, 1, 0] };
+    let reversed_ids =
+        Model { parents: vec![vec![(1, 0.7)], vec![(2, -0.9)], vec![]], order: vec![2, 1, 0] };
     assert_recovers(&reversed_ids, 7, &[2, 0, 1], "chain against id order");
-    let collider = Model { parents: vec![vec![], vec![], vec![(0, 0.8), (1, 0.8)]], order: vec![0, 1, 2] };
+    let collider =
+        Model { parents: vec![vec![], vec![], vec![(0, 0.8), (1, 0.8)]], order: vec![0, 1, 2] };
     assert_recovers(&collider, 7, &[0, 3, 1], "collider");
-    let triangle =
-        Model { parents: vec![vec![], vec![(0, 0.6)], vec![(0, -0.5), (1, 0.7)]], order: vec![0, 1, 2] };
+    let triangle = Model {
+        parents: vec![vec![], vec![(0, 0.6)], vec![(0, -0.5), (1, 0.7)]],
+        order: vec![0, 1, 2],
+    };
     assert_recovers(&triangle, 7, &[1, 2, 3], "triangle");
 }
 

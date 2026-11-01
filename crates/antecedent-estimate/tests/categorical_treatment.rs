@@ -427,10 +427,8 @@ fn categorical_refuses_a_non_finite_outcome_or_adjustment_value_instead_of_dropp
     assert_eq!(code, "invalid_argument");
     assert!(message.contains("vector_treatment.non_finite_value"), "{message}");
     let mut missing_adjustment = abc_input();
-    missing_adjustment.adjustment = vec![NamedColumn::new(
-        "x",
-        vec![1.0, 2.0, f64::NAN, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0],
-    )];
+    missing_adjustment.adjustment =
+        vec![NamedColumn::new("x", vec![1.0, 2.0, f64::NAN, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0])];
     let (code, message) =
         refusal(fit_categorical_treatment(&missing_adjustment, &spec).unwrap_err());
     assert_eq!(code, "invalid_argument");

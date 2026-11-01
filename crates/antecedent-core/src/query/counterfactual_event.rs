@@ -190,6 +190,9 @@ impl CounterfactualEventQuery {
     /// Canonical text: equal queries render equal. It names every world with its
     /// interventions and routes (as IEEE bits), the coupling and both
     /// conjunctions. This is the digest input, not a display format.
+    ///
+    /// # Panics
+    /// Panics if writing to an in-memory string unexpectedly fails.
     #[must_use]
     pub fn canonical_text(&self) -> String {
         let mut out = String::new();
@@ -280,16 +283,16 @@ mod tests {
 
     #[test]
     fn canonical_sink_preserves_text_and_propagates_write_failure() {
-        let query = CounterfactualEventQuery::effect_on_treated(v(0), 1.0, 0.0, v(2), 1.0).unwrap();
-        let mut text = String::new();
-        query.write_canonical(&mut text).unwrap();
-        assert_eq!(text, query.canonical_text());
         struct Refuse;
         impl std::fmt::Write for Refuse {
             fn write_str(&mut self, _: &str) -> std::fmt::Result {
                 Err(std::fmt::Error)
             }
         }
+        let query = CounterfactualEventQuery::effect_on_treated(v(0), 1.0, 0.0, v(2), 1.0).unwrap();
+        let mut text = String::new();
+        query.write_canonical(&mut text).unwrap();
+        assert_eq!(text, query.canonical_text());
         assert!(query.write_canonical(&mut Refuse).is_err());
     }
 

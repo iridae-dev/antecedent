@@ -192,39 +192,55 @@ fn heterogeneous_design_sequential_equals_exact_pooled() {
 fn incompatible_sources_and_mapping_refuse() {
     let artifact = exact_source();
     let bytes = artifact.to_bytes("batch-a-posterior").unwrap();
-    assert_refused(mapped(&bytes, &identity(), &baseline(2.0)), "mapped_posterior_transfer.residual_variance");
+    assert_refused(
+        mapped(&bytes, &identity(), &baseline(2.0)),
+        "mapped_posterior_transfer.residual_variance",
+    );
     let mut wrong_snapshot = identity();
     wrong_snapshot.snapshot_id = "other".into();
-    assert_refused(mapped(&bytes, &wrong_snapshot, &baseline(1.0)), "aligned_joint_draws.identity_expected");
+    assert_refused(
+        mapped(&bytes, &wrong_snapshot, &baseline(1.0)),
+        "aligned_joint_draws.identity_expected",
+    );
     let mut bootstrap = artifact.metadata().clone();
     bootstrap.identity.semantic = DistributionMeaningWire::Bootstrap;
     let bootstrap = DistributionArtifact::new(bootstrap, artifact.draws().to_vec()).unwrap();
-    assert_refused(mapped(
+    assert_refused(
+        mapped(
             &bootstrap.to_bytes("bootstrap").unwrap(),
             &bootstrap.metadata().identity,
-            &baseline(1.0)
-        ), "mapped_posterior_transfer.parameter_posterior");
+            &baseline(1.0),
+        ),
+        "mapped_posterior_transfer.parameter_posterior",
+    );
     let reused = [("source:x".into(), "target:x".into()), ("source:x".into(), "target:y".into())];
-    assert_refused(transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &reused,
             &targets(),
             "batch-b-snapshot",
             "fixed-gaussian-contract",
-            &baseline(1.0)
-        ), "mapped transfer reuses a coefficient identity");
+            &baseline(1.0),
+        ),
+        "mapped transfer reuses a coefficient identity",
+    );
     let partial = [("source:x".into(), "target:x".into())];
-    assert_refused(transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &partial,
             &targets(),
             "batch-b-snapshot",
             "fixed-gaussian-contract",
-            &baseline(1.0)
-        ), "requires a complete coefficient bijection");
-    assert_refused(transfer(
+            &baseline(1.0),
+        ),
+        "requires a complete coefficient bijection",
+    );
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
@@ -232,18 +248,23 @@ fn incompatible_sources_and_mapping_refuse() {
             "",
             "fixed-gaussian-contract",
             &baseline(1.0),
-        ), "requires target snapshot and causal contract IDs");
+        ),
+        "requires target snapshot and causal contract IDs",
+    );
     let mut changed_target = targets();
     changed_target[0].units = "meters".into();
-    assert_refused(transfer(
+    assert_refused(
+        transfer(
             &bytes,
             &identity(),
             &[("source:x".into(), "target:x".into()), ("source:y".into(), "target:y".into())],
             &changed_target,
             "batch-b-snapshot",
             "fixed-gaussian-contract",
-            &baseline(1.0)
-        ), "mapped transfer coefficient coordinates differ");
+            &baseline(1.0),
+        ),
+        "mapped transfer coefficient coordinates differ",
+    );
 }
 
 #[test]
@@ -255,7 +276,10 @@ fn fresh_process_replays_mapped_prior() {
         assert!(prior.coefficient_correlation().is_some());
         let mut wrong = identity();
         wrong.snapshot_id = "resealed-other".into();
-        assert_refused(mapped(&bytes, &wrong, &baseline(1.0)), "aligned_joint_draws.identity_expected");
+        assert_refused(
+            mapped(&bytes, &wrong, &baseline(1.0)),
+            "aligned_joint_draws.identity_expected",
+        );
         return;
     }
     let unique =

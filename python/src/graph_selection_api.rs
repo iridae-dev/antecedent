@@ -37,7 +37,12 @@ fn central_interval(draws: &[f64], level: f64) -> (f64, f64) {
     sorted.sort_by(f64::total_cmp);
     let last = sorted.len().saturating_sub(1);
     let tail = (1.0 - level) / 2.0;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss,
+        reason = "The probability is bounded and the rounded index is clamped to the draw range."
+    )]
     let at = |p: f64| sorted[((p * last as f64).round() as usize).min(last)];
     (at(tail), at(1.0 - tail))
 }

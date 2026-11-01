@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::RetainedOperation;
-use antecedent::{AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
+use antecedent::{
+    AcceptedGraph, BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study,
+};
 use antecedent_core::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ExecutionContext,
     PopulationSelector, VariableId,

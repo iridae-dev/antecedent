@@ -201,7 +201,11 @@ fn rcc_ols_is_non_informative() {
     assert!((report.refuted_ate - original.ate).abs() < max);
     // The outcome is exactly linear in (t, z), so an unrelated extra covariate has coefficient 0
     // and the effect cannot move beyond rounding (observed 1e-14).
-    assert!((report.refuted_ate - original.ate).abs() < 1e-9, "rcc delta {}", report.refuted_ate - original.ate);
+    assert!(
+        (report.refuted_ate - original.ate).abs() < 1e-9,
+        "rcc delta {}",
+        report.refuted_ate - original.ate
+    );
 }
 
 #[test]
@@ -511,7 +515,11 @@ fn data_subset_ols_is_non_informative() {
     let max = fixture["expected"]["subset_abs_delta_max"].as_f64().unwrap();
     assert!((report.refuted_ate - original.ate).abs() < max);
     // Row subsets of an exactly linear outcome reproduce the coefficient (observed 4e-16).
-    assert!((report.refuted_ate - original.ate).abs() < 1e-9, "subset delta {}", report.refuted_ate - original.ate);
+    assert!(
+        (report.refuted_ate - original.ate).abs() < 1e-9,
+        "subset delta {}",
+        report.refuted_ate - original.ate
+    );
 }
 
 /// A non-default `LinearAdjustmentAte` config (e.g. `se_kind = AnalyticSeKind::Hc1`) set on a

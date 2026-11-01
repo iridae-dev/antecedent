@@ -402,7 +402,9 @@ fn parse_row(index: usize, fields: &[(String, Value)]) -> Result<MissingRouteSup
     if inference.is_empty() {
         return Err(at("`inference` is empty".to_owned()));
     }
-    if !["static", "randomized", "panel", "temporal", "temporal_design", "attribution"].contains(&family.as_str()) {
+    if !["static", "randomized", "panel", "temporal", "temporal_design", "attribution"]
+        .contains(&family.as_str())
+    {
         return Err(at(format!("unknown family `{family}`")));
     }
     let policy = |name: &str| {

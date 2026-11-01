@@ -973,7 +973,8 @@ fn stratification_oracle(study: &Study, k: usize) -> (f64, f64, Vec<f64>) {
         (0..n).map(|i| sigmoid(beta[0] + beta[1] * study.z[i]).clamp(1e-12, 1.0 - 1e-12)).collect();
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&a, &b| scores[a].total_cmp(&scores[b]).then(a.cmp(&b)));
-    let cuts: Vec<f64> = (1..k).map(|s| scores[order[((s * n).div_ceil(k) - 1).min(n - 1)]]).collect();
+    let cuts: Vec<f64> =
+        (1..k).map(|s| scores[order[((s * n).div_ceil(k) - 1).min(n - 1)]]).collect();
     let stratum: Vec<usize> = scores
         .iter()
         .map(|score| cuts.iter().position(|cut| score <= cut).unwrap_or(cuts.len()).min(k - 1))
@@ -1517,8 +1518,7 @@ fn weighted_logit_gcomp_oracle(study: &Study) -> (f64, f64) {
         let (m1, m0) = (sigmoid(eta(&beta, x1)), sigmoid(eta(&beta, x0)));
         ate += study.w[i] * (m1 - m0) / mass;
         for a in 0..3 {
-            gradient[a] +=
-                study.w[i] * (m1 * (1.0 - m1) * x1[a] - m0 * (1.0 - m0) * x0[a]) / mass;
+            gradient[a] += study.w[i] * (m1 * (1.0 - m1) * x1[a] - m0 * (1.0 - m0) * x0[a]) / mass;
             for b in 0..3 {
                 info[a][b] += study.w[i] * mu * (1.0 - mu) * xi[a] * xi[b];
                 meat[a][b] += (study.w[i] * (study.y[i] - mu)).powi(2) * xi[a] * xi[b];
@@ -1717,8 +1717,7 @@ fn the_dr_learner_publishes_weighted_pointwise_standard_errors() {
     let psi = fit.scores.influence.as_ref().expect("weighted influence");
     let n = study.len();
     let mass: f64 = study.w.iter().sum();
-    let phi: Vec<f64> =
-        (0..n).map(|i| psi[i] * mass / (n as f64 * study.w[i]) + fit.ate).collect();
+    let phi: Vec<f64> = (0..n).map(|i| psi[i] * mass / (n as f64 * study.w[i]) + fit.ate).collect();
     let x: Vec<Vec<f64>> = study.z.iter().map(|&z| vec![1.0, z]).collect();
     let beta = weighted_least_squares(&x, &phi, &study.w);
     let mut xtwx = vec![vec![0.0; 2]; 2];

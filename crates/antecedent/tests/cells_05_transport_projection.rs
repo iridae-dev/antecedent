@@ -79,11 +79,8 @@ fn counted(columns: &[Vec<f64>; 5]) -> f64 {
     let total: f64 = (0..ROWS)
         .filter(|&row| columns[2][row] == 1.0)
         .map(|row| {
-            let (sign, arm) = if columns[0][row] == 1.0 {
-                (1.0, PROPENSITY)
-            } else {
-                (-1.0, 1.0 - PROPENSITY)
-            };
+            let (sign, arm) =
+                if columns[0][row] == 1.0 { (1.0, PROPENSITY) } else { (-1.0, 1.0 - PROPENSITY) };
             sign * (1.0 - SELECTION) / (SELECTION * arm) * columns[1][row]
         })
         .sum();
@@ -148,11 +145,8 @@ fn cells_05_transport_weights_are_read_and_the_probabilities_are_its_design_weig
         let by_hand: f64 = (0..ROWS)
             .filter(|&row| base[2][row] == 1.0)
             .map(|row| {
-                let (sign, arm) = if base[0][row] == 1.0 {
-                    (1.0, PROPENSITY)
-                } else {
-                    (-1.0, 1.0 - PROPENSITY)
-                };
+                let (sign, arm) =
+                    if base[0][row] == 1.0 { (1.0, PROPENSITY) } else { (-1.0, 1.0 - PROPENSITY) };
                 w[row] * sign * (1.0 - SELECTION) / (SELECTION * arm) * base[1][row]
             })
             .sum::<f64>()
@@ -163,9 +157,10 @@ fn cells_05_transport_weights_are_read_and_the_probabilities_are_its_design_weig
         assert!((got - counted(&base)).abs() > 1e-6, "the weights moved nothing");
         // Constant weights leave the contrast and its error where the unweighted rows have them.
         let unweighted = go(table(&base), |b| b).unwrap();
-        let constant = go(table(&base).with_weights(Arc::from(vec![3.0; ROWS])).unwrap(), |b| b)
-            .unwrap();
-        let se = |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
+        let constant =
+            go(table(&base).with_weights(Arc::from(vec![3.0; ROWS])).unwrap(), |b| b).unwrap();
+        let se =
+            |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
         assert!((ate(&constant) - ate(&unweighted)).abs() < 1e-12);
         assert!((se(&constant) - se(&unweighted)).abs() < 1e-12);
         // Weights declared on an estimator the transport route does not run change nothing.
@@ -226,7 +221,8 @@ fn cells_05_transport_missing_values_are_refused_never_read_as_a_value() {
         treatment[0][5] = f64::NAN;
         let mut indicator = columns();
         indicator[2][2] = f64::NAN;
-        for (what, data) in [("treatment of a trial row", treatment), ("trial indicator", indicator)]
+        for (what, data) in
+            [("treatment of a trial row", treatment), ("trial indicator", indicator)]
         {
             let error = refusal(go(table(&data), |b| b), what);
             assert_eq!(error.reason_code(), Some("missing_policy_required"), "{what}: {error}");
@@ -251,7 +247,8 @@ fn cells_05_transport_declared_dependence_is_honoured_or_refused() {
     run_on_large_stack(|| {
         let base = columns();
         let want = counted(&base);
-        let se = |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
+        let se =
+            |result: &StudyResult| result.estimate().as_effect().unwrap().uncertainty.analytic.se;
         // Independent subjects are what the delta-method interval and the row bootstrap cover.
         let independent = go(table(&base), |b| {
             b.sampling_design(DeclaredSamplingDesign::IndependentSubjectTrajectories)

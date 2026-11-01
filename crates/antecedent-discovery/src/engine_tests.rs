@@ -221,13 +221,8 @@ fn fdr_adjusts_full_mci_family() {
         let got = link.adjusted_p_value.expect("adjusted");
         assert!((got - expected).abs() < 1e-12, "{:?}: {got} vs {expected}", link.link);
     }
-    let expected_kept: std::collections::BTreeSet<_> = raw
-        .evidence
-        .links
-        .iter()
-        .filter(|s| bh(s.p_value) <= 0.05)
-        .map(|s| s.link)
-        .collect();
+    let expected_kept: std::collections::BTreeSet<_> =
+        raw.evidence.links.iter().filter(|s| bh(s.p_value) <= 0.05).map(|s| s.link).collect();
     assert_eq!(set_a, expected_kept);
     // The kept set is pinned at levels straddling the corrected value of the spurious
     // x_{t-2} -> y link (raw 0.034, BH 0.034 * 8 / 4 = 0.068): kept at 0.07, dropped at 0.065.
@@ -258,7 +253,8 @@ fn fdr_adjusts_full_mci_family() {
             .with_constraints(c)
             .run(&data, &vars, &mut ws, &ctx)
             .unwrap();
-        let got: std::collections::BTreeSet<_> = got.evidence.links.iter().map(|s| s.link).collect();
+        let got: std::collections::BTreeSet<_> =
+            got.evidence.links.iter().map(|s| s.link).collect();
         assert_eq!(got, expected, "alpha {alpha}");
         let spurious = LaggedLink {
             source: VariableId::from_raw(0),
@@ -952,4 +948,3 @@ fn mci_conditioning_shifts_target_parents_by_target_lag() {
     assert_eq!(dropped, 0);
     assert_eq!(out, vec![(z, Lag::from_raw(3)), (w, Lag::from_raw(1))]);
 }
-

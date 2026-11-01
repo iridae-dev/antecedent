@@ -16,6 +16,7 @@
 
 use std::sync::Arc;
 
+use antecedent::LocalPolynomialRatioQuery;
 use antecedent::{CausalError, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain,
@@ -24,7 +25,6 @@ use antecedent_core::{
     ResponseIdentification, ResponseQuery, ResponseValue, TemporalAssignment,
     TemporalDesignFunctional, TemporalDesignQuery, Value, VariableId,
 };
-use antecedent::LocalPolynomialRatioQuery;
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{AnalyticSeKind, LinearAdjustmentAte, SamplingWeights};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
@@ -79,9 +79,7 @@ fn edges() -> [(u32, u32); 5] {
 fn dag() -> Dag {
     let mut graph = Dag::with_variables(4);
     for (from, to) in edges() {
-        graph
-            .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
-            .unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
     }
     graph
 }
@@ -89,9 +87,7 @@ fn dag() -> Dag {
 fn admg() -> Admg {
     let mut graph = Admg::with_variables(4);
     for (from, to) in edges() {
-        graph
-            .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
-            .unwrap();
+        graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
     }
     graph
 }
@@ -155,8 +151,20 @@ fn routes() -> Vec<Route> {
     let ate = || CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(0), v(2)));
     let data = || table(&columns());
     let mut routes = vec![
-        Route { name: "average effect", data: data(), query: ate(), graph: Graph::Dag, replicates: 0 },
-        Route { name: "average effect on an ADMG", data: data(), query: ate(), graph: Graph::Admg, replicates: 0 },
+        Route {
+            name: "average effect",
+            data: data(),
+            query: ate(),
+            graph: Graph::Dag,
+            replicates: 0,
+        },
+        Route {
+            name: "average effect on an ADMG",
+            data: data(),
+            query: ate(),
+            graph: Graph::Admg,
+            replicates: 0,
+        },
         Route {
             name: "conditional effect",
             data: data(),
@@ -169,7 +177,13 @@ fn routes() -> Vec<Route> {
             graph: Graph::Admg,
             replicates: 0,
         },
-        Route { name: "natural-direct mediation", data: data(), query: mediation(), graph: Graph::Dag, replicates: 0 },
+        Route {
+            name: "natural-direct mediation",
+            data: data(),
+            query: mediation(),
+            graph: Graph::Dag,
+            replicates: 0,
+        },
         Route {
             name: "counterfactual",
             data: data(),
@@ -434,7 +448,8 @@ fn a_prepared_study_refuses_a_rebound_table_that_carries_weights() {
 }
 
 fn linear(weights: Option<Vec<f64>>) -> LinearAdjustmentAte {
-    let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1);
+    let estimator =
+        LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_se_kind(AnalyticSeKind::Hc1);
     match weights {
         Some(weights) => estimator.with_sampling_weights(SamplingWeights::new(weights).unwrap()),
         None => estimator,
@@ -446,7 +461,8 @@ fn estimator_declared_weights_on_the_average_effect_equal_row_replication() {
     let weights = integer_weights(N);
     let replicated = replicated(&columns(), &weights);
     for route in routes().into_iter().filter(|r| r.name.starts_with("average effect")) {
-        let honoured = run(&route, route.data.clone(), Some(linear(Some(weights.clone())))).unwrap();
+        let honoured =
+            run(&route, route.data.clone(), Some(linear(Some(weights.clone())))).unwrap();
         let copies = run(
             &Route { data: replicated.clone(), ..clone_route(&route) },
             replicated.clone(),
@@ -454,8 +470,7 @@ fn estimator_declared_weights_on_the_average_effect_equal_row_replication() {
         )
         .unwrap();
         let unweighted = run(&route, route.data.clone(), Some(linear(None))).unwrap();
-        let (got, want, plain) =
-            (headline(&honoured), headline(&copies), headline(&unweighted));
+        let (got, want, plain) = (headline(&honoured), headline(&copies), headline(&unweighted));
         assert!((got - want).abs() < 1e-9, "{}: weighted {got} vs replicated {want}", route.name);
         assert!((got - plain).abs() > 1e-4, "{}: weights changed nothing ({got})", route.name);
         let record = honoured.estimate().as_effect().unwrap().diagnostics.sampling_weights.clone();
@@ -464,23 +479,25 @@ fn estimator_declared_weights_on_the_average_effect_equal_row_replication() {
 }
 
 fn clone_route(route: &Route) -> Route {
-    Route { name: route.name, data: route.data.clone(), query: route.query.clone(), graph: route.graph, replicates: route.replicates }
+    Route {
+        name: route.name,
+        data: route.data.clone(),
+        query: route.query.clone(),
+        graph: route.graph,
+        replicates: route.replicates,
+    }
 }
 
 #[test]
 fn weights_declared_on_an_estimator_a_route_does_not_run_are_refused() {
     let weights = integer_weights(N);
-    for route in routes()
-        .into_iter()
-        .filter(|r| matches!(r.name, "counterfactual"))
-    {
+    for route in routes().into_iter().filter(|r| matches!(r.name, "counterfactual")) {
         let error = run(&route, route.data.clone(), Some(linear(Some(weights.clone()))))
             .err()
             .unwrap_or_else(|| panic!("{}: declared weights were ignored", route.name));
         assert_typed_weight_refusal(route.name, &error);
     }
 }
-
 
 // ---------------------------------------------------------------------------------------------
 // The conditional effect under sampling weights.
@@ -536,11 +553,7 @@ fn saturated_table(rows: &[(i128, i128, i128, i128)], weights: bool) -> TabularD
     let col = |f: fn(&(i128, i128, i128, i128)) -> i128| -> Vec<f64> {
         rows.iter().map(|r| f(r) as f64).collect()
     };
-    let data = table(&[
-        ("t", col(|r| r.1)),
-        ("w", col(|r| r.0)),
-        ("y", col(|r| r.2)),
-    ]);
+    let data = table(&[("t", col(|r| r.1)), ("w", col(|r| r.0)), ("y", col(|r| r.2))]);
     if weights { weighted(&data, col(|r| r.3)) } else { data }
 }
 
@@ -553,7 +566,8 @@ fn saturated_dag() -> Dag {
 }
 
 fn conditional_on(modifier: u32, functional: Option<OutcomeFunctional>) -> CausalQuery {
-    let mut inner = AverageEffectQuery::binary_ate(v(0), v(2)).with_effect_modifiers(vec![v(modifier)]);
+    let mut inner =
+        AverageEffectQuery::binary_ate(v(0), v(2)).with_effect_modifiers(vec![v(modifier)]);
     if let Some(functional) = functional {
         inner = inner.with_outcome_functional(functional);
     }
@@ -578,7 +592,8 @@ fn cell(rows: &[(i128, i128, i128, i128)], w: i128, t: i128) -> (i128, i128) {
 }
 
 #[test]
-fn a_weighted_conditional_effect_is_the_exact_weighted_stratum_contrast_with_the_weighted_sandwich() {
+fn a_weighted_conditional_effect_is_the_exact_weighted_stratum_contrast_with_the_weighted_sandwich()
+{
     let rows = saturated_rows();
     // Exact: tau_w = weighted mean of y at t=1 minus at t=0 in stratum w; the effect averages
     // tau_w over the weighted modifier shares p_w.
@@ -628,7 +643,7 @@ fn a_weighted_conditional_effect_is_the_exact_weighted_stratum_contrast_with_the
 
 #[test]
 fn integer_weights_on_the_conditional_effect_equal_the_replicated_rows_and_scale_free_weights_change_nothing()
-{
+ {
     let route = routes().into_iter().find(|r| r.name == "conditional effect").unwrap();
     let weights = integer_weights(N);
     let honoured = run(&route, weighted(&route.data, weights.clone()), None).unwrap();
@@ -639,12 +654,9 @@ fn integer_weights_on_the_conditional_effect_equal_the_replicated_rows_and_scale
     let se = |r: &StudyResult| r.estimate().as_effect().unwrap().se_analytic();
     assert!((se(&honoured) - se(&plain)).abs() > 1e-6, "weights changed nothing ({})", se(&plain));
 
-    let scaled = run(
-        &route,
-        weighted(&route.data, weights.iter().map(|w| 7.0 * w).collect()),
-        None,
-    )
-    .unwrap();
+    let scaled =
+        run(&route, weighted(&route.data, weights.iter().map(|w| 7.0 * w).collect()), None)
+            .unwrap();
     assert!((headline(&scaled) - got).abs() < 1e-12 && (se(&scaled) - se(&honoured)).abs() < 1e-12);
     let unit = run(&route, weighted(&route.data, vec![1.0; N]), None).unwrap();
     assert!((headline(&unit) - headline(&plain)).abs() < 1e-12);
@@ -662,8 +674,7 @@ fn integer_weights_on_the_conditional_effect_equal_the_replicated_rows_and_scale
         .collect();
     let trimmed_weights: Vec<f64> = kept.iter().map(|&i| weights[i]).collect();
     let zeroed = run(&route, weighted(&route.data, with_zeros), None).unwrap();
-    let deleted =
-        run(&route, weighted(&table(&trimmed_columns), trimmed_weights), None).unwrap();
+    let deleted = run(&route, weighted(&table(&trimmed_columns), trimmed_weights), None).unwrap();
     assert!((headline(&zeroed) - headline(&deleted)).abs() < 1e-9);
     assert!((se(&zeroed) - se(&deleted)).abs() < 1e-9);
     let record = zeroed.estimate().as_effect().unwrap().diagnostics.sampling_weights.unwrap();
@@ -709,7 +720,12 @@ fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail(
             Graph::Admg => builder.graph(admg()),
             _ => builder.graph(dag()),
         };
-        builder.refute(suite).bootstrap_replicates(0).query(query).build()?.run(&ExecutionContext::for_tests(5))
+        builder
+            .refute(suite)
+            .bootstrap_replicates(0)
+            .query(query)
+            .build()?
+            .run(&ExecutionContext::for_tests(5))
     };
     // Refuters refit the unweighted rows.
     for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
@@ -728,9 +744,7 @@ fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail(
     // The general-ID functional of a bidirected ADMG fits unweighted rows.
     let mut bidirected = Admg::with_variables(4);
     for (from, to) in edges() {
-        bidirected
-            .insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
-            .unwrap();
+        bidirected.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
     }
     bidirected.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
     let error = Study::tabular(data.clone())

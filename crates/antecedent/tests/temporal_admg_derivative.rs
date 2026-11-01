@@ -290,8 +290,10 @@ fn several_horizons_publish_one_slope_each_and_a_horizon_without_a_path_is_the_s
 fn a_single_horizon_without_a_path_publishes_the_structural_zero_with_a_degenerate_band() {
     // Horizon 3 alone: no directed path from `x(t-1)` to `y(t+2)`, so the scalar slope is the
     // structural zero for either inference mode, not the regression association.
-    for inference in [InferenceMode::Frequentist, InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64))]
-    {
+    for inference in [
+        InferenceMode::Frequentist,
+        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)),
+    ] {
         let result = Study::series(series())
             .graph(template())
             .query(derivative_at(vec![3]))

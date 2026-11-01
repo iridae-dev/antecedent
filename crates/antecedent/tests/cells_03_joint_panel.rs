@@ -221,9 +221,9 @@ fn weighted(data: &PanelData, weights: &[f64]) -> PanelData {
     for (index, weight) in weights.iter().enumerate() {
         let series = &data.units()[index].series;
         let rows = series.row_count();
-        result =
-            result.with_unit_series(index, series.with_weights(vec![*weight; rows].into()).unwrap())
-                .unwrap();
+        result = result
+            .with_unit_series(index, series.with_weights(vec![*weight; rows].into()).unwrap())
+            .unwrap();
     }
     result
 }
@@ -301,7 +301,8 @@ fn cells_03_joint_panel_reads_sampling_weights_and_analysis_masks() {
     assert!(plain.data_accounting().is_complete() && !plain.data_accounting().weighted);
 
     // Equal weights are the unweighted panel: the engine receives the same data.
-    let equal = Study::prepare_joint_panel(weighted(&data, &[2.5; 4]), request.clone(), &ctx()).unwrap();
+    let equal =
+        Study::prepare_joint_panel(weighted(&data, &[2.5; 4]), request.clone(), &ctx()).unwrap();
     assert_eq!(equal.model_data(), plain.model_data());
     assert!(!equal.data_accounting().weighted);
     // An analysis mask that hides nothing is the same panel.
@@ -324,7 +325,8 @@ fn cells_03_joint_panel_reads_sampling_weights_and_analysis_masks() {
     let weighted_panel =
         Study::prepare_joint_panel(weighted(&data, &weights), request.clone(), &ctx()).unwrap();
     assert!(weighted_panel.data_accounting().weighted);
-    let normalized: Vec<f64> = weighted_panel.model_data().groups.iter().map(|g| g.weight).collect();
+    let normalized: Vec<f64> =
+        weighted_panel.model_data().groups.iter().map(|g| g.weight).collect();
     let mean_weight = 7.0 / 4.0;
     for (got, want) in normalized.iter().zip(weights) {
         assert!((got - want / mean_weight).abs() < 1e-15, "{normalized:?}");
@@ -489,10 +491,11 @@ fn cells_03_joint_panel_declares_a_missing_policy_and_accounts_for_every_missing
         assert_eq!(accounting.periods_total() - accounting.periods_analysed(), excluded.len());
         assert!(!accounting.is_complete());
         let group = &prepared.model_data().groups[2];
-        let hidden: Vec<usize> =
-            (0..24).filter(|&period| group.outcome[period].is_nan()).collect();
+        let hidden: Vec<usize> = (0..24).filter(|&period| group.outcome[period].is_nan()).collect();
         assert_eq!(hidden, excluded, "column {column}");
-        assert!(group.outcome.iter().filter(|value| value.is_finite()).count() == 24 - excluded.len());
+        assert!(
+            group.outcome.iter().filter(|value| value.is_finite()).count() == 24 - excluded.len()
+        );
         assert!(prepared.data_accounting().policy == PanelMissingPolicy::DropPeriods);
     }
     // The fit of a panel with a missing outcome is finite and the policy is part of the
@@ -543,7 +546,9 @@ fn cells_03_joint_panel_declares_a_missing_policy_and_accounts_for_every_missing
     assert_eq!(accounting.units_analysed(), 3);
     assert_eq!(accounting.units[2].dropped, Some(PanelUnitDrop::MissingCell));
     assert_eq!(dropped.model_data().groups.len(), 3);
-    assert!(dropped.model_data().groups.iter().all(|group| group.outcome.iter().all(|v| v.is_finite())));
+    assert!(
+        dropped.model_data().groups.iter().all(|group| group.outcome.iter().all(|v| v.is_finite()))
+    );
     assert_ne!(prepared.inspect().source_identity, dropped.inspect().source_identity);
 }
 
@@ -583,7 +588,13 @@ fn cells_03_joint_panel_drops_a_unit_with_no_analysable_period_and_records_it() 
 /// Level code of a dose at a row: no dose is `none`, a dose on an even row is `low`, on an odd
 /// row `high` (the fixture's doses are 0 or 4, so the split is by row).
 fn level_of(value: f64, row: usize) -> u32 {
-    if value <= 0.0 { 0 } else if row % 2 == 0 { 1 } else { 2 }
+    if value <= 0.0 {
+        0
+    } else if row % 2 == 0 {
+        1
+    } else {
+        2
+    }
 }
 
 fn rebuilt_levels(data: &PanelData, levels: &[&str]) -> PanelData {
@@ -694,7 +705,9 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
         let original = source.series.float64_cow(VariableId::from_raw(0)).unwrap();
         let low = unit.series.float64_cow(coded.columns.channels[0]).unwrap();
         let high = unit.series.float64_cow(coded.columns.channels[1]).unwrap();
-        for (row, ((value, low), high)) in original.iter().zip(low.iter()).zip(high.iter()).enumerate() {
+        for (row, ((value, low), high)) in
+            original.iter().zip(low.iter()).zip(high.iter()).enumerate()
+        {
             assert_eq!(*low, f64::from(u8::from(level_of(*value, row) == 1)));
             assert_eq!(*high, f64::from(u8::from(level_of(*value, row) == 2)));
         }
@@ -798,10 +811,16 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
         .iter()
         .map(|unit| {
             let a = unit.series.float64_cow(VariableId::from_raw(0)).unwrap();
-            let low: Vec<f64> =
-                a.iter().enumerate().map(|(row, v)| f64::from(u8::from(level_of(*v, row) == 1))).collect();
-            let high: Vec<f64> =
-                a.iter().enumerate().map(|(row, v)| f64::from(u8::from(level_of(*v, row) == 2))).collect();
+            let low: Vec<f64> = a
+                .iter()
+                .enumerate()
+                .map(|(row, v)| f64::from(u8::from(level_of(*v, row) == 1)))
+                .collect();
+            let high: Vec<f64> = a
+                .iter()
+                .enumerate()
+                .map(|(row, v)| f64::from(u8::from(level_of(*v, row) == 2)))
+                .collect();
             let rest: Vec<Vec<f64>> = (1..5_u32)
                 .map(|id| unit.series.float64_cow(VariableId::from_raw(id)).unwrap().into_owned())
                 .collect();
@@ -830,7 +849,10 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
 
     // Refusals: every one names its cause and none recodes anything silently.
     let refuse = |panel: &PanelData, categorical: Vec<PanelCategoricalChannel>| {
-        dummy_code_panel(panel, &fixture::columns(), &categorical).err().expect("refused").to_string()
+        dummy_code_panel(panel, &fixture::columns(), &categorical)
+            .err()
+            .expect("refused")
+            .to_string()
     };
     let mut wrong_set = declared.clone();
     wrong_set.levels = vec!["none".into(), "low".into()];
@@ -838,15 +860,21 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
     let mut outside = declared.clone();
     outside.reference = "mid".into();
     assert!(refuse(&categorical, vec![outside]).contains("one of them the reference"));
-    assert!(refuse(&data, vec![declared.clone()]).contains("is declared categorical but its column is not"));
+    assert!(
+        refuse(&data, vec![declared.clone()])
+            .contains("is declared categorical but its column is not")
+    );
     let mut not_a_channel = declared.clone();
     not_a_channel.variable = VariableId::from_raw(2);
     assert!(refuse(&categorical, vec![not_a_channel]).contains("not one of the declared channels"));
-    assert!(refuse(&categorical, vec![declared.clone(), declared.clone()]).contains("declared twice"));
+    assert!(
+        refuse(&categorical, vec![declared.clone(), declared.clone()]).contains("declared twice")
+    );
     // A declared level no unit assigns has no identified effect; here `low` is never assigned.
     let two_levels = categorical_panel(&data);
     assert!(
-        refuse(&two_levels, vec![declared]).contains("is assigned in no unit; its effect is not identified")
+        refuse(&two_levels, vec![declared])
+            .contains("is assigned in no unit; its effect is not identified")
     );
     // The categorical column still cannot be read as a dose without the declaration.
     let error = refusal(Study::prepare_joint_panel(categorical, plain_request(&data), &ctx()));
@@ -889,8 +917,9 @@ fn cells_03_joint_panel_refuses_constant_collinear_and_flat_outcome_designs() {
     assert!(error.to_string().contains("nonfinite local likelihood score"), "{error}");
 }
 
-const ORACLE: &str =
-    include_str!("../../antecedent-estimate/tests/oracle_data/joint_panel_weights_gaps_reference.json");
+const ORACLE: &str = include_str!(
+    "../../antecedent-estimate/tests/oracle_data/joint_panel_weights_gaps_reference.json"
+);
 
 fn number(value: &serde_json::Value) -> f64 {
     value.as_f64().unwrap_or(f64::NAN)
@@ -908,7 +937,8 @@ fn oracle_panel(case: &serde_json::Value, hidden: &[(usize, usize)], weighted: b
         .iter()
         .enumerate()
         .map(|(index, group)| {
-            let history: Vec<f64> = group["history"].as_array().unwrap().iter().map(number).collect();
+            let history: Vec<f64> =
+                group["history"].as_array().unwrap().iter().map(number).collect();
             let channel: Vec<f64> = history
                 .iter()
                 .copied()
@@ -1068,7 +1098,8 @@ fn cells_03_joint_panel_weighted_masked_and_missing_fits_match_the_dense_covaria
         for (world, program) in ["reference", "treated"].into_iter().enumerate() {
             let expected: Vec<f64> =
                 case["responses"][program].as_array().unwrap().iter().map(number).collect();
-            for (period, (got, want)) in result.point[world].means.iter().zip(&expected).enumerate() {
+            for (period, (got, want)) in result.point[world].means.iter().zip(&expected).enumerate()
+            {
                 assert!(
                     (got - want).abs() <= 2e-3 * (1.0 + want.abs()),
                     "{name} {program} period {period}: {got} vs dense {want}"
@@ -1113,7 +1144,11 @@ fn cells_03_joint_panel_pools_multiply_imputed_responses_with_rubins_rules() {
     assert_eq!(result.horizons, vec![24; 4]);
     assert_eq!(result.fits.len(), 4);
     assert_eq!(
-        result.imputed_cells.iter().map(|(name, count)| (name.as_ref(), *count)).collect::<Vec<_>>(),
+        result
+            .imputed_cells
+            .iter()
+            .map(|(name, count)| (name.as_ref(), *count))
+            .collect::<Vec<_>>(),
         vec![("outcome", 3), ("confounder", 1)]
     );
     let PooledVectorEstimate::Rubin(pooled) = &result.pooled else {

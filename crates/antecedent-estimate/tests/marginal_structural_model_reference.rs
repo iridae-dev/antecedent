@@ -131,7 +131,9 @@ fn declarations_that_would_be_ignored_are_refused() {
         )
     };
     assert!(run(&[0.5, 0.5], 0.01, &p, &observed, 2).is_ok());
-    let message = |error: antecedent_estimate::longitudinal_regime::RegimeKernelError| error.message().to_owned();
+    let message = |error: antecedent_estimate::longitudinal_regime::RegimeKernelError| {
+        error.message().to_owned()
+    };
     assert_eq!(
         message(run(&[0.5, 0.5, 0.5], 0.01, &p, &observed, 2).unwrap_err()),
         "MSM arrays must have matching subject and period dimensions",

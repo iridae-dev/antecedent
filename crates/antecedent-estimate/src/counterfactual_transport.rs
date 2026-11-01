@@ -52,7 +52,10 @@ struct RetainedSliceInner<T> {
     leases: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 impl<T> RetainedSlice<T> {
-    pub(crate) fn new(values: Vec<T>, leases: Vec<Arc<antecedent_core::execution::AdmissionLease>>) -> Self {
+    pub(crate) fn new(
+        values: Vec<T>,
+        leases: Vec<Arc<antecedent_core::execution::AdmissionLease>>,
+    ) -> Self {
         Self(Arc::new(RetainedSliceInner { values, leases }))
     }
     /// Bytes reserved with this shared collection, not allocator or RSS instrumentation.
@@ -63,21 +66,31 @@ impl<T> RetainedSlice<T> {
 }
 impl<T> std::ops::Deref for RetainedSlice<T> {
     type Target = [T];
-    fn deref(&self) -> &[T] { &self.0.values }
+    fn deref(&self) -> &[T] {
+        &self.0.values
+    }
 }
 impl<T> AsRef<[T]> for RetainedSlice<T> {
-    fn as_ref(&self) -> &[T] { &self.0.values }
+    fn as_ref(&self) -> &[T] {
+        &self.0.values
+    }
 }
 impl<'a, T> IntoIterator for &'a RetainedSlice<T> {
     type Item = &'a T;
     type IntoIter = std::slice::Iter<'a, T>;
-    fn into_iter(self) -> Self::IntoIter { self.0.values.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.values.iter()
+    }
 }
 impl<T: std::fmt::Debug> std::fmt::Debug for RetainedSlice<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { std::fmt::Debug::fmt(&self.0.values, f) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0.values, f)
+    }
 }
 impl<T: PartialEq> PartialEq for RetainedSlice<T> {
-    fn eq(&self, other: &Self) -> bool { self.0.values == other.0.values }
+    fn eq(&self, other: &Self) -> bool {
+        self.0.values == other.0.values
+    }
 }
 
 /// A law the evaluation read, with the identities the derivation cites.
@@ -220,20 +233,26 @@ impl SetupBudget<'_> {
             return Err(Failure::Budget("the exact evaluation was cancelled").into_error());
         }
         if amount == usize::MAX {
-            return Err(Failure::Budget("the exact evaluation operation budget is exhausted").into_error());
+            return Err(
+                Failure::Budget("the exact evaluation operation budget is exhausted").into_error()
+            );
         }
         let amount = u64::try_from(amount).unwrap_or(u64::MAX);
-        self.work = self.work.checked_add(amount)
-            .ok_or_else(|| Failure::Budget("the exact evaluation operation budget is exhausted").into_error())?;
+        self.work = self.work.checked_add(amount).ok_or_else(|| {
+            Failure::Budget("the exact evaluation operation budget is exhausted").into_error()
+        })?;
         if self.work > self.limit {
-            return Err(Failure::Budget("the exact evaluation operation budget is exhausted").into_error());
+            return Err(
+                Failure::Budget("the exact evaluation operation budget is exhausted").into_error()
+            );
         }
         Ok(())
     }
     fn reserve(&mut self, bytes: usize) -> Result<(), EstimationError> {
         self.charge(0)?;
-        let used = self.used.checked_add(bytes)
-            .ok_or_else(|| Failure::Budget("the exact evaluation setup size overflows").into_error())?;
+        let used = self.used.checked_add(bytes).ok_or_else(|| {
+            Failure::Budget("the exact evaluation setup size overflows").into_error()
+        })?;
         if used > self.reserved {
             let needed = used - self.reserved;
             // Amortize small allocations, but do not reject a request that fits
@@ -244,16 +263,22 @@ impl SetupBudget<'_> {
             };
             let (lease, acquired) = match acquire(block) {
                 Some(lease) => (lease, block),
-                None => (acquire(needed).ok_or_else(|| Failure::Budget("the exact evaluation setup exceeds memory admission").into_error())?, needed),
+                None => (
+                    acquire(needed).ok_or_else(|| {
+                        Failure::Budget("the exact evaluation setup exceeds memory admission")
+                            .into_error()
+                    })?,
+                    needed,
+                ),
             };
-            self.reserved = self.reserved.checked_add(acquired)
-                .ok_or_else(|| Failure::Budget("the exact evaluation setup size overflows").into_error())?;
+            self.reserved = self.reserved.checked_add(acquired).ok_or_else(|| {
+                Failure::Budget("the exact evaluation setup size overflows").into_error()
+            })?;
             self.leases.push(lease);
         }
         self.used = used;
         Ok(())
     }
-
 }
 
 // Upper bound the catalog scans that the shared validator performs. Each
@@ -266,7 +291,8 @@ fn charge_catalog_validation(
     let mut regime_fields = 0usize;
     for regime in catalog.regimes.iter() {
         work.charge(1)?;
-        regime_fields = regime_fields.saturating_add(1)
+        regime_fields = regime_fields
+            .saturating_add(1)
             .saturating_add(regime.measured.len())
             .saturating_add(regime.interventions.len())
             .saturating_add(regime.intervention_values.len());
@@ -285,10 +311,25 @@ fn charge_catalog_validation(
                 intervention_size = intervention_size.saturating_add(text.len());
             }
         }
-        let mut units = catalog.regimes.len().saturating_mul(law.population().len().saturating_add(1))
-            .saturating_add(catalog.bindings.len().saturating_mul(law.snapshot_identity().len().saturating_add(1)))
+        let mut units = catalog
+            .regimes
+            .len()
+            .saturating_mul(law.population().len().saturating_add(1))
+            .saturating_add(
+                catalog
+                    .bindings
+                    .len()
+                    .saturating_mul(law.snapshot_identity().len().saturating_add(1)),
+            )
             .saturating_add(intervention_size.saturating_mul(regime_fields.saturating_add(1)))
-            .saturating_add(law.axes().len().saturating_mul(regime_fields.saturating_add(catalog.environments.len()).saturating_add(coordinates).saturating_add(1)));
+            .saturating_add(
+                law.axes().len().saturating_mul(
+                    regime_fields
+                        .saturating_add(catalog.environments.len())
+                        .saturating_add(coordinates)
+                        .saturating_add(1),
+                ),
+            );
         for axis in law.axes() {
             work.charge(1)?;
             units = units.saturating_add(coordinates.saturating_mul(
@@ -309,13 +350,17 @@ fn validate_execution_shape(
     work: &mut SetupBudget<'_>,
 ) -> Result<(), EstimationError> {
     work.charge(derivation.items.len())?;
-    let item_bytes = derivation.items.len().checked_mul(2 * std::mem::size_of::<usize>() + 2)
-        .ok_or_else(|| Failure::Budget("the exact evaluation shape size overflows").into_error())?;
+    let item_bytes =
+        derivation.items.len().checked_mul(2 * std::mem::size_of::<usize>() + 2).ok_or_else(
+            || Failure::Budget("the exact evaluation shape size overflows").into_error(),
+        )?;
     work.reserve(item_bytes)?;
     let mut colors = vec![0u8; derivation.items.len()];
     for start in 0..derivation.items.len() {
         work.charge(1)?;
-        if colors[start] != 0 { continue; }
+        if colors[start] != 0 {
+            continue;
+        }
         let mut current = start;
         let mut trail = Vec::new();
         loop {
@@ -343,28 +388,37 @@ fn validate_execution_shape(
                 }
             };
         }
-        for index in trail { work.charge(1)?; colors[index] = 2; }
+        for index in trail {
+            work.charge(1)?;
+            colors[index] = 2;
+        }
     }
     let mut pending = vec![(&derivation.numerator, 0usize), (&derivation.denominator, 0usize)];
-    if let Some(guard) = &derivation.positivity_guard { pending.push((guard, 0)); }
+    if let Some(guard) = &derivation.positivity_guard {
+        pending.push((guard, 0));
+    }
     while let Some((functional, depth)) = pending.pop() {
         work.charge(1)?;
         // Cover both the validation and later execution frame/value stacks.
         work.reserve(128)?;
         if depth > depth_limit {
-            return Err(Failure::Budget("the exact evaluation depth budget is exhausted").into_error());
+            return Err(
+                Failure::Budget("the exact evaluation depth budget is exhausted").into_error()
+            );
         }
         match functional {
             CounterfactualFunctional::Zero => {}
             CounterfactualFunctional::Complement { whole, flipped, .. } => {
-                let next = depth.checked_add(1)
-                    .ok_or_else(|| Failure::Budget("the exact evaluation depth budget is exhausted").into_error())?;
+                let next = depth.checked_add(1).ok_or_else(|| {
+                    Failure::Budget("the exact evaluation depth budget is exhausted").into_error()
+                })?;
                 pending.push((whole, next));
                 pending.push((flipped, next));
             }
             CounterfactualFunctional::Sum(sum) => {
-                let bytes = sum.symbols.len().checked_mul(160)
-                    .ok_or_else(|| Failure::Budget("the exact evaluation sum size overflows").into_error())?;
+                let bytes = sum.symbols.len().checked_mul(160).ok_or_else(|| {
+                    Failure::Budget("the exact evaluation sum size overflows").into_error()
+                })?;
                 work.reserve(bytes)?;
                 for symbol in &sum.symbols {
                     work.charge(1)?;
@@ -438,18 +492,25 @@ struct ItemStack {
     leases: Vec<antecedent_core::execution::AdmissionLease>,
 }
 impl ItemStack {
-    fn new() -> Self { Self { frames: Vec::new(), leases: Vec::new() } }
+    fn new() -> Self {
+        Self { frames: Vec::new(), leases: Vec::new() }
+    }
     fn push(&mut self, frame: ItemFrame, ctx: &ExecutionContext) -> Result<(), Failure> {
         if self.frames.len() == self.frames.capacity() {
             // At most 31 problem coordinates; cover each frame's two possible
             // coordinate vectors as well as the enum storage.
             const BLOCK: usize = 32;
-            let per_frame = std::mem::size_of::<ItemFrame>().saturating_add(31 * 2 * std::mem::size_of::<usize>());
-            let bytes = BLOCK.checked_mul(per_frame).and_then(|n| u64::try_from(n).ok())
+            let per_frame = std::mem::size_of::<ItemFrame>()
+                .saturating_add(31 * 2 * std::mem::size_of::<usize>());
+            let bytes = BLOCK
+                .checked_mul(per_frame)
+                .and_then(|n| u64::try_from(n).ok())
                 .ok_or(Failure::Budget("the exact evaluation stack size overflows"))?;
-            let lease = ctx.acquire_admission(0, bytes)
-                .map_err(|_| Failure::Budget("the exact evaluation stack exceeds memory admission"))?;
-            self.frames.try_reserve_exact(BLOCK)
+            let lease = ctx.acquire_admission(0, bytes).map_err(|_| {
+                Failure::Budget("the exact evaluation stack exceeds memory admission")
+            })?;
+            self.frames
+                .try_reserve_exact(BLOCK)
                 .map_err(|_| Failure::Budget("the exact evaluation stack allocation failed"))?;
             self.leases.push(lease);
         }
@@ -487,24 +548,34 @@ impl Engine<'_> {
             return Err(Failure::Budget("the exact evaluation was cancelled"));
         }
         let amount = u64::try_from(amount).unwrap_or(u64::MAX);
-        self.work = self.work.checked_add(amount)
+        self.work = self
+            .work
+            .checked_add(amount)
             .ok_or(Failure::Budget("the exact evaluation operation budget is exhausted"))?;
         if self.work > self.limit {
             return Err(Failure::Budget("the exact evaluation operation budget is exhausted"));
         }
         Ok(())
     }
-    fn tick(&mut self) -> Result<(), Failure> { self.charge(1) }
+    fn tick(&mut self) -> Result<(), Failure> {
+        self.charge(1)
+    }
 
     fn retain_factor(&mut self, key: (usize, Vec<usize>), value: f64) -> Result<(), Failure> {
         self.tick()?;
-        let bytes = key.1.len().checked_mul(std::mem::size_of::<usize>())
+        let bytes = key
+            .1
+            .len()
+            .checked_mul(std::mem::size_of::<usize>())
             .and_then(|n| n.checked_add(256))
             .and_then(|n| u64::try_from(n).ok())
             .ok_or(Failure::Budget("the exact factor cache size overflows"))?;
-        let lease = self.ctx.acquire_admission(0, bytes)
+        let lease = self
+            .ctx
+            .acquire_admission(0, bytes)
             .map_err(|_| Failure::Budget("the exact factor cache exceeds memory admission"))?;
-        self.factor_cache.try_reserve(1)
+        self.factor_cache
+            .try_reserve(1)
             .map_err(|_| Failure::Budget("the exact factor cache allocation failed"))?;
         self.factor_cache.insert(key, value);
         self.factor_cache_leases.push(lease);
@@ -553,15 +624,22 @@ impl Engine<'_> {
     }
 
     fn ensure_item_cache(&mut self, item: usize) -> Result<(), Failure> {
-        if self.tables[item].is_some() { return Ok(()); }
+        if self.tables[item].is_some() {
+            return Ok(());
+        }
         self.charge(self.total)?;
-        let bytes = self.total.checked_mul(std::mem::size_of::<f64>())
+        let bytes = self
+            .total
+            .checked_mul(std::mem::size_of::<f64>())
             .and_then(|bytes| u64::try_from(bytes).ok())
             .ok_or(Failure::Budget("the exact evaluation cache size overflows"))?;
-        let lease = self.ctx.acquire_admission(0, bytes)
+        let lease = self
+            .ctx
+            .acquire_admission(0, bytes)
             .map_err(|_| Failure::Budget("the exact evaluation cache exceeds memory admission"))?;
         let mut table = Vec::new();
-        table.try_reserve_exact(self.total)
+        table
+            .try_reserve_exact(self.total)
             .map_err(|_| Failure::Budget("the exact evaluation cache allocation failed"))?;
         while table.len() < self.total {
             self.charge(0)?;
@@ -580,7 +658,9 @@ impl Engine<'_> {
             return Err(Failure::Invalid("a derivation references an invalid item or cell"));
         }
         if let Some(table) = &self.tables[item] {
-            if table[idx] != UNSET { return Ok(table[idx]); }
+            if table[idx] != UNSET {
+                return Ok(table[idx]);
+            }
         }
         let mut stack = ItemStack::new();
         stack.push(ItemFrame::Value { item, idx, depth: 0 }, self.ctx)?;
@@ -589,47 +669,93 @@ impl Engine<'_> {
             self.tick()?;
             match frame {
                 ItemFrame::Value { item, idx, depth } => {
-                    if depth > self.depth_limit { return Err(Failure::Budget("the exact evaluation depth budget is exhausted")); }
+                    if depth > self.depth_limit {
+                        return Err(Failure::Budget(
+                            "the exact evaluation depth budget is exhausted",
+                        ));
+                    }
                     if item >= self.items.len() || idx >= self.total {
-                        return Err(Failure::Invalid("a derivation references an invalid item or cell"));
+                        return Err(Failure::Invalid(
+                            "a derivation references an invalid item or cell",
+                        ));
                     }
                     if let Some(table) = &self.tables[item] {
-                        if table[idx] != UNSET { returned = Some(table[idx]); continue; }
+                        if table[idx] != UNSET {
+                            returned = Some(table[idx]);
+                            continue;
+                        }
                     }
                     self.ensure_item_cache(item)?;
                     let entry = self.items[item];
                     stack.push(ItemFrame::Store { item, idx }, self.ctx)?;
-                    let next = depth.checked_add(1).ok_or(Failure::Budget("the exact evaluation depth budget is exhausted"))?;
+                    let next = depth
+                        .checked_add(1)
+                        .ok_or(Failure::Budget("the exact evaluation depth budget is exhausted"))?;
                     match entry.source {
                         CounterfactualItemSource::Transfer { from } => {
-                            stack.push(ItemFrame::Value { item: from, idx, depth: next }, self.ctx)?;
+                            stack.push(
+                                ItemFrame::Value { item: from, idx, depth: next },
+                                self.ctx,
+                            )?;
                         }
                         CounterfactualItemSource::Marginal { from } => {
                             let dropped = self.items[from].variables & !entry.variables;
-                            let dims: Vec<_> = (0..self.cards.len()).filter(|v| (dropped >> *v) & 1 == 1).collect();
+                            let dims: Vec<_> = (0..self.cards.len())
+                                .filter(|v| (dropped >> *v) & 1 == 1)
+                                .collect();
                             let counters = vec![0; dims.len()];
-                            stack.push(ItemFrame::Sum(ItemSum { item: from, base: idx, dims, counters, total: 0.0, sentinel: None, depth: next }), self.ctx)?;
+                            stack.push(
+                                ItemFrame::Sum(ItemSum {
+                                    item: from,
+                                    base: idx,
+                                    dims,
+                                    counters,
+                                    total: 0.0,
+                                    sentinel: None,
+                                    depth: next,
+                                }),
+                                self.ctx,
+                            )?;
                         }
                         CounterfactualItemSource::Extract { from } => {
-                            stack.push(ItemFrame::Extract(ItemExtract {
-                                from, idx, variables: entry.variables, all: self.items[from].variables,
-                                axis: 0, level: 0, actual: 0, later: Vec::new(), masses: Vec::new(),
-                                masses_lease: None, product: 1.0, sentinel: None, zero: false, depth: next,
-                            }), self.ctx)?;
+                            stack.push(
+                                ItemFrame::Extract(ItemExtract {
+                                    from,
+                                    idx,
+                                    variables: entry.variables,
+                                    all: self.items[from].variables,
+                                    axis: 0,
+                                    level: 0,
+                                    actual: 0,
+                                    later: Vec::new(),
+                                    masses: Vec::new(),
+                                    masses_lease: None,
+                                    product: 1.0,
+                                    sentinel: None,
+                                    zero: false,
+                                    depth: next,
+                                }),
+                                self.ctx,
+                            )?;
                         }
                         CounterfactualItemSource::Regime { intervened, .. } => {
                             let key: Vec<usize> = (0..self.cards.len())
                                 .filter(|v| (intervened >> *v) & 1 == 1)
-                                .map(|v| self.level_at(idx, v)).collect();
-                            let levels: Vec<usize> = (0..self.cards.len()).map(|v| self.level_at(idx, v)).collect();
+                                .map(|v| self.level_at(idx, v))
+                                .collect();
+                            let levels: Vec<usize> =
+                                (0..self.cards.len()).map(|v| self.level_at(idx, v)).collect();
                             if let Some(view) = self.laws[item].get(&key) {
                                 let mut flat = 0usize;
                                 for (axis, &variable) in view.axes.iter().enumerate() {
-                                    flat += view.positions[axis][levels[variable]] * view.strides[axis];
+                                    flat +=
+                                        view.positions[axis][levels[variable]] * view.strides[axis];
                                 }
                                 self.reads += 1;
                                 returned = Some(view.probabilities[flat]);
-                            } else { returned = Some(MISSING); }
+                            } else {
+                                returned = Some(MISSING);
+                            }
                         }
                     }
                 }
@@ -639,19 +765,28 @@ impl Engine<'_> {
                 }
                 ItemFrame::Sum(sum) => {
                     let mut cursor = sum.base;
-                    for (k, &d) in sum.dims.iter().enumerate() { cursor = self.with_level(cursor, d, sum.counters[k]); }
+                    for (k, &d) in sum.dims.iter().enumerate() {
+                        cursor = self.with_level(cursor, d, sum.counters[k]);
+                    }
                     let item = sum.item;
                     let depth = sum.depth;
                     stack.push(ItemFrame::SumAfter(sum), self.ctx)?;
                     stack.push(ItemFrame::Value { item, idx: cursor, depth }, self.ctx)?;
                 }
                 ItemFrame::SumAfter(mut sum) => {
-                    let value = returned.take().ok_or(Failure::Invalid("invalid sum continuation"))?;
-                    if value < 0.0 { sum.sentinel = Some(sum.sentinel.map_or(value, |s| s.min(value))); }
-                    else { sum.total += value; }
+                    let value =
+                        returned.take().ok_or(Failure::Invalid("invalid sum continuation"))?;
+                    if value < 0.0 {
+                        sum.sentinel = Some(sum.sentinel.map_or(value, |s| s.min(value)));
+                    } else {
+                        sum.total += value;
+                    }
                     let mut k = sum.dims.len();
                     loop {
-                        if k == 0 { returned = Some(sum.sentinel.unwrap_or(sum.total)); break; }
+                        if k == 0 {
+                            returned = Some(sum.sentinel.unwrap_or(sum.total));
+                            break;
+                        }
                         k -= 1;
                         sum.counters[k] += 1;
                         if sum.counters[k] < self.cards[sum.dims[k]] {
@@ -662,21 +797,38 @@ impl Engine<'_> {
                     }
                 }
                 ItemFrame::Extract(mut state) => {
-                    while state.axis < self.cards.len() && (state.variables >> state.axis) & 1 == 0 { state.axis += 1; }
+                    while state.axis < self.cards.len() && (state.variables >> state.axis) & 1 == 0
+                    {
+                        state.axis += 1;
+                    }
                     if state.axis == self.cards.len() {
-                        returned = Some(if state.zero { 0.0 } else { state.sentinel.unwrap_or(state.product) });
+                        returned = Some(if state.zero {
+                            0.0
+                        } else {
+                            state.sentinel.unwrap_or(state.product)
+                        });
                         continue;
                     }
-                    state.later = (0..self.cards.len()).filter(|&k| (state.all >> k) & 1 == 1 && self.rank[k] > self.rank[state.axis]).collect();
+                    state.later = (0..self.cards.len())
+                        .filter(|&k| {
+                            (state.all >> k) & 1 == 1 && self.rank[k] > self.rank[state.axis]
+                        })
+                        .collect();
                     state.actual = self.level_at(state.idx, state.axis);
                     state.level = 0;
                     let count = self.cards[state.axis];
                     self.charge(count)?;
-                    let bytes = count.checked_mul(std::mem::size_of::<f64>()).and_then(|n| u64::try_from(n).ok())
+                    let bytes = count
+                        .checked_mul(std::mem::size_of::<f64>())
+                        .and_then(|n| u64::try_from(n).ok())
                         .ok_or(Failure::Budget("the exact evaluation scratch size overflows"))?;
-                    let lease = self.ctx.acquire_admission(0, bytes).map_err(|_| Failure::Budget("the exact evaluation scratch exceeds memory admission"))?;
+                    let lease = self.ctx.acquire_admission(0, bytes).map_err(|_| {
+                        Failure::Budget("the exact evaluation scratch exceeds memory admission")
+                    })?;
                     state.masses = Vec::new();
-                    state.masses.try_reserve_exact(count).map_err(|_| Failure::Budget("the exact evaluation scratch allocation failed"))?;
+                    state.masses.try_reserve_exact(count).map_err(|_| {
+                        Failure::Budget("the exact evaluation scratch allocation failed")
+                    })?;
                     state.masses_lease = Some(lease);
                     stack.push(ItemFrame::ExtractLevel(state), self.ctx)?;
                 }
@@ -689,10 +841,13 @@ impl Engine<'_> {
                             let denominator: f64 = state.masses.iter().sum();
                             if denominator > 0.0 {
                                 let factor = state.masses[state.actual] / denominator;
-                                if factor == 0.0 { state.zero = true; }
+                                if factor == 0.0 {
+                                    state.zero = true;
+                                }
                                 state.product *= factor;
                             } else {
-                                state.sentinel = Some(state.sentinel.map_or(ZERO_MASS, |s| s.min(ZERO_MASS)));
+                                state.sentinel =
+                                    Some(state.sentinel.map_or(ZERO_MASS, |s| s.min(ZERO_MASS)));
                             }
                         }
                         state.masses = Vec::new();
@@ -706,11 +861,26 @@ impl Engine<'_> {
                         let from = state.from;
                         let depth = state.depth;
                         stack.push(ItemFrame::ExtractAfter(state), self.ctx)?;
-                        stack.push(ItemFrame::Sum(ItemSum { item: from, base: at, dims, counters, total: 0.0, sentinel: None, depth }), self.ctx)?;
+                        stack.push(
+                            ItemFrame::Sum(ItemSum {
+                                item: from,
+                                base: at,
+                                dims,
+                                counters,
+                                total: 0.0,
+                                sentinel: None,
+                                depth,
+                            }),
+                            self.ctx,
+                        )?;
                     }
                 }
                 ItemFrame::ExtractAfter(mut state) => {
-                    state.masses.push(returned.take().ok_or(Failure::Invalid("invalid extraction continuation"))?);
+                    state.masses.push(
+                        returned
+                            .take()
+                            .ok_or(Failure::Invalid("invalid extraction continuation"))?,
+                    );
                     state.level += 1;
                     stack.push(ItemFrame::ExtractLevel(state), self.ctx)?;
                 }
@@ -963,21 +1133,31 @@ impl Engine<'_> {
             match frame {
                 Frame::Visit(node, depth) => {
                     if depth > self.depth_limit {
-                        return Err(Failure::Budget("the exact evaluation depth budget is exhausted"));
+                        return Err(Failure::Budget(
+                            "the exact evaluation depth budget is exhausted",
+                        ));
                     }
                     match node {
                         CounterfactualFunctional::Zero => {
-                            values.try_reserve(1).map_err(|_| Failure::Budget("the exact evaluation stack allocation failed"))?;
+                            values.try_reserve(1).map_err(|_| {
+                                Failure::Budget("the exact evaluation stack allocation failed")
+                            })?;
                             values.push(0.0);
                         }
                         CounterfactualFunctional::Sum(sum) => {
                             let value = self.sum_value(sum)?;
-                            values.try_reserve(1).map_err(|_| Failure::Budget("the exact evaluation stack allocation failed"))?;
+                            values.try_reserve(1).map_err(|_| {
+                                Failure::Budget("the exact evaluation stack allocation failed")
+                            })?;
                             values.push(value);
                         }
                         CounterfactualFunctional::Complement { whole, flipped, .. } => {
-                            let next = depth.checked_add(1).ok_or(Failure::Budget("the exact evaluation depth budget is exhausted"))?;
-                            pending.try_reserve(3).map_err(|_| Failure::Budget("the exact evaluation stack allocation failed"))?;
+                            let next = depth.checked_add(1).ok_or(Failure::Budget(
+                                "the exact evaluation depth budget is exhausted",
+                            ))?;
+                            pending.try_reserve(3).map_err(|_| {
+                                Failure::Budget("the exact evaluation stack allocation failed")
+                            })?;
                             // LIFO: whole runs before flipped, exactly as in the recursive evaluation.
                             pending.push(Frame::Combine);
                             pending.push(Frame::Visit(flipped, next));
@@ -1014,7 +1194,6 @@ impl Engine<'_> {
         }
         values.pop().ok_or(Failure::Invalid("invalid functional stack"))
     }
-
 }
 
 // Check and charge bounded UTF-8 work without changing canonical text or order.
@@ -1030,7 +1209,9 @@ fn checked_evidence_text_cmp(
         check()?;
         let end = start.saturating_add(512).min(common);
         let order = a[start..end].cmp(&b[start..end]);
-        if order != std::cmp::Ordering::Equal { return Ok(order); }
+        if order != std::cmp::Ordering::Equal {
+            return Ok(order);
+        }
     }
     Ok(a.len().cmp(&b.len()))
 }
@@ -1045,7 +1226,9 @@ fn checked_evidence_text_copy(
     while start < value.len() {
         check()?;
         let mut end = start.saturating_add(512).min(value.len());
-        while !value.is_char_boundary(end) { end -= 1; }
+        while !value.is_char_boundary(end) {
+            end -= 1;
+        }
         out.push_str(&value[start..end]);
         start = end;
     }
@@ -1100,8 +1283,15 @@ pub fn evaluate_counterfactual_transport(
         return Err(Failure::Budget("the exact evaluation was cancelled").into_error());
     }
     antecedent_core::numerical_admission::with_context(ctx, || {
-        evaluate_with_policy(derivation, data, limits, ctx, FreeCoordinatePolicy::RequireAgreement, true)
-            .map(|(point, _)| point)
+        evaluate_with_policy(
+            derivation,
+            data,
+            limits,
+            ctx,
+            FreeCoordinatePolicy::RequireAgreement,
+            true,
+        )
+        .map(|(point, _)| point)
     })
 }
 
@@ -1120,7 +1310,14 @@ pub(crate) fn evaluate_estimated_tables(
     if ctx.cancellation.is_cancelled() {
         return Err(Failure::Budget("the exact evaluation was cancelled").into_error());
     }
-    evaluate_with_policy(derivation, data, limits, ctx, FreeCoordinatePolicy::MassWeightedAverage, false)
+    evaluate_with_policy(
+        derivation,
+        data,
+        limits,
+        ctx,
+        FreeCoordinatePolicy::MassWeightedAverage,
+        false,
+    )
 }
 
 #[allow(
@@ -1148,9 +1345,11 @@ fn evaluate_with_policy(
     if require_exact {
         for law in data.laws() {
             setup.charge(1)?;
-            if law.empirical_counts().is_some() || !matches!(law.origin(), LawOrigin::SuppliedExact) {
+            if law.empirical_counts().is_some() || !matches!(law.origin(), LawOrigin::SuppliedExact)
+            {
                 return Err(refused(
-                    antecedent_core::reason_code!("cell_not_licensed"), DETAIL_COUNTED,
+                    antecedent_core::reason_code!("cell_not_licensed"),
+                    DETAIL_COUNTED,
                     "counted, empirical or posterior laws are not licensed here; the route evaluates \
                      supplied exact laws only and publishes no sampling inference",
                 ));
@@ -1168,7 +1367,9 @@ fn evaluate_with_policy(
         cards.push(problem.level_count(v).expect("problem variable index"));
     }
     validate_execution_shape(derivation, &cards, limits.depth, &mut setup)?;
-    let total = cards.iter().try_fold(1usize, |total, card| total.checked_mul(*card))
+    let total = cards
+        .iter()
+        .try_fold(1usize, |total, card| total.checked_mul(*card))
         .ok_or_else(|| Failure::Budget("the exact evaluation table size overflows").into_error())?;
     let mut strides = vec![1usize; n];
     for v in (0..n.saturating_sub(1)).rev() {
@@ -1179,10 +1380,17 @@ fn evaluate_with_policy(
         rank[v] = position;
     }
     // Per regime item, the laws by intervention levels.
-    let metadata_bytes = derivation.items.len()
-        .checked_mul(std::mem::size_of::<HashMap<Vec<usize>, LawView<'_>>>()
-            + std::mem::size_of::<Option<Vec<f64>>>() + 64)
-        .ok_or_else(|| Failure::Budget("the exact evaluation metadata size overflows").into_error())?;
+    let metadata_bytes = derivation
+        .items
+        .len()
+        .checked_mul(
+            std::mem::size_of::<HashMap<Vec<usize>, LawView<'_>>>()
+                + std::mem::size_of::<Option<Vec<f64>>>()
+                + 64,
+        )
+        .ok_or_else(|| {
+            Failure::Budget("the exact evaluation metadata size overflows").into_error()
+        })?;
     setup.reserve(metadata_bytes)?;
     let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> =
         Vec::with_capacity(derivation.items.len());
@@ -1193,9 +1401,11 @@ fn evaluate_with_policy(
             let population = derivation.populations[item.population].as_ref();
             for law in data.laws() {
                 setup.charge(1)?;
-                if law.regime() != regime || checked_evidence_text_cmp(
-                    law.population(), population, &mut || setup.charge(1),
-                )? != std::cmp::Ordering::Equal {
+                if law.regime() != regime
+                    || checked_evidence_text_cmp(law.population(), population, &mut || {
+                        setup.charge(1)
+                    })? != std::cmp::Ordering::Equal
+                {
                     continue;
                 }
                 // Cover the hash-table bucket and bounded key allocation before insertion.
@@ -1303,27 +1513,37 @@ fn evaluate_with_policy(
         for (index, law) in data.laws().iter().enumerate() {
             check()?;
             if law.regime() == cited.regime
-                && checked_evidence_text_cmp(law.population(), &cited.population, &mut check)? == std::cmp::Ordering::Equal
+                && checked_evidence_text_cmp(law.population(), &cited.population, &mut check)?
+                    == std::cmp::Ordering::Equal
             {
-                let bytes = law.interventions().len()
+                let bytes = law
+                    .interventions()
+                    .len()
                     .checked_mul(std::mem::size_of::<(VariableId, f64)>())
                     .and_then(|n| n.checked_add(law.snapshot_identity().len()))
                     .and_then(|n| n.checked_add(512))
                     .and_then(|n| u64::try_from(n).ok())
-                    .ok_or_else(|| Failure::Budget("the exact evidence size overflows").into_error())?;
-                let lease = ctx.acquire_admission(0, bytes)
-                    .map_err(|_| Failure::Budget("the exact evidence exceeds memory admission").into_error())?;
+                    .ok_or_else(|| {
+                        Failure::Budget("the exact evidence size overflows").into_error()
+                    })?;
+                let lease = ctx.acquire_admission(0, bytes).map_err(|_| {
+                    Failure::Budget("the exact evidence exceeds memory admission").into_error()
+                })?;
                 evidence_leases.push(Arc::new(lease));
                 let mut interventions = Vec::with_capacity(law.interventions().len());
                 for assignment in law.interventions() {
                     check()?;
-                    interventions.push((assignment.variable, assignment.value.as_f64().unwrap_or(f64::NAN)));
+                    interventions
+                        .push((assignment.variable, assignment.value.as_f64().unwrap_or(f64::NAN)));
                 }
                 evidence.push(CounterfactualTransportEvidence {
                     population: Arc::clone(&cited.population),
                     regime: cited.regime,
                     interventions,
-                    snapshot_identity: checked_evidence_text_copy(law.snapshot_identity(), &mut check)?,
+                    snapshot_identity: checked_evidence_text_copy(
+                        law.snapshot_identity(),
+                        &mut check,
+                    )?,
                     // The provider already computed this identity with cancellation checks.
                     content_identity: data.law_identities()[index].to_hex(),
                 });
@@ -1341,7 +1561,9 @@ fn evaluate_with_policy(
             let order = checked_evidence_text_cmp(&a.population, &b.population, &mut check)?
                 .then_with(|| a.regime.cmp(&b.regime))
                 .then_with(|| a.content_identity.cmp(&b.content_identity));
-            if order != std::cmp::Ordering::Greater { break; }
+            if order != std::cmp::Ordering::Greater {
+                break;
+            }
             evidence.swap(j - 1, j);
             j -= 1;
         }
@@ -1383,7 +1605,9 @@ fn view_of<'a>(
         };
         let level = if let Some(value) = assignment.value.as_f64() {
             problem.try_level_index(variable, value, |amount| setup.charge(amount))?
-        } else { None }
+        } else {
+            None
+        }
         .ok_or_else(|| invalid("a law's intervention level is not a declared level"))?;
         levels.insert(variable, level);
     }
@@ -1395,8 +1619,10 @@ fn view_of<'a>(
     }
     let key: Vec<usize> = intervened_set.iter().map(|v| levels[v]).collect();
     // Axes.
-    let axis_bytes = law.axes().len().checked_mul(128)
-        .ok_or_else(|| Failure::Budget("the exact evaluation view size overflows").into_error())?;
+    let axis_bytes =
+        law.axes().len().checked_mul(128).ok_or_else(|| {
+            Failure::Budget("the exact evaluation view size overflows").into_error()
+        })?;
     setup.reserve(axis_bytes)?;
     let mut axes: Vec<usize> = Vec::with_capacity(law.axes().len());
     let mut positions: Vec<Vec<usize>> = Vec::with_capacity(law.axes().len());
@@ -1410,14 +1636,17 @@ fn view_of<'a>(
             return Err(invalid("a law's levels do not match the variable's declared levels"));
         }
         setup.charge(cards[variable])?;
-        let bytes = cards[variable].checked_mul(std::mem::size_of::<usize>())
-            .ok_or_else(|| Failure::Budget("the exact evaluation view size overflows").into_error())?;
+        let bytes = cards[variable].checked_mul(std::mem::size_of::<usize>()).ok_or_else(|| {
+            Failure::Budget("the exact evaluation view size overflows").into_error()
+        })?;
         setup.reserve(bytes)?;
         let mut position = vec![usize::MAX; cards[variable]];
         for (p, value) in axis.values.iter().enumerate() {
             let level = if let Some(value) = value.as_f64() {
                 problem.try_level_index(variable, value, |amount| setup.charge(amount))?
-            } else { None }
+            } else {
+                None
+            }
             .ok_or_else(|| invalid("a law's level is not a declared level"))?;
             position[level] = p;
         }
@@ -1568,19 +1797,45 @@ mod evidence_budget_tests {
 
     #[test]
     fn cached_cells_and_summation_steps_spend_the_evaluation_budget() {
-        use antecedent_identify::{CounterfactualSymbol, CounterfactualSymbolId, CounterfactualVariableIndex};
+        use antecedent_identify::{
+            CounterfactualSymbol, CounterfactualSymbolId, CounterfactualVariableIndex,
+        };
         let ctx = ExecutionContext::for_tests(7);
-        let item = CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Regime { regime: RegimeId::from_raw(0), intervened: 0 } };
+        let item = CounterfactualItem {
+            population: 0,
+            variables: 1,
+            source: CounterfactualItemSource::Regime {
+                regime: RegimeId::from_raw(0),
+                intervened: 0,
+            },
+        };
         let mut engine = Engine {
-            items: std::slice::from_ref(&item), cards: vec![2], strides: vec![1], rank: vec![0], total: 2,
-            tables: vec![Some(vec![0.4, 0.6])], cache_leases: Vec::new(), laws: Vec::new(), factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(),
-            reads: 0, work: 0, limit: 1, depth_limit: 256, ctx: &ctx, policy: FreeCoordinatePolicy::MassWeightedAverage,
+            items: std::slice::from_ref(&item),
+            cards: vec![2],
+            strides: vec![1],
+            rank: vec![0],
+            total: 2,
+            tables: vec![Some(vec![0.4, 0.6])],
+            cache_leases: Vec::new(),
+            laws: Vec::new(),
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 1,
+            depth_limit: 256,
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
             repairs: EvaluationRepairs::default(),
         };
         assert!(matches!(engine.value(0, 0), Ok(v) if v == 0.4));
         assert!(matches!(engine.value(0, 0), Err(Failure::Budget(_))));
         let sum = CounterfactualSum {
-            symbols: vec![CounterfactualSymbol { id: CounterfactualSymbolId::new(0), variable: CounterfactualVariableIndex::new(0) }],
+            symbols: vec![CounterfactualSymbol {
+                id: CounterfactualSymbolId::new(0),
+                variable: CounterfactualVariableIndex::new(0),
+            }],
             factors: Vec::new(),
         };
         engine.work = 0;
@@ -1598,15 +1853,33 @@ mod evidence_budget_tests {
         use antecedent_identify::CounterfactualVariableIndex;
         let ctx = ExecutionContext::for_tests(7);
         let mut engine = Engine {
-            items: &[], cards: Vec::new(), strides: Vec::new(), rank: Vec::new(), total: 1,
-            tables: Vec::new(), cache_leases: Vec::new(), laws: Vec::new(), factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(),
-            reads: 0, work: 0, limit: 10000, depth_limit: 128, ctx: &ctx,
-            policy: FreeCoordinatePolicy::RequireAgreement, repairs: EvaluationRepairs::default(),
+            items: &[],
+            cards: Vec::new(),
+            strides: Vec::new(),
+            rank: Vec::new(),
+            total: 1,
+            tables: Vec::new(),
+            cache_leases: Vec::new(),
+            laws: Vec::new(),
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 10000,
+            depth_limit: 128,
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::RequireAgreement,
+            repairs: EvaluationRepairs::default(),
         };
-        let mut functional = CounterfactualFunctional::Sum(CounterfactualSum { symbols: Vec::new(), factors: Vec::new() });
+        let mut functional = CounterfactualFunctional::Sum(CounterfactualSum {
+            symbols: Vec::new(),
+            factors: Vec::new(),
+        });
         for _ in 0..128 {
             functional = CounterfactualFunctional::Complement {
-                variable: CounterfactualVariableIndex::new(0), whole: Box::new(functional),
+                variable: CounterfactualVariableIndex::new(0),
+                whole: Box::new(functional),
                 flipped: Box::new(CounterfactualFunctional::Zero),
             };
         }
@@ -1623,7 +1896,10 @@ mod evidence_budget_tests {
         let negative = CounterfactualFunctional::Complement {
             variable: CounterfactualVariableIndex::new(0),
             whole: Box::new(CounterfactualFunctional::Zero),
-            flipped: Box::new(CounterfactualFunctional::Sum(CounterfactualSum { symbols: Vec::new(), factors: Vec::new() })),
+            flipped: Box::new(CounterfactualFunctional::Sum(CounterfactualSum {
+                symbols: Vec::new(),
+                factors: Vec::new(),
+            })),
         };
         assert!(matches!(engine.functional(&negative), Err(Failure::Incompatible(_))));
         engine.policy = FreeCoordinatePolicy::MassWeightedAverage;
@@ -1636,21 +1912,70 @@ mod evidence_budget_tests {
     #[test]
     fn continuations_preserve_marginal_extraction_and_lazy_cells() {
         let items = [
-            CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Regime { regime: RegimeId::from_raw(0), intervened: 0 } },
-            CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Extract { from: 0 } },
-            CounterfactualItem { population: 0, variables: 0, source: CounterfactualItemSource::Marginal { from: 1 } },
-            CounterfactualItem { population: 0, variables: 0, source: CounterfactualItemSource::Transfer { from: 2 } },
-            CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Regime { regime: RegimeId::from_raw(1), intervened: 0 } },
+            CounterfactualItem {
+                population: 0,
+                variables: 1,
+                source: CounterfactualItemSource::Regime {
+                    regime: RegimeId::from_raw(0),
+                    intervened: 0,
+                },
+            },
+            CounterfactualItem {
+                population: 0,
+                variables: 1,
+                source: CounterfactualItemSource::Extract { from: 0 },
+            },
+            CounterfactualItem {
+                population: 0,
+                variables: 0,
+                source: CounterfactualItemSource::Marginal { from: 1 },
+            },
+            CounterfactualItem {
+                population: 0,
+                variables: 0,
+                source: CounterfactualItemSource::Transfer { from: 2 },
+            },
+            CounterfactualItem {
+                population: 0,
+                variables: 1,
+                source: CounterfactualItemSource::Regime {
+                    regime: RegimeId::from_raw(1),
+                    intervened: 0,
+                },
+            },
         ];
         let probabilities = [0.25, 0.75];
-        let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> = (0..items.len()).map(|_| HashMap::new()).collect();
-        laws[0].insert(Vec::new(), LawView { probabilities: &probabilities, axes: vec![0], positions: vec![vec![0, 1]], strides: vec![1] });
+        let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> =
+            (0..items.len()).map(|_| HashMap::new()).collect();
+        laws[0].insert(
+            Vec::new(),
+            LawView {
+                probabilities: &probabilities,
+                axes: vec![0],
+                positions: vec![vec![0, 1]],
+                strides: vec![1],
+            },
+        );
         let ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(1 << 20));
         let mut engine = Engine {
-            items: &items, cards: vec![2], strides: vec![1], rank: vec![0], total: 2,
-            tables: (0..items.len()).map(|_| None).collect(), cache_leases: Vec::new(), laws,
-            factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(), reads: 0, work: 0, limit: 10000, depth_limit: 16,
-            ctx: &ctx, policy: FreeCoordinatePolicy::MassWeightedAverage, repairs: EvaluationRepairs::default(),
+            items: &items,
+            cards: vec![2],
+            strides: vec![1],
+            rank: vec![0],
+            total: 2,
+            tables: (0..items.len()).map(|_| None).collect(),
+            cache_leases: Vec::new(),
+            laws,
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 10000,
+            depth_limit: 16,
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
+            repairs: EvaluationRepairs::default(),
         };
         assert!(matches!(engine.value(3, 0), Ok(value) if value == 1.0));
         assert!(matches!(engine.value(1, 0), Ok(value) if value == 0.25));
@@ -1662,26 +1987,64 @@ mod evidence_budget_tests {
     #[test]
     fn long_acyclic_item_chain_uses_admitted_continuations() {
         let mut items = vec![CounterfactualItem {
-            population: 0, variables: 1,
-            source: CounterfactualItemSource::Regime { regime: RegimeId::from_raw(0), intervened: 0 },
+            population: 0,
+            variables: 1,
+            source: CounterfactualItemSource::Regime {
+                regime: RegimeId::from_raw(0),
+                intervened: 0,
+            },
         }];
         for _ in 0..1024 {
             let from = items.len() - 1;
-            items.push(CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Transfer { from } });
+            items.push(CounterfactualItem {
+                population: 0,
+                variables: 1,
+                source: CounterfactualItemSource::Transfer { from },
+            });
             let from = items.len() - 1;
-            items.push(CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Marginal { from } });
+            items.push(CounterfactualItem {
+                population: 0,
+                variables: 1,
+                source: CounterfactualItemSource::Marginal { from },
+            });
             let from = items.len() - 1;
-            items.push(CounterfactualItem { population: 0, variables: 1, source: CounterfactualItemSource::Extract { from } });
+            items.push(CounterfactualItem {
+                population: 0,
+                variables: 1,
+                source: CounterfactualItemSource::Extract { from },
+            });
         }
         let probabilities = [1.0];
-        let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> = (0..items.len()).map(|_| HashMap::new()).collect();
-        laws[0].insert(Vec::new(), LawView { probabilities: &probabilities, axes: vec![0], positions: vec![vec![0]], strides: vec![1] });
+        let mut laws: Vec<HashMap<Vec<usize>, LawView<'_>>> =
+            (0..items.len()).map(|_| HashMap::new()).collect();
+        laws[0].insert(
+            Vec::new(),
+            LawView {
+                probabilities: &probabilities,
+                axes: vec![0],
+                positions: vec![vec![0]],
+                strides: vec![1],
+            },
+        );
         let ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(32 << 20));
         let mut engine = Engine {
-            items: &items, cards: vec![1], strides: vec![1], rank: vec![0], total: 1,
-            tables: (0..items.len()).map(|_| None).collect(), cache_leases: Vec::new(), laws,
-            factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(), reads: 0, work: 0, limit: 200_000,
-            depth_limit: items.len(), ctx: &ctx, policy: FreeCoordinatePolicy::MassWeightedAverage,
+            items: &items,
+            cards: vec![1],
+            strides: vec![1],
+            rank: vec![0],
+            total: 1,
+            tables: (0..items.len()).map(|_| None).collect(),
+            cache_leases: Vec::new(),
+            laws,
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 200_000,
+            depth_limit: items.len(),
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
             repairs: EvaluationRepairs::default(),
         };
         assert!(matches!(engine.value(items.len() - 1, 0), Ok(value) if value == 1.0));
@@ -1694,11 +2057,24 @@ mod evidence_budget_tests {
         drop(engine);
         let small_ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(64));
         let mut engine = Engine {
-            items: &items, cards: vec![1], strides: vec![1], rank: vec![0], total: 1,
-            tables: (0..items.len()).map(|_| None).collect(), cache_leases: Vec::new(),
-            laws: (0..items.len()).map(|_| HashMap::new()).collect(), factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(),
-            reads: 0, work: 0, limit: 200_000, depth_limit: items.len(), ctx: &small_ctx,
-            policy: FreeCoordinatePolicy::MassWeightedAverage, repairs: EvaluationRepairs::default(),
+            items: &items,
+            cards: vec![1],
+            strides: vec![1],
+            rank: vec![0],
+            total: 1,
+            tables: (0..items.len()).map(|_| None).collect(),
+            cache_leases: Vec::new(),
+            laws: (0..items.len()).map(|_| HashMap::new()).collect(),
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 200_000,
+            depth_limit: items.len(),
+            ctx: &small_ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
+            repairs: EvaluationRepairs::default(),
         };
         assert!(matches!(engine.value(items.len() - 1, 0), Err(Failure::Budget(_))));
         assert!(engine.tables.iter().all(Option::is_none));
@@ -1709,16 +2085,32 @@ mod evidence_budget_tests {
         // Two independent extra-variable axes make this memo huge even when a
         // particular supplied law has only a single cell.
         let item = CounterfactualItem {
-            population: 0, variables: 0,
-            source: CounterfactualItemSource::Regime { regime: RegimeId::from_raw(0), intervened: 0 },
+            population: 0,
+            variables: 0,
+            source: CounterfactualItemSource::Regime {
+                regime: RegimeId::from_raw(0),
+                intervened: 0,
+            },
         };
         let ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(1 << 20));
         let mut large = Engine {
-            items: std::slice::from_ref(&item), cards: vec![1, 32768, 32768],
-            strides: vec![1 << 30, 32768, 1], rank: vec![0, 1, 2], total: 1 << 30,
-            tables: vec![None], cache_leases: Vec::new(), laws: vec![HashMap::new()],
-            factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(), reads: 0, work: 0, limit: u64::MAX - 1,
-            depth_limit: 256, ctx: &ctx, policy: FreeCoordinatePolicy::MassWeightedAverage,
+            items: std::slice::from_ref(&item),
+            cards: vec![1, 32768, 32768],
+            strides: vec![1 << 30, 32768, 1],
+            rank: vec![0, 1, 2],
+            total: 1 << 30,
+            tables: vec![None],
+            cache_leases: Vec::new(),
+            laws: vec![HashMap::new()],
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: u64::MAX - 1,
+            depth_limit: 256,
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
             repairs: EvaluationRepairs::default(),
         };
         assert!(matches!(large.value(0, 0), Err(Failure::Budget(_))));
@@ -1727,10 +2119,23 @@ mod evidence_budget_tests {
         // A small memo fits, produces the same missing-law sentinel and remains
         // leased until the engine/cache is dropped.
         let mut small = Engine {
-            items: std::slice::from_ref(&item), cards: vec![2], strides: vec![1], rank: vec![0], total: 2,
-            tables: vec![None], cache_leases: Vec::new(), laws: vec![HashMap::new()],
-            factor_cache: HashMap::new(), factor_cache_leases: Vec::new(), _setup_leases: Vec::new(), reads: 0, work: 0, limit: 100,
-            depth_limit: 256, ctx: &ctx, policy: FreeCoordinatePolicy::MassWeightedAverage,
+            items: std::slice::from_ref(&item),
+            cards: vec![2],
+            strides: vec![1],
+            rank: vec![0],
+            total: 2,
+            tables: vec![None],
+            cache_leases: Vec::new(),
+            laws: vec![HashMap::new()],
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 100,
+            depth_limit: 256,
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
             repairs: EvaluationRepairs::default(),
         };
         assert!(matches!(small.value(0, 0), Ok(value) if value == MISSING));
@@ -1752,11 +2157,16 @@ mod evidence_budget_tests {
         let ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(1024));
         let pool = ctx.admission();
         let lease = Arc::new(ctx.acquire_admission(0, 512).unwrap());
-        let evidence = RetainedSlice::new(vec![CounterfactualTransportEvidence {
-            population: Arc::from("pop"), regime: RegimeId::from_raw(1),
-            interventions: vec![(VariableId::from_raw(0), 1.0)],
-            snapshot_identity: "snapshot".into(), content_identity: "digest".into(),
-        }], vec![lease]);
+        let evidence = RetainedSlice::new(
+            vec![CounterfactualTransportEvidence {
+                population: Arc::from("pop"),
+                regime: RegimeId::from_raw(1),
+                interventions: vec![(VariableId::from_raw(0), 1.0)],
+                snapshot_identity: "snapshot".into(),
+                content_identity: "digest".into(),
+            }],
+            vec![lease],
+        );
         let copy = evidence.clone();
         assert_eq!(evidence, copy);
         assert_eq!(copy.as_ref()[0].snapshot_identity, "snapshot");
@@ -1770,15 +2180,38 @@ mod evidence_budget_tests {
     fn setup_and_factor_cache_keep_shared_memory_reservations() {
         let ctx = ExecutionContext::for_tests(7).with_memory_limit(Some(512));
         {
-            let mut setup = SetupBudget { work: 0, limit: 100, ctx: &ctx, leases: Vec::new(), reserved: 0, used: 0 };
+            let mut setup = SetupBudget {
+                work: 0,
+                limit: 100,
+                ctx: &ctx,
+                leases: Vec::new(),
+                reserved: 0,
+                used: 0,
+            };
             setup.reserve(400).unwrap();
-            assert_eq!(setup.reserve(200).unwrap_err().reason_code(), Some("transport_budget_cancel"));
+            assert_eq!(
+                setup.reserve(200).unwrap_err().reason_code(),
+                Some("transport_budget_cancel")
+            );
         }
         let mut engine = Engine {
-            items: &[], cards: Vec::new(), strides: Vec::new(), rank: Vec::new(), total: 1,
-            tables: Vec::new(), cache_leases: Vec::new(), laws: Vec::new(), factor_cache: HashMap::new(),
-            factor_cache_leases: Vec::new(), _setup_leases: Vec::new(), reads: 0, work: 0, limit: 100,
-            depth_limit: 10, ctx: &ctx, policy: FreeCoordinatePolicy::MassWeightedAverage,
+            items: &[],
+            cards: Vec::new(),
+            strides: Vec::new(),
+            rank: Vec::new(),
+            total: 1,
+            tables: Vec::new(),
+            cache_leases: Vec::new(),
+            laws: Vec::new(),
+            factor_cache: HashMap::new(),
+            factor_cache_leases: Vec::new(),
+            _setup_leases: Vec::new(),
+            reads: 0,
+            work: 0,
+            limit: 100,
+            depth_limit: 10,
+            ctx: &ctx,
+            policy: FreeCoordinatePolicy::MassWeightedAverage,
             repairs: EvaluationRepairs::default(),
         };
         assert!(engine.retain_factor((0, vec![1, 2]), 0.5).is_ok());
@@ -1793,21 +2226,32 @@ mod evidence_budget_tests {
     fn evidence_text_copy_and_order_poll_without_changing_utf8() {
         let text = format!("{}é{}", "a".repeat(511), "z".repeat(1100));
         let mut calls = 0;
-        let copied = checked_evidence_text_copy(&text, &mut || { calls += 1; Ok(()) }).unwrap();
+        let copied = checked_evidence_text_copy(&text, &mut || {
+            calls += 1;
+            Ok(())
+        })
+        .unwrap();
         assert_eq!(copied, text);
         assert!(calls >= 4);
         let mut calls = 0;
         let error = checked_evidence_text_copy(&text, &mut || {
             calls += 1;
             if calls == 3 { Err(Failure::Budget("stop").into_error()) } else { Ok(()) }
-        }).unwrap_err();
+        })
+        .unwrap_err();
         assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
         let other = format!("{}é{}", "a".repeat(511), "z".repeat(1099));
-        assert_eq!(checked_evidence_text_cmp(&text, &other, &mut || Ok(())).unwrap(), text.cmp(&other));
+        assert_eq!(
+            checked_evidence_text_cmp(&text, &other, &mut || Ok(())).unwrap(),
+            text.cmp(&other)
+        );
         let mut calls = 0;
-        assert!(checked_evidence_text_cmp(&text, &other, &mut || {
-            calls += 1;
-            if calls == 2 { Err(Failure::Budget("stop").into_error()) } else { Ok(()) }
-        }).is_err());
+        assert!(
+            checked_evidence_text_cmp(&text, &other, &mut || {
+                calls += 1;
+                if calls == 2 { Err(Failure::Budget("stop").into_error()) } else { Ok(()) }
+            })
+            .is_err()
+        );
     }
 }

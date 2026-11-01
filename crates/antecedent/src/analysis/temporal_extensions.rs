@@ -18,8 +18,8 @@
 //!   exists at the io layer as an internal artifact.
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
-    DependentIntervalConfig, INTERVAL_MIN_REPLICATES,
-    ObservedStateSequence, TEMPORAL_INTERVAL_TOO_FEW_UNITS, TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
+    DependentIntervalConfig, INTERVAL_MIN_REPLICATES, ObservedStateSequence,
+    TEMPORAL_INTERVAL_TOO_FEW_UNITS, TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
     TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
 use antecedent_estimate::temporal_initial_state::{

@@ -32,8 +32,8 @@ use antecedent_estimate::{
     EffectEstimate, EstimationError, EstimationWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
     LinearAdjustmentAte, OtherLevels,
 };
-use antecedent_stats::GlmFamily;
 use antecedent_expr::{ExprId, IdentifiedEstimand};
+use antecedent_stats::GlmFamily;
 
 const T: VariableId = VariableId::from_raw(0);
 const Y: VariableId = VariableId::from_raw(1);

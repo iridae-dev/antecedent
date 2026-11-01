@@ -308,5 +308,8 @@ fn discrepancy_artifact_unknown_version_and_corruption_refuse() {
             .to_string(),
         "mechanism discrepancy artifact does not decode: io error: failed to fill whole buffer"
     );
-    assert_eq!(MechanismDiscrepancyArtifact::from_bytes(&[], None).unwrap_err().to_string(), "mechanism discrepancy artifact does not decode: io error: failed to fill whole buffer");
+    assert_eq!(
+        MechanismDiscrepancyArtifact::from_bytes(&[], None).unwrap_err().to_string(),
+        "mechanism discrepancy artifact does not decode: io error: failed to fill whole buffer"
+    );
 }

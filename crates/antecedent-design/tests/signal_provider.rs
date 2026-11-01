@@ -220,7 +220,9 @@ fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
                 message,
                 format!("Gaussian signal noise variance must be finite and > 0 (got {bad})")
             ),
-            other => panic!("variance {bad} must be a configuration refusal, got {:?}", other.err()),
+            other => {
+                panic!("variance {bad} must be a configuration refusal, got {:?}", other.err())
+            }
         }
     }
     // The request's sample size is authoritative for every candidate.

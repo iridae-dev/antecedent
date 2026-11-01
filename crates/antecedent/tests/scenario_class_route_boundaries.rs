@@ -177,11 +177,12 @@ fn the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_class
         )
         .unwrap(),
     );
-    let derivative = CausalQuery::Response(ResponseQuery::new(ResponseFunctional::AverageDerivative {
-        outcome: v(2),
-        treatment: v(0),
-        weighting: DerivativeWeighting::Observed,
-    }));
+    let derivative =
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::AverageDerivative {
+            outcome: v(2),
+            treatment: v(0),
+            weighting: DerivativeWeighting::Observed,
+        }));
     // E[y | do(a = 0.25)] is the mean of the structural equation with `a` set and the
     // exogenous terms of every row kept.
     let at = |i: usize| i as f64;
@@ -192,14 +193,15 @@ fn the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_class
         })
         .sum::<f64>()
         / N as f64;
-    let intervention = CausalQuery::Response(ResponseQuery::new(
-        ResponseFunctional::InterventionResponse {
+    let intervention =
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
             outcome: v(2),
             interventions: Arc::from([Intervention::set(v(0), Value::f64(0.25))]),
-        },
-    ));
+        }));
     for class in CLASSES {
-        for (name, query) in [("average effect", average_effect()), ("conditional effect", conditional.clone())] {
+        for (name, query) in
+            [("average effect", average_effect()), ("conditional effect", conditional.clone())]
+        {
             let ate = plain(class, &query).unwrap().estimate().as_effect().unwrap().ate;
             assert!((ate - 11.0).abs() < 0.03, "{class} {name}: {ate}");
         }
@@ -386,19 +388,18 @@ fn the_conditional_effect_and_the_intervention_response_refuse_degenerate_design
                 run(class, table(&design(false, false)), query.clone(), None, None).is_ok(),
                 "{what}: baseline"
             );
-            let constant = text_of(
-                run(class, table(&design(true, false)), query.clone(), None, None),
-                &what,
-            );
-            let copied = text_of(
-                run(class, table(&design(false, true)), query.clone(), None, None),
-                &what,
-            );
+            let constant =
+                text_of(run(class, table(&design(true, false)), query.clone(), None, None), &what);
+            let copied =
+                text_of(run(class, table(&design(false, true)), query.clone(), None, None), &what);
             if name == "conditional effect" {
                 // The constant treatment never visits the control level, so the arm is refused
                 // before any design is built; the copy still loses a column to the rank check.
                 assert!(constant.contains("arm_not_populated"), "{what}: {constant}");
-                assert!(constant.contains("the treatment takes the levels 1"), "{what}: {constant}");
+                assert!(
+                    constant.contains("the treatment takes the levels 1"),
+                    "{what}: {constant}"
+                );
                 assert!(copied.contains("rank deficient: rank=4 ncols=5"), "{what}: {copied}");
             } else {
                 // The penalized smoother has no invertible design.
@@ -418,7 +419,11 @@ fn derivative() -> CausalQuery {
 }
 
 fn headline(result: &StudyResult) -> f64 {
-    if result.response().is_some() { scalar(result) } else { result.estimate().as_effect().unwrap().ate }
+    if result.response().is_some() {
+        scalar(result)
+    } else {
+        result.estimate().as_effect().unwrap().ate
+    }
 }
 
 #[test]
@@ -451,7 +456,10 @@ fn the_response_routes_default_to_complete_case_and_equal_the_fit_on_the_remaini
         let default = run("dag", table(&holey), query.clone(), None, None).unwrap();
         for (label, result) in [("declared", &declared), ("default", &default)] {
             let got = headline(result);
-            assert!((got - remaining).abs() < 1e-9, "{name} {label}: {got} vs remaining {remaining}");
+            assert!(
+                (got - remaining).abs() < 1e-9,
+                "{name} {label}: {got} vs remaining {remaining}"
+            );
             let report = result.missing_data().as_ref().expect("a missing-data report");
             assert_eq!(report.accounting.rows_kept, N - holes.len(), "{name} {label}");
         }
@@ -590,7 +598,8 @@ fn sandwich(groups: Option<&[u32]>, lag: Option<usize>) -> (f64, f64) {
 fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes() {
     let clusters: Vec<u32> = (0..N).map(|i| (i / 10) as u32).collect();
     let fit = |class: &str, estimator: LinearAdjustmentAte| {
-        let result = run(class, table(&columns()), average_effect(), Some(estimator), None).unwrap();
+        let result =
+            run(class, table(&columns()), average_effect(), Some(estimator), None).unwrap();
         let effect = result.estimate().as_effect().unwrap();
         (effect.ate, effect.se_analytic())
     };
@@ -618,7 +627,6 @@ fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_g
         }
     }
 }
-
 
 /// Influence values `n [(X'X)^-1 x_i e_i]_a` of the coefficient of `a` in the regression of `y`
 /// on an intercept, `a` and the `extra` columns.
@@ -697,7 +705,8 @@ fn two_completions_publish_the_declared_sandwich_of_their_mixed_influence_values
     let bartlett = long_run(0)
         + 2.0 * (1..=lag).map(|l| (1.0 - l as f64 / (lag as f64 + 1.0)) * long_run(l)).sum::<f64>();
     let newey_west_oracle = bartlett.max(0.0).sqrt() / n;
-    let hc1_oracle = (mixed.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n * (n - 1.0))).sqrt();
+    let hc1_oracle =
+        (mixed.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n * (n - 1.0))).sqrt();
 
     let fit = |estimator: LinearAdjustmentAte| {
         let result = Study::tabular(table(&columns()))
@@ -711,7 +720,10 @@ fn two_completions_publish_the_declared_sandwich_of_their_mixed_influence_values
     };
     let base = || LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let independent = fit(base().with_se_kind(AnalyticSeKind::Hc1));
-    assert!((independent - hc1_oracle).abs() < 1e-9 * (1.0 + hc1_oracle), "{independent} vs {hc1_oracle}");
+    assert!(
+        (independent - hc1_oracle).abs() < 1e-9 * (1.0 + hc1_oracle),
+        "{independent} vs {hc1_oracle}"
+    );
     let clustered =
         fit(base().with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(clusters.clone()));
     assert!(
@@ -739,7 +751,11 @@ fn a_fully_compelled_class_is_the_one_completion_case_and_gives_the_dag_answer()
 #[test]
 fn the_class_average_effect_refuses_a_graph_that_does_not_fit_the_table_and_an_invalid_query() {
     let build = |graph: Cpdag, query: CausalQuery| {
-        Study::tabular(table(&columns())).graph(graph).query(query).build().and_then(|study| study.run(&ctx()))
+        Study::tabular(table(&columns()))
+            .graph(graph)
+            .query(query)
+            .build()
+            .and_then(|study| study.run(&ctx()))
     };
     // A class over five variables does not describe a four-column table.
     match build(cpdag(5), average_effect()) {
@@ -781,7 +797,8 @@ fn the_class_average_effect_refuses_a_contrast_level_a_two_valued_treatment_neve
     // distance (26.7, 100, -40) on every class; the unvisited level has no rows to estimate from.
     let at = |i: usize| i as f64;
     let z: Vec<f64> = (0..N).map(|i| (at(i) * 0.37).sin()).collect();
-    let a: Vec<f64> = (0..N).map(|i| f64::from(u8::from(z[i] + (at(i) * 0.71).cos() > 0.0))).collect();
+    let a: Vec<f64> =
+        (0..N).map(|i| f64::from(u8::from(z[i] + (at(i) * 0.71).cos() > 0.0))).collect();
     let y: Vec<f64> = (0..N).map(|i| 3.0 * a[i] + z[i] + 0.1 * (at(i) * 0.31).sin()).collect();
     let data = table(&[("a", a), ("y", y), ("z", z)]);
     let ctx = ctx();

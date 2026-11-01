@@ -106,9 +106,12 @@ fn weighted_clustered_and_serial_levels_derivatives_and_support_match_the_multip
         let c = Case::new(&case);
         let declared = c.declaration();
         let points = case["points"].as_array().unwrap();
-        let levels =
-            estimate_dose_grid_functional_declared(&c.request(DoseFunctional::Level), &declared, &ctx)
-                .expect(name);
+        let levels = estimate_dose_grid_functional_declared(
+            &c.request(DoseFunctional::Level),
+            &declared,
+            &ctx,
+        )
+        .expect(name);
         let slopes = estimate_dose_grid_functional_declared(
             &c.request(DoseFunctional::Derivative),
             &declared,
@@ -131,7 +134,11 @@ fn weighted_clustered_and_serial_levels_derivatives_and_support_match_the_multip
         // The accounting of the declaration is on the row.
         if c.weights.is_some() {
             let record = levels.declared.weights.expect("weights recorded");
-            assert_eq!(record.zero_weight_rows, case["zero_weight_rows"].as_u64().unwrap(), "{name}");
+            assert_eq!(
+                record.zero_weight_rows,
+                case["zero_weight_rows"].as_u64().unwrap(),
+                "{name}"
+            );
             assert_eq!(record.rows_used, case["rows_used"].as_u64().unwrap(), "{name}");
             close(record.effective_sample_size, f(&case, "kish_weights"), 1e-9, name);
             close(record.weight_sum, f(&case, "weight_sum_used"), 1e-12, name);
@@ -154,8 +161,9 @@ fn weighted_clustered_and_serial_contrasts_match_the_multiprecision_difference_o
             from: contrast["from"].as_f64().unwrap(),
             to: contrast["to"].as_f64().unwrap(),
         };
-        let row = estimate_dose_grid_functional_declared(&c.request(functional), &c.declaration(), &ctx)
-            .expect(name);
+        let row =
+            estimate_dose_grid_functional_declared(&c.request(functional), &c.declaration(), &ctx)
+                .expect(name);
         let got = row.contrast.expect("contrast");
         close(got.estimate, contrast["estimate"].as_f64().unwrap(), 1e-8, name);
         close(got.standard_error, contrast["se"].as_f64().unwrap(), 1e-8, name);
@@ -165,7 +173,8 @@ fn weighted_clustered_and_serial_contrasts_match_the_multiprecision_difference_o
 #[test]
 fn equal_weights_at_any_scale_reproduce_the_unweighted_row_bit_for_bit_in_the_estimate() {
     let ctx = ExecutionContext::for_tests(3);
-    let case = reference().into_iter().find(|c| c["name"] == "equal_weights_scale_invariant").unwrap();
+    let case =
+        reference().into_iter().find(|c| c["name"] == "equal_weights_scale_invariant").unwrap();
     let c = Case::new(&case);
     let plain = estimate_dose_grid_functional(&c.request(DoseFunctional::Level)).unwrap();
     let weighted = estimate_dose_grid_functional_declared(
@@ -192,7 +201,8 @@ fn equal_weights_at_any_scale_reproduce_the_unweighted_row_bit_for_bit_in_the_es
 #[test]
 fn a_zero_weight_row_is_exactly_a_deleted_row() {
     let ctx = ExecutionContext::for_tests(3);
-    let case = reference().into_iter().find(|c| c["name"] == "weights_unequal_zero_and_extreme").unwrap();
+    let case =
+        reference().into_iter().find(|c| c["name"] == "weights_unequal_zero_and_extreme").unwrap();
     let c = Case::new(&case);
     let weights = c.weights.clone().unwrap();
     let keep: Vec<usize> = (0..c.dose.len()).filter(|&i| weights[i] > 0.0).collect();
@@ -210,7 +220,10 @@ fn a_zero_weight_row_is_exactly_a_deleted_row() {
     .unwrap();
     let without = estimate_dose_grid_functional_declared(
         &deleted,
-        &RowDeclaration { sampling_weights: Some(&kept_weights), dependence: RowDependence::Independent },
+        &RowDeclaration {
+            sampling_weights: Some(&kept_weights),
+            dependence: RowDependence::Independent,
+        },
         &ctx,
     )
     .unwrap();
@@ -290,14 +303,18 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
     let n = c.dose.len();
     // Lengths.
     let short = vec![1.0; n - 1];
-    assert!(detail(RowDeclaration { sampling_weights: Some(&short), ..RowDeclaration::default() })
-        .contains("dose_grid.invalid_request"));
+    assert!(
+        detail(RowDeclaration { sampling_weights: Some(&short), ..RowDeclaration::default() })
+            .contains("dose_grid.invalid_request")
+    );
     let few = vec![0u32; n - 1];
-    assert!(detail(RowDeclaration {
-        dependence: RowDependence::Clustered(&few),
-        ..RowDeclaration::default()
-    })
-    .contains("dose_grid.invalid_request"));
+    assert!(
+        detail(RowDeclaration {
+            dependence: RowDependence::Clustered(&few),
+            ..RowDeclaration::default()
+        })
+        .contains("dose_grid.invalid_request")
+    );
     // Weights that are not a valid declaration.
     let mut bad = vec![1.0; n];
     bad[2] = -0.5;
@@ -310,11 +327,13 @@ fn declarations_the_rows_cannot_honour_are_refused_with_typed_details() {
     );
     // One cluster is not a cluster-robust variance.
     let one = vec![7u32; n];
-    assert!(detail(RowDeclaration {
-        dependence: RowDependence::Clustered(&one),
-        ..RowDeclaration::default()
-    })
-    .contains("dose_grid.too_few_clusters"));
+    assert!(
+        detail(RowDeclaration {
+            dependence: RowDependence::Clustered(&one),
+            ..RowDeclaration::default()
+        })
+        .contains("dose_grid.too_few_clusters")
+    );
     // The lag is never silently capped or zero.
     for lag in [0, n, n + 5] {
         let text = detail(RowDeclaration {

@@ -61,7 +61,8 @@ fn topological(n: usize, arcs: &[(usize, usize)]) -> Vec<usize> {
 }
 
 fn all_dags(n: usize) -> Vec<Arcs> {
-    let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect();
+    let pairs: Vec<(usize, usize)> =
+        (0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect();
     let mut out = Vec::new();
     for code in 0..3usize.pow(u32::try_from(pairs.len()).unwrap()) {
         let (mut arcs, mut rest) = (Vec::new(), code);
@@ -150,7 +151,13 @@ fn d_separated(n: usize, arcs: &[(usize, usize)], x: &[usize], y: &[usize], z: &
 }
 
 /// Pearl's front-door conditions for a non-empty `m`.
-fn satisfies_definition(n: usize, arcs: &[(usize, usize)], t: usize, y: usize, m: &[usize]) -> bool {
+fn satisfies_definition(
+    n: usize,
+    arcs: &[(usize, usize)],
+    t: usize,
+    y: usize,
+    m: &[usize],
+) -> bool {
     // (i) every directed path from t to y contains a member of m.
     let mut reach = vec![false; n];
     let mut stack = vec![t];
@@ -178,16 +185,13 @@ fn satisfies_definition(n: usize, arcs: &[(usize, usize)], t: usize, y: usize, m
 
 fn subsets_of(pool: &[usize]) -> Vec<Vec<usize>> {
     (1..(1usize << pool.len()))
-        .map(|mask| pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect())
+        .map(|mask| {
+            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+        })
         .collect()
 }
 
-fn reported(
-    n: usize,
-    g: &Dag,
-    t: usize,
-    y: usize,
-) -> (IdentificationStatus, Vec<Vec<usize>>) {
+fn reported(n: usize, g: &Dag, t: usize, y: usize) -> (IdentificationStatus, Vec<Vec<usize>>) {
     let id = FrontDoorIdentifier {
         config: FrontDoorSearchConfig { max_results: usize::MAX, max_mediator_set_size: n },
     };
@@ -219,17 +223,18 @@ struct Scm {
 
 impl Scm {
     fn new(n: usize, arcs: &[(usize, usize)], seed: u64) -> Self {
-        let mut state = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        let mut state =
+            seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         let mut uniform = move || {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             0.1 + 0.8 * (f64::from(u32::try_from(state >> 33).unwrap()) / f64::from(1u32 << 31))
         };
         let parents: Vec<Vec<usize>> =
             (0..n).map(|v| arcs.iter().filter(|a| a.1 == v).map(|a| a.0).collect()).collect();
-        let table = parents
-            .iter()
-            .map(|p| (0..(1usize << p.len())).map(|_| uniform()).collect())
-            .collect();
+        let table =
+            parents.iter().map(|p| (0..(1usize << p.len())).map(|_| uniform()).collect()).collect();
         Self { n, parents, table }
     }
 
@@ -291,7 +296,8 @@ impl Scm {
                 with_t.push((t, t_prime));
                 let mut with_y = with_t.clone();
                 with_y.push((y, 1));
-                inner += self.observed(&with_y) / self.observed(&with_t) * self.observed(&[(t, t_prime)]);
+                inner += self.observed(&with_y) / self.observed(&with_t)
+                    * self.observed(&[(t, t_prime)]);
             }
             total += p_m_given_t * inner;
         }
@@ -366,7 +372,8 @@ fn frontdoor_five_node_sample_includes_multi_member_mediator_sets() {
     // The sample reaches mediator sets with two members.
     let has_pair = dags.iter().any(|arcs| {
         let g = dag_of(5, arcs);
-        (0..5).any(|t| (0..5).any(|y| t != y && reported(5, &g, t, y).1.iter().any(|m| m.len() > 1)))
+        (0..5)
+            .any(|t| (0..5).any(|y| t != y && reported(5, &g, t, y).1.iter().any(|m| m.len() > 1)))
     });
     assert!(has_pair);
 }
@@ -390,10 +397,15 @@ fn the_references_reject_the_standard_counterexamples() {
     assert!(!is_backdoor_adjustment(5, &m_bias, 0, 2, &[1]));
 }
 
-
 /// Pearl's back-door conditions: `z` has no descendant of `t` and `t` is d-separated from `y`
 /// given `z` once the arrows out of `t` are removed.
-fn is_backdoor_adjustment(n: usize, arcs: &[(usize, usize)], t: usize, y: usize, z: &[usize]) -> bool {
+fn is_backdoor_adjustment(
+    n: usize,
+    arcs: &[(usize, usize)],
+    t: usize,
+    y: usize,
+    z: &[usize],
+) -> bool {
     let mut descendant = vec![false; n];
     let mut stack = vec![t];
     while let Some(v) = stack.pop() {
@@ -413,7 +425,9 @@ fn is_backdoor_adjustment(n: usize, arcs: &[(usize, usize)], t: usize, y: usize,
 
 fn proper_subsets_of(pool: &[usize]) -> Vec<Vec<usize>> {
     (0..(1usize << pool.len()))
-        .map(|mask| pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect())
+        .map(|mask| {
+            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+        })
         .collect()
 }
 
@@ -492,7 +506,10 @@ fn backdoor_sweep(n: usize, dags: &[Arcs], seeds: &[u64]) -> (usize, usize, usiz
                 let (fallback_status, fallback) =
                     backdoor_report(&g, t, y, |c| c.max_candidates = 0);
                 assert_eq!(fallback_status, status, "fallback status: {context}");
-                assert!(fallback.iter().all(|z| valid.contains(z)), "fallback {fallback:?}: {context}");
+                assert!(
+                    fallback.iter().all(|z| valid.contains(z)),
+                    "fallback {fallback:?}: {context}"
+                );
 
                 if valid.is_empty() {
                     refused += 1;
@@ -524,7 +541,10 @@ fn backdoor_sweep(n: usize, dags: &[Arcs], seeds: &[u64]) -> (usize, usize, usiz
 #[test]
 fn backdoor_search_matches_the_definition_and_adjustment_recovers_truth_on_every_four_node_dag() {
     let (identified, refused, numeric) = backdoor_sweep(4, &all_dags(4), &[7]);
-    assert!(identified > 300 && refused > 100 && numeric > 1000, "{identified} {refused} {numeric}");
+    assert!(
+        identified > 300 && refused > 100 && numeric > 1000,
+        "{identified} {refused} {numeric}"
+    );
 }
 
 #[test]
@@ -551,12 +571,15 @@ fn forbidden_variables_are_never_adjusted_for_and_the_reference_agrees() {
                 for &banned in &pool {
                     let mut expected: Vec<Vec<usize>> = proper_subsets_of(&pool)
                         .into_iter()
-                        .filter(|z| !z.contains(&banned) && is_backdoor_adjustment(4, &arcs, t, y, z))
+                        .filter(|z| {
+                            !z.contains(&banned) && is_backdoor_adjustment(4, &arcs, t, y, z)
+                        })
                         .collect();
                     expected.sort();
                     let (status, got) = backdoor_report(&g, t, y, |c| {
                         c.minimal_only = false;
-                        c.forbidden = Arc::from([VariableId::from_raw(u32::try_from(banned).unwrap())]);
+                        c.forbidden =
+                            Arc::from([VariableId::from_raw(u32::try_from(banned).unwrap())]);
                     });
                     assert_eq!(got, expected, "arcs={arcs:?} t={t} y={y} banned={banned}");
                     assert_eq!(

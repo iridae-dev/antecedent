@@ -161,10 +161,14 @@ impl ExactLawError {
     pub const fn is_cancelled(&self) -> bool {
         let actual = self.kind.as_bytes();
         let expected = b"cancelled";
-        if actual.len() != expected.len() { return false; }
+        if actual.len() != expected.len() {
+            return false;
+        }
         let mut i = 0;
         while i < expected.len() {
-            if actual[i] != expected[i] { return false; }
+            if actual[i] != expected[i] {
+                return false;
+            }
             i += 1;
         }
         true
@@ -813,64 +817,114 @@ struct WorldBinding {
 type WorldIndex = HashMap<u64, Vec<(WorldBinding, usize)>>;
 
 fn cancelled_error() -> ExactLawError {
-    ExactLawError { kind: "cancelled", population: Arc::from(""), regime: None,
-        variables: Arc::from([]), conditioning: Arc::from([]), interventions: Arc::from([]) }
+    ExactLawError {
+        kind: "cancelled",
+        population: Arc::from(""),
+        regime: None,
+        variables: Arc::from([]),
+        conditioning: Arc::from([]),
+        interventions: Arc::from([]),
+    }
 }
 fn poll_world() -> Result<(), ExactLawError> {
-    if antecedent_core::numerical_admission::is_cancelled() { Err(cancelled_error()) } else { Ok(()) }
+    if antecedent_core::numerical_admission::is_cancelled() {
+        Err(cancelled_error())
+    } else {
+        Ok(())
+    }
 }
 struct PollHasher {
     inner: std::collections::hash_map::DefaultHasher,
     cancelled: bool,
 }
 impl Hasher for PollHasher {
-    fn finish(&self) -> u64 { self.inner.finish() }
+    fn finish(&self) -> u64 {
+        self.inner.finish()
+    }
     fn write(&mut self, bytes: &[u8]) {
         for chunk in bytes.chunks(512) {
-            if poll_world().is_err() { self.cancelled = true; return; }
+            if poll_world().is_err() {
+                self.cancelled = true;
+                return;
+            }
             self.inner.write(chunk);
         }
     }
 }
-fn world_digest(population: &str, regime: RegimeId, assignments: &[InterventionAssignment]) -> Result<u64, ExactLawError> {
+fn world_digest(
+    population: &str,
+    regime: RegimeId,
+    assignments: &[InterventionAssignment],
+) -> Result<u64, ExactLawError> {
     poll_world()?;
     let mut h = PollHasher { inner: Default::default(), cancelled: false };
     population.hash(&mut h);
     regime.hash(&mut h);
-    for assignment in assignments { poll_world()?; assignment.hash(&mut h); }
-    if h.cancelled { return Err(cancelled_error()); }
+    for assignment in assignments {
+        poll_world()?;
+        assignment.hash(&mut h);
+    }
+    if h.cancelled {
+        return Err(cancelled_error());
+    }
     poll_world()?;
     Ok(h.finish())
 }
-fn checked_world_key(assignments: &[InterventionAssignment]) -> Result<Vec<InterventionAssignment>, ExactLawError> {
+fn checked_world_key(
+    assignments: &[InterventionAssignment],
+) -> Result<Vec<InterventionAssignment>, ExactLawError> {
     let mut ordered: BTreeMap<VariableId, Vec<InterventionAssignment>> = BTreeMap::new();
     for a in assignments {
         poll_world()?;
-        ordered.entry(a.variable).or_default().push(InterventionAssignment { variable: a.variable, value: value_key(&a.value) });
+        ordered
+            .entry(a.variable)
+            .or_default()
+            .push(InterventionAssignment { variable: a.variable, value: value_key(&a.value) });
     }
     let mut key = Vec::with_capacity(assignments.len());
     for values in ordered.into_values() {
-        for a in values { poll_world()?; key.push(a); }
+        for a in values {
+            poll_world()?;
+            key.push(a);
+        }
     }
     poll_world()?;
     Ok(key)
 }
-fn checked_world_eq(binding: &WorldBinding, population: &str, regime: RegimeId, key: &[InterventionAssignment]) -> Result<bool, ExactLawError> {
+fn checked_world_eq(
+    binding: &WorldBinding,
+    population: &str,
+    regime: RegimeId,
+    key: &[InterventionAssignment],
+) -> Result<bool, ExactLawError> {
     poll_world()?;
-    if binding.regime != regime || binding.population.len() != population.len() || binding.interventions.len() != key.len() { return Ok(false); }
+    if binding.regime != regime
+        || binding.population.len() != population.len()
+        || binding.interventions.len() != key.len()
+    {
+        return Ok(false);
+    }
     for (a, b) in binding.population.as_bytes().chunks(512).zip(population.as_bytes().chunks(512)) {
         poll_world()?;
-        if a != b { return Ok(false); }
+        if a != b {
+            return Ok(false);
+        }
     }
     for (a, b) in binding.interventions.iter().zip(key) {
         poll_world()?;
-        if a.variable != b.variable { return Ok(false); }
+        if a.variable != b.variable {
+            return Ok(false);
+        }
         match (&a.value, &b.value) {
             (Value::Label(a), Value::Label(b)) => {
-                if a.len() != b.len() { return Ok(false); }
+                if a.len() != b.len() {
+                    return Ok(false);
+                }
                 for (a, b) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
                     poll_world()?;
-                    if a != b { return Ok(false); }
+                    if a != b {
+                        return Ok(false);
+                    }
                 }
             }
             (a, b) if !same_value_key(a, b) => return Ok(false),
@@ -990,7 +1044,14 @@ impl ExactTransportData {
                     return Err(law.error("duplicate_law_binding"));
                 }
             }
-            bucket.push((WorldBinding { population: Arc::clone(&law.population), regime: law.regime, interventions: key }, i));
+            bucket.push((
+                WorldBinding {
+                    population: Arc::clone(&law.population),
+                    regime: law.regime,
+                    interventions: key,
+                },
+                i,
+            ));
             for axis in law.axes.iter() {
                 law.check_cancelled()?;
                 if let Some(other) = domains.get(&axis.variable) {
@@ -1108,7 +1169,10 @@ impl ExactTransportData {
     ///
     /// # Errors
     /// Missing or incompatible population, regime, intervention world, or axes.
-    pub fn require_factor(&self, spec: &FactorSpec<'_>) -> Result<&ExactDiscreteLaw, ExactLawError> {
+    pub fn require_factor(
+        &self,
+        spec: &FactorSpec<'_>,
+    ) -> Result<&ExactDiscreteLaw, ExactLawError> {
         self.require_factor_index(spec).map(|index| &self.laws[index])
     }
 
@@ -1116,28 +1180,51 @@ impl ExactTransportData {
         let wanted = checked_world_key(spec.intervention)?;
         let mut selected: Option<usize> = None;
         let mut consider = |binding: &WorldBinding, index: usize| -> Result<(), ExactLawError> {
-            if !checked_world_eq(binding, spec.population, spec.regime.unwrap_or(binding.regime), &wanted)? { return Ok(()); }
+            if !checked_world_eq(
+                binding,
+                spec.population,
+                spec.regime.unwrap_or(binding.regime),
+                &wanted,
+            )? {
+                return Ok(());
+            }
             let law = &self.laws[index];
-            if (spec.domain == DomainRef::Observational) != law.interventions.is_empty() { return Ok(()); }
+            if (spec.domain == DomainRef::Observational) != law.interventions.is_empty() {
+                return Ok(());
+            }
             for variable in spec.variables.iter().chain(spec.conditioned_on) {
                 poll_world()?;
-                if !law.axis_index.contains_key(variable) { return Ok(()); }
+                if !law.axis_index.contains_key(variable) {
+                    return Ok(());
+                }
             }
-            if selected.is_none_or(|old| law.regime.raw() < self.laws[old].regime.raw()) { selected = Some(index); }
+            if selected.is_none_or(|old| law.regime.raw() < self.laws[old].regime.raw()) {
+                selected = Some(index);
+            }
             Ok(())
         };
         if let Some(regime) = spec.regime {
             let digest = world_digest(spec.population, regime, &wanted)?;
             if let Some(bucket) = self.index.get(&digest) {
-                for (binding, index) in bucket { consider(binding, *index)?; }
+                for (binding, index) in bucket {
+                    consider(binding, *index)?;
+                }
             }
         } else if let Some(cited) = &self.world_bound_regimes {
             for bucket in self.index.values() {
                 for (binding, index) in bucket {
                     poll_world()?;
                     let mut allowed = false;
-                    for chunk in cited.chunks(512) { poll_world()?; if chunk.contains(&binding.regime) { allowed = true; break; } }
-                    if allowed { consider(binding, *index)?; }
+                    for chunk in cited.chunks(512) {
+                        poll_world()?;
+                        if chunk.contains(&binding.regime) {
+                            allowed = true;
+                            break;
+                        }
+                    }
+                    if allowed {
+                        consider(binding, *index)?;
+                    }
                 }
             }
         }
@@ -1151,9 +1238,15 @@ impl ExactTransportData {
                 poll_world()?;
                 let interventions = Arc::from(spec.intervention);
                 poll_world()?;
-                Err(ExactLawError { kind: "missing_exact_provider", population,
-                    regime: spec.regime, variables, conditioning: Arc::from([]), interventions })
-            },
+                Err(ExactLawError {
+                    kind: "missing_exact_provider",
+                    population,
+                    regime: spec.regime,
+                    variables,
+                    conditioning: Arc::from([]),
+                    interventions,
+                })
+            }
         }
     }
 
@@ -1186,9 +1279,10 @@ impl ExactTransportData {
                 let mut conditions =
                     law.positions(spec.conditioned_on, assignment).map_err(locate)?;
                 let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
-                let key = self.factor_cache.as_ref().map(|_| {
-                    (self.law_identities[law_index], outputs.clone(), conditions.clone())
-                });
+                let key = self
+                    .factor_cache
+                    .as_ref()
+                    .map(|_| (self.law_identities[law_index], outputs.clone(), conditions.clone()));
                 if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
                     if let Some(value) = cache
                         .values
@@ -1444,7 +1538,10 @@ mod tests {
         use super::*;
         let target = law("target", &[0.1, 0.2, 0.3, 0.4]).unwrap();
         let other = law("other", &[0.1, 0.2, 0.3, 0.4]).unwrap();
-        assert_eq!(ExactTransportData::try_new([target.clone(), target.clone()], 16).unwrap_err().kind, "duplicate_law_binding");
+        assert_eq!(
+            ExactTransportData::try_new([target.clone(), target.clone()], 16).unwrap_err().kind,
+            "duplicate_law_binding"
+        );
         let mut data = ExactTransportData::try_new([target, other], 16).unwrap();
         let target_digest = world_digest("target", RegimeId::from_raw(0), &[]).unwrap();
         let other_digest = world_digest("other", RegimeId::from_raw(0), &[]).unwrap();
@@ -1452,18 +1549,32 @@ mod tests {
         let other = index.remove(&other_digest).unwrap().pop().unwrap();
         index.get_mut(&target_digest).unwrap().insert(0, other);
         let outcomes = [v(1)];
-        let spec = FactorSpec { population: "target", regime: Some(RegimeId::from_raw(0)),
-            ..FactorSpec::new(&outcomes, &[], &[], DomainRef::Observational) };
+        let spec = FactorSpec {
+            population: "target",
+            regime: Some(RegimeId::from_raw(0)),
+            ..FactorSpec::new(&outcomes, &[], &[], DomainRef::Observational)
+        };
         assert_eq!(data.require_factor(&spec).unwrap().population(), "target");
-        let left = [InterventionAssignment::concrete(v(2), Value::Float64(1.0)), InterventionAssignment::concrete(v(1), Value::Bool(true))];
-        let right = [InterventionAssignment::concrete(v(1), Value::Bool(true)), InterventionAssignment::concrete(v(2), Value::Int64(1))];
+        let left = [
+            InterventionAssignment::concrete(v(2), Value::Float64(1.0)),
+            InterventionAssignment::concrete(v(1), Value::Bool(true)),
+        ];
+        let right = [
+            InterventionAssignment::concrete(v(1), Value::Bool(true)),
+            InterventionAssignment::concrete(v(2), Value::Int64(1)),
+        ];
         let left = checked_world_key(&left).unwrap();
         let right = checked_world_key(&right).unwrap();
         assert_eq!(left, right);
-        assert_eq!(world_digest("target", RegimeId::from_raw(0), &left).unwrap(), world_digest("target", RegimeId::from_raw(0), &right).unwrap());
+        assert_eq!(
+            world_digest("target", RegimeId::from_raw(0), &left).unwrap(),
+            world_digest("target", RegimeId::from_raw(0), &right).unwrap()
+        );
         let ctx = antecedent_core::ExecutionContext::for_tests(7);
         ctx.cancellation.cancel();
-        let error = antecedent_core::numerical_admission::with_context(&ctx, || data.require_factor(&spec)).unwrap_err();
+        let error =
+            antecedent_core::numerical_admission::with_context(&ctx, || data.require_factor(&spec))
+                .unwrap_err();
         assert_eq!(error.kind, "cancelled");
     }
 

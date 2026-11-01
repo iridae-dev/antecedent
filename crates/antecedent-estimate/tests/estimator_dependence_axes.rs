@@ -220,7 +220,10 @@ fn newey_west_oracle(r: &Rows, lag: usize) -> (f64, f64) {
     (beta[1], sandwich_tt(&bread, &omega).sqrt())
 }
 
-fn linear(r: &Rows, configure: impl Fn(LinearAdjustmentAte) -> LinearAdjustmentAte) -> EffectEstimate {
+fn linear(
+    r: &Rows,
+    configure: impl Fn(LinearAdjustmentAte) -> LinearAdjustmentAte,
+) -> EffectEstimate {
     let (data, estimand) = dataset(&r.t, &r.y, &r.z);
     let estimator = configure(LinearAdjustmentAte::new().with_bootstrap_replicates(0));
     let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
@@ -232,7 +235,9 @@ fn linear(r: &Rows, configure: impl Fn(LinearAdjustmentAte) -> LinearAdjustmentA
 fn glm(r: &Rows, configure: impl Fn(GlmAdjustmentAte) -> GlmAdjustmentAte) -> EffectEstimate {
     let (data, estimand) = dataset(&r.t, &r.y, &r.z);
     let estimator = configure(
-        GlmAdjustmentAte::new().with_bootstrap_replicates(0).with_family(GlmFamily::GaussianIdentity),
+        GlmAdjustmentAte::new()
+            .with_bootstrap_replicates(0)
+            .with_family(GlmFamily::GaussianIdentity),
     );
     let prepared = estimator.prepare(&data, &estimand, &query()).unwrap();
     estimator
@@ -257,15 +262,13 @@ fn linear_and_gaussian_glm_cluster_se_are_the_closed_form_cluster_sandwich() {
         "the design must make clustering matter: {} vs {se}",
         independent.se_analytic()
     );
-    let by_linear = linear(&r, |e| {
-        e.with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(r.cluster.clone())
-    });
+    let by_linear =
+        linear(&r, |e| e.with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(r.cluster.clone()));
     close(by_linear.ate, beta, 1e-9, "linear coefficient");
     close(by_linear.se_analytic(), se, 1e-9, "linear cluster sandwich");
     assert_eq!(by_linear.uncertainty.analytic.kind, Some(AnalyticSeKind::Cluster));
-    let by_glm = glm(&r, |e| {
-        e.with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(r.cluster.clone())
-    });
+    let by_glm =
+        glm(&r, |e| e.with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(r.cluster.clone()));
     close(by_glm.ate, beta, 1e-9, "gaussian glm coefficient");
     close(by_glm.se_analytic(), se, 1e-9, "gaussian glm cluster sandwich");
 }
@@ -273,9 +276,8 @@ fn linear_and_gaussian_glm_cluster_se_are_the_closed_form_cluster_sandwich() {
 #[test]
 fn cluster_se_is_invariant_to_cluster_relabelling_and_to_the_order_of_whole_clusters() {
     let r = rows(12, 4);
-    let base = linear(&r, |e| {
-        e.with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(r.cluster.clone())
-    });
+    let base =
+        linear(&r, |e| e.with_se_kind(AnalyticSeKind::Cluster).with_cluster_ids(r.cluster.clone()));
     // Reverse the order of whole clusters (each keeps its internal row order) and relabel.
     let mut order: Vec<usize> = vec![];
     for g in (0..12).rev() {

@@ -17,7 +17,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    Intervention, InterventionalDistributionQuery, Value, VariableId, CausalQuery,
+    CausalQuery, Intervention, InterventionalDistributionQuery, Value, VariableId,
 };
 use antecedent_graph::{Admg, BitSet, DenseNodeId};
 use antecedent_identify::{
@@ -114,7 +114,8 @@ impl Graph {
             return false;
         }
         // Each non-root node of `big` chooses exactly one child inside `big`; roots keep none.
-        let nodes: Vec<usize> = (0..self.n).filter(|&i| big >> i & 1 == 1 && r >> i & 1 == 0).collect();
+        let nodes: Vec<usize> =
+            (0..self.n).filter(|&i| big >> i & 1 == 1 && r >> i & 1 == 0).collect();
         self.choose(&nodes, 0, big, small)
     }
 
@@ -259,17 +260,20 @@ fn verifier_agrees(n: usize, stride: usize) -> (usize, usize) {
                     if x & y != 0 {
                         continue;
                     }
-                    let (xs, ys): (Vec<_>, Vec<_>) =
-                        (members(x, n).into_iter().map(v).collect(), members(y, n).into_iter().map(v).collect());
+                    let (xs, ys): (Vec<_>, Vec<_>) = (
+                        members(x, n).into_iter().map(v).collect(),
+                        members(y, n).into_iter().map(v).collect(),
+                    );
                     for f in 1..1usize << n {
                         for fp in 1..=f {
                             if fp & !f != 0 {
                                 continue;
                             }
-                            let certificate =
-                                HedgeCertificate::from_sets(&bitset(n, f), &bitset(n, fp), |node| {
-                                    v(node.as_usize())
-                                });
+                            let certificate = HedgeCertificate::from_sets(
+                                &bitset(n, f),
+                                &bitset(n, fp),
+                                |node| v(node.as_usize()),
+                            );
                             let shipped = certificate.verify(&prepared, &xs, &ys).is_ok();
                             let defined = g.is_hedge(f, fp, x, y);
                             assert_eq!(

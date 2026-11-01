@@ -703,9 +703,7 @@ fn hierarchical_unit_effects_widen_posterior_vs_stacked() {
             .map(|u| {
                 let unit_eff = 1.6 * ((u as f64) * 0.31).sin();
                 let a = if even { 1.0 } else { 0.0 };
-                (0..t_len)
-                    .map(|k| 2.0 * a + unit_eff + 0.15 * ((k + 1) as f64).sin())
-                    .sum::<f64>()
+                (0..t_len).map(|k| 2.0 * a + unit_eff + 0.15 * ((k + 1) as f64).sin()).sum::<f64>()
                     / t_len as f64
             })
             .collect()
@@ -1480,7 +1478,11 @@ fn hydrate_prior_from_posterior_and_refit() {
     let eq = post2.effect_column().unwrap();
     // The noise-free ATE is 2; refitting the same data under its own hydrated posterior
     // keeps the mean there (observed 1.9994).
-    assert!((post2.summaries.mean[eq] - 2.0).abs() < 2e-3, "refit mean {}", post2.summaries.mean[eq]);
+    assert!(
+        (post2.summaries.mean[eq] - 2.0).abs() < 2e-3,
+        "refit mean {}",
+        post2.summaries.mean[eq]
+    );
 }
 
 /// Earns `estimate-bayes-transport-response-1`: absolute SD² must not be stored as V0.
@@ -1712,40 +1714,44 @@ fn hydrate_mapping_hard_errors() {
         &HydrateSource::summaries(&quantities, &mean, &sd),
         &HydrateTarget { baseline: &baseline3, coef_names: &names3, treatment_col: None },
     ));
-    assert!(error.contains("prior_dimension_mismatch") && error.contains("dimension 2 != expected n_coef 3"), "{error}");
+    assert!(
+        error.contains("prior_dimension_mismatch")
+            && error.contains("dimension 2 != expected n_coef 3"),
+        "{error}"
+    );
 
     let error = hydrate_error(hydrate_prior(
-            &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
-            &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(1.0)),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        ));
+        &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(1.0)),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
+    ));
     assert!(error.contains("missing quantity `missing`"), "{error}");
 
     let error = hydrate_error(hydrate_prior(
-            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        ));
+        &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
+    ));
     assert!(error.contains("requires a finite nonzero source contrast"), "{error}");
     let error = hydrate_error(hydrate_prior(
-            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-            &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.0)),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
-        ));
+        &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+        &HydrateSource::summaries(&quantities, &mean, &sd).with_source_contrast(Some(0.0)),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: Some(1) },
+    ));
     assert!(error.contains("requires a finite nonzero source contrast"), "{error}");
 
     let error = hydrate_error(hydrate_prior(
-            &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
-        ));
+        &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
+    ));
     assert!(error.contains("unknown target coefficient name `no_such_coef`"), "{error}");
 
     let error = hydrate_error(hydrate_prior(
-            &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
-            &HydrateSource::summaries(&quantities, &mean, &sd),
-            &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
-        ));
+        &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
+        &HydrateSource::summaries(&quantities, &mean, &sd),
+        &HydrateTarget { baseline: &baseline2, coef_names: &names2, treatment_col: None },
+    ));
     assert!(error.contains("source quantity `no_src` must be uniquely named"), "{error}");
 }
 

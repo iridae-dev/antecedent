@@ -75,7 +75,11 @@ fn complete_law(y0: &[f64], y1: &[f64], n1: usize) -> Law {
         bound += fit.variance_upper_bound;
     }
     let m = assignments.len() as f64;
-    Law { mean_estimate: sum / m, variance_estimate: sum_sq / m - (sum / m).powi(2), mean_bound: bound / m }
+    Law {
+        mean_estimate: sum / m,
+        variance_estimate: sum_sq / m - (sum / m).powi(2),
+        mean_bound: bound / m,
+    }
 }
 
 #[test]
@@ -224,7 +228,8 @@ fn factorial_main_effects_and_interaction_match_the_four_cell_randomization_law(
                 };
                 let (a, b, c, d) = (cell(&c00, 0), cell(&c10, 1), cell(&c01, 2), cell(&c11, 3));
                 let fit = factorial_2x2([&a, &b, &c, &d]).expect("factorial");
-                for (slot, value) in [fit.primary, fit.secondary, fit.interaction].iter().enumerate()
+                for (slot, value) in
+                    [fit.primary, fit.secondary, fit.interaction].iter().enumerate()
                 {
                     stats[slot].0 += value;
                     stats[slot].1 += value * value;

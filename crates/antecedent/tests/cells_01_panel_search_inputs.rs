@@ -259,7 +259,10 @@ fn cells_01_point_mean_search_refuses_a_fit_without_a_converged_optimizer_and_cu
     let JointPanelFit::Invariant(partial) = &unconverged.fit else { panic!("invariant fit") };
     assert!(!partial.diagnostics.optimizer_converged);
     let error = unconverged
-        .compile_search(&search_request(&unconverged, JointPanelScientificScope::ModelConditional), &ctx)
+        .compile_search(
+            &search_request(&unconverged, JointPanelScientificScope::ModelConditional),
+            &ctx,
+        )
         .map(|_| ())
         .unwrap_err();
     assert!(
@@ -267,7 +270,10 @@ fn cells_01_point_mean_search_refuses_a_fit_without_a_converged_optimizer_and_cu
             if detail.contains("converged optimizer with positive-definite curvature")),
         "{error}"
     );
-    let error = unconverged.compile_continuous_search(continuous(&unconverged), &ctx).map(|_| ()).unwrap_err();
+    let error = unconverged
+        .compile_continuous_search(continuous(&unconverged), &ctx)
+        .map(|_| ())
+        .unwrap_err();
     assert!(
         matches!(&error, JointPanelError::Unsupported(detail)
             if detail.contains("converged optimizer with positive-definite curvature")),
@@ -278,7 +284,10 @@ fn cells_01_point_mean_search_refuses_a_fit_without_a_converged_optimizer_and_cu
     let JointPanelFit::Invariant(full) = &converged.fit else { panic!("invariant fit") };
     assert!(full.diagnostics.optimizer_converged && full.diagnostics.curvature_available);
     converged
-        .compile_search(&search_request(&converged, JointPanelScientificScope::ModelConditional), &ctx)
+        .compile_search(
+            &search_request(&converged, JointPanelScientificScope::ModelConditional),
+            &ctx,
+        )
         .unwrap();
     converged.compile_continuous_search(continuous(&converged), &ctx).unwrap();
 }

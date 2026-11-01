@@ -35,24 +35,46 @@ fn fuzzy_jump() -> TabularData {
                 };
                 x.push(score);
                 treatment.push(dose);
-                outcome.push(1.0 + 2.0 * score + 0.5 * score * score + 3.0 * dose + [-0.02, -0.01, 0.01, 0.02][replicate]);
+                outcome.push(
+                    1.0 + 2.0 * score
+                        + 0.5 * score * score
+                        + 3.0 * dose
+                        + [-0.02, -0.01, 0.01, 0.02][replicate],
+                );
             }
         }
     }
-    TabularData::from_f64_columns([("x", x.as_slice()), ("t", treatment.as_slice()), ("y", outcome.as_slice())]).unwrap()
+    TabularData::from_f64_columns([
+        ("x", x.as_slice()),
+        ("t", treatment.as_slice()),
+        ("y", outcome.as_slice()),
+    ])
+    .unwrap()
 }
 
 fn ratio(cutoff: f64, bandwidth: f64) -> CausalQuery {
     CausalQuery::LocalPolynomialRatio(LocalPolynomialRatioQuery {
-        outcome: v(2), treatment: v(1), running: v(0), cutoff, bandwidth, kink: false, options: None,
+        outcome: v(2),
+        treatment: v(1),
+        running: v(0),
+        cutoff,
+        bandwidth,
+        kink: false,
+        options: None,
     })
 }
 
-fn refusal(result: Result<antecedent::StudyResult, antecedent::CausalError>, what: &str) -> antecedent::CausalError {
+fn refusal(
+    result: Result<antecedent::StudyResult, antecedent::CausalError>,
+    what: &str,
+) -> antecedent::CausalError {
     result.err().unwrap_or_else(|| panic!("{what}: published an estimate"))
 }
 
-fn ratio_run(cutoff: f64, bandwidth: f64) -> Result<antecedent::StudyResult, antecedent::CausalError> {
+fn ratio_run(
+    cutoff: f64,
+    bandwidth: f64,
+) -> Result<antecedent::StudyResult, antecedent::CausalError> {
     Study::tabular(fuzzy_jump())
         .query(ratio(cutoff, bandwidth))
         .refute(RefuteSuite::None)
@@ -132,7 +154,9 @@ fn the_mean_curve_rises_by_its_slope_and_refuses_an_invalid_grid() {
         let error = refusal(curve_run(grid), label);
         assert_eq!(error.reason_code(), Some("invalid_argument"), "{label}: {error}");
         assert!(
-            error.to_string().contains("response-grid values must be finite and strictly increasing"),
+            error
+                .to_string()
+                .contains("response-grid values must be finite and strictly increasing"),
             "{label}: {error}"
         );
     }

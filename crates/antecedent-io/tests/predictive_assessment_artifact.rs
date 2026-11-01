@@ -368,10 +368,25 @@ fn comparison_replay_is_bounded_and_duplicate_pairs_are_refused() {
     let limits = PredictiveAssessmentConsumeLimits::default();
     // One implicit pair, two scores, seven linear passes per case, plus name bytes.
     let replayed = PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, Some(artifact.identity()), limits, 404, &ctx()).unwrap();
+        &bytes,
+        Some(artifact.identity()),
+        limits,
+        404,
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(replayed.report(), artifact.report());
-    assert_eq!(PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, None, limits, 403, &ctx()).unwrap_err(), Error::LimitsExceeded("comparison work"));
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+            &bytes,
+            None,
+            limits,
+            403,
+            &ctx()
+        )
+        .unwrap_err(),
+        Error::LimitsExceeded("comparison work")
+    );
     let (mut meta, numbers, keys) = decode_parts_for_test(&bytes).unwrap();
     meta.comparisons = vec![("a".into(), "b".into()), ("a".into(), "b".into())];
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "duplicates").unwrap();
@@ -379,14 +394,25 @@ fn comparison_replay_is_bounded_and_duplicate_pairs_are_refused() {
     assert_eq!(error.refusal().unwrap().1, "predictive_assessment.invalid_law");
     meta.comparisons = vec![("a".into(), "b".into()); 1000];
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "amplification").unwrap();
-    assert_eq!(PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()).unwrap_err(),
-        Error::LimitsExceeded("comparison work"));
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()).unwrap_err(),
+        Error::LimitsExceeded("comparison work")
+    );
     let mut ordered = spec(20);
     ordered.comparisons = vec![("b".into(), "a".into()), ("a".into(), "b".into())];
     let (artifact, bytes) = sealed(&ordered);
-    let replayed = PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx()).unwrap();
-    assert_eq!(replayed.report().differences.iter().map(|d| (d.candidate.as_str(), d.reference.as_str())).collect::<Vec<_>>(),
-        vec![("b", "a"), ("b", "a"), ("a", "b"), ("a", "b")]);
+    let replayed =
+        PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx())
+            .unwrap();
+    assert_eq!(
+        replayed
+            .report()
+            .differences
+            .iter()
+            .map(|d| (d.candidate.as_str(), d.reference.as_str()))
+            .collect::<Vec<_>>(),
+        vec![("b", "a"), ("b", "a"), ("a", "b"), ("a", "b")]
+    );
 }
 
 #[test]
@@ -399,10 +425,25 @@ fn comparison_replay_also_charges_repeated_fit_key_sorts() {
     let limits = PredictiveAssessmentConsumeLimits::default();
     // 280 paired-score units, 124 name-byte units, plus 1800 fit-key units.
     let accepted = PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, Some(artifact.identity()), limits, 2204, &ctx()).unwrap();
+        &bytes,
+        Some(artifact.identity()),
+        limits,
+        2204,
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(accepted.report(), artifact.report());
-    assert_eq!(PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, None, limits, 2203, &ctx()).unwrap_err(), Error::LimitsExceeded("comparison work"));
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+            &bytes,
+            None,
+            limits,
+            2203,
+            &ctx()
+        )
+        .unwrap_err(),
+        Error::LimitsExceeded("comparison work")
+    );
 }
 
 #[test]
@@ -417,12 +458,26 @@ fn unselected_predictor_fit_keys_do_not_inflate_sparse_comparison_budget() {
     // 280 case units, six lookups and 778 name-byte units; no fit-overlap
     // work is charged for the unselected predictor.
     let accepted = PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, Some(artifact.identity()), limits, 1064, &ctx()).unwrap();
+        &bytes,
+        Some(artifact.identity()),
+        limits,
+        1064,
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(accepted.report(), artifact.report());
-    assert_eq!(PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, None, limits, 1063, &ctx()).unwrap_err(), Error::LimitsExceeded("comparison work"));
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+            &bytes,
+            None,
+            limits,
+            1063,
+            &ctx()
+        )
+        .unwrap_err(),
+        Error::LimitsExceeded("comparison work")
+    );
 }
-
 
 #[test]
 fn long_common_prefix_names_consume_byte_budget_before_comparison_replay() {
@@ -435,18 +490,30 @@ fn long_common_prefix_names_consume_byte_budget_before_comparison_replay() {
     assessment.comparisons = vec![(a, b)];
     let (artifact, bytes) = sealed(&assessment);
     let limits = PredictiveAssessmentConsumeLimits::default();
-    assert_eq!(PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
-        &bytes, None, limits, 1_000_000, &ctx()).unwrap_err(), Error::LimitsExceeded("comparison work"));
-    let replay = PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx()).unwrap();
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+            &bytes,
+            None,
+            limits,
+            1_000_000,
+            &ctx()
+        )
+        .unwrap_err(),
+        Error::LimitsExceeded("comparison work")
+    );
+    let replay =
+        PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx())
+            .unwrap();
     assert_eq!(replay.report(), artifact.report());
 }
-
 
 fn legacy_bytes(artifact: &PredictiveAssessmentArtifact, bytes: &[u8]) -> Vec<u8> {
     let (mut meta, numbers, keys) = decode_parts_for_test(bytes).unwrap();
     meta.version = 1;
     // The legacy identity did not bind provenance.
-    let legacy = antecedent_validate::predictive_assessment::legacy_assessment_identity(artifact.spec()).unwrap();
+    let legacy =
+        antecedent_validate::predictive_assessment::legacy_assessment_identity(artifact.spec())
+            .unwrap();
     meta.identity.observations = legacy.observations;
     meta.identity.predictors = legacy.predictors;
     meta.identity.design = legacy.design;
@@ -460,47 +527,75 @@ fn legacy_bytes(artifact: &PredictiveAssessmentArtifact, bytes: &[u8]) -> Vec<u8
 fn key_provenance_round_trips_and_is_bound_to_identity() {
     let mut base = spec(20);
     base.observations.ids[0] = ObservationKey::from_bytes(*base.observations.ids[0].as_bytes());
-    let ledger_fit: Vec<_> = (100..104).map(|i| ObservationKey::from_bytes(*key(i).as_bytes())).collect();
+    let ledger_fit: Vec<_> =
+        (100..104).map(|i| ObservationKey::from_bytes(*key(i).as_bytes())).collect();
     base.predictors[0].fit = FitDeclaration::FittedOn(ledger_fit.clone());
     let duplicate = ObservationKey::from_caller_minted_bytes(*ledger_fit[0].as_bytes());
     base.predictors[1].fit = FitDeclaration::FittedOn(vec![ledger_fit[0], duplicate]);
     let (artifact, bytes) = sealed(&base);
-    let native = antecedent_validate::predictive_assessment::assess_predictive_laws(artifact.spec(), &ctx()).unwrap();
+    let native =
+        antecedent_validate::predictive_assessment::assess_predictive_laws(artifact.spec(), &ctx())
+            .unwrap();
     assert_eq!(artifact.identity(), &native.identity);
-    let replay = PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx()).unwrap();
+    let replay =
+        PredictiveAssessmentArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx())
+            .unwrap();
     assert_eq!(replay.report(), artifact.report());
     assert!(replay.spec().observations.ids.iter().any(ObservationKey::is_caller_minted));
     assert!(replay.spec().observations.ids.iter().any(|key| !key.is_caller_minted()));
     match &replay.spec().predictors[1].fit {
-        FitDeclaration::FittedOn(keys) => { assert_eq!(keys.len(), 1); assert!(keys[0].is_caller_minted()); }
+        FitDeclaration::FittedOn(keys) => {
+            assert_eq!(keys.len(), 1);
+            assert!(keys[0].is_caller_minted());
+        }
         _ => panic!("expected fitted keys"),
     }
     assert!(matches!(replay.report().predictors[1].overlap, OverlapStatus::Unverified { .. }));
     // A coherently resealed claim with the same digest bytes but upgraded
     // provenance cannot match the independently retained identity.
     let mut upgraded = base.clone();
-    upgraded.observations.ids = upgraded.observations.ids.iter().map(|key| ObservationKey::from_bytes(*key.as_bytes())).collect();
+    upgraded.observations.ids = upgraded
+        .observations
+        .ids
+        .iter()
+        .map(|key| ObservationKey::from_bytes(*key.as_bytes()))
+        .collect();
     for predictor in &mut upgraded.predictors {
         if let FitDeclaration::FittedOn(keys) = &mut predictor.fit {
             *keys = keys.iter().map(|key| ObservationKey::from_bytes(*key.as_bytes())).collect();
         }
     }
     let (upgraded, forged_bytes) = sealed(&upgraded);
-    assert!(matches!(upgraded.report().predictors[1].overlap, OverlapStatus::HeldOutVerified { .. }));
-    assert!(matches!(PredictiveAssessmentArtifact::from_bytes(&forged_bytes, Some(artifact.identity()), &ctx()), Err(Error::IdentityMismatch { .. })));
+    assert!(matches!(
+        upgraded.report().predictors[1].overlap,
+        OverlapStatus::HeldOutVerified { .. }
+    ));
+    assert!(matches!(
+        PredictiveAssessmentArtifact::from_bytes(&forged_bytes, Some(artifact.identity()), &ctx()),
+        Err(Error::IdentityMismatch { .. })
+    ));
     let (meta, numbers, mut keys) = decode_parts_for_test(&bytes).unwrap();
     keys[32] ^= 1;
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "changed-flag").unwrap();
-    assert!(matches!(PredictiveAssessmentArtifact::from_bytes(&forged, Some(artifact.identity()), &ctx()), Err(Error::IdentityMismatch { .. })));
+    assert!(matches!(
+        PredictiveAssessmentArtifact::from_bytes(&forged, Some(artifact.identity()), &ctx()),
+        Err(Error::IdentityMismatch { .. })
+    ));
     keys[32] ^= 1;
     let first_fit_flag = 20 * 33 + 32;
     keys[first_fit_flag] ^= 1;
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "changed-fit-flag").unwrap();
-    assert!(matches!(PredictiveAssessmentArtifact::from_bytes(&forged, Some(artifact.identity()), &ctx()), Err(Error::IdentityMismatch { field: "predictor_laws" })));
+    assert!(matches!(
+        PredictiveAssessmentArtifact::from_bytes(&forged, Some(artifact.identity()), &ctx()),
+        Err(Error::IdentityMismatch { field: "predictor_laws" })
+    ));
     keys[first_fit_flag] ^= 1;
     keys[32] = 2;
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "bad-flag").unwrap();
-    assert!(matches!(PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()), Err(Error::Malformed(_))));
+    assert!(matches!(
+        PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()),
+        Err(Error::Malformed(_))
+    ));
 }
 
 #[test]
@@ -520,24 +615,43 @@ fn legacy_keys_are_untrusted_and_heldout_labels_are_refused() {
     assert!(matches!(replay.report().predictors[0].overlap, OverlapStatus::InSample { .. }));
 
     let mut ledger = spec(20);
-    ledger.observations.ids = ledger.observations.ids.iter().map(|key| ObservationKey::from_bytes(*key.as_bytes())).collect();
-    ledger.predictors[0].fit = FitDeclaration::FittedOn((100..104).map(|i| ObservationKey::from_bytes(*key(i).as_bytes())).collect());
+    ledger.observations.ids = ledger
+        .observations
+        .ids
+        .iter()
+        .map(|key| ObservationKey::from_bytes(*key.as_bytes()))
+        .collect();
+    ledger.predictors[0].fit = FitDeclaration::FittedOn(
+        (100..104).map(|i| ObservationKey::from_bytes(*key(i).as_bytes())).collect(),
+    );
     let (heldout, bytes) = sealed(&ledger);
-    assert!(matches!(heldout.report().predictors[0].overlap, OverlapStatus::HeldOutVerified { .. }));
+    assert!(matches!(
+        heldout.report().predictors[0].overlap,
+        OverlapStatus::HeldOutVerified { .. }
+    ));
     let legacy = legacy_bytes(&heldout, &bytes);
-    assert_eq!(PredictiveAssessmentArtifact::from_bytes(&legacy, None, &ctx()).unwrap_err(), Error::UnsupportedSemantics("legacy held-out provenance"));
+    assert_eq!(
+        PredictiveAssessmentArtifact::from_bytes(&legacy, None, &ctx()).unwrap_err(),
+        Error::UnsupportedSemantics("legacy held-out provenance")
+    );
 }
-
 
 #[test]
 fn artifact_version_must_match_the_key_section_layout() {
     let (_, bytes) = sealed(&spec(20));
     let (mut meta, numbers, v2_keys) = decode_parts_for_test(&bytes).unwrap();
-    let legacy_keys: Vec<u8> = v2_keys.chunks_exact(33).flat_map(|key| key[..32].iter().copied()).collect();
+    let legacy_keys: Vec<u8> =
+        v2_keys.chunks_exact(33).flat_map(|key| key[..32].iter().copied()).collect();
     // Both versions are supported, but neither may interpret the other's stride.
     let bad_v2 = encode_parts_for_test(&meta, &numbers, &legacy_keys, "v2-legacy-keys").unwrap();
-    assert!(matches!(PredictiveAssessmentArtifact::from_bytes(&bad_v2, None, &ctx()), Err(Error::Malformed(_))));
+    assert!(matches!(
+        PredictiveAssessmentArtifact::from_bytes(&bad_v2, None, &ctx()),
+        Err(Error::Malformed(_))
+    ));
     meta.version = 1;
     let bad_v1 = encode_parts_for_test(&meta, &numbers, &v2_keys, "v1-v2-keys").unwrap();
-    assert!(matches!(PredictiveAssessmentArtifact::from_bytes(&bad_v1, None, &ctx()), Err(Error::Malformed(_))));
+    assert!(matches!(
+        PredictiveAssessmentArtifact::from_bytes(&bad_v1, None, &ctx()),
+        Err(Error::Malformed(_))
+    ));
 }

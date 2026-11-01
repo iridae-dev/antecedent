@@ -828,13 +828,11 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
     let budget = &independent["product_check"];
     assert_eq!(budget["conditioning_draws"], draws);
     assert_eq!(budget["conditioning_seed"], 17);
-    let mean_bound = budget["mean_standard_errors"].as_f64().unwrap()
-        * expected_sd
-        / f64::from(draws).sqrt();
+    let mean_bound =
+        budget["mean_standard_errors"].as_f64().unwrap() * expected_sd / f64::from(draws).sqrt();
     assert!((mean - expected_mean).abs() < mean_bound, "{mean} vs {expected_mean}");
     assert!(
-        (spread / expected_sd - 1.0).abs()
-            < budget["relative_sd_tolerance"].as_f64().unwrap(),
+        (spread / expected_sd - 1.0).abs() < budget["relative_sd_tolerance"].as_f64().unwrap(),
         "{spread} vs {expected_sd}"
     );
 

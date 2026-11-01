@@ -107,9 +107,8 @@ impl SyntheticNullCalibration {
             |_| independent_noise_series(self.n_obs, self.n_vars, &mut rng),
             DiscoveryWorkspace::default,
             |workspace, ctx, _r, data| {
-                let result = pcmci
-                    .run(data, &variables, workspace, ctx)
-                    .map_err(ValidationError::from)?;
+                let result =
+                    pcmci.run(data, &variables, workspace, ctx).map_err(ValidationError::from)?;
                 Ok(result.evidence.links.len() as u64)
             },
         )?;

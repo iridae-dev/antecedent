@@ -145,14 +145,10 @@ fn the_declared_input_contract_is_enforced() {
     let mut t = table(&base);
     let last = t.w.len() - 1;
     t.w[last] = f64::NAN; // so must a target row's response weight
-    assert!(
-        run(&t).unwrap_err().contains("regressions and response weights must be finite"),
-    );
+    assert!(run(&t).unwrap_err().contains("regressions and response weights must be finite"),);
     let mut t = table(&base);
     t.mu[0] = f64::NAN;
-    assert!(
-        run(&t).unwrap_err().contains("regressions and response weights must be finite"),
-    );
+    assert!(run(&t).unwrap_err().contains("regressions and response weights must be finite"),);
     let mut t = table(&base);
     t.grid[0] = f64::NAN;
     assert!(run(&t).unwrap_err().contains("transport response grid must be finite"));

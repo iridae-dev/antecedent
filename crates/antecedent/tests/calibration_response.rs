@@ -1316,7 +1316,10 @@ fn static_response_coordinates_publish_the_scored_interval() {
     let estimate = (lo + hi) / 2.0;
     assert!(se > 0.0 && se < 0.5, "graph-posterior se {se}");
     assert!((hi - lo - 2.0 * 1.959_964 * se).abs() < 1e-5, "normal-quantile width {lo} {hi} {se}");
-    assert!((estimate - GP_TRUTH).abs() < 5.0 * se, "graph-posterior estimate {estimate} vs {GP_TRUTH}");
+    assert!(
+        (estimate - GP_TRUTH).abs() < 5.0 * se,
+        "graph-posterior estimate {estimate} vs {GP_TRUTH}"
+    );
     let (_, codetermined) =
         run_codetermined(codetermined_data(600, seed), seed).expect("CoDetermined run");
     assert!(response_normal_pair(&codetermined)[0].is_some());

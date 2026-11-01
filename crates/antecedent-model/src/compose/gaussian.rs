@@ -156,9 +156,10 @@ impl JointGaussian {
         let factor = cholesky_lower(&s_oo, k).ok_or(GaussianConditioningError::SingularEvidence)?;
         // Exponent-tracked residual and solves avoid overflowing intermediates
         // when the final Gaussian functional is representable.
-        let residual: Vec<Wide> = evidence.iter().map(|&(i, x)|
-            Wide::sum(vec![Wide::from_finite(x), Wide::from_finite(-self.mean[i])])
-        ).collect();
+        let residual: Vec<Wide> = evidence
+            .iter()
+            .map(|&(i, x)| Wide::sum(vec![Wide::from_finite(x), Wide::from_finite(-self.mean[i])]))
+            .collect();
         let z = forward_solve(&factor, k, &residual);
         let w = backward_solve(&factor, k, &z);
         let mahalanobis = Wide::sum(z.iter().map(|v| v.mul(*v)).collect());
@@ -167,7 +168,9 @@ impl JointGaussian {
             Wide::from_finite(k as f64 * (2.0 * std::f64::consts::PI).ln()),
             Wide::from_finite(log_det),
             mahalanobis,
-        ]).mul(Wide::from_finite(-0.5)).to_f64();
+        ])
+        .mul(Wide::from_finite(-0.5))
+        .to_f64();
         let mut mean = vec![0.0_f64; m];
         for (r, &ir) in rest.iter().enumerate() {
             let mut terms = Vec::with_capacity(k + 1);
@@ -176,12 +179,15 @@ impl JointGaussian {
                 terms.push(Wide::from_finite(cov(ir, ia)).mul(w[a]));
             }
             mean[r] = Wide::sum(terms).to_f64();
-            if !mean[r].is_finite() { return Err(GaussianConditioningError::Unrepresentable); }
+            if !mean[r].is_finite() {
+                return Err(GaussianConditioningError::Unrepresentable);
+            }
         }
         // A = S_oo^-1 S_or, one exponent-tracked column per remaining variable.
         let mut a_columns: Vec<Vec<Wide>> = Vec::with_capacity(m);
         for &ir in &rest {
-            let column: Vec<Wide> = evidence.iter().map(|&(ia, _)| Wide::from_finite(cov(ia, ir))).collect();
+            let column: Vec<Wide> =
+                evidence.iter().map(|&(ia, _)| Wide::from_finite(cov(ia, ir))).collect();
             a_columns.push(backward_solve(&factor, k, &forward_solve(&factor, k, &column)));
         }
         let mut covariance = vec![0.0_f64; m * m];
@@ -193,7 +199,9 @@ impl JointGaussian {
                     terms.push(Wide::from_finite(-cov(ir, ia)).mul(a_columns[c][a]));
                 }
                 let value = Wide::sum(terms).to_f64();
-                if !value.is_finite() { return Err(GaussianConditioningError::Unrepresentable); }
+                if !value.is_finite() {
+                    return Err(GaussianConditioningError::Unrepresentable);
+                }
                 covariance[r * m + c] = value;
                 covariance[c * m + r] = value;
             }
@@ -342,10 +350,15 @@ pub(crate) fn cholesky_lower(a: &[f64], n: usize) -> Option<Vec<f64>> {
 // A signed binary significand and extended exponent. This carries finite input
 // values beyond f64's exponent range without imposing a new magnitude limit.
 #[derive(Clone, Copy, Debug)]
-struct Wide { mantissa: f64, exponent: i32 }
+struct Wide {
+    mantissa: f64,
+    exponent: i32,
+}
 impl Wide {
     fn from_finite(value: f64) -> Self {
-        if value == 0.0 { return Self { mantissa: 0.0, exponent: 0 }; }
+        if value == 0.0 {
+            return Self { mantissa: 0.0, exponent: 0 };
+        }
         let bits = value.to_bits();
         let raw = ((bits >> 52) & 0x7ff) as i32;
         if raw == 0 {
@@ -358,7 +371,9 @@ impl Wide {
         Self { mantissa: f64::from_bits(significand), exponent: raw - 1023 }
     }
     fn normalized(mantissa: f64, exponent: i32) -> Self {
-        if mantissa == 0.0 { return Self { mantissa: 0.0, exponent: 0 }; }
+        if mantissa == 0.0 {
+            return Self { mantissa: 0.0, exponent: 0 };
+        }
         let mut result = Self::from_finite(mantissa);
         result.exponent += exponent;
         result
@@ -369,15 +384,26 @@ impl Wide {
     fn div(self, other: Self) -> Self {
         Self::normalized(self.mantissa / other.mantissa, self.exponent - other.exponent)
     }
-    fn neg(self) -> Self { Self { mantissa: -self.mantissa, exponent: self.exponent } }
+    fn neg(self) -> Self {
+        Self { mantissa: -self.mantissa, exponent: self.exponent }
+    }
     fn add(self, other: Self) -> Self {
-        if self.mantissa == 0.0 { return other; }
-        if other.mantissa == 0.0 { return self; }
-        let (large, small) = if self.exponent >= other.exponent { (self, other) } else { (other, self) };
+        if self.mantissa == 0.0 {
+            return other;
+        }
+        if other.mantissa == 0.0 {
+            return self;
+        }
+        let (large, small) =
+            if self.exponent >= other.exponent { (self, other) } else { (other, self) };
         let difference = large.exponent - small.exponent;
-        let scaled = if difference > 1074 { 0.0 } else if difference > 1022 {
+        let scaled = if difference > 1074 {
+            0.0
+        } else if difference > 1022 {
             (small.mantissa * 2.0_f64.powi(-(difference - 1022))) * 2.0_f64.powi(-1022)
-        } else { small.mantissa * 2.0_f64.powi(-difference) };
+        } else {
+            small.mantissa * 2.0_f64.powi(-difference)
+        };
         Self::normalized(large.mantissa + scaled, large.exponent)
     }
     // Larger terms cancel before smaller terms are added, retaining a small
@@ -387,12 +413,20 @@ impl Wide {
         values.into_iter().fold(Self { mantissa: 0.0, exponent: 0 }, Self::add)
     }
     fn to_f64(self) -> f64 {
-        if self.mantissa == 0.0 { return self.mantissa; }
-        if self.exponent > 1023 { return self.mantissa.signum() * f64::INFINITY; }
-        if self.exponent < -1075 { return self.mantissa.signum() * 0.0; }
+        if self.mantissa == 0.0 {
+            return self.mantissa;
+        }
+        if self.exponent > 1023 {
+            return self.mantissa.signum() * f64::INFINITY;
+        }
+        if self.exponent < -1075 {
+            return self.mantissa.signum() * 0.0;
+        }
         if self.exponent < -1022 {
             (self.mantissa * 2.0_f64.powi(self.exponent + 1022)) * 2.0_f64.powi(-1022)
-        } else { self.mantissa * 2.0_f64.powi(self.exponent) }
+        } else {
+            self.mantissa * 2.0_f64.powi(self.exponent)
+        }
     }
 }
 
@@ -402,7 +436,9 @@ fn forward_solve(l: &[f64], n: usize, b: &[Wide]) -> Vec<Wide> {
     for i in 0..n {
         let mut terms = Vec::with_capacity(i + 1);
         terms.push(b[i]);
-        for k in 0..i { terms.push(Wide::from_finite(l[i * n + k]).mul(z[k]).neg()); }
+        for k in 0..i {
+            terms.push(Wide::from_finite(l[i * n + k]).mul(z[k]).neg());
+        }
         z[i] = Wide::sum(terms).div(Wide::from_finite(l[i * n + i]));
     }
     z
@@ -414,7 +450,9 @@ fn backward_solve(l: &[f64], n: usize, z: &[Wide]) -> Vec<Wide> {
     for i in (0..n).rev() {
         let mut terms = Vec::with_capacity(n - i);
         terms.push(z[i]);
-        for k in (i + 1)..n { terms.push(Wide::from_finite(l[k * n + i]).mul(x[k]).neg()); }
+        for k in (i + 1)..n {
+            terms.push(Wide::from_finite(l[k * n + i]).mul(x[k]).neg());
+        }
         x[i] = Wide::sum(terms).div(Wide::from_finite(l[i * n + i]));
     }
     x
@@ -882,7 +920,8 @@ mod conditioning_scale_tests {
     #[test]
     fn gaussian_conditional_mean_survives_overflow_and_refuses_unrepresentable_results() {
         let residual_overflow = JointGaussian {
-            variables: vec!["x".into(), "y".into()], mean: vec![1e308, 0.0],
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![1e308, 0.0],
             covariance: vec![1.0, 0.5, 0.5, 1.0],
         };
         let result = residual_overflow.condition(&[("x", -1e308)]).unwrap();
@@ -893,14 +932,18 @@ mod conditioning_scale_tests {
         // Mahalanobis itself exceeds f64, but the final -1/2 log-density
         // is representable; narrowing before the multiplication is incorrect.
         let finite_log = JointGaussian {
-            variables: vec!["x".into(), "y".into()], mean: vec![0.0, 0.0],
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![0.0, 0.0],
             covariance: vec![1.0, 0.0, 0.0, 1.0],
-        }.condition(&[("x", 1.4e154)]).unwrap();
+        }
+        .condition(&[("x", 1.4e154)])
+        .unwrap();
         assert!(finite_log.evidence_log_density.is_finite());
         assert!((finite_log.evidence_log_density / -9.8e307 - 1.0).abs() < 1e-14);
 
         let cancelling_shift = JointGaussian {
-            variables: vec!["x".into(), "y".into()], mean: vec![0.0, -1e308],
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![0.0, -1e308],
             covariance: vec![1.0, 2.0, 2.0, 5.0],
         };
         let result = cancelling_shift.condition(&[("x", 1e308)]).unwrap();
@@ -909,14 +952,18 @@ mod conditioning_scale_tests {
         // Solving S^-1 r exceeds f64 even though its multiplication by the
         // cross-covariance and the final conditional mean are finite.
         let tiny_observed_variance = JointGaussian {
-            variables: vec!["x".into(), "y".into()], mean: vec![0.0, 0.0],
+            variables: vec!["x".into(), "y".into()],
+            mean: vec![0.0, 0.0],
             covariance: vec![1e-300, 1e-150, 1e-150, 2.0],
         };
         let result = tiny_observed_variance.condition(&[("x", 1e158)]).unwrap();
         assert!((result.mean[0] / 1e308 - 1.0).abs() < 1e-12);
         assert!((result.covariance[0] - 1.0).abs() < 1e-12);
         let truly_unrepresentable = JointGaussian { mean: vec![0.0, 0.0], ..cancelling_shift };
-        assert_eq!(truly_unrepresentable.condition(&[("x", 1e308)]).unwrap_err(), GaussianConditioningError::Unrepresentable);
+        assert_eq!(
+            truly_unrepresentable.condition(&[("x", 1e308)]).unwrap_err(),
+            GaussianConditioningError::Unrepresentable
+        );
     }
 
     #[test]

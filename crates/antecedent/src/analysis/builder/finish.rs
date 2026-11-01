@@ -1243,8 +1243,8 @@ fn require_declared_dependence_read(
                 )
         );
     // The trial-to-target contrast reads the labels or the lag in its own error and bootstrap.
-    let transport = matches!(query, CausalQuery::Transport(_))
-        && matches!(carry.data, DataInput::Tabular(_));
+    let transport =
+        matches!(query, CausalQuery::Transport(_)) && matches!(carry.data, DataInput::Tabular(_));
     if let Some(dependence) = carry.declared.score_dependence.as_ref() {
         // Cluster labels or a serial kernel are read by two routes only: the joint-cell
         // response builds its variance from the influence values of its score table, and the
@@ -1262,10 +1262,7 @@ fn require_declared_dependence_read(
             ));
         }
         match (dependence, carry.declared.sampling_design) {
-            (
-                antecedent_estimate::ScoreDependence::Clusters(_),
-                Some(Design::ClusteredPanel),
-            )
+            (antecedent_estimate::ScoreDependence::Clusters(_), Some(Design::ClusteredPanel))
             | (
                 antecedent_estimate::ScoreDependence::NeweyWest { .. },
                 Some(Design::DependentTimeSeries),
@@ -1390,7 +1387,8 @@ fn require_declared_dependence_read(
         return Ok(());
     }
     let inference = carry.declared.estimator_spec.as_ref().and_then(EstimatorSpec::inference_spec);
-    let replicates = inference.map_or(carry.settings.bootstrap_replicates, |i| i.bootstrap_replicates);
+    let replicates =
+        inference.map_or(carry.settings.bootstrap_replicates, |i| i.bootstrap_replicates);
     // The default kernel-smoothed curve and plug-in intervention response of a DAG publish an
     // influence-function interval over independent rows and do not bootstrap: the replicates
     // setting changes nothing in them, so it is not a way to read a declared clustered panel or
@@ -1425,12 +1423,14 @@ fn require_declared_dependence_read(
     }
     let reads = reads_estimator_dependence
         && inference.is_some_and(|inference| match (design, inference.se_kind) {
-            (Design::ClusteredPanel, Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. }) => {
-                true
-            }
-            (Design::DependentTimeSeries, Kind::NeweyWest { .. } | Kind::PanelClusterHac { .. }) => {
-                true
-            }
+            (
+                Design::ClusteredPanel,
+                Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. },
+            ) => true,
+            (
+                Design::DependentTimeSeries,
+                Kind::NeweyWest { .. } | Kind::PanelClusterHac { .. },
+            ) => true,
             _ => false,
         });
     if reads {

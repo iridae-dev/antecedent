@@ -109,7 +109,9 @@ pub(crate) fn sorted_distinct(keys: &[ObservationKey]) -> Vec<ObservationKey> {
             if key.is_caller_minted() {
                 *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
             }
-        } else { merged.push(key); }
+        } else {
+            merged.push(key);
+        }
     }
     merged
 }

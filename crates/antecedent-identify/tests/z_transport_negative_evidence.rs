@@ -255,23 +255,29 @@ fn two_models_match_target_observations_and_complete_zw_experiments_but_disagree
 
     let mut changed_terminal = record.clone();
     changed_terminal.terminal.rules.push("tampered.rule".into());
-    assert_refused(antecedent_identify::ZTransportObstruction::from_record_checked(
+    assert_refused(
+        antecedent_identify::ZTransportObstruction::from_record_checked(
             changed_terminal,
             &diagram,
             &query,
             limits,
             &ExecutionContext::for_tests(21),
-        ), "z_transport.obstruction_record_mismatch");
+        ),
+        "z_transport.obstruction_record_mismatch",
+    );
     let mut changed_line11 = record.clone();
     changed_line11.terminal.c0.clear();
     changed_line11.terminal.candidate_active.push(2);
-    assert_refused(antecedent_identify::ZTransportObstruction::from_record_checked(
+    assert_refused(
+        antecedent_identify::ZTransportObstruction::from_record_checked(
             changed_line11,
             &diagram,
             &query,
             limits,
             &ExecutionContext::for_tests(25),
-        ), "z_transport.obstruction_record_mismatch");
+        ),
+        "z_transport.obstruction_record_mismatch",
+    );
     let empty = EvidenceCatalog::try_new(
         [catalog.environments[0].clone(), catalog.environments[1].clone()],
         [],

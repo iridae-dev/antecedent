@@ -222,12 +222,8 @@ pub fn conjugate_posterior_from_residuals(
             "the residual sum of squares must be finite and non-negative",
         ));
     }
-    let shrinkage: f64 = prior
-        .coefficient_precision
-        .iter()
-        .zip(&mean)
-        .map(|(precision, m)| precision * m * m)
-        .sum();
+    let shrinkage: f64 =
+        prior.coefficient_precision.iter().zip(&mean).map(|(precision, m)| precision * m * m).sum();
     let shape = prior.variance_shape + rows as f64 / 2.0;
     let scale = prior.variance_scale + 0.5 * (residual + shrinkage);
     Ok(GaussianLinearPosterior { mean, precision_inverse, shape, scale })
@@ -313,7 +309,8 @@ mod tests {
         let sum: f64 = y.iter().sum();
         let yty: f64 = y.iter().map(|v| v * v).sum();
         let m = 1.0e8 / (1.0 + pi / 6.0); // sum(offsets) = 0
-        let exact = 1.0 + 0.5 * (offsets.iter().map(|d| (d + 1.0e8 - m).powi(2)).sum::<f64>() + pi * m * m);
+        let exact =
+            1.0 + 0.5 * (offsets.iter().map(|d| (d + 1.0e8 - m).powi(2)).sum::<f64>() + pi * m * m);
         let stable = conjugate_posterior_from_residuals(&[6.0], &[sum], 6, &prior, |mean| {
             y.iter().map(|v| (v - mean[0]).powi(2)).sum()
         })
@@ -322,7 +319,10 @@ mod tests {
         assert!((scale - exact).abs() < 1e-6 * exact, "{scale} vs {exact}");
         let naive = conjugate_posterior(&[6.0], &[sum], yty, 6, &prior).unwrap();
         let (_, naive_scale) = naive.variance_shape_and_scale();
-        assert!((naive_scale - exact).abs() > 1e-3 * exact, "the cancellation is the reason for the residual form");
+        assert!(
+            (naive_scale - exact).abs() > 1e-3 * exact,
+            "the cancellation is the reason for the residual form"
+        );
     }
 
     #[test]

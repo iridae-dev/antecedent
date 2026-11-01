@@ -336,12 +336,10 @@ fn envelope_unidentified_mass() {
           m-separate treatment from outcome in the proper back-door graph"]
     );
     // The envelope names the refusal in the same terms.
-    assert!(
-        env.critical_graph_features.iter().any(|feature| {
-            &*feature.kind == "unidentified_completions"
-                && feature.detail.contains("2 completion(s) not identified")
-        })
-    );
+    assert!(env.critical_graph_features.iter().any(|feature| {
+        &*feature.kind == "unidentified_completions"
+            && feature.detail.contains("2 completion(s) not identified")
+    }));
 }
 
 #[test]

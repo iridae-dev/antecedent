@@ -144,8 +144,7 @@ fn exact_expected_score_refuses_malformed_finite_truths() {
     let forecast = ForecastLaw::gaussian(0.0, 1.0);
     let non_finite_support =
         FiniteTruth::Real { support: vec![f64::NAN], probabilities: vec![1.0] };
-    let error =
-        exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).unwrap_err();
+    let error = exact_expected_score(ScoreKind::Crps, &forecast, &non_finite_support).unwrap_err();
     assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
     assert!(error.to_string().contains("a finite truth support point is not finite"), "{error}");
 
@@ -154,7 +153,10 @@ fn exact_expected_score_refuses_malformed_finite_truths() {
     let error =
         exact_expected_score(ScoreKind::Energy, &forecast, &overflowing_dimension).unwrap_err();
     assert_eq!(error.detail(), detail::INVALID_LAW, "{error}");
-    assert!(error.to_string().contains("a vector truth needs a bounded positive dimension"), "{error}");
+    assert!(
+        error.to_string().contains("a vector truth needs a bounded positive dimension"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -457,11 +459,7 @@ fn no_declared_dependence_withholds_every_standard_error() {
     declared.dependence = Some(DependenceDeclaration::Iid);
     let with_dependence = assess_predictive_laws(&declared, &ctx()).unwrap();
     for kind in [ScoreKind::Crps, ScoreKind::Log] {
-        assert!(close(
-            mean_score(&report, 0, kind),
-            mean_score(&with_dependence, 0, kind),
-            1e-12,
-        ));
+        assert!(close(mean_score(&report, 0, kind), mean_score(&with_dependence, 0, kind), 1e-12,));
     }
 }
 

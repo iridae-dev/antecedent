@@ -24,7 +24,6 @@ pub use designs::{
 mod experiment;
 mod explanation;
 mod gaussian_restriction;
-pub use gaussian_restriction::declare_joint_panel_gaussian_restriction;
 pub use explanation::{
     ChangeComponent, CheckedReferenceDecomposition, DecompositionEndpoint,
     DecompositionJointUncertainty, DesignAdaptiveReference, HistoricalPopulationReference,
@@ -39,6 +38,7 @@ pub use explanation::{
     replay_population_reference_with_limits, replay_reference_decomposition,
     replay_reference_decomposition_with_limits,
 };
+pub use gaussian_restriction::declare_joint_panel_gaussian_restriction;
 mod imputed;
 pub use imputed::{JointPanelImputedResult, PreparedJointPanelImputation};
 mod ports;
@@ -321,7 +321,10 @@ impl PreparedStudy<JointPanelState> {
             ctx,
         )
     }
-    #[expect(clippy::too_many_arguments, reason = "the retained compiler product is assembled once")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the retained compiler product is assembled once"
+    )]
     fn lower(
         source: PanelData,
         data: Arc<engine::PanelData>,

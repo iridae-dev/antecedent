@@ -14,12 +14,13 @@ use crate::EstimationError;
 use crate::util::range;
 
 use super::{
-    ADE_NUISANCE_PENALTY, AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold, PseudoOutcome,
-    bias_corrected_interval_note, delta_method_interval_note, delta_method_standard_error,
-    ensure_crossfit_size, fieller_elasticity_interval, fieller_interval_note, local_design_refusal,
-    multivariate_support, plugin::plugin_gradient_interval_withheld, plugin::predict_one,
-    push_outcome_tail_diagnostic, sample::CompleteSample, support_report, transform_derivative,
-    transform_point_derivative, transform_point_derivative_gradient, treatment_sigma,
+    ADE_NUISANCE_PENALTY, AverageDerivativeScores, ContinuousResponseEstimator, CrossFitFold,
+    PseudoOutcome, bias_corrected_interval_note, delta_method_interval_note,
+    delta_method_standard_error, ensure_crossfit_size, fieller_elasticity_interval,
+    fieller_interval_note, local_design_refusal, multivariate_support,
+    plugin::plugin_gradient_interval_withheld, plugin::predict_one, push_outcome_tail_diagnostic,
+    sample::CompleteSample, support_report, transform_derivative, transform_point_derivative,
+    transform_point_derivative_gradient, treatment_sigma,
 };
 
 /// Covariance of the corrected `(level, slope, curvature)` from their row influences, with the

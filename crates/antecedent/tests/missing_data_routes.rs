@@ -624,7 +624,11 @@ fn the_block_bootstrap_on_a_series_with_gaps_runs_on_the_original_time_axis() {
     );
     let slope = kept.iter().map(|&t| (x[t - 1] - mx) * (y[t] - my)).sum::<f64>()
         / kept.iter().map(|&t| (x[t - 1] - mx).powi(2)).sum::<f64>();
-    assert!((estimate.ate - slope).abs() < 1e-9, "ate {} vs intact-window slope {slope}", estimate.ate);
+    assert!(
+        (estimate.ate - slope).abs() < 1e-9,
+        "ate {} vs intact-window slope {slope}",
+        estimate.ate
+    );
 }
 
 #[test]

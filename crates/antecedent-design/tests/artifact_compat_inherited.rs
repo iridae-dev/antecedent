@@ -210,7 +210,10 @@ fn an_inherited_design_ranking_decodes_but_is_not_consumed() {
     // current derivation produces.
     let error = consume(&bytes, &ConsumeExpectation::default()).unwrap_err();
     assert!(
-        matches!(error, antecedent_design::design_ranking_artifact::DesignRankingArtifactError::DigestMismatch),
+        matches!(
+            error,
+            antecedent_design::design_ranking_artifact::DesignRankingArtifactError::DigestMismatch
+        ),
         "{error:?}"
     );
 }
@@ -228,5 +231,8 @@ fn an_inherited_composition_bundle_never_verifies() {
     // identities moved, so the consumer refuses at the edge-digest stage, before any node
     // could verify.
     let error = outcome.expect_err("an inherited bundle never consumes");
-    assert_eq!(error.stage(), Some(antecedent_design::composition_bundle::BundleStage::EdgeDigestMismatch));
+    assert_eq!(
+        error.stage(),
+        Some(antecedent_design::composition_bundle::BundleStage::EdgeDigestMismatch)
+    );
 }

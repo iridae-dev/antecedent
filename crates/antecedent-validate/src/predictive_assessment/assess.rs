@@ -90,39 +90,58 @@ pub fn admit_comparisons(
     // units cover report-name copies, the difference prefix and up to four
     // flattened labels. Explicit names also pay for linear resolution and
     // canonical declaration copies.
-    let length = |name: &str| u64::try_from(name.len()).map_err(|_| bounds("comparison name work overflows"));
+    let length = |name: &str| {
+        u64::try_from(name.len()).map_err(|_| bounds("comparison name work overflows"))
+    };
     let tree_height = |n: usize| u64::from(usize::BITS - n.leading_zeros());
     let predictor_height = tree_height(predictors.len());
     let count_height = tree_height(count);
-    let predictor_bytes = predictors.iter().try_fold(0_u64, |sum, (name, _)| {
-        sum.checked_add(length(name).ok()?)
-    }).ok_or_else(|| bounds("comparison name work overflows"))?;
-    let predictor_byte_work = predictor_bytes.checked_mul(24 * predictor_height + 2)
+    let predictor_bytes = predictors
+        .iter()
+        .try_fold(0_u64, |sum, (name, _)| sum.checked_add(length(name).ok()?))
+        .ok_or_else(|| bounds("comparison name work overflows"))?;
+    let predictor_byte_work = predictor_bytes
+        .checked_mul(24 * predictor_height + 2)
         .ok_or_else(|| bounds("comparison name work overflows"))?;
     let selected_bytes = if pairs.is_empty() {
         if let Some((anchor, _)) = predictors.first() {
-            predictors[1..].iter().try_fold(0_u64, |sum, (name, _)| {
-                sum.checked_add(length(anchor).ok()?)?.checked_add(length(name).ok()?)
-            }).ok_or_else(|| bounds("comparison name work overflows"))?
-        } else { 0 }
+            predictors[1..]
+                .iter()
+                .try_fold(0_u64, |sum, (name, _)| {
+                    sum.checked_add(length(anchor).ok()?)?.checked_add(length(name).ok()?)
+                })
+                .ok_or_else(|| bounds("comparison name work overflows"))?
+        } else {
+            0
+        }
     } else {
-        pairs.iter().try_fold(0_u64, |sum, (candidate, reference)| {
-            sum.checked_add(length(candidate).ok()?)?.checked_add(length(reference).ok()?)
-        }).ok_or_else(|| bounds("comparison name work overflows"))?
+        pairs
+            .iter()
+            .try_fold(0_u64, |sum, (candidate, reference)| {
+                sum.checked_add(length(candidate).ok()?)?.checked_add(length(reference).ok()?)
+            })
+            .ok_or_else(|| bounds("comparison name work overflows"))?
     };
-    let score_units = u64::try_from(scores).ok().and_then(|n| n.checked_mul(6))
+    let score_units = u64::try_from(scores)
+        .ok()
+        .and_then(|n| n.checked_mul(6))
         .ok_or_else(|| bounds("comparison name work overflows"))?;
-    let pair_units = if pairs.is_empty() { score_units } else {
-        u64::try_from(predictors.len()).ok()
+    let pair_units = if pairs.is_empty() {
+        score_units
+    } else {
+        u64::try_from(predictors.len())
+            .ok()
             .and_then(|n| n.checked_add(24 * (predictor_height + count_height)))
             .and_then(|n| n.checked_add(2))
             .and_then(|n| n.checked_add(score_units))
             .ok_or_else(|| bounds("comparison name work overflows"))?
     };
-    let name_work = selected_bytes.checked_mul(pair_units)
+    let name_work = selected_bytes
+        .checked_mul(pair_units)
         .and_then(|n| n.checked_add(predictor_byte_work))
         .ok_or_else(|| bounds("comparison name work overflows"))?;
-    let mut work = work.checked_add(lookup_work)
+    let mut work = work
+        .checked_add(lookup_work)
         .and_then(|n| n.checked_add(name_work))
         .ok_or_else(|| bounds("comparison work overflows"))?;
     if work > max_work {
@@ -193,7 +212,9 @@ fn comparison_predictors(predictors: &[PredictorLaws]) -> Vec<(&str, u64)> {
             (
                 p.name.as_str(),
                 match &p.fit {
-                    super::overlap::FitDeclaration::FittedOn(keys) => u64::try_from(keys.len()).unwrap_or(u64::MAX),
+                    super::overlap::FitDeclaration::FittedOn(keys) => {
+                        u64::try_from(keys.len()).unwrap_or(u64::MAX)
+                    }
                     _ => 0,
                 },
             )
@@ -737,13 +758,17 @@ pub(crate) fn assessment_identity(
 /// # Errors
 /// The declared design or dependence cannot be resolved.
 #[doc(hidden)]
-pub fn legacy_assessment_identity(spec: &PredictiveAssessmentSpec) -> Result<AssessmentIdentity, PredictiveAssessmentError> {
+pub fn legacy_assessment_identity(
+    spec: &PredictiveAssessmentSpec,
+) -> Result<AssessmentIdentity, PredictiveAssessmentError> {
     let resolved = resolve_design(&spec.design, spec.dependence.as_ref(), &spec.observations.ids)?;
     Ok(assessment_identity_with_provenance(spec, &resolved, false))
 }
 
 fn assessment_identity_with_provenance(
-    spec: &PredictiveAssessmentSpec, resolved: &ResolvedDesign, bind_provenance: bool,
+    spec: &PredictiveAssessmentSpec,
+    resolved: &ResolvedDesign,
+    bind_provenance: bool,
 ) -> AssessmentIdentity {
     let observations = observations_digest(
         &spec.observations.target,

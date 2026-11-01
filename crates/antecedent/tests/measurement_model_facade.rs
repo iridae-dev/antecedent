@@ -246,7 +246,11 @@ fn the_measurement_parameter_uncertainty_is_in_the_variance_and_the_functional()
     let refusal = uncertain.downstream_linear_functional(&[1.0]).unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
     assert_eq!(refusal.detail, "measurement_model.input_invalid");
-    assert!(refusal.message.contains("functional weights do not match the design"), "{}", refusal.message);
+    assert!(
+        refusal.message.contains("functional weights do not match the design"),
+        "{}",
+        refusal.message
+    );
 }
 
 #[test]

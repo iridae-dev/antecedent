@@ -27,9 +27,14 @@ mod retained_graphless;
 
 /// Mean of `outcomes` over the units picked by `to` minus the mean over those picked by
 /// `from`: the exposure contrast written out from its definition.
-fn group_mean_contrast(outcomes: &[f64], to: impl Fn(usize) -> bool, from: impl Fn(usize) -> bool) -> f64 {
+fn group_mean_contrast(
+    outcomes: &[f64],
+    to: impl Fn(usize) -> bool,
+    from: impl Fn(usize) -> bool,
+) -> f64 {
     let mean = |pick: &dyn Fn(usize) -> bool| {
-        let chosen = (0..outcomes.len()).filter(|&u| pick(u)).map(|u| outcomes[u]).collect::<Vec<_>>();
+        let chosen =
+            (0..outcomes.len()).filter(|&u| pick(u)).map(|u| outcomes[u]).collect::<Vec<_>>();
         chosen.iter().sum::<f64>() / chosen.len() as f64
     };
     mean(&to) - mean(&from)
@@ -88,7 +93,8 @@ fn assert_license_round_trips_and_refuses_forgery(
     )
     .unwrap_err();
     assert!(
-        format!("{error:?}").contains("graphless license does not match the published interval support"),
+        format!("{error:?}")
+            .contains("graphless license does not match the published interval support"),
         "{label}: forged license on a withheld interval must be refused for that reason: {error:?}",
     );
 }
@@ -195,8 +201,9 @@ fn thin_cluster_total_cannot_forge_a_license() {
     )
     .unwrap_err();
     assert!(
-        format!("{error:?}")
-            .contains("interference graphless license does not match the published interval support"),
+        format!("{error:?}").contains(
+            "interference graphless license does not match the published interval support"
+        ),
         "{error:?}"
     );
 }
@@ -390,8 +397,9 @@ fn externally_estimated_observational_stays_point_only() {
     )
     .unwrap_err();
     assert!(
-        format!("{error:?}")
-            .contains("interference graphless license does not match the published interval support"),
+        format!("{error:?}").contains(
+            "interference graphless license does not match the published interval support"
+        ),
         "{error:?}"
     );
 }
@@ -469,7 +477,11 @@ fn cluster_bayesian_bootstrap_centres_on_the_design_estimate_with_a_matching_spr
     // Treated clusters 0..8 have mean (7c mod 16) 6.5 and control clusters 8..16 have 8.5,
     // so the contrast is 3 + 0.5 * (6.5 - 8.5) = 2.
     assert!((design_effect - 2.0).abs() < 1e-9, "{design_effect}");
-    assert!((posterior.summaries.mean[column] - design_effect).abs() < 0.05, "{}", posterior.summaries.mean[column]);
+    assert!(
+        (posterior.summaries.mean[column] - design_effect).abs() < 0.05,
+        "{}",
+        posterior.summaries.mean[column]
+    );
     // Its spread is of the order of the conservative cluster Neyman standard error.
     let neyman_se =
         frequentist.interference_inference().unwrap().interval.as_ref().unwrap().standard_error;

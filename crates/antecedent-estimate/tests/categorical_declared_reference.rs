@@ -14,8 +14,8 @@
 
 use antecedent_estimate::categorical_treatment::{
     CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelScale,
-    fit_categorical_treatment, fit_categorical_treatment_declared, fit_categorical_from_robust_summary,
-    summarize_categorical_design_declared,
+    fit_categorical_from_robust_summary, fit_categorical_treatment,
+    fit_categorical_treatment_declared, summarize_categorical_design_declared,
 };
 use antecedent_estimate::vector_treatment::{NamedColumn, RowStructure, VectorCovariance};
 use serde_json::Value;
@@ -37,7 +37,10 @@ fn strings(v: &Value) -> Vec<String> {
 }
 
 fn close(got: f64, want: f64, rel: f64, what: &str) {
-    assert!((got - want).abs() <= rel * want.abs().max(1e-300), "{what}: got {got:e} want {want:e}");
+    assert!(
+        (got - want).abs() <= rel * want.abs().max(1e-300),
+        "{what}: got {got:e} want {want:e}"
+    );
 }
 
 fn close_scaled(got: f64, want: f64, scale: f64, rel: f64, what: &str) {
@@ -134,7 +137,8 @@ fn weighted_clustered_and_serial_fits_match_the_exact_sandwich() {
         let (Some(fit), Some(declared)) = (fit, declared) else { continue };
         let tol = tolerance(name);
         let k = fit.coefficients.len();
-        for (got, expected) in fit.coefficients.iter().zip(want["coefficients"].as_array().unwrap()) {
+        for (got, expected) in fit.coefficients.iter().zip(want["coefficients"].as_array().unwrap())
+        {
             assert_eq!(got.name, expected["name"].as_str().unwrap(), "{name}");
             close_scaled(got.estimate, expected["estimate"].as_f64().unwrap(), 1.0, tol, name);
         }
@@ -185,7 +189,11 @@ fn weighted_clustered_and_serial_fits_match_the_exact_sandwich() {
         assert_eq!(declared.lag, c.lag, "{name}");
         match declared.weights {
             Some(record) => {
-                assert_eq!(record.zero_weight_rows, want["zero_weight_rows"].as_u64().unwrap(), "{name}");
+                assert_eq!(
+                    record.zero_weight_rows,
+                    want["zero_weight_rows"].as_u64().unwrap(),
+                    "{name}"
+                );
                 assert_eq!(record.rows_used, want["rows_used"].as_u64().unwrap(), "{name}");
                 close(record.effective_sample_size, want["kish"].as_f64().unwrap(), 1e-12, name);
                 close(record.weight_sum, want["weight_sum"].as_f64().unwrap(), 1e-12, name);
@@ -228,7 +236,8 @@ fn equal_weights_at_any_scale_are_the_unweighted_fit_and_plain_rows_are_the_hist
 
 #[test]
 fn a_zero_weight_row_is_a_deleted_row_and_a_level_of_zero_weight_rows_is_absent() {
-    let case = reference().into_iter().find(|c| c["name"] == "weights_hc0_zero_and_extreme").unwrap();
+    let case =
+        reference().into_iter().find(|c| c["name"] == "weights_hc0_zero_and_extreme").unwrap();
     let c = Case::new(&case);
     let weights = c.weights.clone().unwrap();
     let keep: Vec<usize> = (0..weights.len()).filter(|&i| weights[i] > 0.0).collect();
@@ -236,7 +245,12 @@ fn a_zero_weight_row_is_a_deleted_row_and_a_level_of_zero_weight_rows_is_absent(
     let deleted = CategoricalTreatmentInput {
         outcome: pick(&c.input.outcome).into(),
         row_snapshot: "snap".into(),
-        adjustment: c.input.adjustment.iter().map(|a| NamedColumn::new("g", pick(&a.values))).collect(),
+        adjustment: c
+            .input
+            .adjustment
+            .iter()
+            .map(|a| NamedColumn::new("g", pick(&a.values)))
+            .collect(),
         levels: keep.iter().map(|&i| c.input.levels[i].clone()).collect::<Vec<_>>().into(),
     };
     let kept_weights = pick(&weights);
@@ -275,7 +289,8 @@ fn declarations_without_their_covariance_kind_and_malformed_declarations_are_ref
     // Weights under the model-based variance.
     c.spec.covariance = VectorCovariance::ModelBased;
     let weights = vec![1.0; n];
-    let text = refuse(&c, RowStructure { sampling_weights: Some(&weights), ..RowStructure::default() });
+    let text =
+        refuse(&c, RowStructure { sampling_weights: Some(&weights), ..RowStructure::default() });
     assert!(text.contains("weights_need_robust_covariance"), "{text}");
     // Clusters under a covariance that does not read them, and the cluster kind without any.
     c.spec.covariance = VectorCovariance::Hc1;

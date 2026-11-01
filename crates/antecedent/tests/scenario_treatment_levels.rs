@@ -49,8 +49,17 @@ fn cpdag() -> Cpdag {
     graph
 }
 
-fn contrast(class: &str, estimator: impl Into<antecedent::EstimatorSpec>, active: f64) -> Result<StudyResult, CausalError> {
-    let query = AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, active);
+fn contrast(
+    class: &str,
+    estimator: impl Into<antecedent::EstimatorSpec>,
+    active: f64,
+) -> Result<StudyResult, CausalError> {
+    let query = AverageEffectQuery::with_levels(
+        VariableId::from_raw(0),
+        VariableId::from_raw(1),
+        0.0,
+        active,
+    );
     let builder = Study::tabular(table());
     let builder = if class == "cpdag" { builder.graph(cpdag()) } else { builder.graph(dag()) };
     builder
@@ -61,11 +70,11 @@ fn contrast(class: &str, estimator: impl Into<antecedent::EstimatorSpec>, active
         .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
 }
 
-fn estimators(
-    other_levels: Option<OtherLevels>,
-) -> Vec<(&'static str, antecedent::EstimatorSpec)> {
+fn estimators(other_levels: Option<OtherLevels>) -> Vec<(&'static str, antecedent::EstimatorSpec)> {
     let linear = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
-    let glm = GlmAdjustmentAte::new().with_family(GlmFamily::GaussianIdentity).with_bootstrap_replicates(0);
+    let glm = GlmAdjustmentAte::new()
+        .with_family(GlmFamily::GaussianIdentity)
+        .with_bootstrap_replicates(0);
     match other_levels {
         None => vec![("linear", linear.into()), ("gaussian glm", glm.into())],
         Some(policy) => vec![
@@ -76,13 +85,18 @@ fn estimators(
 }
 
 #[test]
-fn a_three_level_treatment_is_refused_naming_its_levels_on_the_adjusted_and_equivalence_class_routes() {
+fn a_three_level_treatment_is_refused_naming_its_levels_on_the_adjusted_and_equivalence_class_routes()
+ {
     for class in ["dag", "cpdag"] {
         for (name, estimator) in estimators(None) {
-            let error = contrast(class, estimator, 1.0)
-                .err()
-                .unwrap_or_else(|| panic!("{class} {name}: a three-level treatment read as a dose"));
-            assert_eq!(error.reason_code(), Some("treatment_level_undeclared"), "{class} {name}: {error}");
+            let error = contrast(class, estimator, 1.0).err().unwrap_or_else(|| {
+                panic!("{class} {name}: a three-level treatment read as a dose")
+            });
+            assert_eq!(
+                error.reason_code(),
+                Some("treatment_level_undeclared"),
+                "{class} {name}: {error}"
+            );
             let text = error.to_string();
             assert!(text.contains(LISTING), "{class} {name}: {text}");
             assert!(text.contains("Next attempt"), "{class} {name}: {text}");

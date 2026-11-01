@@ -742,7 +742,7 @@ fn frequentist_temporal_response_lengthens_blocks_under_persistence() {
         let rows = diagnostic(response, "response.temporal.effective_rows").expect("rows");
         assert_eq!(factors.len(), DOSES.len());
         assert_eq!(rows.len(), DOSES.len());
-            assert!(factors.iter().all(|f| (1.0..1.2).contains(f)), "{factors:?}");
+        assert!(factors.iter().all(|f| (1.0..1.2).contains(f)), "{factors:?}");
         assert!(rows.iter().all(|r| *r > 30.0), "{rows:?}");
         assert!(!warns_short_series(response));
     }

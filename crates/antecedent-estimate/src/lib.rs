@@ -20,7 +20,6 @@
 
 pub mod adaptive_inference;
 pub mod adaptive_measured_interval;
-pub mod choice_inference;
 pub mod adaptive_resample_waves;
 pub mod adjustment;
 pub(crate) mod admg_conditional_transport;
@@ -43,6 +42,7 @@ pub mod categorical_treatment;
 pub mod categorical_treatment_posterior;
 mod causal_forest;
 pub mod cell_aipw;
+pub mod choice_inference;
 pub mod cohort_linear_effect;
 pub mod complier_posterior;
 pub mod conditional;
@@ -135,8 +135,8 @@ pub mod prepare;
 pub mod propensity;
 pub mod quantile;
 pub mod quantile_posterior;
-pub mod randomized_missing;
 pub mod randomized_joint;
+pub mod randomized_missing;
 pub mod randomized_neyman;
 pub mod randomized_posterior;
 pub mod randomized_scores;

@@ -534,7 +534,8 @@ mod policy_tests {
     /// `1 / f` from `f`. Groups: `a` has density `2d` and `b` has `2(1 - d)` on `[0, 1]`,
     /// `E[Y | d, g] = offset_g + sin(4d)`. The truths come from
     /// `tests/oracle_data/continuous_dose_policy_truth.py` (40-digit quadrature).
-    const TRUTH: [f64; 3] = [2.093_884_582_331_400_7, 2.352_416_912_832_5, -0.258_532_330_501_099_4];
+    const TRUTH: [f64; 3] =
+        [2.093_884_582_331_400_7, 2.352_416_912_832_5, -0.258_532_330_501_099_4];
 
     fn policy_rules() -> ([(String, f64); 2], [(String, f64); 2]) {
         (

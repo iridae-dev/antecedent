@@ -875,7 +875,8 @@ fn a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle() {
     std::fs::write(&path, &export.bytes).unwrap();
     let prefix =
         module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
-    let test_name = format!("{prefix}a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle");
+    let test_name =
+        format!("{prefix}a_fresh_process_consumes_only_the_bytes_and_matches_the_oracle");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
         .arg(&test_name)

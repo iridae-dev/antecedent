@@ -164,7 +164,8 @@ fn check_graph(n: usize, code: u64, ws: &mut DSeparationWorkspace) -> (usize, us
                     }
                 }
                 let want = oracle.separated(x, y, &zmask);
-                let context = format!("x={x} y={y} z={z:?} directed={directed:?} bi={bidirected:?}");
+                let context =
+                    format!("x={x} y={y} z={z:?} directed={directed:?} bi={bidirected:?}");
                 assert_eq!(g.is_m_separated(id(x), id(y), &z, ws).unwrap(), want, "{context}");
                 assert_eq!(g.is_m_separated(id(y), id(x), &z, ws).unwrap(), want, "rev {context}");
                 let witnessed = g.m_separation(id(x), id(y), &z, ws).unwrap();
@@ -222,7 +223,8 @@ fn set_form_agrees_with_the_pairwise_oracle_on_every_four_node_admg() {
             for &v in &cond {
                 zmask[v] = true;
             }
-            let want = sources.iter().all(|&s| targets.iter().all(|&t| oracle.separated(s, t, &zmask)));
+            let want =
+                sources.iter().all(|&s| targets.iter().all(|&t| oracle.separated(s, t, &zmask)));
             let got = g
                 .is_m_separated_sets(
                     &sources.iter().map(|&v| id(v)).collect::<Vec<_>>(),
@@ -232,7 +234,10 @@ fn set_form_agrees_with_the_pairwise_oracle_on_every_four_node_admg() {
                 )
                 .unwrap();
             let expected = sources.is_empty() || targets.is_empty() || want;
-            assert_eq!(got, expected, "{sources:?} {targets:?} {cond:?} {directed:?} {bidirected:?}");
+            assert_eq!(
+                got, expected,
+                "{sources:?} {targets:?} {cond:?} {directed:?} {bidirected:?}"
+            );
         }
     }
 }
@@ -287,15 +292,19 @@ fn projection_agrees(n: usize, code: u64, ws: &mut DSeparationWorkspace) -> usiz
         if observed.len() < 2 {
             continue;
         }
-        let projected = latent_project(&dag, &observed.iter().map(|&v| id(v)).collect::<Vec<_>>())
-            .unwrap();
+        let projected =
+            latent_project(&dag, &observed.iter().map(|&v| id(v)).collect::<Vec<_>>()).unwrap();
         let k = observed.len();
         for i in 0..k {
             for j in (i + 1)..k {
                 let rest: Vec<usize> = (0..k).filter(|&m| m != i && m != j).collect();
                 for sub in 0usize..(1 << rest.len()) {
-                    let chosen: Vec<usize> =
-                        rest.iter().enumerate().filter(|(b, _)| sub >> b & 1 == 1).map(|(_, &m)| m).collect();
+                    let chosen: Vec<usize> = rest
+                        .iter()
+                        .enumerate()
+                        .filter(|(b, _)| sub >> b & 1 == 1)
+                        .map(|(_, &m)| m)
+                        .collect();
                     let mut zmask = vec![false; n];
                     for &m in &chosen {
                         zmask[observed[m]] = true;

@@ -294,9 +294,8 @@ impl FrequentistTemporalPropensity {
         for i in 0..n {
             for a in 0..p {
                 for b in 0..p {
-                    meat[a * p + b] +=
-                        (residual_rows[i * p + a] - mean_score[a])
-                            * (residual_rows[i * p + b] - mean_score[b]);
+                    meat[a * p + b] += (residual_rows[i * p + a] - mean_score[a])
+                        * (residual_rows[i * p + b] - mean_score[b]);
                 }
             }
         }
@@ -330,7 +329,14 @@ impl FrequentistTemporalPropensity {
                 upper: sigmoid(eta + half),
             });
         }
-        Ok((fit, PenalizedScoreInterval { coefficient_covariance: covariance, coefficient_standard_error, scores }))
+        Ok((
+            fit,
+            PenalizedScoreInterval {
+                coefficient_covariance: covariance,
+                coefficient_standard_error,
+                scores,
+            },
+        ))
     }
 }
 
@@ -355,7 +361,8 @@ fn invert(matrix: &[f64], p: usize) -> Option<Vec<f64>> {
         inv[i * p + i] = 1.0;
     }
     for col in 0..p {
-        let pivot = (col..p).max_by(|&r, &s| a[r * p + col].abs().total_cmp(&a[s * p + col].abs()))?;
+        let pivot =
+            (col..p).max_by(|&r, &s| a[r * p + col].abs().total_cmp(&a[s * p + col].abs()))?;
         if a[pivot * p + col].abs() < 1e-300 {
             return None;
         }

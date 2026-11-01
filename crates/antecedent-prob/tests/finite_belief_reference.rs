@@ -118,7 +118,10 @@ fn malformed_updates_are_refused_and_never_reweighted() {
             .condition(&[0.5, 0.5]),
         "variance underflow/overflow",
     );
-    refused(linear_functional_rows(&[1.0, 2.0, 3.0], &[1.0, 1.0]), "invalid finite-law functional axes");
+    refused(
+        linear_functional_rows(&[1.0, 2.0, 3.0], &[1.0, 1.0]),
+        "invalid finite-law functional axes",
+    );
     refused(linear_functional_rows(&[1.0, 2.0], &[]), "invalid finite-law functional axes");
     refused(linear_functional_rows(&[f64::MAX, f64::MAX], &[2.0, 2.0]), "functional overflow");
 }

@@ -120,8 +120,14 @@ fn invalid_or_impossible_terms_are_refused_not_scored() {
             .to_string(),
         "unsupported: Gaussian observation bounds must be ordered"
     );
-    assert_eq!(loglik(&[G::Exact(f64::NAN)], &[0.0], 1.0).unwrap_err().to_string(), "unsupported: Gaussian observation endpoint must be finite");
-    assert_eq!(loglik(&[G::Exact(0.0)], &[0.0], 0.0).unwrap_err().to_string(), "unsupported: Gaussian means/scale must be finite and scale positive");
+    assert_eq!(
+        loglik(&[G::Exact(f64::NAN)], &[0.0], 1.0).unwrap_err().to_string(),
+        "unsupported: Gaussian observation endpoint must be finite"
+    );
+    assert_eq!(
+        loglik(&[G::Exact(0.0)], &[0.0], 0.0).unwrap_err().to_string(),
+        "unsupported: Gaussian means/scale must be finite and scale positive"
+    );
     // Mass below the representable log scale of the tail is zero probability, not a number.
     assert!(loglik(&[G::IntervalCensored { lower: 60.0, upper: 61.0 }], &[0.0], 1.0).is_ok());
     // The sum over rows adds the per-row terms.

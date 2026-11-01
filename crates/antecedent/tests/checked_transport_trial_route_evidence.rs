@@ -480,9 +480,7 @@ mod declared_design {
         BayesianConfig, CausalError, InferenceMode, RefuteSuite, ScoreDependence, Study,
         StudyBuilder, StudyResult, TransportTrialSpec,
     };
-    use antecedent_core::{
-        CausalQuery, DeclaredSamplingDesign, ExecutionContext, VariableId,
-    };
+    use antecedent_core::{CausalQuery, DeclaredSamplingDesign, ExecutionContext, VariableId};
     use antecedent_data::TabularData;
     use antecedent_graph::{Admg, DenseNodeId};
     use serde_json::Value;
@@ -509,7 +507,11 @@ mod declared_design {
     /// The case's columns `a, y, trial, s, e` as a table, with its weights when it has them.
     fn table(rows: &Value) -> TabularData {
         let flag = |v: &Value| -> Vec<f64> {
-            v.as_array().unwrap().iter().map(|x| f64::from(u8::from(x.as_bool().unwrap()))).collect()
+            v.as_array()
+                .unwrap()
+                .iter()
+                .map(|x| f64::from(u8::from(x.as_bool().unwrap())))
+                .collect()
         };
         let (a, trial) = (flag(&rows["treatment"]), flag(&rows["trial"]));
         let (y, s, e) =
@@ -583,7 +585,11 @@ mod declared_design {
                 let kind = effect.uncertainty.analytic.kind;
                 match case["dependence"]["kind"].as_str().unwrap() {
                     "clusters" => {
-                        assert_eq!(kind, Some(antecedent_estimate::AnalyticSeKind::Cluster), "{name}");
+                        assert_eq!(
+                            kind,
+                            Some(antecedent_estimate::AnalyticSeKind::Cluster),
+                            "{name}"
+                        );
                         assert!(effect.uncertainty.analytic.reference_df.is_some(), "{name}");
                     }
                     "series" => assert!(
@@ -713,10 +719,10 @@ mod declared_design {
                 "inverse-probability weighting",
             );
             // The route's own estimator, named, is the plain run.
-            let named = run(
-                builder(table(&base["rows"])).estimator(antecedent::EstimatorId::TransportTrialIpw),
-            )
-            .unwrap();
+            let named =
+                run(builder(table(&base["rows"]))
+                    .estimator(antecedent::EstimatorId::TransportTrialIpw))
+                .unwrap();
             assert_eq!(
                 named.estimate().as_effect().unwrap().ate,
                 plain.estimate().as_effect().unwrap().ate
@@ -786,12 +792,13 @@ mod declared_design {
             refused(
                 run(builder(table(&base["rows"]))
                     .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
-                    .score_dependence(ScoreDependence::clusters((0..n as u32).collect::<Vec<_>>()))),
+                    .score_dependence(ScoreDependence::clusters(
+                        (0..n as u32).collect::<Vec<_>>(),
+                    ))),
                 "disagree",
             );
             // Sampling weights declared on an estimator the route does not run.
-            let declared =
-                antecedent_estimate::SamplingWeights::new(vec![1.0; n]).unwrap();
+            let declared = antecedent_estimate::SamplingWeights::new(vec![1.0; n]).unwrap();
             refused(
                 run(builder(table(&base["rows"])).estimator(
                     antecedent_estimate::LinearAdjustmentAte::new().with_sampling_weights(declared),

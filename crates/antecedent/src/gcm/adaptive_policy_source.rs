@@ -13,8 +13,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    derive_stream, CausalRng, ExecutionContext, Intervention, InterventionSequence,
-    SequencedIntervention, TemporalPolicy, ValueExpr, VariableId,
+    CausalRng, ExecutionContext, Intervention, InterventionSequence, SequencedIntervention,
+    TemporalPolicy, ValueExpr, VariableId, derive_stream,
 };
 use antecedent_design::adaptive_policy::AdaptivePolicyFamily;
 use antecedent_design::adaptive_policy_search::{
@@ -22,8 +22,8 @@ use antecedent_design::adaptive_policy_search::{
     ResponseStanding,
 };
 use antecedent_model::{
-    rollout_temporal, CompiledCausalModel, MechanismWorkspace, ModelError, TemporalNoise,
-    TemporalPlan, ValueBatch,
+    CompiledCausalModel, MechanismWorkspace, ModelError, TemporalNoise, TemporalPlan, ValueBatch,
+    rollout_temporal,
 };
 
 /// Stage utility of a path: asymmetric linear plus quadratic loss of the outcome around a

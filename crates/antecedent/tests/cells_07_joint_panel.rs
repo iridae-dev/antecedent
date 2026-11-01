@@ -210,7 +210,8 @@ fn observation_weights_and_analysis_masks_are_read_not_dropped() {
     let keep = [true, true, true, true, true, true, true, false];
     hidden[2] = hidden[2].with_analysis_mask(ValidityBitmap::from_bools(&keep)).unwrap();
     let source = panel(hidden);
-    let prepared = Study::prepare_joint_panel(source.clone(), request(&source, 1.0), &ctx()).unwrap();
+    let prepared =
+        Study::prepare_joint_panel(source.clone(), request(&source, 1.0), &ctx()).unwrap();
     let account = &prepared.data_accounting().units[2];
     assert_eq!(account.masked_rows, vec![7]);
     assert_eq!(account.excluded_periods, vec![5]);

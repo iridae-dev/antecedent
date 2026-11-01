@@ -212,7 +212,10 @@ fn joint_draw_round_trips_and_refuses_marginals_and_wrong_meaning() {
     }
     for bytes in [&python_bytes, &rust_bytes] {
         let e = DistributionArtifact::from_bytes(&flip_last_byte(bytes), &expected).unwrap_err();
-        assert!(e.to_string().contains("checksum mismatch for section `distribution.draws`"), "{e}");
+        assert!(
+            e.to_string().contains("checksum mismatch for section `distribution.draws`"),
+            "{e}"
+        );
     }
 }
 
@@ -432,7 +435,10 @@ fn external_response_binds_exports_and_refuses_with_structured_details() {
         let e1 = ExternalClaimArtifact::from_bytes(&bytes, &other).unwrap_err();
         assert!(e1.to_string().contains("external_claim.identity_expected"), "{name}: {e1}");
         let e2 = ExternalClaimArtifact::from_bytes(&flip_last_byte(&bytes), &expected).unwrap_err();
-        assert!(e2.to_string().contains("checksum mismatch for section `external_claim.values`"), "{e2}");
+        assert!(
+            e2.to_string().contains("checksum mismatch for section `external_claim.values`"),
+            "{e2}"
+        );
     }
 
     external_response_refusals_and_verification();

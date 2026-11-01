@@ -482,7 +482,9 @@ fn feedback_arriving_after_the_horizon_refuses_end_to_end() {
     let error = feedback_response(TemporalPolicy::pulse(-1), Some(late), &ctx).unwrap_err();
     // The declared delay of three ticks puts the first input at tick 2 of a one-step horizon.
     assert!(
-        error.to_string().contains("delayed feedback is not available: prospective tick 2 follows decision 0"),
+        error
+            .to_string()
+            .contains("delayed feedback is not available: prospective tick 2 follows decision 0"),
         "{error}"
     );
 }
@@ -1222,7 +1224,9 @@ fn joint_sequence_refuses_when_a_coordinate_is_not_on_the_graph() {
         .unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("query variables not in temporal graph (treatment present=false, outcome present=true)"),
+        msg.contains(
+            "query variables not in temporal graph (treatment present=false, outcome present=true)"
+        ),
         "unexpected error content: {msg}"
     );
 }

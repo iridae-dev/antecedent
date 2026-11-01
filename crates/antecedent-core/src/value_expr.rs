@@ -1082,6 +1082,14 @@ mod tests {
 
     #[test]
     fn constants_lags_and_size_are_bounded() {
+        // A wide expression of bounded depth is not refused for its node count.
+        fn balanced(levels: usize) -> ValueExpr {
+            if levels == 0 {
+                ValueExpr::constant(1.0)
+            } else {
+                balanced(levels - 1).add(balanced(levels - 1))
+            }
+        }
         assert_eq!(
             ValueExpr::constant(f64::NAN).value_type(),
             Err(ExpressionFault::NonFiniteConstant)
@@ -1093,14 +1101,6 @@ mod tests {
         }
         assert_eq!(deep.value_type(), Err(ExpressionFault::TooLarge));
         assert_eq!(deep.value_type_within_depth(MAX_EXPR_DEPTH + 2), Ok(ExprType::Number));
-        // A wide expression of bounded depth is not refused for its node count.
-        fn balanced(levels: usize) -> ValueExpr {
-            if levels == 0 {
-                ValueExpr::constant(1.0)
-            } else {
-                balanced(levels - 1).add(balanced(levels - 1))
-            }
-        }
         assert_eq!(balanced(10).value_type(), Ok(ExprType::Number));
     }
 

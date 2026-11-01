@@ -395,9 +395,10 @@ impl SmoothedDoseInput {
                     .collect(),
                 sampling: self.sampling,
                 sampling_weights: Some(pick_f(weights)),
-                cluster: self.cluster.as_ref().map(|c| {
-                    c.iter().zip(&keep).filter(|(_, k)| **k).map(|(v, _)| *v).collect()
-                }),
+                cluster: self
+                    .cluster
+                    .as_ref()
+                    .map(|c| c.iter().zip(&keep).filter(|(_, k)| **k).map(|(v, _)| *v).collect()),
                 serial_lag: self.serial_lag,
             },
             zero,
@@ -1331,7 +1332,9 @@ fn smoothed_target_rows(
 fn declared_standard_error(psi: &[f64], input: &SmoothedDoseInput) -> f64 {
     let variance = if let Some(groups) = &input.cluster {
         match antecedent_stats::cluster_meat_scalar(psi, groups, 0.0) {
-            Ok((meat, clusters)) if clusters > 1 => meat * clusters as f64 / (clusters as f64 - 1.0),
+            Ok((meat, clusters)) if clusters > 1 => {
+                meat * clusters as f64 / (clusters as f64 - 1.0)
+            }
             _ => f64::NAN,
         }
     } else if let Some(lag) = input.serial_lag {

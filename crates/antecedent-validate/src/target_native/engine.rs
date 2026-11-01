@@ -381,7 +381,13 @@ fn replicate_check(
         }
         rows.extend_from_slice(&vector);
     }
-    let (statistic, standardised_bias) = match joint_statistic(expectation, target, refit.original(), &rows, k) {
+    let (statistic, standardised_bias) = match joint_statistic(
+        expectation,
+        target,
+        refit.original(),
+        &rows,
+        k,
+    ) {
         Ok(pair) => pair,
         // No usable replicate law (a coordinate the perturbation never moves, too few
         // replicates): the refuter cannot speak to this target; record it, do not abort.

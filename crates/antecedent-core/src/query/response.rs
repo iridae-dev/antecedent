@@ -1142,6 +1142,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "The endpoints must be preserved exactly.")]
     fn linspace_extreme_finite_endpoints_produce_finite_inclusive_values() {
         for (start, end) in [(-f64::MAX, f64::MAX), (-1e308, 1e308), (1e308, f64::MAX)] {
             let grid = GridSpec::Linspace { start, end, points: 5 };

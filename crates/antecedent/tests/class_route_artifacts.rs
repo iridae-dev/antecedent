@@ -129,7 +129,9 @@ fn check_change_truth(
         let got = change
             .contributions
             .iter()
-            .find(|c| c.component == antecedent_core::ComponentId::from_variable(variable(*id as u32)))
+            .find(|c| {
+                c.component == antecedent_core::ComponentId::from_variable(variable(*id as u32))
+            })
             .unwrap_or_else(|| panic!("{label}: component {id}"))
             .contribution;
         near(got, *want, tolerance, &format!("{label}: component {id}"));

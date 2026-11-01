@@ -350,8 +350,7 @@ fn artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identit
     assert!(message.contains("decision_artifact.replay_mismatch"), "{message}");
     let mut flipped = result;
     flipped.verdict = Verdict::UniquelyOptimal("A".into());
-    let message =
-        refusal(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source));
+    let message = refusal(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source));
     assert!(message.contains("decision_artifact.replay_mismatch"), "{message}");
 
     // A different constraint is a different contract: the stored result is not its answer.

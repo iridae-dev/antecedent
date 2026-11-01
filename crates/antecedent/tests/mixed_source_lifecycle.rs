@@ -295,7 +295,10 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     // unrefreshed one is still the original truth.
     let refreshed_point = risk_of(&after.distributions()[0]);
     let shifted_truth = shifted.risk(&[(X, 1)], Y);
-    assert!((refreshed_point - shifted_truth).abs() < 1e-12, "{refreshed_point} vs {shifted_truth}");
+    assert!(
+        (refreshed_point - shifted_truth).abs() < 1e-12,
+        "{refreshed_point} vs {shifted_truth}"
+    );
     assert!((shifted_truth - truth(1)).abs() > 1e-3, "the shift must change the truth");
     assert!((risk_of(&before.distributions()[0]) - truth(1)).abs() < 1e-12);
     // A law under another snapshot is evidence the frozen catalog never bound.

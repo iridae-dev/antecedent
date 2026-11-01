@@ -192,9 +192,9 @@ fn aipw_cluster_se_is_the_cluster_summed_sandwich_of_its_influence_values() {
             *totals.entry(*g).or_default() += value - mean;
         }
         let g = totals.len() as f64;
-        let expected =
-            (g / (g - 1.0) * totals.values().map(|v| v * v).sum::<f64>() / (n as f64).powi(2))
-                .sqrt();
+        let expected = (g / (g - 1.0) * totals.values().map(|v| v * v).sum::<f64>()
+            / (n as f64).powi(2))
+        .sqrt();
         close(clustered.se_analytic(), expected, 1e-10, &format!("{name} cluster sandwich"));
     }
 }

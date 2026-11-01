@@ -993,8 +993,9 @@ fn a_pag_interventional_distribution_publishes_an_artifact_a_consumer_reads() {
     assert!((mass - 1.0).abs() < 1e-9, "the published law must be normalised: {mass}");
     // P(Y = 1 | do(T = 1)) = sum_m P(m | T = 1) P(Y = 1 | T = 1, m) from the generating law
     // (cell rounding 6e-3), at the atom carrying Y = 1.
-    let structural: f64 =
-        (0..2).map(|m| mediated_with_parents::p_m_given(m, 1) * mediated_with_parents::p_y(1, 1, m)).sum();
+    let structural: f64 = (0..2)
+        .map(|m| mediated_with_parents::p_m_given(m, 1) * mediated_with_parents::p_y(1, 1, m))
+        .sum();
     let one = distribution
         .atoms
         .iter()

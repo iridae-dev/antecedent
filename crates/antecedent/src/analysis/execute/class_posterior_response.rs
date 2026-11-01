@@ -1730,7 +1730,8 @@ mod nested_weight_tests {
         // oracle uses the endpoint-clamped dose, not linear extrapolation.
         let x: Vec<f64> = (0..100).map(|i| i as f64 / 25.0).collect();
         let max_x = x.last().copied().unwrap();
-        let shift_expected = 10.0 + 2.0 * x.iter().map(|v| (v + 1.0).min(max_x)).sum::<f64>() / x.len() as f64;
+        let shift_expected =
+            10.0 + 2.0 * x.iter().map(|v| (v + 1.0).min(max_x)).sum::<f64>() / x.len() as f64;
         let y: Vec<f64> = x.iter().map(|v| 10.0 + 2.0 * v).collect();
         let data =
             TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
@@ -1855,34 +1856,68 @@ mod nested_weight_tests {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(1);
         let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
-        let y: Vec<f64> = x.iter().enumerate().map(|(i, v)| {
-            10.0 + 2.0 * v + (i % 7) as f64 * 0.1 + if i < 50 { 0.0 } else { 1000.0 }
-        }).collect();
-        let data = TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
+        let y: Vec<f64> = x
+            .iter()
+            .enumerate()
+            .map(|(i, v)| 10.0 + 2.0 * v + (i % 7) as f64 * 0.1 + if i < 50 { 0.0 } else { 1000.0 })
+            .collect();
+        let data =
+            TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
         let flags: Vec<bool> = (0..100).map(|i| i < 50).collect();
-        let masked = data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&flags)).unwrap();
+        let masked =
+            data.with_analysis_mask(antecedent_data::ValidityBitmap::from_bools(&flags)).unwrap();
         let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
-            outcome, interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
+            outcome,
+            interventions: Arc::from([Intervention::set(treatment, Value::f64(2.0))]),
         });
-        let study = Study::tabular(data).graph(dag).query(query.clone()).refute(RefuteSuite::None).build().unwrap();
+        let study = Study::tabular(data)
+            .graph(dag)
+            .query(query.clone())
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
         let assumptions = antecedent_core::AssumptionSet::default();
         let refitter = StaticResponseLevelRefit {
-            study: &study, query: &query, estimand: evals[1].estimand.as_ref().unwrap(),
-            status: IdentificationStatus::NonparametricallyIdentified, assumptions: &assumptions, operational: None,
+            study: &study,
+            query: &query,
+            estimand: evals[1].estimand.as_ref().unwrap(),
+            status: IdentificationStatus::NonparametricallyIdentified,
+            assumptions: &assumptions,
+            operational: None,
         };
         let ctx = ExecutionContext::for_tests(1);
         let original = refitter.refit(&masked, &[], &ctx).unwrap();
         let witness = antecedent_core::AverageEffectQuery::binary_ate(treatment, outcome);
-        let problem = antecedent_validate::RefutationProblem::new(&masked, refitter.estimand, &witness, &original, Some("linear.adjustment.ate"), None).with_effect_refit(&refitter);
+        let problem = antecedent_validate::RefutationProblem::new(
+            &masked,
+            refitter.estimand,
+            &witness,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        )
+        .with_effect_refit(&refitter);
         let mut workspace = antecedent_estimate::EstimationWorkspace::default();
-        let outcomes = antecedent_validate::ValidationSuite::plugin_level_full().run(&problem, &mut workspace, &ctx).unwrap();
-        let report = outcomes.iter().find_map(|outcome| match outcome {
-            antecedent_validate::ValidationOutcome::Report(report) if report.refuter.as_ref() == "bootstrap.ci_coverage" => Some(report),
-            _ => None,
-        }).expect("static level bootstrap report");
+        let outcomes = antecedent_validate::ValidationSuite::plugin_level_full()
+            .run(&problem, &mut workspace, &ctx)
+            .unwrap();
+        let report = outcomes
+            .iter()
+            .find_map(|outcome| match outcome {
+                antecedent_validate::ValidationOutcome::Report(report)
+                    if report.refuter.as_ref() == "bootstrap.ci_coverage" =>
+                {
+                    Some(report)
+                }
+                _ => None,
+            })
+            .expect("static level bootstrap report");
         assert_eq!(report.replicates, 200);
         assert!(report.comparison > 0.0, "sampled levels must vary");
-        assert!((13.0..16.0).contains(&report.refuted_ate), "masked-out outcomes must not enter draws: {report:?}");
+        assert!(
+            (13.0..16.0).contains(&report.refuted_ate),
+            "masked-out outcomes must not enter draws: {report:?}"
+        );
     }
 
     #[test]

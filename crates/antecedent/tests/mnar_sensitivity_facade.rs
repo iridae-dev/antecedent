@@ -7,8 +7,8 @@
 #![allow(clippy::float_cmp, reason = "exact grid endpoints and identical computations")]
 
 use antecedent::analysis::mnar_sensitivity::{
-    mnar_sensitivity_for_study, mnar_sensitivity_for_table, ArmLoading, MnarEstimator,
-    MnarMechanism, MnarModel, MnarSensitivitySpec,
+    ArmLoading, MnarEstimator, MnarMechanism, MnarModel, MnarSensitivitySpec,
+    mnar_sensitivity_for_study, mnar_sensitivity_for_table,
 };
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{AverageEffectQuery, VariableId};

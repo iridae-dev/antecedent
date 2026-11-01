@@ -83,7 +83,12 @@ fn distance_matched_effect_and_standard_error_match_the_exhaustive_reference() {
                 .unwrap_or_else(|e| panic!("{name} {key}: {e:?}"));
             let want = &case["targets"][key];
             close(got.ate, want["ate"].as_f64().unwrap(), 1e-8, &format!("{name} {key} effect"));
-            close(got.se_analytic(), want["se"].as_f64().unwrap(), 1e-6, &format!("{name} {key} se"));
+            close(
+                got.se_analytic(),
+                want["se"].as_f64().unwrap(),
+                1e-6,
+                &format!("{name} {key} se"),
+            );
             assert_eq!(got.provenance.n_obs, want["matched"].as_u64(), "{name} {key} matched");
         }
     }

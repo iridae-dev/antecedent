@@ -133,7 +133,11 @@ fn linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean()
 fn interacting_parents_receive_the_permutation_average_marginal_contribution() {
     let n = 9usize;
     let x: Vec<Vec<f64>> = (0..3)
-        .map(|k| (0..n).map(|i| ((i * (k + 2)) as f64 * 0.61 + k as f64).sin() * 2.0 + k as f64).collect())
+        .map(|k| {
+            (0..n)
+                .map(|i| ((i * (k + 2)) as f64 * 0.61 + k as f64).sin() * 2.0 + k as f64)
+                .collect()
+        })
         .collect();
     let (centers, scales) = ([1.0_f64, -0.5, 0.25], [2.0_f64, 1.5, 0.5]);
     // z0, z1, z2, z0 * z1, z1 * z2 on standardized parents
@@ -203,7 +207,11 @@ fn interacting_parents_receive_the_permutation_average_marginal_contribution() {
         assert!((total - (f(factual) - f(reference))).abs() <= 1e-11, "efficiency, unit {i}");
         for j in 0..3 {
             let got = result.contributions[i * 3 + j];
-            assert!((got - want[j]).abs() <= 1e-11 * (1.0 + want[j].abs()), "unit {i} parent {j}: {got} vs {}", want[j]);
+            assert!(
+                (got - want[j]).abs() <= 1e-11 * (1.0 + want[j].abs()),
+                "unit {i} parent {j}: {got} vs {}",
+                want[j]
+            );
         }
     }
     assert!(interacting > 0.05, "fixture must have interactions, saw {interacting}");

@@ -208,7 +208,6 @@ impl TemporalEffectQuery {
     /// Outcome evaluation offset: `horizon_steps - 1` (absolute from window origin).
     /// # Errors
     /// Zero horizon or a horizon whose offset cannot be represented by `i32`.
-    #[must_use]
     pub fn outcome_offset(&self) -> Result<i32, QueryError> {
         let offset = self.horizon_steps.checked_sub(1).ok_or(QueryError::NonPositiveHorizon)?;
         i32::try_from(offset).map_err(|_| QueryError::TemporalOutcomeOffsetOverflow {

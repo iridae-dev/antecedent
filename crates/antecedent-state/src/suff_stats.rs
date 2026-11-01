@@ -310,7 +310,12 @@ impl LinearOlsSuffStats {
         if self.invalidated || self.n == 0 || !self.published_matches_scatter() {
             return None;
         }
-        Some(CentredMoments { n: self.n, mean: &self.joint.mean, m2: &self.joint.m2, p: self.ncols })
+        Some(CentredMoments {
+            n: self.n,
+            mean: &self.joint.mean,
+            m2: &self.joint.m2,
+            p: self.ncols,
+        })
     }
 
     /// Whether two coefficient vectors for these rows are the same fit within the merge
@@ -344,8 +349,8 @@ impl LinearOlsSuffStats {
         let y_spread = (moments.m2[p * dim + p].max(0.0) / n).sqrt();
         let tolerance = MERGE_ABS_TOL + MERGE_REL_TOL * y_spread;
         let at_mean: f64 = mu.iter().zip(&delta).map(|(m, d)| m * d).sum();
-        let level: f64 = mu.iter().zip(left).map(|(m, b)| (m * b).abs()).sum::<f64>()
-            + moments.mean_y().abs();
+        let level: f64 =
+            mu.iter().zip(left).map(|(m, b)| (m * b).abs()).sum::<f64>() + moments.mean_y().abs();
         if at_mean.abs() > tolerance + 8.0 * f64::EPSILON * level {
             return false;
         }
@@ -1780,7 +1785,9 @@ mod tests {
         // A slope off by a few units in the last place moves the intercept by that times 1e6.
         let slope_step = 4.0 * f64::EPSILON * beta[1].abs();
         let rebuilt = [beta[0] - 1.0e6 * slope_step, beta[1] + slope_step];
-        assert!(!merge_within_tolerance(beta[0], rebuilt[0]) || (beta[0] - rebuilt[0]).abs() < 1e-3);
+        assert!(
+            !merge_within_tolerance(beta[0], rebuilt[0]) || (beta[0] - rebuilt[0]).abs() < 1e-3
+        );
         assert!(stats.coefficients_agree(&beta, &rebuilt));
         // A slope that is wrong in the ninth digit is a different fit.
         let wrong = [beta[0], beta[1] * (1.0 + 1e-6)];

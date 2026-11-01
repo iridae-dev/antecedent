@@ -270,5 +270,8 @@ fn scenario_invariance_the_report_is_independent_of_scenario_supply_order() {
 fn scenario_invariance_a_report_for_another_set_is_refused() {
     let (prepared, _) = run(four());
     let (_, small) = run(vec![scenario("standardize", &[Z]), scenario("direct", &[])]);
-    assert_refused(prepared.invariance_report(&small), "the scenario report does not describe the decided scenario set");
+    assert_refused(
+        prepared.invariance_report(&small),
+        "the scenario report does not describe the decided scenario set",
+    );
 }

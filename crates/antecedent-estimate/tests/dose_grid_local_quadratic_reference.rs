@@ -19,11 +19,13 @@ use serde_json::Value;
 const Z975: f64 = 1.959_963_984_540_054;
 
 fn reference() -> Vec<Value> {
-    serde_json::from_str::<Value>(include_str!("oracle_data/dose_grid_local_quadratic_reference.json"))
-        .expect("frozen reference parses")
-        .as_array()
-        .cloned()
-        .expect("array")
+    serde_json::from_str::<Value>(include_str!(
+        "oracle_data/dose_grid_local_quadratic_reference.json"
+    ))
+    .expect("frozen reference parses")
+    .as_array()
+    .cloned()
+    .expect("array")
 }
 
 fn floats(v: &Value) -> Vec<f64> {
@@ -77,7 +79,8 @@ fn level_derivative_standard_errors_and_support_match_the_multiprecision_fit() {
         let c = Case::new(&case);
         let points = case["points"].as_array().unwrap();
         let levels = estimate_dose_grid_functional(&c.request(DoseFunctional::Level)).expect(name);
-        let slopes = estimate_dose_grid_functional(&c.request(DoseFunctional::Derivative)).expect(name);
+        let slopes =
+            estimate_dose_grid_functional(&c.request(DoseFunctional::Derivative)).expect(name);
         for (j, p) in points.iter().enumerate() {
             let l = &levels.levels[j];
             close(l.level, f(p, "level"), 1e-8, name);
@@ -96,7 +99,8 @@ fn level_derivative_standard_errors_and_support_match_the_multiprecision_fit() {
         for (j, e) in ess.iter().enumerate() {
             let at = [c.grid[j]];
             let label = |floor: f64| {
-                dose_support_report(&c.dose, &at, c.bandwidth, floor).unwrap().point_status.unwrap()[0]
+                dose_support_report(&c.dose, &at, c.bandwidth, floor).unwrap().point_status.unwrap()
+                    [0]
             };
             assert_eq!(label(e * (1.0 + 1e-9)), SupportStatus::WeakOverlap, "{name}");
             assert_eq!(label((e * (1.0 - 1e-9)).max(3.0)), SupportStatus::Supported, "{name}");
@@ -136,9 +140,12 @@ fn bias_aware_bounds_critical_values_and_band_match() {
         let c = Case::new(&case);
         let m = f(&case, "curvature_bound");
         let points = case["points"].as_array().unwrap();
-        for (functional, key) in [(DoseFunctional::Level, "level"), (DoseFunctional::Derivative, "derivative")] {
+        for (functional, key) in
+            [(DoseFunctional::Level, "level"), (DoseFunctional::Derivative, "derivative")]
+        {
             let replicates = if c.grid.len() == 2 && key == "level" { 40_000 } else { 2_000 };
-            let fit = estimate_dose_grid_bias_aware(&c.request(functional), m, replicates, &ctx).expect(name);
+            let fit = estimate_dose_grid_bias_aware(&c.request(functional), m, replicates, &ctx)
+                .expect(name);
             for (j, p) in points.iter().enumerate() {
                 close(fit.smoothing_bias_bound[j], f(p, &format!("{key}_bias")), 1e-7, name);
                 let half = (fit.intervals[j].upper - fit.intervals[j].lower) / 2.0;
@@ -149,7 +156,10 @@ fn bias_aware_bounds_critical_values_and_band_match() {
                 // A multiplier critical value is a Monte Carlo rank: tolerance is a few standard
                 // errors of the 0.95 rank at 40,000 replicates.
                 if key == "level" && c.grid.len() == 2 {
-                    assert!((critical - f(&case, "band_critical")).abs() < 0.05, "{name}: {critical}");
+                    assert!(
+                        (critical - f(&case, "band_critical")).abs() < 0.05,
+                        "{name}: {critical}"
+                    );
                 }
                 for (j, p) in points.iter().enumerate() {
                     let est = f(p, key);
@@ -165,7 +175,8 @@ fn bias_aware_bounds_critical_values_and_band_match() {
                 from: contrast["from"].as_f64().unwrap(),
                 to: contrast["to"].as_f64().unwrap(),
             };
-            let fit = estimate_dose_grid_bias_aware(&c.request(functional), m, 0, &ctx).expect(name);
+            let fit =
+                estimate_dose_grid_bias_aware(&c.request(functional), m, 0, &ctx).expect(name);
             close(fit.smoothing_bias_bound[0], contrast["bias_sum"].as_f64().unwrap(), 1e-7, name);
             let half = (fit.intervals[0].upper - fit.intervals[0].lower) / 2.0;
             close(half, contrast["half"].as_f64().unwrap(), 1e-7, name);
@@ -174,7 +185,8 @@ fn bias_aware_bounds_critical_values_and_band_match() {
 }
 
 #[test]
-fn a_window_with_enough_kish_size_but_weight_sum_below_three_is_labelled_supported_and_refused_at_the_fit() {
+fn a_window_with_enough_kish_size_but_weight_sum_below_three_is_labelled_supported_and_refused_at_the_fit()
+ {
     // Eight doses at |u| = 1.00 to 1.03 around the evaluation dose 0 with a bandwidth that gives each
     // a kernel weight of 0.3: the Kish size is 8 (above the floor of 3) while the weight sum is
     // 2.4, which the local quadratic refuses because its residual scale is not estimable.

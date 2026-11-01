@@ -124,7 +124,10 @@ fn unsupported_programs_and_bad_probabilities_are_refused() {
     };
     let one_arm = [unit("a", 0, [0.5, 0.5]), unit("b", 0, [0.5, 0.5])];
     let text = refused(&design(2), &one_arm).to_string();
-    assert!(text.contains("no observed independent-unit support"), "a program with no unit: {text}");
+    assert!(
+        text.contains("no observed independent-unit support"),
+        "a program with no unit: {text}"
+    );
     let bad_sum = [unit("a", 0, [0.5, 0.4]), unit("b", 1, [0.5, 0.5])];
     assert!(refused(&design(2), &bad_sum).to_string().contains(assignment));
     let duplicate = [unit("a", 0, [0.5, 0.5]), unit("a", 1, [0.5, 0.5])];

@@ -53,8 +53,7 @@ fn two_action_contrast_is_unbiased_and_its_sandwich_slack_is_the_effect_variatio
         }
         let nf = n as f64;
         let effect = scores.iter().sum::<f64>() / nf;
-        let variance =
-            scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (nf * (nf - 1.0));
+        let variance = scores.iter().map(|s| (s - effect).powi(2)).sum::<f64>() / (nf * (nf - 1.0));
         mean += weight * effect;
         mean_sq += weight * effect * effect;
         mean_v += weight * variance;
@@ -91,7 +90,8 @@ fn three_action_contrast_selects_the_right_columns_and_stays_unbiased() {
     for (reference, action) in [(0_usize, 2_usize), (2, 1), (1, 0)] {
         let (mut mean, mut mean_sq, mut mean_v) = (0.0, 0.0, 0.0);
         for code in 0..3_usize.pow(7) {
-            let assignments: Vec<usize> = (0..7).map(|i| code / 3_usize.pow(i as u32) % 3).collect();
+            let assignments: Vec<usize> =
+                (0..7).map(|i| code / 3_usize.pow(i as u32) % 3).collect();
             let weight: f64 = (0..7).map(|i| probs[i][assignments[i]]).product();
             let outcomes: Vec<f64> = (0..7).map(|i| Y[i][assignments[i]]).collect();
             let scores: Vec<f64> = (0..7)
@@ -110,12 +110,19 @@ fn three_action_contrast_selects_the_right_columns_and_stays_unbiased() {
             mean += weight * effect;
             mean_sq += weight * effect * effect;
             mean_v += weight * variance;
-            if let Some(got) =
-                independent_action_contrast(&outcomes, &assignments, table.as_slice(), reference, action)
-            {
+            if let Some(got) = independent_action_contrast(
+                &outcomes,
+                &assignments,
+                table.as_slice(),
+                reference,
+                action,
+            ) {
                 close(got.effect, effect, "effect");
                 close(got.variance_upper_bound, variance, "variance");
-                assert_eq!(got.action_support, assignments.iter().filter(|&&a| a == action).count());
+                assert_eq!(
+                    got.action_support,
+                    assignments.iter().filter(|&&a| a == action).count()
+                );
                 assert_eq!(
                     got.reference_support,
                     assignments.iter().filter(|&&a| a == reference).count()

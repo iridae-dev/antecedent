@@ -224,7 +224,8 @@ fn the_dynamic_inference_family_replays_its_seeded_sampling_law() {
     // Independent closed form. The rows are iid draws of the stationary OU law
     // N(center, diffusion / (2 * |drift|)), so the maximum-likelihood fit is the sample mean and
     // |drift| = diffusion / (2 * variance) with the maximum-likelihood (divide by n) variance.
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parity/cyclic/dynamic-inference-ou");
+    let dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../parity/cyclic/dynamic-inference-ou");
     let hint = format!("generate it with `{GENERATOR}`");
     let request: serde_json::Value =
         serde_json::from_slice(&read_fixture_bytes(&dir, "request.json", &hint)).unwrap();

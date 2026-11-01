@@ -301,7 +301,9 @@ fn a_hedge_returns_the_refusal_the_description_and_a_ranked_plan_over_declared_s
     let beta = ols(&[&t], &y);
     let terms = &part.result.association().unwrap().estimate.terms;
     assert_eq!(terms[1].label, "t");
-    assert!((terms[0].estimate - beta[0]).abs() < 1e-8 && (terms[1].estimate - beta[1]).abs() < 1e-8);
+    assert!(
+        (terms[0].estimate - beta[0]).abs() < 1e-8 && (terms[1].estimate - beta[1]).abs() < 1e-8
+    );
 
     let needs = fallback.evidence.as_ref().unwrap();
     let RankedPlan::Ranked(plan) = &needs.ranking else {

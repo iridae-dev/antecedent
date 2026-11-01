@@ -185,8 +185,8 @@ fn empirical_reference_posterior_is_non_degenerate() {
     let scale = 1.4826 * median(&mut y.iter().map(|v| (v - center).abs()).collect());
     let scores: Vec<f64> = y.iter().map(|v| tail_score((v - center) / scale)).collect();
     let oracle_mean = scores.iter().sum::<f64>() / scores.len() as f64;
-    let score_variance = scores.iter().map(|s| (s - oracle_mean).powi(2)).sum::<f64>()
-        / (scores.len() - 1) as f64;
+    let score_variance =
+        scores.iter().map(|s| (s - oracle_mean).powi(2)).sum::<f64>() / (scores.len() - 1) as f64;
     // The Bayesian bootstrap of a mean has standard deviation about sd(score) / sqrt(n).
     let reference_width = 2.0 * 1.959_964 * (score_variance / scores.len() as f64).sqrt();
     let study = Study::tabular(data)

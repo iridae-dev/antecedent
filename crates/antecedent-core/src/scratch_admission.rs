@@ -259,7 +259,7 @@ mod tests {
                     produced.fetch_add(1, Ordering::SeqCst);
                     let now = live.fetch_add(1, Ordering::SeqCst) + 1;
                     live_peak.fetch_max(now, Ordering::SeqCst);
-                    Ok::<_, ()>(vec![index as u8; 1024])
+                    Ok::<_, ()>(vec![u8::try_from(index).unwrap(); 1024])
                 },
                 |index, buffer| {
                     if index == 0 {
@@ -284,7 +284,8 @@ mod tests {
         assert!(receipt.peak_live <= window && receipt.peak_live >= 1);
         assert_eq!(receipt.items_consumed, 64);
         assert!(receipt.workers >= 2, "the stall needs producers off the caller");
-        let expected: Vec<(usize, usize, u8)> = (0..64).map(|i| (i, 1024, i as u8)).collect();
+        let expected: Vec<(usize, usize, u8)> =
+            (0..64).map(|i| (i, 1024, u8::try_from(i).unwrap())).collect();
         assert_eq!(seen, expected, "items arrive in index order, each produced from its index");
         assert_eq!(pool.available().threads(), 4);
         assert_eq!(pool.available().bytes(), 1 << 20);

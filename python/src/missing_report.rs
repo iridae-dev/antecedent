@@ -201,7 +201,9 @@ pub(crate) fn parse_declaration(value: &Bound<'_, PyAny>) -> PyResult<MissingDec
                     "binary" => ImputationDomain::Binary,
                     "continuous" => ImputationDomain::Continuous,
                     _ => {
-                        return Err(crate::value_err(format!("unknown imputation domain {kind:?}")));
+                        return Err(crate::value_err(format!(
+                            "unknown imputation domain {kind:?}"
+                        )));
                     }
                 };
                 Ok((std::sync::Arc::<str>::from(name), domain))

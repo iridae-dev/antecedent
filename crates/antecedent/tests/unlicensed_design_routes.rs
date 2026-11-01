@@ -113,18 +113,30 @@ fn sequential_contrast_wald_matches_the_pinned_reference_and_round_trips() {
     close(wire.contrast, fit.contrast, 1.0e-12);
     let mut shifted = body.clone();
     shifted.sequential_contrast.as_mut().unwrap().interval = Some([0.0, 100.0]);
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
             &shifted,
             header.variable_names.clone(),
             "forged-interval"
-        ).err().unwrap().to_string(), "convert error: sequential contrast interval is not the normal interval of its scores");
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: sequential contrast interval is not the normal interval of its scores"
+    );
     let mut forged_mean = body.clone();
     forged_mean.sequential_contrast.as_mut().unwrap().contrast += 0.5;
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
             &forged_mean,
             header.variable_names,
             "forged-contrast"
-        ).err().unwrap().to_string(), "convert error: invalid sequential contrast payload or fabricated summary");
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: invalid sequential contrast payload or fabricated summary"
+    );
 }
 
 #[test]
@@ -163,7 +175,13 @@ fn sequential_contrast_posterior_is_the_modular_dirichlet_posterior() {
     assert_eq!(wire.uncertainty, "modular_bayesian_bootstrap_posterior_no_interval");
     let mut forged = body.clone();
     forged.sequential_contrast.as_mut().unwrap().interval = Some([0.0, 1.0]);
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged").err().unwrap().to_string(), "convert error: a sequential contrast posterior reports no frequentist interval");
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(&forged, header.variable_names, "forged")
+            .err()
+            .unwrap()
+            .to_string(),
+        "convert error: a sequential contrast posterior reports no frequentist interval"
+    );
 }
 
 #[test]
@@ -183,7 +201,10 @@ fn sequential_contrast_refusals_are_typed() {
     assert_eq!(refused.reason_code(), Some("positivity_violated"));
     let mut repeated = contrast_query();
     repeated.first_treatment = repeated.second_treatment;
-    assert_eq!(repeated.validate().err().unwrap().to_string(), "invalid sequential-contrast query: outcome, both actions and every covariate must be distinct columns");
+    assert_eq!(
+        repeated.validate().err().unwrap().to_string(),
+        "invalid sequential-contrast query: outcome, both actions and every covariate must be distinct columns"
+    );
     let mismatch = Study::tabular(data)
         .query(CausalQuery::SequentialContrast(contrast_query()))
         .estimator(EstimatorId::BayesianSequentialCrossfitContrast)
@@ -262,7 +283,10 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     close(fit.serial_standard_error.unwrap(), serial_se, 1.0e-12);
     close(fit.interval_lower.unwrap(), fit.contrast - 1.959_963_984_540_054 * serial_se, 1.0e-12);
     close(fit.interval_upper.unwrap(), fit.contrast + 1.959_963_984_540_054 * serial_se, 1.0e-12);
-    assert_eq!(&*fit.uncertainty, "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured");
+    assert_eq!(
+        &*fit.uncertainty,
+        "abadie_imbens_and_newey_west_period_interval_calibration_unmeasured"
+    );
     let bytes = prepared.encode_contracted_result(&result, "history-match", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
     let wire = body.history_match.as_ref().unwrap();
@@ -271,33 +295,57 @@ fn period_history_match_matches_the_brute_force_reference_and_round_trips() {
     assert_eq!(body.interval_lower, None);
     let mut forged_se = body.clone();
     forged_se.history_match.as_mut().unwrap().standard_error = Some(0.01);
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
             &forged_se,
             header.variable_names.clone(),
             "forged-se"
-        ).err().unwrap().to_string(), "convert error: history match standard error is not the Abadie-Imbens form of its pairs");
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: history match standard error is not the Abadie-Imbens form of its pairs"
+    );
     assert_eq!(wire.pair_periods, vec![1, 1, 2]);
     let mut forged_interval = body.clone();
     forged_interval.history_match.as_mut().unwrap().interval_upper = Some(9.0);
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
             &forged_interval,
             header.variable_names.clone(),
             "forged-interval"
-        ).err().unwrap().to_string(), "convert error: history match period interval is not the Newey-West interval of its pairs");
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: history match period interval is not the Newey-West interval of its pairs"
+    );
     let mut forged_periods = body.clone();
     forged_periods.history_match.as_mut().unwrap().pair_periods = vec![1, 2, 3];
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
             &forged_periods,
             header.variable_names.clone(),
             "forged-periods"
-        ).err().unwrap().to_string(), "convert error: history match period interval is not the Newey-West interval of its pairs");
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: history match period interval is not the Newey-West interval of its pairs"
+    );
     let mut forged_contrast = body.clone();
     forged_contrast.history_match.as_mut().unwrap().contrast = 9.0;
-    assert_eq!(antecedent_io::encode_analysis_result_artifact(
+    assert_eq!(
+        antecedent_io::encode_analysis_result_artifact(
             &forged_contrast,
             header.variable_names,
             "forged-contrast"
-        ).err().unwrap().to_string(), "convert error: invalid history match payload or fabricated summary");
+        )
+        .err()
+        .unwrap()
+        .to_string(),
+        "convert error: invalid history match payload or fabricated summary"
+    );
 
     // Without a caliper a donor is reused.
     let open = Study::tabular(data.clone())

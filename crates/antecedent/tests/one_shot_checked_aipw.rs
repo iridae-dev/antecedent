@@ -82,7 +82,11 @@ fn one_shot_aipw_matches_prepared_and_nearby_linear_stays_supported() {
     let reference = adjusted_ols_effect(512, 73);
     let linear_effect = linear.run(&ctx).unwrap().effect();
     assert!((linear_effect - reference).abs() < 1e-6, "linear {linear_effect} vs OLS {reference}");
-    assert!((one_shot.effect() - reference).abs() < 0.05, "aipw {} vs OLS {reference}", one_shot.effect());
+    assert!(
+        (one_shot.effect() - reference).abs() < 0.05,
+        "aipw {} vs OLS {reference}",
+        one_shot.effect()
+    );
 }
 
 /// The trimmed cross-fitted AIPW study, sealed. The effect pin is what the

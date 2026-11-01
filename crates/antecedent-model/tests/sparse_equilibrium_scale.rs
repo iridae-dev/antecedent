@@ -396,7 +396,9 @@ fn compositional_expressions_work_beyond_the_old_variable_cap() {
     let mut x = vec![0.0; n];
     for _ in 0..300 {
         let next: Vec<f64> = (0..n)
-            .map(|i| 0.1 + 0.5 * (0.6_f64 * x[(i + n - 1) % n] + 0.4 * x[(i + 1) % n]).tanh() + u[i])
+            .map(|i| {
+                0.1 + 0.5 * (0.6_f64 * x[(i + n - 1) % n] + 0.4 * x[(i + 1) % n]).tanh() + u[i]
+            })
             .collect();
         x = next;
     }

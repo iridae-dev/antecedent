@@ -176,7 +176,11 @@ fn the_joint_law_consumer_replays_both_transported_spreads_to_identical_bits() {
     // mean 5.75, squared deviations 7.5625, 7.5625, 5.0625, 10.5625, population variance
     // 30.75 / 4 = 7.6875.
     for (claim, variance) in [(covariance_claim(), 15.0), (aligned_claim(), 7.6875)] {
-        assert!((claim.value("variance").unwrap() - variance).abs() < 1e-12, "{:?}", claim.value("variance"));
+        assert!(
+            (claim.value("variance").unwrap() - variance).abs() < 1e-12,
+            "{:?}",
+            claim.value("variance")
+        );
         let bytes = claim.export().expect("export");
         let consumed =
             consume_joint_law_propagation_artifact(&bytes, Some(claim.identity()), &ctx())

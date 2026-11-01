@@ -112,7 +112,10 @@ fn report_json(done: &DoseGridFunctional) -> PyResult<String> {
 /// dependence; they travel beside the table, like it, and are bound by the artifact digests.
 #[pyfunction]
 #[pyo3(signature=(request_json, dose, outcome, *, sampling_weights=None, cluster=None, serial_lag=None, threads=None, max_bytes=None, cancel=None))]
-#[allow(clippy::too_many_arguments, reason = "the request, the table, its declarations and the controls")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the request, the table, its declarations and the controls"
+)]
 fn evaluate_dose_grid_functional(
     py: Python<'_>,
     request_json: &str,

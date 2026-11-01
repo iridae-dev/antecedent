@@ -37,10 +37,9 @@ fn index_of(edges: &[&str]) -> BTreeMap<String, u32> {
 
 #[test]
 fn id_hedge_fixture_every_case_status_and_hedge_certificate_match() {
-    let fixture: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../conformance/identify/id_hedge/expected.json"
-    ))
-    .unwrap();
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../conformance/identify/id_hedge/expected.json"))
+            .unwrap();
     let cases = fixture["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 3);
     let id = IdIdentifier::new();
@@ -66,7 +65,8 @@ fn id_hedge_fixture_every_case_status_and_hedge_certificate_match() {
             VariableId::from_raw(ids["Y"]),
             vec![Intervention::set(VariableId::from_raw(ids["T"]), Value::f64(1.0))],
         ));
-        let result = id.identify(&prepared, &query, &mut IdentificationWorkspace::default()).unwrap();
+        let result =
+            id.identify(&prepared, &query, &mut IdentificationWorkspace::default()).unwrap();
         let expected = case["status"].as_str().unwrap();
         match expected {
             "identified" => assert_eq!(

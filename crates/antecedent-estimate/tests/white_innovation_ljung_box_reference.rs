@@ -138,7 +138,9 @@ fn the_gate_refuses_exactly_when_the_reference_p_value_is_below_the_level() {
         Ok(_) => panic!("level just above the reference p-value refuses"),
     };
     assert!(
-        refusal.contains("white_innovation.residual_autocorrelation: Ljung-Box Q = 7.409 on 4 lags (p = 0.1158)"),
+        refusal.contains(
+            "white_innovation.residual_autocorrelation: Ljung-Box Q = 7.409 on 4 lags (p = 0.1158)"
+        ),
         "{refusal}"
     );
 }
@@ -179,5 +181,8 @@ fn a_multi_step_horizon_is_refused() {
         Err(error) => error.to_string(),
         Ok(_) => panic!("a multi-step horizon must be refused"),
     };
-    assert!(refusal.contains("white_innovation.multi_step: an unfolded regression at horizon h >= 2"), "{refusal}");
+    assert!(
+        refusal.contains("white_innovation.multi_step: an unfolded regression at horizon h >= 2"),
+        "{refusal}"
+    );
 }

@@ -12,8 +12,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::longitudinal_regime::{
-    evaluate_g_formula_value, evaluate_regime_value,
-    evaluate_sequential_dr_value_with_subject_scores, SequentialDrInputs, SubjectHistories,
+    SequentialDrInputs, SubjectHistories, evaluate_g_formula_value, evaluate_regime_value,
+    evaluate_sequential_dr_value_with_subject_scores,
 };
 use serde_json::Value;
 

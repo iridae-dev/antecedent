@@ -845,7 +845,8 @@ fn check_summary(
             && design.n_rows == total
             && total_weight.is_some_and(|w| (w - count(total)).abs() <= 1e-9 * count(total))
             && non_reference.iter().enumerate().all(|(j, _)| {
-                stored_n(t0 + j).is_some_and(|w| w > 0.0 && Some(w) <= total_weight.map(|t| t * (1.0 + 1e-9)))
+                stored_n(t0 + j)
+                    .is_some_and(|w| w > 0.0 && Some(w) <= total_weight.map(|t| t * (1.0 + 1e-9)))
             })
     } else {
         t0 >= 1

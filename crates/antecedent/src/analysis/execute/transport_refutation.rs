@@ -539,9 +539,7 @@ mod tests {
         // independent value.
         let residuals = [1.0, 1.0, -1.0, -1.0];
         assert!((sum_variance(&residuals, 1.0, (Grouping::Blocks(2), None)) - 8.0).abs() < 1e-12);
-        assert!(
-            (sum_variance(&residuals, 1.0, (Grouping::Independent, None)) - 1.0).abs() < 1e-12
-        );
+        assert!((sum_variance(&residuals, 1.0, (Grouping::Independent, None)) - 1.0).abs() < 1e-12);
         // A block longer than the series is one block of the whole series.
         assert!(sum_variance(&residuals, 1.0, (Grouping::Blocks(40), None)).abs() < 1e-12);
         // Clusters {a: rows 0 and 2, b: rows 1 and 3} sum to 0 and 0; {a: 0,1, b: 2,3} to 2 and -2.

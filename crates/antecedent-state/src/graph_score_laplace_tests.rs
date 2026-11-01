@@ -17,7 +17,8 @@ struct Lcg(u64);
 
 impl Lcg {
     fn unit(&mut self) -> f64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         (self.0 >> 11) as f64 / (1u64 << 53) as f64
     }
 }
@@ -51,11 +52,14 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Option<Vec<f64>> {
 fn lad_minimum(xs: &[Vec<f64>], y: &[f64]) -> f64 {
     let n = y.len();
     let k = xs.len() + 1;
-    let row = |r: usize| -> Vec<f64> { std::iter::once(1.0).chain(xs.iter().map(|c| c[r])).collect() };
+    let row =
+        |r: usize| -> Vec<f64> { std::iter::once(1.0).chain(xs.iter().map(|c| c[r])).collect() };
     let mut best = f64::INFINITY;
     let mut idx: Vec<usize> = (0..k).collect();
     loop {
-        if let Some(beta) = solve(idx.iter().map(|&r| row(r)).collect(), idx.iter().map(|&r| y[r]).collect()) {
+        if let Some(beta) =
+            solve(idx.iter().map(|&r| row(r)).collect(), idx.iter().map(|&r| y[r]).collect())
+        {
             let l1: f64 = (0..n)
                 .map(|r| (y[r] - row(r).iter().zip(&beta).map(|(a, b)| a * b).sum::<f64>()).abs())
                 .sum();
@@ -92,7 +96,12 @@ fn score(cols: &[Vec<f64>], node: usize, parents: &[usize]) -> f64 {
     let n = cols[0].len();
     let flat: Vec<f64> = cols.iter().flatten().copied().collect();
     let data = GraphScoreData::new(n, cols.len(), Arc::from(flat)).unwrap();
-    laplace_bic_local(&data, u32::try_from(node).unwrap(), &parents.iter().map(|&p| u32::try_from(p).unwrap()).collect::<Vec<_>>()).unwrap()
+    laplace_bic_local(
+        &data,
+        u32::try_from(node).unwrap(),
+        &parents.iter().map(|&p| u32::try_from(p).unwrap()).collect::<Vec<_>>(),
+    )
+    .unwrap()
 }
 
 fn laplace(rng: &mut Lcg) -> f64 {
@@ -119,9 +128,13 @@ fn laplace_score_equals_the_exhaustive_lad_optimum() {
     for trial in 0..60 {
         let n = 9 + trial % 6;
         let p = trial % 3;
-        let xs: Vec<Vec<f64>> = (0..p).map(|_| (0..n).map(|_| laplace(&mut rng)).collect()).collect();
+        let xs: Vec<Vec<f64>> =
+            (0..p).map(|_| (0..n).map(|_| laplace(&mut rng)).collect()).collect();
         let mut y: Vec<f64> = (0..n)
-            .map(|r| 0.5 + xs.iter().enumerate().map(|(j, c)| (1.0 + j as f64) * c[r]).sum::<f64>() + laplace(&mut rng))
+            .map(|r| {
+                0.5 + xs.iter().enumerate().map(|(j, c)| (1.0 + j as f64) * c[r]).sum::<f64>()
+                    + laplace(&mut rng)
+            })
             .collect();
         if trial % 4 == 3 {
             y[0] += 50.0; // a gross outlier
@@ -132,7 +145,10 @@ fn laplace_score_equals_the_exhaustive_lad_optimum() {
         let got = score(&cols, 0, &parents);
         let want = reference_score(&xs, &y);
         worst = worst.max((got - want).abs());
-        assert!((got - want).abs() < 1e-8 * want.abs().max(1.0), "trial {trial} (n={n}, p={p}): {got} vs {want}");
+        assert!(
+            (got - want).abs() < 1e-8 * want.abs().max(1.0),
+            "trial {trial} (n={n}, p={p}): {got} vs {want}"
+        );
     }
     assert!(worst < 1e-6, "largest score gap {worst}");
 }
@@ -148,5 +164,9 @@ fn laplace_score_is_unchanged_by_rescaling_and_shifting_the_outcome() {
     let scaled: Vec<f64> = y.iter().map(|v| c * v + 3.0).collect();
     let moved = score(&[scaled, x], 0, &[1]);
     let n = 12.0;
-    assert!((moved - (base - n * c.ln())).abs() < 1e-5 * base.abs(), "{moved} vs {}", base - n * c.ln());
+    assert!(
+        (moved - (base - n * c.ln())).abs() < 1e-5 * base.abs(),
+        "{moved} vs {}",
+        base - n * c.ln()
+    );
 }

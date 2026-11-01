@@ -520,50 +520,121 @@ fn constant_zero_one_requires_domain_and_binary_boundary_preserves_support() {
     use antecedent_data::ImputationDomain;
     use antecedent_estimate::multiple_imputation::VariableKind;
     for value in [0.0, 1.0] {
-        let columns = || vec![ImputationColumn::new("x", vec![value, value, value, value, f64::NAN])];
-        let error = Imputer::new(columns(), ImputationSpec::new(), ImputationUnits::Rows).unwrap_err();
+        let columns =
+            || vec![ImputationColumn::new("x", vec![value, value, value, value, f64::NAN])];
+        let error =
+            Imputer::new(columns(), ImputationSpec::new(), ImputationUnits::Rows).unwrap_err();
         assert_eq!(error.code(), "invalid_argument");
         assert_eq!(error.detail(), "multiple_imputation.ambiguous_variable_domain");
         let binary = [(Arc::from("x"), ImputationDomain::Binary)];
-        let imputer = Imputer::new_with_domains(columns(), ImputationSpec::new(), ImputationUnits::Rows, &binary).unwrap();
+        let imputer = Imputer::new_with_domains(
+            columns(),
+            ImputationSpec::new(),
+            ImputationUnits::Rows,
+            &binary,
+        )
+        .unwrap();
         assert_eq!(imputer.variables()[0].kind, VariableKind::Binary);
-        assert_eq!(imputer.binary_boundary_variables().as_slice(), &[(Arc::<str>::from("x"), if value == 1.0 { 1 } else { 0 })]);
+        assert_eq!(
+            imputer.binary_boundary_variables().as_slice(),
+            &[(Arc::<str>::from("x"), if value == 1.0 { 1 } else { 0 })]
+        );
         let table = imputer.impute(0, &ExecutionContext::for_tests(1)).unwrap();
         assert_eq!(table.column("x").unwrap()[4], value);
-        let normal = Imputer::new_with_domains(columns(), ImputationSpec::new().with_model(ImputationModel::JointNormal), ImputationUnits::Rows, &binary).unwrap_err();
+        let normal = Imputer::new_with_domains(
+            columns(),
+            ImputationSpec::new().with_model(ImputationModel::JointNormal),
+            ImputationUnits::Rows,
+            &binary,
+        )
+        .unwrap_err();
         assert_eq!(normal.detail(), "multiple_imputation.binary_under_joint_normal");
         let continuous = [(Arc::from("x"), ImputationDomain::Continuous)];
-        let continuous = Imputer::new_with_domains(columns(), ImputationSpec::new(), ImputationUnits::Rows, &continuous).unwrap();
+        let continuous = Imputer::new_with_domains(
+            columns(),
+            ImputationSpec::new(),
+            ImputationUnits::Rows,
+            &continuous,
+        )
+        .unwrap();
         assert_eq!(continuous.variables()[0].kind, VariableKind::Continuous);
-        assert!(continuous.impute(0, &ExecutionContext::for_tests(1)).unwrap().column("x").unwrap()[4].is_finite());
+        assert!(
+            continuous.impute(0, &ExecutionContext::for_tests(1)).unwrap().column("x").unwrap()[4]
+                .is_finite()
+        );
         let binary_digest = multiple_imputation::ImputationAssumptions::of(&imputer, None).digest();
-        assert_ne!(binary_digest, multiple_imputation::ImputationAssumptions::of(&continuous, None).digest());
+        assert_ne!(
+            binary_digest,
+            multiple_imputation::ImputationAssumptions::of(&continuous, None).digest()
+        );
     }
-    let ordered_columns = || vec![
-        ImputationColumn::new("a", vec![0.0, 1.0, 0.0, 1.0, f64::NAN]),
-        ImputationColumn::new("b", vec![2.0, 3.0, 4.0, 5.0, 6.0]),
+    let ordered_columns = || {
+        vec![
+            ImputationColumn::new("a", vec![0.0, 1.0, 0.0, 1.0, f64::NAN]),
+            ImputationColumn::new("b", vec![2.0, 3.0, 4.0, 5.0, 6.0]),
+        ]
+    };
+    let first_domains = [
+        (Arc::from("a"), ImputationDomain::Binary),
+        (Arc::from("b"), ImputationDomain::Continuous),
     ];
-    let first_domains = [(Arc::from("a"), ImputationDomain::Binary), (Arc::from("b"), ImputationDomain::Continuous)];
-    let second_domains = [(Arc::from("b"), ImputationDomain::Continuous), (Arc::from("a"), ImputationDomain::Binary)];
-    let first = Imputer::new_with_domains(ordered_columns(), ImputationSpec::new(), ImputationUnits::Rows, &first_domains).unwrap();
-    let second = Imputer::new_with_domains(ordered_columns(), ImputationSpec::new(), ImputationUnits::Rows, &second_domains).unwrap();
-    assert_eq!(multiple_imputation::ImputationAssumptions::of(&first, None).digest(),
-        multiple_imputation::ImputationAssumptions::of(&second, None).digest());
+    let second_domains = [
+        (Arc::from("b"), ImputationDomain::Continuous),
+        (Arc::from("a"), ImputationDomain::Binary),
+    ];
+    let first = Imputer::new_with_domains(
+        ordered_columns(),
+        ImputationSpec::new(),
+        ImputationUnits::Rows,
+        &first_domains,
+    )
+    .unwrap();
+    let second = Imputer::new_with_domains(
+        ordered_columns(),
+        ImputationSpec::new(),
+        ImputationUnits::Rows,
+        &second_domains,
+    )
+    .unwrap();
+    assert_eq!(
+        multiple_imputation::ImputationAssumptions::of(&first, None).digest(),
+        multiple_imputation::ImputationAssumptions::of(&second, None).digest()
+    );
     let columns = || vec![ImputationColumn::new("x", vec![0.0, 1.0, 0.0, 1.0, f64::NAN])];
     let inferred = Imputer::new(columns(), ImputationSpec::new(), ImputationUnits::Rows).unwrap();
     assert_eq!(inferred.variables()[0].kind, VariableKind::Binary);
-    let empty = Imputer::new_with_domains(columns(), ImputationSpec::new(), ImputationUnits::Rows, &[]).unwrap();
-    assert_eq!(multiple_imputation::ImputationAssumptions::of(&inferred, None).digest(),
-        multiple_imputation::ImputationAssumptions::of(&empty, None).digest());
-    for domains in [vec![(Arc::from("missing"), ImputationDomain::Binary)],
-        vec![(Arc::from("x"), ImputationDomain::Binary), (Arc::from("x"), ImputationDomain::Binary)]] {
-        let error = Imputer::new_with_domains(columns(), ImputationSpec::new(), ImputationUnits::Rows, &domains).unwrap_err();
+    let empty =
+        Imputer::new_with_domains(columns(), ImputationSpec::new(), ImputationUnits::Rows, &[])
+            .unwrap();
+    assert_eq!(
+        multiple_imputation::ImputationAssumptions::of(&inferred, None).digest(),
+        multiple_imputation::ImputationAssumptions::of(&empty, None).digest()
+    );
+    for domains in [
+        vec![(Arc::from("missing"), ImputationDomain::Binary)],
+        vec![
+            (Arc::from("x"), ImputationDomain::Binary),
+            (Arc::from("x"), ImputationDomain::Binary),
+        ],
+    ] {
+        let error = Imputer::new_with_domains(
+            columns(),
+            ImputationSpec::new(),
+            ImputationUnits::Rows,
+            &domains,
+        )
+        .unwrap_err();
         assert_eq!(error.code(), "invalid_argument");
         assert_eq!(error.detail(), "multiple_imputation.variable_domain");
     }
     let bad = vec![ImputationColumn::new("x", vec![0.0, 0.0, 2.0, 0.0, f64::NAN])];
-    let error = Imputer::new_with_domains(bad, ImputationSpec::new(), ImputationUnits::Rows,
-        &[(Arc::from("x"), ImputationDomain::Binary)]).unwrap_err();
+    let error = Imputer::new_with_domains(
+        bad,
+        ImputationSpec::new(),
+        ImputationUnits::Rows,
+        &[(Arc::from("x"), ImputationDomain::Binary)],
+    )
+    .unwrap_err();
     assert_eq!(error.code(), "invalid_argument");
     assert_eq!(error.detail(), "multiple_imputation.variable_domain");
 }
@@ -574,8 +645,13 @@ fn lagged_binary_boundary_uses_fit_rows_not_excluded_endpoints() {
     values[0] = 1.0; // The opposite class is only at an excluded lag boundary.
     values[6] = f64::NAN;
     let model = Imputer::new(
-        vec![ImputationColumn::new("x", values)], ImputationSpec::new(), ImputationUnits::Rows,
-    ).unwrap().with_dynamics(1).unwrap();
+        vec![ImputationColumn::new("x", values)],
+        ImputationSpec::new(),
+        ImputationUnits::Rows,
+    )
+    .unwrap()
+    .with_dynamics(1)
+    .unwrap();
     assert_eq!(model.binary_boundary_variables().as_slice(), &[(Arc::<str>::from("x"), 0)]);
     let table = model.impute(0, &ExecutionContext::for_tests(1)).unwrap();
     assert_eq!(table.column("x").unwrap()[6], 0.0);

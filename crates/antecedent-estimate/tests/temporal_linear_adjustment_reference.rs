@@ -151,7 +151,7 @@ fn aligned_windows_effect_and_standard_error_match_the_exact_reference() {
 
 #[test]
 fn a_query_declaring_effect_modifiers_is_answered_with_the_conditional_effect_not_the_average_effect()
-{
+ {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/temporal_linear_adjustment_reference.json"))
             .unwrap();

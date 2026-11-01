@@ -287,11 +287,17 @@ fn policy_query_refuses_missing_ownership_or_overlap() {
     let mut invalid = query();
     invalid.disjoint_training_subjects = false;
     let ownership = invalid.validate().unwrap_err().to_string();
-    assert!(ownership.contains("prediction ownership requires disjoint training IDs"), "{ownership}");
+    assert!(
+        ownership.contains("prediction ownership requires disjoint training IDs"),
+        "{ownership}"
+    );
     invalid = query();
     invalid.propensity = Arc::from([0.0]);
     let overlap = invalid.validate().unwrap_err().to_string();
-    assert!(overlap.contains("propensities must be finite and strictly between zero and one"), "{overlap}");
+    assert!(
+        overlap.contains("propensities must be finite and strictly between zero and one"),
+        "{overlap}"
+    );
 }
 
 /// Independent AIPW row scores of a binary policy under a known propensity: the policy's

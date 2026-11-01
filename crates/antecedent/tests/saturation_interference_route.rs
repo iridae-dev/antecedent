@@ -136,7 +136,8 @@ fn saturation_rejects_cross_cluster_edges_at_prepare() {
         .unwrap();
     let error = study.prepare(&ExecutionContext::for_tests(241)).err().expect("refused at prepare");
     assert!(
-        format!("{error:?}").contains("partial interference requires nonnegative within-cluster edges only"),
+        format!("{error:?}")
+            .contains("partial interference requires nonnegative within-cluster edges only"),
         "{error:?}"
     );
 }

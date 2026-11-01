@@ -48,11 +48,7 @@ impl AdjData {
     }
 
     fn design(&self, row: usize, k: usize) -> f64 {
-        if k == 0 {
-            1.0
-        } else {
-            self.covariates[k - 1][row]
-        }
+        if k == 0 { 1.0 } else { self.covariates[k - 1][row] }
     }
 
     fn width(&self) -> usize {

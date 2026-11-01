@@ -203,8 +203,11 @@ fn conditional_refresh_refuses_column_reordering_that_changes_semantic_ids() {
     ])
     .unwrap();
     let error = rebind_estimate(&mut prepared, reordered, &ctx).unwrap_err();
-    assert!(matches!(&error, antecedent::CausalError::Compile { message }
-            if message.contains("requires the same schema (variable names, types, and order)")), "{error:?}");
+    assert!(
+        matches!(&error, antecedent::CausalError::Compile { message }
+            if message.contains("requires the same schema (variable names, types, and order)")),
+        "{error:?}"
+    );
 }
 
 #[test]

@@ -250,7 +250,8 @@ mod tests {
     }
 
     #[test]
-    fn standardized_logit_contrast_matches_the_hand_formula_and_interaction_columns_are_not_intervened() {
+    fn standardized_logit_contrast_matches_the_hand_formula_and_interaction_columns_are_not_intervened()
+     {
         // Two rows, columns [intercept, T, Z]; T is observed at an arbitrary value that must
         // not matter because it is replaced by the intervention.
         let x = [1.0, 1.0, 0.7, 0.2, -1.0, 1.0];

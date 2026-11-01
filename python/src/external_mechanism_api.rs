@@ -7,10 +7,10 @@
 //! implementation object, and the native layer verifies the object against the record
 //! before running it.
 use antecedent_core::ExecutionContext;
-use antecedent_estimate::external_cyclic_fit::{fit_external_feedback, ExternalFitPolicy};
+use antecedent_estimate::external_cyclic_fit::{ExternalFitPolicy, fit_external_feedback};
 use antecedent_io::external_cyclic_artifact::{
-    consume_external_cyclic_artifact, inspect_external_cyclic_artifact, ExternalCyclicRequest,
-    MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES,
+    ExternalCyclicRequest, MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES, consume_external_cyclic_artifact,
+    inspect_external_cyclic_artifact,
 };
 use antecedent_model::continuous_cyclic::{OdePolicy, TimedClamp};
 use antecedent_model::external_mechanism::{

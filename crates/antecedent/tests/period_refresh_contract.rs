@@ -232,10 +232,7 @@ fn an_overlapping_period_or_reused_snapshot_is_refused_and_changes_nothing() {
     let before = refresh.fit().snapshot();
     let posterior = refresh.summary().unwrap();
     let overlap = window(4, 10, "snap_overlap", &units());
-    assert_eq!(
-        invalid_event(refresh.refresh(&overlap, cadence(), "law_1", &S[4..10])),
-        OVERLAP
-    );
+    assert_eq!(invalid_event(refresh.refresh(&overlap, cadence(), "law_1", &S[4..10])), OVERLAP);
     let reused = window(6, 12, "snap_1", &units());
     assert_eq!(invalid_event(refresh.refresh(&reused, cadence(), "law_1", &S[6..12])), OVERLAP);
     let short = window(6, 12, "snap_2", &units());
@@ -280,7 +277,9 @@ fn the_summary_only_export_serves_the_least_squares_fit_and_is_not_the_ledger() 
     match antecedent::consume_period_refresh_artifact(&summary_bytes) {
         Err(antecedent_io::error::IoError::Refused { code, message }) => {
             assert_eq!(code, "invalid_argument");
-            assert!(message.starts_with("period_refresh.summary_only: this is the summary-only form"));
+            assert!(
+                message.starts_with("period_refresh.summary_only: this is the summary-only form")
+            );
         }
         other => panic!("the summary-only form is not the full ledger, got {:?}", other.err()),
     }

@@ -91,14 +91,10 @@ fn serial_and_parallel_mediators_match_cross_world_structural_evaluation() {
         );
         q.control = Intervention::set(q.treatment, Value::f64(a0));
         q.active = Intervention::set(q.treatment, Value::f64(a1));
-        let fit = estimate_static_mediation(&data, &dag, &q, AssumptionSet::new(), 0, &[], &ctx)
-            .unwrap();
+        let fit =
+            estimate_static_mediation(&data, &dag, &q, AssumptionSet::new(), 0, &[], &ctx).unwrap();
         assert!((fit.total.unwrap() - total).abs() < 1e-9, "{contrast:?} total");
         assert!((fit.direct.unwrap() - direct).abs() < 1e-9, "{contrast:?} direct");
-        assert!(
-            (fit.effect.ate - want).abs() < 1e-9,
-            "{contrast:?}: {} vs {want}",
-            fit.effect.ate
-        );
+        assert!((fit.effect.ate - want).abs() < 1e-9, "{contrast:?}: {} vs {want}", fit.effect.ate);
     }
 }

@@ -26,9 +26,9 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
 use antecedent_estimate::{
-    AipwAte, AipwWorkspace, AnalyticSeKind, EffectEstimate, EstimationWorkspace,
-    GlmAdjustmentAte, GlmAdjustmentWorkspace, LinearAdjustmentAte, OverlapPolicy,
-    PropensityEstimationWorkspace, PropensityMatching,
+    AipwAte, AipwWorkspace, AnalyticSeKind, EffectEstimate, EstimationWorkspace, GlmAdjustmentAte,
+    GlmAdjustmentWorkspace, LinearAdjustmentAte, OverlapPolicy, PropensityEstimationWorkspace,
+    PropensityMatching,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_stats::GlmFamily;
@@ -154,10 +154,9 @@ fn a_treatment_column_with_one_level_is_refused_by_every_contrast_estimator() {
         for (label, t) in [("every row treated", &all_treated), ("no row treated", &none_treated)] {
             let outcome = run(t, &y, &z);
             let message = match outcome {
-                Ok(fit) => panic!(
-                    "{name} published {:?} for a treatment column with {label}",
-                    fit.ate
-                ),
+                Ok(fit) => {
+                    panic!("{name} published {:?} for a treatment column with {label}", fit.ate)
+                }
                 Err(error) => error.to_string(),
             };
             // Each estimator refuses for its own reason; none publishes an effect.
@@ -176,7 +175,8 @@ fn a_constant_outcome_has_exactly_zero_effect_in_every_estimator() {
     let (t, _, z) = rows(96);
     let y = vec![3.25; t.len()];
     for (name, run) in runners() {
-        let fit = run(&t, &y, &z).unwrap_or_else(|e| panic!("{name} refused a constant outcome: {e}"));
+        let fit =
+            run(&t, &y, &z).unwrap_or_else(|e| panic!("{name} refused a constant outcome: {e}"));
         assert!(fit.ate.abs() < 1e-9, "{name}: constant outcome gave effect {}", fit.ate);
         let se = fit.se_analytic();
         assert!(se.is_finite() && (0.0..1e-9).contains(&se), "{name}: standard error {se}");
@@ -193,7 +193,10 @@ fn a_constant_covariate_is_refused_as_rank_deficient_not_repaired() {
     for (name, run) in runners() {
         let outcome = run(&t, &y, &constant);
         let message = outcome.as_ref().err().unwrap_or_else(|| {
-            panic!("{name} published {:?} for a constant adjustment covariate", outcome.as_ref().map(|f| f.ate))
+            panic!(
+                "{name} published {:?} for a constant adjustment covariate",
+                outcome.as_ref().map(|f| f.ate)
+            )
         });
         assert!(message.contains("rank deficient"), "{name}: {message}");
     }

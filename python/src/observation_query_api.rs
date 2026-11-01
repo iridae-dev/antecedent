@@ -15,8 +15,8 @@ use antecedent::analysis::observation_posterior::{
 };
 use antecedent::analysis::observation_query::{
     ContinuousAssignments, Direction, ObservationClaim, ObservationQueryRefusal,
-    ObservationRequest, ObservationResultWire, ObservationQueryWire, ParameterRedrawRequest, RedrawPrior,
-    consume_observation_query_artifact, retain_counts, retain_regression,
+    ObservationQueryWire, ObservationRequest, ObservationResultWire, ParameterRedrawRequest,
+    RedrawPrior, consume_observation_query_artifact, retain_counts, retain_regression,
 };
 use antecedent_contract::{
     ExternalRefusal, InferenceBasis, MeasuredIndicator, ObservationOperation, ObservedSlot,
@@ -117,7 +117,10 @@ fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWi
             })).collect::<Vec<_>>(),
         }),
         ObservationResultWire::GaussianConditional {
-            operation, mean_bits, variance_bits, evidence_log_density_bits,
+            operation,
+            mean_bits,
+            variance_bits,
+            evidence_log_density_bits,
         } => {
             let density = evidence_log_density_bits.map(f64::from_bits);
             let density_status = match density {
@@ -180,16 +183,26 @@ fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWi
         ObservationResultWire::RequiredBayesFactor { factor_bits, already_satisfied } => {
             let factor = f64::from_bits(*factor_bits);
             let log_factor = match query {
-                Some(ObservationQueryWire::RequiredBayesFactor { prior_bits, level_bits, .. }) => {
+                Some(ObservationQueryWire::RequiredBayesFactor {
+                    prior_bits, level_bits, ..
+                }) => {
                     let prior = f64::from_bits(*prior_bits);
                     let level = f64::from_bits(*level_bits);
-                    if *already_satisfied { 0.0 } else {
+                    if *already_satisfied {
+                        0.0
+                    } else {
                         (level.ln() - (-level).ln_1p()) - (prior.ln() - (-prior).ln_1p())
                     }
                 }
                 _ => return Json::Null,
             };
-            let status = if factor.is_infinite() { "overflow" } else if factor == 0.0 { "underflow" } else { "finite" };
+            let status = if factor.is_infinite() {
+                "overflow"
+            } else if factor == 0.0 {
+                "underflow"
+            } else {
+                "finite"
+            };
             json!({
                 "kind": "required_bayes_factor",
                 "factor": if status == "finite" { Some(factor) } else { None },
@@ -199,22 +212,41 @@ fn result_json(result: &ObservationResultWire, query: Option<&ObservationQueryWi
             })
         }
         ObservationResultWire::RequiredObservations {
-            observations, value_bits, already_satisfied, bayes_factor_bits,
+            observations,
+            value_bits,
+            already_satisfied,
+            bayes_factor_bits,
         } => {
             let factor = bayes_factor_bits.map(f64::from_bits);
             let (status, log_factor) = match (factor, query) {
-                (None, Some(ObservationQueryWire::RequiredObservationsBinarySignal { .. })) => ("not_needed", None),
+                (None, Some(ObservationQueryWire::RequiredObservationsBinarySignal { .. })) => {
+                    ("not_needed", None)
+                }
                 (None, _) => ("not_applicable", None),
-                (Some(value), Some(ObservationQueryWire::RequiredObservationsBinarySignal {
-                    direction, rate_given_hypothesis_bits, rate_given_complement_bits, ..
-                })) => {
+                (
+                    Some(value),
+                    Some(ObservationQueryWire::RequiredObservationsBinarySignal {
+                        direction,
+                        rate_given_hypothesis_bits,
+                        rate_given_complement_bits,
+                        ..
+                    }),
+                ) => {
                     let h = f64::from_bits(*rate_given_hypothesis_bits);
                     let c = f64::from_bits(*rate_given_complement_bits);
-                    let (num, den) = if direction == "raise" { (h, c) } else { (1.0-h, 1.0-c) };
-                    if den == 0.0 { ("infinite", None) }
-                    else if num == 0.0 { ("zero", None) }
-                    else {
-                        let status = if value.is_infinite() { "overflow" } else if value == 0.0 { "underflow" } else { "finite" };
+                    let (num, den) = if direction == "raise" { (h, c) } else { (1.0 - h, 1.0 - c) };
+                    if den == 0.0 {
+                        ("infinite", None)
+                    } else if num == 0.0 {
+                        ("zero", None)
+                    } else {
+                        let status = if value.is_infinite() {
+                            "overflow"
+                        } else if value == 0.0 {
+                            "underflow"
+                        } else {
+                            "finite"
+                        };
                         (status, Some(num.ln() - den.ln()))
                     }
                 }
@@ -766,10 +798,13 @@ fn observation_query_consume(
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
         let consumed = consume_observation_query_artifact(&bytes, expected.as_deref(), &ctx);
-        let query = if matches!(&consumed, Ok(value) if matches!(&value.result, ObservationResultWire::RequiredBayesFactor { .. } | ObservationResultWire::RequiredObservations { .. })) {
+        let query = if matches!(&consumed, Ok(value) if matches!(&value.result, ObservationResultWire::RequiredBayesFactor { .. } | ObservationResultWire::RequiredObservations { .. }))
+        {
             Some(antecedent_io_core::observation_query_artifact::ObservationQueryArtifactWire::decode(&bytes)
                 .map_err(|error| crate::value_err(error.to_string()))?.query)
-        } else { None };
+        } else {
+            None
+        };
         Ok((consumed, query))
     })?;
     let (outcome, query) = outcome;

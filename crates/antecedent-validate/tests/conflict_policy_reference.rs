@@ -117,9 +117,6 @@ fn gaussian_divergence_matches_high_precision_across_variance_ratios() {
         let f = |key: &str| case[key].as_f64().expect("number");
         let got = gaussian_kl(f("m0"), f("v0"), f("m1"), f("v1")).expect("kl");
         let want = f("kl");
-        assert!(
-            (got - want).abs() <= 1e-12 * want.abs() + 1e-300,
-            "{case}: {got:e} vs {want:e}"
-        );
+        assert!((got - want).abs() <= 1e-12 * want.abs() + 1e-300, "{case}: {got:e} vs {want:e}");
     }
 }

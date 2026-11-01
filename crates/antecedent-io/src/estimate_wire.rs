@@ -1129,7 +1129,9 @@ fn scope_from_wire(scope: &RefutationScopeWire) -> Result<RefutationScope, IoErr
             ));
         }
         RefutationScopeWire::StaticClassCompletion { target, .. } if target.temporal => {
-            return Err(IoError::Convert("static completion scope requires a static target".into()));
+            return Err(IoError::Convert(
+                "static completion scope requires a static target".into(),
+            ));
         }
         _ => {}
     }

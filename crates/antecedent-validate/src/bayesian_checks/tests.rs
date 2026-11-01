@@ -237,10 +237,9 @@ fn posterior_predictive_replicates_are_the_replicates_the_check_summarizes() {
     }
     assert!((total / count as f64 - report.predictive_mean).abs() < 1e-9);
     // The toy outcome is exactly linear in the design, so the predictive mean is the data mean.
-    let data_mean = (0..60)
-        .map(|i| 1.0 + 2.0 * f64::from(i % 2) + 0.3 * (f64::from(i) * 0.05))
-        .sum::<f64>()
-        / 60.0;
+    let data_mean =
+        (0..60).map(|i| 1.0 + 2.0 * f64::from(i % 2) + 0.3 * (f64::from(i) * 0.05)).sum::<f64>()
+            / 60.0;
     assert!(
         (report.predictive_mean - data_mean).abs() < 0.01,
         "{} vs {data_mean}",
@@ -1304,12 +1303,18 @@ mod predictive_null_calibration {
         assert_eq!(summary.family, PriorSensitivityFamily::ResolvedPriorVariance);
         // ...and the isotropic grid refuses to replace it.
         let refused = PriorSensitivity::standard_grid()
-        .evaluate(&supplied, &prep, IdentificationStatus::NonparametricallyIdentified, &mut ws, &ctx)
-        .unwrap_err();
-    assert!(
-        matches!(&refused, ValidationError::Refused { message } if message.contains("supplied prior")),
-        "{refused:?}"
-    );
+            .evaluate(
+                &supplied,
+                &prep,
+                IdentificationStatus::NonparametricallyIdentified,
+                &mut ws,
+                &ctx,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(&refused, ValidationError::Refused { message } if message.contains("supplied prior")),
+            "{refused:?}"
+        );
     }
 
     #[test]

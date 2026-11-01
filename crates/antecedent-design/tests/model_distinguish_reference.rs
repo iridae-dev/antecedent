@@ -115,11 +115,7 @@ fn contexts_that_cannot_be_scored_are_refused() {
     // A non-finite log-likelihood.
     let mut rows = TABLE;
     rows[1][2] = f64::NAN;
-    let nan = rank(
-        &table(&rows),
-        &[ModelId::from_raw(0), ModelId::from_raw(1)],
-        &candidates,
-    );
+    let nan = rank(&table(&rows), &[ModelId::from_raw(0), ModelId::from_raw(1)], &candidates);
     assert!(matches!(nan, Err(DesignError::Config(_))), "{nan:?}");
     // A valid request still ranks.
     assert!(rank(&ll, &[ModelId::from_raw(0), ModelId::from_raw(2)], &candidates).is_ok());

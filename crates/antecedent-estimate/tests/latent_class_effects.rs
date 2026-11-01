@@ -238,11 +238,13 @@ fn latent_deterministic_replay_given_seed_and_bootstrap_uncertainty() {
     // Var = sum pi_k^2 Var(tau_k) + (tau_P - tau_Q)^2 Var(pi) with Var(pi) = 0.4 * 0.6 / 40 and
     // the class effects independent, giving 0.264 (observed 0.25-0.29 across seeds 7-10).
     let avg_se = first.mixture_average_se.expect("average se");
-    let delta_method = (0.36 * closed_form_p.powi(2)
-        + 0.16 * closed_form_q.powi(2)
-        + 9.0 * (0.4 * 0.6 / 40.0))
-        .sqrt();
-    assert!(avg_se > 0.8 * delta_method && avg_se < 1.25 * delta_method, "{avg_se} vs {delta_method}");
+    let delta_method =
+        (0.36 * closed_form_p.powi(2) + 0.16 * closed_form_q.powi(2) + 9.0 * (0.4 * 0.6 / 40.0))
+            .sqrt();
+    assert!(
+        avg_se > 0.8 * delta_method && avg_se < 1.25 * delta_method,
+        "{avg_se} vs {delta_method}"
+    );
     // Binomial SE of a class weight under row resampling: sqrt(0.4 * 0.6 / 40) = 0.0775
     // (observed 0.070-0.086), identical for the two classes because the weights sum to one.
     let weight_se = first.classes[0].weight_se.expect("weight se");

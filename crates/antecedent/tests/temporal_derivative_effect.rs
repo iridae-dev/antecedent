@@ -369,9 +369,8 @@ fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06() {
     let data = series();
     let n = 80;
     let xs: Vec<f64> = (0..n - 1).map(|t| 1.0 + ((t as f64) * 0.37).sin()).collect();
-    let ys: Vec<f64> = (0..n - 1)
-        .map(|t| 3.0 + 2.0 * xs[t] + 0.5 * if t % 2 == 0 { 0.0 } else { 1.0 })
-        .collect();
+    let ys: Vec<f64> =
+        (0..n - 1).map(|t| 3.0 + 2.0 * xs[t] + 0.5 * if t % 2 == 0 { 0.0 } else { 1.0 }).collect();
     let count = xs.len() as f64;
     let (xbar, ybar) = (xs.iter().sum::<f64>() / count, ys.iter().sum::<f64>() / count);
     let sxy: f64 = xs.iter().zip(&ys).map(|(x, y)| (x - xbar) * (y - ybar)).sum();
@@ -408,13 +407,8 @@ fn temporal_derivative_log_scales_use_the_fitted_mean_response_claims_06() {
             } else {
                 builder
             };
-            let result = builder
-                .build()
-                .unwrap()
-                .prepare(&ctx)
-                .unwrap()
-                .estimate_retained(&ctx)
-                .unwrap();
+            let result =
+                builder.build().unwrap().prepare(&ctx).unwrap().estimate_retained(&ctx).unwrap();
             let response = result.response().unwrap();
             let ResponseIdentification::PointIdentified(value) = &response.estimate else {
                 panic!("{key} bayesian={bayesian}: point-identified slope expected");

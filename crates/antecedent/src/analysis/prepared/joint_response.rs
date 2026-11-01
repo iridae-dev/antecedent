@@ -1393,13 +1393,14 @@ mod tests {
         let path = std::env::temp_dir()
             .join(format!("antecedent-joint-response-{}.artifact", std::process::id()));
         std::fs::write(&path, &bytes).unwrap();
-        let prefix = module_path!()
-            .split_once("::")
-            .map_or(String::new(), |(_, rest)| format!("{rest}::"));
+        let prefix =
+            module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
         let test_name = format!("{prefix}joint_gaussian_artifact_fresh_process_consumer");
         let child = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", &test_name, "--nocapture"])
-            .env("ANTECEDENT_JOINT_RESPONSE_REPLAY",&path).output().unwrap();
+            .env("ANTECEDENT_JOINT_RESPONSE_REPLAY", &path)
+            .output()
+            .unwrap();
         std::fs::remove_file(&path).unwrap();
         assert!(
             child.status.success(),

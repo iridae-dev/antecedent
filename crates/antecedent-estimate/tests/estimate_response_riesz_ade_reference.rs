@@ -232,12 +232,12 @@ fn estimate_response_riesz_ade_of_a_linear_law_on_a_skewed_treatment_equals_the_
     let mut expected = 0.0;
     for fold in 0..folds {
         let train: Vec<f64> = (0..n).filter(|i| i % folds != fold).map(|i| a[i]).collect();
-        let (lo, hi) = train.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &v| {
-            (l.min(v), h.max(v))
-        });
+        let (lo, hi) = train
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &v| (l.min(v), h.max(v)));
         let mean = train.iter().sum::<f64>() / train.len() as f64;
-        let sigma2 = train.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
-            / (train.len() as f64 - 1.0);
+        let sigma2 =
+            train.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (train.len() as f64 - 1.0);
         for i in (0..n).filter(|i| i % folds == fold) {
             let derivative = if a[i] < lo || a[i] >= hi { 0.0 } else { SLOPE };
             let residual = y[i] - (1.0 + SLOPE * a[i].clamp(lo, hi));

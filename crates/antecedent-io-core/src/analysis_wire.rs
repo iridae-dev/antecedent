@@ -287,7 +287,9 @@ pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoEr
             ));
         }
         RefutationScopeWire::StaticClassCompletion { .. } if target.temporal => {
-            return Err(IoError::Convert("static completion scope requires a static target".into()));
+            return Err(IoError::Convert(
+                "static completion scope requires a static target".into(),
+            ));
         }
         _ => {}
     }

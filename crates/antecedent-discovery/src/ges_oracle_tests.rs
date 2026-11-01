@@ -26,7 +26,8 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         self.0 >> 11
     }
 
@@ -225,7 +226,16 @@ fn class_edges(n: usize, edges: &[(usize, usize)]) -> Vec<ClassEdge> {
         .map(|(i, &(a, b))| {
             let forward = members.iter().all(|m| m[i] == (a, b));
             let backward = members.iter().all(|m| m[i] == (b, a));
-            ((a.min(b), a.max(b)), if forward { Some((a, b)) } else if backward { Some((b, a)) } else { None })
+            (
+                (a.min(b), a.max(b)),
+                if forward {
+                    Some((a, b))
+                } else if backward {
+                    Some((b, a))
+                } else {
+                    None
+                },
+            )
         })
         .collect()
 }
@@ -255,8 +265,12 @@ fn clearly_faithful(model: &Model, cov: &[Vec<f64>]) -> bool {
         for j in (i + 1)..n {
             let rest: Vec<usize> = (0..n).filter(|&k| k != i && k != j).collect();
             for mask in 0u32..(1 << rest.len()) {
-                let z: Vec<usize> =
-                    rest.iter().enumerate().filter(|(b, _)| mask >> b & 1 == 1).map(|(_, &k)| k).collect();
+                let z: Vec<usize> = rest
+                    .iter()
+                    .enumerate()
+                    .filter(|(b, _)| mask >> b & 1 == 1)
+                    .map(|(_, &k)| k)
+                    .collect();
                 let r = partial_correlation(cov, i, j, &z).abs();
                 if model.d_separated(i, j, &z) {
                     if r > 1e-9 {
@@ -292,9 +306,14 @@ fn assert_class(model: &Model, label: &str) {
     let adjacency: HashSet<(usize, usize)> = expected.iter().map(|e| e.0).collect();
     for a in 0..n {
         for b in (a + 1)..n {
-            let found =
-                graph.edge_between(DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32));
-            assert_eq!(found.is_some(), adjacency.contains(&(a, b)), "{label}: adjacency {a}-{b}; dag {:?}", model.edges());
+            let found = graph
+                .edge_between(DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32));
+            assert_eq!(
+                found.is_some(),
+                adjacency.contains(&(a, b)),
+                "{label}: adjacency {a}-{b}; dag {:?}",
+                model.edges()
+            );
         }
     }
     for ((a, b), compelled) in expected {

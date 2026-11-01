@@ -269,8 +269,11 @@ fn accumulate(
     model: &SwitchbackModel,
     width: usize,
 ) -> Result<Sufficient, EstimationError> {
-    let mut sufficient =
-        Sufficient { gram: vec![0.0; width * width], xty: vec![0.0; width], inverses: BTreeMap::new() };
+    let mut sufficient = Sufficient {
+        gram: vec![0.0; width * width],
+        xty: vec![0.0; width],
+        inverses: BTreeMap::new(),
+    };
     for indices in sequences.values() {
         let m = indices.len();
         let inverse = match sufficient.inverses.entry(m) {
@@ -323,11 +326,8 @@ fn residual_quadratic_form(
             .iter()
             .enumerate()
             .map(|(t, i)| {
-                let fitted: f64 = design_row(&assignment, t, model, m)
-                    .iter()
-                    .zip(mean)
-                    .map(|(x, b)| x * b)
-                    .sum();
+                let fitted: f64 =
+                    design_row(&assignment, t, model, m).iter().zip(mean).map(|(x, b)| x * b).sum();
                 rows.outcomes[*i] - fitted
             })
             .collect();

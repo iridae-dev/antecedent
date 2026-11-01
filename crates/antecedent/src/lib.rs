@@ -101,8 +101,8 @@ pub use analysis::api::*;
 pub use analysis::max_t_critical_value;
 #[doc(hidden)]
 pub use analysis::temporal_dependent_interval_candidate;
-pub use antecedent_estimate::{IvBoundsEstimate, IvBoundsInterval, IvBoundsPosterior};
 pub use antecedent_estimate::ScoreDependence;
+pub use antecedent_estimate::{IvBoundsEstimate, IvBoundsInterval, IvBoundsPosterior};
 pub use class_prior::ClassPrior;
 pub use design_posterior_model::DesignPosteriorModel;
 pub use error::{
@@ -136,11 +136,12 @@ pub use result::QuasiRolloutEstimate;
 pub use result::TemporalDesignEstimate;
 pub use result::{
     AnalysisIdentification, ContinuousDoseResponseEstimate, ExecutedContract, HistoryMatchEstimate,
-    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, PERCENTILE_95_MIN_REPLICATES,
-    PanelDidEstimate, PolicyValueEstimate, PosteriorRowEstimate, PrimaryEstimate,
-    PublishedScalarUncertainty, RandomizedEffectEstimate, ResultPayload, RowWeightsBinding,
-    SequentialContrastEstimate, StructuralAggregationPolicy, StructuralWeightBasis, StudyResult,
-    ObservedWindowReport, SurvivalEstimate, SyntheticControlEstimate, SyntheticDidEstimate,
+    LocalPolynomialRatioEstimate, LongitudinalRegimeEstimate, ObservedWindowReport,
+    PERCENTILE_95_MIN_REPLICATES, PanelDidEstimate, PolicyValueEstimate, PosteriorRowEstimate,
+    PrimaryEstimate, PublishedScalarUncertainty, RandomizedEffectEstimate, ResultPayload,
+    RowWeightsBinding, SequentialContrastEstimate, StructuralAggregationPolicy,
+    StructuralWeightBasis, StudyResult, SurvivalEstimate, SyntheticControlEstimate,
+    SyntheticDidEstimate,
 };
 pub use support::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,

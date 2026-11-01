@@ -10,8 +10,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_estimate::nonlinear_mediation::{
-    estimate_nonlinear_mediation, NonlinearMediationConfig, NonlinearMediationInput,
-    NonlinearMediationPremises,
+    NonlinearMediationConfig, NonlinearMediationInput, NonlinearMediationPremises,
+    estimate_nonlinear_mediation,
 };
 use serde_json::Value;
 

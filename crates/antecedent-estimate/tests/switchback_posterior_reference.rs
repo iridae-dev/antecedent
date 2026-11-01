@@ -30,7 +30,13 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
     assert!((got - want).abs() <= rel * want.abs().max(1e-300), "{what}: {got} vs {want}");
 }
 
-fn check(name: &str, part: &str, summary: &antecedent_estimate::gaussian_linear_posterior::PosteriorSummary, want: &Value, level_rel: f64) {
+fn check(
+    name: &str,
+    part: &str,
+    summary: &antecedent_estimate::gaussian_linear_posterior::PosteriorSummary,
+    want: &Value,
+    level_rel: f64,
+) {
     let what = format!("{name}/{part}");
     close(summary.mean, f(want, "location"), level_rel, &what);
     if let Some(sd) = want["sd"].as_f64() {
@@ -39,7 +45,12 @@ fn check(name: &str, part: &str, summary: &antecedent_estimate::gaussian_linear_
     close(summary.degrees_of_freedom, f(want, "df"), 1e-12, &what);
     let radius = f(want, "interval_radius");
     close((summary.interval[1] - summary.interval[0]) / 2.0, radius, level_rel.max(1e-8), &what);
-    close(summary.probability_positive, f(want, "probability_positive"), level_rel.max(1e-8), &what);
+    close(
+        summary.probability_positive,
+        f(want, "probability_positive"),
+        level_rel.max(1e-8),
+        &what,
+    );
 }
 
 fn run(case: &Value) -> antecedent_estimate::switchback_posterior::SwitchbackPosterior {
@@ -110,7 +121,13 @@ fn every_effect_matches_the_exact_posterior() {
         check(name, "direct", &post.direct_effect, &want["direct"], rel);
         if let Some(c) = &post.carryover_effect {
             check(name, "carryover", c, &want["carryover"], rel);
-            check(name, "sustained", post.sustained_effect.as_ref().unwrap(), &want["sustained"], rel);
+            check(
+                name,
+                "sustained",
+                post.sustained_effect.as_ref().unwrap(),
+                &want["sustained"],
+                rel,
+            );
         } else {
             assert!(want.get("carryover").is_none(), "{name}");
         }

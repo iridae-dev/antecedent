@@ -699,7 +699,9 @@ pub fn refuse_eval(error: &antecedent_expr::EvalError) -> EstimationError {
             antecedent_core::reason_code!("transport_unsupported_evaluator")
         }
         TransportOutcomeKind::InvalidInput => antecedent_core::reason_code!("invalid_argument"),
-        TransportOutcomeKind::BudgetCancel => antecedent_core::reason_code!("transport_budget_cancel"),
+        TransportOutcomeKind::BudgetCancel => {
+            antecedent_core::reason_code!("transport_budget_cancel")
+        }
         _ => antecedent_core::reason_code!("transport_numerical_failure"),
     };
     EstimationError::refused(code, error.to_string())
@@ -977,29 +979,46 @@ fn require_treatment_request(
 /// The first provider/catalog disagreement found.
 fn check_provider_cancelled() -> Result<(), antecedent_expr::EvalError> {
     if antecedent_core::numerical_admission::is_cancelled() {
-        return Err(antecedent_expr::EvalError::ExactLaw(Box::new(antecedent_expr::ExactLawError {
-            kind: "cancelled", population: std::sync::Arc::from(""), regime: None,
-            variables: std::sync::Arc::from([]), conditioning: std::sync::Arc::from([]),
-            interventions: std::sync::Arc::from([]),
-        })));
+        return Err(antecedent_expr::EvalError::ExactLaw(Box::new(
+            antecedent_expr::ExactLawError {
+                kind: "cancelled",
+                population: std::sync::Arc::from(""),
+                regime: None,
+                variables: std::sync::Arc::from([]),
+                conditioning: std::sync::Arc::from([]),
+                interventions: std::sync::Arc::from([]),
+            },
+        )));
     }
     Ok(())
 }
 
 fn checked_text_equal(a: &str, b: &str) -> Result<bool, antecedent_expr::EvalError> {
     check_provider_cancelled()?;
-    if a.len() != b.len() { return Ok(false); }
+    if a.len() != b.len() {
+        return Ok(false);
+    }
     for (a, b) in a.as_bytes().chunks(512).zip(b.as_bytes().chunks(512)) {
         check_provider_cancelled()?;
-        if a != b { return Ok(false); }
+        if a != b {
+            return Ok(false);
+        }
     }
     Ok(true)
 }
 
-fn checked_value_equal(a: &antecedent_core::Value, b: &antecedent_core::Value) -> Result<bool, antecedent_expr::EvalError> {
+fn checked_value_equal(
+    a: &antecedent_core::Value,
+    b: &antecedent_core::Value,
+) -> Result<bool, antecedent_expr::EvalError> {
     match (a, b) {
-        (antecedent_core::Value::Label(a), antecedent_core::Value::Label(b)) => checked_text_equal(a, b),
-        _ => { check_provider_cancelled()?; Ok(a == b) }
+        (antecedent_core::Value::Label(a), antecedent_core::Value::Label(b)) => {
+            checked_text_equal(a, b)
+        }
+        _ => {
+            check_provider_cancelled()?;
+            Ok(a == b)
+        }
     }
 }
 
@@ -1014,47 +1033,82 @@ pub(crate) fn validate_exact_laws(
         let mut selected = None;
         for candidate in catalog.regimes.iter() {
             check_provider_cancelled()?;
-            if candidate.id == law.regime() && checked_text_equal(&candidate.population, law.population())? {
-                selected = Some(candidate); break;
+            if candidate.id == law.regime()
+                && checked_text_equal(&candidate.population, law.population())?
+            {
+                selected = Some(candidate);
+                break;
             }
         }
-        let regime = selected.ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
+        let regime = selected
+            .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
         if !regime.supplies_population_law()
             || !matches!(regime.distribution, DistributionAvailability::Joint)
             || !regime.conditioned_on.is_empty()
             || law.interventions().len() != regime.interventions.len()
-        { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+        {
+            return Err(EvalError::ProviderKind(
+                "exact provider disagrees with its evidence regime",
+            ));
+        }
         for assignment in law.interventions() {
             check_provider_cancelled()?;
             let mut found = false;
             for chunk in regime.interventions.chunks(512) {
                 check_provider_cancelled()?;
-                if chunk.contains(&assignment.variable) { found = true; break; }
+                if chunk.contains(&assignment.variable) {
+                    found = true;
+                    break;
+                }
             }
-            if !found { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+            if !found {
+                return Err(EvalError::ProviderKind(
+                    "exact provider disagrees with its evidence regime",
+                ));
+            }
         }
         for axis in law.axes() {
             check_provider_cancelled()?;
             let mut found = false;
             for chunk in regime.measured.chunks(512) {
                 check_provider_cancelled()?;
-                if chunk.contains(&axis.variable) { found = true; break; }
+                if chunk.contains(&axis.variable) {
+                    found = true;
+                    break;
+                }
             }
-            if !found { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+            if !found {
+                return Err(EvalError::ProviderKind(
+                    "exact provider disagrees with its evidence regime",
+                ));
+            }
         }
         for required in regime.intervention_values.iter() {
             check_provider_cancelled()?;
             let mut found = false;
             for assignment in law.interventions() {
                 check_provider_cancelled()?;
-                if assignment.variable == required.variable && checked_value_equal(&assignment.value, &required.value)? { found = true; break; }
+                if assignment.variable == required.variable
+                    && checked_value_equal(&assignment.value, &required.value)?
+                {
+                    found = true;
+                    break;
+                }
             }
-            if !found { return Err(EvalError::ProviderKind("exact provider disagrees with its evidence regime")); }
+            if !found {
+                return Err(EvalError::ProviderKind(
+                    "exact provider disagrees with its evidence regime",
+                ));
+            }
         }
         for binding in catalog.bindings.iter() {
             check_provider_cancelled()?;
-            if binding.regime == regime.id && !checked_text_equal(&binding.snapshot_identity, law.snapshot_identity())? {
-                return Err(EvalError::ProviderKind("exact provider snapshot does not match catalog binding"));
+            if binding.regime == regime.id
+                && !checked_text_equal(&binding.snapshot_identity, law.snapshot_identity())?
+            {
+                return Err(EvalError::ProviderKind(
+                    "exact provider snapshot does not match catalog binding",
+                ));
             }
         }
         for axis in law.axes() {
@@ -1062,7 +1116,9 @@ pub(crate) fn validate_exact_laws(
                 check_provider_cancelled()?;
                 for coordinate in env.variables.iter() {
                     check_provider_cancelled()?;
-                    if coordinate.variable != axis.variable { continue; }
+                    if coordinate.variable != axis.variable {
+                        continue;
+                    }
                     let valid = match coordinate.domain {
                         VariableDomain::Unspecified => true,
                         VariableDomain::Continuous => false,
@@ -1078,16 +1134,26 @@ pub(crate) fn validate_exact_laws(
                             axis.values.len() == 2 && seen[0] && seen[1]
                         }
                         VariableDomain::Categorical { cardinality } => {
-                            let mut all = usize::try_from(cardinality).ok() == Some(axis.values.len());
+                            let mut all =
+                                usize::try_from(cardinality).ok() == Some(axis.values.len());
                             if all {
                                 for level in 0..cardinality {
                                     check_provider_cancelled()?;
                                     let mut found = false;
                                     for chunk in axis.values.chunks(512) {
                                         check_provider_cancelled()?;
-                                        if chunk.iter().any(|v| v.as_f64() == Some(f64::from(level))) { found = true; break; }
+                                        if chunk
+                                            .iter()
+                                            .any(|v| v.as_f64() == Some(f64::from(level)))
+                                        {
+                                            found = true;
+                                            break;
+                                        }
                                     }
-                                    if !found { all = false; break; }
+                                    if !found {
+                                        all = false;
+                                        break;
+                                    }
                                 }
                             }
                             all
@@ -1096,12 +1162,21 @@ pub(crate) fn validate_exact_laws(
                             let mut all = true;
                             for chunk in axis.values.chunks(512) {
                                 check_provider_cancelled()?;
-                                if !chunk.iter().all(|v| v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)) { all = false; break; }
+                                if !chunk.iter().all(|v| {
+                                    v.as_f64().is_some_and(|v| v >= 0.0 && v.fract() == 0.0)
+                                }) {
+                                    all = false;
+                                    break;
+                                }
                             }
                             all
                         }
                     };
-                    if !valid { return Err(EvalError::ProviderKind("exact provider domain disagrees with evidence coordinates")); }
+                    if !valid {
+                        return Err(EvalError::ProviderKind(
+                            "exact provider domain disagrees with evidence coordinates",
+                        ));
+                    }
                 }
             }
         }
@@ -1227,10 +1302,15 @@ mod tests {
             crate::EstimationError::Refused { code: "transport_missing_provider", .. }
         ));
         let cancelled = error("cancelled");
-        assert_eq!(super::transport_outcome_kind(&cancelled), antecedent_core::TransportOutcomeKind::BudgetCancel);
+        assert_eq!(
+            super::transport_outcome_kind(&cancelled),
+            antecedent_core::TransportOutcomeKind::BudgetCancel
+        );
         assert!(!super::is_support_failure(&cancelled));
-        assert!(matches!(super::refuse_eval(&cancelled),
-            crate::EstimationError::Refused { code: "transport_budget_cancel", .. }));
+        assert!(matches!(
+            super::refuse_eval(&cancelled),
+            crate::EstimationError::Refused { code: "transport_budget_cancel", .. }
+        ));
         let null_cell = error("zero_conditioning_mass");
         assert!(super::is_support_failure(&null_cell));
         assert!(matches!(
@@ -1541,8 +1621,15 @@ mod tests {
         .unwrap();
         assert!((effect.ipw - -0.972_693_972_693_973_4).abs() < 1e-10, "{}", effect.ipw);
         assert!((effect.aipw.unwrap() - -8.329_886_779_886_78).abs() < 1e-10);
-        let se = trial_to_target_ipw_se(&outcome, &treatment, &trial, &selection, &propensity, effect.ipw)
-            .unwrap();
+        let se = trial_to_target_ipw_se(
+            &outcome,
+            &treatment,
+            &trial,
+            &selection,
+            &propensity,
+            effect.ipw,
+        )
+        .unwrap();
         assert!((se - 8.198_842_288_654_943).abs() < 1e-10, "{se}");
         // The inverted odds orientation would give a different answer.
         let inverted: Vec<f64> = selection.iter().map(|s| 1.0 - s).collect();
@@ -1943,9 +2030,18 @@ mod tests {
         validate_exact_laws(functional.catalog(), &data).unwrap();
         let ctx = antecedent_core::ExecutionContext::for_tests(7);
         ctx.cancellation.cancel();
-        let cancelled = antecedent_core::numerical_admission::with_context(&ctx, || validate_exact_laws(functional.catalog(), &data)).unwrap_err();
-        assert_eq!(transport_outcome_kind(&cancelled), antecedent_core::TransportOutcomeKind::BudgetCancel);
-        assert!(matches!(refuse_eval(&cancelled), EstimationError::Refused { code: "transport_budget_cancel", .. }));
+        let cancelled = antecedent_core::numerical_admission::with_context(&ctx, || {
+            validate_exact_laws(functional.catalog(), &data)
+        })
+        .unwrap_err();
+        assert_eq!(
+            transport_outcome_kind(&cancelled),
+            antecedent_core::TransportOutcomeKind::BudgetCancel
+        );
+        assert!(matches!(
+            refuse_eval(&cancelled),
+            EstimationError::Refused { code: "transport_budget_cancel", .. }
+        ));
         let edits: [fn(&mut antecedent_core::EvidenceRegime); 2] = [
             |r| r.origin = antecedent_core::LawOrigin::ModelArtifact { artifact: Arc::from("m") },
             |r| {

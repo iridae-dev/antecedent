@@ -187,30 +187,54 @@ fn artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tampering(
     assert!(StructuralResultArtifact::from_bytes(&bytes, &identity, &digests).is_ok());
 
     // Another contract identity.
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes, "0".repeat(64).as_str(), &digests), "decision_artifact.contract_expected");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, "0".repeat(64).as_str(), &digests),
+        "decision_artifact.contract_expected",
+    );
     let other = contract(StructuralPolicy::ReportOnly).identity().unwrap();
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes, &other, &digests), "decision_artifact.contract_expected");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &other, &digests),
+        "decision_artifact.contract_expected",
+    );
 
     // A renamed atom id.
     let mut renamed = digests.clone();
     renamed[0].0 = "graph-x".into();
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes, &identity, &renamed), "decision_artifact.atoms_expected");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &renamed),
+        "decision_artifact.atoms_expected",
+    );
 
     // A changed or dropped draws digest.
     let mut changed = digests.clone();
     changed[1].1 = Some("0".repeat(64));
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes, &identity, &changed), "decision_artifact.atoms_expected");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &changed),
+        "decision_artifact.atoms_expected",
+    );
     let mut dropped = digests.clone();
     dropped[1].1 = None;
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes, &identity, &dropped), "decision_artifact.atoms_expected");
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes, &identity, &digests[..1]), "decision_artifact.atoms_expected");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &dropped),
+        "decision_artifact.atoms_expected",
+    );
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes, &identity, &digests[..1]),
+        "decision_artifact.atoms_expected",
+    );
 
     // Truncation, corruption and oversize refuse.
-    assert_refused(StructuralResultArtifact::from_bytes(&bytes[..bytes.len() - 5], &identity, &digests), "UnexpectedEof");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&bytes[..bytes.len() - 5], &identity, &digests),
+        "UnexpectedEof",
+    );
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;
     corrupt[middle] ^= 0xff;
-    assert_refused(StructuralResultArtifact::from_bytes(&corrupt, &identity, &digests), "ChecksumMismatch");
+    assert_refused(
+        StructuralResultArtifact::from_bytes(&corrupt, &identity, &digests),
+        "ChecksumMismatch",
+    );
     let huge = vec![0_u8; 9 * 1024 * 1024];
     assert_refused(StructuralResultArtifact::from_bytes(&huge, &identity, &digests), "TooLarge");
     assert_refused(artifact.to_bytes("  "), "missing artifact id");
@@ -240,10 +264,16 @@ fn replay_recomputes_and_refuses_a_changed_verdict_or_number() {
     // So does an edited number.
     let mut edited = result.clone();
     edited.actions[0].range = Some((-1.0, 3.0));
-    assert_refused(StructuralResultArtifact::new(edited, &atoms).replay(&c, &atoms), "decision_artifact.replay_mismatch");
+    assert_refused(
+        StructuralResultArtifact::new(edited, &atoms).replay(&c, &atoms),
+        "decision_artifact.replay_mismatch",
+    );
     let mut mass = result;
     mass.unidentified_mass = Some(0.25);
-    assert_refused(StructuralResultArtifact::new(mass, &atoms).replay(&c, &atoms), "decision_artifact.replay_mismatch");
+    assert_refused(
+        StructuralResultArtifact::new(mass, &atoms).replay(&c, &atoms),
+        "decision_artifact.replay_mismatch",
+    );
 
     // Another contract or other atoms are not the stored decision.
     let other_contract = contract(StructuralPolicy::ReportOnly);

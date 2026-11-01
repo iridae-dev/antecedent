@@ -14,9 +14,7 @@ use std::collections::BTreeMap;
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::resample::fill_resample_weight_replicate;
-use antecedent_data::{
-    PermutationScheme, ResamplingPlan, fill_resample_index_replicate,
-};
+use antecedent_data::{PermutationScheme, ResamplingPlan, fill_resample_index_replicate};
 
 fn draws(
     plan: ResamplingPlan,
@@ -121,7 +119,12 @@ fn moving_and_circular_block_laws_match_the_enumerated_block_start_laws() {
         let law = block_law(n, length, circular);
         let replicates = (law.len() as u64 * 60).max(4000);
         let observed = draws(plan, n, None, replicates, 11);
-        assert_law(&format!("n={n} length={length} circular={circular}"), &observed, &law, replicates);
+        assert_law(
+            &format!("n={n} length={length} circular={circular}"),
+            &observed,
+            &law,
+            replicates,
+        );
     }
 }
 

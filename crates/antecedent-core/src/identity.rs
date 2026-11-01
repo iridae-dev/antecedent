@@ -753,7 +753,7 @@ mod tests {
         }
         let mut checks = 0;
         let mut writer = CanonicalWriter::new("checked");
-        let result = writer.try_bytes(&[0; 20_000], || {
+        let result = writer.try_bytes(&vec![0; 20_000], || {
             checks += 1;
             if checks == 3 { Err("cancelled") } else { Ok(()) }
         });

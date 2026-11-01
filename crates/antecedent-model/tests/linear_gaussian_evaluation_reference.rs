@@ -29,11 +29,26 @@ use antecedent_model::{
 };
 
 const N: usize = 14;
-const COL0: [f64; N] = [-1.1908, -0.2822, 0.8592, -0.5744, -0.2361, 1.2491, 2.2031, -1.6639, -0.9728, 4.184, 2.0273, 0.113, -0.662, 0.0491];
-const COL1: [f64; N] = [1.45, -0.7279, 2.9914, 0.5933, 2.0907, -0.9281, 0.6055, -2.5445, -2.5091, 2.5173, 0.8033, -2.1618, 0.0253, -1.1579];
-const COL2: [f64; N] = [-1.293, -0.0021, -1.6607, -0.5514, -1.8574, -0.2388, 0.9266, 0.8873, 0.2378, 1.0245, 1.3992, 1.8839, 1.1521, -0.8011];
-const COL3: [f64; N] = [-0.7478, 1.0757, 1.1392, 0.8521, 2.4613, 1.5981, 0.2471, -0.4344, -1.716, 0.1209, 0.6972, -0.6519, -2.4509, -1.9709];
-const COL4: [f64; N] = [1.7597, 0.174, 0.6976, 0.2434, 0.8175, -0.3363, 0.1678, -1.2636, -0.1538, 0.5925, 0.3178, -0.1029, -1.0658, -0.1358];
+const COL0: [f64; N] = [
+    -1.1908, -0.2822, 0.8592, -0.5744, -0.2361, 1.2491, 2.2031, -1.6639, -0.9728, 4.184, 2.0273,
+    0.113, -0.662, 0.0491,
+];
+const COL1: [f64; N] = [
+    1.45, -0.7279, 2.9914, 0.5933, 2.0907, -0.9281, 0.6055, -2.5445, -2.5091, 2.5173, 0.8033,
+    -2.1618, 0.0253, -1.1579,
+];
+const COL2: [f64; N] = [
+    -1.293, -0.0021, -1.6607, -0.5514, -1.8574, -0.2388, 0.9266, 0.8873, 0.2378, 1.0245, 1.3992,
+    1.8839, 1.1521, -0.8011,
+];
+const COL3: [f64; N] = [
+    -0.7478, 1.0757, 1.1392, 0.8521, 2.4613, 1.5981, 0.2471, -0.4344, -1.716, 0.1209, 0.6972,
+    -0.6519, -2.4509, -1.9709,
+];
+const COL4: [f64; N] = [
+    1.7597, 0.174, 0.6976, 0.2434, 0.8175, -0.3363, 0.1678, -1.2636, -0.1538, 0.5925, 0.3178,
+    -0.1029, -1.0658, -0.1358,
+];
 const MEAN_LOGLIK: f64 = -1.649165982956021;
 const MEAN_ABS_RESIDUAL: f64 = 1.0417160714285714;
 const LOCAL_MARKOV_P: [[f64; 5]; 5] = [
@@ -95,10 +110,8 @@ fn model() -> CompiledCausalModel {
 fn data(rows: usize) -> TabularData {
     let cols: [&[f64]; 5] = [&COL0, &COL1, &COL2, &COL3, &COL4];
     let names = ["x0", "x1", "x2", "x3", "x4"];
-    TabularData::from_f64_columns(
-        names.iter().zip(cols).map(|(name, col)| (*name, &col[..rows])),
-    )
-    .unwrap()
+    TabularData::from_f64_columns(names.iter().zip(cols).map(|(name, col)| (*name, &col[..rows])))
+        .unwrap()
 }
 
 fn is_parent(p: usize, c: usize) -> bool {
@@ -182,10 +195,12 @@ fn the_report_matches_the_high_precision_evaluation() {
 #[test]
 fn too_few_rows_for_the_conditioning_set_is_an_error_not_a_verdict() {
     // Node 3 has two parents; its local Markov tests need n - 2 - 2 > 0 residual degrees.
-    let result = ModelEvaluator::default().evaluate(&model(), &data(4), &ExecutionContext::for_tests(1));
+    let result =
+        ModelEvaluator::default().evaluate(&model(), &data(4), &ExecutionContext::for_tests(1));
     let message = result.expect_err("df = 0 must not produce a p-value").to_string();
     assert!(message.contains("non-positive residual df"), "{message}");
-    let empty = ModelEvaluator::default().evaluate(&model(), &data(0), &ExecutionContext::for_tests(1));
+    let empty =
+        ModelEvaluator::default().evaluate(&model(), &data(0), &ExecutionContext::for_tests(1));
     let message = empty.expect_err("empty data").to_string();
     assert!(message.contains("empty data"), "{message}");
 }

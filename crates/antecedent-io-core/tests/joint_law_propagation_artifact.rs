@@ -186,7 +186,14 @@ fn assumption_ranges_refuse_unrepresentable_moments() {
         };
         let error = JointLawPropagationArtifactWire::seal(&request, numbers, &ctx())
             .expect_err("finite declarations cannot license a non-finite assumption range");
-        assert_eq!(details(&error), vec![("invalid_argument".to_owned(), "joint_law_propagation.artifact_invalid".to_owned())], "{mean} {sd}");
+        assert_eq!(
+            details(&error),
+            vec![(
+                "invalid_argument".to_owned(),
+                "joint_law_propagation.artifact_invalid".to_owned()
+            )],
+            "{mean} {sd}"
+        );
     }
 }
 
@@ -204,7 +211,10 @@ fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
         covariance: float_bits(&[1.0, 0.5, 0.5, 1.0]),
     };
     let error = JointLawPropagationArtifactWire::seal(&independent, numbers, &ctx()).unwrap_err();
-    assert_eq!(details(&error), vec![("invalid_argument".to_owned(), "joint_law_propagation.invalid_request".to_owned())]);
+    assert_eq!(
+        details(&error),
+        vec![("invalid_argument".to_owned(), "joint_law_propagation.invalid_request".to_owned())]
+    );
 
     let mut wire = contrast();
     wire.rule.dependence = "declared_independent".into();
@@ -235,7 +245,14 @@ fn aligned_linear_claims_refuse_nonfinite_coefficients_and_overflow() {
         };
         let error = JointLawPropagationArtifactWire::seal(&request, numbers, &ctx())
             .expect_err("a non-finite result must never be sealed as a point claim");
-        assert_eq!(details(&error), vec![("invalid_argument".to_owned(), "joint_law_propagation.artifact_invalid".to_owned())], "{coefficient}");
+        assert_eq!(
+            details(&error),
+            vec![(
+                "invalid_argument".to_owned(),
+                "joint_law_propagation.artifact_invalid".to_owned()
+            )],
+            "{coefficient}"
+        );
     }
 }
 
@@ -453,7 +470,13 @@ fn semantic_mutations_are_refused() {
     other_operation.rule.operation = "mixture".to_owned();
     reseal(&mut other_operation);
     let error = other_operation.consume(None, &ctx()).unwrap_err();
-    assert_eq!(details(&error), vec![("invalid_argument".to_owned(), "joint_law_propagation.mixture_weights_unknown".to_owned())]);
+    assert_eq!(
+        details(&error),
+        vec![(
+            "invalid_argument".to_owned(),
+            "joint_law_propagation.mixture_weights_unknown".to_owned()
+        )]
+    );
     // A resealed upgrade of an envelope's label to a point.
     let envelope_wire = envelope(EnvelopeQueryWire::ProductMoment, PropagationOperation::Product);
     let mut upgraded = envelope_wire.clone();

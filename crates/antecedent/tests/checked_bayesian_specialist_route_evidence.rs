@@ -191,9 +191,8 @@ fn bayesian_specialists_execute_from_retained_plan_after_builder_drop_body() {
         );
         assert!(!consumed.acceptance.accepts_as_verified_program());
 
-        let refused = rebind_estimate(&mut prepared, widened(&fixture.data), &ctx)
-            .unwrap_err()
-            .to_string();
+        let refused =
+            rebind_estimate(&mut prepared, widened(&fixture.data), &ctx).unwrap_err().to_string();
         assert!(refused.contains("refresh requires the same schema"), "{refused}");
     }
 }

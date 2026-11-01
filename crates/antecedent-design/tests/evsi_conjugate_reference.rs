@@ -15,7 +15,11 @@ use serde_json::Value;
 
 fn reference() -> Vec<Value> {
     let text = include_str!("oracle_data/evsi_conjugate_reference.json");
-    serde_json::from_str::<Value>(text).expect("frozen reference parses").as_array().cloned().expect("array")
+    serde_json::from_str::<Value>(text)
+        .expect("frozen reference parses")
+        .as_array()
+        .cloned()
+        .expect("array")
 }
 
 fn f(value: &Value, key: &str) -> f64 {
@@ -33,9 +37,13 @@ fn program(case: &Value) -> FutureStudyProgram {
         .map(|i| StudyAction::try_new(&format!("a{i}")).expect("action"))
         .collect();
     FutureStudyProgram::try_new(
-        NormalStateBelief::try_new(f(case, "prior_mean"), f(case, "prior_variance")).expect("belief"),
-        NormalMeanFutureData::try_new(case["sample_size"].as_u64().expect("n"), f(case, "noise_variance"))
-            .expect("data"),
+        NormalStateBelief::try_new(f(case, "prior_mean"), f(case, "prior_variance"))
+            .expect("belief"),
+        NormalMeanFutureData::try_new(
+            case["sample_size"].as_u64().expect("n"),
+            f(case, "noise_variance"),
+        )
+        .expect("data"),
         NormalMeanKnownVarianceUpdate,
         actions,
         AffineStateUtility::try_new(intercept, slope).expect("utility"),
@@ -61,7 +69,10 @@ fn gross_evsi_matches_high_precision_quadrature() {
         assert!(value.net_value.is_none(), "{name}: no cost declared");
         let pre = value.preposterior_expected_utility;
         let want_pre = f(&case, "preposterior_expected_utility");
-        assert!((pre - want_pre).abs() <= 1e-9 * want_pre.abs().max(1.0), "{name}: {pre} vs {want_pre}");
+        assert!(
+            (pre - want_pre).abs() <= 1e-9 * want_pre.abs().max(1.0),
+            "{name}: {pre} vs {want_pre}"
+        );
         assert!(
             (value.prior_expected_utility - f(&case, "prior_expected_utility")).abs()
                 <= 1e-12 * scale,
@@ -78,7 +89,8 @@ fn updated_decision_matches_the_exact_conjugate_posterior() {
         let name = case["name"].as_str().expect("name");
         let prog = program(&case);
         let (mu0, tau2) = (f(&case, "prior_mean"), f(&case, "prior_variance"));
-        let (n, sigma2) = (case["sample_size"].as_u64().expect("n") as f64, f(&case, "noise_variance"));
+        let (n, sigma2) =
+            (case["sample_size"].as_u64().expect("n") as f64, f(&case, "noise_variance"));
         for ybar in [-3.0_f64, -0.25, 0.0, 0.5, 4.0] {
             let prec = 1.0 / tau2 + n / sigma2;
             let mean = (mu0 / tau2 + n * ybar / sigma2) / prec;
@@ -103,7 +115,8 @@ fn net_value_subtracts_the_declared_cost_only() {
     let case = &reference()[0];
     let base = program(case);
     let with_cost = FutureStudyProgram::try_new(
-        NormalStateBelief::try_new(f(case, "prior_mean"), f(case, "prior_variance")).expect("belief"),
+        NormalStateBelief::try_new(f(case, "prior_mean"), f(case, "prior_variance"))
+            .expect("belief"),
         NormalMeanFutureData::try_new(4, 12.0).expect("data"),
         NormalMeanKnownVarianceUpdate,
         vec![StudyAction::try_new("a0").expect("a"), StudyAction::try_new("a1").expect("a")],

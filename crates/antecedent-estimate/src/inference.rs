@@ -155,8 +155,9 @@ impl InferenceSpec {
     ) -> Result<(), crate::error::EstimationError> {
         use crate::se::AnalyticSeKind as Kind;
         use antecedent_core::DeclaredSamplingDesign as Design;
-        let SamplingDeclaration::Declared(design @ (Design::ClusteredPanel | Design::DependentTimeSeries)) =
-            self.sampling_design
+        let SamplingDeclaration::Declared(
+            design @ (Design::ClusteredPanel | Design::DependentTimeSeries),
+        ) = self.sampling_design
         else {
             return Ok(());
         };
@@ -165,7 +166,10 @@ impl InferenceSpec {
         }
         let (reads, wants) = match design {
             Design::ClusteredPanel => (
-                matches!(self.se_kind, Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. }),
+                matches!(
+                    self.se_kind,
+                    Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. }
+                ),
                 "the cluster, multiway or panel cluster-HAC kind with its cluster labels",
             ),
             _ => (

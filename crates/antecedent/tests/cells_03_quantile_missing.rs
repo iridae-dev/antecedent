@@ -14,7 +14,12 @@
 //! policy is row deletion, and multiple imputation pools the discontinuity by Rubin's rules.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(clippy::float_cmp, clippy::cast_precision_loss, clippy::too_many_lines)]
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    reason = "Reference tests compare exact fixture values and use bounded sample indices."
+)]
 
 use antecedent::{
     CausalError, EstimatorId, IdentifierId, IntoGraphInput, LocalPolynomialRatioQuery, RefuteSuite,

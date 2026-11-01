@@ -53,7 +53,7 @@
 
 use thiserror::Error;
 
-use antecedent_core::{reason_code, AssumptionStatus};
+use antecedent_core::{AssumptionStatus, reason_code};
 use antecedent_stats::special::normal_ppf;
 
 use crate::mnar_adjusted::{self, AdjData};
@@ -849,8 +849,8 @@ impl Context<'_> {
             let estimator = self.spec.estimator;
             let singular = || {
                 refuse(
-            reason_code!("invalid_argument"),
-            "mnar_sensitivity.design_singular",
+                    reason_code!("invalid_argument"),
+                    "mnar_sensitivity.design_singular",
                     format!(
                         "`{}` could not be fitted at parameter {parameter}: a singular covariate design, a propensity outside (0, 1) or a propensity model that did not converge",
                         estimator.name()

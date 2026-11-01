@@ -282,7 +282,11 @@ fn unusable_weights_and_clusters_are_refused() {
         assert!(text.contains(needle), "{what}: {text}");
     }
     let rows = base.view();
-    refused(rows.ipw_se(ipw, RowDependence::Clusters(&one)), "at least two clusters", "one cluster");
+    refused(
+        rows.ipw_se(ipw, RowDependence::Clusters(&one)),
+        "at least two clusters",
+        "one cluster",
+    );
     let trial_in_one: Vec<u32> =
         (0..n).map(|i| if base.trial[i] { 0 } else { 1 + u32::try_from(i % 3).unwrap() }).collect();
     refused(

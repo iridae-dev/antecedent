@@ -3,11 +3,12 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::{
-    Conditioning, ContrastForm, ContrastIncoherence, ContrastTerm, CrossWorldPremise, DoseTimeSurface, GraphFamily,
-    HistoryWindow, InferenceSelection, InitialLaw, InterventionContrast, InterventionWorld,
-    MediationArms, MediationComponent, MediationTarget, ModelAssumptions, ObservationUnit,
-    OutcomeQuantity, QuantityUnits, ScientificTarget, ScientificTargetError, ScientificWorldId,
-    TargetForm, TimeFrame, WorldAction, WorldBinding, WorldCollection,
+    Conditioning, ContrastForm, ContrastIncoherence, ContrastTerm, CrossWorldPremise,
+    DoseTimeSurface, GraphFamily, HistoryWindow, InferenceSelection, InitialLaw,
+    InterventionContrast, InterventionWorld, MediationArms, MediationComponent, MediationTarget,
+    ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget,
+    ScientificTargetError, ScientificWorldId, TargetForm, TimeFrame, WorldAction, WorldBinding,
+    WorldCollection,
 };
 use crate::VariableId;
 use crate::assumption::{

@@ -214,7 +214,8 @@ fn a_failed_carry_leaves_the_request_and_a_later_valid_carry_unaffected() {
     let first = transport_linear_gaussian(&ok).unwrap();
     let refused = transport_linear_gaussian(&request(Selection::OutcomeSelected)).unwrap_err();
     assert!(
-        format!("{refused:?}").contains("mechanism_composition.population_selection_arrow_into_mechanism"),
+        format!("{refused:?}")
+            .contains("mechanism_composition.population_selection_arrow_into_mechanism"),
         "{refused:?}"
     );
     let second = transport_linear_gaussian(&ok).unwrap();

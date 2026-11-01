@@ -962,9 +962,7 @@ fn producer_panic_unblocks_ordered_pipeline_even_with_live_workers() {
                 if index < 2 {
                     barrier.wait();
                 }
-                if index == 0 {
-                    panic!("forced producer panic");
-                }
+                assert!(index != 0, "forced producer panic");
                 Ok(index)
             },
             |_, _| -> Result<PipelineStep, ()> { Ok(PipelineStep::Continue) },

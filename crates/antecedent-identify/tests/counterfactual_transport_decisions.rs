@@ -144,7 +144,9 @@ fn obstructions_agree_with_the_fixtures_own_alternative_models() {
                 "{}: {decision:?}",
                 case.name
             ),
-            other => panic!("{}: a fixture with an alternative family cannot be {other:?}", case.name),
+            other => {
+                panic!("{}: a fixture with an alternative family cannot be {other:?}", case.name)
+            }
         }
     }
 }

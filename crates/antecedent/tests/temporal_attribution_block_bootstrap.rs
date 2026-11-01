@@ -120,7 +120,10 @@ fn block_bootstrap_recovers_the_known_mean_shift_with_a_row_block_interval() {
     // The attribution total is the change in population means, which the sample means estimate:
     // it matches the shift recomputed from the draws, far inside the 5 se + 0.5 band above.
     let sample_shift = sample_mean_shift(41);
-    assert!((total - sample_shift).abs() < SHIFT_TOL, "total {total} vs sample shift {sample_shift}");
+    assert!(
+        (total - sample_shift).abs() < SHIFT_TOL,
+        "total {total} vs sample shift {sample_shift}"
+    );
     let binding = result.interval().as_ref().expect("an interval binding");
     assert_eq!(binding.method, IntervalMethod::CircularBlockSe);
     assert_eq!(binding.dependence, "circular_block:row_block");

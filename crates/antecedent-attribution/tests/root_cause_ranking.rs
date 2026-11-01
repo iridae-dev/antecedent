@@ -61,7 +61,9 @@ fn half_an_ensemble_is_refused_not_silently_ignored() {
         let error =
             root_cause_rank(&attribution(2.0), given_graphs, given_draws, &ctx).unwrap_err();
         assert!(
-            error.to_string().contains("graph_samples and contribution_draws must be given together"),
+            error
+                .to_string()
+                .contains("graph_samples and contribution_draws must be given together"),
             "{error}"
         );
     }

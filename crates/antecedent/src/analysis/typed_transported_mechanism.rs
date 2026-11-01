@@ -37,20 +37,20 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::mechanism_composition::MechanismCompositionRefusal;
-use super::mechanism_exports::model_crate::typed_mechanism_transport::{
-    fit_mechanism, invariance_check, refit_in_target, transport_typed, TransportedTypedModel,
-};
 pub use super::mechanism_exports::model_crate::typed_mechanism_transport::{
-    selection_targets, typed_refusal_code, ContrastEstimate, CrossBlock, FittedMechanism,
-    InvarianceCheck, MeanSpec, MechanismRole, MechanismSpec, ParameterDependence, ResponseFamily,
+    ContrastEstimate, CrossBlock, DEFAULT_INVARIANCE_LEVEL, DETAIL_CYCLE,
+    DETAIL_DEPENDENCE_INCOMPLETE, DETAIL_DEPENDENCE_INVALID, DETAIL_DEPENDENCE_UNKNOWN,
+    DETAIL_DESIGN_NOT_SHARED, DETAIL_INVARIANCE_CONTRADICTED, DETAIL_INVARIANCE_LEVEL,
+    DETAIL_PARENT_WITHOUT_MECHANISM, DETAIL_PARENTS_CHANGED, DETAIL_REGIME_NOT_DECLARED,
+    DETAIL_SELECTION_TARGET_UNKNOWN, DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE,
+    DETAIL_TARGET_SPEC_DIFFERS, DETAIL_UNKNOWN_VARIABLE, FittedMechanism, InvarianceCheck,
+    MAX_EXPRESSION_PARAMETERS, MAX_POLYNOMIAL_DEGREE, MAX_TYPED_DRAWS, MAX_TYPED_PARENTS, MeanSpec,
+    MechanismRole, MechanismSpec, ParameterDependence, ResponseFamily, TYPED_TRANSPORT_VERSION,
     TypedDisposition, TypedFitError, TypedFunctionalUncertainty, TypedTransportRequest,
-    DEFAULT_INVARIANCE_LEVEL, DETAIL_CYCLE, DETAIL_DEPENDENCE_INCOMPLETE,
-    DETAIL_DEPENDENCE_INVALID, DETAIL_DEPENDENCE_UNKNOWN, DETAIL_DESIGN_NOT_SHARED,
-    DETAIL_INVARIANCE_CONTRADICTED, DETAIL_INVARIANCE_LEVEL, DETAIL_PARENTS_CHANGED,
-    DETAIL_PARENT_WITHOUT_MECHANISM, DETAIL_REGIME_NOT_DECLARED, DETAIL_SELECTION_TARGET_UNKNOWN,
-    DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE, DETAIL_TARGET_SPEC_DIFFERS, DETAIL_UNKNOWN_VARIABLE,
-    MAX_EXPRESSION_PARAMETERS, MAX_POLYNOMIAL_DEGREE, MAX_TYPED_DRAWS, MAX_TYPED_PARENTS,
-    TYPED_TRANSPORT_VERSION, UNCERTAINTY_SCOPE,
+    UNCERTAINTY_SCOPE, selection_targets, typed_refusal_code,
+};
+use super::mechanism_exports::model_crate::typed_mechanism_transport::{
+    TransportedTypedModel, fit_mechanism, invariance_check, refit_in_target, transport_typed,
 };
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
@@ -116,9 +116,9 @@ fn refusal(
     remedy: &'static str,
 ) -> MechanismCompositionRefusal {
     MechanismCompositionRefusal {
-        refusals: vec![ExternalRefusal::new(code, stage, detail)
-            .with_offending(subject)
-            .with_remedy(remedy)],
+        refusals: vec![
+            ExternalRefusal::new(code, stage, detail).with_offending(subject).with_remedy(remedy),
+        ],
     }
 }
 

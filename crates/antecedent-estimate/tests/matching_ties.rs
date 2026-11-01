@@ -83,8 +83,7 @@ fn table(rows: &[(f64, f64, f64)]) -> (TabularData, IdentifiedEstimand) {
             .unwrap(),
         )
     };
-    let columns =
-        vec![column(T, &|r| r.1), column(Y, &|r| r.2), column(Z, &|r| r.0)];
+    let columns = vec![column(T, &|r| r.1), column(Y, &|r| r.2), column(Z, &|r| r.0)];
     let storage =
         OwnedColumnarStorage::try_new(builder.build().unwrap(), columns, None, None).unwrap();
     let estimand =
@@ -124,14 +123,19 @@ fn a_two_valued_propensity_matches_every_tied_control_and_recovers_the_stratifie
 fn the_estimate_does_not_depend_on_the_order_of_the_rows() {
     let table = rows();
     let reversed: Vec<_> = table.iter().rev().copied().collect();
-    let interleaved: Vec<_> =
-        (0..table.len()).map(|i| table[(i * 7) % table.len()]).collect();
-    for target in [TargetPopulation::Treated, TargetPopulation::Untreated, TargetPopulation::AllObserved]
+    let interleaved: Vec<_> = (0..table.len()).map(|i| table[(i * 7) % table.len()]).collect();
+    for target in
+        [TargetPopulation::Treated, TargetPopulation::Untreated, TargetPopulation::AllObserved]
     {
         let base = fit(&table, target.clone());
         for other in [&reversed, &interleaved] {
             let again = fit(other, target.clone());
-            assert!((again.ate - base.ate).abs() < 1e-12, "{target:?}: {} vs {}", again.ate, base.ate);
+            assert!(
+                (again.ate - base.ate).abs() < 1e-12,
+                "{target:?}: {} vs {}",
+                again.ate,
+                base.ate
+            );
             assert!(
                 (again.se_analytic() - base.se_analytic()).abs() < 1e-12,
                 "{target:?}: se {} vs {}",

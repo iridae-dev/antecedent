@@ -29,16 +29,25 @@ fn hc0_hc2_and_degrees_of_freedom_match_the_exact_rational_fit() {
     for case in reference["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let y = floats(&case["y"]);
-        let t: Vec<bool> = case["t"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
+        let t: Vec<bool> =
+            case["t"].as_array().unwrap().iter().map(|v| v.as_bool().unwrap()).collect();
         let x: Vec<Vec<f64>> = case["x"].as_array().unwrap().iter().map(floats).collect();
         let covariates: Vec<&[f64]> = x.iter().map(Vec::as_slice).collect();
         // The offset case loses digits to the conditioning of the data, not to the formulas.
-        let rel = if name.contains("offset") { 1e-5 } else if name.contains("collinear") { 1e-6 } else { 1e-9 };
+        let rel = if name.contains("offset") {
+            1e-5
+        } else if name.contains("collinear") {
+            1e-6
+        } else {
+            1e-9
+        };
         if !covariates.is_empty() {
             let fit = fit_ancova(&y, &t, &covariates).unwrap();
             close(fit.effect, case["effect"].as_f64().unwrap(), rel, name);
             close(fit.hc0_variance, case["hc0"].as_f64().unwrap(), rel, name);
-            for (got, want) in fit.covariate_coefficients.iter().zip(floats(&case["covariate_coefficients"])) {
+            for (got, want) in
+                fit.covariate_coefficients.iter().zip(floats(&case["covariate_coefficients"]))
+            {
                 close(*got, want, rel.max(1e-8), name);
             }
         }

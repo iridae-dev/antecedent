@@ -80,7 +80,9 @@ fn scan_match(
     if set.is_empty() || !distance.is_finite() || caliper.is_some_and(|limit| distance > limit) {
         return None;
     }
-    let mean = |value: &dyn Fn(usize) -> f64| set.iter().map(|&d| value(d)).sum::<f64>() / set.len() as f64;
+    let mean = |value: &dyn Fn(usize) -> f64| {
+        set.iter().map(|&d| value(d)).sum::<f64>() / set.len() as f64
+    };
     let raw = arms.treated_y[q] - mean(&|d| arms.control_y[d]);
     let bias = match beta {
         Some(beta) => {
@@ -128,7 +130,8 @@ fn assert_queries_equal_the_scan(
         ctx,
     )
     .expect("the sorted index matches");
-    let (donor_sets, diffs, queries) = (matched.donor_sets(), matched.diffs.clone(), matched.queries.clone());
+    let (donor_sets, diffs, queries) =
+        (matched.donor_sets(), matched.diffs.clone(), matched.queries.clone());
     let beta = fit_linear_mean(&arms.control_feat, &arms.control_y, 1);
     let mut agreement = Agreement {
         checked: 0,
@@ -182,7 +185,11 @@ fn assert_estimate_equals_the_scan(
         .collect();
     assert!(!diffs.is_empty());
     let reference = diffs.iter().sum::<f64>() / diffs.len() as f64;
-    assert!(same_to_rounding(effect.ate, reference), "ATT {} differs from the scan's {reference}", effect.ate);
+    assert!(
+        same_to_rounding(effect.ate, reference),
+        "ATT {} differs from the scan's {reference}",
+        effect.ate
+    );
     assert_eq!(effect.provenance.n_obs, Some(diffs.len() as u64));
 }
 

@@ -55,11 +55,8 @@ fn fuzzy_jump() -> (TabularData, LocalPolynomialRatioQuery) {
         for sign in [-1.0, 1.0] {
             let score = sign * f64::from(step) / 80.0;
             for replicate in 0..4 {
-                let dose = if sign < 0.0 {
-                    f64::from(replicate == 0)
-                } else {
-                    f64::from(replicate != 3)
-                };
+                let dose =
+                    if sign < 0.0 { f64::from(replicate == 0) } else { f64::from(replicate != 3) };
                 x.push(score);
                 treatment.push(dose);
                 outcome.push(

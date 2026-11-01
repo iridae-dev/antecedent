@@ -427,22 +427,23 @@ pub fn request_lag_zero(data: &PanelData, inference: PanelInference) -> JointPan
             }
         })
         .collect();
-    let worlds: Vec<_> = [("reference", 0.0, 0.0), ("a", 4.0, 0.0), ("b", 0.0, 4.0), ("joint", 4.0, 4.0)]
-        .into_iter()
-        .enumerate()
-        .map(|(index, (id, a, b))| JointPanelWorld {
-            world: ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
-            reference: index == 0,
-            program: PanelProgram {
-                id: id.into(),
-                channels: vec![
-                    PanelChannelProgram { id: "0".into(), values: vec![a; 24] },
-                    PanelChannelProgram { id: "1".into(), values: vec![b; 24] },
-                ],
-                scenarios: scenarios.clone(),
-            },
-        })
-        .collect();
+    let worlds: Vec<_> =
+        [("reference", 0.0, 0.0), ("a", 4.0, 0.0), ("b", 0.0, 4.0), ("joint", 4.0, 4.0)]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (id, a, b))| JointPanelWorld {
+                world: ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
+                reference: index == 0,
+                program: PanelProgram {
+                    id: id.into(),
+                    channels: vec![
+                        PanelChannelProgram { id: "0".into(), values: vec![a; 24] },
+                        PanelChannelProgram { id: "1".into(), values: vec![b; 24] },
+                    ],
+                    scenarios: scenarios.clone(),
+                },
+            })
+            .collect();
     let target = joint_panel_target(
         data.schema(),
         &columns,

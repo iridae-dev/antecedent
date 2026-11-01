@@ -142,11 +142,8 @@ impl ConditionalIndependence for TemporalDsepOracle {
                     });
                 }
                 let z: Vec<usize> = cond.iter().map(|&c| self.node_of_column(c)).collect();
-                let separated = self.graph.d_separated(
-                    self.node_of_column(q.x),
-                    self.node_of_column(q.y),
-                    &z,
-                );
+                let separated =
+                    self.graph.d_separated(self.node_of_column(q.x), self.node_of_column(q.y), &z);
                 Ok(CiResult {
                     statistic: if separated { 0.0 } else { 1.0 },
                     p_value: if separated { 1.0 } else { 0.0 },
@@ -163,10 +160,8 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1_442_695_040_888_963_407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         self.0 >> 33
     }
 
@@ -212,7 +207,6 @@ fn series(k: usize, n: usize) -> (TimeSeriesData, Vec<VariableId>) {
     .unwrap();
     (data, (0..k).map(|i| VariableId::from_raw(i as u32)).collect())
 }
-
 
 /// A random stationary process graph over `m` observed processes, unrolled. Every process has a
 /// lag-one self edge; other lag-one and lag-two edges are drawn independently, and with
@@ -382,8 +376,12 @@ fn pcmci_plus_under_a_dsep_oracle_recovers_adjacencies_and_sound_orientations() 
         // size (the strongest neighbours), not every subset; see the counterexample below.
         assert!(want_lagged.is_subset(&found_lagged), "case {case}: lagged link missing, m={m}");
         let want_contemp: BTreeSet<(usize, usize)> = contemp.iter().copied().collect();
-        assert!(want_contemp.is_subset(&found_contemp), "case {case}: contemporaneous link missing");
-        extra_links += found_lagged.len() + found_contemp.len() - want_lagged.len() - want_contemp.len();
+        assert!(
+            want_contemp.is_subset(&found_contemp),
+            "case {case}: contemporaneous link missing"
+        );
+        extra_links +=
+            found_lagged.len() + found_contemp.len() - want_lagged.len() - want_contemp.len();
         adjacent += want_lagged.len() + want_contemp.len();
 
         let node_at = |slot: usize, lag: u32| graph.node(slot, NOW - lag as usize);
@@ -401,7 +399,10 @@ fn pcmci_plus_under_a_dsep_oracle_recovers_adjacencies_and_sound_orientations() 
             );
         }
     }
-    assert!(adjacent > 400 && sepsets_checked > 100, "adjacent {adjacent}, sepsets {sepsets_checked}");
+    assert!(
+        adjacent > 400 && sepsets_checked > 100,
+        "adjacent {adjacent}, sepsets {sepsets_checked}"
+    );
     assert!(oriented > 50, "oriented contemporaneous edges {oriented} (undirected {undirected})");
     // The single-subset search leaves a few d-separable links in; they must stay rare.
     assert!(extra_links * 20 < adjacent, "extra links {extra_links} of {adjacent}");

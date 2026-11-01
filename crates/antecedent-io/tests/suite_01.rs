@@ -5,8 +5,6 @@
 
 #[path = "adaptive_inference_result_artifact.rs"]
 mod adaptive_inference_result_artifact;
-#[path = "choice_inference_result_artifact.rs"]
-mod choice_inference_result_artifact;
 #[path = "artifact_compat_adaptive_result.rs"]
 mod artifact_compat_adaptive_result;
 #[path = "artifact_compat_inherited.rs"]
@@ -19,6 +17,8 @@ mod artifact_compat_recalc_receipt;
 mod bayesian_posterior_row_artifact;
 #[path = "categorical_treatment_artifact.rs"]
 mod categorical_treatment_artifact;
+#[path = "choice_inference_result_artifact.rs"]
+mod choice_inference_result_artifact;
 #[path = "cohort_interval_artifact.rs"]
 mod cohort_interval_artifact;
 #[path = "compact_export.rs"]

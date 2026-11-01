@@ -657,7 +657,9 @@ fn a_plug_in_sequence_procedure_records_its_construction_and_replays() {
     AdaptiveMonitoringContractArtifact::reseal_identity(&mut meta);
     assert!(matches!(
         AdaptiveMonitoringContractArtifact::from_meta(&meta, None),
-        Err(AdaptiveMonitoringContractError::UnsupportedSemantics("confidence sequence construction"))
+        Err(AdaptiveMonitoringContractError::UnsupportedSemantics(
+            "confidence sequence construction"
+        ))
     ));
 }
 

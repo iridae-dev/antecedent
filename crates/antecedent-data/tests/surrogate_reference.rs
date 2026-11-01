@@ -54,7 +54,8 @@ fn series(columns: &[Vec<f64>], validity: Option<ValidityBitmap>) -> TimeSeriesD
             )
         })
         .collect();
-    let storage = OwnedColumnarStorage::try_new(builder.build().unwrap(), cols, None, None).unwrap();
+    let storage =
+        OwnedColumnarStorage::try_new(builder.build().unwrap(), cols, None, None).unwrap();
     TimeSeriesData::try_new(
         storage,
         TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
@@ -86,9 +87,11 @@ fn lcg_series(n: usize, seed: u64, mean: f64) -> Vec<f64> {
     let mut state = seed;
     let mut x = vec![0.0; n];
     for t in 0..n {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         let e = ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5;
-        x[t] = mean + if t == 0 { e } else { 0.8 * (x[t - 1] - mean) + e } + (t as f64 * 0.37).sin();
+        x[t] =
+            mean + if t == 0 { e } else { 0.8 * (x[t - 1] - mean) + e } + (t as f64 * 0.37).sin();
     }
     x
 }
@@ -98,7 +101,8 @@ fn phase_randomization_keeps_every_fourier_magnitude_and_the_mean() {
     for n in [4usize, 5, 6, 7, 8, 9, 16, 31, 64, 101] {
         let x = lcg_series(n, 17 + n as u64, 50.0);
         let data = series(&[x.clone()], None);
-        let out = column(&surrogate_phase_randomize(&data, &mut CausalRng::from_seed(9)).unwrap(), 0);
+        let out =
+            column(&surrogate_phase_randomize(&data, &mut CausalRng::from_seed(9)).unwrap(), 0);
         assert_eq!(out.len(), n);
         let scale: f64 = x.iter().map(|v| v.abs()).sum();
         for k in 0..=n / 2 {
@@ -126,7 +130,8 @@ fn circular_autocovariance_is_preserved_because_the_power_spectrum_is() {
     let n = 40usize;
     let x = lcg_series(n, 3, 0.0);
     let out = column(
-        &surrogate_phase_randomize(&series(&[x.clone()], None), &mut CausalRng::from_seed(2)).unwrap(),
+        &surrogate_phase_randomize(&series(&[x.clone()], None), &mut CausalRng::from_seed(2))
+            .unwrap(),
         0,
     );
     let circular = |s: &[f64], lag: usize| -> f64 { (0..n).map(|t| s[t] * s[(t + lag) % n]).sum() };
@@ -139,16 +144,22 @@ fn circular_autocovariance_is_preserved_because_the_power_spectrum_is() {
 fn a_constant_series_is_a_fixed_point_and_columns_are_randomized_independently() {
     let constant = vec![3.25; 12];
     let out = column(
-        &surrogate_phase_randomize(&series(&[constant.clone()], None), &mut CausalRng::from_seed(1))
-            .unwrap(),
+        &surrogate_phase_randomize(
+            &series(&[constant.clone()], None),
+            &mut CausalRng::from_seed(1),
+        )
+        .unwrap(),
         0,
     );
     assert!(out.iter().all(|v| (v - 3.25).abs() < 1e-12));
 
     // Two identical columns receive different phases (cross-dependence is destroyed).
     let x = lcg_series(32, 5, 0.0);
-    let both = surrogate_phase_randomize(&series(&[x.clone(), x.clone()], None), &mut CausalRng::from_seed(4))
-        .unwrap();
+    let both = surrogate_phase_randomize(
+        &series(&[x.clone(), x.clone()], None),
+        &mut CausalRng::from_seed(4),
+    )
+    .unwrap();
     let (a, b) = (column(&both, 0), column(&both, 1));
     assert!(a.iter().zip(&b).any(|(p, q)| (p - q).abs() > 1e-6));
 }

@@ -225,12 +225,12 @@ fn concurrent_allocation_never_exceeds_the_pool_bytes_and_refusals_leave_it_whol
         for round in 0..40 {
             match ctx.acquire_admission(0, HOLD as u64) {
                 Ok(lease) => {
-                    let buffer = vec![round as u8; HOLD];
+                    let buffer = vec![u8::try_from(round).unwrap(); HOLD];
                     let now = live.fetch_add(buffer.len(), Ordering::SeqCst) + buffer.len();
                     peak.fetch_max(now, Ordering::SeqCst);
                     granted.fetch_add(1, Ordering::SeqCst);
                     std::thread::sleep(Duration::from_micros(300));
-                    assert_eq!(buffer[HOLD - 1], round as u8);
+                    assert_eq!(buffer[HOLD - 1], u8::try_from(round).unwrap());
                     live.fetch_sub(buffer.len(), Ordering::SeqCst);
                     drop(buffer);
                     drop(lease);
@@ -270,7 +270,7 @@ fn parallel_maps_run_no_more_workers_than_the_pool_and_scratch_stays_inside_its_
             |index, _, scratch| {
                 let now = running.fetch_add(1, Ordering::SeqCst) + 1;
                 peak.fetch_max(now, Ordering::SeqCst);
-                scratch[0] = index as u8;
+                scratch[0] = u8::try_from(index).unwrap();
                 std::thread::sleep(Duration::from_micros(500));
                 running.fetch_sub(1, Ordering::SeqCst);
                 Ok::<_, ()>(index * 2)
@@ -317,7 +317,7 @@ fn a_pipeline_keeps_live_buffers_at_the_window_for_a_slow_consumer() {
             |index, _| {
                 let now = live.fetch_add(1, Ordering::SeqCst) + 1;
                 peak.fetch_max(now, Ordering::SeqCst);
-                Ok::<_, ()>(vec![index as u8; 4096])
+                Ok::<_, ()>(vec![u8::try_from(index).unwrap(); 4096])
             },
             |_, buffer| {
                 std::thread::sleep(Duration::from_micros(200));

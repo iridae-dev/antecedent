@@ -14,8 +14,8 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::quantity_wire::DistributionMeaningWire;
 use antecedent_io::error::IoError;
+use antecedent_io::quantity_wire::DistributionMeaningWire;
 use serde_json::json;
 
 fn pin(key: &str) -> serde_json::Value {
@@ -327,5 +327,10 @@ fn rollout_truncation_corruption_and_nonfinite_prior_refuse() {
         states[0] = f64::NAN;
     }
     changed.seal().unwrap();
-    assert_refused(changed.verify(&changed.binding), "invalid_argument", "rollout.ordered_prior_mismatch", 0);
+    assert_refused(
+        changed.verify(&changed.binding),
+        "invalid_argument",
+        "rollout.ordered_prior_mismatch",
+        0,
+    );
 }

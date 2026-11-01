@@ -242,7 +242,8 @@ fn bayesian_class_graph_posterior_effect_body() {
             if !refreshed.estimate().as_effect().unwrap().ate.is_nan() {
                 assert!(
                     (refreshed.estimate().as_effect().unwrap().ate - 2.0).abs() < 0.02,
-                    "{coordinate} refreshed {}", refreshed.estimate().as_effect().unwrap().ate
+                    "{coordinate} refreshed {}",
+                    refreshed.estimate().as_effect().unwrap().ate
                 );
             }
             assert!(

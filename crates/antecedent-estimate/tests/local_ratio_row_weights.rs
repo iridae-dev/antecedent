@@ -9,10 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(
-    clippy::cast_precision_loss,
-    reason = "the fixture indexes small deterministic literals"
-)]
+#![allow(clippy::cast_precision_loss, reason = "the fixture indexes small deterministic literals")]
 
 use antecedent_estimate::local_polynomial_ratio::{
     LocalPolynomialRatioFit, fit_local_polynomial_ratio, fit_weighted_local_polynomial_ratio,
@@ -158,13 +155,18 @@ fn invalid_misaligned_or_one_sided_weights_are_refused() {
     negative[3] = -1.0;
     let mut nan = vec![1.0; n];
     nan[5] = f64::NAN;
-    for (what, weights) in [("negative", negative), ("non-finite", nan), ("short", vec![1.0; n - 1])]
+    for (what, weights) in
+        [("negative", negative), ("non-finite", nan), ("short", vec![1.0; n - 1])]
     {
         let error = fit(&table, &weights, false).unwrap_err();
-        assert!(error.contains("row weights must be finite, non-negative and row-aligned"), "{what}: {error}");
+        assert!(
+            error.contains("row weights must be finite, non-negative and row-aligned"),
+            "{what}: {error}"
+        );
     }
     // Zero weight on every row left of the cutoff leaves no support on that side.
-    let one_sided: Vec<f64> = table.running.iter().map(|&r| if r < 0.0 { 0.0 } else { 1.0 }).collect();
+    let one_sided: Vec<f64> =
+        table.running.iter().map(|&r| if r < 0.0 { 0.0 } else { 1.0 }).collect();
     let error = fit(&table, &one_sided, false).unwrap_err();
     assert!(error.contains("full-rank support"), "{error}");
 }

@@ -764,6 +764,10 @@ mod tests {
     /// A workload that builds `buffers` owned buffers of `rows` f64 values and reports each
     /// scan and copy at the boundary where it happens, as the instrumented engine code does.
     /// Returns the bytes it actually copied.
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "The workload exercises the fallible measurement interface."
+    )]
     fn copy_workload(rows: usize, buffers: usize) -> Result<u64, &'static str> {
         let source: Vec<f64> = (0..rows).map(|i| i as f64).collect();
         let mut copied = 0u64;

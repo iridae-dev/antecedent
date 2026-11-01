@@ -22,14 +22,17 @@ fn close(got: f64, want: f64, ctx: &str) {
 
 #[test]
 fn ranking_probabilities_and_errors_match_exact_enumeration() {
-    let cases: Value = serde_json::from_str(include_str!("oracle_data/ranking_statement_reference.json"))
-        .expect("frozen reference parses");
+    let cases: Value =
+        serde_json::from_str(include_str!("oracle_data/ranking_statement_reference.json"))
+            .expect("frozen reference parses");
     let ctx = ExecutionContext::for_tests(7);
     for case in cases.as_array().expect("cases") {
         let name = case["name"].as_str().expect("name");
-        let columns: Vec<Vec<f64>> = case["utilities"].as_array().expect("u").iter().map(floats).collect();
+        let columns: Vec<Vec<f64>> =
+            case["utilities"].as_array().expect("u").iter().map(floats).collect();
         let n = columns[0].len();
-        let shared = DrawSegment::whole(StreamId::new(20_240, StreamPurpose::Selection, 0, "ref"), n);
+        let shared =
+            DrawSegment::whole(StreamId::new(20_240, StreamPurpose::Selection, 0, "ref"), n);
         let draws = DecisionDraws {
             utility_unit: "utility".into(),
             producer: "reference".into(),
@@ -40,7 +43,9 @@ fn ranking_probabilities_and_errors_match_exact_enumeration() {
             } else {
                 WithinStreamDependence::Independent
             },
-            weights: case["weights"].as_array().map(|w| w.iter().map(|x| x.as_f64().expect("w")).collect()),
+            weights: case["weights"]
+                .as_array()
+                .map(|w| w.iter().map(|x| x.as_f64().expect("w")).collect()),
             repeated_evaluations: 0,
             origin: CandidateOrigin::Enumerated,
             search_record: None,
@@ -56,22 +61,34 @@ fn ranking_probabilities_and_errors_match_exact_enumeration() {
                 })
                 .collect(),
         };
-        let top_k: Vec<u32> = case["top_k"].as_array().expect("k").iter().map(|k| k.as_u64().expect("k") as u32).collect();
+        let top_k: Vec<u32> = case["top_k"]
+            .as_array()
+            .expect("k")
+            .iter()
+            .map(|k| k.as_u64().expect("k") as u32)
+            .collect();
         let request = RankingRequest {
             baseline: case["baseline"].as_str().map(str::to_owned),
             top_k: top_k.clone(),
-            batch_plan: case["batches"].as_u64().map_or(BatchPlan::SquareRoot, |b| BatchPlan::Fixed(b as u32)),
+            batch_plan: case["batches"]
+                .as_u64()
+                .map_or(BatchPlan::SquareRoot, |b| BatchPlan::Fixed(b as u32)),
         };
         let report = rank(&draws, &request, &ctx).unwrap_or_else(|e| panic!("{name}: {e:?}"));
         for want in case["statements"].as_array().expect("statements") {
             let id = want["id"].as_str().expect("id");
             let got = report.statements.iter().find(|s| s.id == id).expect("candidate");
-            let check = |g: &antecedent_design::decision_reliability::McEstimate, w: &Value, what: &str| {
-                let ctxt = format!("{name}/{id}/{what}");
-                close(g.value, w["value"].as_f64().expect("v"), &format!("{ctxt} value"));
-                close(g.standard_error, w["se"].as_f64().expect("se"), &format!("{ctxt} se"));
-                close(g.effective_sample_size, w["ess"].as_f64().expect("ess"), &format!("{ctxt} ess"));
-            };
+            let check =
+                |g: &antecedent_design::decision_reliability::McEstimate, w: &Value, what: &str| {
+                    let ctxt = format!("{name}/{id}/{what}");
+                    close(g.value, w["value"].as_f64().expect("v"), &format!("{ctxt} value"));
+                    close(g.standard_error, w["se"].as_f64().expect("se"), &format!("{ctxt} se"));
+                    close(
+                        g.effective_sample_size,
+                        w["ess"].as_f64().expect("ess"),
+                        &format!("{ctxt} ess"),
+                    );
+                };
             check(&got.expected_utility, &want["expected_utility"], "utility");
             check(&got.probability_best, &want["best"], "best");
             for (g, w) in got.probability_top_k.iter().zip(want["top_k"].as_array().expect("tk")) {

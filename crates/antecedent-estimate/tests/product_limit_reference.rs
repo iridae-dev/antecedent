@@ -5,9 +5,7 @@
 //! censorings, delayed entry, two competing causes, events exactly at the horizon and
 //! censoring before it; the frozen curves are rounded once to binary64.
 
-use antecedent_estimate::survival::{
-    SurvivalEndpoint, SurvivalRows, randomized_survival_summary,
-};
+use antecedent_estimate::survival::{SurvivalEndpoint, SurvivalRows, randomized_survival_summary};
 use serde_json::Value;
 
 fn floats(value: &Value) -> Vec<f64> {
@@ -25,10 +23,18 @@ fn risk_set_curves_and_restricted_means_match_exact_arithmetic() {
     for case in &cases {
         let seed = case["seed"].as_u64().expect("seed");
         let duration = floats(&case["duration"]);
-        let code: Vec<i64> =
-            case["event_code"].as_array().expect("codes").iter().map(|v| v.as_i64().expect("i")).collect();
-        let treated: Vec<bool> =
-            case["treated"].as_array().expect("treated").iter().map(|v| v.as_bool().expect("b")).collect();
+        let code: Vec<i64> = case["event_code"]
+            .as_array()
+            .expect("codes")
+            .iter()
+            .map(|v| v.as_i64().expect("i"))
+            .collect();
+        let treated: Vec<bool> = case["treated"]
+            .as_array()
+            .expect("treated")
+            .iter()
+            .map(|v| v.as_bool().expect("b"))
+            .collect();
         let entry = case["entry"].as_array().map(|_| floats(&case["entry"]));
         let competing = case["competing"].as_bool().expect("competing");
         delayed_seen += usize::from(entry.is_some());

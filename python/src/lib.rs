@@ -48,6 +48,7 @@ mod bridge;
 mod callbacks;
 mod candidate_screen_api;
 mod categorical_treatment_api;
+mod choice_inference_api;
 mod closed_pilot_api;
 mod cohort_decision_api;
 mod cohort_pushdown_api;
@@ -67,7 +68,6 @@ mod data_diagnostics_api;
 mod data_snapshot;
 mod decision_api;
 mod decision_compile_api;
-mod choice_inference_api;
 mod decision_evidence_api;
 mod decision_reliability_api;
 #[cfg(test)]

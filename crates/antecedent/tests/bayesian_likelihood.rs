@@ -105,7 +105,8 @@ fn logistic_mle(t: &[f64], y: &[f64], z: &[f64]) -> [f64; 3] {
             aug[a][3] = grad[a];
         }
         for c in 0..3 {
-            let pivot = (c..3).max_by(|&i, &j| aug[i][c].abs().total_cmp(&aug[j][c].abs())).unwrap();
+            let pivot =
+                (c..3).max_by(|&i, &j| aug[i][c].abs().total_cmp(&aug[j][c].abs())).unwrap();
             aug.swap(c, pivot);
             for r in 0..3 {
                 if r != c {

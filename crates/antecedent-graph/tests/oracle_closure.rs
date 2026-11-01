@@ -284,11 +284,8 @@ fn completion_edge_strings(graph: &Pag) -> Vec<String> {
         for j in (i + 1)..graph.node_count() {
             let [a, b] = [i, j].map(|k| DenseNodeId::from_raw(u32::try_from(k).expect("node")));
             if let Some(edge) = graph.edge_between(a, b) {
-                let (ends_at_i, ends_at_j) = if edge.a == a {
-                    (edge.at_a, edge.at_b)
-                } else {
-                    (edge.at_b, edge.at_a)
-                };
+                let (ends_at_i, ends_at_j) =
+                    if edge.a == a { (edge.at_a, edge.at_b) } else { (edge.at_b, edge.at_a) };
                 rendered.push(match (ends_at_i, ends_at_j) {
                     (Endpoint::Tail, Endpoint::Arrow) => format!("{i}->{j}"),
                     (Endpoint::Arrow, Endpoint::Tail) => format!("{j}->{i}"),

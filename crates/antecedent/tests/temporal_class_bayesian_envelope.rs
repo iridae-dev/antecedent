@@ -574,7 +574,8 @@ fn temporal_pag_directed_bayesian_pulse_identifies() {
     let ys: Vec<f64> = (1..n)
         .map(|i| 1.0 + 2.0 * t[i - 1] + 0.5 * if (i - 1) % 2 == 0 { 0.0 } else { 1.0 })
         .collect();
-    let (mx, my) = (xs.iter().sum::<f64>() / xs.len() as f64, ys.iter().sum::<f64>() / ys.len() as f64);
+    let (mx, my) =
+        (xs.iter().sum::<f64>() / xs.len() as f64, ys.iter().sum::<f64>() / ys.len() as f64);
     let slope = xs.iter().zip(&ys).map(|(x, y)| (x - mx) * (y - my)).sum::<f64>()
         / xs.iter().map(|x| (x - mx) * (x - mx)).sum::<f64>();
     assert!((ate - slope).abs() < 0.005, "directed-PAG pulse effect {ate} vs OLS slope {slope}");
@@ -766,7 +767,8 @@ fn temporal_class_prior_transfer_conflict_does_not_flip_identification() {
         .run(&ExecutionContext::for_tests(seed.wrapping_add(1)));
     // The source posterior carries no coefficient at the target's treatment lag, so the mapping is
     // refused with its typed message; the refusal is not an identification failure.
-    let error = target.expect_err("a source without the target's treatment-lag coefficient refuses");
+    let error =
+        target.expect_err("a source without the target's treatment-lag coefficient refuses");
     let message = error.to_string();
     assert!(message.contains("temporal prior transfer refused"), "{message}");
     assert!(message.contains("declare PriorMapping::NamedParameters"), "{message}");
@@ -830,7 +832,8 @@ fn temporal_class_sequence_refuses_prior_transfer() {
     let needle = pin["sequence_refuses"]["message_contains"].as_str().unwrap();
     let _ = needle;
     assert!(
-        err.to_string().contains("multi-step Sequence transfer stays refused on incomplete classes"),
+        err.to_string()
+            .contains("multi-step Sequence transfer stays refused on incomplete classes"),
         "{err}"
     );
 }

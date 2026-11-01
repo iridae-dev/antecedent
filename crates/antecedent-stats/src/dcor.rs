@@ -372,7 +372,9 @@ mod tests {
         assert_eq!(DistanceY::new(&x).correlate_or_zero_without_spread(&vec![2.0; 30]), 0.0);
         assert_eq!(prepared.correlate_or_zero_without_spread(&x), 0.0);
         assert!(prepared.correlate_or_zero_without_spread(&vec![f64::NAN; 30]).is_nan());
-        assert!(DistanceY::new(&[1.0, f64::NAN]).correlate_or_zero_without_spread(&[1.0, 2.0]).is_nan());
+        assert!(
+            DistanceY::new(&[1.0, f64::NAN]).correlate_or_zero_without_spread(&[1.0, 2.0]).is_nan()
+        );
         assert_eq!(
             DistanceY::new(&x).correlate_or_zero_without_spread(&x).to_bits(),
             DistanceY::new(&x).correlate(&x).to_bits()

@@ -12,7 +12,8 @@ fn regular_columns(unit: u32) -> [Vec<f64>; 6] {
     let n = 60_usize;
     let mut state = 0x2545_F491_4F6C_DD1D_u64 ^ (u64::from(unit) + 1).wrapping_mul(0x9E37_79B9);
     let mut next = move || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         (state >> 33) as f64 / (1_u64 << 31) as f64
     };
     let mut doses = |n: usize| -> Vec<f64> {
@@ -21,8 +22,7 @@ fn regular_columns(unit: u32) -> [Vec<f64>; 6] {
     let a = doses(n);
     let b = doses(n);
     let c = doses(n);
-    let z: Vec<f64> =
-        (0..n).map(|t| if t < 2 { f64::NAN } else { next() * 2.0 - 1.0 }).collect();
+    let z: Vec<f64> = (0..n).map(|t| if t < 2 { f64::NAN } else { next() * 2.0 - 1.0 }).collect();
     let lagged = |x: &[f64], t: usize| 0.6 * x[t] + 0.3 * x[t - 1] + 0.1 * x[t - 2];
     let y: Vec<f64> = (0..n)
         .map(|t| {
@@ -31,7 +31,9 @@ fn regular_columns(unit: u32) -> [Vec<f64>; 6] {
             }
             let (ea, eb, ec) = (lagged(&a, t), lagged(&b, t), lagged(&c, t));
             let noise = 0.1 * (next() - 0.5);
-            1.0 + 1.5 * ea / (ea + 1.0) + 1.0 * eb / (eb + 1.0) + 0.6 * ec / (ec + 1.0)
+            1.0 + 1.5 * ea / (ea + 1.0)
+                + 1.0 * eb / (eb + 1.0)
+                + 0.6 * ec / (ec + 1.0)
                 + 0.4 * z[t]
                 + noise
         })
@@ -727,7 +729,9 @@ fn unrolled_graph_attempt_records_the_general_id_verdict_without_claiming_identi
     // A graph of another shape than the program is refused.
     let wrong = UnrolledPanelSpec { periods: 3, channels: 2, ..UnrolledPanelSpec::default() };
     assert!(
-        panel.with_unrolled_graph_attempt(&UnrolledPanelGraph::build(wrong).unwrap(), &[2], &ctx).is_err()
+        panel
+            .with_unrolled_graph_attempt(&UnrolledPanelGraph::build(wrong).unwrap(), &[2], &ctx)
+            .is_err()
     );
 }
 
@@ -1341,7 +1345,10 @@ fn panel_source_refuses_weights_masks_and_missing_cells_with_typed_errors() {
     // is read, hiding the row and every period whose exposure window reads it.
     match prepare_declared(weighted, |_| {}) {
         Err(JointPanelError::Compile(message)) => {
-            assert!(message.contains("one strictly positive finite value over the unit"), "{message}");
+            assert!(
+                message.contains("one strictly positive finite value over the unit"),
+                "{message}"
+            );
         }
         other => panic!("expected a typed compile refusal, got {other:?}"),
     }
@@ -1386,9 +1393,8 @@ fn panel_source_refuses_a_categorical_channel_instead_of_coding_it() {
     use antecedent_core::{CategoryDomainId, CausalSchemaBuilder, MeasurementSpec};
     use antecedent_core::{SmallRoleSet, ValueType};
     use antecedent_data::{
-        CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Float64Column,
-        OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex, UnknownCategoryPolicy,
-        ValidityBitmap,
+        CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Float64Column, OwnedColumn,
+        OwnedColumnarStorage, SamplingRegularity, TimeIndex, UnknownCategoryPolicy, ValidityBitmap,
     };
     let columns = declared_columns();
     let mut builder = CausalSchemaBuilder::new();

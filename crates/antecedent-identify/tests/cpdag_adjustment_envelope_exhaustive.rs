@@ -23,7 +23,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::{AverageEffectQuery, VariableId};
 use antecedent_graph::{Cpdag, DenseNodeId, Endpoint};
-use antecedent_identify::{GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, IdentificationStatus};
+use antecedent_identify::{
+    GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier, IdentificationStatus,
+};
 
 type Arcs = Vec<(usize, usize)>;
 
@@ -228,7 +230,9 @@ fn run(n: usize) -> (usize, usize, usize, usize, usize) {
                             .graph
                             .edges()
                             .map(|e| match (e.at_a, e.at_b) {
-                                (Endpoint::Tail, Endpoint::Arrow) => (e.a.raw() as usize, e.b.raw() as usize),
+                                (Endpoint::Tail, Endpoint::Arrow) => {
+                                    (e.a.raw() as usize, e.b.raw() as usize)
+                                }
                                 _ => (e.b.raw() as usize, e.a.raw() as usize),
                             })
                             .collect();
@@ -242,7 +246,9 @@ fn run(n: usize) -> (usize, usize, usize, usize, usize) {
                         .graph
                         .edges()
                         .map(|e| match (e.at_a, e.at_b) {
-                            (Endpoint::Tail, Endpoint::Arrow) => (e.a.raw() as usize, e.b.raw() as usize),
+                            (Endpoint::Tail, Endpoint::Arrow) => {
+                                (e.a.raw() as usize, e.b.raw() as usize)
+                            }
                             _ => (e.b.raw() as usize, e.a.raw() as usize),
                         })
                         .collect();
@@ -252,7 +258,10 @@ fn run(n: usize) -> (usize, usize, usize, usize, usize) {
                     if let Some(est) = case.result.estimands.first() {
                         let z: Vec<usize> =
                             est.adjustment_set.iter().map(|v| v.raw() as usize).collect();
-                        assert!(backdoor_valid(n, &arcs, t, y, &z), "{tag} member {arcs:?} set {z:?}");
+                        assert!(
+                            backdoor_valid(n, &arcs, t, y, &z),
+                            "{tag} member {arcs:?} set {z:?}"
+                        );
                     }
                 }
                 let want_id = identified as f64;
@@ -276,10 +285,18 @@ fn run(n: usize) -> (usize, usize, usize, usize, usize) {
                         })
                         .collect();
                     if sets.len() == 1 {
-                        assert_eq!(envelope.status, IdentificationStatus::NonparametricallyIdentified, "{tag}");
+                        assert_eq!(
+                            envelope.status,
+                            IdentificationStatus::NonparametricallyIdentified,
+                            "{tag}"
+                        );
                         assert!(envelope.invariant.is_some(), "{tag}");
                     } else {
-                        assert_eq!(envelope.status, IdentificationStatus::PartiallyIdentified, "{tag}");
+                        assert_eq!(
+                            envelope.status,
+                            IdentificationStatus::PartiallyIdentified,
+                            "{tag}"
+                        );
                         assert!(envelope.invariant.is_none(), "{tag}");
                         differing += 1;
                     }
@@ -310,5 +327,7 @@ fn cpdag_envelope_counts_members_with_a_valid_back_door_set_on_three_nodes() {
 fn cpdag_envelope_counts_members_with_a_valid_back_door_set_on_four_nodes() {
     let (full, none, partial, member_only, differing) = run(4);
     assert!(full > 100 && none > 50 && partial > 5 && differing > 5, "{full} {none} {partial}");
-    println!("fully identified {full}; no shared set {member_only}; members' sets differ {differing}");
+    println!(
+        "fully identified {full}; no shared set {member_only}; members' sets differ {differing}"
+    );
 }

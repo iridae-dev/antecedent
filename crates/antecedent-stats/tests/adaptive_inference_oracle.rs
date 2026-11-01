@@ -102,7 +102,9 @@ fn incomplete_beta_matches_closed_forms_and_scipy() {
     );
     assert_eq!(
         regularized_incomplete_beta(1.5, 1.0, 1.0),
-        Err(AdaptiveInferenceError::InvalidParameter("incomplete beta argument must lie in [0, 1]"))
+        Err(AdaptiveInferenceError::InvalidParameter(
+            "incomplete beta argument must lie in [0, 1]"
+        ))
     );
     assert_eq!(
         regularized_incomplete_beta(0.5, 0.0, 1.0),
@@ -726,7 +728,10 @@ fn invalid_information_fractions_are_refused() {
         "information fractions must be strictly increasing in (0, 1]",
     );
     for (bad, want) in [
-        (vec![], AdaptiveInferenceError::Shape("a group-sequential rule has between 1 and 20 looks")),
+        (
+            vec![],
+            AdaptiveInferenceError::Shape("a group-sequential rule has between 1 and 20 looks"),
+        ),
         (vec![0.5, 0.5, 1.0], increasing.clone()),
         (vec![0.0, 1.0], increasing.clone()),
         (vec![0.5, 1.2], increasing),

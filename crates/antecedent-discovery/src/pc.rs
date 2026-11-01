@@ -1158,9 +1158,7 @@ mod tests {
         // 0-1 and 1-2 strongly dependent; 0-2 at p = 0.04 (alpha = 0.05, so the skeleton keeps
         // it); every pair with variable 3 independent. Six edge hypotheses; BH adjusts the
         // third smallest p to 6 * 0.04 / 3 = 0.08 > 0.05.
-        let table = |p02: f64| {
-            vec![((0, 1), 1e-4), ((1, 2), 1e-4), ((0, 2), p02)]
-        };
+        let table = |p02: f64| vec![((0, 1), 1e-4), ((1, 2), 1e-4), ((0, 2), p02)];
         let run = |p02: f64, fdr: bool| {
             let pc = Pc::new().with_fdr(fdr).with_ci(Arc::new(PairPCi(table(p02))));
             let mut ws = DiscoveryWorkspace::default();
@@ -1323,7 +1321,10 @@ mod tests {
             edges.iter().any(|&(u, v)| (u == a && v == b) || (u == b && v == a))
         }
 
-        fn unshielded_colliders(n: usize, edges: &[(usize, usize)]) -> BTreeSet<(usize, usize, usize)> {
+        fn unshielded_colliders(
+            n: usize,
+            edges: &[(usize, usize)],
+        ) -> BTreeSet<(usize, usize, usize)> {
             let mut out = BTreeSet::new();
             for c in 0..n {
                 let ps: Vec<usize> = edges.iter().filter(|e| e.1 == c).map(|e| e.0).collect();
@@ -1383,7 +1384,16 @@ mod tests {
                     let forward = members.iter().all(|m| m[i] == (a, b));
                     let backward = members.iter().all(|m| m[i] == (b, a));
                     let key = (a.min(b), a.max(b));
-                    (key, if forward { Some((a, b)) } else if backward { Some((b, a)) } else { None })
+                    (
+                        key,
+                        if forward {
+                            Some((a, b))
+                        } else if backward {
+                            Some((b, a))
+                        } else {
+                            None
+                        },
+                    )
                 })
                 .collect()
         }
@@ -1392,10 +1402,7 @@ mod tests {
             let n = dag.parents.len();
             let data = tabular_n(n, 10);
             let vars: Vec<VariableId> = (0..n as u32).map(VariableId::from_raw).collect();
-            let constraints = DiscoveryConstraints {
-                max_cond_size: n,
-                ..Pc::new().constraints
-            };
+            let constraints = DiscoveryConstraints { max_cond_size: n, ..Pc::new().constraints };
             let pc = Pc::new()
                 .with_fdr(false)
                 .with_constraints(constraints)
@@ -1412,8 +1419,10 @@ mod tests {
             let expected_adj: HashSet<(usize, usize)> = expected.iter().map(|e| e.0).collect();
             for a in 0..n {
                 for b in (a + 1)..n {
-                    let found = graph
-                        .edge_between(DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32));
+                    let found = graph.edge_between(
+                        DenseNodeId::from_raw(a as u32),
+                        DenseNodeId::from_raw(b as u32),
+                    );
                     assert_eq!(
                         found.is_some(),
                         expected_adj.contains(&(a, b)),
@@ -1481,10 +1490,7 @@ mod tests {
             // R3: 0-1, 0-2, 0-3 with 1→3←2 forces 0→3.
             assert_recovers_class(&dag(4, &[(0, 1), (0, 2), (0, 3), (1, 3), (2, 3)]), "r3");
             // R1 compels 1→2 (3→1—2, 3 not adjacent to 2), then R2 compels 0→2 (0→1→2, 0—2).
-            assert_recovers_class(
-                &dag(5, &[(3, 1), (4, 1), (1, 2), (0, 1), (0, 2)]),
-                "r2-shape",
-            );
+            assert_recovers_class(&dag(5, &[(3, 1), (4, 1), (1, 2), (0, 1), (0, 2)]), "r2-shape");
         }
 
         /// The documented depth bound is a real limit, not an inert default: x and y share four
@@ -1492,10 +1498,7 @@ mod tests {
         /// (a spurious edge); the uncapped search removes it with that set.
         #[test]
         fn conditioning_size_cap_leaves_a_spurious_edge_until_it_is_raised() {
-            let shared = dag(
-                6,
-                &[(0, 4), (1, 4), (2, 4), (3, 4), (0, 5), (1, 5), (2, 5), (3, 5)],
-            );
+            let shared = dag(6, &[(0, 4), (1, 4), (2, 4), (3, 4), (0, 5), (1, 5), (2, 5), (3, 5)]);
             let n = 6;
             let data = tabular_n(n, 10);
             let vars: Vec<VariableId> = (0..n as u32).map(VariableId::from_raw).collect();

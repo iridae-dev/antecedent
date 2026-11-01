@@ -47,7 +47,8 @@ use crate::categorical_treatment::{
 };
 use crate::error::EstimationError;
 use crate::gaussian_linear_posterior::{
-    GaussianLinearPosterior, GaussianLinearPrior, StudentPosterior, conjugate_posterior_from_residuals,
+    GaussianLinearPosterior, GaussianLinearPrior, StudentPosterior,
+    conjugate_posterior_from_residuals,
 };
 use crate::util::refuse;
 use crate::vector_treatment::DesignSummary;
@@ -216,7 +217,8 @@ fn posterior_from_summary(
             let shift: Vec<f64> = mean.iter().zip(&ols).map(|(m, b)| m - b).collect();
             let curvature: f64 = (0..width)
                 .map(|i| {
-                    shift[i] * (0..width).map(|j| design.gram[i * width + j] * shift[j]).sum::<f64>()
+                    shift[i]
+                        * (0..width).map(|j| design.gram[i * width + j] * shift[j]).sum::<f64>()
                 })
                 .sum();
             design.rss + curvature

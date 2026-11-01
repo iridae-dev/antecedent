@@ -1547,7 +1547,8 @@ fn scoring_findings(found: &mut Findings, mean: f64) {
             // The declared score is slope * mean + intercept, written out here.
             let expected = 2.0 * mean - 0.5;
             found.check(
-                !mean.is_finite() || (scored.value - expected).abs() <= 1e-12 * expected.abs().max(1.0),
+                !mean.is_finite()
+                    || (scored.value - expected).abs() <= 1e-12 * expected.abs().max(1.0),
                 format!("the affine score {} is not 2 * {mean} - 0.5 = {expected}", scored.value),
             );
         }

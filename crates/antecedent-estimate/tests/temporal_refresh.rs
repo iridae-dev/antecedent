@@ -251,10 +251,7 @@ fn third_period_invalidated_refresh_never_runs_the_evaluator() {
         evaluate(id)
     });
     let message = invalidation_detail(result);
-    assert!(
-        message.starts_with("temporal_refresh.horizon_changed:"),
-        "{message}"
-    );
+    assert!(message.starts_with("temporal_refresh.horizon_changed:"), "{message}");
     assert!(!called, "a stale proof must not be re-evaluated");
 }
 
@@ -374,7 +371,10 @@ fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window() {
     let (fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     receipt.inference_claim = "confidence_interval";
     receipt.digest = receipt.compute_digest();
-    assert_eq!(invalidation_detail(accept_refresh(&held, &receipt, fresh)), "temporal_refresh.receipt_mismatch: the receipt changes the point-only inference claim");
+    assert_eq!(
+        invalidation_detail(accept_refresh(&held, &receipt, fresh)),
+        "temporal_refresh.receipt_mismatch: the receipt changes the point-only inference claim"
+    );
 
     let (mut fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     fresh.identity.period.end = fresh.identity.period.start;
@@ -387,7 +387,10 @@ fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window() {
         panic!("expected a coded refusal");
     };
     assert_eq!(code, "invalid_argument");
-    assert_eq!(message.as_ref(), "temporal_refresh.invalid_replacement: the replacement period is empty or reversed");
+    assert_eq!(
+        message.as_ref(),
+        "temporal_refresh.invalid_replacement: the replacement period is empty or reversed"
+    );
 }
 
 #[test]

@@ -45,7 +45,10 @@ fn query() -> LongitudinalRegimeQuery {
 const Z95: f64 = 1.959_963_984_540_054;
 
 fn assert_close(got: f64, want: f64, relative: f64, what: &str) {
-    assert!((got - want).abs() <= relative * want.abs().max(1e-12), "{what}: got {got}, want {want}");
+    assert!(
+        (got - want).abs() <= relative * want.abs().max(1e-12),
+        "{what}: got {got}, want {want}"
+    );
 }
 
 /// Ordinary least squares of `y` on `(1, t1, t2)` for a design whose four `(t1, t2)` cells have

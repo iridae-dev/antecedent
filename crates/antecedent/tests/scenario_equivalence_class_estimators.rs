@@ -62,7 +62,8 @@ fn adjusted_effect() -> f64 {
         .iter()
         .map(|&z| {
             let mean = |t: f64| count(Some(z), t, Some(1.0)) / count(Some(z), t, None);
-            (count(Some(z), 0.0, None) + count(Some(z), 1.0, None)) / total * (mean(1.0) - mean(0.0))
+            (count(Some(z), 0.0, None) + count(Some(z), 1.0, None)) / total
+                * (mean(1.0) - mean(0.0))
         })
         .sum()
 }
@@ -99,12 +100,8 @@ fn cpdag() -> Cpdag {
 }
 
 fn effect(estimator: EstimatorId, class: &str) -> f64 {
-    let query = AverageEffectQuery::with_levels(
-        VariableId::from_raw(T),
-        VariableId::from_raw(Y),
-        0.0,
-        1.0,
-    );
+    let query =
+        AverageEffectQuery::with_levels(VariableId::from_raw(T), VariableId::from_raw(Y), 0.0, 1.0);
     let builder = Study::tabular(table());
     let builder = if class == "cpdag" { builder.graph(cpdag()) } else { builder.graph(admg()) };
     let result = builder
@@ -126,7 +123,7 @@ fn the_closed_forms_follow_from_the_cell_counts() {
 
 #[test]
 fn adjustment_estimators_recover_the_closed_form_on_the_latent_variable_and_equivalence_class_graphs()
-{
+ {
     let completions = 0.5 * (adjusted_effect() + crude_effect());
     // (estimator, exact on a saturated binary stratum)
     let table = [

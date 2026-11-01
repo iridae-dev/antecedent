@@ -433,7 +433,10 @@ fn finite_bayes_update_matches_the_hand_computed_posterior() {
     // The count form is the same update, without materialising the stream.
     let counts = model.posterior_from_counts(&[1, 2]).unwrap();
     assert_eq!(counts, a);
-    assert_eq!(model.posterior_from_counts(&[1]).unwrap_err().to_string(), "invalid declaration: one count per observation level is required");
+    assert_eq!(
+        model.posterior_from_counts(&[1]).unwrap_err().to_string(),
+        "invalid declaration: one count per observation level is required"
+    );
     let long = model.posterior_from_counts(&[0, 5_000_000]).unwrap();
     assert!(long.hypotheses[0].1 > 1.0 - 1e-6);
 }
@@ -442,7 +445,9 @@ fn finite_bayes_update_matches_the_hand_computed_posterior() {
 fn finite_bayes_model_refuses_malformed_declarations_and_impossible_evidence() {
     let names = || vec!["a".to_owned(), "b".to_owned()];
     assert_eq!(
-        FiniteBayesModel::new(names(), vec![0.5, 0.4], names(), vec![0.5; 4]).unwrap_err().to_string(),
+        FiniteBayesModel::new(names(), vec![0.5, 0.4], names(), vec![0.5; 4])
+            .unwrap_err()
+            .to_string(),
         "invalid declaration: the prior is not a distribution"
     );
     assert_eq!(
@@ -480,8 +485,14 @@ fn conjugate_update_matches_the_closed_form() {
     let sequential = prior.update(3, 1).unwrap().update(4, 2).unwrap();
     near(sequential.alpha(), posterior.alpha());
     near(sequential.beta(), posterior.beta());
-    assert_eq!(BetaBernoulli::new(0.0, 1.0).unwrap_err().to_string(), "invalid declaration: Beta shapes must be finite and positive");
-    assert_eq!(BetaBernoulli::new(f64::NAN, 1.0).unwrap_err().to_string(), "invalid declaration: Beta shapes must be finite and positive");
+    assert_eq!(
+        BetaBernoulli::new(0.0, 1.0).unwrap_err().to_string(),
+        "invalid declaration: Beta shapes must be finite and positive"
+    );
+    assert_eq!(
+        BetaBernoulli::new(f64::NAN, 1.0).unwrap_err().to_string(),
+        "invalid declaration: Beta shapes must be finite and positive"
+    );
     assert_eq!(
         BetaBernoulli::new(1.0, 1.0).unwrap().update(1_u64 << 53, 1).unwrap_err().to_string(),
         "invalid declaration: observation counts exceed 2^53"
@@ -512,8 +523,14 @@ fn the_required_bayes_factor_is_the_odds_ratio() {
     let satisfied = required_bayes_factor(0.8, 0.5, Direction::Raise).unwrap();
     assert!(satisfied.already_satisfied);
     near(satisfied.factor, 1.0);
-    assert_eq!(required_bayes_factor(0.0, 0.5, Direction::Raise).unwrap_err().to_string(), "invalid declaration: the prior must lie in (0, 1)");
-    assert_eq!(required_bayes_factor(0.5, 1.0, Direction::Raise).unwrap_err().to_string(), "invalid declaration: the level must lie in (0, 1)");
+    assert_eq!(
+        required_bayes_factor(0.0, 0.5, Direction::Raise).unwrap_err().to_string(),
+        "invalid declaration: the prior must lie in (0, 1)"
+    );
+    assert_eq!(
+        required_bayes_factor(0.5, 1.0, Direction::Raise).unwrap_err().to_string(),
+        "invalid declaration: the level must lie in (0, 1)"
+    );
 }
 
 #[test]

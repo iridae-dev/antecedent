@@ -285,17 +285,35 @@ fn settings_and_declarations_the_forest_cannot_honour_are_refused() {
     let base = || forest_of(case);
     assert_refused(fit(base().with_n_trees(0)), "CausalForest requires at least one tree");
     assert_refused(fit(base().with_min_leaf(0)), "CausalForest min_leaf and max_depth must be ≥ 1");
-    assert_refused(fit(base().with_max_depth(0)), "CausalForest min_leaf and max_depth must be ≥ 1");
-    assert_refused(fit(base().with_max_cuts(Some(0))), "CausalForest min_leaf and max_depth must be ≥ 1");
-    assert_refused(fit(base().with_min_leaf(31)), "CausalForest needs more complete-case rows than 2 × min_leaf");
+    assert_refused(
+        fit(base().with_max_depth(0)),
+        "CausalForest min_leaf and max_depth must be ≥ 1",
+    );
+    assert_refused(
+        fit(base().with_max_cuts(Some(0))),
+        "CausalForest min_leaf and max_depth must be ≥ 1",
+    );
+    assert_refused(
+        fit(base().with_min_leaf(31)),
+        "CausalForest needs more complete-case rows than 2 × min_leaf",
+    );
     // Cluster labels need the declaration and the declaration needs labels.
-    assert_refused(fit(base().with_cluster_ids(vec![0; pb.n])), "causal-forest clusters need both the unit labels and the cluster declaration");
-    assert_refused(fit(base().with_cluster_dml(ClusterDml::new(10).unwrap())), "causal-forest clusters need both the unit labels and the cluster declaration");
+    assert_refused(
+        fit(base().with_cluster_ids(vec![0; pb.n])),
+        "causal-forest clusters need both the unit labels and the cluster declaration",
+    );
+    assert_refused(
+        fit(base().with_cluster_dml(ClusterDml::new(10).unwrap())),
+        "causal-forest clusters need both the unit labels and the cluster declaration",
+    );
     let labels: Vec<u32> = (0..pb.n as u32).map(|i| i % 12).collect();
-    assert_refused(fit(base()
+    assert_refused(
+        fit(base()
             .with_cluster_dml(ClusterDml::new(10).unwrap())
             .with_cluster_ids(labels.clone())
-            .with_source_cluster_ids(labels)), "source_cluster_ids and cluster_ids both declared");
+            .with_source_cluster_ids(labels)),
+        "source_cluster_ids and cluster_ids both declared",
+    );
     // A dyadic unit has no whole-cluster subsample.
     let mut dyadic = base().with_cluster_dml(ClusterDml::new(10).unwrap());
     dyadic.units.first = Some((0..pb.n as u32).map(|i| i % 12).collect());

@@ -349,11 +349,8 @@ fn ananke_gid_and_aid_cases_agree_and_every_disagreement_is_recorded() {
     assert_eq!(fixture["oracle"]["generation"]["generator_retained"], true);
     assert_eq!(fixture["oracle"]["generation"]["reproducible_from_repo"], true);
     for artifact in fixture["oracle"]["reference_review"]["artifacts"].as_array().unwrap() {
-        let path = format!(
-            "{}/../../{}",
-            env!("CARGO_MANIFEST_DIR"),
-            artifact["path"].as_str().unwrap()
-        );
+        let path =
+            format!("{}/../../{}", env!("CARGO_MANIFEST_DIR"), artifact["path"].as_str().unwrap());
         assert!(std::path::Path::new(&path).is_file(), "{path}");
     }
     let (mut agreed, mut named) = (0, 0);

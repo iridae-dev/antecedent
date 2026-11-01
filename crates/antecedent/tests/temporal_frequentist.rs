@@ -988,7 +988,9 @@ fn temporal_mediation_shares_one_block_replicate_across_contrasts() {
         assert!((point - truth).abs() < 4.0 * se, "point {point} vs truth {truth} (se {se})");
     }
     // The mediated and direct parts add to the total.
-    assert!((points.total.unwrap() - points.direct.unwrap() - points.mediated.unwrap()).abs() < 1e-9);
+    assert!(
+        (points.total.unwrap() - points.direct.unwrap() - points.mediated.unwrap()).abs() < 1e-9
+    );
 
     // No replicates: every iid analytic SE stays NaN and no interval is claimed.
     let none = run(

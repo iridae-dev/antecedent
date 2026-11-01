@@ -99,9 +99,15 @@ fn noiseless_data_recover_the_effect_coefficients_exactly() {
 #[test]
 fn a_fit_with_too_few_rows_or_a_singular_design_is_refused() {
     let (x, t, y) = one_modifier(60, 0.1);
-    assert_eq!(fit_cohort_linear_effect(&y[..4], &t[..4], &[&x[..4]]).err().unwrap().to_string(), "cohort linear effect: the fit needs more rows than design columns");
+    assert_eq!(
+        fit_cohort_linear_effect(&y[..4], &t[..4], &[&x[..4]]).err().unwrap().to_string(),
+        "cohort linear effect: the fit needs more rows than design columns"
+    );
     let constant = vec![1.0; 60];
-    assert_eq!(fit_cohort_linear_effect(&y, &t, &[&constant]).err().unwrap().to_string(), "cohort linear effect: the design is singular");
+    assert_eq!(
+        fit_cohort_linear_effect(&y, &t, &[&constant]).err().unwrap().to_string(),
+        "cohort linear effect: the design is singular"
+    );
 }
 
 fn native_of(x: &[f64], t: &[f64], y: &[f64]) -> NativeCohortFit {
@@ -143,7 +149,10 @@ fn the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standar
     // Wider at 0.95 than at 0.90.
     let narrow = native_cohort_interval(&native, &source, 0.90).unwrap();
     assert!(narrow.upper - narrow.lower < interval.upper - interval.lower);
-    assert_eq!(native_cohort_interval(&native, &source, 1.0).err().unwrap().to_string(), "cell_not_licensed: cohort_decision.interval_level_invalid (level)");
+    assert_eq!(
+        native_cohort_interval(&native, &source, 1.0).err().unwrap().to_string(),
+        "cell_not_licensed: cohort_decision.interval_level_invalid (level)"
+    );
 }
 
 #[test]
@@ -174,7 +183,10 @@ fn a_declared_export_cannot_claim_a_native_fit() {
         features: vec![x.clone()],
         feature_ids: vec!["x".into()],
     };
-    assert_eq!(NativeCohortFit::replay(rows.clone(), &declared).err().unwrap().to_string(), "cohort linear effect: the retained rows do not reproduce the export");
+    assert_eq!(
+        NativeCohortFit::replay(rows.clone(), &declared).err().unwrap().to_string(),
+        "cohort linear effect: the retained rows do not reproduce the export"
+    );
     // A forged marker over declared numbers is refused: the replay recomputes it.
     let mut forged = response();
     forged.conditioning = native.export().body().response.conditioning.clone();
@@ -190,7 +202,10 @@ fn a_declared_export_cannot_claim_a_native_fit() {
         mask: vec![],
     })
     .unwrap();
-    assert_eq!(NativeCohortFit::replay(rows.clone(), &forged_export).err().unwrap().to_string(), "cohort linear effect: the retained rows do not reproduce the export");
+    assert_eq!(
+        NativeCohortFit::replay(rows.clone(), &forged_export).err().unwrap().to_string(),
+        "cohort linear effect: the retained rows do not reproduce the export"
+    );
     // The genuine export replays to itself.
     let replayed = NativeCohortFit::replay(rows, native.export()).unwrap();
     assert_eq!(replayed.export().identity(), native.export().identity());
@@ -248,15 +263,21 @@ fn coefficients_and_hc3_covariance_equal_the_multiprecision_fit_with_zero_one_an
         let features: Vec<Vec<f64>> =
             case["features"].as_array().unwrap().iter().map(column).collect();
         let columns: Vec<&[f64]> = features.iter().map(Vec::as_slice).collect();
-        let fit =
-            fit_cohort_linear_effect(&column(&case["outcome"]), &column(&case["treatment"]), &columns)
-                .unwrap();
+        let fit = fit_cohort_linear_effect(
+            &column(&case["outcome"]),
+            &column(&case["treatment"]),
+            &columns,
+        )
+        .unwrap();
         assert_eq!(fit.width as u64, case["width"].as_u64().unwrap(), "{name}");
         let coefficients = column(&case["coefficients"]);
         let covariance = column(&case["covariance"]);
         let scale = coefficients.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
         for (got, want) in fit.coefficients.iter().zip(&coefficients) {
-            assert!((got - want).abs() <= 1e-9 * scale.max(1.0), "{name} coefficient {got} vs {want}");
+            assert!(
+                (got - want).abs() <= 1e-9 * scale.max(1.0),
+                "{name} coefficient {got} vs {want}"
+            );
         }
         let vscale = covariance.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
         for (got, want) in fit.covariance.iter().zip(&covariance) {
@@ -270,7 +291,12 @@ fn student_t_critical_values_equal_the_inverted_incomplete_beta() {
     for q in reference()["t_quantiles"].as_array().unwrap() {
         let df = q["df"].as_f64().unwrap();
         let p = q["p"].as_f64().unwrap();
-        rel_close(antecedent_stats::special::student_t_ppf(p, df), q["want"].as_f64().unwrap(), 1e-9, &format!("t({p}; {df})"));
+        rel_close(
+            antecedent_stats::special::student_t_ppf(p, df),
+            q["want"].as_f64().unwrap(),
+            1e-9,
+            &format!("t({p}; {df})"),
+        );
     }
 }
 
@@ -278,19 +304,26 @@ fn student_t_critical_values_equal_the_inverted_incomplete_beta() {
 fn the_cohort_mean_interval_equals_the_reference_point_standard_error_and_bands() {
     let fx = reference();
     let case = &fx["fits"][1];
-    let (x, t, y) = (
-        column(&case["features"][0]),
-        column(&case["treatment"]),
-        column(&case["outcome"]),
-    );
+    let (x, t, y) =
+        (column(&case["features"][0]), column(&case["treatment"]), column(&case["outcome"]));
     let native = native_of(&x, &t, &y);
     let interval = &fx["interval"];
     let cohort = column(&interval["cohort"]);
-    let (source, first) =
-        native_cohort_interval_for(&native, &cohort_of(&cohort, "target"), "unit", 0.95, &ExecutionContext::for_tests(1))
-            .unwrap();
+    let (source, first) = native_cohort_interval_for(
+        &native,
+        &cohort_of(&cohort, "target"),
+        "unit",
+        0.95,
+        &ExecutionContext::for_tests(1),
+    )
+    .unwrap();
     rel_close(source.mean_contrast(), interval["point"].as_f64().unwrap(), 1e-9, "cohort point");
-    rel_close(first.standard_error, interval["se"].as_f64().unwrap(), 1e-8, "cohort standard error");
+    rel_close(
+        first.standard_error,
+        interval["se"].as_f64().unwrap(),
+        1e-8,
+        "cohort standard error",
+    );
     assert_eq!(first.degrees_of_freedom as u64, interval["df"].as_u64().unwrap());
     for band in interval["levels"].as_array().unwrap() {
         let level = band["level"].as_f64().unwrap();

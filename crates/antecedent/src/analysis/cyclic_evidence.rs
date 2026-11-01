@@ -892,9 +892,7 @@ fn fit_convergence(answer: &A) -> Option<serde_json::Value> {
             Some(report.fit.fitting.score_norm),
             Some(report.fit.fitting.line_search_exhausted),
         ),
-        A::SdeAnalysis(report)
-            if report.fit.as_ref().is_some_and(|fit| !fit.fitting.converged) =>
-        {
+        A::SdeAnalysis(report) if report.fit.as_ref().is_some_and(|fit| !fit.fitting.converged) => {
             let fitting = report.fit.as_ref().map(|fit| &fit.fitting);
             (
                 "sde_analysis",
@@ -1776,10 +1774,10 @@ fn sde_analysis<'a>(
         }
         CyclicEvidenceSelector::World { world, variable, time } => {
             let simulation = &report.simulation;
-            let ensemble =
-                simulation.worlds.get(*world as usize).ok_or_else(selector_mismatch)?;
+            let ensemble = simulation.worlds.get(*world as usize).ok_or_else(selector_mismatch)?;
             let index = time.unwrap_or(simulation.times.len().saturating_sub(1));
-            let row = |grid: &Vec<Vec<f64>>| grid.get(index).and_then(|r| r.get(*variable)).copied();
+            let row =
+                |grid: &Vec<Vec<f64>>| grid.get(index).and_then(|r| r.get(*variable)).copied();
             let value = row(&ensemble.mean).ok_or_else(selector_mismatch)?;
             let at = *simulation.times.get(index).ok_or_else(selector_mismatch)?;
             let numerical = ensemble.numerical.as_ref().map(|n| {

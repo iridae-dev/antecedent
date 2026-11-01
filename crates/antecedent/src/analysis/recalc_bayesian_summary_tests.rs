@@ -37,17 +37,22 @@ fn projections_equal_the_exact_rational_mean_sd_type7_quantiles_and_strict_propo
         assert_eq!(law.draws, values.len(), "{name}");
         let scale = values.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
         let want_mean = case["mean"].as_f64().unwrap();
-        assert!((law.mean - want_mean).abs() <= 4.0 * f64::EPSILON * scale.max(1e-300), "{name} mean");
+        assert!(
+            (law.mean - want_mean).abs() <= 4.0 * f64::EPSILON * scale.max(1e-300),
+            "{name} mean"
+        );
         close(law.standard_deviation, case["sd"].as_f64().unwrap(), 1e-9, &format!("{name} sd"));
         let q = |key: &str| case[key].as_f64().unwrap();
         assert!(
-            (law.lower_quantile - q("lower_quantile")).abs() <= 4.0 * f64::EPSILON * scale.max(1e-300),
+            (law.lower_quantile - q("lower_quantile")).abs()
+                <= 4.0 * f64::EPSILON * scale.max(1e-300),
             "{name} lower: {} vs {}",
             law.lower_quantile,
             q("lower_quantile")
         );
         assert!(
-            (law.upper_quantile - q("upper_quantile")).abs() <= 4.0 * f64::EPSILON * scale.max(1e-300),
+            (law.upper_quantile - q("upper_quantile")).abs()
+                <= 4.0 * f64::EPSILON * scale.max(1e-300),
             "{name} upper"
         );
         assert_eq!(law.probability_below, q("below"), "{name} proportion below");

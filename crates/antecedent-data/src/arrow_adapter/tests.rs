@@ -410,7 +410,9 @@ fn second_column_failure_drops_the_first_import() {
         ArrowCColumn::from_arrow_array("x", &good).unwrap(),
         ArrowCColumn::from_arrow_array("s", &bad).unwrap(),
     ]);
-    assert!(matches!(loaded, Err(DataError::TypeMismatch { id, .. }) if id == VariableId::from_raw(1)));
+    assert!(
+        matches!(loaded, Err(DataError::TypeMismatch { id, .. }) if id == VariableId::from_raw(1))
+    );
 }
 
 #[test]
@@ -448,7 +450,9 @@ fn categorical_chunks_keep_the_reference_and_the_domain_id() {
     for other in [chunk(7, 1), chunk(8, 0)] {
         assert!(matches!(
             concat_chunks(&[chunk(7, 0), other]),
-            Err(DataError::Mismatch { what: "Arrow chunks of one column (type or category domain)" })
+            Err(DataError::Mismatch {
+                what: "Arrow chunks of one column (type or category domain)"
+            })
         ));
     }
 }

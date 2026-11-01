@@ -230,7 +230,10 @@ fn propagate_runs_a_declared_covariance_composition_to_its_closed_form() {
         },
         &ctx(),
     );
-    assert_eq!(wrong.expect_err("wrong shape").details(), vec!["joint_law_propagation.invalid_request"]);
+    assert_eq!(
+        wrong.expect_err("wrong shape").details(),
+        vec!["joint_law_propagation.invalid_request"]
+    );
 }
 
 #[test]
@@ -318,7 +321,10 @@ fn aligned_functionals_are_expectations_under_the_joint_law() {
         ValueFunctional::Ratio,
         &ctx(),
     );
-    assert_eq!(refused.expect_err("zero denominator").details(), vec!["joint_law_propagation.artifact_invalid"]);
+    assert_eq!(
+        refused.expect_err("zero denominator").details(),
+        vec!["joint_law_propagation.artifact_invalid"]
+    );
 }
 
 #[test]
@@ -407,7 +413,10 @@ fn a_correlation_range_gives_an_assumption_range_linear_in_the_correlation() {
         0.3,
         &ctx(),
     );
-    assert_eq!(refused.expect_err("single correlation").details(), vec!["joint_law_propagation.invalid_request"]);
+    assert_eq!(
+        refused.expect_err("single correlation").details(),
+        vec!["joint_law_propagation.invalid_request"]
+    );
 }
 
 #[test]

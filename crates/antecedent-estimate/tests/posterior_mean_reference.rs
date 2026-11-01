@@ -159,5 +159,7 @@ fn the_updates_have_the_prior_and_flat_limits_and_refuse_invalid_scales() {
     assert!(
         dirichlet_posterior_mean(&[1.0, -0.5], normal(1.0), DirichletNamespace::Decision).is_err()
     );
-    assert!(normal_mean_posterior(&[2.0, 2.0, 2.0], normal(1.0), ScalarNamespace::Refresh).is_err());
+    assert!(
+        normal_mean_posterior(&[2.0, 2.0, 2.0], normal(1.0), ScalarNamespace::Refresh).is_err()
+    );
 }

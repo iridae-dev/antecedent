@@ -18,7 +18,9 @@
 
 use antecedent_core::{AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_graph::{Dag, DenseNodeId};
-use antecedent_identify::{EfficientBackdoorIdentifier, IdentificationStatus, IdentificationWorkspace};
+use antecedent_identify::{
+    EfficientBackdoorIdentifier, IdentificationStatus, IdentificationWorkspace,
+};
 
 type Arcs = Vec<(usize, usize)>;
 
@@ -44,7 +46,8 @@ fn acyclic(n: usize, arcs: &[(usize, usize)]) -> bool {
 }
 
 fn all_dags(n: usize) -> Vec<Arcs> {
-    let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect();
+    let pairs: Vec<(usize, usize)> =
+        (0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect();
     let mut out = Vec::new();
     for code in 0..3usize.pow(u32::try_from(pairs.len()).unwrap()) {
         let (mut arcs, mut rest) = (Vec::new(), code);
@@ -159,16 +162,25 @@ fn optimal_set(n: usize, arcs: &[(usize, usize)], t: usize, y: usize) -> Vec<usi
     let cn: Vec<usize> = (0..n).filter(|&v| v != t && de_t[v] && an_y[v]).collect();
     let mut forb = descendants(n, arcs, &cn);
     forb[t] = true;
-    (0..n).filter(|&v| !forb[v] && arcs.iter().any(|&(from, to)| from == v && cn.contains(&to))).collect()
+    (0..n)
+        .filter(|&v| !forb[v] && arcs.iter().any(|&(from, to)| from == v && cn.contains(&to)))
+        .collect()
 }
 
 fn subsets(pool: &[usize]) -> Vec<Vec<usize>> {
     (0..(1usize << pool.len()))
-        .map(|mask| pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect())
+        .map(|mask| {
+            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+        })
         .collect()
 }
 
-fn reported(n: usize, arcs: &[(usize, usize)], t: usize, y: usize) -> (IdentificationStatus, Vec<usize>) {
+fn reported(
+    n: usize,
+    arcs: &[(usize, usize)],
+    t: usize,
+    y: usize,
+) -> (IdentificationStatus, Vec<usize>) {
     let g = dag_of(n, arcs);
     let id = EfficientBackdoorIdentifier::new();
     let prepared = id.prepare(&g).unwrap();
@@ -196,9 +208,12 @@ struct Gaussian {
 
 impl Gaussian {
     fn new(n: usize, arcs: &[(usize, usize)], seed: u64) -> Self {
-        let mut state = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        let mut state =
+            seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         let mut uniform = move || {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
             f64::from(u32::try_from(state >> 33).unwrap()) / f64::from(1u32 << 31)
         };
         let mut b = vec![vec![0.0; n]; n];
@@ -235,7 +250,8 @@ impl Gaussian {
 
     /// Conditional covariance block of `a` given `s` (Schur complement).
     fn conditional(&self, a: &[usize], s: &[usize]) -> Vec<Vec<f64>> {
-        let mut out: Vec<Vec<f64>> = a.iter().map(|&i| a.iter().map(|&j| self.cov[i][j]).collect()).collect();
+        let mut out: Vec<Vec<f64>> =
+            a.iter().map(|&i| a.iter().map(|&j| self.cov[i][j]).collect()).collect();
         if s.is_empty() {
             return out;
         }
@@ -248,7 +264,8 @@ impl Gaussian {
             })
             .collect();
         for col in 0..m {
-            let pivot = (col..m).max_by(|&p, &q| aug[p][col].abs().total_cmp(&aug[q][col].abs())).unwrap();
+            let pivot =
+                (col..m).max_by(|&p, &q| aug[p][col].abs().total_cmp(&aug[q][col].abs())).unwrap();
             aug.swap(col, pivot);
             let p = aug[col][col];
             for v in &mut aug[col] {
@@ -298,8 +315,10 @@ fn sweep(n: usize, dags: &[Arcs], seeds: &[u64]) -> (usize, usize, usize, usize)
                     continue;
                 }
                 let pool: Vec<usize> = (0..n).filter(|&v| v != t && v != y).collect();
-                let valid: Vec<Vec<usize>> =
-                    subsets(&pool).into_iter().filter(|z| backdoor_valid(n, arcs, t, y, z)).collect();
+                let valid: Vec<Vec<usize>> = subsets(&pool)
+                    .into_iter()
+                    .filter(|z| backdoor_valid(n, arcs, t, y, z))
+                    .collect();
                 let (status, found) = reported(n, arcs, t, y);
                 if valid.is_empty() {
                     // Only the outcome being a direct parent of the treatment leaves no valid
@@ -322,7 +341,10 @@ fn sweep(n: usize, dags: &[Arcs], seeds: &[u64]) -> (usize, usize, usize, usize)
                     IdentificationStatus::NonparametricallyIdentified,
                     "arcs={arcs:?} t={t} y={y}"
                 );
-                assert!(backdoor_valid(n, arcs, t, y, &found), "arcs={arcs:?} t={t} y={y} set={found:?}");
+                assert!(
+                    backdoor_valid(n, arcs, t, y, &found),
+                    "arcs={arcs:?} t={t} y={y} set={found:?}"
+                );
                 pairs += 1;
                 assert!(valid.contains(&found));
                 let smallest = valid.iter().map(Vec::len).min().unwrap();
@@ -392,7 +414,8 @@ fn a_forbidden_optimal_member_falls_back_to_a_valid_set_that_may_cost_variance()
         VariableId::from_raw(3),
     ));
     let result = id.identify(&prepared, &query, &mut IdentificationWorkspace::default()).unwrap();
-    let set: Vec<usize> = result.estimands[0].adjustment_set.iter().map(|v| v.raw() as usize).collect();
+    let set: Vec<usize> =
+        result.estimands[0].adjustment_set.iter().map(|v| v.raw() as usize).collect();
     assert_eq!(set, vec![0]);
     assert!(backdoor_valid(4, &arcs, 1, 3, &set));
     let scm = Gaussian::new(4, &arcs, 11);

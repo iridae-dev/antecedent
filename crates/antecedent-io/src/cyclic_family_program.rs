@@ -495,10 +495,8 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
             let steps = predictions.iter().try_fold(0usize, |total, design| {
                 total.checked_add(design.times.len()).ok_or_else(overflow)
             })?;
-            let prediction = product(&[
-                one_more(steps)?,
-                width(&[(square(n)?, 48), (n, 48), (m, 48)], 512)?,
-            ])?;
+            let prediction =
+                product(&[one_more(steps)?, width(&[(square(n)?, 48), (n, 48), (m, 48)], 512)?])?;
             let fit = product(&[
                 one_more(trajectories.len())?,
                 width(&[(square(n)?, 24), (n, 48), (square(parameters.len())?, 16)], 512)?,
@@ -512,7 +510,9 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
                 .and_then(|sum| sum.checked_add(worlds))
                 .ok_or_else(overflow)?
         }
-        R::SdeAnalysis { model, simulation, interventions, parameters, parameter_draws, .. } => {
+        R::SdeAnalysis {
+            model, simulation, interventions, parameters, parameter_draws, ..
+        } => {
             let d = model.variables.len();
             let rows = (simulation.steps / simulation.output_every.max(1))
                 .checked_add(1)
@@ -524,16 +524,10 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
             } else {
                 0
             };
-            let spread = product(&[
-                one_more(*parameter_draws)?,
-                worlds,
-                rows,
-                width(&[(d, 16)], 64)?,
-            ])?;
-            let fit = product(&[
-                one_more(parameters.len())?,
-                width(&[(parameters.len(), 16)], 512)?,
-            ])?;
+            let spread =
+                product(&[one_more(*parameter_draws)?, worlds, rows, width(&[(d, 16)], 64)?])?;
+            let fit =
+                product(&[one_more(parameters.len())?, width(&[(parameters.len(), 16)], 512)?])?;
             moments
                 .checked_add(samples)
                 .and_then(|sum| sum.checked_add(spread))

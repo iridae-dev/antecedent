@@ -128,11 +128,7 @@ impl Mixed {
     fn interior_open(&self, prev: usize, v: usize, next: usize, z: &[bool]) -> bool {
         // Parallel edges between a pair cannot occur: each pair has exactly one state here.
         let collider = self.head_at(v, prev) && self.head_at(v, next);
-        if collider {
-            (0..self.n).any(|w| z[w] && self.anc[v][w])
-        } else {
-            !z[v]
-        }
+        if collider { (0..self.n).any(|w| z[w] && self.anc[v][w]) } else { !z[v] }
     }
 
     fn signature(&self) -> Vec<bool> {
@@ -196,8 +192,7 @@ fn pag_from(n: usize, marks: &[Option<(Endpoint, Endpoint)>]) -> Option<Pag> {
     let mut g = Pag::with_variables(u32::try_from(n).unwrap());
     for (&(i, j), m) in pairs(n).iter().zip(marks) {
         if let Some((at_a, at_b)) = *m {
-            let edge =
-                MarkedEdge { a: id(i), b: id(j), at_a, at_b, middle: MiddleMark::Empty };
+            let edge = MarkedEdge { a: id(i), b: id(j), at_a, at_b, middle: MiddleMark::Empty };
             g.insert_marked(edge).ok()?;
         }
     }

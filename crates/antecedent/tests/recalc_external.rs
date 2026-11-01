@@ -192,7 +192,10 @@ fn portable_output_is_a_container_and_an_original_frame_still_resumes() {
     let mut corrupt = bytes;
     let last = corrupt.len() - 1;
     corrupt[last] ^= 1;
-    assert_eq!(ExternalCallbackSession::resume(&corrupt, &request).err().unwrap().to_string(), "Artifact(\"checksum mismatch for section `external_callback.claim`\")");
+    assert_eq!(
+        ExternalCallbackSession::resume(&corrupt, &request).err().unwrap().to_string(),
+        "Artifact(\"checksum mismatch for section `external_callback.claim`\")"
+    );
 }
 
 #[test]
@@ -235,13 +238,21 @@ fn stateful_recomputes_and_side_effect_failure_never_silently_retries() {
     let changed = execute(&mut session, &request, &mut provider);
     assert_eq!(changed.receipt.totals().external_invocations, 1);
     assert_eq!(changed.claim.values().unwrap(), [3.5, 4.0, 4.5]);
-    assert_eq!(ExternalCallbackSession::resume(&session.export_output().unwrap(), &request).err().unwrap().to_string(), "Request(\"external_recalc.replay_unsupported\")");
+    assert_eq!(
+        ExternalCallbackSession::resume(&session.export_output().unwrap(), &request)
+            .err()
+            .unwrap()
+            .to_string(),
+        "Request(\"external_recalc.replay_unsupported\")"
+    );
     let mut effects = request.clone();
     effects.descriptor.policy = CallbackPolicy::SideEffecting;
     let mut provider = Provider::new(&effects);
     provider.fail = true;
-    let failure =
-        session.execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1)).err().unwrap();
+    let failure = session
+        .execute(&effects, Some(&mut provider), &ExecutionContext::for_tests(1))
+        .err()
+        .unwrap();
     assert!(
         failure.to_string().starts_with("Attempt { detail: \"external_recalc.callback_failed\"")
             && failure.to_string().contains("message: \"foreign failure after entering callback\""),

@@ -14,8 +14,8 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, Lag, VariableId};
 use antecedent_data::TabularData;
 use antecedent_discovery::{
-    exact_dag_marginals, DiscoveryConstraints, DiscoveryWorkspace, GraphPrior, LaggedLink,
-    OrderMcmc, StructureMcmc,
+    DiscoveryConstraints, DiscoveryWorkspace, GraphPrior, LaggedLink, OrderMcmc, StructureMcmc,
+    exact_dag_marginals,
 };
 use antecedent_state::GraphScoreFamily;
 use serde_json::Value;

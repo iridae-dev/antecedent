@@ -185,7 +185,12 @@ fn a_complete_directed_triangle_refuses_and_the_visible_edge_version_identifies(
     assert_eq!(refused.status, IdentificationStatus::NotIdentified);
     assert!(refused.identified_weight.0 <= 0.0);
     assert!(
-        refused.cases[0].result.derivation.steps.iter().any(|step| step.detail.contains("invisible edge")),
+        refused.cases[0]
+            .result
+            .derivation
+            .steps
+            .iter()
+            .any(|step| step.detail.contains("invisible edge")),
         "the refusal names the invisible edge"
     );
 

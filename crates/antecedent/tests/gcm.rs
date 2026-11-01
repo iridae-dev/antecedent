@@ -378,9 +378,10 @@ fn do_sampling_kde() {
         assert!(kde.values.iter().all(|v| v.is_finite()));
     }
     // y = 2 t with no noise: do(t = 1) is a point mass at 2.
-    let treated = load_expected_json(&fixture_dir("do_sampling_weighting"))["expected_treated_mean"]
-        .as_f64()
-        .unwrap();
+    let treated =
+        load_expected_json(&fixture_dir("do_sampling_weighting"))["expected_treated_mean"]
+            .as_f64()
+            .unwrap();
     assert!(kde.values.iter().all(|v| (v - treated).abs() < 1e-6), "{:?}", kde.values);
 }
 
@@ -400,8 +401,9 @@ fn do_sampling_mcmc() {
     if expected["require_positive_accept_rate"].as_bool().unwrap() {
         assert!(mcmc.accept_rate.unwrap() > 0.0);
     }
-    let treated = load_expected_json(&fixture_dir("do_sampling_weighting"))["expected_treated_mean"]
-        .as_f64()
-        .unwrap();
+    let treated =
+        load_expected_json(&fixture_dir("do_sampling_weighting"))["expected_treated_mean"]
+            .as_f64()
+            .unwrap();
     assert!(mcmc.values.iter().all(|v| (v - treated).abs() < 1e-6), "{:?}", mcmc.values);
 }

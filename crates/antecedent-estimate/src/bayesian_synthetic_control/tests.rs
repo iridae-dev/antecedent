@@ -109,7 +109,10 @@ fn malformed_panels_and_specs_are_refused() {
     let spec = BayesianSyntheticControlSpec::new("t", 9);
     let few = fit_bayesian_synthetic_control(&y, &units, &periods, &spec, DrawSpec::new(100, 1));
     let text = few.unwrap_err().to_string();
-    assert!(text.contains("reason=invalid_argument") && text.contains("at least 400 draws"), "{text}");
+    assert!(
+        text.contains("reason=invalid_argument") && text.contains("at least 400 draws"),
+        "{text}"
+    );
     let drop_rows = |keep: &dyn Fn(usize) -> bool| {
         let rows: Vec<usize> = (0..y.len()).filter(|i| keep(*i)).collect();
         (

@@ -85,13 +85,6 @@ impl InterventionalDistributionQuery {
     /// Empty outcomes, invalid interventions, an intervened outcome, or
     /// conditioning overlap.
     pub fn validate(&self) -> Result<(), QueryError> {
-        if self.outcomes.is_empty() {
-            return Err(QueryError::EmptyDistributionOutcomes);
-        }
-        for iv in self.interventions.iter() {
-            iv.validate()
-                .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
-        }
         // Walk every sequence leaf without materializing a target vector for
         // each outcome or conditioning variable.
         fn targets(iv: &Intervention, variable: VariableId) -> bool {
@@ -101,6 +94,13 @@ impl InterventionalDistributionQuery {
                 }
                 other => other.primary_variable() == Some(variable),
             }
+        }
+        if self.outcomes.is_empty() {
+            return Err(QueryError::EmptyDistributionOutcomes);
+        }
+        for iv in self.interventions.iter() {
+            iv.validate()
+                .map_err(|e| QueryError::InvalidIntervention(InterventionFault::Rejected(e)))?;
         }
         for &y in self.outcomes.iter() {
             if self.interventions.iter().any(|iv| targets(iv, y)) {

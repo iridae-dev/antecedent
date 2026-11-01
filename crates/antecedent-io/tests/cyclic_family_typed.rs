@@ -763,7 +763,11 @@ fn an_sde_analysis_pairs_worlds_exactly_reports_error_apart_and_replays() {
         close(baseline.mean[t][0], scheme, 4.5 * se + 1e-12);
         close(baseline.mean[t][0], 1.0 + 2.0 * (-0.8 * 0.05 * steps as f64).exp(), 4.5 * se + 0.02);
         // Shared increments cancel additive noise: the contrast is deterministic.
-        close(contrast.mean_difference[t][0], 1.0 - factor.powi(i32::try_from(steps).unwrap()), 1e-9);
+        close(
+            contrast.mean_difference[t][0],
+            1.0 - factor.powi(i32::try_from(steps).unwrap()),
+            1e-9,
+        );
         assert!(contrast.monte_carlo_standard_error[t][0] < 1e-9);
     }
     assert!(baseline.numerical.is_some());

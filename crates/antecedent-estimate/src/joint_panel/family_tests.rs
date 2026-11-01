@@ -345,23 +345,42 @@ fn family_declarations_that_do_not_match_the_panel_are_refused() {
     let mut data = good.clone();
     data.lag_order = 0;
     let message = data.validate().unwrap_err().to_string();
-    assert!(message.contains("geometric adstock requires carryover lag order two"), "geometric adstock needs carryover: {message}");
+    assert!(
+        message.contains("geometric adstock requires carryover lag order two"),
+        "geometric adstock needs carryover: {message}"
+    );
     let mut data = good.clone();
     data.family.scope = PanelSaturationScope::Classes { assignment: vec![0, 2, 2, 0] };
     let message = data.validate().unwrap_err().to_string();
-    assert!(message.contains("saturation classes must assign every group and use classes 0..m contiguously"), "classes must be contiguous: {message}");
+    assert!(
+        message.contains(
+            "saturation classes must assign every group and use classes 0..m contiguously"
+        ),
+        "classes must be contiguous: {message}"
+    );
     let mut data = good.clone();
     data.family.scope = PanelSaturationScope::Classes { assignment: vec![0, 1, 1] };
     let message = data.validate().unwrap_err().to_string();
-    assert!(message.contains("saturation classes must assign every group and use classes 0..m contiguously"), "every group needs a class: {message}");
+    assert!(
+        message.contains(
+            "saturation classes must assign every group and use classes 0..m contiguously"
+        ),
+        "every group needs a class: {message}"
+    );
     let mut data = good.clone();
     data.family.spatial.as_mut().unwrap().groups.swap(0, 1);
     let message = data.validate().unwrap_err().to_string();
-    assert!(message.contains("spatial structure needs identity-aligned groups"), "spatial alignment is by identity: {message}");
+    assert!(
+        message.contains("spatial structure needs identity-aligned groups"),
+        "spatial alignment is by identity: {message}"
+    );
     let mut data = good.clone();
     data.family.spatial.as_mut().unwrap().distances[1] = 9.0;
     let message = data.validate().unwrap_err().to_string();
-    assert!(message.contains("a symmetric nonnegative distance matrix with zero diagonal"), "distances must be symmetric: {message}");
+    assert!(
+        message.contains("a symmetric nonnegative distance matrix with zero diagonal"),
+        "distances must be symmetric: {message}"
+    );
     let mut data = good.clone();
     data.family.spatial.as_mut().unwrap().distances[0] = 1.0;
     let message = data.validate().unwrap_err().to_string();
@@ -372,23 +391,44 @@ fn family_declarations_that_do_not_match_the_panel_are_refused() {
     let mut bad = p.clone();
     bad.family.hill_shape.pop();
     let message = likelihood::validate_parameters(&compiled, &bad).unwrap_err().to_string();
-    assert!(message.contains("Hill shapes, class half-saturations and spatial range must match the declared family"), "param: {message}");
+    assert!(
+        message.contains(
+            "Hill shapes, class half-saturations and spatial range must match the declared family"
+        ),
+        "param: {message}"
+    );
     let mut bad = p.clone();
     bad.family.class_half_saturation.push(1.0);
     let message = likelihood::validate_parameters(&compiled, &bad).unwrap_err().to_string();
-    assert!(message.contains("Hill shapes, class half-saturations and spatial range must match the declared family"), "param: {message}");
+    assert!(
+        message.contains(
+            "Hill shapes, class half-saturations and spatial range must match the declared family"
+        ),
+        "param: {message}"
+    );
     let mut bad = p.clone();
     bad.family.spatial_range = 0.0;
     let message = likelihood::validate_parameters(&compiled, &bad).unwrap_err().to_string();
-    assert!(message.contains("Hill shapes, class half-saturations and spatial range must match the declared family"), "param: {message}");
+    assert!(
+        message.contains(
+            "Hill shapes, class half-saturations and spatial range must match the declared family"
+        ),
+        "param: {message}"
+    );
     let mut bad = p.clone();
     bad.channels[0].lag = [0.6, 0.3, 0.1];
     let message = likelihood::validate_parameters(&compiled, &bad).unwrap_err().to_string();
-    assert!(message.contains("lag weights must be a decaying geometric adstock"), "not geometric: {message}");
+    assert!(
+        message.contains("lag weights must be a decaying geometric adstock"),
+        "not geometric: {message}"
+    );
     let mut bad = p;
     bad.channels[0].lag = [0.2, 0.3, 0.5];
     let message = likelihood::validate_parameters(&compiled, &bad).unwrap_err().to_string();
-    assert!(message.contains("lag weights must be a decaying geometric adstock"), "must decay: {message}");
+    assert!(
+        message.contains("lag weights must be a decaying geometric adstock"),
+        "must decay: {message}"
+    );
 }
 
 #[test]
@@ -1192,10 +1232,7 @@ fn cells_06_non_finite_panel_values_are_refused_never_dropped_for_the_broader_fa
         assert!(matches!(data.validate(), Err(PanelError::Invalid(_))), "{what}");
         assert!(matches!(data.identity(), Err(PanelError::Invalid(_))), "{what}: identity");
         assert!(
-            matches!(
-                fit_panel(&data, &options(None, 0), &context(1)),
-                Err(PanelError::Invalid(_))
-            ),
+            matches!(fit_panel(&data, &options(None, 0), &context(1)), Err(PanelError::Invalid(_))),
             "{what}: fit"
         );
     };

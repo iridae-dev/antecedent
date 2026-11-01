@@ -492,7 +492,8 @@ pub fn condition_gaussian(
         GaussianConditioningError::SingularEvidence => ObservationQueryError::EvidenceSingular,
         GaussianConditioningError::Unrepresentable => {
             ObservationQueryError::Composition(CompositionError::Numerical {
-                message: "the Gaussian conditional output is not representable as a finite number".into(),
+                message: "the Gaussian conditional output is not representable as a finite number"
+                    .into(),
             })
         }
     })?;

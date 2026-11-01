@@ -26,8 +26,9 @@ fn empirical(draws: &[f64], x: f64) -> f64 {
 
 #[test]
 fn arm_quantile_posteriors_match_the_exact_beta_integral() {
-    let data: Value = serde_json::from_str(include_str!("oracle_data/quantile_posterior_reference.json"))
-        .expect("frozen reference parses");
+    let data: Value =
+        serde_json::from_str(include_str!("oracle_data/quantile_posterior_reference.json"))
+            .expect("frozen reference parses");
     for case in data.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let grid = floats(&case["grid"]);
@@ -67,8 +68,16 @@ fn arm_quantile_posteriors_match_the_exact_beta_integral() {
             let mut sorted = arm_draws.clone();
             sorted.sort_by(f64::total_cmp);
             let at = |p: f64| sorted[((sorted.len() as f64) * p) as usize];
-            assert!((at(0.025) - f(want, "q025")).abs() < 0.012, "{name}/{label}: q025 {}", at(0.025));
-            assert!((at(0.975) - f(want, "q975")).abs() < 0.012, "{name}/{label}: q975 {}", at(0.975));
+            assert!(
+                (at(0.025) - f(want, "q025")).abs() < 0.012,
+                "{name}/{label}: q025 {}",
+                at(0.025)
+            );
+            assert!(
+                (at(0.975) - f(want, "q975")).abs() < 0.012,
+                "{name}/{label}: q975 {}",
+                at(0.975)
+            );
         }
         // A draw is kept only when both independent arms resolve.
         let both = f(&case["control"], "resolved") * f(&case["treated"], "resolved");

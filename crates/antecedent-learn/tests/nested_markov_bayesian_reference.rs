@@ -345,7 +345,8 @@ fn asymmetric_counts_posterior_means_match_independent_quadrature() {
 fn coordinate_law_satisfies_the_verma_nested_markov_constraints() {
     let mut state = 0x9E37_79B9_7F4A_7C15_u64;
     let mut next = || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
     };
     let cell = |c: &[f64; 16], i: usize, t: usize, j: usize, y: usize| c[i * 8 + t * 4 + j * 2 + y];
@@ -387,7 +388,8 @@ fn coordinate_law_satisfies_the_verma_nested_markov_constraints() {
     for v in &mut generic {
         *v /= total;
     }
-    let p123 = |i: usize, t: usize, j: usize| (0..2).map(|y| cell(&generic, i, t, j, y)).sum::<f64>();
+    let p123 =
+        |i: usize, t: usize, j: usize| (0..2).map(|y| cell(&generic, i, t, j, y)).sum::<f64>();
     let p12 = |i: usize, t: usize| (0..2).map(|j| p123(i, t, j)).sum::<f64>();
     let a = p123(0, 0, 0) / p12(0, 0);
     let b = p123(1, 0, 0) / p12(1, 0);

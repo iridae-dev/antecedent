@@ -411,11 +411,18 @@ impl BootstrapRefute {
         }
         // A static custom refitter rebuilds a whole table for each serial draw.
         // Fund its row maps, validity masks and gathered columns before creating them.
-        let _static_refit_scratch = if problem.temporal.is_none() && problem.effect_refit.is_some() {
-            let width = resample_ids.len().checked_mul(4).and_then(|v| v.checked_add(8))
-                .ok_or_else(|| ValidationError::Resource { message: "bootstrap scratch size overflow".into() })?;
+        let _static_refit_scratch = if problem.temporal.is_none() && problem.effect_refit.is_some()
+        {
+            let width =
+                resample_ids.len().checked_mul(4).and_then(|v| v.checked_add(8)).ok_or_else(
+                    || ValidationError::Resource {
+                        message: "bootstrap scratch size overflow".into(),
+                    },
+                )?;
             admit_cells(Some(ctx), n, width)?
-        } else { None };
+        } else {
+            None
+        };
         // Resample only complete-case rows so slots that are invalid in the source (whose
         // stored values are sentinels) never enter a replicate as real observations.
         let (keep, valid) = complete_case_rows(problem.data, &resample_ids)?;

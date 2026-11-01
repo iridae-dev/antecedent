@@ -703,7 +703,11 @@ fn compact_point_and_se_equal_the_exact_rational_quadratic_form() {
             let got = export.evaluate(&query).unwrap();
             let (point, se) = (q["point"].as_f64().unwrap(), q["se"].as_f64().unwrap());
             let name = case["name"].as_str().unwrap();
-            assert!((got.point - point).abs() <= 1e-12 * point.abs().max(1.0), "{name} point {} vs {point}", got.point);
+            assert!(
+                (got.point - point).abs() <= 1e-12 * point.abs().max(1.0),
+                "{name} point {} vs {point}",
+                got.point
+            );
             assert!(
                 (got.model_based_se - se).abs() <= 1e-10 * se.max(1e-3),
                 "{name} se {} vs {se}",

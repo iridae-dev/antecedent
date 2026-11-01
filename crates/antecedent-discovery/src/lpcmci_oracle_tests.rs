@@ -145,11 +145,8 @@ impl ConditionalIndependence for TemporalDsepOracle {
                     });
                 }
                 let z: Vec<usize> = cond.iter().map(|&c| self.node_of_column(c)).collect();
-                let separated = self.graph.d_separated(
-                    self.node_of_column(q.x),
-                    self.node_of_column(q.y),
-                    &z,
-                );
+                let separated =
+                    self.graph.d_separated(self.node_of_column(q.x), self.node_of_column(q.y), &z);
                 Ok(CiResult {
                     statistic: if separated { 0.0 } else { 1.0 },
                     p_value: if separated { 1.0 } else { 0.0 },
@@ -166,10 +163,8 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1_442_695_040_888_963_407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         self.0 >> 33
     }
 
@@ -309,7 +304,8 @@ fn lpcmci_under_a_dsep_oracle_recovers_window_adjacencies_with_sound_marks_and_s
             )
             .unwrap();
         let pag = &result.review.graph;
-        let node_at = |slot: usize, lag: u32| -> usize { graph.node(observed[slot], NOW - lag as usize) };
+        let node_at =
+            |slot: usize, lag: u32| -> usize { graph.node(observed[slot], NOW - lag as usize) };
         let id_of = |slot: usize, lag: u32| -> DenseNodeId {
             let index = pag
                 .nodes()
@@ -353,9 +349,10 @@ fn lpcmci_under_a_dsep_oracle_recovers_window_adjacencies_with_sound_marks_and_s
                         VariableId::from_raw(target as u32),
                         Lag::CONTEMPORANEOUS,
                     );
-                    let sep = result.sepsets.get(&key).map(|s| {
-                        s.iter().map(|(v, l)| (v.raw(), l.raw())).collect::<Vec<_>>()
-                    });
+                    let sep = result
+                        .sepsets
+                        .get(&key)
+                        .map(|s| s.iter().map(|(v, l)| (v.raw(), l.raw())).collect::<Vec<_>>());
                     failures.push(format!(
                         "case {case}: pair ({source},{lag})-({target},0) separable={separable} \
                          edge={} recorded sepset={sep:?}",
@@ -373,7 +370,8 @@ fn lpcmci_under_a_dsep_oracle_recovers_window_adjacencies_with_sound_marks_and_s
         // Soundness of every mark that is set.
         for a_raw in 0..pag.node_count() {
             for b_raw in a_raw + 1..pag.node_count() {
-                let (a, b) = (DenseNodeId::from_raw(a_raw as u32), DenseNodeId::from_raw(b_raw as u32));
+                let (a, b) =
+                    (DenseNodeId::from_raw(a_raw as u32), DenseNodeId::from_raw(b_raw as u32));
                 let Some(edge) = pag.edge_between(a, b) else { continue };
                 let (sa, la) = lagged_key(pag, edge.a);
                 let (sb, lb) = lagged_key(pag, edge.b);
@@ -405,10 +403,8 @@ fn lpcmci_under_a_dsep_oracle_recovers_window_adjacencies_with_sound_marks_and_s
 
         // Every recorded separating set separates its pair in the generating graph.
         for ((src, src_lag, tgt, tgt_lag), set) in &result.sepsets {
-            let z: Vec<usize> = set
-                .iter()
-                .map(|(v, l)| node_at(v.raw() as usize, l.raw()))
-                .collect();
+            let z: Vec<usize> =
+                set.iter().map(|(v, l)| node_at(v.raw() as usize, l.raw())).collect();
             let x = node_at(src.raw() as usize, src_lag.raw());
             let y = node_at(tgt.raw() as usize, tgt_lag.raw());
             sepsets_checked += 1;
@@ -417,7 +413,12 @@ fn lpcmci_under_a_dsep_oracle_recovers_window_adjacencies_with_sound_marks_and_s
             }
         }
     }
-    assert!(failures.is_empty(), "{} failures, first: {:#?}", failures.len(), &failures[..failures.len().min(12)]);
+    assert!(
+        failures.is_empty(),
+        "{} failures, first: {:#?}",
+        failures.len(),
+        &failures[..failures.len().min(12)]
+    );
     // The comparison is not vacuous: both adjacent and separable pairs, directed marks and
     // recorded separating sets occur.
     assert!(edges > 200 && absent > 200, "edges {edges}, absent {absent}");

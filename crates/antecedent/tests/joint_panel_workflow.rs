@@ -328,7 +328,8 @@ fn build_joint_panel_lag_zero_bayesian_chain_mixes_and_recovers_the_known_intera
     let truth = fixture::lag_zero_truth();
     let known = truth.interaction * (4.0_f64 / (4.0 + truth.half_saturation)).powi(2);
     assert!((known - 1.5 * 16.0 / 49.0).abs() < 1e-15);
-    let draws: Vec<f64> = result.draws.iter().flatten().map(|row| lag_zero_terminal_interaction(row)).collect();
+    let draws: Vec<f64> =
+        result.draws.iter().flatten().map(|row| lag_zero_terminal_interaction(row)).collect();
     let n = draws.len() as f64;
     let mean = draws.iter().sum::<f64>() / n;
     let sd = (draws.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
@@ -518,11 +519,10 @@ fn confounded_panel_does_not_acquire_a_causal_license_from_a_finite_mechanism() 
     // noise), so the interaction fit is well-posed yet biased by that context.
     let data = fixture::source_confounded_varied();
     let mut request = fixture::request(&data, false, PanelInference::Frequentist { draws: 0 });
-    request.options.optimizer =
-        antecedent_estimate::joint_panel::PanelOptimizerOptions {
-            max_iterations: 600,
-            gradient_tolerance: 1e-2,
-        };
+    request.options.optimizer = antecedent_estimate::joint_panel::PanelOptimizerOptions {
+        max_iterations: 600,
+        gradient_tolerance: 1e-2,
+    };
     let prepared = Study::prepare_joint_panel(data, request.clone(), &ctx).unwrap();
     let inspection = prepared.inspect();
     assert_eq!(inspection.fits_performed, 0);
@@ -1510,8 +1510,15 @@ mod gaussian_restriction {
     /// Joint minus reference at every period: the context, season and group effects cancel, so
     /// the closed form from the structural coefficients is `b_a s + b_b s + b_ab s^2`, `s =
     /// 4 / (4 + k)`.
-    fn joint_minus_reference(point: &[antecedent_estimate::joint_panel::PanelResponse]) -> Vec<f64> {
-        point[3].means.iter().zip(&point[0].means).map(|(joint, reference)| joint - reference).collect()
+    fn joint_minus_reference(
+        point: &[antecedent_estimate::joint_panel::PanelResponse],
+    ) -> Vec<f64> {
+        point[3]
+            .means
+            .iter()
+            .zip(&point[0].means)
+            .map(|(joint, reference)| joint - reference)
+            .collect()
     }
 
     fn closed_form_joint_response_change() -> f64 {
@@ -1573,9 +1580,13 @@ mod gaussian_restriction {
         let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
         let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
         assert!(!bound.inspect().identification.is_identified_claim());
-        assert!(bound.inspect().design_attempts.iter().all(|attempt| {
-            attempt.id != "joint_adjustment.gaussian_restriction"
-        }));
+        assert!(
+            bound
+                .inspect()
+                .design_attempts
+                .iter()
+                .all(|attempt| { attempt.id != "joint_adjustment.gaussian_restriction" })
+        );
         let result = bound.estimate(&ctx).unwrap();
         assert!(matches!(result.require_identified(), Err(JointPanelError::Unsupported(_))));
     }
@@ -1612,7 +1623,9 @@ mod gaussian_restriction {
                 .unwrap_err()
         };
         let feedback = refused(UnrolledPanelSpec { history_feedback: true, ..spec(vec![]) });
-        assert!(matches!(&feedback, JointPanelError::Unsupported(m) if m.contains("outcome history")));
+        assert!(
+            matches!(&feedback, JointPanelError::Unsupported(m) if m.contains("outcome history"))
+        );
         let carryover = refused(UnrolledPanelSpec { carryover_reach: 2, ..spec(vec![]) });
         assert!(matches!(&carryover, JointPanelError::Unsupported(m) if m.contains("lag order 0")));
         let serial = refused(UnrolledPanelSpec { outcome_persistence: true, ..spec(vec![]) });
@@ -1632,17 +1645,18 @@ mod gaussian_restriction {
         assert!(bound.inspect().identification.is_identified_claim());
         let result = bound.estimate(&ctx).unwrap();
         assert!(!result.identification().is_identified_claim());
-        assert!(matches!(
-            result.require_identified(),
-            Err(JointPanelError::Unsupported(_))
-        ));
+        assert!(matches!(result.require_identified(), Err(JointPanelError::Unsupported(_))));
         let attempt = result
             .design_attempts()
             .iter()
             .find(|attempt| attempt.id == "joint_adjustment.gaussian_restriction")
             .unwrap();
         assert_eq!(attempt.outcome, JointPanelDesignOutcome::Rejected);
-        assert!(attempt.detail.contains("not represented by the fitted mechanism in channel:"), "{}", attempt.detail);
+        assert!(
+            attempt.detail.contains("not represented by the fitted mechanism in channel:"),
+            "{}",
+            attempt.detail
+        );
         assert!(attempt.worlds.iter().all(|world| !world.identified));
     }
 

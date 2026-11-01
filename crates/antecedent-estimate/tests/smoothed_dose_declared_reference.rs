@@ -63,7 +63,9 @@ fn close(actual: f64, expected: f64, tol: f64, what: &str) {
     );
 }
 
-fn setup(case: &Value) -> (TransportIdentification, SmoothedDoseTransportQuery, SmoothedDoseOptions) {
+fn setup(
+    case: &Value,
+) -> (TransportIdentification, SmoothedDoseTransportQuery, SmoothedDoseOptions) {
     let mut graph = Admg::with_variables(3);
     for (from, to) in [(0, 2), (1, 2)] {
         graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
@@ -112,14 +114,24 @@ fn weighted_clustered_and_serial_scores_and_standard_errors_match_the_multipreci
         assert_eq!(folds, want, "{name}: fold assignment");
         for (point, expected) in estimate.grid.iter().zip(case["points"].as_array().unwrap()) {
             let at = format!("{name} dose {}", point.dose);
-            close(point.plug_in, expected["plug_in"].as_f64().unwrap(), 1e-8, &format!("{at} plug_in"));
+            close(
+                point.plug_in,
+                expected["plug_in"].as_f64().unwrap(),
+                1e-8,
+                &format!("{at} plug_in"),
+            );
             close(
                 point.augmentation,
                 expected["augmentation"].as_f64().unwrap(),
                 1e-7,
                 &format!("{at} augmentation"),
             );
-            close(point.estimate, expected["estimate"].as_f64().unwrap(), 1e-8, &format!("{at} estimate"));
+            close(
+                point.estimate,
+                expected["estimate"].as_f64().unwrap(),
+                1e-8,
+                &format!("{at} estimate"),
+            );
             close(
                 point.influence_se_diagnostic,
                 expected["se"].as_f64().unwrap(),
@@ -180,7 +192,8 @@ fn clusters_stay_whole_in_one_fold_and_serial_folds_are_contiguous_blocks() {
 
 #[test]
 fn equal_weights_at_any_scale_are_the_unweighted_score_and_plain_rows_are_unchanged() {
-    let case = reference().into_iter().find(|c| c["name"] == "equal_weights_scale_invariant").unwrap();
+    let case =
+        reference().into_iter().find(|c| c["name"] == "equal_weights_scale_invariant").unwrap();
     let weighted = input(&case);
     let (id, query, options) = setup(&case);
     let ctx = ExecutionContext::for_tests(7);
@@ -190,7 +203,12 @@ fn equal_weights_at_any_scale_are_the_unweighted_score_and_plain_rows_are_unchan
     let b = estimate_smoothed_dose(&id, &query, &weighted, &options, &ctx).unwrap();
     for (p, q) in a.grid.iter().zip(&b.grid) {
         close(q.estimate, p.estimate, 1e-9, "estimate");
-        close(q.influence_se_diagnostic, p.influence_se_diagnostic, 1e-9, "influence standard error");
+        close(
+            q.influence_se_diagnostic,
+            p.influence_se_diagnostic,
+            1e-9,
+            "influence standard error",
+        );
         close(q.support.effective_sample_size, p.support.effective_sample_size, 1e-12, "ess");
     }
     // Declared rows change the identity of the premises only through the rows: the plain input
@@ -201,7 +219,8 @@ fn equal_weights_at_any_scale_are_the_unweighted_score_and_plain_rows_are_unchan
 
 #[test]
 fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
-    let case = reference().into_iter().find(|c| c["name"] == "weights_only_extreme_weight").unwrap();
+    let case =
+        reference().into_iter().find(|c| c["name"] == "weights_only_extreme_weight").unwrap();
     let (id, query, options) = setup(&case);
     let rows = input(&case);
     let n = rows.source.len();
@@ -212,7 +231,10 @@ fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
     w[60] = 0.0;
     zeroed.sampling_weights = Some(w);
     let error = validate_smoothed_dose(&id, &query, &zeroed, &options).unwrap_err().to_string();
-    assert!(error.contains("sampling_weights.invalid") && error.contains("without_zero_weight_rows"), "{error}");
+    assert!(
+        error.contains("sampling_weights.invalid") && error.contains("without_zero_weight_rows"),
+        "{error}"
+    );
     let (kept, deleted) = zeroed.without_zero_weight_rows().unwrap();
     assert_eq!((deleted, kept.source.len()), (2, n - 2));
     validate_smoothed_dose(&id, &query, &kept, &options).unwrap();
@@ -222,10 +244,22 @@ fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
         edit(&mut bad);
         validate_smoothed_dose(&id, &query, &bad, &options).unwrap_err().to_string()
     };
-    assert!(refuse(&|r| r.sampling_weights = Some(vec![1.0; n - 1])).contains("sampling_weights.invalid"));
-    assert!(refuse(&|r| r.sampling_weights.as_mut().unwrap()[4] = f64::NAN).contains("sampling_weights.invalid"));
-    assert!(refuse(&|r| r.sampling_weights.as_mut().unwrap()[4] = -1.0).contains("sampling_weights.invalid"));
-    assert!(refuse(&|r| r.cluster = Some(vec![0; n - 1])).contains("dose_response.invalid_declared_rows"));
+    assert!(
+        refuse(&|r| r.sampling_weights = Some(vec![1.0; n - 1]))
+            .contains("sampling_weights.invalid")
+    );
+    assert!(
+        refuse(&|r| r.sampling_weights.as_mut().unwrap()[4] = f64::NAN)
+            .contains("sampling_weights.invalid")
+    );
+    assert!(
+        refuse(&|r| r.sampling_weights.as_mut().unwrap()[4] = -1.0)
+            .contains("sampling_weights.invalid")
+    );
+    assert!(
+        refuse(&|r| r.cluster = Some(vec![0; n - 1]))
+            .contains("dose_response.invalid_declared_rows")
+    );
     assert!(
         refuse(&|r| {
             r.cluster = Some((0..n as u32).map(|i| i % 6).collect());
@@ -245,8 +279,9 @@ fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
             .contains("dose_response.declared_folds_unbalanced")
     );
     assert!(
-        refuse(&|r| r.cluster = Some((0..n as u32).map(|i| u32::from(!r.source[i as usize])).collect()))
-            .contains("dose_response.declared_folds_unbalanced")
+        refuse(&|r| r.cluster =
+            Some((0..n as u32).map(|i| u32::from(!r.source[i as usize])).collect()))
+        .contains("dose_response.declared_folds_unbalanced")
     );
 }
 
@@ -268,7 +303,11 @@ fn the_bootstrap_resamples_clusters_and_blocks_and_rows_otherwise() {
         }
         for (group, count) in seen {
             let size = groups.iter().filter(|g| **g == group).count();
-            assert_eq!(count % size, 0, "cluster {group}: {count} rows is not a whole number of clusters");
+            assert_eq!(
+                count % size,
+                0,
+                "cluster {group}: {count} rows is not a whole number of clusters"
+            );
         }
     }
     let serial = reference().into_iter().find(|c| c["name"] == "serial_lag_2_blocks").unwrap();

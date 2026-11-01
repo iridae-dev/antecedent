@@ -97,8 +97,12 @@ fn entropy_scores_equal_mutual_information_of_the_declared_channel() {
     let priors: Vec<Value> = serde_json::from_str(text).expect("reference");
     for prior in &priors {
         let name = prior["name"].as_str().expect("name");
-        let weights: Vec<f64> =
-            prior["weights"].as_array().expect("w").iter().map(|v| v.as_f64().expect("f")).collect();
+        let weights: Vec<f64> = prior["weights"]
+            .as_array()
+            .expect("w")
+            .iter()
+            .map(|v| v.as_f64().expect("f"))
+            .collect();
         let features: Vec<u32> = prior["features"]
             .as_array()
             .expect("f")

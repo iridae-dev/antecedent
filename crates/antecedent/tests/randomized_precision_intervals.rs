@@ -305,9 +305,11 @@ fn cluster_trial(treated_clusters: usize) -> (RandomizedEffectQuery, TabularData
                 + 1.4 * f64::from(treated(cluster_of(i)))
         })
         .collect::<Vec<_>>();
-    let data =
-        TabularData::from_f64_columns([("outcome", y.as_slice()), ("baseline", baseline.as_slice())])
-            .unwrap();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()),
+        ("baseline", baseline.as_slice()),
+    ])
+    .unwrap();
     let query = RandomizedEffectQuery::with_design(
         antecedent_core::RandomizationDesign::Cluster { treated_clusters },
         VariableId::from_raw(0),
@@ -331,15 +333,15 @@ fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_license() {
         (prepared, result)
     };
     let (_, plain) = run(query.clone());
-    let (prepared, adjusted) =
-        run(query.clone().with_fixed_cuped(VariableId::from_raw(1), 1.5));
+    let (prepared, adjusted) = run(query.clone().with_fixed_cuped(VariableId::from_raw(1), 1.5));
     retained_graphless::assert_retained_graphless_program(
         "cluster_fixed_cuped_keeps_the_cluster_un",
         &prepared,
         &adjusted,
         &ctx,
     );
-    let (plain_fit, fit) = (plain.randomized_effect().unwrap(), adjusted.randomized_effect().unwrap());
+    let (plain_fit, fit) =
+        (plain.randomized_effect().unwrap(), adjusted.randomized_effect().unwrap());
     // Same estimand and unit of analysis: the cluster, 30 clusters per arm, per-row ITT.
     assert_eq!(fit.assignment_design.as_ref(), "cluster");
     assert_eq!((fit.control_units, fit.treatment_units), (30, 30));

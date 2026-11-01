@@ -144,8 +144,9 @@ impl PreparedStudy<JointPanelState> {
                 None,
             ));
         }
-        let identification = CompiledIdentificationProduct::retain_for_target(&retained, parts, &target)
-            .map_err(JointPanelError::compile)?;
+        let identification =
+            CompiledIdentificationProduct::retain_for_target(&retained, parts, &target)
+                .map_err(JointPanelError::compile)?;
         let spec = graph.spec();
         let mut next = self.clone();
         next.state.identification = Arc::new(identification);
@@ -191,7 +192,8 @@ impl PreparedStudy<JointPanelState> {
     /// on the restriction keeps it when the checks pass; a flagged check withdraws it.
     pub(super) fn checked_against_fit(&self, fit: &JointPanelFit) -> Result<Self, JointPanelError> {
         let Some(position) = self.state.attempts.iter().position(|attempt| {
-            attempt.id == RESTRICTION_ATTEMPT && attempt.outcome == JointPanelDesignOutcome::Identified
+            attempt.id == RESTRICTION_ATTEMPT
+                && attempt.outcome == JointPanelDesignOutcome::Identified
         }) else {
             return Ok(self.clone());
         };
@@ -201,11 +203,12 @@ impl PreparedStudy<JointPanelState> {
                 "the fitted mechanism is time-varying and has no residual check".into(),
             );
         };
-        let diagnostics = antecedent_estimate::joint_panel::restriction::panel_restriction_diagnostics(
-            &self.state.data,
-            &invariant.point,
-            CHECK_LEVEL,
-        )?;
+        let diagnostics =
+            antecedent_estimate::joint_panel::restriction::panel_restriction_diagnostics(
+                &self.state.data,
+                &invariant.point,
+                CHECK_LEVEL,
+            )?;
         let summary = {
             let normality = diagnostics.normality.as_ref().map_or_else(
                 || "normality not reported (too few innovations)".to_owned(),
@@ -230,7 +233,9 @@ impl PreparedStudy<JointPanelState> {
                 reasons.push("the whitened innovations are not Gaussian".to_owned());
             }
             for feature in diagnostics.linearity_flags() {
-                reasons.push(format!("the mean is not represented by the fitted mechanism in {feature}"));
+                reasons.push(format!(
+                    "the mean is not represented by the fitted mechanism in {feature}"
+                ));
             }
             return self.withdrawn(position, format!("{}; {summary}", reasons.join("; ")));
         }
@@ -250,23 +255,27 @@ impl PreparedStudy<JointPanelState> {
         let class = IdentificationClaimClass::ModelConditional;
         let unresolved = vec![UnresolvedObligation::new(
             "gaussian_restriction_checks",
-            format!("the declared Gaussian restriction is contradicted by the fitted panel: {reason}"),
+            format!(
+                "the declared Gaussian restriction is contradicted by the fitted panel: {reason}"
+            ),
         )];
         let mut parts = CompiledProductParts::new(outcome, class);
         parts.world_obligations = contracts::target_worlds(&target)?
             .iter()
             .map(|world| {
-                IdentificationObligation::for_world(world.id(), outcome, class, unresolved.clone(), None)
+                IdentificationObligation::for_world(
+                    world.id(),
+                    outcome,
+                    class,
+                    unresolved.clone(),
+                    None,
+                )
             })
             .collect();
         parts.unresolved_obligations.clone_from(&unresolved);
         if matches!(target.form(), TargetForm::Contrast(_) | TargetForm::DoseTime(_)) {
-            parts.assembled = Some(IdentificationObligation::assembled(
-                outcome,
-                class,
-                unresolved,
-                None,
-            ));
+            parts.assembled =
+                Some(IdentificationObligation::assembled(outcome, class, unresolved, None));
         }
         let identification = CompiledIdentificationProduct::new(
             vec![],

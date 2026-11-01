@@ -46,8 +46,7 @@ fn path_products_match_exact_total_effects() {
             g.insert_directed(DenseNodeId::from_raw(p), DenseNodeId::from_raw(c)).unwrap();
         }
         let compiled = CompiledCausalModel::compile(g).unwrap();
-        let mut slots =
-            vec![MechanismSlot::Constant { value: 0.0 }; case.n as usize];
+        let mut slots = vec![MechanismSlot::Constant { value: 0.0 }; case.n as usize];
         for gather in compiled.parent_gathers.iter() {
             let coeffs: Vec<f64> = gather
                 .parents
@@ -55,7 +54,9 @@ fn path_products_match_exact_total_effects() {
                 .map(|p| {
                     case.edges
                         .iter()
-                        .find(|e| e.0 == p.as_usize() as u32 && e.1 == gather.child.as_usize() as u32)
+                        .find(|e| {
+                            e.0 == p.as_usize() as u32 && e.1 == gather.child.as_usize() as u32
+                        })
                         .map(|e| e.2)
                         .unwrap()
                 })

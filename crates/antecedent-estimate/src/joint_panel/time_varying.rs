@@ -515,8 +515,10 @@ fn fit_candidates(
 // fits does not erase a converged incumbent from the same score comparison.
 fn select_candidates(
     spec: &TemporalPanelSpec,
-    mut try_fit: impl FnMut(TemporalModelChoice, &mut Vec<TemporalPanelAttempt>)
-        -> Result<Option<(f64, Vec<f64>, TemporalModelChoice)>, PanelError>,
+    mut try_fit: impl FnMut(
+        TemporalModelChoice,
+        &mut Vec<TemporalPanelAttempt>,
+    ) -> Result<Option<(f64, Vec<f64>, TemporalModelChoice)>, PanelError>,
 ) -> Result<Selected, PanelError> {
     let choices = std::iter::once(TemporalModelChoice::NoChange)
         .chain(spec.change_points.iter().map(|&at| TemporalModelChoice::Piecewise { at }));
@@ -988,8 +990,10 @@ mod tests {
             let score = scores[slot];
             slot += 1;
             attempts.push(TemporalPanelAttempt {
-                choice: choice.clone(), log_likelihood: score.map(|s| -s / 2.0),
-                criterion: score, converged: score.is_some(),
+                choice: choice.clone(),
+                log_likelihood: score.map(|s| -s / 2.0),
+                criterion: score,
+                converged: score.is_some(),
                 failure: score.is_none().then(|| "local fit failed".to_owned()),
             });
             Ok(score.map(|s| (s, vec![s], choice)))
@@ -1001,30 +1005,40 @@ mod tests {
     #[test]
     fn smooth_attempts_do_not_discard_the_best_no_change_candidate() {
         let spec = specification();
-        let fit = selected_from_scores(&spec, &[Some(1.0), Some(4.0), Some(5.0), Some(6.0), Some(2.0), Some(3.0)]).unwrap();
+        let fit = selected_from_scores(
+            &spec,
+            &[Some(1.0), Some(4.0), Some(5.0), Some(6.0), Some(2.0), Some(3.0)],
+        )
+        .unwrap();
         assert!(fit.smooth);
         assert_eq!(fit.choice, TemporalModelChoice::NoChange);
         assert_eq!(fit.values, vec![1.0]);
         assert_eq!(fit.attempts.len(), 6);
-        assert!(matches!(&fit.attempts[4].choice, TemporalModelChoice::Smooth { penalty } if *penalty == 0.5));
+        assert!(
+            matches!(&fit.attempts[4].choice, TemporalModelChoice::Smooth { penalty } if *penalty == 0.5)
+        );
         assert!(fit.attempts.iter().all(|attempt| attempt.converged && attempt.failure.is_none()));
     }
 
     #[test]
     fn failed_smooth_attempts_keep_the_best_converged_piecewise_incumbent() {
         let spec = specification();
-        let fit = selected_from_scores(&spec, &[Some(5.0), Some(2.0), Some(3.0), None, None, None]).unwrap();
+        let fit = selected_from_scores(&spec, &[Some(5.0), Some(2.0), Some(3.0), None, None, None])
+            .unwrap();
         assert!(fit.smooth);
         assert_eq!(fit.choice, TemporalModelChoice::Piecewise { at: 8 });
         assert_eq!(fit.values, vec![2.0]);
         assert_eq!(fit.attempts.len(), 6);
-        assert!(fit.attempts[4..].iter().all(|attempt| !attempt.converged && attempt.failure.is_some()));
+        assert!(
+            fit.attempts[4..].iter().all(|attempt| !attempt.converged && attempt.failure.is_some())
+        );
     }
 
     #[test]
     fn strongly_localized_piecewise_fit_does_not_run_smooth_attempts() {
         let spec = specification();
-        let fit = selected_from_scores(&spec, &[Some(12.0), Some(1.0), Some(8.0), Some(9.0)]).unwrap();
+        let fit =
+            selected_from_scores(&spec, &[Some(12.0), Some(1.0), Some(8.0), Some(9.0)]).unwrap();
         assert!(!fit.smooth);
         assert_eq!(fit.choice, TemporalModelChoice::Piecewise { at: 8 });
         assert_eq!(fit.attempts.len(), 4);
@@ -1033,7 +1047,11 @@ mod tests {
     #[test]
     fn a_better_smooth_candidate_wins_and_all_failed_attempts_refuse() {
         let spec = specification();
-        let fit = selected_from_scores(&spec, &[Some(5.0), Some(2.0), Some(3.0), None, Some(1.0), Some(4.0)]).unwrap();
+        let fit = selected_from_scores(
+            &spec,
+            &[Some(5.0), Some(2.0), Some(3.0), None, Some(1.0), Some(4.0)],
+        )
+        .unwrap();
         assert_eq!(fit.choice, TemporalModelChoice::Smooth { penalty: 0.5 });
         assert!(fit.smooth);
         let error = match selected_from_scores(&spec, &[None, None, None, None, None, None]) {
@@ -1065,19 +1083,40 @@ mod tests {
         assert_eq!(fit.point.choice, TemporalModelChoice::NoChange);
         assert!(fit.smooth_fallback);
         assert_eq!(fit.attempts.len(), 1 + spec.change_points.len() + spec.smoothing.len());
-        assert_eq!(fit.attempts.iter().filter(|a| matches!(&a.choice, TemporalModelChoice::Smooth { .. })).count(), spec.smoothing.len());
-        let selected_score = fit.attempts.iter()
-            .find(|a| a.choice == TemporalModelChoice::NoChange).unwrap().criterion.unwrap();
+        assert_eq!(
+            fit.attempts
+                .iter()
+                .filter(|a| matches!(&a.choice, TemporalModelChoice::Smooth { .. }))
+                .count(),
+            spec.smoothing.len()
+        );
+        let selected_score = fit
+            .attempts
+            .iter()
+            .find(|a| a.choice == TemporalModelChoice::NoChange)
+            .unwrap()
+            .criterion
+            .unwrap();
         assert!(selected_score.is_finite());
-        assert!(fit.attempts.iter().filter(|a| a.converged)
-            .all(|a| a.criterion.is_some_and(|score| score >= selected_score)));
+        assert!(
+            fit.attempts
+                .iter()
+                .filter(|a| a.converged)
+                .all(|a| a.criterion.is_some_and(|score| score >= selected_score))
+        );
         assert!(fit.point.parameters.windows(2).all(|p| p[0] == p[1]));
         assert_eq!(fit.draws.len(), 1);
         assert!(fit.draws[0].is_some());
         assert!(fit.uncertainty.contains("bootstrap"));
-        let responses = evaluate_temporal_programs(&data, &fit.point, &super::super::tests::programs(&data), &ctx).unwrap();
-        let interaction = responses[3].means[12] - responses[1].means[12]
-            - responses[2].means[12] + responses[0].means[12];
+        let responses = evaluate_temporal_programs(
+            &data,
+            &fit.point,
+            &super::super::tests::programs(&data),
+            &ctx,
+        )
+        .unwrap();
+        let interaction = responses[3].means[12] - responses[1].means[12] - responses[2].means[12]
+            + responses[0].means[12];
         assert!(interaction.is_finite());
         assert!((interaction - 2.0 / 3.0).abs() < 1e-10);
     }

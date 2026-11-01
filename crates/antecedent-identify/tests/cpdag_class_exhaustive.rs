@@ -83,7 +83,12 @@ fn invariant(n: u32, arcs: &[(u32, u32)]) -> Invariant {
     for b in 0..n {
         for a in 0..n {
             for c in (a + 1)..n {
-                if a != b && c != b && arcs.contains(&(a, b)) && arcs.contains(&(c, b)) && !adjacent(a, c) {
+                if a != b
+                    && c != b
+                    && arcs.contains(&(a, b))
+                    && arcs.contains(&(c, b))
+                    && !adjacent(a, c)
+                {
                     colliders.insert((a, b, c));
                 }
             }
@@ -99,7 +104,16 @@ fn essential(members: &[Arcs], skeleton: &BTreeSet<(u32, u32)>) -> BTreeMap<(u32
         .map(|&(a, b)| {
             let forward = members.iter().all(|m| m.contains(&(a, b)));
             let backward = members.iter().all(|m| m.contains(&(b, a)));
-            ((a, b), if forward { 1 } else if backward { 2 } else { 0 })
+            (
+                (a, b),
+                if forward {
+                    1
+                } else if backward {
+                    2
+                } else {
+                    0
+                },
+            )
         })
         .collect()
 }
@@ -159,7 +173,8 @@ fn run(n: u32) -> (usize, usize, usize) {
                     .completions
                     .iter()
                     .map(|c| {
-                        let mut arcs: Arcs = c.edges.iter().map(|(a, b)| (a.raw(), b.raw())).collect();
+                        let mut arcs: Arcs =
+                            c.edges.iter().map(|(a, b)| (a.raw(), b.raw())).collect();
                         arcs.sort_unstable();
                         arcs
                     })

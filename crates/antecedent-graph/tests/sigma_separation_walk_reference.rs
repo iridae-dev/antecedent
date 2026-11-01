@@ -63,9 +63,8 @@ impl Reference {
                 }
             }
         }
-        let same_component = (0..n)
-            .map(|i| (0..n).map(|j| reach[i][j] && reach[j][i]).collect())
-            .collect();
+        let same_component =
+            (0..n).map(|i| (0..n).map(|j| reach[i][j] && reach[j][i]).collect()).collect();
         Self { n, steps, directed: reach, same_component }
     }
 
@@ -76,11 +75,8 @@ impl Reference {
     /// The edge `step` leaves its source along `source -> other` with `other` outside
     /// the source's component.
     fn leaves_component(&self, step: &Step, at: usize) -> bool {
-        let (tail_here, other) = if step.from == at {
-            (!step.head_from, step.to)
-        } else {
-            (!step.head_to, step.from)
-        };
+        let (tail_here, other) =
+            if step.from == at { (!step.head_from, step.to) } else { (!step.head_to, step.from) };
         tail_here && !self.same_component[at][other]
     }
 

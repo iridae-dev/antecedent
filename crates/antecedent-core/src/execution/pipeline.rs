@@ -20,7 +20,7 @@ thread_local! { pub(super) static FAIL_NEXT_WORKER_SPAWN: std::cell::Cell<bool> 
 fn inject_spawn_failure() -> bool {
     #[cfg(test)]
     {
-        return FAIL_NEXT_WORKER_SPAWN.with(|flag| flag.replace(false));
+        FAIL_NEXT_WORKER_SPAWN.with(|flag| flag.replace(false))
     }
     #[cfg(not(test))]
     {
@@ -171,6 +171,10 @@ impl ExecutionContext {
         self.map_indexed_with_scratch_waiting(n, make_scratch, f, MapWait::IfFree)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "The pipeline coordinates worker lifecycle, bounded ordering, and failure cleanup in one operation."
+    )]
     pub(super) fn map_indexed_with_scratch_waiting<T, S, E, F>(
         &self,
         n: usize,

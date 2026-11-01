@@ -839,11 +839,13 @@ impl super::Study {
             return Ok(None);
         };
         if policy != MissingPolicy::CompleteCase {
-            return Err(CausalError::Estimate(antecedent_estimate::missing_policy::policy_required(
-                &cell,
-                MissingRoute::Attribution.label(),
-                &MissingRoute::Attribution.supported()[1..],
-            )));
+            return Err(CausalError::Estimate(
+                antecedent_estimate::missing_policy::policy_required(
+                    &cell,
+                    MissingRoute::Attribution.label(),
+                    &MissingRoute::Attribution.supported()[1..],
+                ),
+            ));
         }
         let accounting = RowAccounting::from_selection(data, mask, policy, &variables, &keep)?;
         let kept: Vec<usize> = (0..data.row_count()).filter(|&row| keep.is_valid(row)).collect();

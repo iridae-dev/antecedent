@@ -17,8 +17,8 @@ use std::sync::Arc;
 use antecedent::{CausalError, RefuteSuite, Study, StudyResult};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ContinuousDomain, CounterfactualQuery, DerivativeWeighting,
-    ExecutionContext, GridSpec, Intervention, MediationContrast, MediationQuery, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
+    ExecutionContext, GridSpec, Intervention, MediationContrast, MediationQuery,
+    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId};
@@ -42,9 +42,8 @@ fn design(constant: bool, collinear: bool) -> (TabularData, Dag) {
     if collinear {
         columns.push(("z2", z.iter().map(|value| 2.0 * value + 1.0).collect()));
     }
-    let data =
-        TabularData::from_f64_columns(columns.iter().map(|(name, c)| (*name, c.as_slice())))
-            .unwrap();
+    let data = TabularData::from_f64_columns(columns.iter().map(|(name, c)| (*name, c.as_slice())))
+        .unwrap();
     let mut dag = Dag::with_variables(u32::try_from(columns.len()).unwrap());
     let mut edges = vec![(3, 0), (3, 2), (0, 1), (1, 2), (0, 2)];
     if collinear {
@@ -65,11 +64,8 @@ fn curve(grid: &[f64]) -> CausalQuery {
 
 fn counterfactual(level: f64) -> CausalQuery {
     CausalQuery::Counterfactual(
-        CounterfactualQuery::new(
-            v(2),
-            Arc::from([Intervention::set(v(0), Value::f64(level))]),
-        )
-        .with_control_level(0.0),
+        CounterfactualQuery::new(v(2), Arc::from([Intervention::set(v(0), Value::f64(level))]))
+            .with_control_level(0.0),
     )
 }
 
@@ -227,12 +223,15 @@ fn run_class(class: &str, constant: bool, collinear: bool) -> Result<StudyResult
 }
 
 #[test]
-fn the_equivalence_class_and_latent_variable_average_effect_routes_share_the_degeneracy_boundaries() {
+fn the_equivalence_class_and_latent_variable_average_effect_routes_share_the_degeneracy_boundaries()
+{
     for class in ["cpdag", "admg"] {
         let effect = run_class(class, false, false).unwrap();
         let ate = effect.estimate().as_effect().unwrap().ate;
         assert!((ate - 11.0).abs() < 0.06, "{class}: baseline effect {ate}");
-        for (constant, collinear, what) in [(true, false, "constant treatment"), (false, true, "duplicated confounder")] {
+        for (constant, collinear, what) in
+            [(true, false, "constant treatment"), (false, true, "duplicated confounder")]
+        {
             let error = run_class(class, constant, collinear)
                 .err()
                 .unwrap_or_else(|| panic!("{class} published an effect for a {what}"));

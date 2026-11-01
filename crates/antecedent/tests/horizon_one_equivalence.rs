@@ -403,10 +403,7 @@ fn bayesian_linear_pulse_is_a_tempered_generalized_posterior_not_the_ordinary_on
 
     // Same point functional: the posterior mean is the least-squares contrast.
     assert!((ordinary_mean - contrast).abs() < 0.08 * se, "{ordinary_mean} vs {contrast}");
-    assert!(
-        (temporal_mean - contrast).abs() < 0.1 * se,
-        "{temporal_mean} vs {contrast}"
-    );
+    assert!((temporal_mean - contrast).abs() < 0.1 * se, "{temporal_mean} vs {contrast}");
     // Not the same posterior: the temporal one carries the tempering.
     // The power posterior's spread is the ordinary spread times sqrt(kappa) (observed ratio
     // 1.0045), up to Monte Carlo error in the two draw sets.
@@ -1875,12 +1872,7 @@ const ESTABLISHED: &[(&str, &[&str])] = &[
         "P05",
         &["horizon_one_discovery_finds_the_static_adjacency_and_adds_only_the_time_orientation"],
     ),
-    (
-        "P06",
-        &[
-            "horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_licence",
-        ],
-    ),
+    ("P06", &["horizon_one_cpdag_average_effect_has_the_static_estimate_envelope_and_licence"]),
     (
         "P07.continuous_dose",
         &[

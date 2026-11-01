@@ -96,10 +96,7 @@ fn prior_set_residual_and_contrast_rules_match_frozen_contract() {
         format!("{:?}", duplicate.validate().unwrap_err()),
         format!("{:?}", GaussianVarianceModel::from_prior_set(&duplicate).unwrap_err()),
     ] {
-        assert!(
-            refused.contains("at most one residual variance specification"),
-            "{refused}"
-        );
+        assert!(refused.contains("at most one residual variance specification"), "{refused}");
     }
 
     let mut duplicate_coef = PriorSet::new();
@@ -119,7 +116,10 @@ fn prior_set_residual_and_contrast_rules_match_frozen_contract() {
     let mut categorical = PriorSet::weakly_informative(2);
     categorical.categorical.push(VariableId::from_raw(0));
     let refused = format!("{:?}", categorical.validate().unwrap_err());
-    assert!(refused.contains("categorical predictors require explicit contrast coding"), "{refused}");
+    assert!(
+        refused.contains("categorical predictors require explicit contrast coding"),
+        "{refused}"
+    );
     categorical.contrast = Some(ContrastCoding::Treatment);
     assert!(categorical.validate().is_ok());
     categorical.contrast = Some(ContrastCoding::Sum);
@@ -137,10 +137,12 @@ fn prior_fixture_records_retained_scipy_harness_and_historical_metadata() {
     );
     assert_eq!(fixture["oracle"]["generator_retained"], true);
     for path in ["reference.py", "reference.py.lock"] {
-        assert!(PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../conformance/bayesian/prior_support")
-            .join(path)
-            .is_file());
+        assert!(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../conformance/bayesian/prior_support")
+                .join(path)
+                .is_file()
+        );
     }
     for package in ["scipy", "numpy"] {
         assert_eq!(

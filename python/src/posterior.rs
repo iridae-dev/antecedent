@@ -95,20 +95,43 @@ impl PosteriorArtifact {
         // supplied to the direct constructor.
         let draws_encoding = if draws.is_empty() { "none" } else { "f64_le_colmajor" };
         let meta = CausalPosteriorWire {
-            quantities: quantity_names.iter().map(|name| PosteriorQuantityWire::Effect { name: name.clone() }).collect(),
+            quantities: quantity_names
+                .iter()
+                .map(|name| PosteriorQuantityWire::Effect { name: name.clone() })
+                .collect(),
             n_draws: count,
-            mean, sd, q025, q975, identification, unidentified_mass, subsampled_out_mass,
-            backend_id, converged, hessian_condition, draws_encoding: draws_encoding.into(),
-            treatment_contrast, preparation: None,
+            mean,
+            sd,
+            q025,
+            q975,
+            identification,
+            unidentified_mass,
+            subsampled_out_mass,
+            backend_id,
+            converged,
+            hessian_condition,
+            draws_encoding: draws_encoding.into(),
+            treatment_contrast,
+            preparation: None,
         };
         antecedent_io_core::posterior::validate_posterior_meta(&meta, Some(&draws))
             .map_err(|error| crate::value_err(error.to_string()))?;
         Ok(Self {
-            n_draws, mean: meta.mean, sd: meta.sd, q025: meta.q025, q975: meta.q975,
-            draws, backend_id: meta.backend_id, identification: meta.identification,
-            unidentified_mass: meta.unidentified_mass, subsampled_out_mass: meta.subsampled_out_mass,
-            converged: meta.converged, hessian_condition: meta.hessian_condition,
-            quantity_names, treatment_contrast: meta.treatment_contrast, quantity_schema: None,
+            n_draws,
+            mean: meta.mean,
+            sd: meta.sd,
+            q025: meta.q025,
+            q975: meta.q975,
+            draws,
+            backend_id: meta.backend_id,
+            identification: meta.identification,
+            unidentified_mass: meta.unidentified_mass,
+            subsampled_out_mass: meta.subsampled_out_mass,
+            converged: meta.converged,
+            hessian_condition: meta.hessian_condition,
+            quantity_names,
+            treatment_contrast: meta.treatment_contrast,
+            quantity_schema: None,
         })
     }
 
@@ -159,20 +182,43 @@ impl PosteriorArtifact {
     ) -> PyResult<Self> {
         let count = u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
         let meta = CausalPosteriorWire {
-            quantities: quantity_names.iter().map(|name| PosteriorQuantityWire::Effect { name: name.clone() }).collect(),
+            quantities: quantity_names
+                .iter()
+                .map(|name| PosteriorQuantityWire::Effect { name: name.clone() })
+                .collect(),
             n_draws: count,
-            mean, sd, q025, q975, identification, unidentified_mass, subsampled_out_mass,
-            backend_id, converged, hessian_condition, draws_encoding: "none".into(),
-            treatment_contrast, preparation: None,
+            mean,
+            sd,
+            q025,
+            q975,
+            identification,
+            unidentified_mass,
+            subsampled_out_mass,
+            backend_id,
+            converged,
+            hessian_condition,
+            draws_encoding: "none".into(),
+            treatment_contrast,
+            preparation: None,
         };
         antecedent_io_core::posterior::validate_posterior_meta(&meta, None)
             .map_err(|error| crate::value_err(error.to_string()))?;
         Ok(Self {
-            n_draws, mean: meta.mean, sd: meta.sd, q025: meta.q025, q975: meta.q975,
-            draws: Vec::new(), backend_id: meta.backend_id, identification: meta.identification,
-            unidentified_mass: meta.unidentified_mass, subsampled_out_mass: meta.subsampled_out_mass,
-            converged: meta.converged, hessian_condition: meta.hessian_condition,
-            quantity_names, treatment_contrast: meta.treatment_contrast, quantity_schema: None,
+            n_draws,
+            mean: meta.mean,
+            sd: meta.sd,
+            q025: meta.q025,
+            q975: meta.q975,
+            draws: Vec::new(),
+            backend_id: meta.backend_id,
+            identification: meta.identification,
+            unidentified_mass: meta.unidentified_mass,
+            subsampled_out_mass: meta.subsampled_out_mass,
+            converged: meta.converged,
+            hessian_condition: meta.hessian_condition,
+            quantity_names,
+            treatment_contrast: meta.treatment_contrast,
+            quantity_schema: None,
         })
     }
 

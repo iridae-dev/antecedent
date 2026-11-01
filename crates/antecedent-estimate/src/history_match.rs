@@ -34,9 +34,9 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use crate::EstimationError;
+use crate::matching_posterior_boundary::{MatchingPosteriorRequest, refuse_matching_posterior};
 use crate::temporal_design::ClusterScores;
 use crate::temporal_design::serial::{newey_west_bandwidth, serial_sampling_summary};
-use crate::matching_posterior_boundary::{MatchingPosteriorRequest, refuse_matching_posterior};
 
 /// One unit: a history, the outcome contrasted after it, and a sampling weight.
 #[derive(Clone, Debug)]
@@ -498,7 +498,9 @@ pub fn serial_history_interval(
     weights: &[f64],
 ) -> Result<SerialHistoryInterval, EstimationError> {
     if periods.len() != differences.len() || periods.len() != weights.len() {
-        return Err(EstimationError::data_msg("matched periods, differences and weights differ in length"));
+        return Err(EstimationError::data_msg(
+            "matched periods, differences and weights differ in length",
+        ));
     }
     let mut labels: Vec<i64> = periods.to_vec();
     labels.sort_unstable();
@@ -509,10 +511,8 @@ pub fn serial_history_interval(
             "a serial-dependence-aware interval needs matches in at least two calendar periods",
         ));
     }
-    let cluster: Vec<usize> = periods
-        .iter()
-        .map(|period| labels.binary_search(period).unwrap_or_default())
-        .collect();
+    let cluster: Vec<usize> =
+        periods.iter().map(|period| labels.binary_search(period).unwrap_or_default()).collect();
     let scores = ClusterScores::accumulate_weighted(differences, 1, &cluster, Some(weights))?;
     let summary = serial_sampling_summary(&scores, &labels)?;
     Ok(SerialHistoryInterval {

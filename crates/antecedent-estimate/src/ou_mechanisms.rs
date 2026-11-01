@@ -648,8 +648,9 @@ pub fn fit_ou_mechanisms(
         evaluations,
         converged: score_norm <= policy.score_tolerance,
         line_search_exhausted: exhausted,
-        optimizer: "limited_memory_bfgs_armijo_with_damped_newton_polish_and_symmetric_lyapunov_adjoint"
-            .into(),
+        optimizer:
+            "limited_memory_bfgs_armijo_with_damped_newton_polish_and_symmetric_lyapunov_adjoint"
+                .into(),
     })
 }
 #[cfg(test)]
@@ -770,9 +771,17 @@ mod tests {
         let (likelihood, score) = scores(&start, &data, &coordinates, &ctx).unwrap();
         let mut state = (values, start.clone(), likelihood, score);
         let mut evaluations = 0;
-        let steps =
-            newton_polish(&start, &coordinates, &data, &mut state, 1e-9, 50, &mut evaluations, &ctx)
-                .unwrap();
+        let steps = newton_polish(
+            &start,
+            &coordinates,
+            &data,
+            &mut state,
+            1e-9,
+            50,
+            &mut evaluations,
+            &ctx,
+        )
+        .unwrap();
         let norm = state.3.iter().map(|v| v.abs()).fold(0.0, f64::max);
         assert!(steps > 0 && steps < 50, "{steps} steps");
         assert!(norm <= 1e-9, "score norm {norm}");

@@ -1133,7 +1133,10 @@ fn operational_failure(error: &ValidationError) -> bool {
     use antecedent_prob::ProbError as P;
     use antecedent_stats::StatsError as S;
     fn stats(error: &S) -> bool {
-        matches!(error, S::Cancelled | S::Admission(_) | S::ResourceLimit { .. } | S::WorkLimit { .. })
+        matches!(
+            error,
+            S::Cancelled | S::Admission(_) | S::ResourceLimit { .. } | S::WorkLimit { .. }
+        )
     }
     fn probability(error: &P) -> bool {
         matches!(error, P::Cancelled { .. } | P::Admission(_))
@@ -1142,24 +1145,37 @@ fn operational_failure(error: &ValidationError) -> bool {
         matches!(error, T::Cancelled | T::Admission(_) | T::Allocation | T::Limit { .. })
     }
     match error {
-        ValidationError::Cancelled | ValidationError::Resource { .. } | ValidationError::Data(antecedent_data::DataError::Cancelled) => true,
+        ValidationError::Cancelled
+        | ValidationError::Resource { .. }
+        | ValidationError::Data(antecedent_data::DataError::Cancelled) => true,
         ValidationError::Stats(error) => stats(error),
         ValidationError::Prob(error) => probability(error),
-        ValidationError::Discovery(antecedent_discovery::DiscoveryError::Cancelled | antecedent_discovery::DiscoveryError::Resource(_)) => true,
+        ValidationError::Discovery(
+            antecedent_discovery::DiscoveryError::Cancelled
+            | antecedent_discovery::DiscoveryError::Resource(_),
+        ) => true,
         ValidationError::Estimation(error) => match error {
             E::Admission(_) | E::Data(antecedent_data::DataError::Cancelled) => true,
-            E::ResampleBuffer(error) => !matches!(error, antecedent_estimate::ResampleBufferFault::RowIdentity),
+            E::ResampleBuffer(error) => {
+                !matches!(error, antecedent_estimate::ResampleBufferFault::RowIdentity)
+            }
             E::Stats(error) => stats(error),
             E::Prob(error) => probability(error),
             E::Learner(error) => match error {
-                antecedent_learn::LearnError::Cancelled | antecedent_learn::LearnError::Admission(_) => true,
+                antecedent_learn::LearnError::Cancelled
+                | antecedent_learn::LearnError::Admission(_) => true,
                 antecedent_learn::LearnError::Stats(error) => stats(error),
                 antecedent_learn::LearnError::Probability(error) => probability(error),
                 _ => false,
             },
-            E::Identification(antecedent_identify::IdentificationError::Cancelled | antecedent_identify::IdentificationError::Budget { .. }) => true,
+            E::Identification(
+                antecedent_identify::IdentificationError::Cancelled
+                | antecedent_identify::IdentificationError::Budget { .. },
+            ) => true,
             E::TemporalMaterialization(error) => temporal(error),
-            E::Graph(antecedent_graph::GraphError::TemporalMaterialization(error)) => temporal(error),
+            E::Graph(antecedent_graph::GraphError::TemporalMaterialization(error)) => {
+                temporal(error)
+            }
             _ => false,
         },
         _ => false,
@@ -1167,29 +1183,50 @@ fn operational_failure(error: &ValidationError) -> bool {
 }
 
 fn propagate_operational(error: ValidationError) -> ValidationError {
-    use antecedent_core::execution::AdmissionError;
     use antecedent_core::TemporalMaterializationError as T;
+    use antecedent_core::execution::AdmissionError;
     use antecedent_estimate::{EstimationError as E, ResampleBufferFault as R};
     use antecedent_prob::ProbError as P;
     use antecedent_stats::StatsError as S;
     let cancelled = match &error {
-        ValidationError::Cancelled | ValidationError::Data(antecedent_data::DataError::Cancelled) | ValidationError::Discovery(antecedent_discovery::DiscoveryError::Cancelled)
+        ValidationError::Cancelled
+        | ValidationError::Data(antecedent_data::DataError::Cancelled)
+        | ValidationError::Discovery(antecedent_discovery::DiscoveryError::Cancelled)
         | ValidationError::Stats(S::Cancelled | S::Admission(AdmissionError::Cancelled))
-        | ValidationError::Prob(P::Cancelled { .. } | P::Admission(AdmissionError::Cancelled)) => true,
+        | ValidationError::Prob(P::Cancelled { .. } | P::Admission(AdmissionError::Cancelled)) => {
+            true
+        }
         ValidationError::Estimation(error) => match error {
-            E::Data(antecedent_data::DataError::Cancelled) | E::Admission(AdmissionError::Cancelled)
+            E::Data(antecedent_data::DataError::Cancelled)
+            | E::Admission(AdmissionError::Cancelled)
             | E::Stats(S::Cancelled | S::Admission(AdmissionError::Cancelled))
             | E::Prob(P::Cancelled { .. } | P::Admission(AdmissionError::Cancelled))
-            | E::ResampleBuffer(R::WindowAdmission { source: AdmissionError::Cancelled, .. } | R::DrawBufferAdmission(AdmissionError::Cancelled)) => true,
-            E::Learner(antecedent_learn::LearnError::Cancelled | antecedent_learn::LearnError::Admission(AdmissionError::Cancelled) | antecedent_learn::LearnError::Stats(S::Cancelled | S::Admission(AdmissionError::Cancelled)) | antecedent_learn::LearnError::Probability(P::Cancelled { .. } | P::Admission(AdmissionError::Cancelled)))
+            | E::ResampleBuffer(
+                R::WindowAdmission { source: AdmissionError::Cancelled, .. }
+                | R::DrawBufferAdmission(AdmissionError::Cancelled),
+            ) => true,
+            E::Learner(
+                antecedent_learn::LearnError::Cancelled
+                | antecedent_learn::LearnError::Admission(AdmissionError::Cancelled)
+                | antecedent_learn::LearnError::Stats(
+                    S::Cancelled | S::Admission(AdmissionError::Cancelled),
+                )
+                | antecedent_learn::LearnError::Probability(
+                    P::Cancelled { .. } | P::Admission(AdmissionError::Cancelled),
+                ),
+            )
             | E::Identification(antecedent_identify::IdentificationError::Cancelled)
             | E::TemporalMaterialization(T::Cancelled | T::Admission(AdmissionError::Cancelled))
-            | E::Graph(antecedent_graph::GraphError::TemporalMaterialization(T::Cancelled | T::Admission(AdmissionError::Cancelled))) => true,
+            | E::Graph(antecedent_graph::GraphError::TemporalMaterialization(
+                T::Cancelled | T::Admission(AdmissionError::Cancelled),
+            )) => true,
             _ => false,
         },
         _ => false,
     };
-    if cancelled { ValidationError::Cancelled } else {
+    if cancelled {
+        ValidationError::Cancelled
+    } else {
         match error {
             ValidationError::Resource { .. } => error,
             other => ValidationError::Resource { message: other.to_string() },
@@ -1270,12 +1307,22 @@ mod failure_tests {
     #[test]
     fn resource_and_nested_operational_errors_abort_suite_outcomes() {
         let resource = ValidationError::Resource { message: "pool exhausted".into() };
-        assert!(matches!(computation_outcome(ValidatorId::Bootstrap, Err(resource.clone())), Err(ValidationError::Resource { .. })));
+        assert!(matches!(
+            computation_outcome(ValidatorId::Bootstrap, Err(resource.clone())),
+            Err(ValidationError::Resource { .. })
+        ));
         assert!(matches!(overlap_as_outcome(Err(resource)), Err(ValidationError::Resource { .. })));
         let nested = ValidationError::Estimation(antecedent_estimate::EstimationError::Stats(
-            antecedent_stats::StatsError::ResourceLimit { message: "scratch", required_bytes: 2, limit_bytes: 1 },
+            antecedent_stats::StatsError::ResourceLimit {
+                message: "scratch",
+                required_bytes: 2,
+                limit_bytes: 1,
+            },
         ));
-        assert!(matches!(computation_outcome(ValidatorId::Bootstrap, Err(nested)), Err(ValidationError::Resource { .. })));
+        assert!(matches!(
+            computation_outcome(ValidatorId::Bootstrap, Err(nested)),
+            Err(ValidationError::Resource { .. })
+        ));
     }
 
     #[test]
@@ -1395,29 +1442,64 @@ mod tests {
         #[derive(Debug)]
         struct LevelRefit(Cell<usize>);
         impl crate::common::EffectRefit for LevelRefit {
-            fn static_bootstrap_uses_witness_columns(&self) -> bool { true }
-            fn refit(&self, _: &TabularData, _: &[VariableId], _: &ExecutionContext) -> Result<EffectEstimate, ValidationError> {
+            fn static_bootstrap_uses_witness_columns(&self) -> bool {
+                true
+            }
+            fn refit(
+                &self,
+                _: &TabularData,
+                _: &[VariableId],
+                _: &ExecutionContext,
+            ) -> Result<EffectEstimate, ValidationError> {
                 self.0.set(self.0.get() + 1);
-                Ok(EffectEstimate::new(14.0, 1.0, AssumptionSet::new(), OverlapPolicy::ExplicitOverride))
+                Ok(EffectEstimate::new(
+                    14.0,
+                    1.0,
+                    AssumptionSet::new(),
+                    OverlapPolicy::ExplicitOverride,
+                ))
             }
         }
         let (data, estimand) = toy();
-        let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-        let original = EffectEstimate::new(14.0, 1.0, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let original =
+            EffectEstimate::new(14.0, 1.0, AssumptionSet::new(), OverlapPolicy::ExplicitOverride);
         let refitter = LevelRefit(Cell::new(0));
-        let problem = RefutationProblem::new(&data, &estimand, &query, &original, Some("linear.adjustment.ate"), None).with_effect_refit(&refitter);
+        let problem = RefutationProblem::new(
+            &data,
+            &estimand,
+            &query,
+            &original,
+            Some("linear.adjustment.ate"),
+            None,
+        )
+        .with_effect_refit(&refitter);
         let mut workspace = EstimationWorkspace::default();
-        let outcomes = ValidationSuite::plugin_level_full().run(&problem, &mut workspace, &ExecutionContext::for_tests(1)).unwrap();
-        let report = outcomes.iter().find_map(|outcome| match outcome {
-            ValidationOutcome::Report(report) if report.refuter.as_ref() == "bootstrap.ci_coverage" => Some(report),
-            _ => None,
-        }).expect("Full suite must run the static level bootstrap");
+        let outcomes = ValidationSuite::plugin_level_full()
+            .run(&problem, &mut workspace, &ExecutionContext::for_tests(1))
+            .unwrap();
+        let report = outcomes
+            .iter()
+            .find_map(|outcome| match outcome {
+                ValidationOutcome::Report(report)
+                    if report.refuter.as_ref() == "bootstrap.ci_coverage" =>
+                {
+                    Some(report)
+                }
+                _ => None,
+            })
+            .expect("Full suite must run the static level bootstrap");
         assert_eq!(report.refuted_ate, 14.0);
         assert!(refitter.0.get() >= 201, "bootstrap must actually refit all draws");
 
         refitter.0.set(0);
         let limited = ExecutionContext::for_tests(1).with_memory_limit(Some(0));
-        let result = ValidationSuite::new().with(ValidatorId::Bootstrap).run(&problem, &mut workspace, &limited);
+        let result = ValidationSuite::new().with(ValidatorId::Bootstrap).run(
+            &problem,
+            &mut workspace,
+            &limited,
+        );
         assert!(matches!(result, Err(ref error) if operational_failure(error)), "{result:?}");
         assert_eq!(refitter.0.get(), 0, "gather admission must fail before the refitter");
     }

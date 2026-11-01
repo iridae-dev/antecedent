@@ -427,5 +427,3 @@ fn nested_dag_validation_executes_from_the_retained_plan_without_the_builder() {
         }
     }
 }
-
-

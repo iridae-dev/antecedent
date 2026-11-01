@@ -521,19 +521,26 @@ fn malformed_public_derivation_indices_and_cycles_refuse_before_execution() {
     let ctx = ExecutionContext::for_tests(7);
     let limits = SampledTransportLimits::default();
     let mut setup = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
-    let probabilities: Vec<Vec<f64>> = tables.iter().map(|table|
-        table_probabilities(table, UnseenCellRule::Refuse, &limits, &mut setup).unwrap().0
-    ).collect();
+    let probabilities: Vec<Vec<f64>> = tables
+        .iter()
+        .map(|table| {
+            table_probabilities(table, UnseenCellRule::Refuse, &limits, &mut setup).unwrap().0
+        })
+        .collect();
     let flavors = vec![LawFlavor::Empirical; tables.len()];
     let mut malformed = derivation.clone();
     malformed.items[0].population = usize::MAX;
     let mut work = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
-    let error = evaluate_detailed(&malformed, &tables, &probabilities, &flavors, &limits, &ctx, &mut work).unwrap_err();
+    let error =
+        evaluate_detailed(&malformed, &tables, &probabilities, &flavors, &limits, &ctx, &mut work)
+            .unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
     let mut cyclic = derivation.clone();
     cyclic.items[0].source = CounterfactualItemSource::Transfer { from: 0 };
     let mut work = SampledWork { remaining: limits.evaluation.operations, ctx: &ctx };
-    let error = evaluate_detailed(&cyclic, &tables, &probabilities, &flavors, &limits, &ctx, &mut work).unwrap_err();
+    let error =
+        evaluate_detailed(&cyclic, &tables, &probabilities, &flavors, &limits, &ctx, &mut work)
+            .unwrap_err();
     assert_eq!(error.reason_code(), Some("invalid_argument"));
 }
 
@@ -548,7 +555,9 @@ fn sampled_result_clones_and_escaped_collections_retain_admission() {
     let pool = ctx.admission();
     let before = pool.available().bytes();
     let request = SampledTransportRequest {
-        tables, overlap: OverlapDeclaration::all_independent(), unseen_rule: UnseenCellRule::Refuse,
+        tables,
+        overlap: OverlapDeclaration::all_independent(),
+        unseen_rule: UnseenCellRule::Refuse,
         limits: SampledTransportLimits::default(),
     };
     let result = estimate_sampled_counterfactual_transport(&derivation, &request, &ctx).unwrap();
@@ -567,7 +576,8 @@ fn sampled_result_clones_and_escaped_collections_retain_admission() {
     drop(escaped_datasets);
     assert_eq!(pool.available().bytes(), before);
     let tiny = ExecutionContext::for_tests(7).with_memory_limit(Some(64));
-    let error = estimate_sampled_counterfactual_transport(&derivation, &request, &tiny).unwrap_err();
+    let error =
+        estimate_sampled_counterfactual_transport(&derivation, &request, &tiny).unwrap_err();
     assert_eq!(error.reason_code(), Some("transport_budget_cancel"));
 }
 

@@ -73,38 +73,50 @@ fn licensed_complier_and_tot_intervals_round_trip_and_refuse_forgery() {
         let mut forged_license = artifact.clone();
         forged_license.randomized_effect.as_mut().unwrap().graphless_support_status =
             Some("refused".into());
-        assert_refused(antecedent_io::encode_analysis_result_artifact(
+        assert_refused(
+            antecedent_io::encode_analysis_result_artifact(
                 &forged_license,
                 header.variable_names.clone(),
-                "forged-license"
-            ), "invalid randomized payload or fabricated interval");
+                "forged-license",
+            ),
+            "invalid randomized payload or fabricated interval",
+        );
 
         // A dropped status must be restamped by a new encoder.
         let mut legacy_body = artifact.clone();
         legacy_body.randomized_effect.as_mut().unwrap().graphless_support_status = None;
-        assert_refused(antecedent_io::encode_analysis_result_artifact(
+        assert_refused(
+            antecedent_io::encode_analysis_result_artifact(
                 &legacy_body,
                 header.variable_names.clone(),
-                "legacy-new-encode"
-            ), "invalid randomized payload or fabricated interval");
+                "legacy-new-encode",
+            ),
+            "invalid randomized payload or fabricated interval",
+        );
 
         // A widened interval no longer matches point +/- z * SE.
         let mut tampered = artifact.clone();
         tampered.randomized_effect.as_mut().unwrap().interval_95.as_mut().unwrap()[1] += 0.5;
-        assert_refused(antecedent_io::encode_analysis_result_artifact(
+        assert_refused(
+            antecedent_io::encode_analysis_result_artifact(
                 &tampered,
                 header.variable_names.clone(),
-                "forged-interval"
-            ), "invalid randomized payload or fabricated interval");
+                "forged-interval",
+            ),
+            "invalid randomized payload or fabricated interval",
+        );
 
         // A fabricated top-level standard error is rejected.
         let mut tampered = artifact;
         tampered.standard_error = Some(0.1);
-        assert_refused(antecedent_io::encode_analysis_result_artifact(
+        assert_refused(
+            antecedent_io::encode_analysis_result_artifact(
                 &tampered,
                 header.variable_names,
-                "forged-se"
-            ), "invalid randomized payload or fabricated interval");
+                "forged-se",
+            ),
+            "invalid randomized payload or fabricated interval",
+        );
     }
 
     let units =

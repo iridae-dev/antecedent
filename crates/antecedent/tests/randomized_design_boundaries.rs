@@ -93,9 +93,8 @@ fn cases() -> Vec<Case> {
     let sequences: Vec<Arc<str>> = (0..4)
         .flat_map(|sequence| (0..4).map(move |_| Arc::<str>::from(format!("s{sequence}"))))
         .collect();
-    let periods: Vec<Arc<str>> = (0..4)
-        .flat_map(|_| (0..4).map(|period| Arc::<str>::from(format!("p{period}"))))
-        .collect();
+    let periods: Vec<Arc<str>> =
+        (0..4).flat_map(|_| (0..4).map(|period| Arc::<str>::from(format!("p{period}")))).collect();
     cases.push(Case {
         name: "switchback",
         data: TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap(),
@@ -140,7 +139,6 @@ fn cases() -> Vec<Case> {
     cases
 }
 
-
 /// The query with every row-aligned declaration reordered by `order` (new row `k` is old row
 /// `order[k]`).
 fn reordered(query: &RandomizedEffectQuery, order: &[usize]) -> RandomizedEffectQuery {
@@ -153,24 +151,34 @@ fn reordered(query: &RandomizedEffectQuery, order: &[usize]) -> RandomizedEffect
         RandomizationDesign::MultiArm { assignment, probabilities, arms } => {
             RandomizationDesign::MultiArm {
                 assignment: rows.iter().map(|&i| assignment[i]).collect::<Vec<_>>().into(),
-                probabilities: rows.iter().map(|&i| probabilities[i].to_vec()).collect::<Vec<_>>().into(),
+                probabilities: rows
+                    .iter()
+                    .map(|&i| probabilities[i].to_vec())
+                    .collect::<Vec<_>>()
+                    .into(),
                 arms: arms.clone(),
             }
         }
-        RandomizationDesign::Factorial2x2 { second_factor_assignment, cell_counts, second_factor_arms } => {
-            RandomizationDesign::Factorial2x2 {
-                second_factor_assignment: take(second_factor_assignment).into(),
-                cell_counts: *cell_counts,
-                second_factor_arms: second_factor_arms.clone(),
-            }
-        }
+        RandomizationDesign::Factorial2x2 {
+            second_factor_assignment,
+            cell_counts,
+            second_factor_arms,
+        } => RandomizationDesign::Factorial2x2 {
+            second_factor_assignment: take(second_factor_assignment).into(),
+            cell_counts: *cell_counts,
+            second_factor_arms: second_factor_arms.clone(),
+        },
         RandomizationDesign::Switchback { periods } => {
             RandomizationDesign::Switchback { periods: take_text(periods).into() }
         }
         RandomizationDesign::Stratified { blocks, treated_per_row } => {
             RandomizationDesign::Stratified {
                 blocks: take_text(blocks).into(),
-                treated_per_row: rows.iter().map(|&i| treated_per_row[i]).collect::<Vec<_>>().into(),
+                treated_per_row: rows
+                    .iter()
+                    .map(|&i| treated_per_row[i])
+                    .collect::<Vec<_>>()
+                    .into(),
             }
         }
         other => other.clone(),
@@ -213,10 +221,8 @@ fn every_design_gives_its_closed_form_effect_and_is_invariant_to_the_order_of_ro
         let (effect, variance) = effect_of(&case.query, &outcomes).unwrap();
         assert!((effect - case.effect).abs() < 1e-12, "{}: {effect}", case.name);
         let n = outcomes.len();
-        let orders: [Vec<usize>; 2] = [
-            (0..n).rev().collect(),
-            (0..n).map(|k| (k * 3 + 1) % n).collect::<Vec<_>>(),
-        ];
+        let orders: [Vec<usize>; 2] =
+            [(0..n).rev().collect(), (0..n).map(|k| (k * 3 + 1) % n).collect::<Vec<_>>()];
         for order in orders {
             let mut sorted = order.clone();
             sorted.sort_unstable();

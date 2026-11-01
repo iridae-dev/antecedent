@@ -58,7 +58,10 @@ fn contrast_effect_and_delta_se_match_the_multiprecision_reference() {
         let fit = match case["family"].as_str().unwrap() {
             "gaussian" => AdjustedFit::linear(
                 &data,
-                &VectorTreatmentOptions { covariance: VectorCovariance::ModelBased, contrasts: vec![] },
+                &VectorTreatmentOptions {
+                    covariance: VectorCovariance::ModelBased,
+                    contrasts: vec![],
+                },
             ),
             "logit" => AdjustedFit::glm(&data, GlmFamily::BinomialLogit, &GlmOptions::default()),
             "poisson" => AdjustedFit::glm(&data, GlmFamily::PoissonLog, &GlmOptions::default()),
@@ -81,12 +84,32 @@ fn contrast_refuses_a_mismatched_dimension_and_invalid_target_weights() {
     let case = &cases[2];
     let data = input(case);
     let fit = AdjustedFit::glm(&data, GlmFamily::BinomialLogit, &GlmOptions::default()).unwrap();
-    assert!(format!("{:?}", fit.contrast(&[1.0, 1.0], &[0.0, 0.0], None).err()).contains("adjusted contrast dimension mismatch"), "adjusted contrast dimension mismatch");
+    assert!(
+        format!("{:?}", fit.contrast(&[1.0, 1.0], &[0.0, 0.0], None).err())
+            .contains("adjusted contrast dimension mismatch"),
+        "adjusted contrast dimension mismatch"
+    );
     let n = data.outcome.len();
-    assert!(format!("{:?}", fit.contrast(&[1.0], &[0.0], Some(&vec![1.0; n - 1])).err()).contains("invalid adjusted target weights"), "invalid adjusted target weights");
+    assert!(
+        format!("{:?}", fit.contrast(&[1.0], &[0.0], Some(&vec![1.0; n - 1])).err())
+            .contains("invalid adjusted target weights"),
+        "invalid adjusted target weights"
+    );
     let mut negative = vec![1.0; n];
     negative[0] = -1.0;
-    assert!(format!("{:?}", fit.contrast(&[1.0], &[0.0], Some(&negative)).err()).contains("invalid adjusted target weights"), "invalid adjusted target weights");
-    assert!(format!("{:?}", fit.contrast(&[1.0], &[0.0], Some(&vec![0.0; n])).err()).contains("empty adjusted target law"), "empty adjusted target law");
-    assert!(format!("{:?}", fit.contrast(&[2.0], &[0.0], None).err()).contains("outside observed treatment support"), "outside the observed binary support");
+    assert!(
+        format!("{:?}", fit.contrast(&[1.0], &[0.0], Some(&negative)).err())
+            .contains("invalid adjusted target weights"),
+        "invalid adjusted target weights"
+    );
+    assert!(
+        format!("{:?}", fit.contrast(&[1.0], &[0.0], Some(&vec![0.0; n])).err())
+            .contains("empty adjusted target law"),
+        "empty adjusted target law"
+    );
+    assert!(
+        format!("{:?}", fit.contrast(&[2.0], &[0.0], None).err())
+            .contains("outside observed treatment support"),
+        "outside the observed binary support"
+    );
 }

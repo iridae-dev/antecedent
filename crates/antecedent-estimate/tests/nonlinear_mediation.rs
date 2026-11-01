@@ -394,11 +394,8 @@ fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
         };
         // Replicate refits are not subject to the point-estimate support refusal, so it is
         // lifted here (resamples can leave the cross-world law outside the treated range).
-        let no_bootstrap = NonlinearMediationConfig {
-            bootstrap_replicates: 0,
-            max_support_violation: 1.0,
-            ..cfg
-        };
+        let no_bootstrap =
+            NonlinearMediationConfig { bootstrap_replicates: 0, max_support_violation: 1.0, ..cfg };
         if let Ok(replicate_fit) = run(&resampled, &ignorable, &no_bootstrap) {
             direct.push(replicate_fit.natural_direct);
             indirect.push(replicate_fit.natural_indirect);

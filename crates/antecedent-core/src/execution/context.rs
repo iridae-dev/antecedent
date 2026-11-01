@@ -456,6 +456,10 @@ impl core::fmt::Debug for ExecutionContext {
             .field("lowered_scope", &self.lowered_scope)
             .field("imputation_bootstrap", &self.imputation_bootstrap)
             .field("pulse_extrapolation_ranges", &self.pulse_extrapolation_ranges)
+            .field("exposure_probability_work_limit", &self.exposure_probability_work_limit)
+            .field("hmc_work_limit", &self.hmc_work_limit)
+            .field("temporal_materialization_limits", &self.temporal_materialization_limits)
+            .field("randomization_test_limits", &self.randomization_test_limits)
             .field("admission", &self.admission())
             .finish()
     }

@@ -405,7 +405,10 @@ mod tests {
     use super::{grid_contains_by, validate_ipcw_grid};
 
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "The test checks exact membership against the specified equality semantics."
+    )]
     fn binary_grid_membership_matches_exact_linear_equality() {
         let grid = [-0.0, 0.1, 0.5, 1.0, 3.0];
         for value in [0.0, -0.0, 0.1, 0.2, 0.5, 1.0, 3.0, 3.1] {
@@ -415,7 +418,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
+    #[allow(
+        clippy::float_cmp,
+        reason = "The test checks exact membership against the specified equality semantics."
+    )]
     fn grid_lookup_uses_logarithmic_comparisons() {
         let grid: Vec<f64> = (0..65_536).map(f64::from).collect();
         for value in [0.0, 32768.0, 65535.0, 65536.0, 32768.5] {

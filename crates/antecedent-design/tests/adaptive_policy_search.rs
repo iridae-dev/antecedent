@@ -440,13 +440,15 @@ fn refusals_are_typed_for_unobserved_features_invalid_problems_budget_and_cancel
         .unwrap_err();
     assert!(matches!(err, AdaptivePolicySearchError::UnobservedFeature { variable: 0 }));
     // An open-loop schedule reads nothing, so it needs no observed variable.
-    assert!(run(
-        vec![schedule_family(10, 0.0, 1.0)],
-        PolicyConstraints::default(),
-        &sim,
-        PolicySearchOptions { max_evaluations: 60, ..options(1) }
-    )
-    .is_ok());
+    assert!(
+        run(
+            vec![schedule_family(10, 0.0, 1.0)],
+            PolicyConstraints::default(),
+            &sim,
+            PolicySearchOptions { max_evaluations: 60, ..options(1) }
+        )
+        .is_ok()
+    );
 
     let ok = Sim::treatment();
     let compile = |families: Vec<AdaptivePolicyFamily>, o: PolicySearchOptions| {
@@ -465,10 +467,8 @@ fn refusals_are_typed_for_unobserved_features_invalid_problems_budget_and_cancel
         Ok(_) => panic!("expected Invalid, compiled"),
     };
     assert!(!invalid(compile(vec![], options(1))).is_empty());
-    let duplicate = invalid(compile(
-        vec![threshold_family("a"), threshold_family("a")],
-        options(1),
-    ));
+    let duplicate =
+        invalid(compile(vec![threshold_family("a"), threshold_family("a")], options(1)));
     assert!(!duplicate.is_empty(), "{duplicate}");
     let elite = invalid(compile(
         vec![threshold_family("a")],

@@ -38,7 +38,10 @@ fn schur_lyapunov_solve_matches_the_exact_rational_solution() {
         let solved = process.lyapunov_direction(&direction, &ctx).unwrap();
         let scale = exact.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
         let error = solved.iter().zip(&exact).fold(0.0_f64, |m, (a, b)| m.max((a - b).abs()));
-        eprintln!("{name}: max abs error {error:e} (scale {scale:e}, relative {:e})", error / scale);
+        eprintln!(
+            "{name}: max abs error {error:e} (scale {scale:e}, relative {:e})",
+            error / scale
+        );
         assert!(error <= 1e-12 * scale.max(1.0), "{name}: error {error:e} at scale {scale:e}");
     }
 }

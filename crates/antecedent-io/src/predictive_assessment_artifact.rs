@@ -777,7 +777,9 @@ fn encode_parts(
                         if key.is_caller_minted() {
                             *last = ObservationKey::from_caller_minted_bytes(*key.as_bytes());
                         }
-                    } else { merged.push(key); }
+                    } else {
+                        merged.push(key);
+                    }
                 }
                 for key in &merged {
                     keys.extend_from_slice(key.as_bytes());
@@ -865,10 +867,15 @@ fn encode_container(
 }
 
 fn decode_container(bytes: &[u8]) -> Result<(PredictiveAssessmentMeta, Vec<u8>, Vec<u8>), Error> {
-    let (meta, _, parts) = crate::artifact_codec::decode_sectioned_layouts::<Error, PredictiveAssessmentMeta>(
-        ARTIFACT_KIND, MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES, META_SECTION,
-        &[&[NUMBERS_SECTION, KEYS_SECTION]], |version| version == 1 || version == 2, bytes,
-    )?;
+    let (meta, _, parts) =
+        crate::artifact_codec::decode_sectioned_layouts::<Error, PredictiveAssessmentMeta>(
+            ARTIFACT_KIND,
+            MAX_PREDICTIVE_ASSESSMENT_ARTIFACT_BYTES,
+            META_SECTION,
+            &[&[NUMBERS_SECTION, KEYS_SECTION]],
+            |version| version == 1 || version == 2,
+            bytes,
+        )?;
     let Ok([numbers, keys]) = <[Vec<u8>; 2]>::try_from(parts) else {
         return Err(malformed("unsupported container layout"));
     };
@@ -933,15 +940,30 @@ impl Default for PredictiveAssessmentConsumeLimits {
 // same comparison allowance, before cloning the stored comparison declarations.
 fn check_comparison_work(meta: &PredictiveAssessmentMeta, limit: usize) -> Result<(), Error> {
     let cases = usize::try_from(meta.cases).map_err(|_| Error::LimitsExceeded("cases"))?;
-    if meta.predictors.len() > MAX_PREDICTORS { return Err(Error::LimitsExceeded("comparison work")); }
-    let lag = (meta.dependence.kind == "serial").then_some(meta.dependence.truncation_lag).flatten();
-    admit_comparisons(cases, &meta.predictors.iter().map(|p| (p.name.as_str(), if p.fit.kind == "fitted_on" { p.fit.keys } else { 0 })).collect::<Vec<_>>(), meta.scores.len(), &meta.comparisons,
+    if meta.predictors.len() > MAX_PREDICTORS {
+        return Err(Error::LimitsExceeded("comparison work"));
+    }
+    let lag =
+        (meta.dependence.kind == "serial").then_some(meta.dependence.truncation_lag).flatten();
+    admit_comparisons(
+        cases,
+        &meta
+            .predictors
+            .iter()
+            .map(|p| (p.name.as_str(), if p.fit.kind == "fitted_on" { p.fit.keys } else { 0 }))
+            .collect::<Vec<_>>(),
+        meta.scores.len(),
+        &meta.comparisons,
         lag,
-        u64::try_from(limit).unwrap_or(u64::MAX)).map_err(|error| {
-            if error.detail() == antecedent_validate::predictive_assessment::detail::BOUNDS_EXCEEDED {
-                Error::LimitsExceeded("comparison work")
-            } else { refused(&error) }
-        })?;
+        u64::try_from(limit).unwrap_or(u64::MAX),
+    )
+    .map_err(|error| {
+        if error.detail() == antecedent_validate::predictive_assessment::detail::BOUNDS_EXCEEDED {
+            Error::LimitsExceeded("comparison work")
+        } else {
+            refused(&error)
+        }
+    })?;
     Ok(())
 }
 
@@ -956,7 +978,6 @@ fn key_at(keys: &[u8], index: usize, version: u16) -> Result<ObservationKey, Err
         _ => Err(malformed("invalid observation key provenance flag")),
     }
 }
-
 
 fn check_claims(meta: &PredictiveAssessmentMeta) -> Result<(), Error> {
     crate::artifact_codec::require_semantics::<Error>(
@@ -1006,7 +1027,8 @@ fn spec_of(
         return Err(malformed("numbers section length"));
     }
     let mut reader = Reader::new(&numbers[..numbers.len() - result_count]);
-    let ids: Vec<ObservationKey> = (0..cases).map(|i| key_at(keys, i, meta.version)).collect::<Result<_, _>>()?;
+    let ids: Vec<ObservationKey> =
+        (0..cases).map(|i| key_at(keys, i, meta.version)).collect::<Result<_, _>>()?;
     let outcomes =
         (0..cases).map(|_| reader.outcome(&meta.outcome_family)).collect::<Result<Vec<_>, _>>()?;
     let mut fit_cursor = cases;
@@ -1018,7 +1040,9 @@ fn spec_of(
                 let count = usize::try_from(declared.fit.keys)
                     .map_err(|_| Error::LimitsExceeded("fit keys"))?;
                 let end = fit_cursor.checked_add(count).ok_or(Error::LimitsExceeded("fit keys"))?;
-                let fitted = (fit_cursor..end).map(|i| key_at(keys, i, meta.version)).collect::<Result<_, _>>()?;
+                let fitted = (fit_cursor..end)
+                    .map(|i| key_at(keys, i, meta.version))
+                    .collect::<Result<_, _>>()?;
                 fit_cursor += count;
                 FitDeclaration::FittedOn(fitted)
             }
@@ -1123,7 +1147,10 @@ impl PredictiveAssessmentArtifact {
         let (mut meta, numbers, mut keys) = encode_parts(&self.spec, &self.report)?;
         if self.meta.version == 1 {
             meta.version = 1;
-            keys = keys.chunks_exact(KEY_BYTES).flat_map(|key| key[..LEGACY_KEY_BYTES].iter().copied()).collect();
+            keys = keys
+                .chunks_exact(KEY_BYTES)
+                .flat_map(|key| key[..LEGACY_KEY_BYTES].iter().copied())
+                .collect();
         }
         encode_container(&meta, &numbers, &keys, artifact_id)
     }
@@ -1189,7 +1216,11 @@ impl PredictiveAssessmentArtifact {
     ) -> Result<Self, Error> {
         let (meta, number_bytes, keys) = decode_container(bytes)?;
         check_claims(&meta)?;
-        if meta.version == 1 && meta.result_texts.iter().any(|(key, value)| key.starts_with("overlap.") && value.starts_with("held_out_verified:")) {
+        if meta.version == 1
+            && meta.result_texts.iter().any(|(key, value)| {
+                key.starts_with("overlap.") && value.starts_with("held_out_verified:")
+            })
+        {
             return Err(Error::UnsupportedSemantics("legacy held-out provenance"));
         }
         check_comparison_work(&meta, max_replay_operations)?;
@@ -1203,8 +1234,9 @@ impl PredictiveAssessmentArtifact {
         let spec = spec_of(&meta, &numbers, &keys, &limits)?;
         let mut report = assess_predictive_laws(&spec, ctx).map_err(|error| refused(&error))?;
         if meta.version == 1 {
-            report.identity = antecedent_validate::predictive_assessment::legacy_assessment_identity(&spec)
-                .map_err(|error| refused(&error))?;
+            report.identity =
+                antecedent_validate::predictive_assessment::legacy_assessment_identity(&spec)
+                    .map_err(|error| refused(&error))?;
         }
         if let Some(field) = meta.identity.to_identity().first_difference(&report.identity) {
             return Err(Error::IdentityMismatch { field });

@@ -261,7 +261,8 @@ fn independent_adjusted_effect(data: &antecedent_data::TabularData) -> f64 {
         }
     }
     for pivot in 0..3 {
-        let best = (pivot..3).max_by(|&p, &q| a[p][pivot].abs().total_cmp(&a[q][pivot].abs())).unwrap();
+        let best =
+            (pivot..3).max_by(|&p, &q| a[p][pivot].abs().total_cmp(&a[q][pivot].abs())).unwrap();
         a.swap(pivot, best);
         for r in pivot + 1..3 {
             let factor = a[r][pivot] / a[pivot][pivot];

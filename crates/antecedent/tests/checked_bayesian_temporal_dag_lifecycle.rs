@@ -183,7 +183,8 @@ fn bayesian_temporal_dag_route_retains_proof_refreshes_and_exports_dependency() 
 
                 let refreshed = prepared.refresh_series(updated_data.clone(), &ctx).unwrap();
                 assert!(
-                    (refreshed.estimate().as_effect().unwrap().ate - refreshed_truth).abs() < tolerance,
+                    (refreshed.estimate().as_effect().unwrap().ate - refreshed_truth).abs()
+                        < tolerance,
                     "refresh estimate={}",
                     refreshed.estimate().as_effect().unwrap().ate
                 );

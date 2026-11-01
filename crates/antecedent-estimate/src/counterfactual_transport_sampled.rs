@@ -68,8 +68,8 @@ mod inference;
 mod interval;
 mod overlap;
 
-use std::sync::Arc;
 use crate::counterfactual_transport::RetainedSlice;
+use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, RegimeId};
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
@@ -623,28 +623,46 @@ pub fn estimate_sampled_counterfactual_transport(
     // Precharge each table before cloning or hashing it; cached keys avoid
     // re-hashing all counts during comparison sort.
     let mut scratch_bytes = request.tables.len().saturating_mul(4096).saturating_add(4096);
-    let mut retained_bytes = request.tables.len().saturating_mul(
-        std::mem::size_of::<SampledTableReport>() + std::mem::size_of::<Vec<SampledTableKey>>()
-            + std::mem::size_of::<SampledTableKey>() + 512,
-    ).saturating_add(1024);
+    let mut retained_bytes = request
+        .tables
+        .len()
+        .saturating_mul(
+            std::mem::size_of::<SampledTableReport>()
+                + std::mem::size_of::<Vec<SampledTableKey>>()
+                + std::mem::size_of::<SampledTableKey>()
+                + 512,
+        )
+        .saturating_add(1024);
     for table in &request.tables {
         let per_table = table_work(table, &mut work)?;
         scratch_bytes = scratch_bytes.saturating_add(per_table.saturating_mul(16));
-        retained_bytes = retained_bytes.saturating_add(table.interventions().len()
-            .saturating_mul(std::mem::size_of::<(antecedent_core::VariableId, u64)>())
-            .saturating_mul(2));
+        retained_bytes = retained_bytes.saturating_add(
+            table
+                .interventions()
+                .len()
+                .saturating_mul(std::mem::size_of::<(antecedent_core::VariableId, u64)>())
+                .saturating_mul(2),
+        );
         let units = per_table.saturating_mul(
             request.tables.len().saturating_add(derivation.cited.len()).saturating_add(2),
         );
         work.charge(units)?;
     }
     let admit = |bytes: usize| -> Result<_, EstimationError> {
-        let bytes = u64::try_from(bytes).ok().filter(|n| *n != u64::MAX)
-            .ok_or_else(|| refused(antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget", "the sampled memory quote overflows"))?;
-        ctx.acquire_admission(0, bytes).map_err(|_| refused(
-            antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget",
-            "the sampled evaluation exceeds memory admission",
-        ))
+        let bytes = u64::try_from(bytes).ok().filter(|n| *n != u64::MAX).ok_or_else(|| {
+            refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "counterfactual_transport.budget",
+                "the sampled memory quote overflows",
+            )
+        })?;
+        ctx.acquire_admission(0, bytes).map_err(|_| {
+            refused(
+                antecedent_core::reason_code!("transport_budget_cancel"),
+                "counterfactual_transport.budget",
+                "the sampled evaluation exceeds memory admission",
+            )
+        })
     };
     let _scratch = admit(scratch_bytes)?;
     let retained = Arc::new(admit(retained_bytes)?);
@@ -908,22 +926,33 @@ pub fn estimate_sampled_counterfactual_transport(
     let mut text_leases = Vec::new();
     let mut text_bytes = 0usize;
     let mut text_reserved = 0usize;
-    let derivation_text = derivation.try_canonical_text(|amount| -> Result<(), EstimationError> {
-        work.charge(amount)?;
-        text_bytes = text_bytes.checked_add(amount)
-            .ok_or_else(|| refused(antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget", "the derivation text size overflows"))?;
-        // The callback also charges source-index sorting and deduplication, not
-        // just text bytes. Cover their word-sized buffers and String growth;
-        // aggregate fragments to avoid one lease per formatter write.
-        let needed = text_bytes.checked_mul(32)
-            .ok_or_else(|| refused(antecedent_core::reason_code!("transport_budget_cancel"), "counterfactual_transport.budget", "the derivation text size overflows"))?;
-        if needed > text_reserved {
-            let additional = needed.saturating_sub(text_reserved).max(4096);
-            text_leases.push(admit(additional)?);
-            text_reserved = text_reserved.saturating_add(additional);
-        }
-        Ok(())
-    })?;
+    let derivation_text =
+        derivation.try_canonical_text(|amount| -> Result<(), EstimationError> {
+            work.charge(amount)?;
+            text_bytes = text_bytes.checked_add(amount).ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    "counterfactual_transport.budget",
+                    "the derivation text size overflows",
+                )
+            })?;
+            // The callback also charges source-index sorting and deduplication, not
+            // just text bytes. Cover their word-sized buffers and String growth;
+            // aggregate fragments to avoid one lease per formatter write.
+            let needed = text_bytes.checked_mul(32).ok_or_else(|| {
+                refused(
+                    antecedent_core::reason_code!("transport_budget_cancel"),
+                    "counterfactual_transport.budget",
+                    "the derivation text size overflows",
+                )
+            })?;
+            if needed > text_reserved {
+                let additional = needed.saturating_sub(text_reserved).max(4096);
+                text_leases.push(admit(additional)?);
+                text_reserved = text_reserved.saturating_add(additional);
+            }
+            Ok(())
+        })?;
     let mut derivation_writer = CanonicalWriter::new(SAMPLED_TRANSPORT_DERIVATION_TAG);
     derivation_writer.try_bytes(derivation_text.as_bytes(), || work.charge(0))?;
     let derivation_identity = derivation_writer.finish_hex();

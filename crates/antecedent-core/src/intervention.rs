@@ -68,6 +68,9 @@ impl TemporalBudget {
         self.limits
     }
     /// Charge logical expansion before traversing or allocating it.
+    ///
+    /// # Errors
+    /// Returns a limit error when the remaining offset budget is insufficient.
     pub fn charge_offsets(&mut self, count: u64) -> Result<(), TemporalMaterializationError> {
         self.remaining_offsets
             .fetch_update(
@@ -79,6 +82,9 @@ impl TemporalBudget {
         Ok(())
     }
     /// Charge work before starting the bounded operation.
+    ///
+    /// # Errors
+    /// Returns a limit error when the remaining work budget is insufficient.
     pub fn charge_work(&mut self, count: u64) -> Result<(), TemporalMaterializationError> {
         self.remaining_work
             .fetch_update(
@@ -93,6 +99,13 @@ impl TemporalBudget {
 
 /// Admission retained while generic intervention validation constructs temporary read/target sets.
 /// The visitor is allocation-free and stops before recursive validation at 64 levels.
+///
+/// # Errors
+/// Returns an error when resource admission, cancellation, or a traversal limit refuses the request.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The visitor and its bounded traversal share the operation’s resource accounting."
+)]
 pub fn admit_temporal_intervention_validation<'a>(
     interventions: impl IntoIterator<Item = &'a Intervention>,
     budget: &mut TemporalBudget,
@@ -292,7 +305,7 @@ pub enum TemporalMaterializationError {
 pub enum TemporalOffsetIter<'a> {
     /// One offset.
     Pulse(std::option::IntoIter<i32>),
-    /// Inclusive sustained range, including ranges reaching i32::MAX.
+    /// Inclusive sustained range, including ranges reaching `i32::MAX`.
     Sustained(std::ops::RangeInclusive<i32>),
     /// Borrowed dynamic schedule.
     Dynamic(std::iter::Copied<std::slice::Iter<'a, i32>>),
@@ -446,7 +459,7 @@ impl TemporalPolicy {
         self.validate()?;
         Ok(match self {
             Self::Pulse { .. } => 1,
-            Self::Sustained { from, until } => (i64::from(*until) - i64::from(*from) + 1) as u64,
+            Self::Sustained { from, until } => u64::from(until.abs_diff(*from)) + 1,
             Self::Dynamic { active_at, .. } => active_at.len() as u64,
         })
     }

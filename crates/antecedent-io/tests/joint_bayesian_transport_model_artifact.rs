@@ -430,7 +430,10 @@ fn joint_posterior_artifact_refuses_an_unknown_version_foreign_feature_and_claim
     let message = JointBayesianArtifactWire::decode(&marginals.export().expect("export"))
         .expect_err("marginals artifact is refused")
         .to_string();
-    assert!(message.contains("unsupported semantics: draws must be aligned joint draws"), "{message}");
+    assert!(
+        message.contains("unsupported semantics: draws must be aligned joint draws"),
+        "{message}"
+    );
 }
 
 #[test]

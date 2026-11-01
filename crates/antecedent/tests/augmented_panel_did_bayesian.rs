@@ -101,7 +101,8 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
 
 /// Treated mean change minus the comparison-arm least-squares fit at the treated covariate means.
 fn reference(p: &Panel) -> f64 {
-    let rows = |arm: bool| -> Vec<usize> { (0..p.pre.len()).filter(|&i| p.treated[i] == arm).collect() };
+    let rows =
+        |arm: bool| -> Vec<usize> { (0..p.pre.len()).filter(|&i| p.treated[i] == arm).collect() };
     let design = |i: usize| [1.0, p.propensity[i], p.prediction[i]];
     let comparison = rows(false);
     let mut xtx = vec![vec![0.0; 3]; 3];

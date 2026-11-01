@@ -323,7 +323,8 @@ fn conjugate_posterior_adds_the_counts_to_the_beta_shapes() {
     near(beta, 9.0);
     near(predictive, 0.4);
     // A non-positive shape is not a Beta prior.
-    let bad = conjugate_posterior(0.0, 3.0, 4, 6, InferenceBasis::DeclaredModel, &ctx()).unwrap_err();
+    let bad =
+        conjugate_posterior(0.0, 3.0, 4, 6, InferenceBasis::DeclaredModel, &ctx()).unwrap_err();
     assert_eq!(bad.code(), "invalid_argument");
     assert_eq!(bad.details(), ["observation_query.invalid_declaration"]);
 }
@@ -448,7 +449,8 @@ fn a_fresh_consumer_replays_a_required_evidence_claim_and_refuses_edits() {
     let refusal = consume_observation_query_artifact(&bytes, Some("00"), &ctx()).unwrap_err();
     assert_eq!(refusal.details(), ["observation_query.artifact_refused"]);
     // Truncated bytes are not an artifact.
-    let cut = consume_observation_query_artifact(&bytes[..bytes.len() / 2], None, &ctx()).unwrap_err();
+    let cut =
+        consume_observation_query_artifact(&bytes[..bytes.len() / 2], None, &ctx()).unwrap_err();
     assert_eq!(cut.code(), "invalid_argument");
     assert_eq!(cut.details(), ["observation_query.artifact_invalid"]);
     // A single-byte change either fails to replay or replays to this claim.

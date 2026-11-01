@@ -82,6 +82,10 @@ impl SmoothedDoseTransportQuery {
     /// grid, a non-finite or repeated grid dose, a non-positive or non-finite bandwidth,
     /// an empty or non-finite dose support, blank or equal population keys, or a blank
     /// density provenance.
+    #[allow(
+        clippy::float_cmp,
+        reason = "The grid forbids duplicate dose coordinates by exact numeric equality."
+    )]
     pub fn validate(&self) -> Result<(), QueryError> {
         let (lo, hi) = self.dose_support;
         let mut sorted = self.grid.to_vec();

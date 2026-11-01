@@ -24,8 +24,8 @@ use serde_json::Value;
 use table_support::{id, table};
 
 fn cases() -> Vec<Value> {
-    serde_json::from_str::<Value>(include_str!("oracle_data/ipw_weighting_reference.json"))
-        .unwrap()["cases"]
+    serde_json::from_str::<Value>(include_str!("oracle_data/ipw_weighting_reference.json")).unwrap()
+        ["cases"]
         .as_array()
         .unwrap()
         .clone()
@@ -46,17 +46,18 @@ fn weighted_effect_and_standard_error_match_the_multiprecision_refit() {
         let (t, y) = (floats(&case["t"]), floats(&case["y"]));
         let x: Vec<Vec<f64>> = case["x"].as_array().unwrap().iter().map(floats).collect();
         let p = x[0].len();
-        let mut columns = vec![
-            ("t", RoleHint::TreatmentCandidate, t),
-            ("y", RoleHint::OutcomeCandidate, y),
-        ];
+        let mut columns =
+            vec![("t", RoleHint::TreatmentCandidate, t), ("y", RoleHint::OutcomeCandidate, y)];
         for k in 0..p {
             columns.push(("x", RoleHint::Context, x.iter().map(|row| row[k]).collect()));
         }
         let data = table(&columns);
         let adjustment: Vec<_> = (0..p).map(|k| id(2 + u32::try_from(k).unwrap())).collect();
-        let estimand =
-            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from(adjustment), ExprId::from_raw(0));
+        let estimand = IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(adjustment),
+            ExprId::from_raw(0),
+        );
         let bound = |v: &Value| v.as_f64();
         let overlap = OverlapPolicy::RequireDiagnostics {
             clip: bound(&case["clip"]),
@@ -67,8 +68,10 @@ fn weighted_effect_and_standard_error_match_the_multiprecision_refit() {
             ("att", TargetPopulation::Treated),
             ("atc", TargetPopulation::Untreated),
         ] {
-            let query = AverageEffectQuery::binary_ate(id(0), id(1)).with_target_population(population);
-            let estimator = PropensityWeighting::new().with_bootstrap_replicates(0).with_overlap(overlap);
+            let query =
+                AverageEffectQuery::binary_ate(id(0), id(1)).with_target_population(population);
+            let estimator =
+                PropensityWeighting::new().with_bootstrap_replicates(0).with_overlap(overlap);
             let prepared = estimator.prepare(&data, &estimand, &query).unwrap();
             let got = estimator
                 .fit(
@@ -80,7 +83,12 @@ fn weighted_effect_and_standard_error_match_the_multiprecision_refit() {
                 .unwrap_or_else(|e| panic!("{name} {key}: {e:?}"));
             let want = &case["targets"][key];
             close(got.ate, want["ate"].as_f64().unwrap(), 1e-8, &format!("{name} {key} effect"));
-            close(got.se_analytic(), want["se"].as_f64().unwrap(), 1e-6, &format!("{name} {key} se"));
+            close(
+                got.se_analytic(),
+                want["se"].as_f64().unwrap(),
+                1e-6,
+                &format!("{name} {key} se"),
+            );
         }
     }
 }

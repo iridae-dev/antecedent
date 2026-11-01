@@ -3456,8 +3456,8 @@ mod temporal_admg_compiler_fixture {
     use antecedent::{AcceptedGraph, InferenceMode, RefuteSuite, Study, StudyResult};
     use antecedent_core::{
         CausalQuery, DerivativeScale, DerivativeWeighting, Lag, ResponseFunctional as F,
-        ResponseIdentification, ResponseQuery, ResponseValue,
-        TemporalPolicy, TemporalResponseSpec, VariableId,
+        ResponseIdentification, ResponseQuery, ResponseValue, TemporalPolicy, TemporalResponseSpec,
+        VariableId,
     };
     use antecedent_data::TimeSeriesData;
     use antecedent_graph::TemporalAdmg;

@@ -393,7 +393,8 @@ fn a_consumer_derives_the_same_chain_from_the_exported_bytes() {
     // 5/8): EVSI 1/4 and 1/8, EVPI 1/2, study cost 1/10, so net values 3/20 and 1/40.
     let entries = &consumed.ranking.entries;
     assert_eq!(entries.len(), 2);
-    for (entry, (id, evsi, net)) in entries.iter().zip([("cand-1", 0.25, 0.15), ("cand-2", 0.125, 0.025)])
+    for (entry, (id, evsi, net)) in
+        entries.iter().zip([("cand-1", 0.25, 0.15), ("cand-2", 0.125, 0.025)])
     {
         assert_eq!(entry.semantic_id, id);
         assert!((entry.evsi - evsi).abs() < 1e-12, "{id}: evsi {}", entry.evsi);
@@ -430,7 +431,8 @@ fn python_composition_lineage_rows_reproduce_the_ranking_digests() {
         assert_eq!(row.digest, digest_of(&chain, &row.id), "{}", row.id);
     }
     // Both paths are also checked against the documented byte layout, recomputed here.
-    let mut independent: std::collections::BTreeMap<&str, String> = std::collections::BTreeMap::new();
+    let mut independent: std::collections::BTreeMap<&str, String> =
+        std::collections::BTreeMap::new();
     for (id, stage, parents) in &rows {
         let parent_digests: Vec<&str> = parents.iter().map(|p| independent[p].as_str()).collect();
         let digest = expected_link_digest(id, stage, &parent_digests);

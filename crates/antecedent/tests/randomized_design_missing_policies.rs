@@ -116,9 +116,8 @@ fn switchback() -> Case {
     let sequences: Vec<Arc<str>> = (0..4)
         .flat_map(|sequence| (0..4).map(move |_| Arc::<str>::from(format!("s{sequence}"))))
         .collect();
-    let periods: Vec<Arc<str>> = (0..4)
-        .flat_map(|_| (0..4).map(|period| Arc::<str>::from(format!("p{period}"))))
-        .collect();
+    let periods: Vec<Arc<str>> =
+        (0..4).flat_map(|_| (0..4).map(|period| Arc::<str>::from(format!("p{period}")))).collect();
     Case {
         name: "switchback",
         query: RandomizedEffectQuery::with_design(
@@ -188,10 +187,7 @@ fn run(case: &Case, declaration: Option<MissingDeclaration>) -> Result<StudyResu
     if let Some(declaration) = declaration {
         builder = builder.missing(declaration);
     }
-    builder
-        .build()
-        .and_then(|study| study.run(&ctx()))
-        .map_err(|error| error.to_string())
+    builder.build().and_then(|study| study.run(&ctx())).map_err(|error| error.to_string())
 }
 
 /// The contrast of the responders' mean outcomes in the treated and control rows; the 2x2
@@ -215,16 +211,15 @@ fn contrast_without(case: &Case, holes: &[usize]) -> f64 {
     };
     match &case.second_factor {
         None => contrast(&|_| true),
-        Some(second) => {
-            0.5 * (contrast(&|r| !second[r]) + contrast(&|r| second[r]))
-        }
+        Some(second) => 0.5 * (contrast(&|r| !second[r]) + contrast(&|r| second[r])),
     }
 }
 
 #[test]
 fn every_design_refuses_an_outcome_with_holes_until_a_policy_is_declared() {
     for case in cases() {
-        let error = run(&case, None).err().unwrap_or_else(|| panic!("{}: averaged holes", case.name));
+        let error =
+            run(&case, None).err().unwrap_or_else(|| panic!("{}: averaged holes", case.name));
         assert!(error.contains("missing_policy_required"), "{}: {error}", case.name);
         let first = case.holes.iter().min().unwrap();
         assert!(error.contains(&format!("row {first}")), "{}: {error}", case.name);

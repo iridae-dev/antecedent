@@ -14,15 +14,14 @@ use antecedent_model::scc_compile::{
     CompileBudget, GaussianDisturbance, LinearSupportRoute, compile_gaussian_equilibrium,
     compile_routed_gaussian_equilibrium, route_linear_support,
 };
-use antecedent_model::{
-    CyclicComponent, HardClamp, LinearStructuralMap, Uniqueness, assess,
-};
+use antecedent_model::{CyclicComponent, HardClamp, LinearStructuralMap, Uniqueness, assess};
 
 struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self) -> f64 {
-        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         (self.0 >> 11) as f64 / (1u64 << 53) as f64
     }
     fn signed(&mut self) -> f64 {
@@ -185,9 +184,7 @@ fn reference_components(case: &Case) -> Vec<Vec<usize>> {
 }
 
 fn has_cycle(case: &Case) -> bool {
-    reference_components(case).iter().any(|c| {
-        c.len() > 1
-    })
+    reference_components(case).iter().any(|c| c.len() > 1)
 }
 
 fn component_for(model: &LinearStructuralMap) -> CyclicComponent {
@@ -215,7 +212,8 @@ fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps() {
         }
         let model = LinearStructuralMap::try_new(case.k.clone(), case.c.clone()).unwrap();
         let clamp = HardClamp::try_new(n, &case.clamp).unwrap();
-        let disturbance = GaussianDisturbance::try_new(case.mu.clone(), case.sigma.clone()).unwrap();
+        let disturbance =
+            GaussianDisturbance::try_new(case.mu.clone(), case.sigma.clone()).unwrap();
         let component = component_for(&model);
         let direct = compile_gaussian_equilibrium(
             &component,
@@ -300,7 +298,11 @@ fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps() {
                 relative_close(block.kappa_inf, truth, 1e-9, "closed-form kappa");
             } else {
                 assert!(block.kappa_inf <= truth * (1.0 + 1e-9), "estimate above the truth");
-                assert!(block.kappa_inf * (m as f64) >= truth, "estimate {} vs {truth}", block.kappa_inf);
+                assert!(
+                    block.kappa_inf * (m as f64) >= truth,
+                    "estimate {} vs {truth}",
+                    block.kappa_inf
+                );
             }
         }
     }
@@ -336,7 +338,8 @@ fn a_nearly_critical_two_cycle_keeps_its_closed_form_to_the_conditioning() {
             relative_close(law.mean()[i], mean[i], tolerance.max(1e-15), "mean");
         }
         let kappa = (1.0 + a).max(1.0 + b) * (1.0 + a).max(1.0 + b) / det;
-        let exact_kappa = (1.0 + a).max(1.0 + b) * (inv[0].abs() + inv[1].abs()).max(inv[2].abs() + inv[3].abs());
+        let exact_kappa =
+            (1.0 + a).max(1.0 + b) * (inv[0].abs() + inv[1].abs()).max(inv[2].abs() + inv[3].abs());
         relative_close(law.blocks()[0].kappa_inf, exact_kappa, 1e-9 * (1.0 + kappa), "kappa");
     }
 }
@@ -356,7 +359,10 @@ fn singular_and_nonsingular_cycles_are_decided_by_the_determinant() {
         let model = LinearStructuralMap::try_new(vec![0.0, a, b, 0.0], vec![0.0, 0.0]).unwrap();
         let block = assess(&model, &clamp).unwrap().original;
         assert_eq!(
-            matches!(block.uniqueness, Uniqueness::Singular(_) | Uniqueness::NumericallySingular { .. }),
+            matches!(
+                block.uniqueness,
+                Uniqueness::Singular(_) | Uniqueness::NumericallySingular { .. }
+            ),
             singular,
             "K01={a} K10={b}: {:?}",
             block.uniqueness
@@ -371,16 +377,21 @@ fn singular_and_nonsingular_cycles_are_decided_by_the_determinant() {
         let model = LinearStructuralMap::try_new(k, vec![0.0; 3]).unwrap();
         let block = assess(&model, &HardClamp::none(3).unwrap()).unwrap().original;
         assert_eq!(
-            matches!(block.uniqueness, Uniqueness::Singular(_) | Uniqueness::NumericallySingular { .. }),
+            matches!(
+                block.uniqueness,
+                Uniqueness::Singular(_) | Uniqueness::NumericallySingular { .. }
+            ),
             singular,
             "ring product {product}: {:?}",
             block.uniqueness
         );
     }
     // Clamping one ring node breaks the cycle: the free block is then a chain and unique.
-    let model =
-        LinearStructuralMap::try_new(vec![0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], vec![0.0; 3])
-            .unwrap();
+    let model = LinearStructuralMap::try_new(
+        vec![0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+        vec![0.0; 3],
+    )
+    .unwrap();
     let clamped = HardClamp::try_new(3, &[1]).unwrap();
     assert!(revalidate_free_block(&model, &clamped).is_ok());
     assert!(revalidate_free_block(&model, &HardClamp::none(3).unwrap()).is_err());

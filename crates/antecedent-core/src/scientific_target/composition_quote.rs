@@ -219,6 +219,19 @@ impl Quote<'_> {
         Ok(())
     }
     fn expression(&mut self, root: &ValueExpr, initial_depth: usize) -> Result<(), &'static str> {
+        fn push<'a>(
+            stack: &mut Vec<(&'a ValueExpr, usize)>,
+            child: &'a ValueExpr,
+            depth: usize,
+            limit: usize,
+        ) -> Result<(), &'static str> {
+            if stack.len() >= limit {
+                return Err("target quote limit");
+            }
+            stack.try_reserve(1).map_err(|_| "allocation refused")?;
+            stack.push((child, depth + 1));
+            Ok(())
+        }
         let mut stack = Vec::new();
         stack.try_reserve(1).map_err(|_| "allocation refused")?;
         stack.push((root, initial_depth));
@@ -227,19 +240,6 @@ impl Quote<'_> {
                 return Err("target nesting limit");
             }
             self.charge(1, std::mem::size_of_val(item).checked_add(32).ok_or("quote overflow")?)?;
-            fn push<'a>(
-                stack: &mut Vec<(&'a ValueExpr, usize)>,
-                child: &'a ValueExpr,
-                depth: usize,
-                limit: usize,
-            ) -> Result<(), &'static str> {
-                if stack.len() >= limit {
-                    return Err("target quote limit");
-                }
-                stack.try_reserve(1).map_err(|_| "allocation refused")?;
-                stack.push((child, depth + 1));
-                Ok(())
-            }
             match item {
                 ValueExpr::Neg(x) | ValueExpr::Not(x) | ValueExpr::Indicator(x) => {
                     push(&mut stack, x, depth, self.limits.max_work)?

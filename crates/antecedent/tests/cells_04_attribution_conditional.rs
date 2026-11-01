@@ -258,7 +258,10 @@ fn the_anomaly_attribution_drops_incomplete_rows_under_complete_case_and_refuses
     assert_eq!(report.accounting.rows_total, N);
     assert_eq!(report.accounting.rows_kept, N - missing_rows.len());
     assert_eq!(report.accounting.dropped_rows.as_ref(), [5_u64, 40, 77]);
-    assert_eq!(report.accounting.reasons.as_ref(), [(antecedent_data::DropReason::MissingValue, 3)]);
+    assert_eq!(
+        report.accounting.reasons.as_ref(),
+        [(antecedent_data::DropReason::MissingValue, 3)]
+    );
     assert!(report.declared && report.non_default);
 
     // Imputing a factual value would score a value nobody observed, and an observation weight

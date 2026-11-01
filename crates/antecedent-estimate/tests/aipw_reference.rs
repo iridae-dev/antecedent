@@ -54,7 +54,10 @@ fn fit(case: &Value, population: TargetPopulation) -> antecedent_estimate::Effec
     );
     let query = AverageEffectQuery::binary_ate(id(0), id(1)).with_target_population(population);
     let estimator = AipwAte::new().with_bootstrap_replicates(0).with_overlap(
-        OverlapPolicy::RequireDiagnostics { clip: case["clip"].as_f64(), trim: case["trim"].as_f64() },
+        OverlapPolicy::RequireDiagnostics {
+            clip: case["clip"].as_f64(),
+            trim: case["trim"].as_f64(),
+        },
     );
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
     estimator
@@ -88,7 +91,12 @@ fn att_and_atc_match_the_refit_and_the_centred_efficient_influence_function() {
             let want = &case[key];
             let got = fit(case, population);
             close(got.ate, want["ate"].as_f64().unwrap(), 1e-8, &format!("{name} {key} effect"));
-            close(got.se_analytic(), want["se"].as_f64().unwrap(), 1e-6, &format!("{name} {key} se"));
+            close(
+                got.se_analytic(),
+                want["se"].as_f64().unwrap(),
+                1e-6,
+                &format!("{name} {key} se"),
+            );
         }
     }
 }
@@ -119,9 +127,9 @@ fn untrimmed_ate_is_the_cross_fitted_score_on_the_recorded_folds() {
             ExprId::from_raw(0),
         );
         let query = AverageEffectQuery::binary_ate(id(0), id(1));
-        let estimator = AipwAte::new()
-            .with_bootstrap_replicates(0)
-            .with_overlap(OverlapPolicy::RequireDiagnostics { clip: case["clip"].as_f64(), trim: None });
+        let estimator = AipwAte::new().with_bootstrap_replicates(0).with_overlap(
+            OverlapPolicy::RequireDiagnostics { clip: case["clip"].as_f64(), trim: None },
+        );
         let mut problem = estimator.prepare(&data, &estimand, &query).unwrap();
         let folds: Vec<u32> =
             case["folds"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();

@@ -333,13 +333,11 @@ fn contract_without_rules_keeps_original_bytes_and_kinds_do_not_cross() {
     let c = AdmissibleDecisionContract { contract: plain, rules: rich_rules() };
     let rules_bytes =
         AdmissibleContractArtifact::new(c.clone()).unwrap().to_bytes("contract").unwrap();
-    let error =
-        DecisionContractArtifact::from_bytes(&rules_bytes, &c.contract.identity().unwrap())
-            .unwrap_err();
+    let error = DecisionContractArtifact::from_bytes(&rules_bytes, &c.contract.identity().unwrap())
+        .unwrap_err();
     assert!(message(&error).contains("unsupported decision artifact layout"), "{error:?}");
-    let error =
-        AdmissibleContractArtifact::from_bytes(&original_bytes, &c.identity().unwrap())
-            .unwrap_err();
+    let error = AdmissibleContractArtifact::from_bytes(&original_bytes, &c.identity().unwrap())
+        .unwrap_err();
     assert!(message(&error).contains("unsupported decision artifact layout"), "{error:?}");
 }
 
@@ -375,7 +373,10 @@ fn invalid_rules_refuse_with_structured_detail() {
     let mut duplicate = c.clone();
     duplicate.rules.support_rules.push(duplicate.rules.support_rules[0].clone());
     let error = AdmissibleContractArtifact::new(duplicate).unwrap_err();
-    assert!(message(&error).contains("DuplicateRule") && message(&error).contains("A[0]"), "{error:?}");
+    assert!(
+        message(&error).contains("DuplicateRule") && message(&error).contains("A[0]"),
+        "{error:?}"
+    );
     let mut blank = c;
     blank.rules.declared_exclusions[0].reason = " ".into();
     let error = AdmissibleContractArtifact::new(blank).unwrap_err();
@@ -679,8 +680,8 @@ fn load_and_replay_refuse_other_contracts_structures_and_profiles() {
         .unwrap_err();
     assert!(message(&error).contains("atoms_expected"));
     let renamed = [evaluated("t1", None, 5.0, 3.0), evaluated("s2", None, 6.0, 2.0)];
-    let error =
-        RobustResultArtifact::from_bytes(&bytes, &identity, &atom_digests_of(&renamed)).unwrap_err();
+    let error = RobustResultArtifact::from_bytes(&bytes, &identity, &atom_digests_of(&renamed))
+        .unwrap_err();
     assert!(message(&error).contains("atoms_expected"), "{error:?}");
 
     let loaded = RobustResultArtifact::from_bytes(&bytes, &identity, &digests).unwrap();

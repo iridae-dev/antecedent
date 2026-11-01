@@ -13,11 +13,11 @@ use std::collections::BTreeMap;
 
 use antecedent::analysis::mechanism_composition::MechanismCompositionRefusal;
 use antecedent::analysis::typed_transported_mechanism::{
-    fit_typed_mechanism, refit_typed_mechanism_in_target, transport_typed_mechanisms,
-    verify_typed_transport, FittedMechanism, MeanSpec, MechanismRole, MechanismSpec,
-    ParameterDependence, ResponseFamily, TypedTransportRequest, DETAIL_INVARIANCE_CONTRADICTED,
-    DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE, DETAIL_TYPED_IDENTITY_MISMATCH,
-    TYPED_TRANSPORT_INFERENCE, TYPED_TRANSPORT_ROUTE, TYPED_TRANSPORT_SUPPORT, UNCERTAINTY_SCOPE,
+    DETAIL_INVARIANCE_CONTRADICTED, DETAIL_SHIFTED_WITHOUT_TARGET_EVIDENCE,
+    DETAIL_TYPED_IDENTITY_MISMATCH, FittedMechanism, MeanSpec, MechanismRole, MechanismSpec,
+    ParameterDependence, ResponseFamily, TYPED_TRANSPORT_INFERENCE, TYPED_TRANSPORT_ROUTE,
+    TYPED_TRANSPORT_SUPPORT, TypedTransportRequest, UNCERTAINTY_SCOPE, fit_typed_mechanism,
+    refit_typed_mechanism_in_target, transport_typed_mechanisms, verify_typed_transport,
 };
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_model::compose::{

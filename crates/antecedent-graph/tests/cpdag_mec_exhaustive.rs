@@ -41,7 +41,8 @@ fn acyclic(n: usize, arcs: &[(usize, usize)]) -> bool {
 }
 
 fn all_dags(n: usize) -> Vec<Arcs> {
-    let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect();
+    let pairs: Vec<(usize, usize)> =
+        (0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect();
     let mut out = Vec::new();
     for code in 0..3usize.pow(u32::try_from(pairs.len()).unwrap()) {
         let (mut arcs, mut rest) = (Vec::new(), code);
@@ -62,14 +63,22 @@ fn all_dags(n: usize) -> Vec<Arcs> {
 }
 
 /// (skeleton, unshielded colliders) of a DAG.
-fn invariant(n: usize, arcs: &[(usize, usize)]) -> (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize, usize)>) {
+fn invariant(
+    n: usize,
+    arcs: &[(usize, usize)],
+) -> (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize, usize)>) {
     let adjacent = |a: usize, b: usize| arcs.contains(&(a, b)) || arcs.contains(&(b, a));
     let skeleton = arcs.iter().map(|&(a, b)| (a.min(b), a.max(b))).collect();
     let mut colliders = BTreeSet::new();
     for b in 0..n {
         for a in 0..n {
             for c in (a + 1)..n {
-                if a != b && c != b && arcs.contains(&(a, b)) && arcs.contains(&(c, b)) && !adjacent(a, c) {
+                if a != b
+                    && c != b
+                    && arcs.contains(&(a, b))
+                    && arcs.contains(&(c, b))
+                    && !adjacent(a, c)
+                {
                     colliders.insert((a, b, c));
                 }
             }

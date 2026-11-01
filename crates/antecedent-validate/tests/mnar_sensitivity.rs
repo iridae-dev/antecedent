@@ -23,9 +23,9 @@
 
 use antecedent_core::AssumptionStatus;
 use antecedent_validate::mnar_sensitivity::{
-    mnar_sensitivity, ArmLoading, MnarConclusionKind, MnarData, MnarDecision, MnarEstimator,
-    MnarMechanism, MnarModel, MnarSensitivityError, MnarSensitivitySpec,
-    MNAR_ASSUMPTION_RANGE_CLAIM, MNAR_MAX_TILT,
+    ArmLoading, MNAR_ASSUMPTION_RANGE_CLAIM, MNAR_MAX_TILT, MnarConclusionKind, MnarData,
+    MnarDecision, MnarEstimator, MnarMechanism, MnarModel, MnarSensitivityError,
+    MnarSensitivitySpec, mnar_sensitivity,
 };
 
 fn close(actual: f64, expected: f64, tolerance: f64) {
@@ -529,9 +529,8 @@ fn mnar_result_replays_bit_identically_with_its_assumption_records() {
     assert_eq!(first, second);
     assert!(first.assumptions.iter().any(|a| a.id == "outcome_missingness_departure_from_mar"
         && a.status == AssumptionStatus::Untestable));
-    assert!(first
-        .assumptions
-        .iter()
-        .any(|a| a.id == "treatment_independent_of_potential_outcomes"
-            && a.status == AssumptionStatus::Declared));
+    assert!(
+        first.assumptions.iter().any(|a| a.id == "treatment_independent_of_potential_outcomes"
+            && a.status == AssumptionStatus::Declared)
+    );
 }

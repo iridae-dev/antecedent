@@ -432,24 +432,26 @@ fn admg_frontdoor_mask_is_not_a_dag_for_response() {
 fn frontdoor_interventional_mean(pin: &serde_json::Value, level: f64) -> f64 {
     let mut count = std::collections::BTreeMap::<(u8, u8, u8), f64>::new();
     for cell in pin["contingency_table"].as_array().unwrap() {
-        let key = |name: &str| u8::try_from(cell[name].as_u64().unwrap_or_else(|| {
-            cell[name].as_f64().unwrap().round() as u64
-        }))
-        .unwrap();
+        let key = |name: &str| {
+            u8::try_from(
+                cell[name].as_u64().unwrap_or_else(|| cell[name].as_f64().unwrap().round() as u64),
+            )
+            .unwrap()
+        };
         *count.entry((key("t"), key("m"), key("y"))).or_default() +=
             cell["count"].as_u64().unwrap() as f64;
     }
     let c = |t: u8, m: u8, y: u8| count.get(&(t, m, y)).copied().unwrap_or(0.0);
     let total: f64 = count.values().sum();
-    let t_total = |t: u8| (0..2).flat_map(|m| (0..2).map(move |y| (m, y))).map(|(m, y)| c(t, m, y)).sum::<f64>();
+    let t_total = |t: u8| {
+        (0..2).flat_map(|m| (0..2).map(move |y| (m, y))).map(|(m, y)| c(t, m, y)).sum::<f64>()
+    };
     let tm = |t: u8, m: u8| c(t, m, 0) + c(t, m, 1);
     let level = level as u8;
     (0..2u8)
         .map(|m| {
             let p_m = tm(level, m) / t_total(level);
-            let inner: f64 = (0..2u8)
-                .map(|t| (t_total(t) / total) * (c(t, m, 1) / tm(t, m)))
-                .sum();
+            let inner: f64 = (0..2u8).map(|t| (t_total(t) / total) * (c(t, m, 1) / tm(t, m))).sum();
             p_m * inner
         })
         .sum()
@@ -465,10 +467,12 @@ fn claims_03_admg_posterior_response_equals_frontdoor_formula_on_the_table() {
     let t = VariableId::from_raw(0);
     let y = VariableId::from_raw(2);
     let gp = admg_posterior(n, &[1.0], &[mask]);
-    let truth = [frontdoor_interventional_mean(&pin, 0.0), frontdoor_interventional_mean(&pin, 1.0)];
+    let truth =
+        [frontdoor_interventional_mean(&pin, 0.0), frontdoor_interventional_mean(&pin, 1.0)];
     // The fixture's own pinned contrast ties the hand formula to the enumerated oracle.
     assert!(
-        ((truth[1] - truth[0]) - pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs() < 1e-12
+        ((truth[1] - truth[0]) - pin["frequentist"]["expected_ate"].as_f64().unwrap()).abs()
+            < 1e-12
     );
     let ctx = ExecutionContext::for_tests(3);
     for (inference, atol) in [

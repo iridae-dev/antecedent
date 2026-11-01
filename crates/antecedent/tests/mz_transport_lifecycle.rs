@@ -657,7 +657,10 @@ fn refresh_keeps_the_proof_and_refuses_changed_evidence_identity() {
     );
     assert_eq!(
         message(foreign_error),
-        ("transport_missing_provider", "exact provider names an unknown evidence regime".to_owned())
+        (
+            "transport_missing_provider",
+            "exact provider names an unknown evidence regime".to_owned()
+        )
     );
     let (code, text) = message(counts_error);
     assert_eq!(code, "transport_missing_provider");

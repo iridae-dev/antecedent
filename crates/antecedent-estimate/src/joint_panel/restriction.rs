@@ -26,7 +26,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::likelihood::{CompiledPanel, exposure, observed_response};
-use super::{PanelDraw, PanelError, PanelData, invalid};
+use super::{PanelData, PanelDraw, PanelError, invalid};
 
 /// Fewest whitened innovations for which a normality check is reported.
 pub const MIN_DIAGNOSTIC_INNOVATIONS: usize = 30;
@@ -157,11 +157,13 @@ pub fn panel_restriction_diagnostics(
     let normality = (count >= MIN_DIAGNOSTIC_INNOVATIONS).then(|| {
         let n = count as f64;
         let mean = rows.iter().map(|row| row.0).sum::<f64>() / n;
-        let central = |power: i32| rows.iter().map(|row| (row.0 - mean).powi(power)).sum::<f64>() / n;
+        let central =
+            |power: i32| rows.iter().map(|row| (row.0 - mean).powi(power)).sum::<f64>() / n;
         let (m2, m3, m4) = (central(2), central(3), central(4));
         let skewness = m3 / m2.powf(1.5);
         let excess_kurtosis = m4 / (m2 * m2) - 3.0;
-        let jarque_bera = n * (skewness * skewness / 6.0 + excess_kurtosis * excess_kurtosis / 24.0);
+        let jarque_bera =
+            n * (skewness * skewness / 6.0 + excess_kurtosis * excess_kurtosis / 24.0);
         PanelNormalityCheck {
             count,
             skewness,
@@ -177,7 +179,8 @@ pub fn panel_restriction_diagnostics(
             order.sort_by(|&a, &b| rows[a].1[feature].total_cmp(&rows[b].1[feature]));
             let mut statistic = 0.0;
             for bin in 0..LINEARITY_BINS {
-                let members = &order[bin * count / LINEARITY_BINS..(bin + 1) * count / LINEARITY_BINS];
+                let members =
+                    &order[bin * count / LINEARITY_BINS..(bin + 1) * count / LINEARITY_BINS];
                 let sum = members.iter().map(|&row| rows[row].0).sum::<f64>();
                 statistic += sum * sum / members.len() as f64;
             }

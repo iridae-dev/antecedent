@@ -200,7 +200,8 @@ fn mediation_range_breaks_even_at_the_residual_correlation() {
         let rows: Vec<f64> = t.iter().zip(v).filter(|(a, _)| **a == arm).map(|(_, b)| *b).collect();
         rows.iter().sum::<f64>() / rows.len() as f64
     };
-    let (m_mean, y_mean) = ([arm_mean(&m, 0.0), arm_mean(&m, 1.0)], [arm_mean(&y, 0.0), arm_mean(&y, 1.0)]);
+    let (m_mean, y_mean) =
+        ([arm_mean(&m, 0.0), arm_mean(&m, 1.0)], [arm_mean(&y, 0.0), arm_mean(&y, 1.0)]);
     let (mut rss_m, mut rss_y, mut cross) = (0.0, 0.0, 0.0);
     for i in 0..t.len() {
         let arm = t[i] as usize;
@@ -214,7 +215,8 @@ fn mediation_range_breaks_even_at_the_residual_correlation() {
     assert!((summary.rho_tilde - rho_tilde).abs() < 1e-12, "{} vs {rho_tilde}", summary.rho_tilde);
     for point in range.tested.iter() {
         let rho = point.parameter;
-        let acme = scale * (rho_tilde - rho * ((1.0 - rho_tilde * rho_tilde) / (1.0 - rho * rho)).sqrt());
+        let acme =
+            scale * (rho_tilde - rho * ((1.0 - rho_tilde * rho_tilde) / (1.0 - rho * rho)).sqrt());
         assert!((point.target - acme).abs() < 1e-10, "rho {rho}: {} vs {acme}", point.target);
     }
     assert_eq!(range.break_even, Some(summary.rho_tilde));

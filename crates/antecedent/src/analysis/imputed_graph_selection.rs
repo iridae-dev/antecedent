@@ -147,10 +147,8 @@ where
     let mut base: Option<StudyResult> = None;
     let mut posteriors: Vec<CausalPosterior> = Vec::new();
     let run = multiple_imputation::run(&imputer, ctx, |table, ctx| {
-        let replacements: Vec<(VariableId, Arc<[f64]>)> = imputed
-            .iter()
-            .map(|&j| (float_ids[j], Arc::clone(&table.columns()[j])))
-            .collect();
+        let replacements: Vec<(VariableId, Arc<[f64]>)> =
+            imputed.iter().map(|&j| (float_ids[j], Arc::clone(&table.columns()[j]))).collect();
         let completed = complete_float_columns(data, &replacements)?;
         // The structure is selected afresh on this table, so the pooled spread carries it.
         let graph_posterior = crate::discovery::discover_exact_dag_posterior(

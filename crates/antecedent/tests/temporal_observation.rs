@@ -631,8 +631,7 @@ fn observation_adjusted_sequence_refuses_an_autoregressive_outcome() {
             .run(&ExecutionContext::for_tests(41))
             .unwrap_err();
         assert!(
-            err.to_string()
-                .contains("history cap while confounder ancestry still crossed"),
+            err.to_string().contains("history cap while confounder ancestry still crossed"),
             "replicates={replicates}: {err}"
         );
     }

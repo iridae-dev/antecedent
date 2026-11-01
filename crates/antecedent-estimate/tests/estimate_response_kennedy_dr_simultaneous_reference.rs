@@ -198,6 +198,14 @@ fn the_published_band_is_the_reference_band_of_its_own_influences() {
     assert_ne!(one.uncertainty, two.uncertainty);
 
     // A band needs a caller bandwidth and at least 100 replicates.
-    assert!(format!("{:?}", run(Some(400), 0.95, 1, None).err()).contains("invalid continuous-response options"), "invalid continuous-response options");
-    assert!(format!("{:?}", run(Some(99), 0.95, 1, Some(0.75)).err()).contains("invalid continuous-response options"), "invalid continuous-response options");
+    assert!(
+        format!("{:?}", run(Some(400), 0.95, 1, None).err())
+            .contains("invalid continuous-response options"),
+        "invalid continuous-response options"
+    );
+    assert!(
+        format!("{:?}", run(Some(99), 0.95, 1, Some(0.75)).err())
+            .contains("invalid continuous-response options"),
+        "invalid continuous-response options"
+    );
 }

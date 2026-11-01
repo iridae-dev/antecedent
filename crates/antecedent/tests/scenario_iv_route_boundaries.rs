@@ -73,8 +73,6 @@ fn iv_data(y_shift: f64) -> TabularData {
     TabularData::new(OwnedColumnarStorage::try_new(schema, columns, None, None).unwrap())
 }
 
-
-
 fn query() -> AverageEffectQuery {
     AverageEffectQuery::with_levels(VariableId::from_raw(0), VariableId::from_raw(1), 0.0, 1.0)
 }
@@ -133,7 +131,10 @@ fn the_latent_variable_graph_runs_only_its_own_estimator_and_refuses_both_instru
     let data = iv_data(0.0);
     for (name, estimator) in [
         ("iv.2sls", antecedent::EstimatorSpec::from(two_stage())),
-        ("iv.wald", antecedent::EstimatorSpec::from(WaldIv::new().with_se_kind(AnalyticSeKind::Hc1))),
+        (
+            "iv.wald",
+            antecedent::EstimatorSpec::from(WaldIv::new().with_se_kind(AnalyticSeKind::Hc1)),
+        ),
     ] {
         let error = Study::tabular(data.clone())
             .query(query())
@@ -224,7 +225,10 @@ fn a_treatment_with_further_levels_is_refused_by_both_instrumental_estimators() 
     .unwrap();
     for (name, estimator) in [
         ("iv.2sls", antecedent::EstimatorSpec::from(two_stage())),
-        ("iv.wald", antecedent::EstimatorSpec::from(WaldIv::new().with_se_kind(AnalyticSeKind::Hc1))),
+        (
+            "iv.wald",
+            antecedent::EstimatorSpec::from(WaldIv::new().with_se_kind(AnalyticSeKind::Hc1)),
+        ),
     ] {
         let error = Study::tabular(data.clone())
             .query(query())

@@ -170,10 +170,9 @@ fn aipw_and_weighting_pool_by_rubins_rules_and_refit_on_every_table() {
     let values = raw_columns(900, 43);
     let data = build_table(&values);
     let completed = completed_tables(&values);
-    for (estimator, name) in [
-        (EstimatorId::Aipw, "aipw"),
-        (EstimatorId::PropensityWeighting, "propensity.weighting"),
-    ] {
+    for (estimator, name) in
+        [(EstimatorId::Aipw, "aipw"), (EstimatorId::PropensityWeighting, "propensity.weighting")]
+    {
         let result = run_adjustment(&data, estimator, Some(declaration())).unwrap();
         let report = report_of(&result);
         assert_eq!(report.estimator.as_ref(), name);
@@ -210,4 +209,3 @@ fn aipw_and_weighting_pool_by_rubins_rules_and_refit_on_every_table() {
         );
     }
 }
-

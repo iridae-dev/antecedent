@@ -77,7 +77,12 @@ fn orthogonal_scores_and_standard_errors_match_the_fixed_fold_references() {
                 .unwrap_or_else(|e| panic!("{name} {key}: {e:?}"));
             let want = &case[key];
             close(got.ate, want["ate"].as_f64().unwrap(), 1e-6, &format!("{name} {key} effect"));
-            close(got.se_analytic(), want["se"].as_f64().unwrap(), 1e-5, &format!("{name} {key} se"));
+            close(
+                got.se_analytic(),
+                want["se"].as_f64().unwrap(),
+                1e-5,
+                &format!("{name} {key} se"),
+            );
         }
     }
 }

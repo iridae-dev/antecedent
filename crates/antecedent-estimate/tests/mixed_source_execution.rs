@@ -155,14 +155,20 @@ fn execution_reads_only_the_regimes_the_proof_cites_and_refuses_bad_requests() {
     };
     // A request must bind exactly the certified treatments.
     let refused = evaluate(data.clone(), Assignment::from_pairs([])).unwrap_err().to_string();
-    assert!(refused.contains("exact request must bind precisely the certified treatment coordinates"), "{refused}");
+    assert!(
+        refused.contains("exact request must bind precisely the certified treatment coordinates"),
+        "{refused}"
+    );
     let refused = evaluate(
         data.clone(),
         Assignment::from_pairs([(vid(X), Value::Bool(true)), (vid(Z), Value::Bool(true))]),
     )
     .unwrap_err()
     .to_string();
-    assert!(refused.contains("exact request must bind precisely the certified treatment coordinates"), "{refused}");
+    assert!(
+        refused.contains("exact request must bind precisely the certified treatment coordinates"),
+        "{refused}"
+    );
     // A law of a cited regime is required.
     let without_second = ExactTransportData::try_new(
         data.laws().iter().filter(|law| law.regime().raw() != 2).cloned().collect::<Vec<_>>(),

@@ -549,12 +549,17 @@ impl ImputationAssumptions {
         }
         if !self.domains.is_empty() {
             writer.text("variable_domains_v1").word(self.domains.len() as u64);
-            for (name, domain) in &self.domains { writer.text(name).text(domain.name()); }
+            for (name, domain) in &self.domains {
+                writer.text(name).text(domain.name());
+            }
         }
         if !self.binary_boundary_variables.is_empty() {
-            writer.text("binary_single_class_empirical_boundary_v1")
+            writer
+                .text("binary_single_class_empirical_boundary_v1")
                 .word(self.binary_boundary_variables.len() as u64);
-            for (name, value) in &self.binary_boundary_variables { writer.text(name).word(u64::from(*value)); }
+            for (name, value) in &self.binary_boundary_variables {
+                writer.text(name).word(u64::from(*value));
+            }
         }
         writer.finish_hex()
     }

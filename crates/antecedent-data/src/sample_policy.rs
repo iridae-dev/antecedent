@@ -61,7 +61,10 @@ impl ImputationDomain {
     /// Stable identity spelling.
     #[must_use]
     pub const fn name(self) -> &'static str {
-        match self { Self::Binary => "binary", Self::Continuous => "continuous" }
+        match self {
+            Self::Binary => "binary",
+            Self::Continuous => "continuous",
+        }
     }
 }
 

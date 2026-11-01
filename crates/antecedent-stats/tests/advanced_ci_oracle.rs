@@ -115,7 +115,8 @@ fn gpdc_matches_oracle_decisions_after_stable_residualization() {
         let expected_p = reference["p_value"].as_f64().unwrap();
         assert!(
             (statistic - expected_statistic).abs()
-                <= (atol + rtol * expected_statistic.abs()).min(0.03 + 0.25 * expected_statistic.abs()),
+                <= (atol + rtol * expected_statistic.abs())
+                    .min(0.03 + 0.25 * expected_statistic.abs()),
             "{} statistic {statistic} outside native-backend band around Tigramite {expected_statistic}",
             case["name"]
         );

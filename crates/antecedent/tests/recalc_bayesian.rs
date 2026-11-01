@@ -342,7 +342,8 @@ fn independently_bound_prior_transfer_body() {
             precision[0][0] / det,
         )
     };
-    let source_precision = [[design[0][0] + 0.01, design[0][1]], [design[1][0], design[1][1] + 0.01]];
+    let source_precision =
+        [[design[0][0] + 0.01, design[0][1]], [design[1][0], design[1][1] + 0.01]];
     let (source_mean, _) = solve(source_precision, source_moment);
     let target_precision = [
         [source_precision[0][0] + design[0][0], source_precision[0][1] + design[0][1]],

@@ -537,7 +537,10 @@ fn adapt_group(
             .into());
         }
         PanelMissingPolicy::DropUnits if !missing_cells.is_empty() => {
-            return Ok((None, accounting(0, (0..periods).collect(), Some(PanelUnitDrop::MissingCell))));
+            return Ok((
+                None,
+                accounting(0, (0..periods).collect(), Some(PanelUnitDrop::MissingCell)),
+            ));
         }
         _ => {}
     }

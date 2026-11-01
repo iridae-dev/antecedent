@@ -23,14 +23,13 @@ use antecedent_prob::{
     fit_conjugate_gaussian, fit_laplace_glm,
 };
 
-const X1: [f64; 14] =
-    [-1.5, -1.1, -0.8, -0.4, -0.1, 0.2, 0.5, 0.7, 1.0, 1.3, 1.6, -0.6, 0.9, 0.0];
+const X1: [f64; 14] = [-1.5, -1.1, -0.8, -0.4, -0.1, 0.2, 0.5, 0.7, 1.0, 1.3, 1.6, -0.6, 0.9, 0.0];
 const Y_BIN: [f64; 14] = [0., 0., 1., 0., 0., 1., 0., 1., 1., 1., 1., 1., 0., 1.];
 const Y_CNT: [f64; 14] = [0., 1., 0., 1., 1., 2., 1., 3., 2., 4., 6., 0., 3., 1.];
-const Y_GAUSS: [f64; 14] =
-    [-0.9, -0.2, 0.1, 0.4, 0.3, 1.1, 0.9, 1.2, 1.9, 2.3, 2.2, 0.0, 1.4, 0.5];
+const Y_GAUSS: [f64; 14] = [-0.9, -0.2, 0.1, 0.4, 0.3, 1.1, 0.9, 1.2, 1.9, 2.3, 2.2, 0.0, 1.4, 0.5];
 const WEIGHTS: [f64; 14] = [1., 1., 2., 1., 0.5, 1., 1., 3., 1., 1., 1., 0., 1., 2.];
-const OFFSETS: [f64; 14] = [0.0, 0.1, -0.1, 0.0, 0.2, 0.0, 0.3, -0.2, 0.0, 0.1, 0.0, 0.5, -0.3, 0.0];
+const OFFSETS: [f64; 14] =
+    [0.0, 0.1, -0.1, 0.0, 0.2, 0.0, 0.3, -0.2, 0.0, 0.1, 0.0, 0.5, -0.3, 0.0];
 const INT_WEIGHTS: [f64; 14] = [1., 1., 2., 1., 3., 1., 1., 3., 1., 1., 1., 0., 1., 2.];
 const M0: [f64; 2] = [0.25, -0.5];
 
@@ -80,8 +79,8 @@ fn known_variance_posterior_obeys_bayes_rule_with_weights_offsets_and_dense_prio
         offsets: Some(&OFFSETS),
     };
     let opts = BayesFitOptions { n_draws: 10, seed: 1, ..BayesFitOptions::default() };
-    let fit = fit_conjugate_gaussian(design, &prior, &opts, &mut LaplaceWorkspace::default())
-        .unwrap();
+    let fit =
+        fit_conjugate_gaussian(design, &prior, &opts, &mut LaplaceWorkspace::default()).unwrap();
     let cov: [f64; 4] = fit.cov.clone().unwrap().try_into().unwrap();
     let prec = inv2(cov);
     let v0_inv = inv2(v0);
@@ -148,8 +147,9 @@ fn nig_integer_weights_equal_replication_and_zero_weight_equals_deletion() {
         weights: None,
         offsets: Some(&off),
     };
-    let b = fit_conjugate_gaussian(replicated, &nig_prior(), &opts, &mut LaplaceWorkspace::default())
-        .unwrap();
+    let b =
+        fit_conjugate_gaussian(replicated, &nig_prior(), &opts, &mut LaplaceWorkspace::default())
+            .unwrap();
     for i in 0..2 {
         assert!((a.map[i] - b.map[i]).abs() <= 1e-10, "mean {i}: {} vs {}", a.map[i], b.map[i]);
     }
@@ -199,10 +199,7 @@ fn nig_residual_variance_mean_and_coefficient_covariance_match_independent_algeb
     }
     let pn = [sxx[0] + p0[0], sxx[1] + p0[1], sxx[2] + p0[2], sxx[3] + p0[3]];
     let vn = inv2(pn);
-    let rhs = [
-        p0[0] * M0[0] + p0[1] * M0[1] + sxy[0],
-        p0[2] * M0[0] + p0[3] * M0[1] + sxy[1],
-    ];
+    let rhs = [p0[0] * M0[0] + p0[1] * M0[1] + sxy[0], p0[2] * M0[0] + p0[3] * M0[1] + sxy[1]];
     let m = [vn[0] * rhs[0] + vn[1] * rhs[1], vn[2] * rhs[0] + vn[3] * rhs[1]];
     let (alpha_n, beta_n) = (3.0 + 0.5 * n_eff, {
         let q = syy + quad2(p0, M0) - quad2(pn, m);
@@ -238,46 +235,80 @@ fn laplace_glm_mode_and_covariance_match_fifty_digit_reference() {
             y: &Y_BIN,
             weighted: false,
             mode: [0.22840440040191323, 0.72581317688816202],
-            cov: [0.2982428327076739, -0.017359529451955143, -0.017359529451955143, 0.36637704565812243],
+            cov: [
+                0.2982428327076739,
+                -0.017359529451955143,
+                -0.017359529451955143,
+                0.36637704565812243,
+            ],
         },
         Case {
             likelihood: BayesLikelihood::BernoulliLogit,
             y: &Y_BIN,
             weighted: true,
             mode: [0.6227672729994279, 0.81886438920941016],
-            cov: [0.27928213249477221, -0.0080919837633195159, -0.0080919837633195159, 0.36299641836817794],
+            cov: [
+                0.27928213249477221,
+                -0.0080919837633195159,
+                -0.0080919837633195159,
+                0.36299641836817794,
+            ],
         },
         Case {
             likelihood: BayesLikelihood::BernoulliProbit,
             y: &Y_BIN,
             weighted: false,
             mode: [0.13803347390428118, 0.53478272538564599],
-            cov: [0.12109813426116763, -0.011016946582769438, -0.011016946582769438, 0.16449205462833723],
+            cov: [
+                0.12109813426116763,
+                -0.011016946582769438,
+                -0.011016946582769438,
+                0.16449205462833723,
+            ],
         },
         Case {
             likelihood: BayesLikelihood::BernoulliProbit,
             y: &Y_BIN,
             weighted: true,
             mode: [0.39542447064307119, 0.59682863302825311],
-            cov: [0.10837564400105809, -0.009465173616644354, -0.009465173616644354, 0.15729338506442991],
+            cov: [
+                0.10837564400105809,
+                -0.009465173616644354,
+                -0.009465173616644354,
+                0.15729338506442991,
+            ],
         },
         Case {
             likelihood: BayesLikelihood::PoissonLog,
             y: &Y_CNT,
             weighted: false,
             mode: [0.088046918284619129, 1.0063246611241229],
-            cov: [0.087032232772890244, -0.059370076558422315, -0.059370076558422315, 0.074219449065314703],
+            cov: [
+                0.087032232772890244,
+                -0.059370076558422315,
+                -0.059370076558422315,
+                0.074219449065314703,
+            ],
         },
         Case {
             likelihood: BayesLikelihood::PoissonLog,
             y: &Y_CNT,
             weighted: true,
             mode: [0.17228426955591389, 0.99817614954494016],
-            cov: [0.070638687219765763, -0.050814549893949583, -0.050814549893949583, 0.065934477267440708],
+            cov: [
+                0.070638687219765763,
+                -0.050814549893949583,
+                -0.050814549893949583,
+                0.065934477267440708,
+            ],
         },
     ];
     let x = colmajor(&X1);
-    let prior = gaussian_prior([4.0, 2.25], None, PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()));
+    let prior = gaussian_prior(
+        [4.0, 2.25],
+        None,
+        PriorSpec::ResidualInvGamma(InvGammaPrior::weakly_informative()),
+    );
     for case in &cases {
         let design = BayesDesignRef {
             x_colmajor: &x,
@@ -288,8 +319,14 @@ fn laplace_glm_mode_and_covariance_match_fifty_digit_reference() {
             offsets: case.weighted.then_some(&OFFSETS[..]),
         };
         let opts = BayesFitOptions { n_draws: 10, seed: 2, ..BayesFitOptions::default() };
-        let fit = fit_laplace_glm(case.likelihood, design, &prior, &opts, &mut LaplaceWorkspace::default())
-            .unwrap();
+        let fit = fit_laplace_glm(
+            case.likelihood,
+            design,
+            &prior,
+            &opts,
+            &mut LaplaceWorkspace::default(),
+        )
+        .unwrap();
         let cov = fit.cov.as_ref().unwrap();
         for i in 0..2 {
             assert!(

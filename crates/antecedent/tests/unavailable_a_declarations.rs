@@ -85,8 +85,10 @@ fn categorical_request(covariance: CovarianceKindWire) -> CategoricalTreatmentRe
 fn categorical(
     request: &CategoricalTreatmentRequest,
     rows: &CategoricalRowsRequest,
-) -> Result<CategoricalTreatment, antecedent::analysis::categorical_treatment::CategoricalTreatmentArtifactError>
-{
+) -> Result<
+    CategoricalTreatment,
+    antecedent::analysis::categorical_treatment::CategoricalTreatmentArtifactError,
+> {
     CategoricalTreatment::evaluate_declared(request, rows, &ExecutionContext::for_tests(0))
 }
 
@@ -98,7 +100,8 @@ fn the_categorical_request_has_no_weight_cluster_or_lag_field_and_no_cluster_rob
     // below have a zero entry (row 2, a level-b row), which is deleted, and an unequal mix.
     let weights = vec![1.0, 3.0, 2.0, 1.0, 0.0, 1.0, 4.0, 2.0, 2.0];
     let request = categorical_request(CovarianceKindWire::Hc0);
-    let rows = CategoricalRowsRequest { sampling_weights: Some(weights.clone()), ..Default::default() };
+    let rows =
+        CategoricalRowsRequest { sampling_weights: Some(weights.clone()), ..Default::default() };
     let fit = categorical(&request, &rows).expect("weights are read").report();
     let groups: [(&str, Vec<(f64, f64)>); 3] = [
         ("a", vec![(3.0, 1.0), (1.0, 3.0)]),
@@ -109,7 +112,8 @@ fn the_categorical_request_has_no_weight_cluster_or_lag_field_and_no_cluster_rob
     let moments = |g: &[(f64, f64)]| {
         let total: f64 = g.iter().map(|(w, _)| w).sum();
         let mean = g.iter().map(|(w, y)| w * y).sum::<f64>() / total;
-        let variance = g.iter().map(|(w, y)| (w * (y - mean)).powi(2)).sum::<f64>() / (total * total);
+        let variance =
+            g.iter().map(|(w, y)| (w * (y - mean)).powi(2)).sum::<f64>() / (total * total);
         (mean, variance)
     };
     let (mean_a, var_a) = moments(&groups[0].1);
@@ -131,7 +135,10 @@ fn the_categorical_request_has_no_weight_cluster_or_lag_field_and_no_cluster_rob
     // Clusters: a cluster-robust fit reads the cluster ids; the cluster covariance kind without
     // them, and clusters under a covariance that does not read them, are refused by name.
     let clustered = categorical_request(CovarianceKindWire::ClusterRobust);
-    let ids = CategoricalRowsRequest { cluster: Some(vec![0, 0, 1, 1, 2, 2, 3, 3, 3]), ..Default::default() };
+    let ids = CategoricalRowsRequest {
+        cluster: Some(vec![0, 0, 1, 1, 2, 2, 3, 3, 3]),
+        ..Default::default()
+    };
     let fit = categorical(&clustered, &ids).expect("clusters are read").report();
     assert_eq!(fit.declared_rows.as_ref().unwrap().clusters, Some(4));
     assert_eq!(fit.spec.covariance.as_str(), "cluster_robust");
@@ -284,9 +291,11 @@ fn the_smoothed_dose_input_has_no_weight_cluster_or_lag_field() {
         assert!((w.estimate - truth).abs() < 0.15, "weighted {} vs {truth}", w.estimate);
         assert!((p.estimate - truth).abs() < 0.15, "plain {} vs {truth}", p.estimate);
     }
-    assert!(result.estimate().grid.iter().zip(&plain.estimate().grid).all(|(w, p)| {
-        w.estimate.is_finite() && w.estimate.to_bits() != p.estimate.to_bits()
-    }));
+    assert!(
+        result.estimate().grid.iter().zip(&plain.estimate().grid).all(|(w, p)| {
+            w.estimate.is_finite() && w.estimate.to_bits() != p.estimate.to_bits()
+        })
+    );
     // Clusters: whole clusters per fold, a cluster-robust diagnostic; a lag: block folds.
     let mut clustered = rows.clone();
     clustered.cluster = Some((0..n as u32).map(|i| i % 40).collect());
@@ -316,7 +325,8 @@ fn the_smoothed_dose_input_has_no_weight_cluster_or_lag_field() {
     // A repository-wide invariant of plain rows: no new field, no changed digest.
     assert!(!serde_json::to_string(&rows).unwrap().contains("sampling_weights"));
     let (diagram, _) = dgp::diagram();
-    let _ = TransportIdentifier::new().identify(&diagram, &dgp::query(&[1.0], 0.5).transport_query());
+    let _ =
+        TransportIdentifier::new().identify(&diagram, &dgp::query(&[1.0], 0.5).transport_query());
 }
 
 // ---------------------------------------------------------------------------------------------

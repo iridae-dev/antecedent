@@ -192,7 +192,9 @@ fn result_replays_from_its_inputs_and_refuses_any_changed_number() {
     );
     let mut other = c.clone();
     other.actions[1].utility = UtilityExpr::Input(0);
-    assert!(refusal_message(loaded.replay(&other, &s)).starts_with("decision_artifact.replay_contract"));
+    assert!(
+        refusal_message(loaded.replay(&other, &s)).starts_with("decision_artifact.replay_contract")
+    );
 
     // A stored number edited and resealed under the same identities does not replay.
     let mut tampered = artifact.result().clone();
@@ -259,7 +261,8 @@ fn fresh_process_consumer_replays_the_decision_without_the_producer() {
     // libtest name carries the module path (a bare name would match nothing and "pass").
     let prefix =
         module_path!().split_once("::").map_or(String::new(), |(_, rest)| format!("{rest}::"));
-    let test_name = format!("{prefix}fresh_process_consumer_replays_the_decision_without_the_producer");
+    let test_name =
+        format!("{prefix}fresh_process_consumer_replays_the_decision_without_the_producer");
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
         .arg(&test_name)

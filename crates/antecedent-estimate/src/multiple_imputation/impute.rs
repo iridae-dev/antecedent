@@ -174,10 +174,16 @@ impl Imputer {
         let mut declared = BTreeMap::new();
         for (name, domain) in domains {
             if name.is_empty() || declared.insert(Arc::clone(name), *domain).is_some() {
-                return Err(MultipleImputationError::invalid("multiple_imputation.variable_domain", "empty or duplicate domain name"));
+                return Err(MultipleImputationError::invalid(
+                    "multiple_imputation.variable_domain",
+                    "empty or duplicate domain name",
+                ));
             }
             if !columns.iter().any(|column| column.name == *name) {
-                return Err(MultipleImputationError::invalid("multiple_imputation.variable_domain", format!("domain variable `{name}` is not in the imputation model")));
+                return Err(MultipleImputationError::invalid(
+                    "multiple_imputation.variable_domain",
+                    format!("domain variable `{name}` is not in the imputation model"),
+                ));
             }
         }
         let p = columns.len();
@@ -215,13 +221,27 @@ impl Imputer {
             let has_both = observed.iter().any(|&i| column.values[i] == 0.0)
                 && observed.iter().any(|&i| column.values[i] == 1.0);
             let kind = match declared.get(column.name.as_ref()) {
-                Some(ImputationDomain::Binary) if !binary => return Err(MultipleImputationError::invalid(
-                    "multiple_imputation.variable_domain", format!("binary variable `{}` contains an observed value other than 0 or 1", column.name))),
+                Some(ImputationDomain::Binary) if !binary => {
+                    return Err(MultipleImputationError::invalid(
+                        "multiple_imputation.variable_domain",
+                        format!(
+                            "binary variable `{}` contains an observed value other than 0 or 1",
+                            column.name
+                        ),
+                    ));
+                }
                 Some(ImputationDomain::Binary) => VariableKind::Binary,
                 Some(ImputationDomain::Continuous) => VariableKind::Continuous,
                 None if binary && has_both => VariableKind::Binary,
-                None if binary && !missing.is_empty() && !observed.is_empty() => return Err(MultipleImputationError::invalid(
-                    "multiple_imputation.ambiguous_variable_domain", format!("incomplete variable `{}` has only one observed 0/1 value; declare its domain binary or continuous", column.name))),
+                None if binary && !missing.is_empty() && !observed.is_empty() => {
+                    return Err(MultipleImputationError::invalid(
+                        "multiple_imputation.ambiguous_variable_domain",
+                        format!(
+                            "incomplete variable `{}` has only one observed 0/1 value; declare its domain binary or continuous",
+                            column.name
+                        ),
+                    ));
+                }
                 None => VariableKind::Continuous,
             };
             // A conditional model on the other p - 1 variables and an intercept needs more
@@ -534,21 +554,27 @@ impl Imputer {
 
     /// Explicit variable-domain declarations in canonical name order.
     #[must_use]
-    pub fn declared_domains(&self) -> &[(Arc<str>, ImputationDomain)] { &self.domains }
+    pub fn declared_domains(&self) -> &[(Arc<str>, ImputationDomain)] {
+        &self.domains
+    }
 
     /// Variables whose binary imputation uses single-class empirical-bootstrap support.
     #[must_use]
     pub fn binary_boundary_variables(&self) -> Vec<(Arc<str>, u8)> {
-        (0..self.names.len()).filter_map(|j| {
-            if self.kinds[j] != VariableKind::Binary || self.missing_rows[j].is_empty() {
-                return None;
-            }
-            let observed = self.fit_rows_of(j);
-            let &first = observed.first()?;
-            let value = self.values[j][first];
-            observed.iter().all(|&i| self.values[j][i] == value)
-                .then(|| (Arc::clone(&self.names[j]), u8::from(value == 1.0)))
-        }).collect()
+        (0..self.names.len())
+            .filter_map(|j| {
+                if self.kinds[j] != VariableKind::Binary || self.missing_rows[j].is_empty() {
+                    return None;
+                }
+                let observed = self.fit_rows_of(j);
+                let &first = observed.first()?;
+                let value = self.values[j][first];
+                observed
+                    .iter()
+                    .all(|&i| self.values[j][i] == value)
+                    .then(|| (Arc::clone(&self.names[j]), u8::from(value == 1.0)))
+            })
+            .collect()
     }
 
     /// `(name, cells imputed)` per variable.
@@ -702,7 +728,9 @@ impl Imputer {
                 if let Some(&first) = observed.first() {
                     let value = self.values[j][first];
                     if observed.iter().all(|&i| self.values[j][i] == value) {
-                        for &i in &self.missing_rows[j] { current[j][i] = value; }
+                        for &i in &self.missing_rows[j] {
+                            current[j][i] = value;
+                        }
                         return Ok(());
                     }
                 }

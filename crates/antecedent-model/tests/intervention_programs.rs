@@ -658,7 +658,10 @@ fn the_conditional_sampler_runs_programs_and_refuses_to_condition_on_them() {
     let phi = |t: f64| 0.5 * (1.0 + libm_erf(t / std::f64::consts::SQRT_2));
     let folded = sd_e * (2.0 / std::f64::consts::PI).sqrt() * (-(ratio * ratio) / 2.0).exp()
         + mean_e * (1.0 - 2.0 * phi(-ratio));
-    assert!((unexplained / 2_000.0 - folded).abs() < 0.02, "x - 1 - 0.8 z is the structural residual");
+    assert!(
+        (unexplained / 2_000.0 - folded).abs() < 0.02,
+        "x - 1 - 0.8 z is the structural residual"
+    );
 
     let on_x = [DenseNodeId::from_raw(1)];
     let evidence = ConditionEvidence { nodes: &on_x, values: &evidence_values };

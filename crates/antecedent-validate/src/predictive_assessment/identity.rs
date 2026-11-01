@@ -149,13 +149,19 @@ pub(crate) fn observations_digest(
     }
     if bind_provenance && keys.iter().any(super::law::ObservationKey::is_caller_minted) {
         writer.text("caller_minted_provenance_v2").word(order.len() as u64);
-        for &i in order { writer.word(keys[i].is_caller_minted() as u64); }
+        for &i in order {
+            writer.word(keys[i].is_caller_minted() as u64);
+        }
     }
     writer.finish_hex()
 }
 
 /// Digest of one predictor with its cases in canonical order.
-pub(crate) fn predictor_digest(predictor: &PredictorLaws, order: &[usize], bind_provenance: bool) -> String {
+pub(crate) fn predictor_digest(
+    predictor: &PredictorLaws,
+    order: &[usize],
+    bind_provenance: bool,
+) -> String {
     let mut writer = CanonicalWriter::new("antecedent.predictive_assessment.predictor");
     writer.word(IDENTITY_VERSION).text(&predictor.name).text(predictor.source.class());
     match &predictor.source {
@@ -197,7 +203,9 @@ pub(crate) fn predictor_digest(predictor: &PredictorLaws, order: &[usize], bind_
             let sorted = super::overlap::sorted_distinct(keys);
             if sorted.iter().any(super::law::ObservationKey::is_caller_minted) {
                 writer.text("caller_minted_fit_provenance_v2").word(sorted.len() as u64);
-                for key in sorted { writer.word(key.is_caller_minted() as u64); }
+                for key in sorted {
+                    writer.word(key.is_caller_minted() as u64);
+                }
             }
         }
     }
