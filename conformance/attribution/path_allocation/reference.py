@@ -38,7 +38,7 @@ def check(document):
         if len(contributions) != len(case["path_contributions"]):
             problems.append(f"{label}: path count {len(contributions)} != {len(case['path_contributions'])}")
             continue
-        for index, (got, want) in enumerate(zip(contributions, case["path_contributions"])):
+        for index, (got, want) in enumerate(zip(contributions, case["path_contributions"], strict=False)):
             close(got, want, tol, f"{label}.path_contributions[{index}]", problems)
         close(sum(contributions), case["total_change"], tol, f"{label}.total_change", problems)
     return problems

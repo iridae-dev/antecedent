@@ -278,7 +278,8 @@ def main() -> int:
     if args.self_test:
         collider = next(c for c in document["cases"] if c["id"] == "three.d1.b4.x1.y2")
         graph = latent_dag(collider)
-        normalize = lambda text: observational_formula(parse_observational(text), graph)
+        def normalize(text):
+            return observational_formula(parse_observational(text), graph)
         if normalize("P(V2 | V0)") != normalize("P(V2)"):
             problems.append("graph-implied redundant condition was not normalized")
         if normalize("P(V2 | V0, V1)") == normalize("P(V2 | V1)"):

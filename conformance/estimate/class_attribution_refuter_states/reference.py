@@ -128,7 +128,7 @@ def solve(a, b):
         for r in range(n):
             if r != col and m[r][col] != 0:
                 f = m[r][col]
-                m[r] = [v - f * w for v, w in zip(m[r], m[col])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[col], strict=False)]
     return [m[i][n] for i in range(n)]
 
 
@@ -155,13 +155,13 @@ def leverages(rows):
     out = []
     for r in rows:
         sol = solve([row[:] for row in g], r)
-        out.append(sum(a * b for a, b in zip(r, sol)))
+        out.append(sum(a * b for a, b in zip(r, sol, strict=False)))
     return out
 
 
 def coefficients(rows, y):
     g = gram(rows)
-    xty = [sum(r[j] * yv for r, yv in zip(rows, y)) for j in range(len(g))]
+    xty = [sum(r[j] * yv for r, yv in zip(rows, y, strict=False)) for j in range(len(g))]
     return solve(g, xty)
 
 
@@ -193,7 +193,7 @@ def derive(name):
     with_row = coefficients(p_rows, [F(v) for v in planted[response]])
     without = coefficients([p_rows[i] for i in keep], [F(planted[response][i]) for i in keep])
     clean_fit = coefficients(c_rows, [F(v) for v in clean[response]])
-    out["coefficient_shift"] = float(max(abs(a - b) for a, b in zip(with_row[1:], without[1:])))
+    out["coefficient_shift"] = float(max(abs(a - b) for a, b in zip(with_row[1:], without[1:], strict=False)))
     out["clean_coefficients"] = [float(v) for v in clean_fit]
     out["coefficients_without_planted_row"] = [float(v) for v in without]
     out["clean_response_max_robust_z"] = float(max(robust_z(clean[response])))
@@ -228,7 +228,7 @@ def check(document):
         for key, value in got.items():
             if isinstance(value, (int, bool)) or isinstance(value, list):
                 same = (want[key] == value) if not isinstance(value, list) else all(
-                    math.isclose(a, b, rel_tol=0.0, abs_tol=1e-12) for a, b in zip(want[key], value)
+                    math.isclose(a, b, rel_tol=0.0, abs_tol=1e-12) for a, b in zip(want[key], value, strict=False)
                 )
             else:
                 same = math.isclose(want[key], value, rel_tol=0.0, abs_tol=1e-12)

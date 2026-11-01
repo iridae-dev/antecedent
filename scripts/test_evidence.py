@@ -31,15 +31,15 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import _py_closure
-from _source_cache import source_cache
 import _rust_source as _rust
-import tomllib
 from _repo import REPO_ROOT as ROOT
 from _repo import cargo_target_feature_args
+from _source_cache import source_cache
 from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 PARSE_MARKERS = re.compile(

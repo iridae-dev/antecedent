@@ -116,17 +116,23 @@ def fit_gaussian(x, y):
 def fit_glm(family, x, y):
     n, k = x.shape
     if family == "poisson":
-        nll = lambda b: float(np.sum(np.exp(x @ b) - y * (x @ b)))
-        grad = lambda b: x.T @ (np.exp(x @ b) - y)
+        def nll(b):
+            return float(np.sum(np.exp(x @ b) - y * (x @ b)))
+        def grad(b):
+            return x.T @ (np.exp(x @ b) - y)
         start = np.zeros(k)
         start[0] = np.log(y.mean())
     elif family == "bernoulli":
-        nll = lambda b: float(np.sum(np.logaddexp(0.0, x @ b) - y * (x @ b)))
-        grad = lambda b: x.T @ (logistic(x @ b) - y)
+        def nll(b):
+            return float(np.sum(np.logaddexp(0.0, x @ b) - y * (x @ b)))
+        def grad(b):
+            return x.T @ (logistic(x @ b) - y)
         start = np.zeros(k)
     else:
-        nll = lambda b: float(np.sum(y * np.exp(-(x @ b)) + x @ b))
-        grad = lambda b: x.T @ (1.0 - y * np.exp(-(x @ b)))
+        def nll(b):
+            return float(np.sum(y * np.exp(-(x @ b)) + x @ b))
+        def grad(b):
+            return x.T @ (1.0 - y * np.exp(-(x @ b)))
         start = np.zeros(k)
         start[0] = np.log(y.mean())
     res = optimize.minimize(nll, start, jac=grad, method="BFGS", options={"gtol": 1e-10, "maxiter": 2000})
@@ -292,7 +298,7 @@ def build():
             "truth": truth,
             "coefficients": [float(c) for c in fit["beta"]],
         }
-        for r, s, t in zip(reference, reference_se, truth):
+        for r, s, t in zip(reference, reference_se, truth, strict=False):
             assert abs(r - t) < 4.5 * s, (name, r, t, s)
 
     centre = float(src["income"].mean())
@@ -300,8 +306,10 @@ def build():
     ts, cs = standardized_price_fit(src["income"], src["price"], centre, scale)
     tt, ct = standardized_price_fit(tgt["income"], tgt["price"], centre, scale)
     tt2, ct2 = standardized_price_fit(tgt["income"], tgt["price_shifted"], centre, scale)
-    income_theta = lambda col: (np.array([col.mean(), np.log(np.sqrt(np.sum((col - col.mean()) ** 2) / (N - 1)))]))
-    income_cov = lambda col: np.diag([np.sum((col - col.mean()) ** 2) / (N - 1) / N, 1.0 / (2.0 * (N - 1))])
+    def income_theta(col):
+        return (np.array([col.mean(), np.log(np.sqrt(np.sum((col - col.mean()) ** 2) / (N - 1)))]))
+    def income_cov(col):
+        return np.diag([np.sum((col - col.mean()) ** 2) / (N - 1) / N, 1.0 / (2.0 * (N - 1))])
     invariance = {
         "price": wald_p(ts, cs, tt, ct),
         "price_shifted": wald_p(ts, cs, tt2, ct2),
@@ -341,7 +349,7 @@ def close(left, right, rtol=1e-6, atol=1e-9):
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(close(left[k], right[k], rtol, atol) for k in left)
     if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(close(a, b, rtol, atol) for a, b in zip(left, right))
+        return len(left) == len(right) and all(close(a, b, rtol, atol) for a, b in zip(left, right, strict=False))
     if isinstance(left, (int, float)) and isinstance(right, (int, float)) and not isinstance(left, bool):
         return abs(left - right) <= atol + rtol * abs(right)
     return left == right

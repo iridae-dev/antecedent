@@ -1,8 +1,9 @@
-from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from pathlib import Path
+
 import check_release_claims as release
+
 
 class LiveCalibrationEligibility(unittest.TestCase):
     def test_present_id_does_not_prove_scope_but_snapshot_keeps_projection(self):

@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import itertools
 import json
 import sys
 from fractions import Fraction as F
@@ -38,28 +37,28 @@ ATOL = 1e-8
 
 def solve(a, y):
     n = len(y)
-    m = [row[:] + [v] for row, v in zip(a, y)]
+    m = [row[:] + [v] for row, v in zip(a, y, strict=False)]
     for i in range(n):
         pivot = next(r for r in range(i, n) if m[r][i] != 0)
         m[i], m[pivot] = m[pivot], m[i]
         m[i] = [v / m[i][i] for v in m[i]]
         for r in range(n):
             if r != i:
-                m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i])]
+                m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i], strict=False)]
     return [row[-1] for row in m]
 
 
 def ols(columns, y):
     k = len(columns)
-    xtx = [[sum(a * b for a, b in zip(columns[i], columns[j])) for j in range(k)] for i in range(k)]
-    xty = [sum(a * b for a, b in zip(columns[i], y)) for i in range(k)]
+    xtx = [[sum(a * b for a, b in zip(columns[i], columns[j], strict=False)) for j in range(k)] for i in range(k)]
+    xty = [sum(a * b for a, b in zip(columns[i], y, strict=False)) for i in range(k)]
     return solve(xtx, xty)
 
 
 def series(n):
     z = [F([1, 1, -1, -1][i % 4]) for i in range(n)]
     u = [F([1, -1, 1, -1][i % 4]) for i in range(n)]
-    a = [zi + ui for zi, ui in zip(z, u)]
+    a = [zi + ui for zi, ui in zip(z, u, strict=False)]
     y = [(1 + 2 * a[i - 1] + 5 * z[i - 1]) if i >= 1 else F(0) for i in range(n)]
     return z, a, y
 
@@ -195,7 +194,7 @@ def check(document: dict) -> list[str]:
         ),
     ]
     for name, reference, fixture in pairs:
-        if len(reference) != len(fixture) or any(abs(r - f) > ATOL for r, f in zip(reference, fixture)):
+        if len(reference) != len(fixture) or any(abs(r - f) > ATOL for r, f in zip(reference, fixture, strict=False)):
             problems.append(f"{name}: fixture {fixture} reference {reference}")
     return problems
 

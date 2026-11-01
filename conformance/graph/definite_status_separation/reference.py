@@ -153,7 +153,7 @@ def members(case):
     result = []
     for choice in itertools.product(("tail", "arrow"), repeat=len(circles)):
         edges = {e: dict(m) for e, m in shown.items()}
-        for (e, v), mark in zip(circles, choice):
+        for (e, v), mark in zip(circles, choice, strict=False):
             edges[e][v] = mark
         mag = Mag(nodes, edges)
         if not mag.ancestral():

@@ -42,7 +42,7 @@ def pool(items: list[tuple[F, F]], covariance: F = F(0)) -> tuple[F, F]:
     if covariance == 0:
         weights = [1 / v for _, v in items]
         total = sum(weights)
-        return sum(w * e for w, (e, _) in zip(weights, items)) / total, 1 / total
+        return sum(w * e for w, (e, _) in zip(weights, items, strict=False)) / total, 1 / total
     (e1, v1), (e2, v2) = items
     det = v1 * v2 - covariance**2
     inverse = [[v2 / det, -covariance / det], [-covariance / det, v1 / det]]

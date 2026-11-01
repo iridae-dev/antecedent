@@ -19,11 +19,11 @@ import re
 import subprocess
 import sys
 import tempfile
+import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import check_evidence_ledger
-import tomllib
 from _repo import REPO_ROOT
 from evidence_kinds import (
     EVIDENCE_KINDS,
@@ -37,14 +37,14 @@ from evidence_kinds import (
 from provenance_links import method_review_problems, non_algorithm_review_problems
 from scenario_matrix import build as build_scenario_matrix
 from test_evidence import (
+    calibration_discovery_problems,
+    nextest_selection,
+    python_test_declarations,
+    python_test_markers,
     registered_calibration_acceptance,
     registered_rust_assertions,
-    nextest_selection,
-    calibration_discovery_problems,
-    python_test_markers,
-    python_test_declarations,
-    script_test_declaration_problems,
     rust_test_declaration_problems,
+    script_test_declaration_problems,
     static_python_test,
 )
 from verify_provenance_citations import CACHE as CITATION_CACHE

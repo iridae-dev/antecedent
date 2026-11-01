@@ -48,7 +48,7 @@ def solve(a, b):
         for r in range(n):
             if r != col and m[r][col] != 0:
                 f = m[r][col]
-                m[r] = [v - f * w for v, w in zip(m[r], m[col])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[col], strict=False)]
     return [m[i][n] for i in range(n)]
 
 
@@ -56,8 +56,8 @@ def ols(columns, y):
     """Least squares of y on the given columns (include a constant column yourself), exact on float inputs."""
     cols = [[F(v) for v in c] for c in columns]
     yy = [F(v) for v in y]
-    xtx = [[sum(a * b for a, b in zip(ci, cj)) for cj in cols] for ci in cols]
-    xty = [sum(a * b for a, b in zip(ci, yy)) for ci in cols]
+    xtx = [[sum(a * b for a, b in zip(ci, cj, strict=False)) for cj in cols] for ci in cols]
+    xty = [sum(a * b for a, b in zip(ci, yy, strict=False)) for ci in cols]
     return solve(xtx, xty)
 
 

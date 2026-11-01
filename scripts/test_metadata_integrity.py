@@ -1,5 +1,7 @@
 import unittest
+
 from metadata_integrity import author_orcid_problems, oracle_packages, oracle_rows
+
 
 class MetadataIntegrity(unittest.TestCase):
     def test_authors_are_scoped_nonempty_and_quoted_or_unquoted(self):

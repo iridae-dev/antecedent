@@ -57,7 +57,7 @@ def solve_ridge(n_rows, lam):
     b = sum(xs)
     d = sum(x * x for x in xs)
     r0 = sum(ys)
-    r1 = sum(x * y for x, y in zip(xs, ys))
+    r1 = sum(x * y for x, y in zip(xs, ys, strict=False))
     a, d = a + lam, d + lam
     det = a * d - b * b
     return (d * r0 - b * r1) / det, (a * r1 - b * r0) / det
@@ -97,7 +97,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

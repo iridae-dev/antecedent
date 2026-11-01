@@ -49,7 +49,7 @@ def inverse(matrix):
         m[i] = [v / m[i][i] for v in m[i]]
         for r in range(n):
             if r != i:
-                m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i])]
+                m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i], strict=False)]
     return [row[n:] for row in m]
 
 
@@ -69,7 +69,7 @@ def gaussian():
                 rows.append([F(1), F(t)])
                 ys.append(1 + 2 * t + noise)
     inv = inverse(gram(rows, [F(1, 100)] * 2))
-    moment = [sum(x[i] * y for x, y in zip(rows, ys)) for i in range(2)]
+    moment = [sum(x[i] * y for x, y in zip(rows, ys, strict=False)) for i in range(2)]
     mean = [sum(inv[i][j] * moment[j] for j in range(2)) for i in range(2)]
     return {"mean": mean[1], "variance": inv[1][1]}
 
@@ -83,9 +83,9 @@ def quadratic():
                     rows.append([F(1), F(t), F(z), F(t * z), F(z * z)])
                     ys.append(1 + 2 * t + F(1, 2) * z + F(2, 5) * t * z + F(3, 10) * z * z + noise)
     inv = inverse(gram(rows, [F(1, 100)] * 5))
-    moment = [sum(x[i] * y for x, y in zip(rows, ys)) for i in range(5)]
+    moment = [sum(x[i] * y for x, y in zip(rows, ys, strict=False)) for i in range(5)]
     mean = [sum(inv[i][j] * moment[j] for j in range(5)) for i in range(5)]
-    rss = sum((y - sum(b * v for b, v in zip(mean, x))) ** 2 for x, y in zip(rows, ys))
+    rss = sum((y - sum(b * v for b, v in zip(mean, x, strict=False))) ** 2 for x, y in zip(rows, ys, strict=False))
     penalty = F(1, 100) * sum(b * b for b in mean)
     shape = F(1, 1000) + F(len(rows), 2)
     scale = F(1, 1000) + (rss + penalty) / 2
@@ -107,7 +107,7 @@ def joint():
             rows.append([F(t), F(1)])
             ys.append(F(3) if t else F(1))
     inv = inverse(gram(rows, [F(1, 100), F(1, 4)]))
-    moment = [sum(x[i] * y for x, y in zip(rows, ys)) for i in range(2)]
+    moment = [sum(x[i] * y for x, y in zip(rows, ys, strict=False)) for i in range(2)]
     mean = [sum(inv[i][j] * moment[j] for j in range(2)) for i in range(2)]
     return {"mean": mean[0], "variance": inv[0][0], "precision": gram(rows, [F(1, 100), F(1, 4)]), "moment": moment}
 

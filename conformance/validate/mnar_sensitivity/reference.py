@@ -60,9 +60,9 @@ def tilted_missing_mean(obs: list[float], t: float, alpha: float = 0.0) -> float
         return 1.0 / (1.0 + math.exp(-(alpha - t * y)))
 
     full = [1.0 / (n * pi(y)) for y in obs]  # f(y) ~ f_obs(y) / pi(y)
-    missing = [f * (1.0 - pi(y)) for f, y in zip(full, obs)]  # f(y, R=0)
+    missing = [f * (1.0 - pi(y)) for f, y in zip(full, obs, strict=False)]  # f(y, R=0)
     total = sum(missing)
-    return sum(m * y for m, y in zip(missing, obs)) / total
+    return sum(m * y for m, y in zip(missing, obs, strict=False)) / total
 
 
 def tilted_missing_mean_weighted(
@@ -70,8 +70,8 @@ def tilted_missing_mean_weighted(
 ) -> float:
     """Missing-pattern mean with observation weights (for the numerical influence)."""
     centre = max(obs) if t >= 0 else min(obs)
-    w = [s * math.exp(t * (y - centre)) for s, y in zip(weights, obs)]
-    return sum(a * y for a, y in zip(w, obs)) / sum(w) + shift
+    w = [s * math.exp(t * (y - centre)) for s, y in zip(weights, obs, strict=False)]
+    return sum(a * y for a, y in zip(w, obs, strict=False)) / sum(w) + shift
 
 
 def arm_mean_weighted(
@@ -79,7 +79,7 @@ def arm_mean_weighted(
 ) -> float:
     n_obs = len(obs)
     pi_hat = n_obs / (n_obs + missing)
-    ybar = sum(s * y for s, y in zip(weights, obs)) / sum(weights)
+    ybar = sum(s * y for s, y in zip(weights, obs, strict=False)) / sum(weights)
     if model == "delta":
         g = ybar + param
     else:
@@ -116,7 +116,7 @@ def arm_moments(obs: list[float], missing: int, model: str, param: float) -> tup
 
 def split(data: dict) -> tuple[tuple[list[float], int], tuple[list[float], int]]:
     arms = {1.0: ([], 0), 0.0: ([], 0)}
-    for t, y in zip(data["treatment"], data["outcome"]):
+    for t, y in zip(data["treatment"], data["outcome"], strict=False):
         obs, miss = arms[t]
         if y is None:
             arms[t] = (obs, miss + 1)
@@ -334,7 +334,7 @@ def close(a, b) -> bool:
     if isinstance(a, dict) and isinstance(b, dict):
         return a.keys() == b.keys() and all(close(a[k], b[k]) for k in a)
     if isinstance(a, list) and isinstance(b, list):
-        return len(a) == len(b) and all(close(x, y) for x, y in zip(a, b))
+        return len(a) == len(b) and all(close(x, y) for x, y in zip(a, b, strict=False))
     if isinstance(a, float) and isinstance(b, float):
         return math.isclose(a, b, rel_tol=0.0, abs_tol=1e-9)
     return a == b

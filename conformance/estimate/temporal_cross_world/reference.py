@@ -30,8 +30,10 @@ def close(got, want, tol, label, problems):
         problems.append(f"{label}: derived {got!r} != fixture {want!r} (tol {tol})")
 
 
-F_M = lambda x, u: Fraction(1, 2) * x + u
-F_Y = lambda x, m: Fraction(3, 2) * x + 4 * m
+def F_M(x, u):
+    return Fraction(1, 2) * x + u
+def F_Y(x, m):
+    return Fraction(3, 2) * x + 4 * m
 SHOCKS = (Fraction(3, 10), Fraction(-3, 10), Fraction(0), Fraction(7, 3))
 
 def derived():

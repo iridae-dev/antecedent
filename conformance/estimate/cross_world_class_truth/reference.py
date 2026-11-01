@@ -113,7 +113,7 @@ def line_slope(document, case):
     xs = [F(i, 20) - 2 for i in range(case["rows"])]
     ys = [F(case["intercept"]) + F(case["slope"]) * x for x in xs]
     mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
-    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False)) / sum((x - mx) ** 2 for x in xs)
 
 
 FORMULAS = {

@@ -60,7 +60,7 @@ def recovered_parents(document: dict) -> list[dict]:
         tau_max=document["max_lag"],
     )
     found = []
-    for source, target, lag in zip(*np.where(q < document["alpha"])):
+    for source, target, lag in zip(*np.where(q < document["alpha"]), strict=False):
         if lag == 0:
             continue
         found.append(

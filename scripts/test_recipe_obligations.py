@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from unittest.mock import patch
 
 from _repo import REPO_ROOT, ensure_scripts_on_path
 

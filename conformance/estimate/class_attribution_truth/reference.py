@@ -83,7 +83,7 @@ def solve(a, b):
         for r in range(n):
             if r != col and m[r][col] != 0:
                 f = m[r][col]
-                m[r] = [v - f * w for v, w in zip(m[r], m[col])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[col], strict=False)]
     return [m[i][n] for i in range(n)]
 
 
@@ -91,8 +91,8 @@ def fit(design, rows, node, parents):
     """Least squares of `node` on `parents` over `rows`: ([intercept, *slopes], residual variance)."""
     cols = [[F(1)] * len(rows)] + [[F(design[p][i]) for i in rows] for p in parents]
     y = [F(design[node][i]) for i in rows]
-    xtx = [[sum(a * b for a, b in zip(ci, cj)) for cj in cols] for ci in cols]
-    xty = [sum(a * b for a, b in zip(ci, y)) for ci in cols]
+    xtx = [[sum(a * b for a, b in zip(ci, cj, strict=False)) for cj in cols] for ci in cols]
+    xty = [sum(a * b for a, b in zip(ci, y, strict=False)) for ci in cols]
     beta = solve(xtx, xty)
     rss = sum((y[k] - sum(beta[j] * cols[j][k] for j in range(len(cols)))) ** 2 for k in range(len(rows)))
     dof = len(rows) - len(cols)
@@ -199,7 +199,7 @@ def anomaly_member(case, member):
     for v in order:
         beta = fits[v]
         noise[v] = [
-            F(design[v][i]) - beta[0] - sum(b * F(design[p][i]) for b, p in zip(beta[1:], parents.get(v, [])))
+            F(design[v][i]) - beta[0] - sum(b * F(design[p][i]) for b, p in zip(beta[1:], parents.get(v, []), strict=False))
             for i in range(n)
         ]
     players = member["players"]
@@ -213,7 +213,7 @@ def anomaly_member(case, member):
         value = {}
         for v in order:
             beta = fits[v]
-            value[v] = beta[0] + sum(b * value[p] for b, p in zip(beta[1:], parents.get(v, [])))
+            value[v] = beta[0] + sum(b * value[p] for b, p in zip(beta[1:], parents.get(v, []), strict=False))
             if v in held:
                 value[v] += noise[v][i]
         return value[target]
@@ -250,7 +250,7 @@ def merge_anomaly(case, members_out):
     merged = [[0.0] * len(comps) for _ in range(n)]
     base = [0.0] * n
     row_mean = []
-    for wi, i in zip(w, ident):
+    for wi, i in zip(w, ident, strict=False):
         out = members_out[i]
         means = [0.0] * len(comps)
         for r in range(n):
@@ -304,7 +304,7 @@ def change_member(case, member):
         value = {}
         for v in order:
             beta = mech[v][0]
-            value[v] = beta[0] + sum(b * value[p] for b, p in zip(beta[1:], parents.get(v, [])))
+            value[v] = beta[0] + sum(b * value[p] for b, p in zip(beta[1:], parents.get(v, []), strict=False))
         return value[target]
 
     def effect(swapped, source):
@@ -315,7 +315,7 @@ def change_member(case, member):
         for v in order:
             beta = mech[v][0]
             own = F(math.sqrt(float(mech[v][1]))) if v == source else F(0)
-            eff[v] = own + sum(b * eff[p] for b, p in zip(beta[1:], parents.get(v, [])))
+            eff[v] = own + sum(b * eff[p] for b, p in zip(beta[1:], parents.get(v, []), strict=False))
         return eff[target]
 
     k = len(players)
@@ -361,12 +361,12 @@ def merge_change(case, members_out):
     for i in ident:
         out = members_out[i]
         per_member.append([out["phi"][out["components"].index(c)] if c in out["components"] else 0.0 for c in comps])
-    mean = [sum(wi * m[c] for wi, m in zip(w, per_member)) for c in range(len(comps))]
+    mean = [sum(wi * m[c] for wi, m in zip(w, per_member, strict=False)) for c in range(len(comps))]
     tol = []
     for c, comp in enumerate(comps):
         # the mean of the members' contributions carries the weighted sum of their tolerances
         bound = 0.0
-        for wi, i in zip(w, ident):
+        for wi, i in zip(w, ident, strict=False):
             out = members_out[i]
             if comp in out["components"]:
                 bound += wi * out["tolerance"][out["components"].index(comp)]
@@ -378,8 +378,8 @@ def merge_change(case, members_out):
         "tolerance": tol,
         "lower": [min(m[c] for m in per_member) for c in range(len(comps))],
         "upper": [max(m[c] for m in per_member) for c in range(len(comps))],
-        "total": sum(wi * members_out[i]["total"] for wi, i in zip(w, ident)),
-        "total_tolerance": sum(wi * members_out[i]["total_tolerance"] for wi, i in zip(w, ident)),
+        "total": sum(wi * members_out[i]["total"] for wi, i in zip(w, ident, strict=False)),
+        "total_tolerance": sum(wi * members_out[i]["total_tolerance"] for wi, i in zip(w, ident, strict=False)),
         "observed": members_out[ident[0]]["observed"],
         "identified_mass": sum(weights[i] for i in ident) / (sum(weights) + outside),
         "unidentified_mass": (sum(m["weight"] for m in case["members"] if m["status"] == "hedged") + outside)
@@ -445,7 +445,8 @@ def derive(case):
 
 
 def sines(n):
-    seq = lambda f, p: [math.sin(f * i + p) for i in range(n)]
+    def seq(f, p):
+        return [math.sin(f * i + p) for i in range(n)]
     return seq(0.37, 0.2), seq(1.13, 0.7), seq(2.9, 1.3)
 
 
@@ -500,12 +501,12 @@ def build_cases():
             member("x <- y <- z", 1, "identified", {"z": [], "y": ["z"], "x": ["y"]}, [player("z")]),
         ],
     }
-    iso = [3.0 * v + 0.5 * w for v, w in zip(s3, s2)]
+    iso = [3.0 * v + 0.5 * w for v, w in zip(s3, s2, strict=False)]
     iso[-1] += 20.0
     cases["cpdag_agreeing_anomaly"] = {
         "kind": "anomaly",
         "graph": {"class": "cpdag", "nodes": 3, "directed": [], "undirected": [[0, 1]]},
-        "columns": {"x": x, "y": [2.0 * a + 0.4 * b for a, b in zip(x, s3)], "z": iso},
+        "columns": {"x": x, "y": [2.0 * a + 0.4 * b for a, b in zip(x, s3, strict=False)], "z": iso},
         "reference": {"kind": "empirical"},
         "target": "z",
         "component_ids": {"x": 0, "y": 1, "z": 2},
@@ -514,7 +515,7 @@ def build_cases():
             member("x <- y, z", 1, "identified", {"y": [], "x": ["y"], "z": []}, [player("z")]),
         ],
     }
-    yy = [2.0 * a + 0.4 * b for a, b in zip(x, s3)]
+    yy = [2.0 * a + 0.4 * b for a, b in zip(x, s3, strict=False)]
     yy[-1] += 14.0
     pair = {"x": x, "y": yy}
     cases["pag_circle_arrow_anomaly"] = {
@@ -543,7 +544,7 @@ def build_cases():
         ],
     }
     a = list(s1)
-    b = [-0.6 * p + 0.8 * q for p, q in zip(s1, s2)]
+    b = [-0.6 * p + 0.8 * q for p, q in zip(s1, s2, strict=False)]
     b[-1] += 4.0
     t = [a[i] + 2.0 * b[i] + 0.3 * s3[i] for i in range(n)]
     cases["admg_collider_anomaly"] = {
@@ -597,7 +598,7 @@ def build_cases():
         ],
     }
     ca = list(q1)
-    cb = [-0.6 * p + 0.8 * r for p, r in zip(q1, q2)]
+    cb = [-0.6 * p + 0.8 * r for p, r in zip(q1, q2, strict=False)]
     ct = [ca[max(i - 1, 0)] + 2.0 * cb[max(i - 1, 0)] + 0.3 * q3[i] for i in range(m)]
     ct[-1] += 7.0
     cases["temporal_admg_anomaly"] = {
@@ -926,7 +927,7 @@ def build_posterior_cases(anomaly_cases, change_cases):
     m = 48
     q1, q2, q3 = sines(m)
     pa = [0.5 * v for v in q1]
-    pb = [0.5 * (-0.6 * p + 0.8 * q) for p, q in zip(q1, q2)]
+    pb = [0.5 * (-0.6 * p + 0.8 * q) for p, q in zip(q1, q2, strict=False)]
     pt = [pa[max(i - 1, 0)] + 2.0 * pb[i] + 0.3 * q3[i] for i in range(m)]
     pt[-1] += 7.0
     admg_t_members = [
@@ -1039,7 +1040,7 @@ def same_tree(got, want, label, problems, tol=1e-9):
         if not isinstance(got, list) or len(got) != len(want):
             problems.append(f"{label}: length differs")
             return
-        for i, (g, w) in enumerate(zip(got, want)):
+        for i, (g, w) in enumerate(zip(got, want, strict=False)):
             same_tree(g, w, f"{label}[{i}]", problems, tol)
     elif isinstance(want, (int, float)) and not isinstance(want, bool):
         close(got, want, tol, label, problems)

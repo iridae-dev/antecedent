@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -65,7 +64,7 @@ def check(document):
     close(p, t["holm_p_single_contrast"], 1e-12, "two-sided p", problems)   # Holm with one contrast leaves p unchanged
     prior = document["prior"]
     scores = [-abs(e - prior["target_effect"]) for e in prior["source_effects"]]
-    for i, (got, want) in enumerate(zip(scores, prior["scores"])):
+    for i, (got, want) in enumerate(zip(scores, prior["scores"], strict=False)):
         close(got, want, 1e-12, f"prior score {i}", problems)
     names = ["far", "near"]   # source order in the executing test: far (effect 1.0), near (effect 2.0)
     ranked = [names[i] for i in sorted(range(2), key=lambda i: -scores[i])]
@@ -106,7 +105,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

@@ -44,7 +44,7 @@ def joint(weights, features, reliability):
     cats = sorted(set(features))
     k = len(cats)
     rows = {}
-    for g, (pg, f) in enumerate(zip(w, features)):
+    for g, (pg, f) in enumerate(zip(w, features, strict=False)):
         for y in cats:
             p = reliability * (1.0 if y == f else 0.0) + (1.0 - reliability) / k
             rows[(g, y)] = pg * p

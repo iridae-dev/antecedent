@@ -44,9 +44,11 @@ def check(document):
     t = [0.3 + 0.5 * r[i] + 0.2 * z[i] + 0.4 * math.cos(2.3 * i) for i in range(n)]
     w = [0.1 * math.sin(0.77 * i) for i in range(n)]
     rows = range(1, n)
-    mean = lambda v: sum(F(x) for x in v) / len(v)
+    def mean(v):
+        return sum(F(x) for x in v) / len(v)
     mt, mz, mw = mean([t[i - 1] for i in rows]), mean([z[i - 1] for i in rows]), mean([w[i] for i in rows])
-    cov = lambda a, b: sum((F(x) - mean(a)) * (F(y) - mean(b)) for x, y in zip(a, b)) / len(a)
+    def cov(a, b):
+        return sum((F(x) - mean(a)) * (F(y) - mean(b)) for x, y in zip(a, b, strict=False)) / len(a)
     ta, za, wa = [t[i - 1] for i in rows], [z[i - 1] for i in rows], [w[i] for i in rows]
     var_t, cov_tz, cov_tw = cov(ta, ta), cov(ta, za), cov(ta, wa)
     m = document["moments"]
@@ -56,13 +58,15 @@ def check(document):
     mean_y = 1 + 2 * mt + F("0.6") * mz + mw
     close(slope, m["slope_z_as_mediator"], 1e-10, "slope_z_as_mediator", problems)
     close(mean_y, m["mean_y"], 1e-10, "mean_y", problems)
-    level = lambda x: 1 + 2 * x + F("0.6") * mz + mw
+    def level(x):
+        return 1 + 2 * x + F("0.6") * mz + mw
     adj, med = document["horizon_1"]["adjusting_z"], document["horizon_1"]["z_as_mediator"]
     close(level(0), adj["curve"][0], 1e-10, "adjusting curve dose 0", problems)
     close(level(1), adj["curve"][1], 1e-10, "adjusting curve dose 1", problems)
     close(level(1), adj["set"][0], 1e-10, "adjusting set dose 1", problems)
     close(level(mt + F(1, 2)), adj["shift"][0], 1e-10, "adjusting shift", problems)
-    assoc = lambda x: mean_y + slope * (F(x) - mt)
+    def assoc(x):
+        return mean_y + slope * (F(x) - mt)
     close(assoc(0), med["curve"][0], 1e-10, "mediator curve dose 0", problems)
     close(assoc(1), med["curve"][1], 1e-10, "mediator curve dose 1", problems)
     close(assoc(1), med["set"][0], 1e-10, "mediator set dose 1", problems)

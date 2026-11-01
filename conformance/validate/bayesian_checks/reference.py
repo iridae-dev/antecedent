@@ -86,7 +86,7 @@ def primary_outputs(case: dict) -> dict:
             correlations.append(1 - (within - covariance) / variance)
         positive = takewhile(
             lambda pair: pair > 0,
-            (a + b for a, b in zip(correlations[::2], correlations[1::2])),
+            (a + b for a, b in zip(correlations[::2], correlations[1::2], strict=False)),
         )
         monotone = list(accumulate(positive, min))
         if not monotone:

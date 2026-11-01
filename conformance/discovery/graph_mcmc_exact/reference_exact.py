@@ -46,8 +46,8 @@ def solve(a, b):
 def local_score(cols, node, parents):
     n = len(cols[0])
     design = [[1.0] * n] + [cols[p] for p in parents]
-    gram = [[sum(u * v for u, v in zip(a, b)) for b in design] for a in design]
-    rhs = [sum(u * v for u, v in zip(a, cols[node])) for a in design]
+    gram = [[sum(u * v for u, v in zip(a, b, strict=False)) for b in design] for a in design]
+    rhs = [sum(u * v for u, v in zip(a, cols[node], strict=False)) for a in design]
     beta = solve(gram, rhs)
     rss = 0.0
     for i in range(n):
@@ -84,7 +84,7 @@ def posterior(case, edge_p, allowed_pairs=None):
     logs = []
     graphs = []
     for bits in itertools.product([0, 1], repeat=len(pairs)):
-        edges = [p for p, b in zip(pairs, bits) if b]
+        edges = [p for p, b in zip(pairs, bits, strict=False) if b]
         if allowed_pairs is not None and any(
             tuple(sorted(e)) not in allowed_pairs for e in edges
         ):
@@ -105,7 +105,7 @@ def posterior(case, edge_p, allowed_pairs=None):
     weights = [math.exp(v - top) for v in logs]
     z = sum(weights)
     marginals = {f"{names[i]}->{names[j]}": 0.0 for i, j in pairs}
-    for edges, w in zip(graphs, weights):
+    for edges, w in zip(graphs, weights, strict=False):
         for i, j in edges:
             marginals[f"{names[i]}->{names[j]}"] += w / z
     return len(graphs), marginals

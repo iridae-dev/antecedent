@@ -81,7 +81,7 @@ def ols(columns, target):
         for r in range(k):
             if r != col:
                 f = m[r][col] / m[col][col]
-                m[r] = [x - f * z for x, z in zip(m[r], m[col])]
+                m[r] = [x - f * z for x, z in zip(m[r], m[col], strict=False)]
     return [m[p][k] / m[p][p] for p in range(k)]
 
 

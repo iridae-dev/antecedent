@@ -1,6 +1,5 @@
 """Fault controls: a cost comparison is controlled only when conditions match."""
 
-import json
 import tempfile
 import unittest
 from pathlib import Path

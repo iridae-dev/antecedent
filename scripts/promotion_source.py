@@ -14,8 +14,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from _repo import REPO_ROOT
 from _py_closure import closure_nodes
+from _repo import REPO_ROOT
 from _source_cache import source_cache
 from test_evidence import (
     _attrs_before,
@@ -463,9 +463,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
             if detail not in proven_details:
                 continue
             before = skel[opening + 1:at]
-            if value == detail and re.search(r"\bidentity\s*:\s*$", before):
-                enum_metadata.add(at)
-            elif (any(lo < at < hi for lo, hi in displays)
+            if value == detail and re.search(r"\bidentity\s*:\s*$", before) or (any(lo < at < hi for lo, hi in displays)
                   and re.search(r"\bwrite!\s*\(\s*f\s*,\s*$", before)):
                 enum_metadata.add(at)
     for at, value in scanned:

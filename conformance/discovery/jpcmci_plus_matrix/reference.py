@@ -132,21 +132,22 @@ def check(
     if not computed or len(computed) != len(document["cases"]):
         return ["missing reference discovery"]
     problems = []
-    for case, actuals in zip(document["cases"], computed):
+    for case, actuals in zip(document["cases"], computed, strict=False):
         expected = case[reference_field]
         expected = [expected] if reference_field == "reference" else expected
         if len(expected) != len(actuals):
             problems.append(f"{case['name']}: regime count differs")
             continue
-        for regime, (frozen, actual) in enumerate(zip(expected, actuals)):
+        for regime, (frozen, actual) in enumerate(zip(expected, actuals, strict=False)):
             if (
                 "graph_shape" in frozen
                 and frozen["graph_shape"] != actual["graph_shape"]
             ):
                 problems.append(f"{case['name']}/{regime}: graph shape differs")
-            key = lambda links: sorted(
-                json.dumps(link, sort_keys=True) for link in links
-            )
+            def key(links):
+                return sorted(
+                            json.dumps(link, sort_keys=True) for link in links
+                        )
             if key(frozen["links"]) != key(actual["links"]):
                 problems.append(
                     f"{case['name']}/{regime}: endpoint-marked graph differs"

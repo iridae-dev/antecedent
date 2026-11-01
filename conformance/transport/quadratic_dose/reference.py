@@ -38,14 +38,14 @@ def mean(b, d):
 
 def solve(a, y):
     n = len(y)
-    m = [row[:] + [v] for row, v in zip(a, y)]
+    m = [row[:] + [v] for row, v in zip(a, y, strict=False)]
     for i in range(n):
         pivot = next(r for r in range(i, n) if m[r][i] != 0)
         m[i], m[pivot] = m[pivot], m[i]
         m[i] = [v / m[i][i] for v in m[i]]
         for r in range(n):
             if r != i:
-                m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i])]
+                m[r] = [v - m[r][i] * w for v, w in zip(m[r], m[i], strict=False)]
     return [row[-1] for row in m]
 
 
@@ -55,10 +55,10 @@ def local_fit(b, d0, half_width=F(2, 5), points=9):
     weights = [1 - abs(d - d0) / (2 * half_width) for d in grid]
     basis = [[F(1), d - d0, (d - d0) ** 2] for d in grid]
     normal = [
-        [sum(w * row[i] * row[j] for w, row in zip(weights, basis)) for j in range(3)]
+        [sum(w * row[i] * row[j] for w, row in zip(weights, basis, strict=False)) for j in range(3)]
         for i in range(3)
     ]
-    rhs = [sum(w * row[i] * mean(b, d) for w, row, d in zip(weights, basis, grid)) for i in range(3)]
+    rhs = [sum(w * row[i] * mean(b, d) for w, row, d in zip(weights, basis, grid, strict=False)) for i in range(3)]
     return solve(normal, rhs)
 
 
@@ -93,14 +93,15 @@ def self_test(document: dict) -> list[str]:
     if not check(wrong):
         failures.append("changed contrast dose accepted")
     # A cubic mean is not spanned by the local quadratic design: the fitted slope must be biased.
-    cubic = lambda d: d**3
+    def cubic(d):
+        return d**3
     grid = [F(3, 5) + F(2, 5) * F(i, 4) for i in range(9)]
     weights = [1 - abs(d - F(1)) / F(4, 5) for d in grid]
     basis = [[F(1), d - 1, (d - 1) ** 2] for d in grid]
     normal = [
-        [sum(w * r[i] * r[j] for w, r in zip(weights, basis)) for j in range(3)] for i in range(3)
+        [sum(w * r[i] * r[j] for w, r in zip(weights, basis, strict=False)) for j in range(3)] for i in range(3)
     ]
-    rhs = [sum(w * r[i] * cubic(d) for w, r, d in zip(weights, basis, grid)) for i in range(3)]
+    rhs = [sum(w * r[i] * cubic(d) for w, r, d in zip(weights, basis, grid, strict=False)) for i in range(3)]
     if solve(normal, rhs)[1] == 3:
         failures.append("local quadratic slope was exact for a cubic mean")
     return failures

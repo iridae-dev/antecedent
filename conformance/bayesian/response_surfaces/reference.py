@@ -43,7 +43,7 @@ def check(document):
     levels = [two_point["contract"]["control_level"], two_point["contract"]["active_level"]]
     mean_z = sum(F(math.sin(i / 17.0)) for i in range(n)) / n
     structural = [1 + 2 * F(str(t)) for t in levels]          # E[Y | do(t)] with E[Z] = 0
-    for got, want in zip(structural, document["static_mean"]):
+    for got, want in zip(structural, document["static_mean"], strict=False):
         close(got, want, 1e-12, "static_mean (structural, E[Z] = 0)", problems)
     deviation = F(8, 10) * abs(mean_z)                           # what the sample mean of Z adds
     if not deviation < F(str(document["static_tolerance"])):
@@ -64,7 +64,7 @@ def check(document):
     for d in (0, 1):
         for horizon in (1, 2):
             structural.append(1 + {1: 2, 2: 3}[horizon] * d)          # mean(t) = 0 in the period-4 population
-    for got, exact, want in zip(expected, structural, document["temporal_mean"]):
+    for got, exact, want in zip(expected, structural, document["temporal_mean"], strict=False):
         close(exact, want, 1e-12, "temporal_mean (period-4 population)", problems)
         close(got, want, document["temporal_tolerance"], "temporal_mean with the finite-sample mean of t", problems)
     close(2 + 3, document["window_effect"], 1e-12, "window_effect = sum of lag coefficients", problems)

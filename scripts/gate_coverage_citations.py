@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import fnmatch
+import hashlib
 import itertools
 import re
 import shlex
@@ -7,9 +8,15 @@ import sys
 import tomllib
 from pathlib import Path
 
-from test_evidence import rust_items, target_files, rust_test_declaration_problems, _attrs_before, _disabling_cfg, _match_bracket
 from promotion_source import _compact_rust_tokens
-import hashlib
+from test_evidence import (
+    _attrs_before,
+    _disabling_cfg,
+    _match_bracket,
+    rust_items,
+    rust_test_declaration_problems,
+    target_files,
+)
 
 root = Path(".")
 tests_dir = root / "crates/antecedent/tests"

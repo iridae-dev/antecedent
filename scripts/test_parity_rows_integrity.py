@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import parity_rows as gate
 import gate_release as release
+import parity_rows as gate
 
 
 class ParityRowsIntegrity(unittest.TestCase):

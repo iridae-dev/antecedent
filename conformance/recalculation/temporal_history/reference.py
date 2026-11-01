@@ -66,10 +66,11 @@ def response(a1: int, a2: int, p1: F) -> F:
 def observational_g_formula(a1: int, a2: int, p1: F) -> F:
     """The same quantity from the enumerated observational law, using only its counts."""
     rows = list(configs())
-    count = lambda **k: sum(
-        all(dict(zip(("s0", "a1", "l2", "a2", "y"), r))[n] == v for n, v in k.items())
-        for r in rows
-    )
+    def count(**k):
+        return sum(
+            all(dict(zip(("s0", "a1", "l2", "a2", "y"), r, strict=False))[n] == v for n, v in k.items())
+            for r in rows
+        )
     total = F(0)
     for s0, p_s0 in ((0, 1 - p1), (1, p1)):
         for l2 in (0, 1):
@@ -99,7 +100,8 @@ def compute() -> dict:
     # Additive paired candidate with target P(S0=1)=4/5, balanced complete histories.
     unit_mean = F(sum(range(24)), 24) / 100
     p1 = F(4, 5)
-    candidate = lambda a1, a2: 1 + p1 + 2 * a1 + 3 * a2 + F(1, 2) * F(1, 2) + unit_mean
+    def candidate(a1, a2):
+        return 1 + p1 + 2 * a1 + 3 * a2 + F(1, 2) * F(1, 2) + unit_mean
     out["candidate_response_11"] = candidate(1, 1)
     out["candidate_effect"] = candidate(1, 1) - candidate(0, 0)
     return out

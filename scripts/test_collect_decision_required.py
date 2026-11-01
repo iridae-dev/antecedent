@@ -1,11 +1,13 @@
 import json
 import subprocess
 import sys
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
 import collect_coverage_records as collector
+
 
 class CollectionDecisionRequired(unittest.TestCase):
     def test_marker_free_records_refused_and_diagnostics_are_explicit(self):

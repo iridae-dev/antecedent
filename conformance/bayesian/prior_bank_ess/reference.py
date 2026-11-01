@@ -47,7 +47,7 @@ def check(document):
         case = document[name]
         sources = source_list(case)
         effective = [None if s["ess"] is None else s["alpha"] * s["ess"] for s in sources]
-        for index, (got, want) in enumerate(zip(effective, case["expected_effective_ess"])):
+        for index, (got, want) in enumerate(zip(effective, case["expected_effective_ess"], strict=False)):
             if (got is None) != (want is None):
                 problems.append(f"{name}.effective_ess[{index}] presence differs")
             elif got is not None:

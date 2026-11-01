@@ -14,10 +14,10 @@ no inventory has to infer them from prose.
 from __future__ import annotations
 
 import re
+import tomllib
 from functools import cache
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 from test_evidence import rust_test_declaration_problems, static_python_test

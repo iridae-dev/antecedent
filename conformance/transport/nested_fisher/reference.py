@@ -50,24 +50,24 @@ class Dual:
 
     def __add__(self, other):
         o = self._lift(other)
-        return Dual(self.v + o.v, [a + b for a, b in zip(self.g, o.g)])
+        return Dual(self.v + o.v, [a + b for a, b in zip(self.g, o.g, strict=False)])
 
     __radd__ = __add__
 
     def __sub__(self, other):
         o = self._lift(other)
-        return Dual(self.v - o.v, [a - b for a, b in zip(self.g, o.g)])
+        return Dual(self.v - o.v, [a - b for a, b in zip(self.g, o.g, strict=False)])
 
     def __mul__(self, other):
         o = self._lift(other)
-        return Dual(self.v * o.v, [self.v * b + o.v * a for a, b in zip(self.g, o.g)])
+        return Dual(self.v * o.v, [self.v * b + o.v * a for a, b in zip(self.g, o.g, strict=False)])
 
     __rmul__ = __mul__
 
     def __truediv__(self, other):
         o = self._lift(other)
         return Dual(
-            self.v / o.v, [(a * o.v - self.v * b) / (o.v * o.v) for a, b in zip(self.g, o.g)]
+            self.v / o.v, [(a * o.v - self.v * b) / (o.v * o.v) for a, b in zip(self.g, o.g, strict=False)]
         )
 
 
@@ -111,7 +111,7 @@ def covariance(n: int) -> tuple[list[list[F]], bool]:
         return total
 
     m0, m1 = mean(0), mean(1)
-    grads = [m0.g, m1.g, [b - a for a, b in zip(m0.g, m1.g)]]
+    grads = [m0.g, m1.g, [b - a for a, b in zip(m0.g, m1.g, strict=False)]]
     sigma = [[(p[i] if i == j else F(0)) - p[i] * p[j] for j in range(len(p))] for i in range(len(p))]
     cov = [
         [sum(g[i] * sigma[i][j] * h[j] for i in range(len(p)) for j in range(len(p))) for h in grads]

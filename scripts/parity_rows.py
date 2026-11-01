@@ -61,7 +61,7 @@ def runtime_code_literals(path: Path, text: str) -> list[str]:
     A device fallback diagnostic is not a scientific refusal. The exception is
     scoped to its exact module and impl, not every code() method in that file.
     """
-    from test_evidence import mask_rust, _match_bracket
+    from test_evidence import _match_bracket, mask_rust
 
     masked = mask_rust(text)
     impls = [(m.group(1), m.end() - 1, _match_bracket(masked.skeleton, m.end() - 1))
@@ -116,8 +116,12 @@ def _evidence_problem(cid: str, rel: str) -> str | None:
         # Inspect actual test declarations and assertions, not textual tokens in
         # comments, docstrings, ignored tests or unrelated helper functions.
         from promotion_source import assertion_problems
-        from test_evidence import (python_test_declarations, rust_items,
-                                   rust_test_declaration_problems, static_python_test)
+        from test_evidence import (
+            python_test_declarations,
+            rust_items,
+            rust_test_declaration_problems,
+            static_python_test,
+        )
 
         if p.suffix == ".rs":
             _, items = rust_items(p.resolve())

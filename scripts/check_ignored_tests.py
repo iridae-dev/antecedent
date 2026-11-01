@@ -33,10 +33,10 @@ import argparse
 import json
 import re
 import sys
+import tomllib
 from collections import Counter
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT
 from test_evidence import libtest_name, rust_items, target_files
 

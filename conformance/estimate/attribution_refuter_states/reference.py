@@ -57,7 +57,7 @@ def slope(x, y):
     mx = sum(xs) / n
     my = sum(ys) / n
     sxx = sum((a - mx) ** 2 for a in xs)
-    return sum((a - mx) * (b - my) for a, b in zip(xs, ys)) / sxx
+    return sum((a - mx) * (b - my) for a, b in zip(xs, ys, strict=False)) / sxx
 
 
 def leverages(x):

@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -51,8 +50,10 @@ def sigmoid(x):
 
 # Test SCM: Z ~ N(0,1); T ~ Bernoulli(sigmoid(-0.3 + 0.8 Z)); Y ~ Bernoulli(sigmoid(-0.5 + 1.2 T + 0.8 Z)).
 def derived():
-    pt = lambda z: sigmoid(-0.3 + 0.8 * z)
-    py = lambda t, z: sigmoid(-0.5 + 1.2 * t + 0.8 * z)
+    def pt(z):
+        return sigmoid(-0.3 + 0.8 * z)
+    def py(t, z):
+        return sigmoid(-0.5 + 1.2 * t + 0.8 * z)
     # do(T=t): standardise over the marginal Z (back-door adjustment), ATE = E_Z[py(1,Z) - py(0,Z)].
     ate = simpson(lambda z: phi(z) * (py(1, z) - py(0, z)))
     p1 = simpson(lambda z: phi(z) * pt(z))
@@ -89,7 +90,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

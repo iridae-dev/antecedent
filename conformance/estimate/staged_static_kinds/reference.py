@@ -30,8 +30,10 @@ def close(got, want, tol, label, problems):
         problems.append(f"{label}: derived {got!r} != fixture {want!r} (tol {tol})")
 
 
-F_M = lambda a, e: 2 * a + e
-F_Y = lambda a, m: 3 * a + 4 * m
+def F_M(a, e):
+    return 2 * a + e
+def F_Y(a, m):
+    return 3 * a + 4 * m
 
 def derived(control, active):
     out = None

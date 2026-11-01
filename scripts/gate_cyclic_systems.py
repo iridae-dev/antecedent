@@ -12,8 +12,8 @@ import argparse
 import hashlib
 import json
 import math
-import re
 import os
+import re
 import subprocess
 import sys
 import tempfile

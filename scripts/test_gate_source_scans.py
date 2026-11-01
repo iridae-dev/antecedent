@@ -1,10 +1,10 @@
 """Synthetic source scans only; no Cargo or external services."""
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
 

@@ -41,13 +41,11 @@ class SimulationBudgetTest(unittest.TestCase):
                 self.assertEqual(budget.available, 1)
             future.result(timeout=5)
         self.assertEqual(budget.available, 4)
-        with self.assertRaisesRegex(RuntimeError, "failed job"):
-            with budget.claim(4):
-                raise RuntimeError("failed job")
+        with self.assertRaisesRegex(RuntimeError, "failed job"), budget.claim(4):
+            raise RuntimeError("failed job")
         self.assertEqual(budget.available, 4)
-        with self.assertRaises(ValueError):
-            with budget.claim(5):
-                self.fail("over-budget job was admitted")
+        with self.assertRaises(ValueError), budget.claim(5):
+            self.fail("over-budget job was admitted")
 
     def test_tail_widening_never_reduces_base_workers(self):
         group = groups.Group(1, "suite: long", False, False)

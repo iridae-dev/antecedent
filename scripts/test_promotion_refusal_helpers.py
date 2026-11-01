@@ -8,28 +8,28 @@ from unittest.mock import patch
 
 from _repo import REPO_ROOT
 from promotion_source import (
-    defensive_carrier_route_problems,
-    _core_refusal_helpers,
+    _OBSERVATION_DRAWS_PROOF_FILES,
+    _OBSERVATION_DRAWS_ROUTES,
+    _RECOVERY_EXTERNAL_SYMBOLS,
     Lit,
     Symbol,
-    external_surface_ownership,
-    _RECOVERY_EXTERNAL_SYMBOLS,
+    _core_refusal_helpers,
     _multiple_imputation_error_helpers,
+    defensive_carrier_route_problems,
+    duplicate_refusal_pairs,
+    external_surface_ownership,
     finite_refusal_helpers,
     input_exception_evidence_problems,
     nontest_pair,
     python_literals,
-    rust_literals,
+    refusal_code_pair_problems,
     refusal_stage_literals,
+    rust_literals,
     rust_pub_items,
     sectioned_artifact_refusals,
     shared_namespace_problems,
     typed_input_exception_problems,
     uncalibrated_draws_allowed,
-    _OBSERVATION_DRAWS_PROOF_FILES,
-    _OBSERVATION_DRAWS_ROUTES,
-    duplicate_refusal_pairs,
-    refusal_code_pair_problems,
 )
 
 

@@ -111,7 +111,7 @@ def check(document):
     xs = [F(i, 20) - 2 for i in range(line["rows"])]
     ys = [F(line["intercept"]) + F(line["slope"]) * x for x in xs]
     mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
-    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+    slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False)) / sum((x - mx) ** 2 for x in xs)
     if float(slope / 2) != line["mean"]:
         problems.append("line: the mean of the completion slopes (slope and 0) is slope / 2")
     gaussian = document["gaussian"]

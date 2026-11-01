@@ -59,7 +59,7 @@ def data():
 
     a = [2.0 + math.sin(i * 0.71) + 0.2 * math.cos(i * 0.13) for i in range(ROWS)]
     b = [0.7 * math.cos(i * 1.13) + 0.4 * gauss() for i in range(ROWS)]
-    y = [5.0 + 2.0 * ai - 0.5 * bi + 0.3 * gauss() for ai, bi in zip(a, b)]
+    y = [5.0 + 2.0 * ai - 0.5 * bi + 0.3 * gauss() for ai, bi in zip(a, b, strict=False)]
     return a, b, y, draws
 
 
@@ -75,7 +75,7 @@ def exact_ols_slope(a, b, y):
         for r in range(k):
             if r != col:
                 f = m[r][col] / m[col][col]
-                m[r] = [x - f * z for x, z in zip(m[r], m[col])]
+                m[r] = [x - f * z for x, z in zip(m[r], m[col], strict=False)]
     return m[1][k] / m[1][1]
 
 
@@ -93,7 +93,7 @@ def check(document):
     }
     for key, value in derived.items():
         close(float(value), document[key], tol, key, problems)
-    for i, (got, want) in enumerate(zip([Fraction(2), Fraction(-1, 2), Fraction(1, 4), Fraction(3, 2)], document["jacobian"])):
+    for i, (got, want) in enumerate(zip([Fraction(2), Fraction(-1, 2), Fraction(1, 4), Fraction(3, 2)], document["jacobian"], strict=False)):
         close(float(got), want, tol, f"jacobian[{i}]", problems)
     close(float(Fraction(2) * 1 + Fraction(-1, 2) * 2), document["directional"][0], tol, "directional[0]", problems)
     close(float(Fraction(1, 4) + Fraction(3, 2) * 2), document["directional"][1], tol, "directional[1]", problems)

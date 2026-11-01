@@ -81,7 +81,7 @@ def exact_ols_slope(a, b, y):
         for r in range(k):
             if r != col:
                 f = m[r][col] / m[col][col]
-                m[r] = [x - f * z for x, z in zip(m[r], m[col])]
+                m[r] = [x - f * z for x, z in zip(m[r], m[col], strict=False)]
     return m[1][k] / m[1][1]
 
 
@@ -99,7 +99,7 @@ def check(document):
     }
     for key, value in derived.items():
         close(float(value), document[key], tol, key, problems)
-    for i, (got, want) in enumerate(zip([Fraction(2), Fraction(1, 2), Fraction(1), Fraction(-1)], document["jacobian"])):
+    for i, (got, want) in enumerate(zip([Fraction(2), Fraction(1, 2), Fraction(1), Fraction(-1)], document["jacobian"], strict=False)):
         close(float(got), want, tol, f"jacobian[{i}]", problems)
     close(float(Fraction(2) * 1 + Fraction(1, 2) * 2), document["directional"][0], tol, "directional[0]", problems)
     close(float(Fraction(1) + Fraction(-1) * 2), document["directional"][1], tol, "directional[1]", problems)

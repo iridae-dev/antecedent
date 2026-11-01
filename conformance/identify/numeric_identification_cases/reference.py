@@ -58,13 +58,16 @@ def prob(joint, names, **fixed):
 def case_observed_parent(spec):
     names = ["Z", "X", "Y"]
     pz = F("0.35")
-    px = lambda z: F("0.2") + F("0.45") * z
-    py = lambda x, z: F("0.1") + F("0.4") * x + F("0.25") * z
+    def px(z):
+        return F("0.2") + F("0.45") * z
+    def py(x, z):
+        return F("0.1") + F("0.4") * x + F("0.25") * z
     joint = {}
     for z, x, y in product((0, 1), repeat=3):
         joint[(z, x, y)] = bern(pz, z) * bern(px(z), x) * bern(py(x, z), y)
     # truncated factorization: drop P(x | z)
-    do = lambda x: sum(bern(pz, z) * py(x, z) for z in (0, 1))
+    def do(x):
+        return sum(bern(pz, z) * py(x, z) for z in (0, 1))
     ate = do(1) - do(0)
     close(ate, spec["expected_ate"], 1e-12, "expected_ate", problems_ref)
     # the parent-free graph: P(y | x) is the functional
@@ -80,17 +83,22 @@ def case_observed_parent(spec):
 def case_napkin(spec):
     names = ["U1", "U2", "W", "Z", "X", "Y"]
     p1, p2 = F("0.35"), F("0.7")
-    pw = lambda u1, u2: F("0.2") + F("0.3") * u1 + F("0.25") * u2
-    pz = lambda w: F("0.3") + F("0.45") * w
-    px = lambda z, u1: F("0.15") + F("0.5") * z + F("0.2") * u1
-    py = lambda x, u2: F("0.1") + F("0.35") * x + F("0.4") * u2
+    def pw(u1, u2):
+        return F("0.2") + F("0.3") * u1 + F("0.25") * u2
+    def pz(w):
+        return F("0.3") + F("0.45") * w
+    def px(z, u1):
+        return F("0.15") + F("0.5") * z + F("0.2") * u1
+    def py(x, u2):
+        return F("0.1") + F("0.35") * x + F("0.4") * u2
     joint = {}
     for u1, u2, w, z, x, y in product((0, 1), repeat=6):
         joint[(u1, u2, w, z, x, y)] = bern(p1, u1) * bern(p2, u2) * bern(pw(u1, u2), w) * bern(pz(w), z) * bern(px(z, u1), x) * bern(py(x, u2), y)
-    do = lambda x: sum(bern(p1, u1) * bern(p2, u2) * bern(pw(u1, u2), w) * bern(pz(w), z) * py(x, u2)
-                       for u1, u2, w, z in product((0, 1), repeat=4))
+    def do(x):
+        return sum(bern(p1, u1) * bern(p2, u2) * bern(pw(u1, u2), w) * bern(pz(w), z) * py(x, u2)
+                           for u1, u2, w, z in product((0, 1), repeat=4))
     got = [do(0), do(1)]
-    for g, want in zip(got, spec["expected_do_y1"]):
+    for g, want in zip(got, spec["expected_do_y1"], strict=False):
         close(g, want, 1e-12, "expected_do_y1", problems_ref)
     close(got[1] - got[0], spec["expected_ate"], 1e-12, "expected_ate", problems_ref)
     obs = marginal(joint, names, ["W", "Z", "X", "Y"])
@@ -105,17 +113,22 @@ def case_napkin(spec):
 def case_discriminating(spec):
     names = ["A", "L1", "L2", "Q", "C", "T", "Y"]
     pa, p1, p2 = F("0.4"), F("0.4"), F("0.55")
-    pq = lambda a, l1: F("0.15") + F("0.35") * a + F("0.25") * l1
-    pc = lambda l1, l2: F("0.2") + F("0.3") * l1 + F("0.25") * l2
-    pt = lambda l2: F("0.25") + F("0.4") * l2
-    py = lambda q, c, t: F("0.05") + F("0.2") * q + F("0.25") * c + F("0.35") * t
+    def pq(a, l1):
+        return F("0.15") + F("0.35") * a + F("0.25") * l1
+    def pc(l1, l2):
+        return F("0.2") + F("0.3") * l1 + F("0.25") * l2
+    def pt(l2):
+        return F("0.25") + F("0.4") * l2
+    def py(q, c, t):
+        return F("0.05") + F("0.2") * q + F("0.25") * c + F("0.35") * t
     joint = {}
     for a, l1, l2, q, c, t, y in product((0, 1), repeat=7):
         joint[(a, l1, l2, q, c, t, y)] = bern(pa, a) * bern(p1, l1) * bern(p2, l2) * bern(pq(a, l1), q) * bern(pc(l1, l2), c) * bern(pt(l2), t) * bern(py(q, c, t), y)
-    do = lambda t: sum(bern(pa, a) * bern(p1, l1) * bern(p2, l2) * bern(pq(a, l1), q) * bern(pc(l1, l2), c) * py(q, c, t)
-                       for a, l1, l2, q, c in product((0, 1), repeat=5))
+    def do(t):
+        return sum(bern(pa, a) * bern(p1, l1) * bern(p2, l2) * bern(pq(a, l1), q) * bern(pc(l1, l2), c) * py(q, c, t)
+                           for a, l1, l2, q, c in product((0, 1), repeat=5))
     got = [do(0), do(1)]
-    for g, want in zip(got, spec["expected_do_y1"]):
+    for g, want in zip(got, spec["expected_do_y1"], strict=False):
         close(g, want, 1e-12, "expected_do_y1", problems_ref)
     close(got[1] - got[0], spec["expected_ate"], 1e-12, "expected_ate", problems_ref)
     obs = marginal(joint, names, ["Q", "C", "T", "Y"])

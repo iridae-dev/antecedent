@@ -47,7 +47,7 @@ HERE = Path(__file__).resolve().parent
 
 def solve(a: list[list[Fraction]], b: list[list[Fraction]]) -> list[list[Fraction]]:
     n = len(a)
-    m = [row[:] + rhs[:] for row, rhs in zip(a, b)]
+    m = [row[:] + rhs[:] for row, rhs in zip(a, b, strict=False)]
     for c in range(n):
         pivot = next(r for r in range(c, n) if m[r][c] != 0)
         m[c], m[pivot] = m[pivot], m[c]
@@ -56,7 +56,7 @@ def solve(a: list[list[Fraction]], b: list[list[Fraction]]) -> list[list[Fractio
         for r in range(n):
             if r != c and m[r][c] != 0:
                 f = m[r][c]
-                m[r] = [v - f * w for v, w in zip(m[r], m[c])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[c], strict=False)]
     return [row[n:] for row in m]
 
 
@@ -74,7 +74,7 @@ def determinant(a: list[list[Fraction]]) -> Fraction:
         det *= m[c][c]
         for r in range(c + 1, n):
             f = m[r][c] / m[c][c]
-            m[r] = [v - f * w for v, w in zip(m[r], m[c])]
+            m[r] = [v - f * w for v, w in zip(m[r], m[c], strict=False)]
     return det
 
 
@@ -99,7 +99,7 @@ def partial_correlation_squared(case: dict) -> tuple[Fraction, int, int]:
     z = case["z_indices"]
     design = [[Fraction(1)] + [cols[j][r] for j in z] for r in range(n)]
     rx, ry = residuals(design, [cols[0], cols[1]])
-    sxy = sum((a * b for a, b in zip(rx, ry)), Fraction(0))
+    sxy = sum((a * b for a, b in zip(rx, ry, strict=False)), Fraction(0))
     sxx = sum((a * a for a in rx), Fraction(0))
     syy = sum((b * b for b in ry), Fraction(0))
     return sxy * sxy / (sxx * syy), n, 1 + len(z)
@@ -174,7 +174,7 @@ def simulated_tail(case: dict, draws: int, seed: int) -> float:
         xe = [sum(des[r][i] * e[r] for r in range(n)) for i in range(q)]
         coef = [sum(inv[i][j] * xe[j] for j in range(q)) for i in range(q)]
         res = [e[r] - sum(coef[i] * des[r][i] for i in range(q)) for r in range(n)]
-        sxy = sum(a * b for a, b in zip(rx, res))
+        sxy = sum(a * b for a, b in zip(rx, res, strict=False))
         syy = sum(b * b for b in res)
         if sxy * sxy / (sxx * syy) >= float(r2_obs):
             hits += 1
@@ -217,7 +217,7 @@ def log_marginal(y: list[Fraction], regressors: list[list[Fraction]], model: dic
     xty = [[sum((design[r][i] * y[r] for r in range(n)), Fraction(0))] for i in range(q)]
     mu = [row[0] for row in solve(lam, xty)]
     yty = sum((v * v for v in y), Fraction(0))
-    bn = b0 + (yty - sum((m * t[0] for m, t in zip(mu, xty)), Fraction(0))) / 2
+    bn = b0 + (yty - sum((m * t[0] for m, t in zip(mu, xty, strict=False)), Fraction(0))) / 2
     an = float(a0) + n / 2
     logdet0 = q * math.log(float(lam0))
     logdetn = math.log(float(determinant(lam)))

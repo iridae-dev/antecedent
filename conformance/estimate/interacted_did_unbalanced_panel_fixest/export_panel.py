@@ -27,7 +27,7 @@ def render() -> str:
     rows = module.simulate()
     lines = ["unit,period,cohort,outcome"]
     for unit, period, cohort, outcome in zip(
-        rows["unit"], rows["period"], rows["cohort"], rows["outcome"]
+        rows["unit"], rows["period"], rows["cohort"], rows["outcome"], strict=False
     ):
         lines.append(f"{unit},{period},{cohort},{float(outcome)!r}")
     return "\n".join(lines) + "\n"

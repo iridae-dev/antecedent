@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import subprocess
 import tomllib
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 from _repo import REPO_ROOT
@@ -27,7 +27,7 @@ def checked_bindings(records, document, blob_at):
         registry[rid] = record
     result, seen = [], set()
     for row in document.get("binding", []):
-        if not FIELDS <= set(row) or set(row) - FIELDS - {"source_blobs", "source_structure"} or not all(isinstance(row[k], str) and row[k] for k in FIELDS):
+        if not set(row) >= FIELDS or set(row) - FIELDS - {"source_blobs", "source_structure"} or not all(isinstance(row[k], str) and row[k] for k in FIELDS):
             raise ValueError("invalid historical validation binding fields")
         additional = row.get("source_blobs", [])
         if not isinstance(additional, list) or not all(isinstance(item, str) for item in additional):
@@ -70,7 +70,7 @@ def checked_bindings(records, document, blob_at):
     return result
 
 
-@lru_cache(maxsize=None)
+@cache
 def _blob_at(root: Path, sha: str, path: str) -> str:
     result = subprocess.run(["git", "rev-parse", "--verify", f"{sha}:{path}"], cwd=root, capture_output=True, text=True, check=False)
     if result.returncode:

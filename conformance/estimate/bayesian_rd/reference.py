@@ -52,7 +52,8 @@ def line(points):
 
 def derived(bandwidth, inclusive):
     h = Fraction(str(bandwidth))
-    inside = lambda r: abs(r) <= h if inclusive else abs(r) < h
+    def inside(r):
+        return abs(r) <= h if inclusive else abs(r) < h
     data = [(r, t, y) for r, t, y in rows() if inside(r)]
     right = line([(r, y) for r, t, y in data if t == 1])
     left = line([(r, y) for r, t, y in data if t == 0])

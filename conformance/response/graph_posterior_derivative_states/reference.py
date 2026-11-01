@@ -58,7 +58,7 @@ def data():
 
     a = [2.0 + math.sin(i * 0.71) + 0.2 * math.cos(i * 0.13) for i in range(ROWS)]
     b = [0.7 * gauss() for i in range(ROWS)]
-    y = [5.0 + 2.0 * ai - 0.2 * bi + 0.3 * gauss() for ai, bi in zip(a, b)]
+    y = [5.0 + 2.0 * ai - 0.2 * bi + 0.3 * gauss() for ai, bi in zip(a, b, strict=False)]
     return a, b, y, draws
 
 
@@ -74,7 +74,7 @@ def exact_ols_slope(a, b, y):
         for r in range(k):
             if r != col:
                 f = m[r][col] / m[col][col]
-                m[r] = [x - f * z for x, z in zip(m[r], m[col])]
+                m[r] = [x - f * z for x, z in zip(m[r], m[col], strict=False)]
     return m[1][k] / m[1][1]
 
 
@@ -92,7 +92,7 @@ def check(document):
     atoms = document["atoms"]
     weights = [Fraction(w).limit_denominator(1000) for w in atoms["weights"]]
     identified = [bool(x) for x in atoms["identified"]]
-    mass = sum(w for w, ok in zip(weights, identified) if ok)
+    mass = sum(w for w, ok in zip(weights, identified, strict=False) if ok)
     close(float(mass), atoms["identified_mass"], tol, "identified_mass", problems)
     close(float(sum(weights) - mass), atoms["unidentified_mass"], tol, "unidentified_mass", problems)
     values = {
@@ -104,11 +104,11 @@ def check(document):
     }
     for key, value in values.items():
         # the posterior-weighted mean of identical atom values
-        mixed = sum(w * value for w, ok in zip(weights, identified) if ok) / mass
+        mixed = sum(w * value for w, ok in zip(weights, identified, strict=False) if ok) / mass
         close(float(mixed), document[key], tol, key, problems)
     for key, entries in (("jacobian", [Fraction(2), Fraction(1, 4)]), ("directional", [Fraction(2), Fraction(1, 4)])):
         for i, entry in enumerate(entries):
-            mixed = sum(w * entry for w, ok in zip(weights, identified) if ok) / mass
+            mixed = sum(w * entry for w, ok in zip(weights, identified, strict=False) if ok) / mass
             close(float(mixed), document[key][i], tol, f"{key}[{i}]", problems)
     a, b, y, draws = data()
     mean = sum(draws) / len(draws)

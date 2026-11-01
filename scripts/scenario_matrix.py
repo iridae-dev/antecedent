@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT
 from test_evidence import static_python_test, static_rust_test
 

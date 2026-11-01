@@ -78,13 +78,14 @@ def ols(columns_, target):
         for r in range(k):
             if r != col:
                 f = m[r][col] / m[col][col]
-                m[r] = [u - f * v for u, v in zip(m[r], m[col])]
+                m[r] = [u - f * v for u, v in zip(m[r], m[col], strict=False)]
     return [m[p][k] / m[p][p] for p in range(k)]
 
 
 def derive():
     x, y, z, w = columns()
-    lag = lambda c: c[: ROWS - 1]
+    def lag(c):
+        return c[: ROWS - 1]
     target = y[1:]
     adjusted = ols([lag(x), lag(z), lag(w)], target)
     naive = ols([lag(x)], target)

@@ -23,11 +23,11 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT as ROOT
-from test_evidence import mask_rust, source_masked, target_files, registered_calibration_acceptance
+from test_evidence import mask_rust, registered_calibration_acceptance, source_masked, target_files
 
 REGISTRY = "parity/v3_test_registry.toml"
 KNOWN_GATES = (

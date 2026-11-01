@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -56,9 +55,10 @@ def check(document):
     # Structural equations Y_s = 1 + 2 T_{s-1} + 3 T_{s-2}, exogenous T with zero mean over the lag-aligned
     # windows (period-four sequence 0, 1, 0, -1). Pulse at -1 sets T_{-1} = d.
     coefficient = {1: 2.0, 2: 3.0}   # horizon h evaluates Y_{h-1}: T_{-1} enters with lag h
-    level = lambda d, h: 1.0 + coefficient[h] * d
+    def level(d, h):
+        return 1.0 + coefficient[h] * d
     surface = [level(d, h) for d in doses for h in horizons]   # dose-major
-    for i, (got, want) in enumerate(zip(surface, contract["surface"]["mean"])):
+    for i, (got, want) in enumerate(zip(surface, contract["surface"]["mean"], strict=False)):
         close(got, want, 1e-12, f"surface.mean[{i}]", problems)
     pairs = [[d, float(h)] for d in doses for h in horizons]
     if pairs != contract["surface"]["grid_pairs"]:
@@ -70,7 +70,7 @@ def check(document):
     two_step = [1.0 + 2.0 * 1.0 + 3.0 * 1.0, 1.0 + 2.0 * 0.0 + 3.0 * 1.0]   # T_{-2} = T_{-1} = 1; Y_1 uses E[T_0] = 0
     for name, got in (("set_1", set_1), ("soft_constant_1", set_1), ("soft_additive_shift_1", soft_additive),
                       ("sequence_two_step_set_1", two_step), ("sequence_two_step_soft_constant_1", two_step)):
-        for i, (g, w) in enumerate(zip(got, paths[name])):
+        for i, (g, w) in enumerate(zip(got, paths[name], strict=False)):
             close(g, w, 1e-12, f"intervention_paths.{name}[{i}]", problems)
     horizon_1 = level(1.0, 1) - level(0.0, 1)
     close(horizon_1, contract["pulse_effect_projection"]["contrast"], 1e-12, "pulse effect contrast", problems)
@@ -94,7 +94,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

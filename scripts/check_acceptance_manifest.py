@@ -20,14 +20,14 @@ gate script (`scripts/gate_*.sh`).
 
 from __future__ import annotations
 
-import json
 import ast
 import io
-import tokenize
-import textwrap
+import json
 import math
 import re
 import sys
+import textwrap
+import tokenize
 import tomllib
 from pathlib import Path
 from typing import Any

@@ -1,5 +1,7 @@
 import unittest
+
 from calibration_recipe_receipts import original_gate_passed
+
 
 class OriginalGateResult(unittest.TestCase):
     def test_success_does_not_mask_a_failed_test_or_suite(self):

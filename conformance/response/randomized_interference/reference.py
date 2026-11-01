@@ -85,7 +85,7 @@ def check(document):
     atol = document["tolerance"]["atol"]
     for key, value in derive(document).items():
         frozen = document["expected"][key]
-        pairs = zip(value, frozen) if isinstance(value, list) else [(value, frozen)]
+        pairs = zip(value, frozen, strict=False) if isinstance(value, list) else [(value, frozen)]
         for got, want in pairs:
             if abs(got - want) > atol:
                 problems.append(f"{key}: fixture {want!r} vs derived {got!r}")

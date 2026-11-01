@@ -61,7 +61,7 @@ def rows() -> tuple[list[float], list[float]]:
 
 
 def matmul(a, b):
-    return [[sum(x * y for x, y in zip(row, col)) for col in zip(*b)] for row in a]
+    return [[sum(x * y for x, y in zip(row, col, strict=False)) for col in zip(*b, strict=False)] for row in a]
 
 
 def inverse(a):
@@ -75,7 +75,7 @@ def inverse(a):
         for r in range(n):
             if r != col and m[r][col] != 0:
                 f = m[r][col]
-                m[r] = [v - f * w for v, w in zip(m[r], m[col])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[col], strict=False)]
     return [row[n:] for row in m]
 
 
@@ -88,14 +88,14 @@ def standard_errors(running: list[float], outcome: list[float]) -> dict[str, flo
         x.append([Fraction(1), t, centered, t * centered])
     y = [Fraction(outcome[i]) for i in keep]
     n, p = len(x), 4
-    xt = [list(col) for col in zip(*x)]
+    xt = [list(col) for col in zip(*x, strict=False)]
     bread = inverse(matmul(xt, x))
-    xty = [sum(a * b for a, b in zip(col, y)) for col in xt]
-    beta = [sum(b * v for b, v in zip(row, xty)) for row in bread]
-    e = [yi - sum(b * v for b, v in zip(beta, xi)) for xi, yi in zip(x, y)]
+    xty = [sum(a * b for a, b in zip(col, y, strict=False)) for col in xt]
+    beta = [sum(b * v for b, v in zip(row, xty, strict=False)) for row in bread]
+    e = [yi - sum(b * v for b, v in zip(beta, xi, strict=False)) for xi, yi in zip(x, y, strict=False)]
     sse = sum(v * v for v in e)
     var_hom = sse / (n - p) * bread[1][1]
-    meat = [[sum(xi[a] * xi[b] * ei * ei for xi, ei in zip(x, e)) for b in range(p)] for a in range(p)]
+    meat = [[sum(xi[a] * xi[b] * ei * ei for xi, ei in zip(x, e, strict=False)) for b in range(p)] for a in range(p)]
     sandwich = matmul(matmul(bread, meat), bread)
     var_hc1 = Fraction(n, n - p) * sandwich[1][1]
     return {
@@ -123,7 +123,7 @@ def compare_values(left: object, right: object, rtol: float, atol: float) -> boo
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(compare_values(left[k], right[k], rtol, atol) for k in left)
     if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(compare_values(a, b, rtol, atol) for a, b in zip(left, right))
+        return len(left) == len(right) and all(compare_values(a, b, rtol, atol) for a, b in zip(left, right, strict=False))
     if isinstance(left, (int, float)) and isinstance(right, (int, float)) and not isinstance(left, bool):
         return math.isclose(left, right, rel_tol=rtol, abs_tol=atol)
     return left == right

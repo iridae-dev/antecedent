@@ -25,9 +25,9 @@ Two kinds are kept apart and never merged:
 from __future__ import annotations
 
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT as ROOT
 from evidence_kinds import EXTERNAL_KINDS
 

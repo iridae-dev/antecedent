@@ -68,11 +68,11 @@ def check(document):
     for key, value in derived.items():
         close(float(value), document[key], tol, key, problems)
     jacobian = [YA, YB, VA, VB]
-    for i, (got, want) in enumerate(zip(jacobian, document["jacobian"])):
+    for i, (got, want) in enumerate(zip(jacobian, document["jacobian"], strict=False)):
         close(float(got), want, tol, f"jacobian[{i}]", problems)
     direction = (Fraction(1), Fraction(2))
     directional = [YA * direction[0] + YB * direction[1], VA * direction[0] + VB * direction[1]]
-    for i, (got, want) in enumerate(zip(directional, document["directional"])):
+    for i, (got, want) in enumerate(zip(directional, document["directional"], strict=False)):
         close(float(got), want, tol, f"directional[{i}]", problems)
     if document["at"] != float(A_AT) or document["dgp"].replace(" ", "") != "A=2+sin(i*.71)+.2*cos(i*.13);B=cos(i*1.13);Y=5+2*A-.5*B;V=1+.25*A+1.5*B":
         problems.append("declared point or data-generating law differs from the model this reference derives from")
@@ -95,7 +95,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

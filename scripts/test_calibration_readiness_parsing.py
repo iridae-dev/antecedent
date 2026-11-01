@@ -2,7 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
 import calibration_readiness as gate
+
 
 class ReadinessParsing(unittest.TestCase):
     def test_graph_tokens_do_not_confuse_classes(self):

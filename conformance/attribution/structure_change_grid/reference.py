@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -70,7 +69,8 @@ def check(document):
     # With a single changed player the exact Shapley value is v({y}) - v(empty set), which equals the full hybrid
     # payoff difference v(all) - v(empty set) because the coalition {y} is the grand coalition; try several payoffs.
     for baseline, comparison in ((0.0, 3.5), (1.25, -2.0), (-4.0, -4.0)):
-        payoff = lambda coalition, b=baseline, c=comparison: c if "y" in coalition else b
+        def payoff(coalition, b=baseline, c=comparison):
+            return c if "y" in coalition else b
         phi_y = shapley(swap["changed_players"], payoff)["y"]
         total = payoff(frozenset(swap["changed_players"])) - payoff(frozenset())
         close(phi_y - total, swap["efficiency_residual"], tol, f"efficiency residual (payoff {baseline}, {comparison})", problems)
@@ -93,7 +93,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

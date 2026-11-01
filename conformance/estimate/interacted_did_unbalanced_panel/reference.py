@@ -90,7 +90,7 @@ def saturated_regression(rows: dict[str, list]) -> dict:
     cohort = np.array(rows["cohort"])
     y = np.array(rows["outcome"])
     controls_at = {t for t in PERIODS if np.any((cohort == 0) & (period == t))}
-    supported = np.array([c == 0 or t in controls_at for c, t in zip(cohort, period)])
+    supported = np.array([c == 0 or t in controls_at for c, t in zip(cohort, period, strict=False)])
     dropped_rows = {int(g): int(np.sum((cohort == g) & ~supported)) for g in COHORTS if g > 0}
     unit, period, cohort, y = unit[supported], period[supported], cohort[supported], y[supported]
     labels = sorted(set(unit))
@@ -111,7 +111,7 @@ def saturated_regression(rows: dict[str, list]) -> dict:
     if np.linalg.matrix_rank(design) != design.shape[1]:
         raise SystemExit("the saturated design is rank deficient")
     beta, *_ = np.linalg.lstsq(design, y, rcond=None)
-    delta = {name[1]: float(b) for name, b in zip(names, beta) if name[0] == "cell"}
+    delta = {name[1]: float(b) for name, b in zip(names, beta, strict=False) if name[0] == "cell"}
     sizes = {g: UNITS_PER_COHORT for g in COHORTS if g > 0}
     post = [(g, t) for (g, t) in cells if t >= g]
     simple = sum(sizes[g] * delta[(g, t)] for g, t in post) / sum(sizes[g] for g, _ in post)
@@ -122,7 +122,7 @@ def saturated_regression(rows: dict[str, list]) -> dict:
             sizes[g] for g, _ in members
         )
     treated = {
-        f"{g}_{t}": int(len({u for u, c, p in zip(unit, cohort, period) if c == g and p == t}))
+        f"{g}_{t}": int(len({u for u, c, p in zip(unit, cohort, period, strict=False) if c == g and p == t}))
         for (g, t) in cells
     }
     return {
@@ -194,7 +194,7 @@ def close(left: object, right: object, atol: float = 1e-9) -> bool:
     if isinstance(left, dict) and isinstance(right, dict):
         return left.keys() == right.keys() and all(close(left[k], right[k], atol) for k in left)
     if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(close(a, b, atol) for a, b in zip(left, right))
+        return len(left) == len(right) and all(close(a, b, atol) for a, b in zip(left, right, strict=False))
     if isinstance(left, float) or isinstance(right, float):
         return abs(left - right) <= atol
     return left == right

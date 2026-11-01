@@ -48,7 +48,7 @@ def check(document, eig):
     if document["acceptance"]["adaptive_top_candidate"] != derived[0]:
         problems.append(f"top candidate {document['acceptance']['adaptive_top_candidate']} vs {derived[0]}")
     atol = document["acceptance"]["score_atol"]
-    for left, right in zip(derived, derived[1:]):
+    for left, right in zip(derived, derived[1:], strict=False):
         if gains[left] - gains[right] <= 2 * atol:
             problems.append(f"{left} and {right} are within 2 * score_atol of each other")
     return problems

@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -55,7 +54,8 @@ def check(document):
     contract = document["contract"]
     control, active = contract["control_level"], contract["active_level"]
     mean_z = math.fsum(math.sin(i / 17.0) for i in range(n)) / n
-    mean = lambda t: 1.0 + 2.0 * t + 0.8 * mean_z   # E[Y | do(T=t)] under E[Y|T,Z] = 1 + 2 t + 0.8 z
+    def mean(t):
+        return 1.0 + 2.0 * t + 0.8 * mean_z   # E[Y | do(T=t)] under E[Y|T,Z] = 1 + 2 t + 0.8 z
     contrast = mean(active) - mean(control)
     close(contrast, contract["true_contrast"], 1e-12, "true_contrast", problems)
     # The stated absolute responses are consistent with the contrast, but equal the exact g-computation
@@ -83,7 +83,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

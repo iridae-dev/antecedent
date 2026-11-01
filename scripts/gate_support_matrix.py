@@ -4,10 +4,10 @@ from __future__ import annotations
 import ast
 import re
 import sys
+import tomllib
 from itertools import product
 from pathlib import Path
 
-import tomllib
 from _repo import ensure_scripts_on_path
 
 root = Path(".")

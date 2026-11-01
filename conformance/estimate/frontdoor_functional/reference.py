@@ -71,7 +71,8 @@ def compute() -> dict:
 
     def arm(t):
         pt = sum(c for (tt, _, _), c in cell.items() if tt == t)
-        e = lambda f: sum(c * f(m, y) for (tt, m, y), c in cell.items() if tt == t) / pt
+        def e(f):
+            return sum(c * f(m, y) for (tt, m, y), c in cell.items() if tt == t) / pt
         var_m = e(lambda m, y: m * m) - e(lambda m, y: m) ** 2
         cov = e(lambda m, y: m * y) - e(lambda m, y: m) * e(lambda m, y: y)
         return pt, var_m, cov / var_m if var_m else F(0)
@@ -80,7 +81,8 @@ def compute() -> dict:
     pooled_b = sum(pt * v * b for pt, v, b in arms) / sum(pt * v for pt, v, _ in arms)
     a = p_m(1, 1) - p_m(1, 0)
     # The T->M slope from the observed law equals the structural one (U does not enter M).
-    mean_m = lambda t: sum(c for (tt, m, _), c in cell.items() if tt == t and m) / arms[t][0]
+    def mean_m(t):
+        return sum(c for (tt, m, _), c in cell.items() if tt == t and m) / arms[t][0]
     assert mean_m(1) - mean_m(0) == a
     return {
         "true_effect": float(truth),

@@ -1,10 +1,10 @@
 """Direct promotion checker controls; all cases stop before collecting evidence."""
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 CHECKER = Path(__file__).with_name("check_promotion_records.py")
 OVERRIDES = (

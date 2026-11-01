@@ -44,8 +44,10 @@ def check(document):
     totals, directs, indirects = set(), set(), set()
     for i in range(1, 41):
         z, e = F(pattern[(i - 1) % 4]), F((i % 5) - 2)
-        m = lambda t: a * t + F("0.6") * z + F("0.15") * e
-        y = lambda t, mm: 1 + c * t + b * mm + 5 * z
+        def m(t):
+            return a * t + F("0.6") * z + F("0.15") * e
+        def y(t, mm):
+            return 1 + c * t + b * mm + 5 * z
         totals.add(y(1, m(1)) - y(0, m(0)))
         directs.add(y(1, m(0)) - y(0, m(0)))
         indirects.add(y(0, m(1)) - y(0, m(0)))

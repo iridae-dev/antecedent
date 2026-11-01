@@ -1,8 +1,8 @@
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 GATE = Path(__file__).with_name("gate_promotion.sh")
 

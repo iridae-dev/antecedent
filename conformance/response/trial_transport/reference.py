@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -64,7 +63,8 @@ def equations(inputs):
         for i in trial
     )
     aipw = (plug_in + correction) / n_target
-    ess = lambda weights: sum(weights) ** 2 / sum(x * x for x in weights)
+    def ess(weights):
+        return sum(weights) ** 2 / sum(x * x for x in weights)
     return ipw, aipw, ess(list(w.values())), ess(list(tw.values()))
 
 
@@ -96,7 +96,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

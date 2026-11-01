@@ -42,7 +42,7 @@ def check(document):
     unit = document["unit_case"]
     _, slope = parse(document["mechanism_detection"]["baseline"].replace(" ", ""))
     derived = [slope * (x - unit["reference_mean"]) for x in unit["x"]]
-    for index, (got, want) in enumerate(zip(derived, unit["contributions"])):
+    for index, (got, want) in enumerate(zip(derived, unit["contributions"], strict=False)):
         close(got, want, tol, f"contributions[{index}]", problems)
     close(sum(derived) / len(derived), unit["mean_contribution"], tol, "mean_contribution", problems)
     return problems

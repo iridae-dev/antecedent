@@ -13,6 +13,7 @@ import html
 import json
 import re
 import time
+import tomllib
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -20,7 +21,6 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT
 
 CACHE = "provenance/citation_metadata.json"

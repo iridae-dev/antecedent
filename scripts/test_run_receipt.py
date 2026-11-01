@@ -16,7 +16,7 @@ import platform
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from _repo import REPO_ROOT
@@ -51,7 +51,7 @@ def main() -> int:
         command = command[1:]
     if not command:
         parser.error("an ordinary test command is required")
-    started = datetime.now(timezone.utc)
+    started = datetime.now(UTC)
     output = args.output or REPO_ROOT / "target/test-performance" / (
         started.strftime("%Y%m%dT%H%M%S.%fZ") + f"-{os.getpid()}.json"
     )

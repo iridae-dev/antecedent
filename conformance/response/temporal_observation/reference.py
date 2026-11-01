@@ -19,7 +19,6 @@ import copy
 import json
 import math
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -54,12 +53,13 @@ def check(document):
     # Y_s = 5 + 2 T_{s-1} + 3 T_{s-2} + U_s with T_s ~ Uniform(-1, 1) and U_s mean zero: a pulse at -1 sets T_{-1} = d
     # and leaves E[T] = 0 for the other lags, so horizon 1 gives 5 + 2 d and horizon 2 gives 5 + 3 d.
     coefficient = {1: 2.0, 2: 3.0}
-    level = lambda d, h: 5.0 + coefficient[h] * d
+    def level(d, h):
+        return 5.0 + coefficient[h] * d
     surface = [level(d, h) for d in document["grid"] for h in document["horizons"]]
-    for i, (got, want) in enumerate(zip(surface, document["surface"]["mean"])):
+    for i, (got, want) in enumerate(zip(surface, document["surface"]["mean"], strict=False)):
         close(got, want, 1e-12, f"surface.mean[{i}]", problems)
     path = [level(0.5, h) for h in document["horizons"]]
-    for i, (got, want) in enumerate(zip(path, document["intervention_set_0_5"])):
+    for i, (got, want) in enumerate(zip(path, document["intervention_set_0_5"], strict=False)):
         close(got, want, 1e-12, f"intervention_set_0_5[{i}]", problems)
     if not 0 < document["naive_gap_min"] < document["atol"]:
         problems.append("naive_gap_min must be positive and below the point tolerance")
@@ -81,7 +81,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

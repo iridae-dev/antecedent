@@ -11,9 +11,9 @@ transitively, relative to the including file, so a file pulled in by another inc
 from __future__ import annotations
 
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT as ROOT
 from test_evidence import target_files
 

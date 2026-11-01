@@ -1,8 +1,10 @@
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
+
 import collect_coverage_records as collector
+
 
 class DuplicateRecords(unittest.TestCase):
     def test_distinct_replicate_counts_refused_and_recheck_replaces(self):

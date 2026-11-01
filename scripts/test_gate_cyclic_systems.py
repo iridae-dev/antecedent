@@ -4,7 +4,6 @@ import unittest
 from unittest.mock import patch
 
 import gate_cyclic_systems as gate
-
 from gate_cyclic_systems import finite_at_most, valid_digest
 
 

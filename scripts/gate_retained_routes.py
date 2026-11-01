@@ -30,13 +30,13 @@ import tomllib
 from pathlib import Path
 
 from _rust_source import lex, rust_mask
-from test_evidence import rust_test_declaration_problems
 from retained_computation import (
     WRAPPER_FAMILY_EXECUTORS,
     retained_computation_problems,
     sealed_payloads,
     wrapper_kinds,
 )
+from test_evidence import rust_test_declaration_problems
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = "crates/antecedent/src"

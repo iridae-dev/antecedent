@@ -46,7 +46,7 @@ def solve(a: list[list[Fraction]], b: list[Fraction]) -> list[Fraction]:
         for r in range(n):
             if r != c and m[r][c] != 0:
                 f = m[r][c]
-                m[r] = [v - f * w for v, w in zip(m[r], m[c])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[c], strict=False)]
     return [m[i][n] for i in range(n)]
 
 
@@ -88,7 +88,7 @@ def check(document: dict) -> list[str]:
     atol = document["acceptance"]["atol"]
     if abs(got["intercept"] - ref["intercept"]) > atol:
         problems.append(f"intercept {ref['intercept']} vs {got['intercept']}")
-    for index, (a, b) in enumerate(zip(got["coefficients"], ref["coefficients"])):
+    for index, (a, b) in enumerate(zip(got["coefficients"], ref["coefficients"], strict=False)):
         if abs(a - b) > atol:
             problems.append(f"coefficient {index}: {b} vs {a}")
     if abs(got["data_residual_sigma"] - ref["data_residual_sigma"]) > atol:

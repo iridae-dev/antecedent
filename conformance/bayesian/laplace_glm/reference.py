@@ -32,19 +32,19 @@ def close(got, want, tol, label, problems):
 
 def solve(a, b):
     n = len(a)
-    m = [row[:] + [bi] for row, bi in zip(a, b)]
+    m = [row[:] + [bi] for row, bi in zip(a, b, strict=False)]
     for c in range(n):
         p = next(r for r in range(c, n) if m[r][c] != 0)
         m[c], m[p] = m[p], m[c]
         m[c] = [v / m[c][c] for v in m[c]]
         for r in range(n):
             if r != c:
-                m[r] = [x - m[r][c] * y for x, y in zip(m[r], m[c])]
+                m[r] = [x - m[r][c] * y for x, y in zip(m[r], m[c], strict=False)]
     return [row[n] for row in m]
 
 def least_squares(columns, y):
-    a = [[sum(p * q for p, q in zip(ci, cj)) for cj in columns] for ci in columns]
-    b = [sum(p * q for p, q in zip(ci, y)) for ci in columns]
+    a = [[sum(p * q for p, q in zip(ci, cj, strict=False)) for cj in columns] for ci in columns]
+    b = [sum(p * q for p, q in zip(ci, y, strict=False)) for ci in columns]
     return solve(a, b)
 
 N = 60

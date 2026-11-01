@@ -1,7 +1,6 @@
 """Named calibration groups dispatch exact, source-backed libtest identities."""
 import re
 import unittest
-from pathlib import Path
 
 from _repo import REPO_ROOT, ensure_scripts_on_path
 

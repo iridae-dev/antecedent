@@ -1,12 +1,13 @@
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from pathlib import Path
+
 import calibration_decision as decision
 import calibration_preflight as preflight
+
 
 class DirectGatePreflight(unittest.TestCase):
     def test_missing_malformed_and_foreign_context_fail(self):

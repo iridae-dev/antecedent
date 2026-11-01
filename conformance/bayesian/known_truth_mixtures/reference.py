@@ -38,7 +38,7 @@ def same(got, want, label, problems):
 
 def mix(weights, effects):
     mass = sum(F(str(w)) for w in weights[: len(effects)])
-    total = sum(F(str(w)) * F(str(e)) for w, e in zip(weights, effects))
+    total = sum(F(str(w)) * F(str(e)) for w, e in zip(weights, effects, strict=False))
     return total, mass, total / mass
 
 
@@ -69,9 +69,9 @@ def check(document):
     direct = [1 + 2 * t + F(3, 2) * (F(1, 2) * t) for t in grid]
     adjusted_curve = [1 + 2 * t + F(3, 2) * 0 for t in grid]
     for got, want, label in ((direct, r["identified_atom_curve_direct"], "direct curve"), (adjusted_curve, r["identified_atom_curve_adjusted"], "adjusted curve")):
-        for g, v in zip(got, want):
+        for g, v in zip(got, want, strict=False):
             close(g, v, 1e-12, label, problems)
-    for d, a, want in zip(direct, adjusted_curve, r["expected_conditional_on_identified_curve"]):
+    for d, a, want in zip(direct, adjusted_curve, r["expected_conditional_on_identified_curve"], strict=False):
         close((w[0] * d + w[1] * a) / (w[0] + w[1]), want, 1e-12, "conditional curve", problems)
     close(1 - w[0] - w[1], r["expected_unidentified_mass"], 1e-12, "static response unidentified mass", problems)
 
@@ -81,7 +81,7 @@ def check(document):
     close(sum(F(str(a[0])) for a in atoms[:1]), t["identified_mass"], 1e-12, "temporal identified mass", problems)
     close(1 - F(str(atoms[0][0])), t["expected_unidentified_mass"], 1e-12, "temporal unidentified mass", problems)
     close(F(9, 10), t["expected_effect_given_identified"], 1e-12, "temporal conditional effect", problems)
-    for got, want in zip(marginals(atoms, 4), t["lagged_edge_marginals"]):
+    for got, want in zip(marginals(atoms, 4), t["lagged_edge_marginals"], strict=False):
         close(got, want, 1e-12, "temporal lagged edge marginal", problems)
     sm = document["temporal_sustained_multistep"]
     close(F(9, 10), sm["expected_effect_given_identified"], 1e-12, "sustained conditional effect", problems)
@@ -92,7 +92,7 @@ def check(document):
     close(F("0.8") * F("0.55"), m["expected_effect_given_identified"], 1e-12, "mediation conditional effect", problems)
     close(1 - F(str(m["identified_atom"]["weight"])), m["expected_unidentified_mass"], 1e-12, "mediation unidentified mass", problems)
     atoms = [(m["identified_atom"]["weight"], m["identified_atom"]["lag_mask"]), (m["unidentified_atom"]["weight"], m["unidentified_atom"]["lag_mask"])]
-    for got, want in zip(marginals(atoms, 9), m["lagged_edge_marginals"]):
+    for got, want in zip(marginals(atoms, 9), m["lagged_edge_marginals"], strict=False):
         close(got, want, 1e-12, "mediation lagged edge marginal", problems)
     return problems
 

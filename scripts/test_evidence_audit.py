@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -18,7 +19,6 @@ import native_build_identity as native
 import provenance_links
 import run_dowhy_comparison as comparator
 import test_evidence as evidence
-import tomllib
 import verify_provenance_citations as citations
 from evidence_kinds import (
     evidence_roles,
@@ -128,6 +128,7 @@ class Classification(unittest.TestCase):
     def test_script_runner_rejects_failed_skipped_and_missing_required_assertions(self):
         import contextlib
         import io
+
         import run_script_tests as runner
 
         def passing():

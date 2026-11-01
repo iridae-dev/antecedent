@@ -47,7 +47,8 @@ def check(document):
     mw = sum(F(w[i]) for i in rows) / len(rows)
     close(mz, document["moments"]["mean_z"], 1e-12, "mean_z", problems)
     close(mw, document["moments"]["mean_w"], 1e-12, "mean_w", problems)
-    level = lambda x: F(14, 10) * x + F(6, 10) * mz + mw
+    def level(x):
+        return F(14, 10) * x + F(6, 10) * mz + mw
     h = document["horizon_1"]["level"]
     close(level(0), h["curve"][0], 1e-12, "curve dose 0", problems)
     close(level(1), h["curve"][1], 1e-12, "curve dose 1", problems)

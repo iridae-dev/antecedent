@@ -28,7 +28,6 @@ import argparse
 import sys
 import tomllib
 from collections import defaultdict
-from pathlib import Path
 
 from _repo import REPO_ROOT
 from provenance_links import non_algorithm_review_problems

@@ -46,7 +46,7 @@ def solve(matrix, rhs):
         for r in range(n):
             if r != c and aug[r][c] != 0:
                 f = aug[r][c]
-                aug[r] = [a - f * b for a, b in zip(aug[r], aug[c])]
+                aug[r] = [a - f * b for a, b in zip(aug[r], aug[c], strict=False)]
     return [[aug[i][n + j] for i in range(n)] for j in range(len(rhs))]
 
 
@@ -121,7 +121,7 @@ def check(document):
         if len(frozen) != len(values):
             problems.append(f"{name}: length {len(frozen)} != {len(values)}")
             continue
-        for i, (want, got) in enumerate(zip(frozen, values)):
+        for i, (want, got) in enumerate(zip(frozen, values, strict=False)):
             if abs(float(got) - want) > tolerance:
                 problems.append(f"{name}[{i}]: frozen {want!r} vs derived {float(got)!r}")
     return problems

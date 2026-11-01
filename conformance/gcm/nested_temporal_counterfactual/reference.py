@@ -39,9 +39,12 @@ def same(got, want, label, problems):
 def check(document):
     problems = []
     n = document["model"]["rows"]
-    mean = lambda f: sum(F(f(i)) for i in range(n)) / n
-    M = lambda t, i: F(7, 10) * t + F(5, 100) * i
-    Y = lambda t, m, i: F(1, 2) * t + F(3, 2) * m + F(1, 100) * i
+    def mean(f):
+        return sum(F(f(i)) for i in range(n)) / n
+    def M(t, i):
+        return F(7, 10) * t + F(5, 100) * i
+    def Y(t, m, i):
+        return F(1, 2) * t + F(3, 2) * m + F(1, 100) * i
     ref = document["reference"]
     tol = document["acceptance"]["atol"]
     nested = mean(lambda i: Y(1, M(0, i), i))

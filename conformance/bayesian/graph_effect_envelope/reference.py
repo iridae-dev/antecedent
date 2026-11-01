@@ -36,7 +36,7 @@ def check(document):
     problems = []
     weights = [F(str(w)) for w in document["identified_weights"]]
     effects = [F(str(e)) for e in document["effect_means"]]
-    mixture = sum(w * e for w, e in zip(weights, effects)) / sum(weights)
+    mixture = sum(w * e for w, e in zip(weights, effects, strict=False)) / sum(weights)
     close(float(mixture), document["expected_mixture_mean"], 1e-12, "mixture mean", problems)
     close(float(1 - sum(weights)), document["unidentified_mass"], 1e-12, "unidentified mass", problems)
     return problems

@@ -94,7 +94,7 @@ def completions(edges):
     out = []
     for choice in itertools.product("->", repeat=len(slots)):
         trial = [list(e) for e in edges]
-        for (i, side), mark in zip(slots, choice):
+        for (i, side), mark in zip(slots, choice, strict=False):
             trial[i][side] = mark
         trial = [tuple(e) for e in trial]
         if is_ancestral(trial):

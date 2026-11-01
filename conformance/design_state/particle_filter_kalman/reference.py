@@ -53,7 +53,7 @@ def check(document: dict) -> list[str]:
         if len(means) != len(ref["filtered_means"]) or len(variances) != len(ref["filtered_variances"]):
             problems.append(f"{case['name']}: length differs")
             continue
-        for t, (m, v) in enumerate(zip(means, variances)):
+        for t, (m, v) in enumerate(zip(means, variances, strict=False)):
             if abs(m - ref["filtered_means"][t]) > ATOL:
                 problems.append(f"{case['name']} t={t}: mean {ref['filtered_means'][t]} vs {m}")
             if abs(v - ref["filtered_variances"][t]) > ATOL:

@@ -11,10 +11,10 @@ from __future__ import annotations
 import argparse
 import json
 import tempfile
+import tomllib
 from collections import Counter
 from pathlib import Path
 
-import tomllib
 from _repo import REPO_ROOT as REPO
 from evidence_audit import claim_rows
 

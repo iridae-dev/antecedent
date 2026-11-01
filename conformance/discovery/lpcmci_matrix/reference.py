@@ -92,7 +92,7 @@ def check(document: dict, computed: list[dict] | None = None) -> list[str]:
     if len(computed) != len(document["cases"]) or not computed:
         return ["missing reference discovery"]
     problems = []
-    for case, actual in zip(document["cases"], computed):
+    for case, actual in zip(document["cases"], computed, strict=False):
         expected = case["reference"]
         if expected.get("graph_shape") != actual["graph_shape"]:
             problems.append(f"{case['name']}: graph shape differs")

@@ -46,9 +46,10 @@ def frontdoor_contrast() -> F:
     table = json.loads(TABLE.read_text(encoding="utf-8"))["contingency_table"]
     n = {(int(c["t"]), int(c["m"]), int(c["y"])): F(c["count"]) for c in table}
     total = sum(n.values())
-    cell = lambda t=None, m=None, y=None: sum(
-        v for (a, b, c), v in n.items() if (t is None or a == t) and (m is None or b == m) and (y is None or c == y)
-    )
+    def cell(t=None, m=None, y=None):
+        return sum(
+            v for (a, b, c), v in n.items() if (t is None or a == t) and (m is None or b == m) and (y is None or c == y)
+        )
 
     def do(t):
         out = F(0)

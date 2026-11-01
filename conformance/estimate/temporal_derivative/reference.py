@@ -37,7 +37,8 @@ DIRECTION = (Fraction(1), Fraction(2))
 
 def derived():
     mean_b = Fraction(1, 2)
-    mean_y = lambda x: Y0 + YX * x + YB * mean_b
+    def mean_y(x):
+        return Y0 + YX * x + YB * mean_b
     level = mean_y(X_AT)
     slope = YX  # d/dx of the structural mean
     jacobian = [YX, YB, VX, VB]

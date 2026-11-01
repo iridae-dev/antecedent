@@ -86,7 +86,7 @@ def rss(columns: list[list[float]], target: int, parents: tuple[int, ...]) -> Fr
         for r in range(k):
             if r != c:
                 f = m[r][c]
-                m[r] = [v - f * w for v, w in zip(m[r], m[c])]
+                m[r] = [v - f * w for v, w in zip(m[r], m[c], strict=False)]
     beta = [m[i][k] for i in range(k)]
     return sum(
         ((y[r] - sum(beta[j] * rows[r][j] for j in range(k))) ** 2 for r in range(n)), Fraction(0)
@@ -118,7 +118,7 @@ def marginals(columns: list[list[float]]) -> list[float]:
 
     graphs, weights = [], []
     for mask in itertools.product((0, 1), repeat=len(pairs)):
-        edges = {e for e, bit in zip(pairs, mask) if bit}
+        edges = {e for e, bit in zip(pairs, mask, strict=False) if bit}
         if not acyclic(edges, v):
             continue
         weights.append(
@@ -128,7 +128,7 @@ def marginals(columns: list[list[float]]) -> list[float]:
     top = max(weights)
     total = sum(math.exp(w - top) for w in weights)
     out = [0.0] * (v * v)
-    for edges, w in zip(graphs, weights):
+    for edges, w in zip(graphs, weights, strict=False):
         for f, t in edges:
             out[f * v + t] += math.exp(w - top) / total
     assert len(graphs) == 25
@@ -149,7 +149,7 @@ def check(document: dict) -> list[str]:
         if len(stored.get(name, [])) != 9:
             problems.append(f"{name}: stored marginals malformed")
             continue
-        for cell, (a, b) in enumerate(zip(got[name], stored[name])):
+        for cell, (a, b) in enumerate(zip(got[name], stored[name], strict=False)):
             if abs(a - b) > 1e-12:
                 problems.append(f"{name} cell {cell}: {b} vs {a}")
     if not problems:

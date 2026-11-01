@@ -78,7 +78,7 @@ def determinant_and_inverse(matrix):
         for r in range(n):
             if r != col and work[r][col] != 0:
                 factor = work[r][col]
-                work[r] = [a - factor * b for a, b in zip(work[r], work[col])]
+                work[r] = [a - factor * b for a, b in zip(work[r], work[col], strict=False)]
     return det, [row[n:] for row in work]
 
 

@@ -70,7 +70,7 @@ def mec_size(edges: list[str]) -> int:
     target = colliders(fixed, adjacent)
     count = 0
     for flips in itertools.product((False, True), repeat=len(free)):
-        arcs = set(fixed) | {(b, a) if f else (a, b) for (a, b), f in zip(free, flips)}
+        arcs = set(fixed) | {(b, a) if f else (a, b) for (a, b), f in zip(free, flips, strict=False)}
         if any(reaches(arcs - {(a, b)}, b, a) for a, b in arcs):
             continue
         if colliders(arcs, adjacent) == target:

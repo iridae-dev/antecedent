@@ -1,7 +1,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+
 import check_release_claims as gate
+
 
 class FrozenSnapshot(unittest.TestCase):
     def test_historical_snapshot_uses_frozen_coverage_not_live_inputs(self):

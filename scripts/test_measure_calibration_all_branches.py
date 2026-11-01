@@ -1,8 +1,8 @@
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("measure_calibration.sh").resolve()
 

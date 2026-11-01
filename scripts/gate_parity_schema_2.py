@@ -7,7 +7,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
-from parity_rows import reason_obligation, runtime_code_literals, raw_reason_emissions
+from parity_rows import raw_reason_emissions, reason_obligation, runtime_code_literals
 
 root = Path(".")
 print_counts = "--print-counts" in sys.argv

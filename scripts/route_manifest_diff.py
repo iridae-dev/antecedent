@@ -78,7 +78,7 @@ def coordinates(axes: dict) -> list[tuple]:
 
 
 def _matches(rule: dict, coord: tuple) -> bool:
-    by_axis = dict(zip(AXES, coord))
+    by_axis = dict(zip(AXES, coord, strict=False))
     return all(by_axis[axis] in rule[key] for key, axis in RULE_AXES.items() if key in rule)
 
 

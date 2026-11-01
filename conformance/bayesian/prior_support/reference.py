@@ -19,8 +19,8 @@ import copy
 import importlib.metadata
 import json
 import math
-import warnings
 import sys
+import warnings
 from pathlib import Path
 
 from scipy.integrate import quad
@@ -60,7 +60,7 @@ def check(document):
         # Nonempty aligned coordinates are repository container policy; scalar
         # domain decisions below are checked through the public distribution API.
         valid = bool(means) and len(means) == len(variances) and all(
-            normal_valid(m, v) for m, v in zip(means, variances)
+            normal_valid(m, v) for m, v in zip(means, variances, strict=False)
         ) and all(v > 0 for v in variances)
         if case["valid"] != valid:
             problems.append(f"{case['name']} domain differs")

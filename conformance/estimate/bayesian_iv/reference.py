@@ -35,13 +35,13 @@ N = 1200
 def design():
     z = [Fraction(i % 2) for i in range(N)]
     u = [Fraction((i % 17) - 8, 5) for i in range(N)]
-    t = [Fraction(3, 5) * zi + ui for zi, ui in zip(z, u)]
-    y = [2 * ti + ui for ti, ui in zip(t, u)]
+    t = [Fraction(3, 5) * zi + ui for zi, ui in zip(z, u, strict=False)]
+    y = [2 * ti + ui for ti, ui in zip(t, u, strict=False)]
     return z, t, y
 
 def cov(a, b):
     ma, mb = sum(a) / N, sum(b) / N
-    return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / N
+    return sum((x - ma) * (y - mb) for x, y in zip(a, b, strict=False)) / N
 
 def derived():
     z, t, y = design()

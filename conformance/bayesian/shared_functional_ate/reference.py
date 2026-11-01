@@ -35,30 +35,30 @@ BETA_T, BETA_Z = Fraction(2), Fraction(1, 2)
 
 def solve(a, b):
     n = len(a)
-    m = [row[:] + [bi] for row, bi in zip(a, b)]
+    m = [row[:] + [bi] for row, bi in zip(a, b, strict=False)]
     for c in range(n):
         p = next(r for r in range(c, n) if m[r][c] != 0)
         m[c], m[p] = m[p], m[c]
         m[c] = [v / m[c][c] for v in m[c]]
         for r in range(n):
             if r != c:
-                m[r] = [x - m[r][c] * y for x, y in zip(m[r], m[c])]
+                m[r] = [x - m[r][c] * y for x, y in zip(m[r], m[c], strict=False)]
     return [row[n] for row in m]
 
 def design():
     z = [Fraction(i, 10) for i in range(N)]
     t = [Fraction(1 if i % 2 == 0 else 0) for i in range(N)]
-    y = [BETA_T * ti + BETA_Z * zi for ti, zi in zip(t, z)]
+    y = [BETA_T * ti + BETA_Z * zi for ti, zi in zip(t, z, strict=False)]
     return z, t, y
 
 def derived():
     z, t, y = design()
-    x = [[Fraction(1), ti, zi] for ti, zi in zip(t, z)]
+    x = [[Fraction(1), ti, zi] for ti, zi in zip(t, z, strict=False)]
     a = [[sum(r[i] * r[j] for r in x) for j in range(3)] for i in range(3)]
-    b = [sum(r[i] * yi for r, yi in zip(x, y)) for i in range(3)]
+    b = [sum(r[i] * yi for r, yi in zip(x, y, strict=False)) for i in range(3)]
     adjusted = solve(a, b)[1]
     n1 = sum(t)
-    naive = sum(ti * yi for ti, yi in zip(t, y)) / n1 - sum((1 - ti) * yi for ti, yi in zip(t, y)) / (N - n1)
+    naive = sum(ti * yi for ti, yi in zip(t, y, strict=False)) / n1 - sum((1 - ti) * yi for ti, yi in zip(t, y, strict=False)) / (N - n1)
     return adjusted, naive
 
 def check(document):

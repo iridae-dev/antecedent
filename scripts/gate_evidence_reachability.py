@@ -4,9 +4,9 @@ import os
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
-import tomllib
 from _repo import ensure_scripts_on_path
 
 root = Path(".")

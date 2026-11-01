@@ -5,8 +5,13 @@ import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from provenance_links import ALIAS, FAMILY, NOT_AN_ALGORITHM  # noqa: E402
-from provenance_links import method_review_problems, non_algorithm_review_problems  # noqa: E402
+from provenance_links import (  # noqa: E402  # noqa: E402
+    ALIAS,
+    FAMILY,
+    NOT_AN_ALGORITHM,
+    method_review_problems,
+    non_algorithm_review_problems,
+)
 
 root = Path(".")
 records = sorted((root / "provenance").glob("*.toml"))

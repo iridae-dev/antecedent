@@ -116,7 +116,7 @@ def battery(document: dict) -> dict:
     um, uv = mean_var(u)
     ux, uy = u[:-1], u[1:]
     mx, my = math.fsum(ux) / len(ux), math.fsum(uy) / len(uy)
-    lag1 = math.fsum((a - mx) * (b - my) for a, b in zip(ux, uy)) / math.sqrt(
+    lag1 = math.fsum((a - mx) * (b - my) for a, b in zip(ux, uy, strict=False)) / math.sqrt(
         math.fsum((a - mx) ** 2 for a in ux) * math.fsum((b - my) ** 2 for b in uy)
     )
     bins = [0] * 20
@@ -130,7 +130,8 @@ def battery(document: dict) -> dict:
     chi_pairs = sum((c - expected_pair) ** 2 / expected_pair for row in pairs for c in row)
     d_u = ks_statistic(sorted(u), lambda v: v)
     nm, nv = mean_var(z)
-    cdf = lambda v: 0.5 * math.erfc(-v / math.sqrt(2.0))
+    def cdf(v):
+        return 0.5 * math.erfc(-v / math.sqrt(2.0))
     d_n = ks_statistic(sorted(z), cdf)
     return {
         "uniform": {

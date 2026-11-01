@@ -59,10 +59,12 @@ GAMMA0, GAMMA1 = -0.4, 0.9
 def derived():
     mean_z = simpson(lambda z: z * phi(z))  # E[Z] = 0 under the standard normal
     # do(T=t) cuts Z -> T and leaves the Y equation: E[Y | do(T=t)] = BETA_T t + BETA_Z E[Z].
-    do = lambda t: float(BETA_T) * t + float(BETA_Z) * mean_z
+    def do(t):
+        return float(BETA_T) * t + float(BETA_Z) * mean_z
     ate = do(1.0) - do(0.0)
     # The effect is the same constant for every unit, so the effect on the treated equals the ATE.
-    treat = lambda z: phi(z) * sigmoid(GAMMA0 + GAMMA1 * z)
+    def treat(z):
+        return phi(z) * sigmoid(GAMMA0 + GAMMA1 * z)
     p1 = simpson(treat)
     mean_z_treated = simpson(lambda z: z * treat(z)) / p1
     mean_z_control = simpson(lambda z: z * phi(z) * (1 - sigmoid(GAMMA0 + GAMMA1 * z))) / (1 - p1)
@@ -99,7 +101,7 @@ def self_test(document):
         wrong = copy.deepcopy(document)
         mutate(wrong)
         if not check(wrong):
-            failures.append(f"accepted: {{label}}")
+            failures.append(f"accepted: {label}")
     return failures
 
 

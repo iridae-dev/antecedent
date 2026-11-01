@@ -43,7 +43,7 @@ def check(document):
     rows.sort(key=lambda r: -r[0])
     if len(rows) != len(document["expected_ranking"]):
         return [f"component count {len(rows)} != {len(document['expected_ranking'])}"]
-    for rank, ((score, std, raw), want) in enumerate(zip(rows, document["expected_ranking"])):
+    for rank, ((score, std, raw), want) in enumerate(zip(rows, document["expected_ranking"], strict=False)):
         if raw != want["component_raw"]:
             problems.append(f"rank {rank}: component {raw} != fixture {want['component_raw']}")
         close(score, want["score"], tol, f"rank {rank} score", problems)
