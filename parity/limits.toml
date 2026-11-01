@@ -119,9 +119,9 @@ record = "temporal.dependent_interval"
 key = "max_replicates"
 implementation = [{ path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", constant = "INTERVAL_MAX_REPLICATES" }]
 documentation = [{ path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", constant = "INTERVAL_MAX_REPLICATES" }]
-guard = { path = "crates/antecedent/src/analysis/temporal_extensions.rs", pattern = 'if config\.replicates > INTERVAL_MAX_REPLICATES \{' }
-refusal = { path = "crates/antecedent/src/analysis/temporal_extensions.rs", pattern = 'if config\.replicates > INTERVAL_MAX_REPLICATES \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
-scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", pattern = '\bunknown_unit_dependence_refuses_an_absent_map_and_incompatible_units\b' }
+guard = { path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", pattern = 'if config\.replicates > INTERVAL_MAX_REPLICATES \{' }
+refusal = { path = "crates/antecedent-estimate/src/temporal_dependent_interval.rs", pattern = 'if config\.replicates > INTERVAL_MAX_REPLICATES \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
+scope_fixture = { path = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", pattern = '\bdynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation\b' }
 
 [[bound]]
 record = "temporal.dependent_interval"
