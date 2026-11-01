@@ -251,7 +251,7 @@ fn a_stated_prior_of_the_wrong_width_is_refused() {
     let spec = spec(MechanismStanding::DeclaredInvariant, "law_1");
     assert_eq!(
         invalid_event(PeriodRefresh::start(&spec, &first, &narrow, &S[0..6])),
-        "a lag order of at least one and a prior of width lags + 1"
+        "a lag order of at least one and at most the artifact limit, and a prior of width lags + 1"
     );
 }
 

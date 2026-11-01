@@ -18,7 +18,10 @@
 //!   prior of a period whose mechanism was not declared the same, because that would assume the
 //!   stationarity a temporal index does not give;
 //! * a period that overlaps the summarized one, or reuses its snapshot, is refused: the same
-//!   observations would enter twice. A period that starts after the summarized one ends
+//!   observations would enter twice. So is a period whose values are exactly a block already
+//!   admitted under another period: a declared period and snapshot id are labels, and the
+//!   data identity (a digest of the values) decides whether the observations are new
+//!   (`period_refresh.relabelled_data`). A period that starts after the summarized one ends
 //!   leaves a gap. The gap is not filled and not assumed stationary: the rows that would span
 //!   it are not formed, and the new period contributes its own rows only.
 //!
@@ -27,11 +30,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_estimate::temporal_refresh::{
-    FactorChange, MechanismStanding, ObservationCadence, TemporalWindowIdentity, WindowFactors,
-    WindowProduct, factor_changes, refresh_survival,
+    FactorChange, MechanismStanding, ObservationCadence, ObservationPeriod, TemporalWindowIdentity,
+    WindowFactors, WindowProduct, factor_changes, refresh_survival,
 };
 use antecedent_io::period_refresh_artifact::{
     BlockWire, LeastSquaresWire, PERIOD_EXTENDED, PERIOD_REFRESH_ARTIFACT_FEATURE,
@@ -125,6 +128,9 @@ pub struct PeriodRefresh {
     prior: ConjugateOlsPrior,
     posterior: ConjugateOlsPosterior,
     snapshots: BTreeSet<String>,
+    /// Digest of every block of values ever admitted, with the period it was admitted under.
+    /// Kept across restarts: a dropped period's observations are still observations seen.
+    admitted: BTreeMap<String, ObservationPeriod>,
     last_invalidated: Vec<WindowProduct>,
     log: InvalidationLog,
 }
@@ -224,6 +230,18 @@ fn estimation(error: &impl std::fmt::Display) -> StateError {
     invalid(error.to_string())
 }
 
+/// Identity of a block of values: a digest of their exact bit patterns (`-0.0` read as `0.0`)
+/// and their count. The period and snapshot id are declared; this is bound to the data.
+fn data_identity(values: &[f64]) -> String {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&(values.len() as u64).to_le_bytes());
+    for value in values {
+        let canonical = if *value == 0.0 { 0.0_f64 } else { *value };
+        hasher.update(&canonical.to_bits().to_le_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
 fn expected_len(window: &TemporalWindowIdentity) -> Result<usize, StateError> {
     let span = window.period.end.checked_sub(window.period.start).unwrap_or(0);
     usize::try_from(span).map_err(|_| invalid("period span is not a length"))
@@ -319,6 +337,7 @@ impl PeriodRefresh {
             prior: prior.clone(),
             posterior,
             snapshots: BTreeSet::from([window.snapshot_id.clone()]),
+            admitted: BTreeMap::from([(data_identity(values), window.period)]),
             last_invalidated: Vec::new(),
             log: InvalidationLog::new(),
         })
@@ -415,7 +434,8 @@ impl PeriodRefresh {
     ///
     /// # Errors
     /// An unusable window, a series whose length is not the period's, a period that overlaps
-    /// the summarized one or reuses its snapshot, or a refused window change from
+    /// the summarized one or reuses its snapshot, values identical to a block already admitted
+    /// under another period (`period_refresh.relabelled_data`), or a refused window change from
     /// [`refresh_survival`]. Nothing changes.
     pub fn refresh(
         &mut self,
@@ -437,6 +457,16 @@ impl PeriodRefresh {
                  snapshot, so the same observations would enter twice; supply a later period of \
                  a new snapshot",
             ));
+        }
+        let identity = data_identity(values);
+        if let Some(earlier) = self.admitted.get(&identity) {
+            return Err(invalid(format!(
+                "period_refresh.relabelled_data: the values of period [{}, {}) are exactly the \
+                 values already admitted under period [{}, {}), so relabelling them with a new \
+                 period and snapshot would enter the same observations twice; supply the \
+                 observations of the new period",
+                window.period.start, window.period.end, earlier.start, earlier.end
+            )));
         }
         let survival =
             refresh_survival(&self.window, window, &self.factors, &factors, self.standing)
@@ -471,6 +501,7 @@ impl PeriodRefresh {
         self.window = window.clone();
         self.factors = factors;
         self.snapshots.insert(window.snapshot_id.clone());
+        self.admitted.insert(identity, window.period);
         self.events.push(RefreshEvent {
             window: window.clone(),
             cadence,

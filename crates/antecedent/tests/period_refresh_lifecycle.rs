@@ -276,6 +276,42 @@ fn a_lag_order_beyond_the_artifact_limit_is_refused_before_any_fit() {
 }
 
 #[test]
+fn relabelled_data_under_a_new_period_and_snapshot_is_refused_for_both_standings() {
+    let data = autoregressive_pulse_series(N, 0.6, false, 31);
+    let values = column(&data, "t");
+    let first = &values[..SPLIT];
+    for standing in [MechanismStanding::DeclaredInvariant, MechanismStanding::Undeclared] {
+        let mut refresh =
+            PeriodRefresh::start(&spec(standing), &window(0, 600, "snap_1"), &prior(), first)
+                .unwrap();
+        let before = refresh.summary().unwrap();
+        let rows_before = refresh.fit().snapshot().n;
+
+        // The same observations declared as a later period of a new snapshot.
+        let relabelled = window(600, 1200, "snap_relabelled");
+        let error =
+            refresh.refresh(&relabelled, cadence(), "law_1", first).unwrap_err().to_string();
+        assert!(error.contains("period_refresh.relabelled_data"), "{error}");
+        assert!(error.contains("[0, 600)"), "{error}");
+        assert_eq!(refresh.summary().unwrap(), before, "a refused period changes nothing");
+        assert_eq!(refresh.fit().snapshot().n, rows_before);
+        assert_eq!(refresh.events().len(), 1);
+
+        // Genuinely new observations of the same period and snapshot are admitted.
+        let outcome = refresh.refresh(&relabelled, cadence(), "law_1", &values[SPLIT..]).unwrap();
+        assert!(matches!(
+            outcome,
+            PeriodRefreshOutcome::Extended { .. } | PeriodRefreshOutcome::Restarted { .. }
+        ));
+
+        // The earlier block stays recorded after a restart: relabelling it again is refused.
+        let later = window(1200, 1800, "snap_later");
+        let error = refresh.refresh(&later, cadence(), "law_1", first).unwrap_err().to_string();
+        assert!(error.contains("period_refresh.relabelled_data"), "{error}");
+    }
+}
+
+#[test]
 fn an_overlapping_period_a_reused_snapshot_and_a_changed_prior_are_typed_refusals() {
     let data = autoregressive_pulse_series(N, 0.6, false, 31);
     let study = prepared(&data);
