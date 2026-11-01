@@ -125,6 +125,10 @@ fn confounded_effect(p: f64) -> f64 {
 }
 
 /// The observed law of `(p, i)` as a map from the pair (scaled by four, so exact) to its mass.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn law(draw: impl Fn(f64, f64) -> (f64, f64)) -> BTreeMap<(i64, i64), f64> {
     let mut law = BTreeMap::new();
     for &(mass, noise_p, noise_i) in &OMEGA {
@@ -188,6 +192,7 @@ fn multiply(left: [[f64; 3]; 3], right: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     product
 }
 
+#[allow(clippy::needless_range_loop, reason = "the fixture follows the matrix indexing")]
 fn transpose(matrix: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     let mut out = [[0.0; 3]; 3];
     for row in 0..3 {

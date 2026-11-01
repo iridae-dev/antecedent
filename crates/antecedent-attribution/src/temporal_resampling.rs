@@ -20,7 +20,7 @@ const SEGMENT_DOMAIN: u64 = 0x7465_6d70_5f73_6567;
 /// Sampled weights and the admission retained for their lifetime.
 pub struct RunWeights {
     values: Vec<f64>,
-    _lease: AdmissionLease,
+    lease: AdmissionLease,
 }
 impl Deref for RunWeights {
     type Target = [f64];
@@ -73,7 +73,7 @@ fn setup(
             message: "temporal block resampling needs nonempty rows and positive block length",
         });
     }
-    let width = (usize::BITS - runs.len().leading_zeros()) as u64;
+    let width = u64::from(usize::BITS - runs.len().leading_zeros());
     let work = u64::try_from(n).ok().and_then(|n| n.checked_mul(width + 8)).ok_or_else(|| {
         AttributionError::Budget { message: "temporal resampling work overflow".into() }
     })?;
@@ -103,7 +103,7 @@ fn setup(
         }
         values.push(0.0);
     }
-    Ok((block.min(n), RunWeights { values, _lease: lease }))
+    Ok((block.min(n), RunWeights { values, lease }))
 }
 fn segment_rng(
     primary: u64,
@@ -177,6 +177,14 @@ pub fn bayesian_run_weights(
 ///
 /// # Errors
 /// Invalid run partitions, limits, or cancellation.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the generator draws nonnegative indices within the admitted run"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the generator draws nonnegative indices within the admitted run"
+)]
 pub fn bootstrap_run_counts(
     n: usize,
     block: usize,
@@ -237,6 +245,14 @@ pub fn bootstrap_run_counts(
 ///
 /// # Errors
 /// Invalid runs, resource limits, or cancellation.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the generator draws nonnegative indices within the admitted run"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the generator draws nonnegative indices within the admitted run"
+)]
 pub fn bootstrap_run_rows(
     n: usize,
     block: usize,
@@ -294,7 +310,7 @@ pub fn bootstrap_run_rows(
         drawn += take;
         block_index += 1;
     }
-    Ok(RunRows { values, _lease: admitted._lease })
+    Ok(RunRows { values, _lease: admitted.lease })
 }
 
 #[cfg(test)]
@@ -302,6 +318,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact boundary values")]
     fn segmented_weights_use_derived_stream_and_keep_primary_stream_position() {
         let ctx = ExecutionContext::for_tests(4);
         let mut budget = TemporalBudget::new(ctx.temporal_materialization_limits());
@@ -329,6 +346,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact boundary values")]
     fn block_counts_preserve_mass_and_primary_draw_count_after_splits() {
         let ctx = ExecutionContext::for_tests(4);
         let mut budget = TemporalBudget::new(ctx.temporal_materialization_limits());
@@ -356,6 +374,14 @@ mod tests {
         assert_eq!(rows_rng.next_u64(), split_rng.next_u64());
     }
     #[test]
+    #[allow(
+        clippy::single_range_in_vec_init,
+        reason = "the fixture explicitly supplies one contiguous run"
+    )]
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the generator draws nonnegative indices within the admitted run"
+    )]
     fn single_run_wrap_uses_a_derived_segment_without_advancing_primary_stream() {
         let seed = (0..100_u64)
             .find(|&seed| {
@@ -391,6 +417,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::single_range_in_vec_init,
+        reason = "the fixture explicitly supplies one contiguous run"
+    )]
     fn one_row_runs_and_retained_lease_remain_bounded() {
         let pool = antecedent_core::execution::AdmissionPool::fixed(1, 4096);
         let ctx = ExecutionContext::for_tests(0).with_admission(pool.clone());

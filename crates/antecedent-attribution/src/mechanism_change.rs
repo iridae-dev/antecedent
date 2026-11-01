@@ -443,6 +443,7 @@ pub fn detect_mechanism_changes_block(
 /// Block-permutation detection with contiguous ranges in each compact population.
 /// Ranges must be nonempty, ordered, and partition their population exactly. No block
 /// crosses a supplied run boundary, including the boundary between populations.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one attribution calculation")]
 pub fn detect_mechanism_changes_block_with_runs(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
@@ -559,6 +560,11 @@ fn partition_permutation_blocks(
     Ok(segments)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded attribution calculation keeps its checks together"
+)]
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one attribution calculation")]
 fn detect_mechanism_changes_block_impl(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
@@ -695,14 +701,14 @@ fn detect_mechanism_changes_block_impl(
                 let mut previous = None;
                 for (i, &(parent, run, start, end)) in segments.iter().enumerate() {
                     poll_run_cancellation(ctx, i)?;
-                    let key = if previous != Some(parent) {
-                        parent_keys[rank[parent]]
-                    } else {
+                    let key = if previous == Some(parent) {
                         let mut key = antecedent_core::derive_stream(seed, 0x6d65_6368_7365_6732);
                         for value in [replicate, parent, run, start] {
                             key = antecedent_core::derive_stream(key, value as u64);
                         }
                         CausalRng::from_seed(key).next_f64()
+                    } else {
+                        parent_keys[rank[parent]]
                     };
                     previous = Some(parent);
                     arranged.push((key, parent, run, start, end));
@@ -917,6 +923,7 @@ pub fn mechanism_change_posterior(
 
 /// Posterior detection using separate contiguous compact runs for each population.
 /// Each run list must partition its compact population exactly.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one attribution calculation")]
 pub fn mechanism_change_posterior_with_runs(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
@@ -940,6 +947,7 @@ pub fn mechanism_change_posterior_with_runs(
     )
 }
 
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one attribution calculation")]
 fn mechanism_change_posterior_impl(
     graph_model: &CompiledCausalModel,
     data: &TabularData,
@@ -1288,6 +1296,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact boundary values")]
+    #[allow(
+        clippy::single_range_in_vec_init,
+        reason = "the fixture explicitly supplies one contiguous run"
+    )]
     fn run_aware_block_stream_is_deterministic_and_keeps_intact_block_behavior() {
         let (model, data) = two_period_data();
         let q = MechanismChangeQuery::new(
@@ -1365,6 +1378,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::single_range_in_vec_init,
+        reason = "the fixture explicitly supplies one contiguous run"
+    )]
     fn run_validation_work_and_inner_lag_cancellation_are_refused() {
         let ctx = ExecutionContext::for_tests(1);
         let mut limits = ctx.temporal_materialization_limits();

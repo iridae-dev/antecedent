@@ -622,6 +622,10 @@ pub fn intrinsic_influence(
 /// # Errors
 /// The same failures as [`intrinsic_influence`], including invalid temporal runs.
 #[doc(hidden)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded attribution calculation keeps its checks together"
+)]
 pub fn intrinsic_influence_with_temporal_runs(
     model: &CompiledCausalModel,
     noise: NoiseIndependence<'_>,
@@ -940,6 +944,10 @@ fn exact_is_no_costlier(n_players: usize) -> bool {
 }
 
 /// The Shapley configuration and its record for the query's allocation and source count.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the helper follows the fallible attribution setup interface"
+)]
 fn allocation_config(
     query: &IntrinsicInfluenceQuery,
     n_players: usize,
@@ -1271,6 +1279,11 @@ fn bootstrap_spread(
 /// the estimated simulation variance of one estimate. The whole-procedure spread adds the
 /// point estimate's permutation variance to the raw bootstrap variance.
 /// Any failed refit leaves the component unquantified rather than dropping the failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded attribution calculation keeps its checks together"
+)]
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one attribution calculation")]
 fn fit_component(
     model: &CompiledCausalModel,
     data: Option<&TabularData>,
@@ -1362,42 +1375,40 @@ fn fit_component(
                             &|| worker.cancellation.is_cancelled(),
                         )?
                     }
+                } else if let Some(runs) = runs {
+                    let mut budget = temporal_budget.clone();
+                    let rows = crate::temporal_resampling::bootstrap_run_rows(
+                        n_rows,
+                        match query.fit_resampling {
+                            FitResampling::BlockBootstrap { block } => block,
+                            _ => 1,
+                        },
+                        runs,
+                        r as u64,
+                        &mut rng,
+                        &mut budget,
+                        worker,
+                    )?;
+                    let resample = subset_table(data, &rows)?;
+                    MechanismRegistry::standard()
+                        .assign_and_fit_polled(
+                            model,
+                            &resample,
+                            SelectionPolicy::BestScore,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                        .0
                 } else {
-                    if let Some(runs) = runs {
-                        let mut budget = temporal_budget.clone();
-                        let rows = crate::temporal_resampling::bootstrap_run_rows(
-                            n_rows,
-                            match query.fit_resampling {
-                                FitResampling::BlockBootstrap { block } => block,
-                                _ => 1,
-                            },
-                            runs,
-                            r as u64,
-                            &mut rng,
-                            &mut budget,
-                            worker,
-                        )?;
-                        let resample = subset_table(data, &rows)?;
-                        MechanismRegistry::standard()
-                            .assign_and_fit_polled(
-                                model,
-                                &resample,
-                                SelectionPolicy::BestScore,
-                                &|| worker.cancellation.is_cancelled(),
-                            )?
-                            .0
-                    } else {
-                        let rows = query.fit_resampling.resample_rows(n_rows, &mut rng);
-                        let resample = subset_table(data, &rows)?;
-                        MechanismRegistry::standard()
-                            .assign_and_fit_polled(
-                                model,
-                                &resample,
-                                SelectionPolicy::BestScore,
-                                &|| worker.cancellation.is_cancelled(),
-                            )?
-                            .0
-                    }
+                    let rows = query.fit_resampling.resample_rows(n_rows, &mut rng);
+                    let resample = subset_table(data, &rows)?;
+                    MechanismRegistry::standard()
+                        .assign_and_fit_polled(
+                            model,
+                            &resample,
+                            SelectionPolicy::BestScore,
+                            &|| worker.cancellation.is_cancelled(),
+                        )?
+                        .0
                 };
                 let refit = model.clone().with_mechanisms(store);
                 require_noise_support(

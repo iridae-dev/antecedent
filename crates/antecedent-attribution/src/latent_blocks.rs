@@ -377,8 +377,12 @@ pub fn distribution_change_blocks(
             })
             .collect()
     };
-    let baseline_rows = draw_rows(baseline_units, refit.map(|held| held.baseline()));
-    let comparison_rows = draw_rows(comparison_units, refit.map(|held| held.comparison()));
+    let baseline_rows =
+        draw_rows(baseline_units, refit.map(super::distribution_change::PopulationRefit::baseline));
+    let comparison_rows = draw_rows(
+        comparison_units,
+        refit.map(super::distribution_change::PopulationRefit::comparison),
+    );
 
     let mut payoff = BlockSwapPayoff {
         slots: baseline_store.slots.to_vec(),

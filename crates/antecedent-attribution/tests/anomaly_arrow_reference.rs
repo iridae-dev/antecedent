@@ -29,6 +29,10 @@ fn reference() -> Value {
         .expect("frozen reference")
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn data_for(columns: &[Vec<f64>]) -> TabularData {
     let n = columns[0].len();
     let mut b = CausalSchemaBuilder::new();
@@ -143,6 +147,7 @@ fn empirical_reference_uses_the_median_and_scaled_mad_of_the_target_column() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
 fn degenerate_bulk_falls_back_to_the_mean_absolute_deviation_then_to_one() {
     let r = reference();
     let d = &r["degenerate"];
@@ -192,6 +197,10 @@ fn far_tail_scores_follow_the_exact_tail_across_the_asymptotic_switch() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn arrow_strength_is_the_cut_edge_divergence_and_the_variance_contribution_is_reported_too() {
     let r = reference();
     let a = &r["arrow"];

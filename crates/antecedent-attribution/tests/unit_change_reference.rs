@@ -18,6 +18,7 @@ use antecedent_model::{
 };
 
 /// A table of `parents.len()` roots and one outcome, with edges from every root to the outcome.
+#[allow(clippy::cast_possible_truncation, reason = "the fixture uses bounded graph dimensions")]
 fn table(parents: &[Vec<f64>], y: Vec<f64>) -> (TabularData, CompiledCausalModel) {
     let n = y.len();
     let mut b = CausalSchemaBuilder::new();
@@ -87,6 +88,7 @@ fn mean(v: &[f64]) -> f64 {
 /// noise are common to every coalition and cancel). That holds for the exact value and for
 /// any permutation sample, whose standard error is therefore zero.
 #[test]
+#[allow(clippy::needless_range_loop, reason = "the fixture follows the matrix indexing")]
 fn linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean() {
     let n = 12usize;
     let x1: Vec<f64> = (0..n).map(|i| (i as f64 * 0.7).sin() * 3.0 + 10.0).collect();
@@ -130,6 +132,7 @@ fn linear_mechanism_unit_contributions_are_slope_times_deviation_from_the_mean()
 /// reference averages the marginal contribution over all six orders of the three parents,
 /// evaluating the mean function directly.
 #[test]
+#[allow(clippy::needless_range_loop, reason = "the fixture follows the matrix indexing")]
 fn interacting_parents_receive_the_permutation_average_marginal_contribution() {
     let n = 9usize;
     let x: Vec<Vec<f64>> = (0..3)

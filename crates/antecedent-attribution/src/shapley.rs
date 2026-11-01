@@ -1384,9 +1384,9 @@ mod tests {
                 Ok(coalition.players().map(|i| self.0[i]).sum())
             }
         }
-        let n = 150;
-        let players: Vec<_> = (0..n).map(|i| ComponentId::from_raw(i as u32)).collect();
-        let weights: Vec<f64> = (0..n).map(|i| 1.0 + 0.25 * i as f64).collect();
+        let n = 150u32;
+        let players: Vec<_> = (0..n).map(ComponentId::from_raw).collect();
+        let weights: Vec<f64> = (0..n).map(|i| 1.0 + 0.25 * f64::from(i)).collect();
         let mut payoff = Wide(weights.clone());
         let cfg = ShapleyConfig::permutation(6).with_seed(4);
         let est =

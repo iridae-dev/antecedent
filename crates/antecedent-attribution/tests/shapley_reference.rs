@@ -29,6 +29,7 @@ struct Game {
 struct TablePayoff<'a>(&'a [f64]);
 
 impl CoalitionPayoff for TablePayoff<'_> {
+    #[allow(clippy::cast_possible_truncation, reason = "the fixture uses bounded graph dimensions")]
     fn value(&mut self, coalition: &Coalition) -> Result<f64, AttributionError> {
         Ok(self.0[coalition.to_bits().expect("test games have at most 12 players") as usize])
     }
@@ -38,6 +39,7 @@ fn fixture() -> Fixture {
     serde_json::from_str(include_str!("oracle_data/shapley_reference.json")).unwrap()
 }
 
+#[allow(clippy::cast_possible_truncation, reason = "the fixture uses bounded graph dimensions")]
 fn players(n: usize) -> Vec<ComponentId> {
     (0..n as u32).map(ComponentId::from_raw).collect()
 }
@@ -123,6 +125,7 @@ fn null_player_and_symmetric_players_are_recognized() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
 fn single_player_receives_the_whole_difference() {
     let fixture = fixture();
     let game = fixture.games.iter().find(|g| g.name == "random_1").unwrap();

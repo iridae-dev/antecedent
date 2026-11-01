@@ -43,6 +43,10 @@ fn compile(n: u64, edges: &[Value]) -> CompiledCausalModel {
     CompiledCausalModel::compile(graph).unwrap()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn linear_model(case: &Value) -> CompiledCausalModel {
     let n = case["n"].as_u64().unwrap();
     let base = compile(n, case["edges"].as_array().unwrap());

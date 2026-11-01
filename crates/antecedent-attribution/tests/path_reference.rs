@@ -18,6 +18,10 @@ use serde::Deserialize;
 /// with edges inserted in an order unrelated to node order (the coefficient vector of a
 /// child must follow that child's parent gather, not insertion order).
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn path_products_match_exact_total_effects() {
     #[derive(Deserialize)]
     struct Fixture {

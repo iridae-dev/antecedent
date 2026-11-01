@@ -25,6 +25,10 @@ use antecedent_data::{OwnedColumn, OwnedColumnarStorage, TableView, TabularData}
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_model::{CompiledCausalModel, MechanismRegistry, SelectionPolicy};
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn build(
     columns: Vec<(&str, Vec<f64>)>,
     edges: &[(u32, u32)],

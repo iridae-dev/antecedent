@@ -250,13 +250,12 @@ pub(crate) trait CachedOutcomeLawPayoff {
                 return Ok(0.0);
             }
         }
-        let (mu, var) = match self.law_memo().get(coalition) {
-            Some(law) => law,
-            None => {
-                let law = self.law_at(coalition)?;
-                self.law_memo().insert(coalition, law);
-                law
-            }
+        let (mu, var) = if let Some(law) = self.law_memo().get(coalition) {
+            law
+        } else {
+            let law = self.law_at(coalition)?;
+            self.law_memo().insert(coalition, law);
+            law
         };
         measure_value(self.measure(), coalition, mu, var, self.baseline_law())
     }
@@ -611,6 +610,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact boundary values")]
     fn tiny_and_degenerate_variances_are_not_regularized() {
         let empty = Coalition::empty();
         let full = Coalition::from_bits(1);

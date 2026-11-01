@@ -44,6 +44,10 @@ fn rows_of(r: &Value) -> Vec<Vec<f64>> {
         .collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn table(rows: &[Vec<f64>]) -> TabularData {
     let n = rows.len();
     let mut b = CausalSchemaBuilder::new();
@@ -75,6 +79,10 @@ fn table(rows: &[Vec<f64>]) -> TabularData {
     TabularData::new(OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap())
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded nonnegative graph dimensions"
+)]
 fn setup(r: &Value) -> (CompiledCausalModel, TabularData, usize) {
     let data = table(&rows_of(r));
     let mut g = Dag::with_variables(3);

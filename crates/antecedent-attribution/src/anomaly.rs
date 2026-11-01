@@ -1324,6 +1324,7 @@ mod tests {
     /// A child with no noise variance of its own makes the divergence infinite: refused, not
     /// returned as an infinity. A zero edge into such a child is still a zero strength.
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact boundary values")]
     fn strength_refuses_a_noiseless_child_unless_the_edge_is_null() {
         let err = arrow_strengths(&single_parent(1.0, 1.0, 0.0)).unwrap_err();
         assert!(matches!(err, AttributionError::InvalidInput { .. }), "{err:?}");
