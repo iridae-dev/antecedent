@@ -275,6 +275,7 @@ fn consume_z_transport_joint_sensitivity_artifact(
 #[pyo3(signature=(stage, factors, *, replicates=199, level=0.95, decision_threshold=None, memory_bytes=None, cancel=None))]
 #[doc(hidden)]
 fn z_transport_joint_sensitivity_interval(
+    py: Python<'_>,
     stage: PyRef<'_, PreparedZTransportStage>,
     factors: Vec<(String, f64)>,
     replicates: u32,
@@ -286,10 +287,13 @@ fn z_transport_joint_sensitivity_interval(
     let mut spec = JointDeviationSpec::new(parse_factors(factors)?);
     spec.decision_threshold = decision_threshold;
     let ctx = stage.ctx(memory_bytes, cancel);
-    let interval = stage
-        .prepared()
-        .joint_mechanism_sensitivity_interval(&spec, replicates, level, &ctx)
-        .map_err(joint_py_err)?;
+    let prepared = stage.prepared().clone();
+    drop(stage);
+    let interval = crate::detach_catch(py, move || {
+        prepared
+            .joint_mechanism_sensitivity_interval(&spec, replicates, level, &ctx)
+            .map_err(joint_py_err)
+    })?;
     Ok((interval.lower, interval.upper, interval.coverage_target.to_owned()))
 }
 

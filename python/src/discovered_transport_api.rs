@@ -438,14 +438,20 @@ fn discovered_transport_estimate_run(
 /// value error.
 #[pyfunction]
 #[pyo3(signature = (artifact, *, seed=0))]
-fn verify_discovered_transport_estimate_artifact(artifact: &[u8], seed: u64) -> PyResult<String> {
+fn verify_discovered_transport_estimate_artifact(
+    py: Python<'_>,
+    artifact: &[u8],
+    seed: u64,
+) -> PyResult<String> {
     let ctx = crate::py_execution_context_cancel(seed, crate::resolve_user_threads(None), None);
-    let verified = verify_discovered_transport_estimate(
-        artifact,
-        antecedent_expr::ExactEvaluationLimits::default(),
-        &ctx,
-    )
-    .map_err(|e| crate::value_err(e.to_string()))?;
+    let verified = crate::detach_catch(py, || {
+        verify_discovered_transport_estimate(
+            artifact,
+            antecedent_expr::ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .map_err(|e| crate::value_err(e.to_string()))
+    })?;
     Ok(json!({
         "answer": answer_json(&verified.answer),
         "report_identity": sd::hex(&verified.report_identity),

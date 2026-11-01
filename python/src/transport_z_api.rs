@@ -499,14 +499,10 @@ impl ZTransportStage {
     ) -> PyResult<(String, Vec<Py<ZTransportProposalStage>>)> {
         let base = parse_catalog(catalog, &self.graph)?;
         let ctx = self.limits.context(cancel);
-        let expected_snapshot = snapshot_z_transport_failure(
-            &self.diagram,
-            &self.query,
-            &base,
-            self.limits.sid(),
-            &ctx,
-        )
-        .map_err(error)?;
+        let expected_snapshot = crate::detach_catch(py, || {
+            snapshot_z_transport_failure(&self.diagram, &self.query, &base, self.limits.sid(), &ctx)
+                .map_err(error)
+        })?;
         let snapshot = if let Some(bytes) = failure_snapshot {
             let wire: ZTransportFailureSnapshotWire =
                 serde_json::from_slice(&bytes).map_err(serialization_error)?;
@@ -676,8 +672,8 @@ impl ZTransportProposalStage {
     }
 
     /// Recheck that the original snapshot and hypothetical proof still match.
-    fn replay(&self) -> PyResult<()> {
-        self.inner.replay().map_err(error)
+    fn replay(&self, py: Python<'_>) -> PyResult<()> {
+        crate::detach_catch(py, || self.inner.replay().map_err(error))
     }
 
     /// Receive matching study results, reidentify against the actual catalog, and prepare.
@@ -830,11 +826,13 @@ impl PreparedZTransportStage {
 #[pymethods]
 impl PreparedZTransportStage {
     #[pyo3(signature=(seed=None))]
-    fn fork(&self, seed: Option<u64>) -> PyResult<Self> {
-        let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
-        let ctx = branch.ctx(None, None);
-        branch.inner = self.inner.refresh(self.inner.data().clone(), &ctx).map_err(error)?;
-        Ok(branch)
+    fn fork(&self, py: Python<'_>, seed: Option<u64>) -> PyResult<Self> {
+        crate::detach_catch(py, || {
+            let mut branch = Self { seed: seed.unwrap_or(self.seed), last: None, ..self.clone() };
+            let ctx = branch.ctx(None, None);
+            branch.inner = self.inner.refresh(self.inner.data().clone(), &ctx).map_err(error)?;
+            Ok(branch)
+        })
     }
 
     /// Exact outcome-kernel contamination range for the registered surrogate formula.

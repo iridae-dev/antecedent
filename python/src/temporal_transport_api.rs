@@ -434,6 +434,15 @@ fn unroll_two_slice_template(
         coordinate_names.extend(names.iter().map(|name| format!("{name}_{period}")));
     }
     coordinate_names.extend(baseline.iter().cloned());
+    // A declared name such as `x_1` can collide with the unrolled `x` at period 1; a collision
+    // would bind a latent pair or edge to the wrong coordinate.
+    let distinct: std::collections::BTreeSet<&String> = coordinate_names.iter().collect();
+    if distinct.len() != coordinate_names.len() {
+        return Err(invalid(
+            "unrolled coordinate names collide: rename variables or baseline covariates so that no `<name>_1` or `<name>_2` repeats another name"
+                .to_owned(),
+        ));
+    }
     let named = |id: antecedent_core::VariableId| coordinate_names[id.as_usize()].clone();
     for (a, b) in &latent_pairs {
         let find = |name: &String| {

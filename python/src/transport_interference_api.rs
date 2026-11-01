@@ -165,6 +165,7 @@ impl CheckedTransportProgram {
     #[pyo3(signature=(catalog=None, laws=None, at=None, *, max_support_rows=100_000, max_operations=1_000_000))]
     fn evaluate_exact(
         &self,
+        py: Python<'_>,
         catalog: Option<&Bound<'_, PyAny>>,
         laws: Option<&Bound<'_, PyAny>>,
         at: Option<std::collections::BTreeMap<String, f64>>,
@@ -213,15 +214,17 @@ impl CheckedTransportProgram {
                 })
                 .collect::<PyResult<Vec<_>>>()?,
         );
-        let provider =
-            FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
-        // An evaluation failure is a coded transport refusal; an exhausted
-        // operation or support budget surfaces as a resource error.
-        let evaluator =
-            self.program.compile().map_err(|e| error(antecedent_estimate::refuse_eval(&e)))?;
-        evaluator
-            .evaluate_with(&provider, &EvalContext::default(), &request)
-            .map_err(|e| error(antecedent_estimate::refuse_eval(&e)))
+        crate::detach_catch(py, || {
+            let provider =
+                FuelProvider { data: &data, remaining: std::cell::Cell::new(max_operations) };
+            // An evaluation failure is a coded transport refusal; an exhausted
+            // operation or support budget surfaces as a resource error.
+            let evaluator =
+                self.program.compile().map_err(|e| error(antecedent_estimate::refuse_eval(&e)))?;
+            evaluator
+                .evaluate_with(&provider, &EvalContext::default(), &request)
+                .map_err(|e| error(antecedent_estimate::refuse_eval(&e)))
+        })
     }
 }
 

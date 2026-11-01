@@ -50,7 +50,8 @@ pub use super::mechanism_exports::model_crate::typed_mechanism_transport::{
     UNCERTAINTY_SCOPE, selection_targets, typed_refusal_code,
 };
 use super::mechanism_exports::model_crate::typed_mechanism_transport::{
-    TransportedTypedModel, fit_mechanism, invariance_check, refit_in_target, transport_typed,
+    TransportedTypedModel, fit_mechanism_polled, invariance_check, refit_in_target_polled,
+    transport_typed,
 };
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
@@ -166,6 +167,15 @@ fn model_error(error: CompositionError) -> MechanismCompositionRefusal {
 }
 
 fn fit_error(error: &TypedFitError) -> MechanismCompositionRefusal {
+    if matches!(error, TypedFitError::Cancelled) {
+        return refusal(
+            antecedent_core::reason_code!("cancelled_no_claim"),
+            "compose",
+            "mechanism_composition.cancelled",
+            "fit".to_owned(),
+            "retry; cancellation is not a verdict on the mechanism",
+        );
+    }
     let (code, detail) = match error {
         TypedFitError::NotConverged(_) | TypedFitError::Singular(_) => (
             antecedent_core::reason_code!("mechanism_fit_not_converged"),
@@ -196,8 +206,12 @@ pub fn fit_typed_mechanism(
     context: MechanismContext,
     provenance: MechanismProvenance,
     design_from: Option<&FittedMechanism>,
+    ctx: &ExecutionContext,
 ) -> Result<FittedMechanism, MechanismCompositionRefusal> {
-    fit_mechanism(spec, columns, context, provenance, design_from).map_err(|e| fit_error(&e))
+    fit_mechanism_polled(spec, columns, context, provenance, design_from, &|| {
+        ctx.cancellation.is_cancelled()
+    })
+    .map_err(|e| fit_error(&e))
 }
 
 /// Refit a source mechanism's specification on target data, on the source's design.
@@ -209,8 +223,12 @@ pub fn refit_typed_mechanism_in_target(
     columns: &BTreeMap<String, Vec<f64>>,
     context: MechanismContext,
     provenance: MechanismProvenance,
+    ctx: &ExecutionContext,
 ) -> Result<FittedMechanism, MechanismCompositionRefusal> {
-    refit_in_target(source, columns, context, provenance).map_err(|e| fit_error(&e))
+    refit_in_target_polled(source, columns, context, provenance, &|| {
+        ctx.cancellation.is_cancelled()
+    })
+    .map_err(|e| fit_error(&e))
 }
 
 /// Wald comparison of a source and a target fit of one mechanism.

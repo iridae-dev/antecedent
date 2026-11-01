@@ -681,13 +681,7 @@ pub(crate) fn parse_statistical_input(
                 "statistical transport samples must be RegimeSample values; exact laws belong in StatisticalTransportData.laws",
             ));
         }
-        let parsed = parse_sample(&sample, catalog, graph)?;
-        if parsed.columns.values().any(|column| column.len() > max_support_rows) {
-            return Err(crate::CausalResourceError::new_err(format!(
-                "sample rows exceed the max_support_rows budget ({max_support_rows})"
-            )));
-        }
-        samples.push(parsed);
+        samples.push(parse_sample(&sample, catalog, graph, max_support_rows)?);
     }
     Ok(StatisticalTransportInput { supplied: laws, samples })
 }
@@ -715,6 +709,7 @@ fn parse_sample(
     sample: &Bound<'_, PyAny>,
     catalog: &antecedent_core::EvidenceCatalog,
     graph: &Admg,
+    max_support_rows: usize,
 ) -> PyResult<RegimeSample> {
     let population: String = sample.getattr("population")?.extract()?;
     let label: String = sample.getattr("regime")?.extract()?;
@@ -737,7 +732,16 @@ fn parse_sample(
     let mapping = columns_obj
         .call_method0("items")?
         .try_iter()?
-        .map(|item| item?.extract::<(String, Vec<Option<f64>>)>())
+        .map(|item| {
+            let (name, values) = item?.extract::<(String, Bound<'_, PyAny>)>()?;
+            // The budget is checked on the Python length, before the column is materialised.
+            if values.len()? > max_support_rows {
+                return Err(crate::CausalResourceError::new_err(format!(
+                    "sample rows exceed the max_support_rows budget ({max_support_rows})"
+                )));
+            }
+            Ok((name, values.extract::<Vec<Option<f64>>>()?))
+        })
         .collect::<PyResult<Vec<_>>>()?;
     let mut columns = BTreeMap::new();
     let mut n = None;

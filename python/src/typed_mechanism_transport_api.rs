@@ -463,13 +463,14 @@ fn typed_mechanism_fit(
     let fit_context = parse_fit_context(&parse(context_json, "fit context")?)?;
     let design = design_from.map(|d| d.inner.clone());
     let outcome = crate::detach_catch(py, move || {
-        let _ = execution_context(0, None, cancel);
+        let ctx = execution_context(0, None, cancel);
         Ok(fit_typed_mechanism(
             &spec,
             &columns,
             fit_context.context,
             fit_context.provenance,
             design.as_ref(),
+            &ctx,
         ))
     })?;
     Ok(match outcome {
@@ -491,12 +492,13 @@ fn typed_mechanism_refit(
     let fit_context = parse_fit_context(&parse(context_json, "fit context")?)?;
     let source = source.inner.clone();
     let outcome = crate::detach_catch(py, move || {
-        let _ = execution_context(0, None, cancel);
+        let ctx = execution_context(0, None, cancel);
         Ok(refit_typed_mechanism_in_target(
             &source,
             &columns,
             fit_context.context,
             fit_context.provenance,
+            &ctx,
         ))
     })?;
     Ok(match outcome {

@@ -249,6 +249,9 @@ pub enum TypedFitError {
     /// The design is singular.
     #[error("the design of `{0}` is singular")]
     Singular(String),
+    /// The caller cancelled the fit; nothing is concluded about the data.
+    #[error("the fit was cancelled")]
+    Cancelled,
 }
 
 impl TypedFitError {
@@ -259,6 +262,7 @@ impl TypedFitError {
             Self::NotConverged(_) | Self::Singular(_) => {
                 antecedent_core::reason_code!("mechanism_fit_not_converged")
             }
+            Self::Cancelled => antecedent_core::reason_code!("cancelled_no_claim"),
             _ => antecedent_core::reason_code!("mechanism_composition_incoherent"),
         }
     }
@@ -704,6 +708,7 @@ fn fit_mean(
     start: &[f64],
     obs_weights: Option<&[f64]>,
     variable: &str,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<(Vec<f64>, Vec<f64>), TypedFitError> {
     let k = problem.base.mean_dim;
     let n = problem.rows.len();
@@ -717,6 +722,9 @@ fn fit_mean(
     let mut lambda = 0.0_f64;
     let mut converged = false;
     for _ in 0..max_iter {
+        if cancelled() {
+            return Err(TypedFitError::Cancelled);
+        }
         let jac = problem.jacobian(&theta);
         let mut score = vec![0.0; k];
         let mut info = vec![0.0; k * k];
@@ -903,16 +911,32 @@ fn check_support(spec: &MechanismSpec, y: &[f64]) -> Result<(), TypedFitError> {
 /// [`TypedFitError`]: a malformed specification or data, a response outside
 /// the family's support, a singular design, or an iteration that did not
 /// converge.
-#[allow(
-    clippy::too_many_lines,
-    reason = "the scientific calculation and its checks form one bounded procedure"
-)]
 pub fn fit_mechanism(
     spec: &MechanismSpec,
     columns: &BTreeMap<String, Vec<f64>>,
     context: MechanismContext,
     provenance: MechanismProvenance,
     design_from: Option<&FittedMechanism>,
+) -> Result<FittedMechanism, TypedFitError> {
+    fit_mechanism_polled(spec, columns, context, provenance, design_from, &|| false)
+}
+
+/// [`fit_mechanism`] that polls `cancelled` once per scoring iteration and stops with
+/// [`TypedFitError::Cancelled`].
+///
+/// # Errors
+/// As [`fit_mechanism`], and [`TypedFitError::Cancelled`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific calculation and its checks form one bounded procedure"
+)]
+pub fn fit_mechanism_polled(
+    spec: &MechanismSpec,
+    columns: &BTreeMap<String, Vec<f64>>,
+    context: MechanismContext,
+    provenance: MechanismProvenance,
+    design_from: Option<&FittedMechanism>,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<FittedMechanism, TypedFitError> {
     let tape = validate_spec(spec)?;
     let y_raw = column(columns, &spec.variable)?;
@@ -987,7 +1011,7 @@ pub fn fit_mechanism(
                 y_raw.clone()
             };
             let problem = MeanProblem::new(&base, &rows, &y, Link::Gaussian);
-            let (theta, info) = fit_mean(&problem, &start, None, variable)?;
+            let (theta, info) = fit_mean(&problem, &start, None, variable, cancelled)?;
             let eta = problem.eta(&theta);
             let rss: f64 = y.iter().zip(&eta).map(|(a, b)| (a - b) * (a - b)).sum();
             let dof = nf - mean_dim as f64;
@@ -1007,7 +1031,7 @@ pub fn fit_mechanism(
             base.covariance[mean_dim * total_dim + mean_dim] = 1.0 / (2.0 * dof);
         }
         ResponseFamily::HeteroscedasticGaussian => {
-            fit_heteroscedastic(&mut base, &rows, y_raw, &start)?;
+            fit_heteroscedastic(&mut base, &rows, y_raw, &start, cancelled)?;
         }
         ResponseFamily::Bernoulli | ResponseFamily::Poisson | ResponseFamily::Gamma => {
             let link = match spec.family {
@@ -1021,7 +1045,7 @@ pub fn fit_mechanism(
                 start[0] = (y_raw.iter().sum::<f64>() / nf).max(1e-12).ln();
             }
             let problem = MeanProblem::new(&base, &rows, y_raw, link);
-            let (theta, info) = fit_mean(&problem, &start, None, variable)?;
+            let (theta, info) = fit_mean(&problem, &start, None, variable, cancelled)?;
             let inverse = invert_square(&info, mean_dim)
                 .ok_or_else(|| TypedFitError::Singular(variable.to_owned()))?;
             let final_eta = problem.eta(&theta);
@@ -1068,6 +1092,7 @@ fn fit_heteroscedastic(
     rows: &[Vec<f64>],
     y: &[f64],
     start: &[f64],
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<(), TypedFitError> {
     let variable = base.spec.variable.clone();
     let n = rows.len();
@@ -1094,7 +1119,7 @@ fn fit_heteroscedastic(
 
     let problem_frozen = base.clone();
     let problem = MeanProblem::new(&problem_frozen, rows, y, Link::Gaussian);
-    let (mut theta, mut info) = fit_mean(&problem, start, None, &variable)?;
+    let (mut theta, mut info) = fit_mean(&problem, start, None, &variable, cancelled)?;
     let mut eta = problem.eta(&theta);
     let mean_r2 = y.iter().zip(&eta).map(|(a, b)| (a - b) * (a - b)).sum::<f64>() / n as f64;
     let mut gamma = vec![0.0; q];
@@ -1108,7 +1133,8 @@ fn fit_heteroscedastic(
             return Err(TypedFitError::NotConverged(variable));
         }
         let weights: Vec<f64> = variances.iter().map(|v| 1.0 / v).collect();
-        let (next_theta, next_info) = fit_mean(&problem, &theta, Some(&weights), &variable)?;
+        let (next_theta, next_info) =
+            fit_mean(&problem, &theta, Some(&weights), &variable, cancelled)?;
         let theta_step = next_theta
             .iter()
             .zip(&theta)
@@ -1171,7 +1197,21 @@ pub fn refit_in_target(
     context: MechanismContext,
     provenance: MechanismProvenance,
 ) -> Result<FittedMechanism, TypedFitError> {
-    fit_mechanism(&source.spec, columns, context, provenance, Some(source))
+    refit_in_target_polled(source, columns, context, provenance, &|| false)
+}
+
+/// [`refit_in_target`] polling `cancelled` as [`fit_mechanism_polled`] does.
+///
+/// # Errors
+/// As [`refit_in_target`], and [`TypedFitError::Cancelled`].
+pub fn refit_in_target_polled(
+    source: &FittedMechanism,
+    columns: &BTreeMap<String, Vec<f64>>,
+    context: MechanismContext,
+    provenance: MechanismProvenance,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<FittedMechanism, TypedFitError> {
+    fit_mechanism_polled(&source.spec, columns, context, provenance, Some(source), cancelled)
 }
 
 // --------------------------------------------------------------- transport

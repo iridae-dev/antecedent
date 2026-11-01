@@ -100,6 +100,7 @@ struct Fits {
 }
 
 fn fits() -> Fits {
+    let ctx = ExecutionContext::for_tests(1);
     let source = population(false, 5000, 21);
     let target = population(true, 5000, 22);
     let source_x = fit_typed_mechanism(
@@ -108,6 +109,7 @@ fn fits() -> Fits {
         context("source"),
         provenance("source", "x"),
         None,
+        &ctx,
     )
     .unwrap();
     let source_n = fit_typed_mechanism(
@@ -116,6 +118,7 @@ fn fits() -> Fits {
         context("source"),
         provenance("source", "n"),
         None,
+        &ctx,
     )
     .unwrap();
     let target_x = refit_typed_mechanism_in_target(
@@ -123,6 +126,7 @@ fn fits() -> Fits {
         &target,
         context("target"),
         provenance("target", "x"),
+        &ctx,
     )
     .unwrap();
     let target_n = refit_typed_mechanism_in_target(
@@ -130,6 +134,7 @@ fn fits() -> Fits {
         &target,
         context("target"),
         provenance("target", "n"),
+        &ctx,
     )
     .unwrap();
     Fits { source_x, source_n, target_x, target_n }

@@ -266,16 +266,19 @@ fn discovered_transport_trial_estimate_run(
 #[pyfunction]
 #[pyo3(signature = (artifact, *, seed=0))]
 fn verify_trial_compatible_transport_estimate_artifact(
+    py: Python<'_>,
     artifact: &[u8],
     seed: u64,
 ) -> PyResult<String> {
     let ctx = crate::py_execution_context_cancel(seed, crate::resolve_user_threads(None), None);
-    let (proof, verified) = verify_trial_compatible_transport_estimate(
-        artifact,
-        antecedent_expr::ExactEvaluationLimits::default(),
-        &ctx,
-    )
-    .map_err(|e| crate::value_err(e.to_string()))?;
+    let (proof, verified) = crate::detach_catch(py, || {
+        verify_trial_compatible_transport_estimate(
+            artifact,
+            antecedent_expr::ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .map_err(|e| crate::value_err(e.to_string()))
+    })?;
     let compatibility =
         proof_json(&proof).map_err(|error| crate::serialization_err(error.to_string()))?;
     Ok(json!({

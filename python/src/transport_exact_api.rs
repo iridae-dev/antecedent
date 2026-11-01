@@ -51,6 +51,7 @@ impl ClassicalTransportStage {
     #[pyo3(signature=(catalog,*,max_steps=100_000,max_depth=256))]
     fn proof_graph_json(
         &self,
+        py: Python<'_>,
         catalog: &Bound<'_, PyAny>,
         max_steps: usize,
         max_depth: usize,
@@ -73,15 +74,17 @@ impl ClassicalTransportStage {
             source: Arc::from(self.certificate.source.as_str()),
             target: Arc::from(self.certificate.target.as_str()),
         };
-        let view = proof
-            .inspect(
-                &self.diagram,
-                &query,
-                &catalog,
-                SidLimits { steps: max_steps, depth: max_depth },
-                &crate::execution_api::context(0),
-            )
-            .map_err(error)?;
+        let view = crate::detach_catch(py, || {
+            proof
+                .inspect(
+                    &self.diagram,
+                    &query,
+                    &catalog,
+                    SidLimits { steps: max_steps, depth: max_depth },
+                    &crate::execution_api::context(0),
+                )
+                .map_err(error)
+        })?;
         let steps = view
             .steps
             .iter()
