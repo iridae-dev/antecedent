@@ -94,6 +94,7 @@ from .survival import (
     CumulativeIncidenceEstimate,
     SurvivalDifferenceBand,
     SurvivalEstimate,
+    difference_at_tau,
 )
 from .transport._impl import (
     OverlapDiagnostic,
@@ -894,7 +895,7 @@ def _survival_from_raw(
             times=times,
             control_incidence=control,
             treated_incidence=treated,
-            incidence_difference=treated[-1] - control[-1],
+            incidence_difference=difference_at_tau(times, treated, control, section.tau),
             tau=section.tau,
             uncertainty=section.uncertainty,
             incidence_difference_interval=(

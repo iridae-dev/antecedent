@@ -209,3 +209,33 @@ def test_staleness_guide_executes_the_declared_diagnostic_and_artifact_journey()
     assert namespace["report"].recommendation == "refresh"
     assert namespace["report"].identity == namespace["independent"].identity
     assert namespace["study"] is not namespace["branch"]
+
+
+def test_a_baseline_built_under_a_custom_policy_is_not_assessed_under_the_implicit_default(
+    study, baseline_data
+):
+    baseline = require_success(drift.baseline(study, policy=POLICY))
+    assert baseline.policy_identity == POLICY.identity != StalenessPolicy().identity
+    with pytest.raises(ant.CausalError, match="baseline_policy_required"):
+        require_success(baseline.assess(baseline_data))
+    with pytest.raises(ant.CausalError, match="baseline_policy_required"):
+        require_success(drift.staleness(baseline.export(), baseline_data))
+    declared = require_success(baseline.assess(baseline_data, policy=POLICY))
+    assert declared.policy_identity == POLICY.identity
+
+
+def test_a_default_policy_baseline_may_be_assessed_without_a_declared_policy(study, baseline_data):
+    baseline = require_success(drift.baseline(study))
+    assert baseline.policy_identity == StalenessPolicy().identity
+    report = require_success(baseline.assess(baseline_data))
+    assert report.policy_identity == baseline.policy_identity
+
+
+def test_execution_seed_does_not_reach_the_diagnostic_streams(study, baseline_data):
+    first = require_success(
+        drift.staleness(study, baseline_data, policy=POLICY, execution=ant.Execution(seed=1))
+    )
+    second = require_success(
+        drift.staleness(study, baseline_data, policy=POLICY, execution=ant.Execution(seed=99))
+    )
+    assert first.to_dict()["evaluations"] == second.to_dict()["evaluations"]

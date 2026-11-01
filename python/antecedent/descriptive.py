@@ -155,8 +155,9 @@ class DescriptiveComparison(ScientificResult):
         """JSON-safe read form of the comparison.
 
         It is a summary, not the exported artifact: the groups are nested ``{n, mean}``
-        objects, ``gap_interval_unavailable`` is included, and the artifact's ``format`` and
-        group ``sum_squares`` are omitted. The export body is what the digest covers.
+        objects, ``gap_interval_unavailable`` is included as ``[reason_code, detail]``, and the
+        artifact's ``format``, ``digest`` and group ``sum_squares`` are omitted. Only the
+        export body is digest-covered and replayable.
         """
         return {
             "scale": self.scale,

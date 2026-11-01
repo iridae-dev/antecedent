@@ -63,8 +63,13 @@ class StalenessPolicy:
 
     The policy is part of the report identity: two reports under different policies never
     compare equal. :meth:`resolved` returns every field with its value and the identity.
-    ``seed`` keys the subsampling and permutation streams of the diagnostics; the seed of the
-    ``Execution`` does not reach them, so declare the stream here.
+    ``seed`` keys the subsampling and permutation streams of the diagnostics. It is the only
+    seed the diagnostics read: ``Execution.seed`` never reaches them, so the two cannot
+    conflict and the policy seed (native default when ``None``) always decides the stream.
+
+    A baseline records only its policy's identity. Assessing an exported baseline with
+    ``policy=None`` is therefore refused unless the baseline was built under the native
+    default; pass the policy it was built under.
     """
 
     alpha: float | None = None
@@ -351,6 +356,27 @@ def consume_baseline(artifact: Any, *, expected_identity: str | None = None) -> 
     return StalenessBaseline(artifact, expected_identity=expected_identity)
 
 
+def _require_default_policy(baseline: StalenessBaseline) -> None:
+    """Refuse an implicit native-default policy against a baseline built under another one."""
+    default = StalenessPolicy().identity
+    if baseline.policy_identity == default:
+        return
+    raise StructuredRefusal(
+        {
+            "code": "invalid_argument",
+            "stage": "staleness",
+            "detail": "staleness.baseline_policy_required",
+            "offending": baseline.policy_identity,
+            "message": (
+                "the baseline was built under a non-default staleness policy "
+                f"({baseline.policy_identity}); the native default ({default}) would "
+                "assess it under different bins, thresholds and streams"
+            ),
+            "remedy": "pass the StalenessPolicy the baseline was built under",
+        }
+    )
+
+
 def _execution(source: Any, execution: Execution | None) -> Execution:
     from .prepared import PreparedAnalysis
 
@@ -432,6 +458,12 @@ def staleness(
     Every native diagnostic and recommendation is retained. A ``refuse``
     recommendation is a successful assessment of the plan's applicability;
     operational failures remain exceptions. The source is never mutated.
+
+    A study is re-profiled under ``policy`` itself. An exported baseline retains only its
+    policy's identity, so ``policy=None`` is accepted only for a baseline built under the
+    native default; otherwise it is refused (``staleness.baseline_policy_required``).
+    Diagnostic streams are keyed by ``StalenessPolicy.seed`` alone; ``Execution.seed`` does not
+    reach them.
     """
     from .prepared import PreparedAnalysis
 
@@ -451,11 +483,12 @@ def staleness(
                 threads=controls.threads,
             )
         else:
-            encoded = (
-                source._artifact_bytes
-                if isinstance(source, StalenessBaseline)
-                else container_bytes(source)
-            )
+            if isinstance(source, StalenessBaseline):
+                held, encoded = source, source._artifact_bytes
+            else:
+                held, encoded = None, container_bytes(source)
+            if policy is None:  # only an implicit default needs the baseline's recorded identity
+                _require_default_policy(held if held is not None else StalenessBaseline(encoded))
             names, columns = ingest_columns(new_data)
             text = _native.staleness_from_artifact(
                 encoded,

@@ -339,6 +339,18 @@ class CumulativeIncidenceEstimate:
     )
 
 
+def difference_at_tau(
+    times: Sequence[float], treated: Sequence[float], control: Sequence[float], tau: float
+) -> float:
+    """``treated - control`` at the grid point equal to ``tau``; refuses an off-grid ``tau``."""
+    if not len(times) == len(treated) == len(control):
+        raise CausalValueError("times and arm curves must have equal lengths")
+    for index, time in enumerate(times):
+        if abs(time - tau) <= 1e-10:
+            return float(treated[index] - control[index])
+    raise CausalValueError(f"tau={tau} is not a point of the returned time grid")
+
+
 def estimate_survival_ipcw(
     data: Any,
     query: SurvivalOutcome,
@@ -497,7 +509,7 @@ def estimate_cumulative_incidence_ipcw(
         tuple(float(value) for value in returned_times),
         tuple(float(value) for value in control),
         tuple(float(value) for value in treated),
-        float(treated[-1] - control[-1]),
+        difference_at_tau(returned_times, treated, control, float(query.tau)),
         float(query.tau),
         float(minimum_g),
         minrisk_control,
