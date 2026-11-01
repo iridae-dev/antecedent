@@ -160,6 +160,7 @@ pub use analysis_wire::{
 };
 
 pub mod adaptive_inference_result_artifact;
+pub mod choice_inference_result_artifact;
 pub mod admg_conditional_transport_artifact;
 pub mod bridge_distribution_interval;
 pub mod bridge_interval;

@@ -5,6 +5,8 @@
 
 #[path = "adaptive_inference_result_artifact.rs"]
 mod adaptive_inference_result_artifact;
+#[path = "choice_inference_result_artifact.rs"]
+mod choice_inference_result_artifact;
 #[path = "artifact_compat_adaptive_result.rs"]
 mod artifact_compat_adaptive_result;
 #[path = "artifact_compat_inherited.rs"]

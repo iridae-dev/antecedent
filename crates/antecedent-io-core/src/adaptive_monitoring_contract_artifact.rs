@@ -428,7 +428,9 @@ fn reals(values: &[u64]) -> Vec<f64> {
     values.iter().map(|v| f64::from_bits(*v)).collect()
 }
 
-fn rule_to_wire(rule: &StoppingRuleDeclaration) -> RuleWire {
+/// A stopping rule on the wire.
+#[must_use]
+pub fn rule_to_wire(rule: &StoppingRuleDeclaration) -> RuleWire {
     let mut wire = RuleWire {
         kind: rule.kind.as_str().to_owned(),
         ended_by_rule: rule.ended_by_rule,
@@ -469,7 +471,11 @@ fn rule_to_wire(rule: &StoppingRuleDeclaration) -> RuleWire {
     wire
 }
 
-fn rule_from_wire(wire: &RuleWire) -> Result<StoppingRuleDeclaration, Error> {
+/// The stopping rule a wire states, not yet validated.
+///
+/// # Errors
+/// An unknown rule kind, spending function, sidedness or specification, or a missing parameter.
+pub fn rule_from_wire(wire: &RuleWire) -> Result<StoppingRuleDeclaration, Error> {
     let kind = StoppingRuleKind::from_name(&wire.kind)
         .ok_or(Error::UnsupportedSemantics("stopping rule kind"))?;
     let parameter = || {
