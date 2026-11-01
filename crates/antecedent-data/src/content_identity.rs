@@ -53,7 +53,12 @@ impl Encoder {
     }
 
     fn poll(&mut self) -> bool {
-        if self.stopped || self.cancellation.as_ref().is_some_and(|token| token.is_cancelled()) {
+        if self.stopped
+            || self
+                .cancellation
+                .as_ref()
+                .is_some_and(antecedent_core::CancellationToken::is_cancelled)
+        {
             self.stopped = true;
             false
         } else {

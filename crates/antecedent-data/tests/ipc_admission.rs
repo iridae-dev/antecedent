@@ -77,10 +77,18 @@ impl Measure {
         usize::try_from(PEAK.load(Ordering::SeqCst) - self.start).unwrap_or(0)
     }
 
+    #[allow(
+        clippy::unused_self,
+        reason = "The measurement guard must remain alive while sampling is paused."
+    )]
     fn pause(&self) {
         MEASURING.with(|flag| flag.set(false));
     }
 
+    #[allow(
+        clippy::unused_self,
+        reason = "The measurement guard must remain alive when sampling resumes."
+    )]
     fn resume(&self) {
         MEASURING.with(|flag| flag.set(true));
     }

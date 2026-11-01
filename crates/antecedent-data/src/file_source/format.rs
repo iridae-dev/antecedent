@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{Arc, DataType, FileSourceError, Path, fmt};
 
 /// On-disk table format.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

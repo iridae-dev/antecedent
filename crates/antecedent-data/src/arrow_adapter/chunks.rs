@@ -2,8 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::convert::*;
-use super::*;
+use super::convert::column_from_array;
+use super::{
+    Arc, ArrayRef, CategoricalColumn, CategoryCode, CategoryDomainId, DataError, DataType,
+    F64Buffer, FixedVectorColumn, Float64Column, FrameColumn, Int64Column, OwnedColumn,
+    TimestampColumn, ValidityBitmap, VariableId,
+};
 
 /// Sum chunk lengths. A total above `u32::MAX` is a valid `usize` on a 64-bit
 /// target; this function does not reject it.

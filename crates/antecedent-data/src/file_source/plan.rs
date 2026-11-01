@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, ChunkIndex, ColumnClosure, DEFAULT_CHUNK_ROWS, DEFAULT_TEXT_BYTES_PER_ROW, FileColumn,
+    FileSourceError, GlobalId,
+};
 
 /// Bounds of one read.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

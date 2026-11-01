@@ -16,6 +16,10 @@ use crate::error::DataError;
 use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Exchangeability requires exactly equal finite observation weights."
+)]
 fn require_uniform_weights(data: &TimeSeriesData) -> Result<(), DataError> {
     if let Some(weights) = data.storage().weights() {
         if let Some(&first) = weights.first() {
@@ -52,7 +56,9 @@ pub fn surrogate_permute_columns(
             return Err(DataError::TypeMismatch { id: v.id, expected: "float64" });
         };
         let mut values = src.values.to_vec();
-        if src.validity.is_all_valid() && mask.is_none_or(|m| m.is_all_valid()) {
+        if src.validity.is_all_valid()
+            && mask.is_none_or(super::column::ValidityBitmap::is_all_valid)
+        {
             shuffle(rng, &mut values);
         } else {
             for included in [true, false] {

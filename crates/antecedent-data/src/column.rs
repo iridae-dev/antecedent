@@ -749,7 +749,7 @@ pub(crate) fn checked_f64_buffer(
 ) -> Result<Vec<f64>, DataError> {
     let len = rows.checked_mul(cols).ok_or_else(|| DataError::overflow(what))?;
     len.checked_mul(std::mem::size_of::<f64>())
-        .filter(|&bytes| bytes <= isize::MAX as usize)
+        .filter(|&bytes| isize::try_from(bytes).is_ok())
         .ok_or_else(|| DataError::overflow(what))?;
     let mut values = Vec::new();
     values.try_reserve_exact(len).map_err(|_| DataError::overflow(what))?;

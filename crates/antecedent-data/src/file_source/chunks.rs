@@ -2,8 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::schema::*;
-use super::*;
+use super::schema::SchemaView;
+use super::{
+    AdmissionError, AdmissionLease, Arc, ArrowCStream, BatchProvider, ChunkIndex, ColumnClosure,
+    ColumnDigest, ColumnState, DecodeNeed, ExecutionContext, FileColumn, FileContentIdentity,
+    FileSourceError, GlobalId, MemoryStage, OwnedColumn, PathBuf, ReadOptions, ReadPlan,
+    RecordBatch, RowCursor, TableFileFormat, chunk_local_index, fmt, memory_refusal, provider,
+};
 
 /// An Arrow C stream read once, in bounded chunks.
 pub struct TableStream {
@@ -296,6 +301,9 @@ impl TableChunkReader {
     /// A memory refusal, a decode or conversion refusal, or cancellation. A conversion
     /// refusal, or post-decode admission failure, is repeated until explicit rewind because
     /// the pass cannot safely resume.
+    ///
+    /// # Panics
+    /// Panics only if the pending batch invariant is violated during conversion.
     pub fn next_chunk(&mut self) -> Result<Option<FileChunk>, FileSourceError> {
         loop {
             if let Some(error) = &self.terminal_failure {
@@ -550,6 +558,7 @@ impl TableChunkReader {
 
 #[cfg(all(test, feature = "ipc"))]
 mod retry_tests {
+    use super::super::TableFile;
     use super::*;
     use arrow_array::{ArrayRef, RecordBatch, StringArray};
     use arrow_schema::{DataType, Field, Schema};

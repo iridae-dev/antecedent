@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    CausalRng, DataError, DeclaredSamplingDesign, GlobalId, PermutationScheme, ResamplingPlan,
+    ResamplingRule, SamplingDesignDeclaration, SamplingDesignError, SplittingRule, row_id, row_pos,
+    unbiased_index,
+};
 
 pub(super) fn design_independent_of_time_column(
     declaration: SamplingDesignDeclaration,

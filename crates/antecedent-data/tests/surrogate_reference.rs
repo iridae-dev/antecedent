@@ -24,6 +24,10 @@ use antecedent_data::{
     surrogate_phase_randomize,
 };
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "The fixture keeps ownership convenient for generated validity bitmaps."
+)]
 fn series(columns: &[Vec<f64>], validity: Option<ValidityBitmap>) -> TimeSeriesData {
     let n = columns[0].len();
     let mut builder = CausalSchemaBuilder::new();
@@ -165,6 +169,11 @@ fn a_constant_series_is_a_fixed_point_and_columns_are_randomized_independently()
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "A finite angle maps to one of eight nonnegative bins."
+)]
 fn surrogate_phases_are_uniform_on_the_circle() {
     // For a series with distinct magnitudes the phase of bin k is atan2(im, re) of the
     // surrogate; each is uniform on (-pi, pi]. Chi-square over eight equal arcs, per bin.
@@ -221,7 +230,7 @@ fn column_permutation_is_uniform_and_keeps_gaps_where_they_were() {
     }
     // All 4! orderings of the observed values appear, each with probability 1/24.
     assert_eq!(counts.len(), 24);
-    let expected = draws as f64 / 24.0;
+    let expected = f64::from(draws) / 24.0;
     let chi: f64 = counts.values().map(|&c| (c as f64 - expected).powi(2) / expected).sum();
     assert!(chi < 23.0 + 7.0 * 46.0_f64.sqrt() + 30.0, "chi-square {chi}");
 }

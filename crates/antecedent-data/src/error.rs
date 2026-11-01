@@ -356,6 +356,10 @@ impl DataError {
         Self::BudgetRefused { what, bytes, budget }
     }
 
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "Accepting owned error values preserves callers’ error conversion."
+    )]
     pub(crate) fn external(library: &'static str, detail: impl ToString) -> Self {
         Self::External { library, detail: detail.to_string() }
     }

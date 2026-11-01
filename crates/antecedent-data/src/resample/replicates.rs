@@ -2,8 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::indexes::*;
-use super::*;
+use super::indexes::{fill_indexes_prepared, prepare_clusters};
+use super::{
+    CausalRng, DataError, ExecutionContext, GlobalId, ResamplingPlan, ScratchLease, ScratchRefusal,
+    StreamDomain, derive_stream, fill_bayesian_bootstrap_weights,
+};
 
 /// Fill `out` with length-`n` Bayesian-bootstrap weights (normalized Exp(1) draws).
 ///

@@ -2,8 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::plan::*;
-use super::*;
+use super::plan::{ReadOptions, ReadPlan, zero_chunk};
+use super::{
+    Arc, ColumnClosure, ColumnRole, DataType, FileColumn, FileColumnKind, FileSourceError, Path,
+    PathBuf, Schema, SchemaRef, TableFileFormat, convert,
+};
 
 /// Schema of a table source and the per-column decode estimate.
 #[derive(Clone, Debug)]

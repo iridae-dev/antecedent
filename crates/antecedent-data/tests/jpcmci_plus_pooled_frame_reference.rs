@@ -44,7 +44,7 @@ fn environment(values: &[Vec<f64>]) -> TimeSeriesData {
         .map(|(i, v)| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(i as u32),
+                    VariableId::from_raw(u32::try_from(i).unwrap()),
                     Arc::from(v.clone()),
                     ValidityBitmap::all_valid(n),
                 )
@@ -85,7 +85,7 @@ fn the_pooled_frame_equals_its_definition_with_every_dummy_encoding() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|v| VariableId::from_raw(v.as_u64().unwrap() as u32))
+        .map(|v| VariableId::from_raw(u32::try_from(v.as_u64().unwrap()).unwrap()))
         .collect();
     let cases = doc["cases"].as_array().unwrap();
     assert_eq!(cases.len(), 10);
@@ -104,7 +104,7 @@ fn the_pooled_frame_equals_its_definition_with_every_dummy_encoding() {
         let pooled = pool_multi_env_lagged_frame(
             &multi,
             &variables,
-            case["depth"].as_u64().unwrap() as u32,
+            u32::try_from(case["depth"].as_u64().unwrap()).unwrap(),
             options,
             &KernelPolicy::default_policy(),
         )
@@ -113,7 +113,7 @@ fn the_pooled_frame_equals_its_definition_with_every_dummy_encoding() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|v| v.as_u64().unwrap() as usize)
+            .map(|v| usize::try_from(v.as_u64().unwrap()).unwrap())
             .collect();
         assert_eq!(
             pooled.env_effective_rows.as_ref(),
@@ -121,7 +121,12 @@ fn the_pooled_frame_equals_its_definition_with_every_dummy_encoding() {
             "{name}: rows per environment"
         );
         let ids = |key: &str| -> Vec<u32> {
-            case[key].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect()
+            case[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| u32::try_from(v.as_u64().unwrap()).unwrap())
+                .collect()
         };
         let raw = |ids: &[VariableId]| ids.iter().map(|v| v.raw()).collect::<Vec<_>>();
         assert_eq!(raw(&pooled.space_dummy_variables), ids("space_ids"), "{name}: space ids");

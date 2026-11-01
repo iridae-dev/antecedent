@@ -135,6 +135,10 @@ pub fn pool_multi_env_lagged_frame_within(
     pool_impl(data, variables, frame_depth, dummies, policy, Some(ctx))
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "The shared frame API borrows the caller’s kernel policy."
+)]
 fn pool_impl(
     data: &MultiEnvironmentData,
     variables: &[VariableId],

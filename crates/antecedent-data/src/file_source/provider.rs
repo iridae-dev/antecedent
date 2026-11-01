@@ -196,7 +196,7 @@ fn parquet_inspect(path: &Path) -> Result<Inspected, FileSourceError> {
     let rows = checked_parquet_rows(
         path,
         metadata.file_metadata().num_rows(),
-        metadata.row_groups().iter().map(|group| group.num_rows()),
+        metadata.row_groups().iter().map(parquet::file::metadata::RowGroupMetaData::num_rows),
     )?;
     let descriptor = builder.parquet_schema();
     let width = schema.fields().len();

@@ -60,7 +60,7 @@ fn rust_arrow_load_reports_measured_copy() {
             .collect();
         let got = loaded
             .data
-            .float64_values(antecedent_core::VariableId::from_raw(index as u32))
+            .float64_values(antecedent_core::VariableId::from_raw(u32::try_from(index).unwrap()))
             .unwrap();
         assert_eq!(got, want, "column {name}");
     }

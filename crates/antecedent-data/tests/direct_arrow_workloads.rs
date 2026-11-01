@@ -225,8 +225,8 @@ fn read_file(path: &Path, names: &[String]) -> TabularData {
 
 #[test]
 fn wide_adjusted_effect_is_prepared_with_named_copies_and_one_identity_across_routes() {
-    let rows = declared("wide_adjustment", "rows") as usize;
-    let covariates = declared("wide_adjustment", "covariates") as usize;
+    let rows = usize::try_from(declared("wide_adjustment", "rows")).unwrap();
+    let covariates = usize::try_from(declared("wide_adjustment", "covariates")).unwrap();
     let mut next = lcg(11);
     let mut columns: Vec<(String, Vec<f64>)> =
         (0..covariates).map(|c| (format!("c{c}"), (0..rows).map(|_| next()).collect())).collect();
@@ -250,13 +250,15 @@ fn wide_adjusted_effect_is_prepared_with_named_copies_and_one_identity_across_ro
         "load peak {load_peak} over {input_bytes} input bytes"
     );
     assert!(
-        load_time <= baseline_time * declared("wide_adjustment", "load_latency_factor") as u32,
+        load_time
+            <= baseline_time
+                * u32::try_from(declared("wide_adjustment", "load_latency_factor")).unwrap(),
         "load {load_time:?} against a plain copy {baseline_time:?}"
     );
     let data = loaded.data;
 
     // Design: the adjustment set plus treatment, over every row, borrows each column.
-    let design_ids: Vec<VariableId> = ids(&data)[..covariates + 1].to_vec();
+    let design_ids: Vec<VariableId> = ids(&data)[..=covariates].to_vec();
     let views: Vec<_> = design_ids.iter().map(|id| data.column(*id).unwrap()).collect();
     let all_rows: Vec<GlobalId> = (0..rows as u64).map(GlobalId::new).collect();
     let (full, full_peak) =
@@ -268,7 +270,7 @@ fn wide_adjusted_effect_is_prepared_with_named_copies_and_one_identity_across_ro
                 * views.len() as u64,
         "borrowed layout peak {full_peak}"
     );
-    for (index, (_, values)) in columns[..covariates + 1].iter().enumerate() {
+    for (index, (_, values)) in columns[..=covariates].iter().enumerate() {
         assert_eq!(full.column(index).unwrap(), values.as_slice());
     }
 
@@ -330,10 +332,10 @@ fn series(columns: &[(String, Vec<f64>)]) -> TimeSeriesData {
 
 #[test]
 fn panel_and_environment_lag_windows_stay_inside_their_unit_with_bounded_allocation() {
-    let units = declared("panel_environment_window", "units") as usize;
-    let rows = declared("panel_environment_window", "rows_per_unit") as usize;
-    let variables = declared("panel_environment_window", "variables") as usize;
-    let max_lag = declared("panel_environment_window", "max_lag") as u32;
+    let units = usize::try_from(declared("panel_environment_window", "units")).unwrap();
+    let rows = usize::try_from(declared("panel_environment_window", "rows_per_unit")).unwrap();
+    let variables = usize::try_from(declared("panel_environment_window", "variables")).unwrap();
+    let max_lag = u32::try_from(declared("panel_environment_window", "max_lag")).unwrap();
     let policy = KernelPolicy::default_policy();
 
     let sources: Vec<Vec<(String, Vec<f64>)>> =
@@ -379,9 +381,9 @@ fn panel_and_environment_lag_windows_stay_inside_their_unit_with_bounded_allocat
     // No row takes a lagged parent from the previous unit's tail.
     let lag1 = pooled.column_index(variable_ids[0], antecedent_core::Lag::from_raw(1)).unwrap();
     let lag0 = pooled.column_index(variable_ids[0], antecedent_core::Lag::CONTEMPORANEOUS).unwrap();
-    for unit in 0..units {
+    for (unit, unit_sources) in sources.iter().enumerate().take(units) {
         let start = unit * per_unit_rows;
-        let source = &sources[unit][0].1;
+        let source = &unit_sources[0].1;
         assert_eq!(pooled.column(lag0)[start], source[max_lag as usize]);
         assert_eq!(pooled.column(lag1)[start], source[max_lag as usize - 1]);
     }
@@ -414,9 +416,9 @@ fn panel_and_environment_lag_windows_stay_inside_their_unit_with_bounded_allocat
 
 #[test]
 fn one_shared_design_serves_many_consumers_without_another_copy() {
-    let rows = declared("shared_design", "rows") as usize;
-    let columns_n = declared("shared_design", "columns") as usize;
-    let consumers = declared("shared_design", "consumers") as usize;
+    let rows = usize::try_from(declared("shared_design", "rows")).unwrap();
+    let columns_n = usize::try_from(declared("shared_design", "columns")).unwrap();
+    let consumers = usize::try_from(declared("shared_design", "consumers")).unwrap();
     let columns = series_columns(rows, 7, columns_n);
     let data = tabular_from_record_batch(&batch(&columns)).unwrap().data;
     let views: Vec<_> = ids(&data).iter().map(|id| data.column(*id).unwrap()).collect();
@@ -428,7 +430,7 @@ fn one_shared_design_serves_many_consumers_without_another_copy() {
 
     // Each consumer reads its own column of the one layout. Nothing is allocated per consumer.
     let mut sums = vec![0.0_f64; consumers];
-    let (_, consumer_peak) = counting::peak_above_start(|| {
+    let ((), consumer_peak) = counting::peak_above_start(|| {
         for (consumer, slot) in sums.iter_mut().enumerate() {
             let column = layout.column(consumer % columns_n).unwrap();
             *slot = column.iter().sum();
@@ -440,8 +442,8 @@ fn one_shared_design_serves_many_consumers_without_another_copy() {
         assert_eq!(*total, expected);
     }
     // The layout is the table's own buffer for every consumer.
-    for index in 0..columns_n {
-        let owned = match &views[index] {
+    for (index, view) in views.iter().enumerate().take(columns_n) {
+        let owned = match view {
             antecedent_data::ColumnView::Float64(column) => column.values.as_slice().as_ptr(),
             _ => unreachable!("float columns"),
         };

@@ -159,9 +159,9 @@ impl LaggedFrame {
         max_lag: u32,
         reference: ReferencePointPolicy,
         options: LaggedFrameOptions,
-        _policy: &KernelPolicy,
+        policy: &KernelPolicy,
     ) -> Result<Self, DataError> {
-        Self::from_series_options_inner(data, variables, max_lag, reference, options, _policy, None)
+        Self::from_series_options_inner(data, variables, max_lag, reference, options, policy, None)
     }
 
     /// Materialize with cancellation polling; callers must admit the quoted buffers.
@@ -187,6 +187,10 @@ impl LaggedFrame {
         )
     }
 
+    #[allow(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "The shared frame API borrows the caller’s kernel policy."
+    )]
     fn from_series_options_inner(
         data: &TimeSeriesData,
         variables: &[VariableId],
@@ -588,6 +592,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "The fixture checks exact integer-valued lag differences.")]
     fn panel_frame_builds_every_lag_window_inside_its_unit() {
         // v0 = t within a unit, so a row's contemporaneous value exceeds its lag-1 value by
         // exactly 1 unless the window reaches across a unit boundary.
