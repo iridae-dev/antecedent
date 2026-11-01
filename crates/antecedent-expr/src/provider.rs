@@ -440,6 +440,9 @@ fn factor_key(spec: &FactorSpec<'_>, assignment: &Assignment) -> Result<FactorKe
     })
 }
 
+/// Most joint rows one memoized cartesian support may hold.
+const MAX_EMPIRICAL_SUPPORT_ROWS: usize = 1 << 22;
+
 /// Tabular empirical distribution provider (discrete factors + domains).
 #[derive(Debug, Default)]
 pub struct EmpiricalTableProvider {
@@ -834,7 +837,13 @@ impl DistributionProvider for EmpiricalTableProvider {
             if domain.is_empty() {
                 return Err(EvalError::EmptySupport(v));
             }
-            let mut next = Vec::with_capacity(rows.len() * domain.len());
+            let size = rows.len().saturating_mul(domain.len());
+            if size > MAX_EMPIRICAL_SUPPORT_ROWS {
+                return Err(EvalError::InvalidParameter(
+                    "empirical support exceeds the supported number of joint rows",
+                ));
+            }
+            let mut next = Vec::with_capacity(size);
             for prefix in &rows {
                 for val in domain.iter() {
                     let mut row = prefix.clone();

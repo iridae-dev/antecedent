@@ -1429,8 +1429,14 @@ const fn finite_bits(value: f64) -> Result<u64, HistoryOperatorError> {
 
 fn horizon_steps(history: &HistoryConstruction) -> Result<u32, HistoryOperatorError> {
     let steps = history.frame().horizon().end_ns() / history.frame().interval_ns();
-    u32::try_from(steps).map_err(|_| HistoryOperatorError::HorizonStepsUncountable)
+    u32::try_from(steps)
+        .ok()
+        .filter(|&steps| steps <= MAX_HORIZON_STEPS)
+        .ok_or(HistoryOperatorError::HorizonStepsUncountable)
 }
+
+/// Most ticks a history program rolls out; each rollout keeps one outcome per step.
+const MAX_HORIZON_STEPS: u32 = 10_000_000;
 
 const fn action_bounds(action: DelayedAction) -> (i32, i32) {
     match action {

@@ -78,6 +78,10 @@ pub struct TemporalIndexer {
     dense_len: usize,
 }
 
+/// Most nodes an unfolded window may hold; the dense index and every graph built over it
+/// allocate per node.
+pub const MAX_UNFOLDED_NODES: u32 = 1 << 24;
+
 impl TemporalIndexer {
     /// Create an indexer.
     ///
@@ -95,6 +99,9 @@ impl TemporalIndexer {
         let slices = history.checked_add(horizon).ok_or(TemporalIndexError::WindowOverflow)?;
         let dense_u32 =
             variable_count.checked_mul(slices).ok_or(TemporalIndexError::DenseSpaceOverflow)?;
+        if dense_u32 > MAX_UNFOLDED_NODES {
+            return Err(TemporalIndexError::DenseSpaceOverflow);
+        }
         let dense_len =
             usize::try_from(dense_u32).map_err(|_| TemporalIndexError::DenseSpaceOverflow)?;
         Ok(Self { variable_count, history, horizon, dense_len })
@@ -165,6 +172,15 @@ impl TemporalIndexer {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_window_beyond_the_node_limit_is_refused() {
+        assert!(super::TemporalIndexer::new(1, 0, super::MAX_UNFOLDED_NODES).is_ok());
+        assert_eq!(
+            super::TemporalIndexer::new(1, 0, super::MAX_UNFOLDED_NODES + 1).unwrap_err(),
+            super::TemporalIndexError::DenseSpaceOverflow
+        );
+    }
+
     use super::*;
 
     #[test]

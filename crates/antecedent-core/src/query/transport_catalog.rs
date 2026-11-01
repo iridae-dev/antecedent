@@ -16,6 +16,10 @@ use super::error::QueryError;
 /// Per variable, the merged domain and unit its environments declare it with.
 type DeclaredDomains<'a> = BTreeMap<u32, (&'a VariableDomain, Option<&'a Arc<str>>)>;
 
+/// Most levels a declared categorical coordinate may have. Experiment-family and world
+/// enumeration materialise one entry per level, so this is the per-coordinate allocation bound.
+pub const MAX_CATEGORICAL_CARDINALITY: u32 = 4096;
+
 /// Shared variable coordinate used by source and target environments.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VariableCoordinate {
@@ -145,7 +149,11 @@ impl Environment {
         let variables = variables.into();
         let mut seen = BTreeSet::new();
         for coordinate in variables.iter() {
-            if matches!(coordinate.domain, VariableDomain::Categorical { cardinality: 0 }) {
+            if matches!(
+                coordinate.domain,
+                VariableDomain::Categorical { cardinality }
+                    if cardinality == 0 || cardinality > MAX_CATEGORICAL_CARDINALITY
+            ) {
                 return Err(QueryError::InvalidTransport(TransportFault::CategoricalCardinality));
             }
             if !seen.insert(coordinate.variable.raw()) {
@@ -1345,6 +1353,20 @@ mod tests {
                 TransportFault::IncompatibleDomains | TransportFault::IncompatibleUnits
             )
         ));
+    }
+
+    #[test]
+    fn a_categorical_cardinality_beyond_the_limit_is_refused() {
+        let at = |n| {
+            Environment::try_new(
+                "trial",
+                [coord(0, VariableDomain::Categorical { cardinality: n })],
+                [],
+            )
+        };
+        assert!(at(MAX_CATEGORICAL_CARDINALITY).is_ok());
+        assert!(at(0).is_err());
+        assert!(at(MAX_CATEGORICAL_CARDINALITY + 1).is_err());
     }
 
     #[test]

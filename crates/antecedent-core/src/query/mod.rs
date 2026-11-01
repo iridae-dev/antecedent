@@ -131,8 +131,8 @@ pub use transport::TransportQuery;
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
     EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LawOrigin,
-    LicensedWeights, RegimeBinding, RegimeKind, SamplingDesign, SamplingSelection, TargetSampling,
-    UnmetDependency, VariableCoordinate, VariableDomain,
+    LicensedWeights, MAX_CATEGORICAL_CARDINALITY, RegimeBinding, RegimeKind, SamplingDesign,
+    SamplingSelection, TargetSampling, UnmetDependency, VariableCoordinate, VariableDomain,
 };
 pub use transport_contract::{
     ComputationLimits, ExperimentFamily, GraphAssumptionSet, OutcomeGuarantee, TheoremFamily,

@@ -397,6 +397,9 @@ fn bind_leaf(
                 )
             })?
         };
+        if worlds.len().saturating_mul(levels.len()) > MAX_BOUND_WORLDS {
+            return Err(IdentificationError::budget(IdentificationBudget::ZTransport));
+        }
         worlds = worlds
             .into_iter()
             .flat_map(|prefix| {
@@ -427,6 +430,9 @@ fn bind_leaf(
     }
     Ok(LeafBinding::PerWorld(regimes))
 }
+
+/// Most worlds one symbolic leaf binding enumerates (a cartesian product of declared levels).
+const MAX_BOUND_WORLDS: usize = 65_536;
 
 pub(crate) fn bind_recursive_expression(
     id: ExprId,

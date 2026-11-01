@@ -542,7 +542,7 @@ impl TemporalDesignQuery {
                 }
             }
             TemporalAssignment::RegimeSurvival { treatment, censored, confounders, horizon } => {
-                if self.lag != 0 || *horizon == 0 {
+                if self.lag != 0 || *horizon == 0 || *horizon > MAX_REGIME_SURVIVAL_HORIZON {
                     return Err(invalid(TemporalDesignFault::RegimeSurvivalHorizon));
                 }
                 let mut columns = vec![self.outcome, *treatment, *censored];
@@ -598,3 +598,7 @@ impl TemporalDesignQuery {
         Ok(())
     }
 }
+
+/// Most person-periods a regime-survival design may span; the estimator keeps per-period
+/// accumulators and loops over every subject and draw for each.
+pub const MAX_REGIME_SURVIVAL_HORIZON: u32 = 100_000;

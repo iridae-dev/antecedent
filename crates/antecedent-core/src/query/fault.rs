@@ -582,8 +582,8 @@ pub enum TransportFault {
     /// Refused: environment identity must be non-empty
     #[error("environment identity must be non-empty")]
     EnvironmentIdentityEmpty,
-    /// Refused: categorical cardinality must be positive
-    #[error("categorical cardinality must be positive")]
+    /// Refused: categorical cardinality must be positive and at most `MAX_CATEGORICAL_CARDINALITY`
+    #[error("categorical cardinality must be between 1 and the declared limit")]
     CategoricalCardinality,
     /// Refused: environment variable coordinates must be unique
     #[error("environment variable coordinates must be unique")]

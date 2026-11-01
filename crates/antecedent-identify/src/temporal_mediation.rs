@@ -855,10 +855,8 @@ mod tests {
             [VariableId::from_raw(1)],
             MediationContrast::Mediated,
         );
-        assert!(matches!(
-            TemporalMediationIdentifier::adjustment_nodes(&graph, &query),
-            Err(IdentificationError::Budget { budget: crate::error::IdentificationBudget::Memory })
-        ));
+        // The unfolding window is refused (node limit) before any dense allocation.
+        assert!(TemporalMediationIdentifier::adjustment_nodes(&graph, &query).is_err());
     }
 
     #[test]
