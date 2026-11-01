@@ -633,10 +633,20 @@ impl core::clone::Clone for antecedent_estimate::joint_design::JointDesignEstima
 impl core::clone::Clone for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::clone::Clone for antecedent_estimate::joint_design::JointUncertainty
 impl core::clone::Clone for antecedent_estimate::joint_design::capabilities::JointDesignCapability
+impl core::clone::Clone for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+impl core::clone::Clone for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
 impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointDesignInference
 impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointDesignLaw
 impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointDesignRecipe
 impl core::clone::Clone for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::excursion::ExcursionOutcome
+impl core::clone::Clone for antecedent_estimate::joint_design::excursion::JointExcursionLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+impl core::clone::Clone for antecedent_estimate::joint_design::experiment::ExperimentExposure
+impl core::clone::Clone for antecedent_estimate::joint_design::experiment::ExperimentalDesign
+impl core::clone::Clone for antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl core::clone::Clone for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
@@ -664,6 +674,9 @@ impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRol
 impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutDesign
 impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 impl core::clone::Clone for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::clone::Clone for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+impl core::clone::Clone for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 impl core::clone::Clone for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 impl core::clone::Clone for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 impl core::clone::Clone for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -1858,10 +1871,20 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::Var
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointUncertainty
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointDesignInference
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointDesignLaw
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointDesignRecipe
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::excursion::ExcursionOutcome
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::excursion::JointExcursionLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::experiment::ExperimentExposure
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::experiment::ExperimentalDesign
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
@@ -1889,6 +1912,9 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointR
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutDesign
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -3090,10 +3116,20 @@ impl core::fmt::Debug for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::fmt::Debug for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::fmt::Debug for antecedent_estimate::joint_design::JointUncertainty
 impl core::fmt::Debug for antecedent_estimate::joint_design::capabilities::JointDesignCapability
+impl core::fmt::Debug for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+impl core::fmt::Debug for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
 impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointDesignInference
 impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointDesignLaw
 impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointDesignRecipe
 impl core::fmt::Debug for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::excursion::ExcursionOutcome
+impl core::fmt::Debug for antecedent_estimate::joint_design::excursion::JointExcursionLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+impl core::fmt::Debug for antecedent_estimate::joint_design::experiment::ExperimentExposure
+impl core::fmt::Debug for antecedent_estimate::joint_design::experiment::ExperimentalDesign
+impl core::fmt::Debug for antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl core::fmt::Debug for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
@@ -3121,6 +3157,9 @@ impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRollo
 impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutDesign
 impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 impl core::fmt::Debug for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::fmt::Debug for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+impl core::fmt::Debug for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 impl core::fmt::Debug for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 impl core::fmt::Debug for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 impl core::fmt::Debug for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -4588,10 +4627,20 @@ impl core::marker::Freeze for antecedent_estimate::joint_design::JointDesignEsti
 impl core::marker::Freeze for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::JointUncertainty [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::excursion::ExcursionOutcome [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::excursion::JointExcursionLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::excursion::JointExcursionRecipe [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::experiment::ExperimentExposure [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::experiment::ExperimentalDesign [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::experiment::JointExperimentalLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
@@ -4619,6 +4668,9 @@ impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointR
 impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
@@ -5667,10 +5719,20 @@ impl core::marker::Send for antecedent_estimate::joint_design::JointDesignEstima
 impl core::marker::Send for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::JointUncertainty [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::excursion::ExcursionOutcome [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::excursion::JointExcursionLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::excursion::JointExcursionRecipe [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::experiment::ExperimentExposure [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::experiment::ExperimentalDesign [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::experiment::JointExperimentalLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
@@ -5698,6 +5760,9 @@ impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRol
 impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
@@ -6619,10 +6684,20 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointUncertainty
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointDesignInference
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointDesignLaw
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointDesignRecipe
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::excursion::ExcursionOutcome
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::excursion::JointExcursionLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::experiment::ExperimentExposure
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::experiment::ExperimentalDesign
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
@@ -6650,6 +6725,9 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::ro
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutDesign
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -7642,10 +7720,20 @@ impl core::marker::Sync for antecedent_estimate::joint_design::JointDesignEstima
 impl core::marker::Sync for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::JointUncertainty [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::excursion::ExcursionOutcome [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::excursion::JointExcursionLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::excursion::JointExcursionRecipe [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::experiment::ExperimentExposure [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::experiment::ExperimentalDesign [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::experiment::JointExperimentalLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
@@ -7673,6 +7761,9 @@ impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRol
 impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
@@ -8723,10 +8814,20 @@ impl core::marker::Unpin for antecedent_estimate::joint_design::JointDesignEstim
 impl core::marker::Unpin for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::JointUncertainty [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::excursion::ExcursionOutcome [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::excursion::JointExcursionLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::excursion::JointExcursionRecipe [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::experiment::ExperimentExposure [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::experiment::ExperimentalDesign [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::experiment::JointExperimentalLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
@@ -8754,6 +8855,9 @@ impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRo
 impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
@@ -9807,10 +9911,20 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_desi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointUncertainty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::excursion::ExcursionOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::excursion::JointExcursionLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::excursion::JointExcursionRecipe [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::experiment::ExperimentExposure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::experiment::ExperimentalDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::experiment::JointExperimentalLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
@@ -9838,6 +9952,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_desi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
@@ -10887,10 +11004,20 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointUncertainty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignInference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignLaw [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointDesignRecipe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::excursion::ExcursionOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::excursion::JointExcursionLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::excursion::JointExcursionRecipe [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::experiment::ExperimentExposure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::experiment::ExperimentalDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::experiment::JointExperimentalLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign [auto]
@@ -10918,6 +11045,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::rollout::JointRolloutUnit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior [auto]
@@ -11490,10 +11620,20 @@ impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesi
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignPosterior
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointUncertainty
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::capabilities::JointDesignCapability
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointDesignInference
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointDesignLaw
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointDesignRecipe
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::excursion::ExcursionOutcome
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::excursion::JointExcursionLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::experiment::ExperimentExposure
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::experiment::ExperimentalDesign
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
@@ -11521,6 +11661,9 @@ impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutDesign
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -12406,10 +12549,20 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::external_cyc
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignEstimate
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignPosterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointUncertainty
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointDesignInference
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointDesignLaw
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointDesignRecipe
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::excursion::ExcursionOutcome
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::excursion::JointExcursionLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::experiment::ExperimentExposure
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::experiment::ExperimentalDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
@@ -12437,6 +12590,9 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutDesign
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::rollout::JointRolloutUnit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -13009,6 +13165,8 @@ pub enum antecedent_estimate::joint_design::compiled::JointDesignInference
 pub enum antecedent_estimate::joint_design::compiled::JointDesignLaw
 pub enum antecedent_estimate::joint_design::compiled::JointDesignRecipe
 pub enum antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
+pub enum antecedent_estimate::joint_design::experiment::ExperimentExposure
+pub enum antecedent_estimate::joint_design::experiment::ExperimentalDesign
 pub enum antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport
 pub enum antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 pub enum antecedent_estimate::joint_panel::PanelAdstock
@@ -15448,6 +15606,69 @@ pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability
 pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::implementation_gaps: &'static [&'static str]
 pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::statistical_limitations: &'static [&'static str]
 pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::target: &'static str
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::centered: bool
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::coefficient: f64
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::component_name: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::covariate: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::preassignment: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::pretreatment_totals: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::control_clusters: usize
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::control_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::control_means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::outcome_rows: usize
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::treated_clusters: usize
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::treated_covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::treated_means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::adjustments: alloc::vec::Vec<antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::assignment_law: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::assignments: alloc::vec::Vec<bool>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::cluster_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::cluster_sizes: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::control_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::exposure: antecedent_estimate::joint_design::experiment::ExperimentExposure
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::horizon: u32
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::outcomes: alloc::vec::Vec<antecedent_estimate::joint_design::excursion::ExcursionOutcome>
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::population: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::treated_clusters: usize
+pub field antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe::treated_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::ExcursionOutcome::component_name: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::ExcursionOutcome::units: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::ExcursionOutcome::values: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::excursion::ExcursionOutcome::variable_id: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionLaw::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::excursion::JointExcursionLaw::independent_units: usize
+pub field antecedent_estimate::joint_design::excursion::JointExcursionLaw::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::excursion::JointExcursionLaw::paired_decisions: usize
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::assignment_law: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::assignments: alloc::vec::Vec<bool>
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::control_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::followup: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::horizon: u32
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::independence: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::lag: u32
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::min_probability: f64
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::outcomes: alloc::vec::Vec<antecedent_estimate::joint_design::excursion::ExcursionOutcome>
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::periods: alloc::vec::Vec<i64>
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::population: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::treated_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::treatment_probabilities: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::excursion::JointExcursionRecipe::unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalLaw::covariance: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalLaw::independent_units: usize
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalLaw::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalLaw::outcome_rows: usize
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::assignments: alloc::vec::Vec<bool>
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::control_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::design: antecedent_estimate::joint_design::experiment::ExperimentalDesign
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::exposure: antecedent_estimate::joint_design::experiment::ExperimentExposure
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::horizon: u32
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::outcomes: alloc::vec::Vec<antecedent_estimate::joint_design::excursion::ExcursionOutcome>
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::population: alloc::string::String
+pub field antecedent_estimate::joint_design::experiment::JointExperimentalRecipe::treated_regime_id: alloc::string::String
 pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::assignment_support: alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport>
 pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::channel_variables: alloc::vec::Vec<u32>
 pub field antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign::conditional_model: alloc::string::String
@@ -15571,6 +15792,32 @@ pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::adoption
 pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::id: alloc::string::String
 pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::outcomes: alloc::vec::Vec<(i64, f64)>
 pub field antecedent_estimate::joint_design::rollout::JointRolloutUnit::regime: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap::covariance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap::failures: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap::point: antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap::realizations: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw::independent_units: usize
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw::minimum_probabilities: alloc::vec::Vec<core::option::Option<f64>>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::active_path: alloc::vec::Vec<bool>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::assignments: alloc::vec::Vec<bool>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::confounder_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::confounders: alloc::vec::Vec<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::control_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::exchangeability: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::followup: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::method: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::min_probability: f64
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::model_assumption: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::outcomes: alloc::vec::Vec<antecedent_estimate::joint_design::excursion::ExcursionOutcome>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::periods: alloc::vec::Vec<i64>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::population: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::positivity: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::reference_path: alloc::vec::Vec<bool>
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::treated_regime_id: alloc::string::String
+pub field antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe::unit_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::carryover: usize
 pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::finite_carryover: alloc::string::String
 pub field antecedent_estimate::joint_design::switchback::JointSwitchbackDesign::no_anticipation: alloc::string::String
@@ -19096,6 +19343,9 @@ pub fn antecedent_estimate::is_temporal_coefficient_name(name: &str) -> bool
 pub fn antecedent_estimate::joint_bayesian_transport::fit_joint_bayesian_transport(id: &antecedent_identify::transport::TransportIdentification, model: &antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: core::option::Option<&antecedent_estimate::joint_bayesian_transport::TargetData>, options: &antecedent_estimate::joint_bayesian_transport::JointTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::JointTransportFit, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
 pub fn antecedent_estimate::joint_bayesian_transport::route_frozen_refusal() -> antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
 pub fn antecedent_estimate::joint_bayesian_transport::unsupported_graph_refusal() -> antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
+pub fn antecedent_estimate::joint_design::cluster_decision::joint_cluster(recipe: &antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::cluster_decision::JointClusterLaw, alloc::string::String>
+pub fn antecedent_estimate::joint_design::excursion::joint_excursion(recipe: &antecedent_estimate::joint_design::excursion::JointExcursionRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::excursion::JointExcursionLaw, alloc::string::String>
+pub fn antecedent_estimate::joint_design::experiment::joint_experiment(recipe: &antecedent_estimate::joint_design::experiment::JointExperimentalRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::experiment::JointExperimentalLaw, alloc::string::String>
 pub fn antecedent_estimate::joint_design::gaussian_longitudinal::gaussian_longitudinal_bootstrap(design: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: &[antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode], replicates: usize, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::gaussian_longitudinal::LongitudinalGaussianBootstrap, alloc::string::String>
 pub fn antecedent_estimate::joint_design::gaussian_longitudinal::gaussian_longitudinal_point(design: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: &[antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, alloc::string::String>
 pub fn antecedent_estimate::joint_design::gaussian_longitudinal::gaussian_longitudinal_posterior(design: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: &[antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode], prior: &antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalPrior, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
@@ -19111,6 +19361,8 @@ pub fn antecedent_estimate::joint_design::randomized::randomized_joint_posterior
 pub fn antecedent_estimate::joint_design::randomized::randomized_weighted_population_posterior(design: &antecedent_estimate::joint_design::randomized::JointRandomizedDesign, units: &[antecedent_estimate::joint_design::randomized::JointRandomizedUnit], prior: &antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
 pub fn antecedent_estimate::joint_design::rollout::rollout_joint_effects(design: &antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: &[antecedent_estimate::joint_design::rollout::JointRolloutUnit], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
 pub fn antecedent_estimate::joint_design::rollout::rollout_joint_posterior(design: &antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: &[antecedent_estimate::joint_design::rollout::JointRolloutUnit], prior: &antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
+pub fn antecedent_estimate::joint_design::static_regime::joint_static_regime(recipe: &antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw, alloc::string::String>
+pub fn antecedent_estimate::joint_design::static_regime::joint_static_regime_bootstrap(recipe: &antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe, replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap, alloc::string::String>
 pub fn antecedent_estimate::joint_design::switchback::switchback_joint_means(design: &antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: &[antecedent_estimate::switchback::HistoryAssignment]) -> core::result::Result<antecedent_estimate::joint_design::JointDesignEstimate, alloc::string::String>
 pub fn antecedent_estimate::joint_design::switchback::switchback_joint_posterior(design: &antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: &[antecedent_estimate::switchback::HistoryAssignment], prior: &antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::JointDesignPosterior, alloc::string::String>
 pub fn antecedent_estimate::joint_design::switchback::switchback_joint_sharp_null_test(design: &antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: &[antecedent_estimate::switchback::HistoryAssignment], contrast: &[f64], max_cases: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest, alloc::string::String>
@@ -19417,6 +19669,7 @@ pub fn antecedent_estimate::temporal_design::posterior_by_cluster_weights(cluste
 pub fn antecedent_estimate::temporal_design::quantile::fit_quantile(pairs: &antecedent_estimate::temporal_design::LaggedPairs, outcome: &[f64], assignment: &[bool], probability: &[f64], cluster: &[usize], floor: f64, tau: f64, replicates: usize, posterior_draws: core::option::Option<usize>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_design::quantile::QuantileFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::regime::fit_static_regimes(panel: &antecedent_estimate::temporal_design::regime::RegimePanel, regimes: antecedent_estimate::temporal_design::regime::StaticRegimes<'_>, method: antecedent_estimate::temporal_design::regime::RegimeMethod, floor: f64, prior_scale: f64, replicates: usize, posterior_draws: core::option::Option<usize>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::temporal_design::regime::RegimeFit, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::regime::regime_point_estimate(panel: &antecedent_estimate::temporal_design::regime::RegimePanel, regimes: antecedent_estimate::temporal_design::regime::StaticRegimes<'_>, method: antecedent_estimate::temporal_design::regime::RegimeMethod, floor: f64) -> core::result::Result<([f64; 3], f64), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::temporal_design::regime::regime_point_estimate_weighted(panel: &antecedent_estimate::temporal_design::regime::RegimePanel, regimes: antecedent_estimate::temporal_design::regime::StaticRegimes<'_>, method: antecedent_estimate::temporal_design::regime::RegimeMethod, floor: f64, weights: &[f64]) -> core::result::Result<([f64; 3], f64), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::sampling_summary(scores: &antecedent_estimate::temporal_design::ClusterScores) -> core::result::Result<antecedent_estimate::temporal_design::SamplingSummary, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::temporal_design::serial::newey_west_bandwidth(periods: usize) -> usize
 pub fn antecedent_estimate::temporal_design::serial::serial_covariance(scores: &antecedent_estimate::temporal_design::ClusterScores, estimate: &[f64], periods: &[i64], bandwidth: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
@@ -19534,13 +19787,17 @@ pub mod antecedent_estimate::iv_bounds
 pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_design
 pub mod antecedent_estimate::joint_design::capabilities
+pub mod antecedent_estimate::joint_design::cluster_decision
 pub mod antecedent_estimate::joint_design::compiled
+pub mod antecedent_estimate::joint_design::excursion
+pub mod antecedent_estimate::joint_design::experiment
 pub mod antecedent_estimate::joint_design::gaussian_longitudinal
 pub mod antecedent_estimate::joint_design::instrumented
 pub mod antecedent_estimate::joint_design::local_instrument
 pub mod antecedent_estimate::joint_design::longitudinal
 pub mod antecedent_estimate::joint_design::randomized
 pub mod antecedent_estimate::joint_design::rollout
+pub mod antecedent_estimate::joint_design::static_regime
 pub mod antecedent_estimate::joint_design::switchback
 pub mod antecedent_estimate::joint_design::synthetic
 pub mod antecedent_estimate::joint_panel
@@ -20161,6 +20418,14 @@ pub struct antecedent_estimate::joint_bayesian_transport::TargetData
 pub struct antecedent_estimate::joint_design::JointDesignEstimate
 pub struct antecedent_estimate::joint_design::JointDesignPosterior
 pub struct antecedent_estimate::joint_design::capabilities::JointDesignCapability
+pub struct antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
+pub struct antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
+pub struct antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
+pub struct antecedent_estimate::joint_design::excursion::ExcursionOutcome
+pub struct antecedent_estimate::joint_design::excursion::JointExcursionLaw
+pub struct antecedent_estimate::joint_design::excursion::JointExcursionRecipe
+pub struct antecedent_estimate::joint_design::experiment::JointExperimentalLaw
+pub struct antecedent_estimate::joint_design::experiment::JointExperimentalRecipe
 pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign
 pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode
 pub struct antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalModel
@@ -20186,6 +20451,9 @@ pub struct antecedent_estimate::joint_design::rollout::JointRolloutCell
 pub struct antecedent_estimate::joint_design::rollout::JointRolloutDesign
 pub struct antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior
 pub struct antecedent_estimate::joint_design::rollout::JointRolloutUnit
+pub struct antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap
+pub struct antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw
+pub struct antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe
 pub struct antecedent_estimate::joint_design::switchback::JointSwitchbackDesign
 pub struct antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest
 pub struct antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior
@@ -21481,6 +21749,7 @@ pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::L
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::RandomizedFinitePopulationGaussian { prior: antecedent_estimate::joint_design::randomized::RandomizedFinitePopulationPrior }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::RandomizedGaussian { prior: antecedent_estimate::joint_design::randomized::RandomizedGaussianPrior }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::RolloutGaussian { prior: antecedent_estimate::joint_design::rollout::JointRolloutGaussianPrior }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::StaticRegimeBootstrap { replicates: usize, seed: u64 }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SwitchbackExactRandomization { contrast: alloc::vec::Vec<f64>, max_cases: usize }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SwitchbackGaussian { prior: antecedent_estimate::joint_design::switchback::SwitchbackGaussianPrior }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::SyntheticBayesian { prior: antecedent_estimate::joint_design::synthetic::JointSyntheticPrior }
@@ -21488,19 +21757,33 @@ pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::S
 pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::Bayesian(antecedent_estimate::joint_design::JointDesignPosterior)
 pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(antecedent_estimate::joint_design::JointDesignEstimate)
 pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::FrequentistBootstrap { estimate: antecedent_estimate::joint_design::JointDesignEstimate, realizations: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>, failures: alloc::vec::Vec<core::option::Option<alloc::string::String>> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DecisionCluster { recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DecisionExperiment { recipe: antecedent_estimate::joint_design::experiment::JointExperimentalRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DifferenceInDifferences { design: antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::rollout::JointRolloutUnit> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Excursion { recipe: antecedent_estimate::joint_design::excursion::JointExcursionRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::GaussianLongitudinal { design: antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalDesign, episodes: alloc::vec::Vec<antecedent_estimate::joint_design::gaussian_longitudinal::GaussianLongitudinalEpisode> }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Instrumented { design: antecedent_estimate::joint_design::instrumented::JointInstrumentedDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::instrumented::JointInstrumentedUnit> }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::InstrumentedLocal { design: antecedent_estimate::joint_design::local_instrument::LocalInstrumentDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::local_instrument::LocalInstrumentUnit> }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Longitudinal { design: antecedent_estimate::joint_design::longitudinal::LongitudinalJointDesign, episodes: alloc::vec::Vec<antecedent_estimate::joint_design::longitudinal::LongitudinalEpisode> }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Randomized { design: antecedent_estimate::joint_design::randomized::JointRandomizedDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::randomized::JointRandomizedUnit> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::StaticRegime { recipe: antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Switchback { design: antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: alloc::vec::Vec<antecedent_estimate::switchback::HistoryAssignment> }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::SyntheticControl { design: antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, observations: alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticObservation> }
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionCluster(antecedent_estimate::joint_design::cluster_decision::JointClusterLaw)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionExperiment(antecedent_estimate::joint_design::experiment::JointExperimentalLaw)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Excursion(antecedent_estimate::joint_design::excursion::JointExcursionLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::LocalComplier(antecedent_estimate::joint_design::local_instrument::LocalInstrumentResult)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Moments(antecedent_estimate::joint_design::compiled::JointDesignLaw)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::StaticRegime(antecedent_estimate::joint_design::static_regime::JointStaticRegimeLaw)
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::StaticRegimeBootstrap(antecedent_estimate::joint_design::static_regime::JointStaticRegimeBootstrap)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::SwitchbackExact(antecedent_estimate::joint_design::switchback::JointSwitchbackRandomizationTest)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::SyntheticConformal(antecedent_estimate::joint_design::synthetic::JointSyntheticConformal)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::SyntheticPoint(alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticCoordinate>)
+pub variant antecedent_estimate::joint_design::experiment::ExperimentExposure::ArmBounds { assumption: alloc::string::String, treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
+pub variant antecedent_estimate::joint_design::experiment::ExperimentExposure::ContrastBounds { assumption: alloc::string::String, bounds: alloc::vec::Vec<f64> }
+pub variant antecedent_estimate::joint_design::experiment::ExperimentExposure::NoInterference { assumption: alloc::string::String }
+pub variant antecedent_estimate::joint_design::experiment::ExperimentalDesign::MatchedPairs { cluster_ids: alloc::vec::Vec<alloc::string::String>, pairs: alloc::vec::Vec<(usize, usize)>, matching_variables: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, cluster_sizes: alloc::vec::Vec<usize>, preassignment: alloc::string::String, independent_pairs: alloc::string::String }
+pub variant antecedent_estimate::joint_design::experiment::ExperimentalDesign::Switchback { sequence_ids: alloc::vec::Vec<alloc::string::String>, period_ids: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, no_carryover: alloc::string::String, washout_rule: alloc::string::String, independent_sequences: alloc::string::String }
 pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport::Interval { lower: f64, upper: f64 }
 pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport::Positive
 pub variant antecedent_estimate::joint_design::gaussian_longitudinal::GaussianAssignmentSupport::Real

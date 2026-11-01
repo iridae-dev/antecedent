@@ -149,7 +149,7 @@ struct Declaration {
     #[serde(default)]
     exogenous_context: bool,
 }
-fn context(
+pub(crate) fn context(
     seed: u64,
     threads: u32,
     max_bytes: Option<u64>,

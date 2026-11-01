@@ -59,15 +59,84 @@ pub(super) fn admitted(
     })
 }
 /// Encoded size of an in-memory input; the caller's admission, quoted from this size, is the bound.
-fn encoded_size<T: Serialize>(value: &T) -> Result<usize, JointPanelError> {
-    Ok(antecedent_io::convert::to_cbor(value).map_err(failure)?.len())
+fn encoded_size<T: Serialize>(value: &T, ctx: &ExecutionContext) -> Result<usize, JointPanelError> {
+    struct Counter<'a> {
+        bytes: usize,
+        ctx: &'a ExecutionContext,
+    }
+    impl std::io::Write for Counter<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.ctx.cancellation.is_cancelled() {
+                return Err(std::io::Error::other("cancelled"));
+            }
+            self.bytes = self
+                .bytes
+                .checked_add(bytes.len())
+                .ok_or_else(|| std::io::Error::other("encoded size overflow"))?;
+            if self.ctx.memory_limit_bytes().is_some_and(|limit| self.bytes as u64 > limit) {
+                return Err(std::io::Error::other("encoded source exceeds memory limit"));
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counter = Counter { bytes: 0, ctx };
+    ciborium::ser::into_writer(value, &mut counter).map_err(|error| {
+        if ctx.cancellation.is_cancelled() {
+            JointPanelError::Engine(super::super::engine::PanelError::Cancelled)
+        } else {
+            JointPanelError::Engine(super::super::engine::PanelError::Resource(error.to_string()))
+        }
+    })?;
+    Ok(counter.bytes)
 }
 pub(super) fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
     use JointDesignRecipe::{
-        DifferenceInDifferences, GaussianLongitudinal, Instrumented, InstrumentedLocal,
-        Longitudinal, Randomized, Switchback, SyntheticControl,
+        DecisionCluster, DecisionExperiment, DifferenceInDifferences, Excursion,
+        GaussianLongitudinal, Instrumented, InstrumentedLocal, Longitudinal, Randomized,
+        StaticRegime, Switchback, SyntheticControl,
     };
     let (targets, population, sampling_unit, required_assumptions) = match recipe {
+        DecisionCluster { recipe } => {
+            use antecedent_estimate::joint_design::experiment::ExperimentExposure;
+            let exposure = match &recipe.exposure {
+                ExperimentExposure::NoInterference { assumption } | ExperimentExposure::ContrastBounds { assumption, .. }
+                | ExperimentExposure::ArmBounds { assumption, .. } => assumption.clone(),
+            };
+            let mut assumptions = vec![recipe.assignment_law.clone(), recipe.consistency.clone(), exposure];
+            assumptions.extend(recipe.adjustments.iter().map(|a| a.preassignment.clone()));
+            (recipe.outcomes.iter().map(|o| format!("{} [{}]", o.variable_id, o.units)).collect(),
+                recipe.population.clone(), "independent randomized cluster".into(), assumptions)
+        },
+        DecisionExperiment { recipe } => {
+            use antecedent_estimate::joint_design::experiment::{ExperimentalDesign, ExperimentExposure};
+            let (unit, premise) = match &recipe.design {
+                ExperimentalDesign::MatchedPairs { preassignment, independent_pairs, .. } =>
+                    ("independent randomized matched pair", vec![preassignment.clone(), independent_pairs.clone()]),
+                ExperimentalDesign::Switchback { no_carryover, washout_rule, independent_sequences, .. } =>
+                    ("independent randomized switchback sequence", vec![no_carryover.clone(), washout_rule.clone(), independent_sequences.clone()]),
+            };
+            let exposure = match &recipe.exposure {
+                ExperimentExposure::NoInterference { assumption } | ExperimentExposure::ContrastBounds { assumption, .. }
+                | ExperimentExposure::ArmBounds { assumption, .. } => assumption.clone(),
+            };
+            let mut assumptions = premise; assumptions.push(recipe.consistency.clone()); assumptions.push(exposure);
+            (recipe.outcomes.iter().map(|o| format!("{} [{}]", o.variable_id, o.units)).collect(), recipe.population.clone(), unit.into(), assumptions)
+        },
+        StaticRegime { recipe } => (
+            recipe.outcomes.iter().map(|o| format!("{} [{}]", o.variable_id, o.units)).collect(),
+            recipe.population.clone(), "independent complete longitudinal subject".into(),
+            vec![recipe.positivity.clone(), recipe.exchangeability.clone(), recipe.consistency.clone(),
+                recipe.followup.clone(), recipe.model_assumption.clone(), recipe.isolation.clone()],
+        ),
+        Excursion { recipe } => (
+            recipe.outcomes.iter().map(|o| format!("{} [{}]", o.variable_id, o.units)).collect(),
+            recipe.population.clone(), "independent randomized longitudinal unit".into(),
+            vec![recipe.assignment_law.clone(), recipe.independence.clone(), recipe.followup.clone(),
+                recipe.consistency.clone(), recipe.isolation.clone(), format!("lag {} with all other assignments following the recorded law", recipe.lag)],
+        ),
         Randomized { design, .. } => (
             design.worlds.clone(),
             design.population.clone(),
@@ -160,7 +229,7 @@ impl PreparedNativeJointDesign {
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
         check_cancel(ctx)?;
-        let size = encoded_size(&recipe)?;
+        let size = encoded_size(&recipe, ctx)?;
         let quote = u64::try_from(size)
             .ok()
             .and_then(|n| n.checked_mul(128))
@@ -222,13 +291,14 @@ impl PreparedNativeJointDesign {
         ctx: &ExecutionContext,
     ) -> Result<NativeJointDesignResult, JointPanelError> {
         check_cancel(ctx)?;
-        let size = encoded_size(&inference)?;
+        let size = encoded_size(&inference, ctx)?;
         let draws = match &inference {
             JointDesignInference::Frequentist
             | JointDesignInference::SyntheticConformal { .. }
             | JointDesignInference::SwitchbackExactRandomization { .. } => 1,
             JointDesignInference::LocalComplierBayesian { draws, .. } => *draws,
-            JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
+            JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
             JointDesignInference::GaussianLongitudinalBayesian { prior } => prior.draws,
             JointDesignInference::RandomizedGaussian { prior } => prior.draws,
             JointDesignInference::RandomizedFinitePopulationGaussian { prior } => prior.arm.draws,
@@ -290,6 +360,21 @@ impl PreparedNativeJointDesign {
     }
 }
 impl NativeJointDesignResult {
+    /// No native design composition inherits a release support license from its inputs.
+    #[must_use]
+    pub const fn support(&self) -> &'static str {
+        "unlicensed"
+    }
+    /// Calibration of this composed native law is not established by execution alone.
+    #[must_use]
+    pub const fn calibration(&self) -> &'static str {
+        "unmeasured"
+    }
+    /// Exact retained statistical inference recipe, including resampling controls.
+    #[must_use]
+    pub fn inference(&self) -> &JointDesignInference {
+        &self.inference
+    }
     /// Retained native point, joint uncertainty region or genuine posterior law.
     #[must_use]
     pub fn law(&self) -> &JointNativeDesignLaw {
@@ -318,19 +403,48 @@ impl NativeJointDesignResult {
         &self,
         limits: super::DesignArtifactLimits,
     ) -> Result<Vec<u8>, JointPanelError> {
-        let wire = NativeReplay {
+        self.export_artifact_with_context(&ExecutionContext::production_default(0), limits)
+    }
+    /// Export under the caller's cancellation, admission and artifact-size controls.
+    /// # Errors
+    /// Invalid encoding, cancellation or resource refusal.
+    pub fn export_artifact_with_context(
+        &self,
+        ctx: &ExecutionContext,
+        limits: super::DesignArtifactLimits,
+    ) -> Result<Vec<u8>, JointPanelError> {
+        let wire = NativeReplayRef {
             version: 1,
-            recipe: self.prepared.recipe.as_ref().clone(),
-            identification: self.prepared.identification.as_ref().clone(),
-            inference: self.inference.as_ref().clone(),
-            law: self.law.as_ref().clone(),
+            recipe: self.prepared.recipe.as_ref(),
+            identification: self.prepared.identification.as_ref(),
+            inference: self.inference.as_ref(),
+            law: self.law.as_ref(),
         };
-        let bytes = antecedent_io::convert::to_cbor(&wire).map_err(failure)?;
-        if bytes.len() > limits.max_bytes {
-            return Err(failure("native joint-design artifact exceeds the declared portable size"));
+        let size = encoded_size(&wire, ctx)?;
+        if size > limits.max_bytes {
+            return Err(JointPanelError::Engine(super::super::engine::PanelError::Resource(
+                "native joint-design artifact exceeds the declared portable size".into(),
+            )));
         }
+        let quote = u64::try_from(size).ok().and_then(|n| n.checked_mul(2)).ok_or_else(|| {
+            JointPanelError::Engine(super::super::engine::PanelError::Resource(
+                "artifact size overflow".into(),
+            ))
+        })?;
+        let _lease = admitted(ctx, quote)?;
+        check_cancel(ctx)?;
+        let bytes = antecedent_io::convert::to_cbor(&wire).map_err(failure)?;
+        check_cancel(ctx)?;
         Ok(bytes)
     }
+}
+#[derive(Serialize)]
+struct NativeReplayRef<'a> {
+    version: u16,
+    recipe: &'a JointDesignRecipe,
+    identification: &'a NativeJointIdentification,
+    inference: &'a JointDesignInference,
+    law: &'a JointNativeDesignLaw,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -383,7 +497,14 @@ pub fn replay_native_joint_design_with_limits(
         .map(|result| result.law.as_ref().clone())
 }
 
-pub(crate) fn replay_native_joint_design_execution(
+/// Replay a native design and retain its compiler-owned execution and admission.
+///
+/// This is historical replay; current-source authority requires independently matching a
+/// current prepared source with `consume_current`.
+///
+/// # Errors
+/// Malformed artifact, nonreproducible law, cancellation or resource admission refusal.
+pub fn replay_native_joint_design_execution(
     bytes: &[u8],
     ctx: &ExecutionContext,
     limits: super::DesignArtifactLimits,

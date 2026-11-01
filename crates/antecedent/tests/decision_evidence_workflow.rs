@@ -343,6 +343,7 @@ fn matched_pairs_preserve_arm_dependence_and_improve_precision() {
         cluster_sizes: vec![1; 2 * pairs],
         preassignment_assumption_id: "pairing-fixed".into(),
         independent_pairs_assumption_id: "independent-pairs".into(),
+        consistency_assumption_id: "consistency".into(),
     })
     .unwrap();
     let assigned: Vec<bool> = (0..2 * pairs).map(|i| i % 2 == 0).collect();
@@ -542,6 +543,7 @@ fn switchback_uses_independent_sequences_and_preserves_period_identity() {
         washout_rule_id: "washout-zero".into(),
         washout_periods: 0,
         independent_sequences_assumption_id: "sequences-independent".into(),
+        consistency_assumption_id: "consistency".into(),
     })
     .unwrap();
     let assigned: Vec<bool> =
@@ -644,4 +646,839 @@ fn switchback_uses_independent_sequences_and_preserves_period_identity() {
     sparse.period_ids.truncate(20 * periods);
     sparse.treatment_probabilities.truncate(20 * periods);
     assert!(compile_joint_switchback(sparse).is_err());
+}
+
+#[test]
+fn joint_lagged_excursion_reuses_existing_scores_and_keeps_estimand_scope() {
+    use antecedent_estimate::temporal_design::contrasts::two_arm_scores;
+    use antecedent_estimate::temporal_design::{
+        ClusterScores, PanelRows, lagged_pairs, sampling_summary,
+    };
+    let units = 40;
+    let periods = 5;
+    let n = units * periods;
+    let design = JointExcursionDesign {
+        unit_ids: (0..units).flat_map(|u| (0..periods).map(move |_| format!("geo-{u}"))).collect(),
+        periods: (0..units).flat_map(|_| (0..periods).map(|p| p as i64)).collect(),
+        treatment_probabilities: vec![0.5; n],
+        lag: 1,
+        min_probability: 0.1,
+        assignment_law_id: "weekly-randomization".into(),
+        independent_units_assumption_id: "geos-independent".into(),
+        administrative_followup_assumption_id: "end-of-study".into(),
+        consistency_assumption_id: "consistency".into(),
+    };
+    let prepared = compile_joint_excursion(design.clone()).unwrap();
+    assert_eq!(prepared.paired_decisions, units * (periods - 1));
+    let assigned: Vec<bool> = (0..n).map(|i| ((i * 73 + i / periods * 19) % 11) < 5).collect();
+    // Treatment at t affects t+1; the lagged excursion explicitly allows this carryover.
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            2.0 + 0.2 * ((i / periods) as f64 * 0.17).sin()
+                + if i % periods > 0 && assigned[i - 1] { 1.0 } else { 0.0 }
+        })
+        .collect();
+    let z: Vec<f64> = (0..n)
+        .map(|i| {
+            5.0 + 0.4 * ((i / periods) as f64 * 0.17).sin()
+                + if i % periods > 0 && assigned[i - 1] { 0.6 } else { 0.0 }
+        })
+        .collect();
+    let components = ["frequency", "value"]
+        .into_iter()
+        .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+        .collect();
+    let ev = evidence_from_joint_excursion(
+        &prepared,
+        &[&y, &z],
+        &assigned,
+        "pulse-study",
+        "pop",
+        ("on", "off"),
+        4,
+        components,
+        Exposure::NoBetweenUnitInterference { assumption_id: "no-spill".into() },
+    )
+    .unwrap();
+    assert_eq!(ev.design.treated_units, units);
+    let req = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 4,
+        target: Target::Excursion { lag: 1, assignment_law_id: "weekly-randomization".into() },
+    };
+    let q = DerivedQuantity {
+        name: "effect".into(),
+        units: "u".into(),
+        expr: UtilityExpr::Input(0),
+        inputs: vec![InputBinding::Measured("frequency".into())],
+    };
+    let derived = derive(&ev, &req, &q).unwrap();
+    let dense: Vec<usize> = (0..n).map(|i| i / periods).collect();
+    let pairs = lagged_pairs(PanelRows { unit: &dense, period: &design.periods }, 1).unwrap();
+    let scores =
+        two_arm_scores(&pairs, &y, &assigned, &design.treatment_probabilities, &dense, 0.1)
+            .unwrap();
+    let summary = sampling_summary(
+        &ClusterScores::accumulate(&scores.scores, 3, &scores.cluster_of_pair).unwrap(),
+    )
+    .unwrap();
+    assert!((derived.contrast.unwrap() - summary.estimate[0]).abs() < 1e-10);
+    assert!((derived.sampling.unwrap().standard_error - summary.standard_error[0]).abs() < 1e-10);
+    // Independent arithmetic reference: reconstruct HT arm means and cluster residuals
+    // directly from decision and outcome rows, including cross-outcome covariance.
+    let mut sums = vec![[0.0; 4]; units];
+    for t in 0..n {
+        if t % periods + 1 < periods {
+            let g = t / periods;
+            let o = t + 1;
+            let a = assigned[t];
+            if a {
+                sums[g][0] += 2.0 * y[o];
+                sums[g][1] += 2.0 * z[o];
+            } else {
+                sums[g][2] += 2.0 * y[o];
+                sums[g][3] += 2.0 * z[o];
+            }
+        }
+    }
+    let m: Vec<f64> = (0..4)
+        .map(|j| sums.iter().map(|v| v[j]).sum::<f64>() / prepared.paired_decisions as f64)
+        .collect();
+    let cross = sums
+        .iter()
+        .map(|v| (v[0] - (periods - 1) as f64 * m[0]) * (v[1] - (periods - 1) as f64 * m[1]))
+        .sum::<f64>()
+        * units as f64
+        / ((units - 1) as f64 * (prepared.paired_decisions as f64).powi(2));
+    let Dependence::JointArms { covariance } = &ev.dependence else {
+        panic!("joint covariance required")
+    };
+    assert!((covariance[1] - cross).abs() < 1e-10);
+    assert!((derived.contrast.unwrap() - (m[0] - m[2])).abs() < 1e-10);
+    let nonlinear = DerivedQuantity {
+        name: "net".into(),
+        units: "u".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![
+            InputBinding::Measured("frequency".into()),
+            InputBinding::Measured("value".into()),
+        ],
+    };
+    assert!(derive(&ev, &req, &nonlinear).unwrap().sampling.is_some());
+    let bridge = TemporalEffectBridge {
+        source: TemporalEstimand::Excursion {
+            lag: 1,
+            assignment_law_id: "weekly-randomization".into(),
+        },
+        target: TemporalEstimand::FixedSchedule {
+            active_schedule_id: "sustained-program".into(),
+            reference_schedule_id: "status-quo".into(),
+            horizon: 12,
+        },
+        source_component: "frequency".into(),
+        target_variable_id: "frequency".into(),
+        target_units: "u".into(),
+        mapping: ProxyMapping::CausalEffectBounds {
+            multiplier: (0.8, 1.2),
+            residual: (-0.1, 0.1),
+            assumption_id: "pulse-to-schedule".into(),
+            mapping_evidence_id: "bridge-study".into(),
+        },
+    };
+    let bridged = decide_with_temporal_bridge(&ev, &req, &bridge, &frame(0.0)).unwrap();
+    assert!(bridged.decision.sampling_envelope.is_some());
+    assert_eq!(bridged.decision.evidence_ids, vec!["pulse-study", "bridge-study"]);
+    let mut unsupported = bridge.clone();
+    unsupported.mapping = ProxyMapping::PredictiveAssociation;
+    assert!(decide_with_temporal_bridge(&ev, &req, &unsupported, &frame(0.0)).is_err());
+    let mut wrong = bridge;
+    wrong.source =
+        TemporalEstimand::Excursion { lag: 2, assignment_law_id: "weekly-randomization".into() };
+    assert!(decide_with_temporal_bridge(&ev, &req, &wrong, &frame(0.0)).is_err());
+    let mut bad = req.clone();
+    bad.target = Target::ExperimentalContrast;
+    assert!(derive(&ev, &bad, &q).is_err());
+    bad.target = Target::Excursion { lag: 2, assignment_law_id: "weekly-randomization".into() };
+    assert!(derive(&ev, &bad, &q).is_err());
+    bad.target = Target::Deployment { bridge_assumption_id: Some("unjustified".into()) };
+    assert!(derive(&ev, &bad, &q).is_err());
+    let mut gap = design.clone();
+    gap.periods[1] = 99;
+    assert!(compile_joint_excursion(gap).is_err());
+    let mut low = design;
+    let take = 20 * periods;
+    low.unit_ids.truncate(take);
+    low.periods.truncate(take);
+    low.treatment_probabilities.truncate(take);
+    let low = compile_joint_excursion(low).unwrap();
+    let ev = evidence_from_joint_excursion(
+        &low,
+        &[&y[..take]],
+        &assigned[..take],
+        "small",
+        "pop",
+        ("on", "off"),
+        4,
+        vec![OutcomeComponent {
+            name: "frequency".into(),
+            variable_id: "frequency".into(),
+            units: "u".into(),
+        }],
+        Exposure::NoBetweenUnitInterference { assumption_id: "no-spill".into() },
+    )
+    .unwrap();
+    assert!(matches!(
+        derive(&ev, &req, &q).unwrap().unresolved.as_slice(),
+        [UnresolvedReason::TooFewIndependentUnits { .. }]
+    ));
+}
+
+#[test]
+fn observational_whole_regime_reuses_gformula_and_keeps_missing_joint_uncertainty() {
+    use antecedent_estimate::temporal_design::{
+        dense_labels,
+        regime::{RegimeMethod, RegimePanel, RegimeRows, StaticRegimes, regime_point_estimate},
+    };
+    let units = 120;
+    let periods = 2;
+    let n = units * periods;
+    let unit_ids: Vec<String> =
+        (0..units).flat_map(|u| (0..periods).map(move |_| format!("u-{u}"))).collect();
+    let period: Vec<i64> = (0..units).flat_map(|_| [0, 1]).collect();
+    let assignment: Vec<bool> = (0..units).flat_map(|u| [u % 2 == 0, (u / 2) % 2 == 0]).collect();
+    let confounder: Vec<f64> = (0..n)
+        .map(|i| ((i / periods) as f64 * (0.13 + 0.04 * (i % periods) as f64)).sin())
+        .collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let u = i / periods;
+            1.0 + 0.5 * confounder[i]
+                + 0.03 * ((u * 17 + i % periods * 7) % 13) as f64
+                + if assignment[u * 2] { 1.0 } else { 0.0 }
+                + if i % periods == 1 && assignment[u * 2 + 1] { 2.0 } else { 0.0 }
+        })
+        .collect();
+    let design = JointStaticRegimeDesign {
+        unit_ids: unit_ids.clone(),
+        periods: period.clone(),
+        realized_assignment: assignment.clone(),
+        confounder_ids: vec!["history".into()],
+        active_path: vec![true, true],
+        reference_path: vec![false, false],
+        method: "g_formula".into(),
+        min_probability: 0.05,
+        positivity_assumption_id: "positivity".into(),
+        exchangeability_assumption_id: "exchangeability".into(),
+        consistency_assumption_id: "consistency".into(),
+        followup_assumption_id: "complete".into(),
+        model_assumption_id: "specified-model".into(),
+    };
+    let compiled = compile_joint_static_regime(design).unwrap();
+    let components = vec![OutcomeComponent {
+        name: "value".into(),
+        variable_id: "value".into(),
+        units: "u".into(),
+    }];
+    let ev = evidence_from_joint_static_regime(
+        &compiled,
+        &[&y],
+        std::slice::from_ref(&confounder),
+        "history-study",
+        "pop",
+        ("active", "reference"),
+        components,
+        Exposure::NoBetweenUnitInterference { assumption_id: "no-spill".into() },
+    )
+    .unwrap();
+    let request = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "active".into(),
+        control_regime_id: "reference".into(),
+        horizon: 2,
+        target: Target::Regime {
+            periods: 2,
+            exchangeability_assumption_id: "exchangeability".into(),
+        },
+    };
+    let q = DerivedQuantity {
+        name: "regime-value".into(),
+        units: "u".into(),
+        expr: UtilityExpr::Input(0),
+        inputs: vec![InputBinding::Measured("value".into())],
+    };
+    let result = derive(&ev, &request, &q).unwrap();
+    let ctx = antecedent_core::ExecutionContext::for_tests(1);
+    let retained = compile_and_evidence_from_joint_static_regime(
+        &compiled,
+        &[&y],
+        std::slice::from_ref(&confounder),
+        "history-study",
+        "pop",
+        ("active", "reference"),
+        vec![OutcomeComponent {
+            name: "value".into(),
+            variable_id: "value".into(),
+            units: "u".into(),
+        }],
+        Exposure::NoBetweenUnitInterference { assumption_id: "no-spill".into() },
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(retained.numerical_evidence(), &ev);
+    let artifact = retained.source().export_artifact().unwrap();
+    assert_eq!(
+        retained.source().prepared().consume_current(&artifact, &ctx).unwrap().law(),
+        retained.source().law()
+    );
+    assert!(result.sampling.is_none());
+    assert_eq!(result.unresolved, vec![UnresolvedReason::JointLawMissing]);
+    assert!((result.contrast.unwrap() - 3.0).abs() < 0.1);
+    let (dense, _) = dense_labels(&unit_ids);
+    let panel = RegimePanel::new(RegimeRows {
+        unit: &dense,
+        period: &period,
+        outcome: &y,
+        treated: &assignment,
+        confounders: std::slice::from_ref(&confounder),
+    })
+    .unwrap();
+    let (reference, _) = regime_point_estimate(
+        &panel,
+        StaticRegimes { active: &[true, true], reference: &[false, false] },
+        RegimeMethod::GFormula,
+        0.05,
+    )
+    .unwrap();
+    assert!((result.contrast.unwrap() - reference[0]).abs() < 1e-10);
+    assert!(
+        matches!(&ev.design_details, Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) if observed_minimum_probabilities == &[None])
+    );
+    for (name, method) in [
+        ("inverse_probability_weighting", RegimeMethod::InverseProbability),
+        ("doubly_robust", RegimeMethod::DoublyRobust),
+    ] {
+        let mut spec = compiled.design.clone();
+        spec.method = name.into();
+        let prepared = compile_joint_static_regime(spec).unwrap();
+        let estimate = evidence_from_joint_static_regime(
+            &prepared,
+            &[&y],
+            std::slice::from_ref(&confounder),
+            "history-study",
+            "pop",
+            ("active", "reference"),
+            vec![OutcomeComponent {
+                name: "value".into(),
+                variable_id: "value".into(),
+                units: "u".into(),
+            }],
+            Exposure::NoBetweenUnitInterference { assumption_id: "no-spill".into() },
+        )
+        .unwrap();
+        let (expected, _) = regime_point_estimate(
+            &panel,
+            StaticRegimes { active: &[true, true], reference: &[false, false] },
+            method,
+            0.05,
+        )
+        .unwrap();
+        assert!(
+            (derive(&estimate, &request, &q).unwrap().contrast.unwrap() - expected[0]).abs()
+                < 1e-10
+        );
+        assert!(
+            matches!(&estimate.design_details,Some(DesignDetails::TemporalRegime{observed_minimum_probabilities,..}) if observed_minimum_probabilities[0].is_some())
+        );
+    }
+    let mut bad = request.clone();
+    bad.target = Target::Excursion { lag: 1, assignment_law_id: "law".into() };
+    assert!(derive(&ev, &bad, &q).is_err());
+    let decision = decide(&ev, &request, &q, &frame(0.0)).unwrap();
+    assert!(matches!(decision.verdict, Verdict::Unresolved { .. }));
+    let bridge = TemporalEffectBridge {
+        source: TemporalEstimand::StaticRegime {
+            active_regime_id: "active".into(),
+            reference_regime_id: "reference".into(),
+            horizon: 2,
+            exchangeability_assumption_id: "exchangeability".into(),
+        },
+        target: TemporalEstimand::ModelResponse {
+            model_id: "response-model-v1".into(),
+            active_schedule_id: "active-path".into(),
+            reference_schedule_id: "reference-path".into(),
+            horizon: 2,
+        },
+        source_component: "value".into(),
+        target_variable_id: "value".into(),
+        target_units: "u".into(),
+        mapping: ProxyMapping::CausalEffectBounds {
+            multiplier: (1.0, 1.0),
+            residual: (0.0, 0.0),
+            assumption_id: "model-bridge".into(),
+            mapping_evidence_id: "mapping-evidence".into(),
+        },
+    };
+    let bridged = decide_with_temporal_bridge(&ev, &request, &bridge, &frame(0.0)).unwrap();
+    assert!(matches!(bridged.decision.verdict, Verdict::Unresolved { .. }));
+    assert_eq!(bridged.decision.evidence_ids, vec!["history-study", "mapping-evidence"]);
+}
+
+#[test]
+fn joint_excursion_matches_independent_rational_oracle() {
+    let units = 32;
+    let periods = 4;
+    let n = units * periods;
+    let assignments: Vec<bool> =
+        (0..n).map(|i| ((i / periods * 7 + i % periods * 5) % 11) < 5).collect();
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for u in 0..units {
+        for p in 0..periods - 1 {
+            let treated = assignments[u * periods + p];
+            y[u * periods + p + 1] =
+                2.0 + (u % 7) as f64 / 5.0 + p as f64 / 4.0 + if treated { 1.5 } else { 0.0 };
+            z[u * periods + p + 1] =
+                4.0 + (u % 5) as f64 / 3.0 - p as f64 / 5.0 + if treated { 2.0 / 3.0 } else { 0.0 };
+        }
+    }
+    let design = compile_joint_excursion(JointExcursionDesign {
+        unit_ids: (0..units).flat_map(|u| (0..periods).map(move |_| format!("u{u}"))).collect(),
+        periods: (0..units).flat_map(|_| (0..periods).map(|p| p as i64)).collect(),
+        treatment_probabilities: vec![0.5; n],
+        lag: 1,
+        min_probability: 0.1,
+        assignment_law_id: "half".into(),
+        independent_units_assumption_id: "independent".into(),
+        administrative_followup_assumption_id: "administrative".into(),
+        consistency_assumption_id: "consistency".into(),
+    })
+    .unwrap();
+    let components = ["y", "z"]
+        .into_iter()
+        .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+        .collect();
+    let evidence = evidence_from_joint_excursion(
+        &design,
+        &[&y, &z],
+        &assignments,
+        "study",
+        "pop",
+        ("on", "off"),
+        3,
+        components,
+        Exposure::NoBetweenUnitInterference { assumption_id: "isolation".into() },
+    )
+    .unwrap();
+    let expected: serde_json::Value =
+        serde_json::from_str(include_str!("oracle_data/joint_excursion_reference.json")).unwrap();
+    let means: Vec<_> =
+        evidence.treated_means.iter().chain(&evidence.control_means).copied().collect();
+    let Dependence::JointArms { covariance } = evidence.dependence else {
+        panic!("joint law required")
+    };
+    for (actual, expected) in means.iter().zip(expected["means"].as_array().unwrap()) {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    for (actual, expected) in covariance.iter().zip(expected["covariance"].as_array().unwrap()) {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    use antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign;
+    use antecedent_estimate::joint_design::{
+        compiled::{JointDesignInference, JointDesignRecipe, JointNativeDesignLaw},
+        excursion::{ExcursionOutcome, JointExcursionRecipe},
+    };
+    let source = JointDesignRecipe::Excursion {
+        recipe: JointExcursionRecipe {
+            population: "pop".into(),
+            treated_regime_id: "on".into(),
+            control_regime_id: "off".into(),
+            unit_ids: design.design.unit_ids.clone(),
+            periods: design.design.periods.clone(),
+            treatment_probabilities: vec![0.5; n],
+            assignments,
+            outcomes: vec![
+                ExcursionOutcome {
+                    component_name: "y".into(),
+                    variable_id: "y".into(),
+                    units: "u".into(),
+                    values: y,
+                },
+                ExcursionOutcome {
+                    component_name: "z".into(),
+                    variable_id: "z".into(),
+                    units: "u".into(),
+                    values: z,
+                },
+            ],
+            lag: 1,
+            horizon: 3,
+            min_probability: 0.1,
+            assignment_law: "half".into(),
+            independence: "independent".into(),
+            followup: "administrative".into(),
+            consistency: "versions".into(),
+            isolation: "isolation".into(),
+        },
+    };
+    let ctx = antecedent_core::ExecutionContext::for_tests(42);
+    let prepared = PreparedNativeJointDesign::compile(source.clone(), &ctx).unwrap();
+    assert_eq!(prepared.identification().target_kind, "sequential_randomized_lagged_excursion");
+    let result = prepared.execute(JointDesignInference::Frequentist, &ctx).unwrap();
+    let JointNativeDesignLaw::Excursion(law) = result.law() else {
+        panic!("excursion law required")
+    };
+    for (actual, expected) in law.means.iter().zip(expected["means"].as_array().unwrap()) {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    for (actual, expected) in law.covariance.iter().zip(expected["covariance"].as_array().unwrap())
+    {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    let bound =
+        evidence_from_compiled_excursion(result.clone(), "study", ("on", "off"), 3).unwrap();
+    let request = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 3,
+        target: Target::Excursion { lag: 1, assignment_law_id: "half".into() },
+    };
+    let quantity = DerivedQuantity {
+        name: "y".into(),
+        units: "u".into(),
+        expr: UtilityExpr::Input(0),
+        inputs: vec![InputBinding::Measured("y".into())],
+    };
+    let derived = derive(bound.numerical_evidence(), &request, &quantity).unwrap();
+    assert!((derived.contrast.unwrap() - (law.means[0] - law.means[2])).abs() < 1e-11);
+    assert_eq!(bound.source().dependency_identity(), result.dependency_identity());
+    let artifact = result.export_artifact().unwrap();
+    assert_eq!(prepared.consume_current(&artifact, &ctx).unwrap().law(), result.law());
+    let mut changed = source;
+    let JointDesignRecipe::Excursion { recipe } = &mut changed else { unreachable!() };
+    recipe.assignment_law = "different-law".into();
+    let other = PreparedNativeJointDesign::compile(changed, &ctx).unwrap();
+    assert!(other.consume_current(&artifact, &ctx).is_err());
+    let cancelled = antecedent_core::ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        compiled_decision_refusal(
+            PreparedNativeJointDesign::compile(prepared.recipe().clone(), &cancelled).unwrap_err()
+        ),
+        EvidenceRefusal::Cancelled
+    ));
+    let constrained = antecedent_core::ExecutionContext::for_tests(1)
+        .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 1));
+    assert!(matches!(
+        compiled_decision_refusal(
+            PreparedNativeJointDesign::compile(prepared.recipe().clone(), &constrained)
+                .unwrap_err()
+        ),
+        EvidenceRefusal::Resource(_)
+    ));
+}
+
+#[test]
+fn compiled_cluster_matches_existing_estimator_and_retains_source() {
+    use antecedent_estimate::joint_design::{
+        cluster_decision::JointClusterRecipe, excursion::ExcursionOutcome,
+        experiment::ExperimentExposure,
+    };
+    let fx = fixture(80);
+    let original: Vec<_> = fx.totals.iter().map(Vec::as_slice).collect();
+    let reference = complete_cluster_joint_contrast(&original, &fx.assigned, fx.rows).unwrap();
+    let source = JointClusterRecipe {
+        population: "active_customers".into(),
+        treated_regime_id: "free_shipping".into(),
+        control_regime_id: "standard_shipping".into(),
+        horizon: 4,
+        cluster_ids: (0..80).map(|i| format!("cluster-{i}")).collect(),
+        cluster_sizes: vec![ROWS_PER_CLUSTER; 80],
+        assignment_law: "complete-randomization".into(),
+        treated_clusters: 40,
+        consistency: "consistency".into(),
+        assignments: fx.assigned,
+        outcomes: components()
+            .into_iter()
+            .zip(fx.totals)
+            .map(|(c, values)| ExcursionOutcome {
+                component_name: c.name,
+                variable_id: c.variable_id,
+                units: c.units,
+                values,
+            })
+            .collect(),
+        adjustments: vec![],
+        exposure: ExperimentExposure::NoInterference {
+            assumption: "assumption.no_cross_customer_spillover".into(),
+        },
+    };
+    let ctx = antecedent_core::ExecutionContext::for_tests(0);
+    let bound = compile_and_evidence_from_cluster(source, "exp-shipping-2026q3", &ctx).unwrap();
+    let ev = bound.numerical_evidence();
+    assert_eq!(ev.treated_means, reference.treated_means);
+    assert_eq!(ev.control_means, reference.control_means);
+    let Dependence::Joint { treated, control } = &ev.dependence else {
+        panic!("arm covariance required")
+    };
+    assert_eq!(treated, &reference.treated_covariance);
+    assert_eq!(control, &reference.control_covariance);
+    assert!(
+        derive(ev, &request(), &margin(InputBinding::Measured("cost".into())))
+            .unwrap()
+            .sampling
+            .is_some()
+    );
+    let bytes = bound.source().export_artifact().unwrap();
+    assert_eq!(
+        bound.source().prepared().consume_current(&bytes, &ctx).unwrap().law(),
+        bound.source().law()
+    );
+    assert!(
+        evidence_from_compiled_cluster(
+            bound.source().clone(),
+            "e",
+            ("different", "standard_shipping"),
+            4
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn static_regime_bootstrap_refits_outcomes_with_the_same_subject_weights() {
+    let n = 120;
+    let assigned: Vec<bool> = (0..n).map(|i| i % 2 == 0).collect();
+    let x: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.29).sin()).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| 2.0 + x[i] + if assigned[i] { 0.7 } else { 0.0 } + 0.1 * ((i * 7 % 13) as f64))
+        .collect();
+    let z: Vec<f64> = y.iter().map(|v| 2.0 * v).collect();
+    let design = compile_joint_static_regime(JointStaticRegimeDesign {
+        unit_ids: (0..n).map(|i| format!("u{i}")).collect(),
+        periods: vec![0; n],
+        realized_assignment: assigned,
+        confounder_ids: vec!["x".into()],
+        active_path: vec![true],
+        reference_path: vec![false],
+        method: "g_formula".into(),
+        min_probability: 0.05,
+        positivity_assumption_id: "positivity".into(),
+        exchangeability_assumption_id: "exchangeability".into(),
+        consistency_assumption_id: "consistency".into(),
+        followup_assumption_id: "followup".into(),
+        model_assumption_id: "specified-model".into(),
+    })
+    .unwrap();
+    let components = ["y", "z"]
+        .into_iter()
+        .map(|id| OutcomeComponent { name: id.into(), variable_id: id.into(), units: "u".into() })
+        .collect();
+    let ctx = antecedent_core::ExecutionContext::for_tests(7);
+    let bound = compile_and_evidence_from_joint_static_regime_bootstrap(
+        &design,
+        &[&y, &z],
+        std::slice::from_ref(&x),
+        "study",
+        "pop",
+        ("on", "off"),
+        components,
+        Exposure::NoBetweenUnitInterference { assumption_id: "isolation".into() },
+        99,
+        123,
+        &ctx,
+    )
+    .unwrap();
+    use antecedent_estimate::joint_design::compiled::JointNativeDesignLaw;
+    let JointNativeDesignLaw::StaticRegimeBootstrap(law) = bound.source().law() else {
+        panic!("bootstrap law required")
+    };
+    assert_eq!(law.realizations.len(), 99);
+    assert!(law.failures.iter().all(Option::is_none));
+    for row in law.realizations.iter().flatten() {
+        assert!((row[1] - 2.0 * row[0]).abs() < 1e-9);
+        assert!((row[3] - 2.0 * row[2]).abs() < 1e-9);
+    }
+    let covariance = law.covariance.as_ref().unwrap();
+    let rows: Vec<_> = law.realizations.iter().map(|v| v.as_ref().unwrap()).collect();
+    let means: Vec<f64> =
+        (0..4).map(|i| rows.iter().map(|row| row[i]).sum::<f64>() / rows.len() as f64).collect();
+    for i in 0..4 {
+        for j in 0..4 {
+            let reference =
+                rows.iter().map(|row| (row[i] - means[i]) * (row[j] - means[j])).sum::<f64>()
+                    / (rows.len() - 1) as f64;
+            assert!((covariance[4 * i + j] - reference).abs() < 1e-12);
+        }
+    }
+    assert!((covariance[1] - 2.0 * covariance[0]).abs() < 1e-10);
+    assert!((covariance[5] - 4.0 * covariance[0]).abs() < 1e-10);
+    let request = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 1,
+        target: Target::Regime {
+            periods: 1,
+            exchangeability_assumption_id: "exchangeability".into(),
+        },
+    };
+    let quantity = DerivedQuantity {
+        name: "y".into(),
+        units: "u".into(),
+        expr: UtilityExpr::Input(0),
+        inputs: vec![InputBinding::Measured("y".into())],
+    };
+    let result = derive(bound.numerical_evidence(), &request, &quantity).unwrap();
+    assert!(result.sampling.is_some());
+    assert_eq!((result.license, result.calibration), ("none", "unmeasured"));
+    let artifact = bound.source().export_artifact().unwrap();
+    assert_eq!(
+        bound.source().prepared().consume_current(&artifact, &ctx).unwrap().law(),
+        bound.source().law()
+    );
+    assert!(
+        decision_interval_calibration_basis(bound.numerical_evidence(), &request, &quantity)
+            .is_ok()
+    );
+}
+
+#[test]
+fn regime_bootstrap_does_not_drop_unsupported_refits() {
+    let design = compile_joint_static_regime(JointStaticRegimeDesign {
+        unit_ids: vec!["a".into(), "b".into()],
+        periods: vec![0, 0],
+        realized_assignment: vec![true, false],
+        confounder_ids: vec!["x".into()],
+        active_path: vec![true],
+        reference_path: vec![false],
+        method: "g_formula".into(),
+        min_probability: 0.05,
+        positivity_assumption_id: "positivity".into(),
+        exchangeability_assumption_id: "exchangeability".into(),
+        consistency_assumption_id: "consistency".into(),
+        followup_assumption_id: "followup".into(),
+        model_assumption_id: "specified-model".into(),
+    })
+    .unwrap();
+    let ctx = antecedent_core::ExecutionContext::for_tests(4);
+    let bound = compile_and_evidence_from_joint_static_regime_bootstrap(
+        &design,
+        &[&[1.0, 2.0]],
+        &[vec![0.0, 1.0]],
+        "e",
+        "pop",
+        ("on", "off"),
+        vec![OutcomeComponent { name: "y".into(), variable_id: "y".into(), units: "u".into() }],
+        Exposure::NoBetweenUnitInterference { assumption_id: "isolation".into() },
+        99,
+        11,
+        &ctx,
+    )
+    .unwrap();
+    use antecedent_estimate::joint_design::compiled::JointNativeDesignLaw;
+    let JointNativeDesignLaw::StaticRegimeBootstrap(law) = bound.source().law() else {
+        panic!("bootstrap law required")
+    };
+    assert!(law.failures.iter().any(Option::is_some));
+    assert_eq!(law.failures.len(), 99);
+    assert!(law.covariance.is_none());
+    assert!(matches!(bound.numerical_evidence().dependence, Dependence::PointOnly));
+}
+
+#[test]
+fn compiled_matched_pair_covariance_matches_rational_oracle() {
+    let n = 60;
+    let assignment: Vec<_> = (0..n).map(|i| i % 2 == (i / 2) % 2).collect();
+    let y: Vec<f64> = (0..n).map(|i| 2.0 + (i % 7) as f64 / 5.0 + (i / 2) as f64 / 10.0).collect();
+    let z: Vec<f64> = (0..n).map(|i| 4.0 + (i % 5) as f64 / 3.0 - (i / 2) as f64 / 20.0).collect();
+    let design = compile_matched_pair_design(MatchedPairDesign {
+        cluster_ids: (0..n).map(|i| format!("c{i}")).collect(),
+        pairs: (0..30).map(|i| (2 * i, 2 * i + 1)).collect(),
+        matching_variables: vec!["pre".into()],
+        treatment_probabilities: vec![0.5; n],
+        cluster_sizes: vec![1; n],
+        preassignment_assumption_id: "fixed".into(),
+        independent_pairs_assumption_id: "independent".into(),
+        consistency_assumption_id: "consistency".into(),
+    })
+    .unwrap();
+    let components = ["y", "z"]
+        .into_iter()
+        .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+        .collect();
+    let ctx = antecedent_core::ExecutionContext::for_tests(0);
+    let bound = compile_and_evidence_from_matched_pairs(
+        &design,
+        &[&y, &z],
+        &assignment,
+        "e",
+        "pop",
+        ("on", "off"),
+        1,
+        components,
+        Exposure::NoBetweenUnitInterference { assumption_id: "isolation".into() },
+        &ctx,
+    )
+    .unwrap();
+    let evidence = bound.numerical_evidence();
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("oracle_data/joint_matched_pair_reference.json"))
+            .unwrap();
+    for (actual, expected) in evidence
+        .treated_means
+        .iter()
+        .chain(&evidence.control_means)
+        .zip(reference["means"].as_array().unwrap())
+    {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    let Dependence::JointArms { covariance } = &evidence.dependence else {
+        panic!("joint covariance required")
+    };
+    for (actual, expected) in covariance.iter().zip(reference["covariance"].as_array().unwrap()) {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    let bytes = bound.source().export_artifact().unwrap();
+    assert_eq!(
+        bound.source().prepared().consume_current(&bytes, &ctx).unwrap().law(),
+        bound.source().law()
+    );
+}
+
+#[test]
+fn weighted_regime_refit_matches_exact_rational_reference() {
+    use antecedent_estimate::temporal_design::regime::{
+        RegimeMethod, RegimePanel, RegimeRows, StaticRegimes, regime_point_estimate_weighted,
+    };
+    let unit: Vec<usize> = (0..8).collect();
+    let period = vec![0; 8];
+    let x = vec![-1.0, 1.0, -1.0, 1.0, -1.0, 1.0, -1.0, 1.0];
+    let treatment = vec![false, false, true, true, false, false, true, true];
+    let weights = vec![1.0, 2.0, 3.0, 1.0, 2.0, 1.0, 1.0, 2.0];
+    let y: Vec<f64> = (0..8)
+        .map(|i| 2.0 + x[i] / 2.0 + (if treatment[i] { 0.75 } else { 0.0 }) + (i % 3) as f64 / 5.0)
+        .collect();
+    let panel = RegimePanel::new(RegimeRows {
+        unit: &unit,
+        period: &period,
+        outcome: &y,
+        treated: &treatment,
+        confounders: std::slice::from_ref(&x),
+    })
+    .unwrap();
+    let (values, _) = regime_point_estimate_weighted(
+        &panel,
+        StaticRegimes { active: &[true], reference: &[false] },
+        RegimeMethod::GFormula,
+        0.05,
+        &weights,
+    )
+    .unwrap();
+    let expected: serde_json::Value =
+        serde_json::from_str(include_str!("oracle_data/weighted_regime_reference.json")).unwrap();
+    assert!((values[1] - expected["active"].as_f64().unwrap()).abs() < 1e-10);
+    assert!((values[2] - expected["reference"].as_f64().unwrap()).abs() < 1e-10);
 }

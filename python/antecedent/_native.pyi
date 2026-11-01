@@ -10910,6 +10910,19 @@ class _JointPanelResult:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> _JointPanelExperiment: ...
+    def condition_excursion(
+        self,
+        declaration_json: str,
+        excursion_json: str,
+        component: str,
+        likelihood_assumption_id: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelExperiment: ...
     def report(self) -> str: ...
     def scheduled_contrast(self, functional_json: str, level: float) -> str: ...
     def certify_program(
@@ -11624,11 +11637,54 @@ def diagnose_data_json(
     column_types_json: str | None = None,
 ) -> str: ...
 def data_diagnostic_registry_json() -> str: ...
-
 def decision_evidence_compile(spec_json: str) -> tuple[str | None, str | None]: ...
-def decision_evidence_cluster_contrast(
-    totals: list[list[float]], assigned: list[bool], outcome_rows: int
-) -> str | None: ...
-def decision_evidence_experimental(payload_json: str, fit: bool) -> tuple[str | None, str | None]: ...
-def decision_evidence_proxy(payload_json: str) -> tuple[str | None, str | None]: ...
-def decision_evidence_evaluate(payload_json: str) -> tuple[str | None, str | None]: ...
+def decision_evidence_experimental(
+    payload_json: str,
+    fit: bool,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_temporal_bridge(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_proxy(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_evaluate(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_compiled_cluster(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def decision_evidence_excursion_quantity(
+    payload_json: str,
+    component: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...

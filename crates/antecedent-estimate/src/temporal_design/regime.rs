@@ -531,6 +531,30 @@ pub fn regime_point_estimate(
     Ok((point.values, point.minimum_probability))
 }
 
+/// Refit the point functional under explicit nonnegative whole-subject weights.
+/// This exposes the same nuisance-refitting owner for aligned multi-outcome resampling.
+///
+/// # Errors
+/// Invalid weights, unsupported regimes, positivity violations or an unsuccessful fit.
+pub fn regime_point_estimate_weighted(
+    panel: &RegimePanel,
+    regimes: StaticRegimes<'_>,
+    method: RegimeMethod,
+    floor: f64,
+    weights: &[f64],
+) -> Result<([f64; 3], f64), EstimationError> {
+    check_floor(floor)?;
+    check_regimes(panel, regimes)?;
+    if weights.len() != panel.units
+        || weights.iter().any(|v| !v.is_finite() || *v < 0.0)
+        || !weights.iter().any(|v| *v > 0.0)
+    {
+        return Err(invalid("subject weights must be aligned, finite, nonnegative and nonzero"));
+    }
+    let point = evaluate(panel, regimes, method, Some(weights), 0.0, floor)?;
+    Ok((point.values, point.minimum_probability))
+}
+
 /// Fit the contrast of two static regimes.
 ///
 /// `posterior_draws` selects the weighted-likelihood bootstrap with a Gaussian coefficient prior

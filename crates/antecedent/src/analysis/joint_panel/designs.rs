@@ -27,7 +27,7 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
-pub(crate) use native::replay_native_joint_design_execution;
+pub use native::replay_native_joint_design_execution;
 pub use native::{
     NativeJointDesignResult, NativeJointIdentification, PreparedNativeJointDesign,
     replay_native_joint_design, replay_native_joint_design_with_limits,
@@ -734,7 +734,8 @@ impl PreparedJointDesign {
             | JointDesignInference::SwitchbackExactRandomization { .. }
             | JointDesignInference::SyntheticConformal { .. } => 1,
             JointDesignInference::LocalComplierBayesian { draws, .. } => *draws,
-            JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
+            JointDesignInference::StaticRegimeBootstrap { replicates, .. }
+            | JointDesignInference::GaussianLongitudinalBootstrap { replicates, .. } => *replicates,
             JointDesignInference::GaussianLongitudinalBayesian { prior } => prior.draws,
             JointDesignInference::RandomizedGaussian { prior } => prior.draws,
             JointDesignInference::RandomizedFinitePopulationGaussian { prior } => prior.arm.draws,

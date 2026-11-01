@@ -1667,3 +1667,24 @@ mod gaussian_restriction {
         assert!(attempt.detail.contains("not Gaussian"), "{}", attempt.detail);
     }
 }
+
+#[test]
+fn compiled_excursion_bridge_preserves_source_and_current_authority() {
+    let ctx = cached_context(20_261_029);
+    let data = fixture::source_lag_zero();
+    let sampler = antecedent_estimate::joint_panel::PanelSamplingOptions {
+        chains: 2,
+        warmup: 20,
+        draws: 128,
+        max_rhat: 1.0e6,
+        min_ess: 1.0,
+        ..antecedent_estimate::joint_panel::PanelSamplingOptions::default()
+    };
+    let request = fixture::request_lag_zero(
+        &data,
+        PanelInference::Bayesian { prior: PanelPrior::default(), sampler },
+    );
+    let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
+    let result = prepared.estimate(&ctx).unwrap();
+    experiment_chain::verify_compiled_excursion_update(&result, &ctx);
+}

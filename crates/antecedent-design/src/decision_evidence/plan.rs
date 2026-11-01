@@ -122,10 +122,10 @@ pub fn plan_evidence(
             Candidate::MoreUnits { additional_units_per_arm, cost, .. } => {
                 if matches!(
                     evidence.design.assignment_design.as_str(),
-                    "matched_pairs" | "switchback"
+                    "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
                 ) {
                     evsi_rows.push(PlanRow { id: c.id().to_owned(), kind: EvidenceObligationKind::IncreaseSample,
-                        value: PlanValue::Refused("the more-units planning model has not been specified for matched pairs or switchback sequences".into()) });
+                        value: PlanValue::Refused("the more-units planning model has not been specified for matched pairs or temporal assignment sequences".into()) });
                     continue;
                 }
                 let value = (if base.derived.assumption_range.is_some() {

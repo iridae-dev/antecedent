@@ -97,7 +97,10 @@ pub fn decide_with_proxy(
     bridge: &ProxyBridge,
     frame: &DecisionFrame,
 ) -> Result<ProxyDecision, EvidenceRefusal> {
-    if !matches!(request.target, Target::ExperimentalContrast) {
+    if !matches!(
+        request.target,
+        Target::ExperimentalContrast | Target::Excursion { .. } | Target::Regime { .. }
+    ) {
         return Err(EvidenceRefusal::Invalid(
             "proxy effect mappings do not establish deployment extrapolation".into(),
         ));

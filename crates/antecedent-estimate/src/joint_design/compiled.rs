@@ -41,6 +41,26 @@ use super::{
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JointDesignRecipe {
+    /// Joint complete-randomization cluster coordinates.
+    DecisionCluster {
+        /// Original outcomes, assignment and fixed adjustment source.
+        recipe: super::cluster_decision::JointClusterRecipe,
+    },
+    /// Joint matched-pair or direct-effect switchback outcome coordinates.
+    DecisionExperiment {
+        /// Original assignment, measurements and scientific premises.
+        recipe: super::experiment::JointExperimentalRecipe,
+    },
+    /// Joint outcome coordinates for two observational static regimes.
+    StaticRegime {
+        /// Exact histories, paths and identifying premises.
+        recipe: super::static_regime::JointStaticRegimeRecipe,
+    },
+    /// Joint outcome coordinates for a sequentially randomized excursion.
+    Excursion {
+        /// Exact recorded source, assignment law, targets and premises.
+        recipe: super::excursion::JointExcursionRecipe,
+    },
     /// Factorial, multi-arm or geographical whole-program randomization.
     Randomized {
         /// Checked complete-program assignment contract.
@@ -102,6 +122,13 @@ pub enum JointDesignRecipe {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "inference", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JointDesignInference {
+    /// Whole-subject bootstrap with aligned refits across static-regime outcomes.
+    StaticRegimeBootstrap {
+        /// Number of complete refits, at least 99.
+        replicates: usize,
+        /// Deterministic resampling seed.
+        seed: u64,
+    },
     /// Native design point functional and complete-unit uncertainty.
     ///
     /// For Gaussian longitudinal designs the version-one compatibility recipe
@@ -227,6 +254,18 @@ impl JointDesignRecipe {
     #[must_use]
     pub fn functional(&self) -> &'static str {
         match self {
+            Self::DecisionCluster { .. } => {
+                "joint per-row arm means with conservative Neyman arm covariance under complete cluster randomization"
+            }
+            Self::DecisionExperiment { .. } => {
+                "joint arm means and independent-assignment-unit covariance under the declared experimental design"
+            }
+            Self::StaticRegime { .. } => {
+                "sequential static-regime point functional over measured histories"
+            }
+            Self::Excursion { .. } => {
+                "ratio of joint inverse-probability arm scores over paired decisions, with independent-unit covariance"
+            }
             Self::Randomized { .. } => {
                 "E[w_i 1(A_i=a) Y_i / p_i(a)] / E[w_i] for each complete program a"
             }
@@ -257,6 +296,10 @@ impl JointDesignRecipe {
     #[must_use]
     pub fn method(&self) -> &'static str {
         match self {
+            Self::DecisionCluster { .. } => "joint_design.decision_cluster",
+            Self::DecisionExperiment { .. } => "joint_design.decision_experiment",
+            Self::StaticRegime { .. } => "joint_design.static_regime_point",
+            Self::Excursion { .. } => "joint_design.sequential_excursion",
             Self::Randomized { .. } => "joint_design.whole_program_ht",
             Self::Longitudinal { .. } => "joint_design.full_history_gformula",
             Self::GaussianLongitudinal { .. } => "joint_design.gaussian_full_history_gformula",
@@ -297,6 +340,16 @@ impl JointDesignRecipe {
 /// Native typed output: a synthetic point without uncertainty is not a zero-variance law.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum JointNativeDesignLaw {
+    /// Whole-subject refits, retaining failed slots and optional joint covariance.
+    StaticRegimeBootstrap(super::static_regime::JointStaticRegimeBootstrap),
+    /// Joint cluster arm moments and per-arm conservative covariance bounds.
+    DecisionCluster(super::cluster_decision::JointClusterLaw),
+    /// Joint experimental arm-coordinate law.
+    DecisionExperiment(super::experiment::JointExperimentalLaw),
+    /// Multi-outcome regime point values without joint uncertainty.
+    StaticRegime(super::static_regime::JointStaticRegimeLaw),
+    /// Multi-outcome excursion law; coordinate meanings remain attached to the recipe.
+    Excursion(super::excursion::JointExcursionLaw),
     /// Native joint moments or a genuine aligned Bayesian mechanism law.
     Moments(JointDesignLaw),
     /// Local encouragement ratio, preserving its actual complier target and ratio uncertainty.
@@ -321,6 +374,30 @@ impl JointDesignRecipe {
             return Err("joint-design execution cancelled".into());
         }
         let result = match (self, inference) {
+            (
+                Self::StaticRegime { recipe },
+                JointDesignInference::StaticRegimeBootstrap { replicates, seed },
+            ) => {
+                let mut scoped = ctx.clone();
+                scoped.rng = antecedent_core::execution::RngFactory::from_seed(*seed);
+                super::static_regime::joint_static_regime_bootstrap(recipe, *replicates, &scoped)
+                    .map(JointNativeDesignLaw::StaticRegimeBootstrap)
+            }
+            (Self::DecisionCluster { recipe }, JointDesignInference::Frequentist) => {
+                super::cluster_decision::joint_cluster(recipe, ctx)
+                    .map(JointNativeDesignLaw::DecisionCluster)
+            }
+            (Self::DecisionExperiment { recipe }, JointDesignInference::Frequentist) => {
+                super::experiment::joint_experiment(recipe, ctx)
+                    .map(JointNativeDesignLaw::DecisionExperiment)
+            }
+            (Self::StaticRegime { recipe }, JointDesignInference::Frequentist) => {
+                super::static_regime::joint_static_regime(recipe, ctx)
+                    .map(JointNativeDesignLaw::StaticRegime)
+            }
+            (Self::Excursion { recipe }, JointDesignInference::Frequentist) => {
+                super::excursion::joint_excursion(recipe, ctx).map(JointNativeDesignLaw::Excursion)
+            }
             (Self::InstrumentedLocal { design, units }, JointDesignInference::Frequentist) => {
                 local_instrument_effect(design, units, None, ctx)
                     .map(JointNativeDesignLaw::LocalComplier)
@@ -395,6 +472,10 @@ impl JointDesignRecipe {
     #[must_use]
     pub fn target_kind(&self) -> &'static str {
         match self {
+            Self::DecisionCluster { .. } => "complete_cluster_randomized_arm_means",
+            Self::DecisionExperiment { .. } => "joint_experimental_arm_means",
+            Self::StaticRegime { .. } => "observational_static_regime_point",
+            Self::Excursion { .. } => "sequential_randomized_lagged_excursion",
             Self::Randomized { .. } => "whole_program_population_mean",
             Self::Switchback { .. } => "eligible_period_joint_history_mean",
             Self::Longitudinal { .. } | Self::GaussianLongitudinal { .. } => {

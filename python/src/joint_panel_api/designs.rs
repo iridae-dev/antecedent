@@ -342,7 +342,7 @@ pub(super) struct PyNativeJointDesignResult {
 #[pymethods]
 impl PyNativeJointDesignResult {
     fn report(&self) -> PyResult<String> {
-        serde_json::to_string(&serde_json::json!({"identification":self.inner.prepared().identification(),"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex()})).map_err(|e|crate::value_err(e.to_string()))
+        serde_json::to_string(&serde_json::json!({"identification":self.inner.prepared().identification(),"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex(),"support":self.inner.support(),"calibration":self.inner.calibration()})).map_err(|e|crate::value_err(e.to_string()))
     }
     fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
         let bytes = self.inner.export_artifact().map_err(panel_error)?;

@@ -42,6 +42,7 @@ mod expr;
 mod plan;
 mod proxy;
 mod reuse;
+mod temporal;
 
 use antecedent_core::CanonicalWriter;
 
@@ -54,6 +55,9 @@ pub use plan::{Candidate, EvidencePlan, PlanRow, PlanValue, PlanningModel, plan_
 pub use proxy::{ProxyBridge, ProxyDecision, ProxyMapping, decide_with_proxy};
 pub use reuse::{
     EvidenceLedger, LineageStatus, ReuseReceipt, Stage, StageDigests, StageStatus, reuse_receipt,
+};
+pub use temporal::{
+    TemporalBridgeDecision, TemporalEffectBridge, TemporalEstimand, decide_with_temporal_bridge,
 };
 
 pub use crate::decision_contract::UtilityExpr;
@@ -81,6 +85,12 @@ pub enum EvidenceRefusal {
     /// A declaration is malformed.
     #[error("invalid declaration: {0}")]
     Invalid(String),
+    /// The execution resource budget refused the operation.
+    #[error("resource limit: {0}")]
+    Resource(String),
+    /// The caller cancelled execution before a result was available.
+    #[error("execution cancelled")]
+    Cancelled,
     /// The requested population is not the experiment's population.
     #[error("requested population `{requested}` is not the experiment population `{available}`")]
     IncompatiblePopulation {
@@ -150,6 +160,8 @@ impl EvidenceRefusal {
     pub fn registered_code(&self) -> &'static str {
         match self {
             Self::Invalid(_) | Self::FrameShape => "decision_evidence_invalid",
+            Self::Resource(_) => "execution_resource_limit",
+            Self::Cancelled => "execution_cancelled",
             Self::IncompatiblePopulation { .. }
             | Self::IncompatibleIntervention { .. }
             | Self::IncompatibleHorizon { .. }
@@ -167,6 +179,8 @@ impl EvidenceRefusal {
     pub fn reason_code(&self) -> &'static str {
         match self {
             Self::Invalid(_) => "decision_evidence.invalid_declaration",
+            Self::Resource(_) => "decision_evidence.resource_limit",
+            Self::Cancelled => "decision_evidence.cancelled",
             Self::IncompatiblePopulation { .. } => "decision_evidence.incompatible_population",
             Self::IncompatibleIntervention { .. } => "decision_evidence.incompatible_intervention",
             Self::IncompatibleHorizon { .. } => "decision_evidence.incompatible_horizon",
@@ -187,6 +201,8 @@ impl EvidenceRefusal {
     pub fn next_attempt(&self) -> &'static str {
         match self {
             Self::Invalid(_) => "correct the declaration named in the message",
+            Self::Resource(_) => "increase the execution budget or reduce the requested work",
+            Self::Cancelled => "retry with a live cancellation context",
             Self::IncompatiblePopulation { .. } => {
                 "request the experiment's population, or bind evidence from the target population"
             }
@@ -306,6 +322,20 @@ pub enum Exposure {
 pub enum Target {
     /// The contrast the experiment randomized, in the experiment's population.
     ExperimentalContrast,
+    /// A sequentially randomized excursion at one decision with a declared outcome lag.
+    Excursion {
+        /// Number of periods between the randomized decision and the outcome.
+        lag: u32,
+        /// Identity of the recorded sequential randomization law.
+        assignment_law_id: String,
+    },
+    /// A whole static-regime contrast, with an explicit identification premise.
+    Regime {
+        /// Number of treatment decisions in the two paths.
+        periods: u32,
+        /// Identity of the declared sequential-exchangeability assumption.
+        exchangeability_assumption_id: String,
+    },
     /// A broader deployment policy, reached only through a declared structural assumption.
     Deployment {
         /// Identity of the structural bridge, when one is declared.
@@ -344,6 +374,8 @@ pub enum Dependence {
         /// Row-major `2K x 2K` covariance matrix.
         covariance: Vec<f64>,
     },
+    /// Point estimates only: no compatible joint sampling law or posterior is available.
+    PointOnly,
     /// Only marginal variances exist; the covariance between components is unknown.
     MarginalsOnly {
         /// Treated-arm variances.
@@ -387,6 +419,66 @@ pub enum DesignDetails {
         preassignment_assumption_id: String,
         /// Independent-pair assignment assumption.
         independent_pairs_assumption_id: String,
+        /// Consistency and treatment-version assumption.
+        consistency_assumption_id: String,
+    },
+    /// Sequentially randomized excursion schedule and identification assumptions.
+    TemporalExcursion {
+        /// Independent unit identity per observation row.
+        unit_ids: Vec<String>,
+        /// Period per observation row.
+        periods: Vec<i64>,
+        /// Recorded treatment assignment probability per decision row.
+        treatment_probabilities: Vec<f64>,
+        /// Realized assignments, aligned with observation rows.
+        realized_assignment: Vec<bool>,
+        /// Lag from decision to measured outcome.
+        lag: u32,
+        /// Declared positivity floor for both arms.
+        min_probability: f64,
+        /// Identity of the sequential assignment law.
+        assignment_law_id: String,
+        /// Independence assumption for units.
+        independent_units_assumption_id: String,
+        /// Assumption that unmatched outcomes are administrative end-of-follow-up.
+        administrative_followup_assumption_id: String,
+        /// Consistency and treatment-version assumption.
+        consistency_assumption_id: String,
+        /// Number of paired decisions actually used.
+        paired_decisions: usize,
+    },
+    /// Point-only observational static-regime analysis and identification assumptions.
+    TemporalRegime {
+        /// Subject identity for every row.
+        unit_ids: Vec<String>,
+        /// Period for every row.
+        periods: Vec<i64>,
+        /// Observed treatment history.
+        realized_assignment: Vec<bool>,
+        /// Per-outcome fitted minimum action probability, or `None` for the g-formula.
+        observed_minimum_probabilities: Vec<Option<f64>>,
+        /// Measured predecision confounder identities.
+        confounder_ids: Vec<String>,
+        /// Active static treatment path.
+        active_path: Vec<bool>,
+        /// Reference static treatment path.
+        reference_path: Vec<bool>,
+        /// Existing regime estimator used for the point value.
+        method: String,
+        /// Positivity threshold.
+        min_probability: f64,
+        /// Sequential positivity under the declared paths.
+        positivity_assumption_id: String,
+        /// Sequential exchangeability given recorded history.
+        exchangeability_assumption_id: String,
+        /// Consistency assumption.
+        consistency_assumption_id: String,
+        /// Complete follow-up assumption.
+        followup_assumption_id: String,
+        /// Correctness premise for the selected nuisance models.
+        model_assumption_id: String,
+        /// Number of aligned whole-subject bootstrap refits, if requested.
+        bootstrap_replicates: Option<usize>,
     },
     /// Switchback schedule, assignment probabilities and temporal assumptions.
     Switchback {
@@ -406,6 +498,8 @@ pub enum DesignDetails {
         washout_periods: usize,
         /// Independent-sequence assumption.
         independent_sequences_assumption_id: String,
+        /// Consistency and treatment-version assumption.
+        consistency_assumption_id: String,
     },
 }
 
@@ -535,6 +629,7 @@ impl JointExperimentEvidence {
                 check_cov(treated, true, k) && check_cov(control, true, k)
             }
             Dependence::JointArms { covariance } => check_cov(covariance, true, 2 * k),
+            Dependence::PointOnly => true,
             Dependence::MarginalsOnly { treated, control } => {
                 check_cov(treated, false, k) && check_cov(control, false, k)
             }
@@ -544,7 +639,12 @@ impl JointExperimentEvidence {
         }
         if !matches!(
             design.assignment_design.as_str(),
-            "cluster" | "complete" | "matched_pairs" | "switchback"
+            "cluster"
+                | "complete"
+                | "matched_pairs"
+                | "switchback"
+                | "temporal_excursion"
+                | "temporal_regime"
         ) {
             return Err(EvidenceRefusal::UnsupportedAssignmentDesign(design.assignment_design));
         }
@@ -635,8 +735,8 @@ impl JointExperimentEvidence {
         other: &Self,
         declared_independent: bool,
     ) -> Result<Self, EvidenceRefusal> {
-        if matches!(self.dependence, Dependence::JointArms { .. })
-            || matches!(other.dependence, Dependence::JointArms { .. })
+        if matches!(self.dependence, Dependence::JointArms { .. } | Dependence::PointOnly)
+            || matches!(other.dependence, Dependence::JointArms { .. } | Dependence::PointOnly)
         {
             return Err(EvidenceRefusal::DependenceUnknown {
                 left: self.evidence_id.clone(),
@@ -691,6 +791,7 @@ impl JointExperimentEvidence {
                             c.clone()
                         }
                     }
+                    Dependence::PointOnly => unreachable!("point-only evidence is refused above"),
                     Dependence::JointArms { .. } => {
                         unreachable!("joint arm dependence is refused above")
                     }
@@ -790,9 +891,13 @@ impl JointExperimentEvidence {
                 cluster_sizes,
                 preassignment_assumption_id,
                 independent_pairs_assumption_id,
+                consistency_assumption_id,
                 realized_assignment: _,
             }) => {
-                w.word(1).text(preassignment_assumption_id).text(independent_pairs_assumption_id);
+                w.word(1)
+                    .text(preassignment_assumption_id)
+                    .text(independent_pairs_assumption_id)
+                    .text(consistency_assumption_id);
                 w.word(cluster_ids.len() as u64).word(matching_variables.len() as u64);
                 for v in cluster_ids.iter().chain(matching_variables) {
                     w.text(v);
@@ -805,6 +910,90 @@ impl JointExperimentEvidence {
                     w.word(*n as u64);
                 }
             }
+            Some(DesignDetails::TemporalExcursion {
+                unit_ids,
+                periods,
+                treatment_probabilities,
+                realized_assignment: _,
+                lag,
+                min_probability,
+                assignment_law_id,
+                independent_units_assumption_id,
+                administrative_followup_assumption_id,
+                consistency_assumption_id,
+                paired_decisions,
+            }) => {
+                w.word(3)
+                    .word(u64::from(*lag))
+                    .real(*min_probability)
+                    .text(assignment_law_id)
+                    .text(independent_units_assumption_id)
+                    .text(administrative_followup_assumption_id)
+                    .text(consistency_assumption_id)
+                    .word(*paired_decisions as u64);
+                w.word(unit_ids.len() as u64);
+                for id in unit_ids {
+                    w.text(id);
+                }
+                w.word(periods.len() as u64);
+                for period in periods {
+                    w.text(&period.to_string());
+                }
+                w.reals(treatment_probabilities);
+            }
+            Some(DesignDetails::TemporalRegime {
+                unit_ids,
+                periods,
+                realized_assignment: _,
+                observed_minimum_probabilities: _,
+                confounder_ids,
+                active_path,
+                reference_path,
+                method,
+                min_probability,
+                positivity_assumption_id,
+                exchangeability_assumption_id,
+                consistency_assumption_id,
+                followup_assumption_id,
+                model_assumption_id,
+                bootstrap_replicates,
+            }) => {
+                w.word(4)
+                    .text(method)
+                    .real(*min_probability)
+                    .text(positivity_assumption_id)
+                    .text(exchangeability_assumption_id)
+                    .text(consistency_assumption_id)
+                    .text(followup_assumption_id)
+                    .text(model_assumption_id);
+                match bootstrap_replicates {
+                    Some(n) => {
+                        w.word(1).word(*n as u64);
+                    }
+                    None => {
+                        w.word(0);
+                    }
+                }
+                w.word(unit_ids.len() as u64);
+                for id in unit_ids {
+                    w.text(id);
+                }
+                for period in periods {
+                    w.text(&period.to_string());
+                }
+                w.word(confounder_ids.len() as u64);
+                for id in confounder_ids {
+                    w.text(id);
+                }
+                w.word(active_path.len() as u64);
+                for a in active_path {
+                    w.word(u64::from(*a));
+                }
+                w.word(reference_path.len() as u64);
+                for a in reference_path {
+                    w.word(u64::from(*a));
+                }
+            }
             Some(DesignDetails::Switchback {
                 sequence_ids,
                 period_ids,
@@ -813,13 +1002,15 @@ impl JointExperimentEvidence {
                 washout_rule_id,
                 washout_periods,
                 independent_sequences_assumption_id,
+                consistency_assumption_id,
                 realized_assignment: _,
             }) => {
                 w.word(2)
                     .text(no_carryover_assumption_id)
                     .text(washout_rule_id)
                     .word(*washout_periods as u64)
-                    .text(independent_sequences_assumption_id);
+                    .text(independent_sequences_assumption_id)
+                    .text(consistency_assumption_id);
                 w.word(sequence_ids.len() as u64).word(period_ids.len() as u64);
                 for s in sequence_ids.iter().chain(period_ids) {
                     w.text(s);
@@ -881,13 +1072,30 @@ impl JointExperimentEvidence {
             .text(&self.adjustment_identity());
         match &self.design_details {
             Some(DesignDetails::MatchedPairs { realized_assignment, .. })
-            | Some(DesignDetails::Switchback { realized_assignment, .. }) => {
+            | Some(DesignDetails::Switchback { realized_assignment, .. })
+            | Some(DesignDetails::TemporalExcursion { realized_assignment, .. })
+            | Some(DesignDetails::TemporalRegime { realized_assignment, .. }) => {
                 w.word(realized_assignment.len() as u64);
                 for assignment in realized_assignment {
                     w.word(u64::from(*assignment));
                 }
             }
             None => {}
+        }
+        if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) =
+            &self.design_details
+        {
+            w.word(observed_minimum_probabilities.len() as u64);
+            for p in observed_minimum_probabilities {
+                match p {
+                    Some(v) => {
+                        w.word(1).real(*v);
+                    }
+                    None => {
+                        w.word(0);
+                    }
+                }
+            }
         }
         w.word(self.design.treated_units as u64)
             .word(self.design.control_units as u64)
@@ -900,6 +1108,9 @@ impl JointExperimentEvidence {
             }
             Dependence::JointArms { covariance } => {
                 w.word(2).reals(covariance);
+            }
+            Dependence::PointOnly => {
+                w.word(3);
             }
             Dependence::MarginalsOnly { treated, control } => {
                 w.word(1).reals(treated).reals(control);

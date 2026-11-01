@@ -63,6 +63,144 @@ pub fn exercise_core(
     );
 }
 
+pub(super) fn verify_compiled_excursion_update(
+    original: &JointPanelResult,
+    ctx: &ExecutionContext,
+) {
+    use antecedent::decision_evidence::{
+        CompiledJointExcursion, Exposure, JointExcursionDesign, OutcomeComponent,
+        compile_and_evidence_from_joint_excursion, compile_joint_excursion,
+        compiled_excursion_quantity, condition_panel_on_compiled_excursion,
+    };
+    let units = 40usize;
+    let periods = 3usize;
+    let n = units * periods;
+    let assignment: Vec<_> = (0..n).map(|i| (i * 7 + i / periods) % 11 < 5).collect();
+    let y: Vec<_> = (0..n)
+        .map(|i| {
+            1.0 + (i / periods) as f64 * 0.01
+                + if i % periods > 0 && assignment[i - 1] { 0.2 } else { 0.0 }
+        })
+        .collect();
+    let design: CompiledJointExcursion = compile_joint_excursion(JointExcursionDesign {
+        unit_ids: (0..units).flat_map(|u| (0..periods).map(move |_| format!("geo-{u}"))).collect(),
+        periods: (0..units).flat_map(|_| 0..periods as i64).collect(),
+        treatment_probabilities: vec![0.5; n],
+        lag: 1,
+        min_probability: 0.1,
+        assignment_law_id: "weekly-law".into(),
+        independent_units_assumption_id: "independent-geos".into(),
+        administrative_followup_assumption_id: "administrative".into(),
+        consistency_assumption_id: "consistency".into(),
+    })
+    .unwrap();
+    let target = original.experiment_quantity(&JointPanelResponseFunctional::TerminalMean).unwrap();
+    let source = compile_and_evidence_from_joint_excursion(
+        &design,
+        &[&y],
+        &assignment,
+        "excursion",
+        &target.population_id,
+        ("on", "off"),
+        target.horizon,
+        vec![OutcomeComponent {
+            name: "y".into(),
+            variable_id: target.variable_id.clone(),
+            units: target.units.clone(),
+        }],
+        Exposure::NoBetweenUnitInterference { assumption_id: "isolation".into() },
+        ctx,
+    )
+    .unwrap();
+    let mut fixture = experiment_fixture(original);
+    let experiment = fixture
+        .ledger
+        .add_source(
+            SourceDeclaration::new(
+                source.source().dependency_identity().to_hex(),
+                SourceKind::Experiment,
+            )
+            .with_observations([ObservationId::from_key("excursion", b"original")]),
+        )
+        .unwrap();
+    fixture.update.evidence.experiment = experiment;
+    fixture.update.observed_mean =
+        source.numerical_evidence().treated_means[0] - source.numerical_evidence().control_means[0];
+    fixture.update.sample_size = units as u64;
+    fixture.update.bridge.source.quantity = compiled_excursion_quantity(&source, "y").unwrap();
+    fixture.update.bridge.evidence_scope = BridgeScope {
+        population_id: target.population_id.clone(),
+        regime_id: fixture.update.bridge.source.quantity.regime_id.clone(),
+    };
+    let translation = fixture.update.bridge.estimand_bridge.as_mut().unwrap();
+    translation.experiment_id = source.source().dependency_identity().to_hex();
+    translation.experiment.population_id = target.population_id.clone();
+    translation.experiment.exposure_regime =
+        fixture.update.bridge.source.quantity.regime_id.clone();
+    fixture.update.bridge.assumptions.push(BridgeAssumption { id: "gaussian-excursion".into(),
+        kind: AssumptionKind::Additional,
+        statement: "The excursion estimate has the explicitly declared Gaussian sampling model and known variance".into(),
+        evidence: None });
+    assert!(
+        condition_panel_on_compiled_excursion(
+            original,
+            source.clone(),
+            "y",
+            fixture.update.clone(),
+            "missing-assumption",
+            &fixture.ledger,
+            ctx
+        )
+        .is_err()
+    );
+    let mut wrong_source = fixture.update.clone();
+    wrong_source.bridge.estimand_bridge.as_mut().unwrap().experiment_id = "other-source".into();
+    assert!(
+        condition_panel_on_compiled_excursion(
+            original,
+            source.clone(),
+            "y",
+            wrong_source,
+            "gaussian-excursion",
+            &fixture.ledger,
+            ctx
+        )
+        .is_err()
+    );
+    let mut wrong = fixture.update.clone();
+    wrong.observed_mean += 0.1;
+    assert!(
+        condition_panel_on_compiled_excursion(
+            original,
+            source.clone(),
+            "y",
+            wrong,
+            "gaussian-excursion",
+            &fixture.ledger,
+            ctx
+        )
+        .is_err()
+    );
+    let updated = condition_panel_on_compiled_excursion(
+        original,
+        source,
+        "y",
+        fixture.update,
+        "gaussian-excursion",
+        &fixture.ledger,
+        ctx,
+    )
+    .unwrap();
+    let conditional = updated.law_source(&fixture.ledger).unwrap();
+    assert!(
+        conditional
+            .authorize(ScientificConsumptionScope::IdentifiedCausal, &fixture.ledger)
+            .is_err()
+    );
+    fixture.ledger.withdraw_source(experiment, "withdrawn").unwrap();
+    assert!(updated.law_source(&fixture.ledger).is_err());
+}
+
 fn verify_independent_likelihood_reference(
     original: &JointPanelResult,
     updated: &PanelExperimentResult,

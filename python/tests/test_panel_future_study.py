@@ -22,7 +22,7 @@ import pytest
 from antecedent import Execution, joint_panel
 from antecedent import joint_panel as jp
 from antecedent import scientific_bridge as sb
-from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.evidence_ledger import EvidenceLedger, SourceDeclaration, SourceRevision
 from antecedent.intervention_programs import minimum, var
 from antecedent.outcomes import require_success
@@ -340,3 +340,100 @@ def test_updates_keep_the_cached_fit_and_other_ledgers_unchanged():
     assert first_ledger is not second_ledger
     assert first.report(first_ledger) == second.report(second_ledger)
     assert fitted.report() == before
+
+
+def test_compiled_excursion_conditions_panel_only_under_explicit_bridge():
+    from antecedent import decision_evidence as de
+
+    result = _fitted()
+    report = result.report()
+    target = result.experiment_quantity("terminal_mean")
+    units, periods = 40, 3
+    n = units * periods
+    assigned = [(i * 7 + i // periods) % 11 < 5 for i in range(n)]
+    outcome = [
+        1.0 + 0.01 * (i // periods) + (0.2 if i % periods and assigned[i - 1] else 0.0)
+        for i in range(n)
+    ]
+    evidence = de.JointEvidence.from_experimental_design(
+        design={
+            "kind": "temporal_excursion",
+            "unit_ids": [f"geo-{i // periods}" for i in range(n)],
+            "periods": [i % periods for i in range(n)],
+            "treatment_probabilities": [0.5] * n,
+            "lag": 1,
+            "min_probability": 0.1,
+            "assignment_law_id": "weekly-law",
+            "independent_units_assumption_id": "independent-geos",
+            "administrative_followup_assumption_id": "administrative",
+            "consistency_assumption_id": "consistency",
+        },
+        outcomes=[outcome],
+        assigned=assigned,
+        evidence_id="excursion",
+        population_id=target.population_id,
+        treated_regime_id="on",
+        control_regime_id="off",
+        horizon=target.horizon,
+        components={"y": (target.variable_id, target.units)},
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="isolation",
+    )
+    source = evidence.excursion_quantity("y")
+    bridge = _bridge(target)
+    translation = replace(
+        bridge.estimand_bridge,
+        experiment_id=evidence.wire["design_contract_id"],
+        experiment=replace(bridge.estimand_bridge.experiment, exposure_regime=source.regime_id),
+    )
+    bridge = replace(
+        bridge,
+        source=source,
+        evidence_scope=sb.Scope(source.population_id, source.regime_id),
+        estimand_bridge=translation,
+        assumptions=(
+            *bridge.assumptions,
+            sb.Assumption(
+                "gaussian-excursion",
+                "additional",
+                "The excursion estimate follows the declared Gaussian sampling model with known variance",
+            ),
+        ),
+    )
+    ledger = EvidenceLedger()
+    dependency = report["dependency"]
+    model = ledger.add_source(SourceDeclaration(dependency, "fitted_model", [("model", "rows")]))
+    experiment = ledger.add_source(
+        SourceDeclaration(
+            evidence.wire["design_contract_id"], "experiment", [("excursion", "rows")]
+        )
+    )
+    mapping = ledger.add_source(SourceDeclaration("mapping", "fitted_model", [("mapping", "rows")]))
+    observed = evidence.wire["treated_means"][0] - evidence.wire["control_means"][0]
+    slots = len(report["draws"])
+    args = dict(
+        bridge=bridge,
+        ledger=ledger,
+        observed_mean=observed,
+        observation_variance=100.0,
+        sample_size=units,
+        mapping_dependency=dependency,
+        intercepts=[0.0] * slots,
+        slopes=[1.0] * slots,
+        model=model,
+        experiment=experiment,
+        mapping=mapping,
+    )
+    updated = result.condition_excursion(
+        evidence=evidence, component="y", likelihood_assumption_id="gaussian-excursion", **args
+    )
+    assert updated.report(ledger)["calibration"] == "unmeasured"
+    with pytest.raises(CausalValueError):
+        result.condition_excursion(
+            evidence=evidence, component="y", likelihood_assumption_id="missing", **args
+        )
+    require_success(
+        ledger.revise_source(require_success(SourceRevision.withdraw(experiment, "withdrawn")))
+    )
+    with pytest.raises((CausalValueError, CausalUnsupportedError), match="withdrawn"):
+        updated.report(ledger)

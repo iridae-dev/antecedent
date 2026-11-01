@@ -1,0 +1,22 @@
+feature_id = "decision_evidence.static_regime"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "A new approach to causal inference in mortality studies with a sustained exposure period — application to control of the healthy worker survivor effect", doi = "10.1016/0270-0255(86)90088-6", sections = ["Sequential treatment regimes, g-computation and treatment weighting"] },
+]
+implementation_deviations = [
+  "The existing observational static-regime g-formula, fitted inverse-probability weighting and doubly robust point functionals are evaluated separately for each outcome on the same complete recorded histories.",
+  "An explicitly selected whole-subject bootstrap uses the same refitting weights for every outcome and retains every failed slot; joint covariance is withheld if any refit fails. The default result is point-only. Sampling refits are not posterior draws, and the derived interval has no uncertainty license or measured calibration.",
+  "Sequential exchangeability, positivity, consistency, complete follow-up and isolation are declared assumptions; they are not inferred from numerical convergence.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/src/temporal_design/regime.rs",
+  "crates/antecedent/tests/decision_evidence_workflow.rs (observational_whole_regime_reuses_gformula_and_keeps_missing_joint_uncertainty, weighted_regime_refit_matches_exact_rational_reference, static_regime_bootstrap_refits_outcomes_with_the_same_subject_weights)",
+  "crates/antecedent/tests/oracle_data/weighted_regime_reference.py",
+  "crates/antecedent/tests/oracle_data/weighted_regime_reference.json",
+]

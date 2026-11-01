@@ -88,7 +88,46 @@ impl PyJointPanelResult {
         let inner = crate::detach_catch(py, || {
             self.inner.condition_experiment(update, &ledger, &ctx).map_err(panel_error)
         })?;
-        Ok(PyPanelExperiment { inner })
+        Ok(PyPanelExperiment { inner, _excursion: None })
+    }
+    #[pyo3(signature=(declaration_json,excursion_json,component,likelihood_assumption_id,ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn condition_excursion(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        excursion_json: &str,
+        component: &str,
+        likelihood_assumption_id: &str,
+        ledger: PyRef<'_, EvidenceLedgerHandle>,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<PyPanelExperiment> {
+        crate::bridge::check_declared_size(
+            excursion_json,
+            crate::decision_evidence_api::MAX_DECISION_SOURCE_JSON,
+            "compiled excursion evidence",
+        )?;
+        let update = parse_update(declaration_json)?;
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let source =
+            crate::decision_evidence_api::compiled_excursion_from_json(excursion_json, &ctx)?;
+        let ledger = ledger.ledger().clone();
+        let retained = crate::detach_catch(py, || {
+            antecedent::decision_evidence::condition_panel_on_compiled_excursion(
+                &self.inner,
+                source,
+                component,
+                update,
+                likelihood_assumption_id,
+                &ledger,
+                &ctx,
+            )
+            .map_err(panel_error)
+        })?;
+        let (inner, excursion) = retained.into_parts();
+        Ok(PyPanelExperiment { inner, _excursion: Some(excursion) })
     }
 }
 #[derive(Deserialize, serde::Serialize)]
@@ -149,6 +188,7 @@ impl antecedent_design::decision::Utility<Action, facade::PanelExperimentDecisio
 #[pyclass(name = "_JointPanelExperiment", frozen)]
 pub(crate) struct PyPanelExperiment {
     inner: facade::PanelExperimentResult,
+    _excursion: Option<antecedent::decision_evidence::CompiledExcursionEvidence>,
 }
 #[pymethods]
 impl PyPanelExperiment {

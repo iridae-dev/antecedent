@@ -396,6 +396,9 @@ impl core::clone::Clone for antecedent_design::decision_evidence::StageDigests
 impl core::clone::Clone for antecedent_design::decision_evidence::StageStatus
 impl core::clone::Clone for antecedent_design::decision_evidence::Standing
 impl core::clone::Clone for antecedent_design::decision_evidence::Target
+impl core::clone::Clone for antecedent_design::decision_evidence::TemporalBridgeDecision
+impl core::clone::Clone for antecedent_design::decision_evidence::TemporalEffectBridge
+impl core::clone::Clone for antecedent_design::decision_evidence::TemporalEstimand
 impl core::clone::Clone for antecedent_design::decision_evidence::UnresolvedReason
 impl core::clone::Clone for antecedent_design::decision_evidence::Verdict
 impl core::clone::Clone for antecedent_design::decision_reliability::BatchPlan
@@ -983,6 +986,7 @@ impl core::cmp::Eq for antecedent_design::decision_evidence::StageDigests
 impl core::cmp::Eq for antecedent_design::decision_evidence::StageStatus
 impl core::cmp::Eq for antecedent_design::decision_evidence::Standing
 impl core::cmp::Eq for antecedent_design::decision_evidence::Target
+impl core::cmp::Eq for antecedent_design::decision_evidence::TemporalEstimand
 impl core::cmp::Eq for antecedent_design::decision_evidence::UnresolvedReason
 impl core::cmp::Eq for antecedent_design::decision_reliability::BatchPlan
 impl core::cmp::Eq for antecedent_design::decision_reliability::BoundKind
@@ -1429,6 +1433,9 @@ impl core::cmp::PartialEq for antecedent_design::decision_evidence::StageDigests
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::StageStatus
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::Standing
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::Target
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::TemporalBridgeDecision
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::TemporalEffectBridge
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::TemporalEstimand
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::UnresolvedReason
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::Verdict
 impl core::cmp::PartialEq for antecedent_design::decision_reliability::BatchPlan
@@ -2281,6 +2288,9 @@ impl core::fmt::Debug for antecedent_design::decision_evidence::StageDigests
 impl core::fmt::Debug for antecedent_design::decision_evidence::StageStatus
 impl core::fmt::Debug for antecedent_design::decision_evidence::Standing
 impl core::fmt::Debug for antecedent_design::decision_evidence::Target
+impl core::fmt::Debug for antecedent_design::decision_evidence::TemporalBridgeDecision
+impl core::fmt::Debug for antecedent_design::decision_evidence::TemporalEffectBridge
+impl core::fmt::Debug for antecedent_design::decision_evidence::TemporalEstimand
 impl core::fmt::Debug for antecedent_design::decision_evidence::UnresolvedReason
 impl core::fmt::Debug for antecedent_design::decision_evidence::Verdict
 impl core::fmt::Debug for antecedent_design::decision_reliability::BatchPlan
@@ -3339,6 +3349,9 @@ impl core::marker::Freeze for antecedent_design::decision_evidence::StageDigests
 impl core::marker::Freeze for antecedent_design::decision_evidence::StageStatus [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::Standing [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::TemporalBridgeDecision [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::TemporalEffectBridge [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::TemporalEstimand [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::UnresolvedReason [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Freeze for antecedent_design::decision_reliability::BatchPlan [auto]
@@ -4106,6 +4119,9 @@ impl core::marker::Send for antecedent_design::decision_evidence::StageDigests [
 impl core::marker::Send for antecedent_design::decision_evidence::StageStatus [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::Standing [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::TemporalBridgeDecision [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::TemporalEffectBridge [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::TemporalEstimand [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::UnresolvedReason [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Send for antecedent_design::decision_reliability::BatchPlan [auto]
@@ -4820,6 +4836,9 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence:
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::StageStatus
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Standing
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Target
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::TemporalBridgeDecision
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::TemporalEffectBridge
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::TemporalEstimand
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::UnresolvedReason
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Verdict
 impl core::marker::StructuralPartialEq for antecedent_design::decision_reliability::BatchPlan
@@ -5539,6 +5558,9 @@ impl core::marker::Sync for antecedent_design::decision_evidence::StageDigests [
 impl core::marker::Sync for antecedent_design::decision_evidence::StageStatus [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::Standing [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::TemporalBridgeDecision [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::TemporalEffectBridge [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::TemporalEstimand [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::UnresolvedReason [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Sync for antecedent_design::decision_reliability::BatchPlan [auto]
@@ -6307,6 +6329,9 @@ impl core::marker::Unpin for antecedent_design::decision_evidence::StageDigests 
 impl core::marker::Unpin for antecedent_design::decision_evidence::StageStatus [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::Standing [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::Target [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::TemporalBridgeDecision [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::TemporalEffectBridge [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::TemporalEstimand [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::UnresolvedReason [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::Verdict [auto]
 impl core::marker::Unpin for antecedent_design::decision_reliability::BatchPlan [auto]
@@ -7074,6 +7099,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::StageStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Standing [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Target [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::TemporalBridgeDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::TemporalEffectBridge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::TemporalEstimand [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::UnresolvedReason [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Verdict [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_reliability::BatchPlan [auto]
@@ -7831,6 +7859,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eviden
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::StageStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Standing [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Target [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::TemporalBridgeDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::TemporalEffectBridge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::TemporalEstimand [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::UnresolvedReason [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Verdict [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_reliability::BatchPlan [auto]
@@ -9138,6 +9169,7 @@ pub enum antecedent_design::decision_evidence::Stage
 pub enum antecedent_design::decision_evidence::StageStatus
 pub enum antecedent_design::decision_evidence::Standing
 pub enum antecedent_design::decision_evidence::Target
+pub enum antecedent_design::decision_evidence::TemporalEstimand
 pub enum antecedent_design::decision_evidence::UnresolvedReason
 pub enum antecedent_design::decision_evidence::Verdict
 pub enum antecedent_design::decision_reliability::BatchPlan
@@ -10115,6 +10147,16 @@ pub field antecedent_design::decision_evidence::SamplingInterval::estimate: f64
 pub field antecedent_design::decision_evidence::SamplingInterval::lower: f64
 pub field antecedent_design::decision_evidence::SamplingInterval::standard_error: f64
 pub field antecedent_design::decision_evidence::SamplingInterval::upper: f64
+pub field antecedent_design::decision_evidence::TemporalBridgeDecision::decision: antecedent_design::decision_evidence::ProxyDecision
+pub field antecedent_design::decision_evidence::TemporalBridgeDecision::identity: alloc::string::String
+pub field antecedent_design::decision_evidence::TemporalBridgeDecision::source: antecedent_design::decision_evidence::TemporalEstimand
+pub field antecedent_design::decision_evidence::TemporalBridgeDecision::target: antecedent_design::decision_evidence::TemporalEstimand
+pub field antecedent_design::decision_evidence::TemporalEffectBridge::mapping: antecedent_design::decision_evidence::ProxyMapping
+pub field antecedent_design::decision_evidence::TemporalEffectBridge::source: antecedent_design::decision_evidence::TemporalEstimand
+pub field antecedent_design::decision_evidence::TemporalEffectBridge::source_component: alloc::string::String
+pub field antecedent_design::decision_evidence::TemporalEffectBridge::target: antecedent_design::decision_evidence::TemporalEstimand
+pub field antecedent_design::decision_evidence::TemporalEffectBridge::target_units: alloc::string::String
+pub field antecedent_design::decision_evidence::TemporalEffectBridge::target_variable_id: alloc::string::String
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::adaptively_generated: bool
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::candidate_set_size: u64
 pub field antecedent_design::decision_reliability::CalibrationCoordinate::coupling: antecedent_design::decision_reliability::CandidateCoupling
@@ -12533,6 +12575,7 @@ pub fn antecedent_design::decision_evidence::adjustment_verdicts(design: &str) -
 pub fn antecedent_design::decision_evidence::compile_joint_experiment(spec: antecedent_design::decision_evidence::JointExperimentSpec) -> core::result::Result<antecedent_design::decision_evidence::CompiledJointExperiment, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::decide(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame) -> core::result::Result<antecedent_design::decision_evidence::DecisionResult, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::decide_with_proxy(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, bridge: &antecedent_design::decision_evidence::ProxyBridge, frame: &antecedent_design::decision_evidence::DecisionFrame) -> core::result::Result<antecedent_design::decision_evidence::ProxyDecision, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent_design::decision_evidence::decide_with_temporal_bridge(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, bridge: &antecedent_design::decision_evidence::TemporalEffectBridge, frame: &antecedent_design::decision_evidence::DecisionFrame) -> core::result::Result<antecedent_design::decision_evidence::TemporalBridgeDecision, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::decision_interval_calibration_basis(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::derive(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity) -> core::result::Result<antecedent_design::decision_evidence::DerivedResult, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::plan_evidence(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame, candidates: &[antecedent_design::decision_evidence::Candidate]) -> core::result::Result<antecedent_design::decision_evidence::EvidencePlan, antecedent_design::decision_evidence::EvidenceRefusal>
@@ -12986,6 +13029,8 @@ pub struct antecedent_design::decision_evidence::ReuseReceipt
 pub struct antecedent_design::decision_evidence::SamplingInterval
 pub struct antecedent_design::decision_evidence::StageDigests
 pub struct antecedent_design::decision_evidence::StageDigests has private fields
+pub struct antecedent_design::decision_evidence::TemporalBridgeDecision
+pub struct antecedent_design::decision_evidence::TemporalEffectBridge
 pub struct antecedent_design::decision_reliability::CalibrationCoordinate
 pub struct antecedent_design::decision_reliability::CandidateDraws
 pub struct antecedent_design::decision_reliability::CandidateEstimate
@@ -14088,9 +14133,13 @@ pub variant antecedent_design::decision_evidence::Candidate::ResolveAssumption {
 pub variant antecedent_design::decision_evidence::Dependence::Joint { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::JointArms { covariance: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::MarginalsOnly { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
-pub variant antecedent_design::decision_evidence::DesignDetails::MatchedPairs { cluster_ids: alloc::vec::Vec<alloc::string::String>, pairs: alloc::vec::Vec<(usize, usize)>, matching_variables: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, cluster_sizes: alloc::vec::Vec<usize>, realized_assignment: alloc::vec::Vec<bool>, preassignment_assumption_id: alloc::string::String, independent_pairs_assumption_id: alloc::string::String }
-pub variant antecedent_design::decision_evidence::DesignDetails::Switchback { sequence_ids: alloc::vec::Vec<alloc::string::String>, period_ids: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, realized_assignment: alloc::vec::Vec<bool>, no_carryover_assumption_id: alloc::string::String, washout_rule_id: alloc::string::String, washout_periods: usize, independent_sequences_assumption_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::Dependence::PointOnly
+pub variant antecedent_design::decision_evidence::DesignDetails::MatchedPairs { cluster_ids: alloc::vec::Vec<alloc::string::String>, pairs: alloc::vec::Vec<(usize, usize)>, matching_variables: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, cluster_sizes: alloc::vec::Vec<usize>, realized_assignment: alloc::vec::Vec<bool>, preassignment_assumption_id: alloc::string::String, independent_pairs_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::DesignDetails::Switchback { sequence_ids: alloc::vec::Vec<alloc::string::String>, period_ids: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, realized_assignment: alloc::vec::Vec<bool>, no_carryover_assumption_id: alloc::string::String, washout_rule_id: alloc::string::String, washout_periods: usize, independent_sequences_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::DesignDetails::TemporalExcursion { unit_ids: alloc::vec::Vec<alloc::string::String>, periods: alloc::vec::Vec<i64>, treatment_probabilities: alloc::vec::Vec<f64>, realized_assignment: alloc::vec::Vec<bool>, lag: u32, min_probability: f64, assignment_law_id: alloc::string::String, independent_units_assumption_id: alloc::string::String, administrative_followup_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String, paired_decisions: usize }
+pub variant antecedent_design::decision_evidence::DesignDetails::TemporalRegime { unit_ids: alloc::vec::Vec<alloc::string::String>, periods: alloc::vec::Vec<i64>, realized_assignment: alloc::vec::Vec<bool>, observed_minimum_probabilities: alloc::vec::Vec<core::option::Option<f64>>, confounder_ids: alloc::vec::Vec<alloc::string::String>, active_path: alloc::vec::Vec<bool>, reference_path: alloc::vec::Vec<bool>, method: alloc::string::String, min_probability: f64, positivity_assumption_id: alloc::string::String, exchangeability_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String, followup_assumption_id: alloc::string::String, model_assumption_id: alloc::string::String, bootstrap_replicates: core::option::Option<usize> }
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::AdjustmentNotAdmissible { strategy: alloc::string::String, design: alloc::string::String, reason: alloc::string::String }
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::Cancelled
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::DependenceUnknown { left: alloc::string::String, right: alloc::string::String }
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::DeploymentBridgeMissing
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::FrameShape
@@ -14099,6 +14148,7 @@ pub variant antecedent_design::decision_evidence::EvidenceRefusal::IncompatibleI
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::IncompatiblePopulation { requested: alloc::string::String, available: alloc::string::String }
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::InterferenceUnspecified
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::Invalid(alloc::string::String)
+pub variant antecedent_design::decision_evidence::EvidenceRefusal::Resource(alloc::string::String)
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::TooManyUnknowns(usize)
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::UnsupportedAssignmentDesign(alloc::string::String)
 pub variant antecedent_design::decision_evidence::Exposure::BoundedArmSpillover { assumption_id: alloc::string::String, treated_bias_bounds: alloc::vec::Vec<f64>, control_bias_bounds: alloc::vec::Vec<f64> }
@@ -14127,7 +14177,14 @@ pub variant antecedent_design::decision_evidence::Standing::AssumptionDependent
 pub variant antecedent_design::decision_evidence::Standing::Sampled
 pub variant antecedent_design::decision_evidence::Standing::Unresolved
 pub variant antecedent_design::decision_evidence::Target::Deployment { bridge_assumption_id: core::option::Option<alloc::string::String> }
+pub variant antecedent_design::decision_evidence::Target::Excursion { lag: u32, assignment_law_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::Target::ExperimentalContrast
+pub variant antecedent_design::decision_evidence::Target::Regime { periods: u32, exchangeability_assumption_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::TemporalEstimand::AdaptiveRegime { active_regime_id: alloc::string::String, reference_regime_id: alloc::string::String, horizon: u32 }
+pub variant antecedent_design::decision_evidence::TemporalEstimand::Excursion { lag: u32, assignment_law_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::TemporalEstimand::FixedSchedule { active_schedule_id: alloc::string::String, reference_schedule_id: alloc::string::String, horizon: u32 }
+pub variant antecedent_design::decision_evidence::TemporalEstimand::ModelResponse { model_id: alloc::string::String, active_schedule_id: alloc::string::String, reference_schedule_id: alloc::string::String, horizon: u32 }
+pub variant antecedent_design::decision_evidence::TemporalEstimand::StaticRegime { active_regime_id: alloc::string::String, reference_regime_id: alloc::string::String, horizon: u32, exchangeability_assumption_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::UnresolvedReason::JointLawMissing
 pub variant antecedent_design::decision_evidence::UnresolvedReason::MissingInput { what: alloc::string::String }
 pub variant antecedent_design::decision_evidence::UnresolvedReason::SamplingStraddlesThreshold

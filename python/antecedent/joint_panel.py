@@ -383,6 +383,20 @@ class PanelResult:
 
         return condition(self._handle, **declaration)
 
+    def condition_excursion(
+        self, *, evidence: Any, component: str, likelihood_assumption_id: str, **declaration: Any
+    ) -> PanelExperiment:
+        """Condition on a retained excursion through an explicit model-conditional bridge."""
+        from ._joint_panel_experiment import condition_excursion
+
+        return condition_excursion(
+            self._handle,
+            evidence=evidence,
+            component=component,
+            likelihood_assumption_id=likelihood_assumption_id,
+            **declaration,
+        )
+
     @property
     def execution_facts(self) -> Any:
         """Engine-owned resource/operation measurements for this execution."""

@@ -669,46 +669,62 @@ fn measure_decision_margin(test: &'static str, centered: bool) {
     );
     for (interval, basis) in map_replicates(n_sim(), |rep| {
         let assigned = assign(n, Assignment::Complete(n / 2), grid_seed(0x6150_0000 + rep));
-        let mut y0: Vec<f64> = (0..n).map(|i| if assigned[i] { t0[i] } else { c0[i] }).collect();
+        use antecedent_estimate::joint_design::{
+            cluster_decision::{FixedClusterAdjustment, JointClusterRecipe},
+            excursion::ExcursionOutcome,
+            experiment::ExperimentExposure,
+        };
+        let y0: Vec<f64> = (0..n).map(|i| if assigned[i] { t0[i] } else { c0[i] }).collect();
         let y1: Vec<f64> = (0..n).map(|i| if assigned[i] { t1[i] } else { c1[i] }).collect();
         let adjustments = if centered {
-            y0 = centered_fixed_cuped_totals(&y0, &pre, &sizes, 0.4).unwrap();
-            vec![ComponentAdjustment {
-                component: "frequency".into(),
-                kind: AdjustmentKind::CenteredFixedCuped {
-                    covariate: "pre".into(),
-                    coefficient: 0.4,
-                },
+            vec![FixedClusterAdjustment {
+                component_name: "frequency".into(),
+                covariate: "pre".into(),
+                coefficient: 0.4,
+                pretreatment_totals: pre.clone(),
+                centered: true,
+                preassignment: "fixed_before_assignment".into(),
             }]
         } else {
             vec![]
         };
-        let contrast = complete_cluster_joint_contrast(&[&y0, &y1], &assigned, rows).unwrap();
-        let components = ["frequency", "value"]
-            .into_iter()
-            .map(|name| OutcomeComponent {
-                name: name.into(),
-                variable_id: name.into(),
-                units: "u".into(),
-            })
-            .collect();
-        let ev = evidence_from_cluster_contrast(
-            &contrast,
-            "calibration_evidence",
-            "calibration_population",
-            ("treated", "control"),
-            1,
-            components,
-            rows,
+        let recipe = JointClusterRecipe {
+            population: "calibration_population".into(),
+            treated_regime_id: "treated".into(),
+            control_regime_id: "control".into(),
+            horizon: 1,
+            cluster_ids: (0..n).map(|i| format!("cluster-{i}")).collect(),
+            cluster_sizes: sizes.clone(),
+            assignment_law: "complete_randomization".into(),
+            treated_clusters: n / 2,
+            consistency: "consistency".into(),
+            assignments: assigned,
+            outcomes: vec![
+                ExcursionOutcome {
+                    component_name: "frequency".into(),
+                    variable_id: "frequency".into(),
+                    units: "u".into(),
+                    values: y0,
+                },
+                ExcursionOutcome {
+                    component_name: "value".into(),
+                    variable_id: "value".into(),
+                    units: "u".into(),
+                    values: y1,
+                },
+            ],
             adjustments,
-            Exposure::NoBetweenUnitInterference {
-                assumption_id: "no_between_cluster_interference".into(),
+            exposure: ExperimentExposure::NoInterference {
+                assumption: "no_between_cluster_interference".into(),
             },
-        )
-        .unwrap();
-        let result = derive(&ev, &request, &quantity).unwrap();
+        };
+        let ctx = ExecutionContext::for_tests(grid_seed(0x6150_0000 + rep));
+        let retained =
+            compile_and_evidence_from_cluster(recipe, "calibration_evidence", &ctx).unwrap();
+        let ev = retained.numerical_evidence();
+        let result = derive(ev, &request, &quantity).unwrap();
         let interval = result.sampling.map(|s| (s.lower, s.upper));
-        let basis = decision_interval_calibration_basis(&ev, &request, &quantity).unwrap();
+        let basis = decision_interval_calibration_basis(ev, &request, &quantity).unwrap();
         (interval, basis)
     }) {
         let construction = Construction {
@@ -768,6 +784,7 @@ fn decision_margin_matched_pair_delta_interval() {
         cluster_sizes: vec![1; n],
         preassignment_assumption_id: "fixed".into(),
         independent_pairs_assumption_id: "independent".into(),
+        consistency_assumption_id: "consistency".into(),
     })
     .unwrap();
     let q = DerivedQuantity {
@@ -815,7 +832,8 @@ fn decision_margin_matched_pair_delta_interval() {
             .into_iter()
             .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
             .collect();
-        let ev = evidence_from_matched_pairs(
+        let ctx = ExecutionContext::for_tests(grid_seed(0x8810_0000 + rep));
+        let retained = compile_and_evidence_from_matched_pairs(
             &design,
             &[&a, &b],
             &assigned,
@@ -825,10 +843,12 @@ fn decision_margin_matched_pair_delta_interval() {
             1,
             components,
             Exposure::NoBetweenUnitInterference { assumption_id: "none".into() },
+            &ctx,
         )
         .unwrap();
-        let interval = derive(&ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
-        let basis = decision_interval_calibration_basis(&ev, &req, &q).unwrap();
+        let ev = retained.numerical_evidence();
+        let interval = derive(ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(ev, &req, &q).unwrap();
         (interval, basis)
     }) {
         bind_decision_candidate(&mut tally, &basis);
@@ -855,6 +875,7 @@ fn decision_margin_switchback_delta_interval() {
         washout_rule_id: "zero".into(),
         washout_periods: 0,
         independent_sequences_assumption_id: "independent".into(),
+        consistency_assumption_id: "consistency".into(),
     })
     .unwrap();
     let q = DerivedQuantity {
@@ -899,7 +920,8 @@ fn decision_margin_switchback_delta_interval() {
             .into_iter()
             .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
             .collect();
-        let ev = evidence_from_joint_switchback(
+        let ctx = ExecutionContext::for_tests(grid_seed(0x8820_0000 + rep));
+        let retained = compile_and_evidence_from_joint_switchback(
             &design,
             &[&a, &b],
             &assigned,
@@ -909,10 +931,12 @@ fn decision_margin_switchback_delta_interval() {
             1,
             components,
             Exposure::NoBetweenUnitInterference { assumption_id: "none".into() },
+            &ctx,
         )
         .unwrap();
-        let interval = derive(&ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
-        let basis = decision_interval_calibration_basis(&ev, &req, &q).unwrap();
+        let ev = retained.numerical_evidence();
+        let interval = derive(ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(ev, &req, &q).unwrap();
         (interval, basis)
     }) {
         bind_decision_candidate(&mut tally, &basis);
@@ -947,4 +971,193 @@ fn bind_decision_candidate(tally: &mut CoverageTally, basis: &antecedent_core::C
         },
         &basis.validation,
     );
+}
+
+/// Registered, unmeasured coverage design for a lagged randomized excursion margin.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_lagged_excursion_delta_interval() {
+    use antecedent::decision_evidence::*;
+    let units = grid_n(80);
+    let periods = 5;
+    let n = units * periods;
+    let design = compile_joint_excursion(JointExcursionDesign {
+        unit_ids: (0..units).flat_map(|u| (0..periods).map(move |_| format!("u-{u}"))).collect(),
+        periods: (0..units).flat_map(|_| (0..periods).map(|p| p as i64)).collect(),
+        treatment_probabilities: vec![0.5; n],
+        lag: 1,
+        min_probability: 0.1,
+        assignment_law_id: "independent-half".into(),
+        independent_units_assumption_id: "independent-units".into(),
+        administrative_followup_assumption_id: "end-of-study".into(),
+        consistency_assumption_id: "consistency".into(),
+    })
+    .unwrap();
+    let req = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 4,
+        target: Target::Excursion { lag: 1, assignment_law_id: "independent-half".into() },
+    };
+    let q = DerivedQuantity {
+        name: "lagged_excursion_calibration_margin".into(),
+        units: "u".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![
+            InputBinding::Measured("frequency".into()),
+            InputBinding::Measured("value".into()),
+        ],
+    };
+    let baseline: Vec<f64> = (0..units).map(|u| (u as f64 * 0.19).sin()).collect();
+    let avg = baseline.iter().sum::<f64>() / units as f64;
+    let truth = (3.0 + avg) * (5.6 + 0.5 * avg) - (2.0 + avg) * (5.0 + 0.5 * avg);
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "decision_margin_lagged_excursion_delta_interval",
+            dgp: "fixed_lagged_excursion_margin",
+            interval: "delta_method_normal_95",
+        },
+        REPORTED_LEVEL,
+    );
+    for (interval, basis) in map_replicates(n_sim(), |rep| {
+        let mut rng = ExecutionContext::for_tests(grid_seed(0x8830_0000 + rep))
+            .rng
+            .stream_for(StreamDomain::Test, 0x8830);
+        let assigned: Vec<bool> = (0..n).map(|_| rng.next_f64() < 0.5).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| {
+                2.0 + baseline[i / periods]
+                    + if i % periods > 0 && assigned[i - 1] { 1.0 } else { 0.0 }
+            })
+            .collect();
+        let z: Vec<f64> = (0..n)
+            .map(|i| {
+                5.0 + 0.5 * baseline[i / periods]
+                    + if i % periods > 0 && assigned[i - 1] { 0.6 } else { 0.0 }
+            })
+            .collect();
+        let components = ["frequency", "value"]
+            .into_iter()
+            .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+            .collect();
+        let ctx = ExecutionContext::for_tests(grid_seed(0x8830_0000 + rep));
+        let retained = compile_and_evidence_from_joint_excursion(
+            &design,
+            &[&y, &z],
+            &assigned,
+            "e",
+            "pop",
+            ("on", "off"),
+            4,
+            components,
+            Exposure::NoBetweenUnitInterference { assumption_id: "no-spill".into() },
+            &ctx,
+        )
+        .unwrap();
+        let ev = retained.numerical_evidence();
+        let interval = derive(ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(ev, &req, &q).unwrap();
+        (interval, basis)
+    }) {
+        bind_decision_candidate(&mut tally, &basis);
+        tally.record(interval, truth);
+    }
+    tally.assert();
+}
+
+/// Registered, unmeasured joint whole-subject regime bootstrap margin design.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_static_regime_bootstrap_delta_interval() {
+    use antecedent::decision_evidence::*;
+    let n = grid_n(100);
+    let unit_ids: Vec<String> = (0..n).map(|i| format!("u-{i}")).collect();
+    let x: Vec<f64> = (0..n).map(|i| (i as f64 * 0.19).sin()).collect();
+    let mean_x = x.iter().sum::<f64>() / n as f64;
+    let truth = (2.5 + mean_x) * (4.8 + 0.5 * mean_x) - (2.0 + mean_x) * (4.0 + 0.5 * mean_x);
+    let quantity = DerivedQuantity {
+        name: "static_regime_margin".into(),
+        units: "u".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![
+            InputBinding::Measured("frequency".into()),
+            InputBinding::Measured("value".into()),
+        ],
+    };
+    let request = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "on".into(),
+        control_regime_id: "off".into(),
+        horizon: 1,
+        target: Target::Regime {
+            periods: 1,
+            exchangeability_assumption_id: "randomization".into(),
+        },
+    };
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "decision_margin_static_regime_bootstrap_delta_interval",
+            dgp: "fixed_single_period_regime_margin",
+            interval: "delta_method_normal_95",
+        },
+        REPORTED_LEVEL,
+    );
+    for (interval, basis) in map_replicates(n_sim(), |rep| {
+        let ctx = ExecutionContext::for_tests(grid_seed(0x8840_0000 + rep));
+        let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0x8840);
+        let assigned: Vec<bool> = (0..n).map(|_| rng.next_f64() < 0.5).collect();
+        let noise: Vec<f64> = (0..n).map(|_| rng.next_f64() - 0.5).collect();
+        let y: Vec<f64> = (0..n)
+            .map(|i| 2.0 + x[i] + (if assigned[i] { 0.5 } else { 0.0 }) + 0.2 * noise[i])
+            .collect();
+        let z: Vec<f64> = (0..n)
+            .map(|i| 4.0 + 0.5 * x[i] + (if assigned[i] { 0.8 } else { 0.0 }) + 0.3 * noise[i])
+            .collect();
+        let design = compile_joint_static_regime(JointStaticRegimeDesign {
+            unit_ids: unit_ids.clone(),
+            periods: vec![0; n],
+            realized_assignment: assigned,
+            confounder_ids: vec!["x".into()],
+            active_path: vec![true],
+            reference_path: vec![false],
+            method: "g_formula".into(),
+            min_probability: 0.05,
+            positivity_assumption_id: "positivity".into(),
+            exchangeability_assumption_id: "randomization".into(),
+            consistency_assumption_id: "consistency".into(),
+            followup_assumption_id: "complete".into(),
+            model_assumption_id: "specified-model".into(),
+        })
+        .unwrap();
+        let components = ["frequency", "value"]
+            .into_iter()
+            .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+            .collect();
+        let bound = compile_and_evidence_from_joint_static_regime_bootstrap(
+            &design,
+            &[&y, &z],
+            std::slice::from_ref(&x),
+            "e",
+            "pop",
+            ("on", "off"),
+            components,
+            Exposure::NoBetweenUnitInterference { assumption_id: "isolation".into() },
+            99,
+            grid_seed(0x8850_0000 + rep),
+            &ctx,
+        )
+        .unwrap();
+        let ev = bound.numerical_evidence();
+        let interval =
+            derive(ev, &request, &quantity).unwrap().sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(ev, &request, &quantity).ok();
+        (interval, basis)
+    }) {
+        if let Some(basis) = basis {
+            bind_decision_candidate(&mut tally, &basis);
+        }
+        tally.record(interval, truth);
+    }
+    tally.assert();
 }

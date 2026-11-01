@@ -129,8 +129,8 @@ pub enum UnresolvedReason {
         /// What is missing.
         what: String,
     },
-    /// The quantity combines several components but only their marginals are known; the
-    /// covariance between them was not estimated and is not assumed.
+    /// Dependence required for sampling propagation is unavailable, including between
+    /// components or between the two regime values; it is not assumed away.
     JointLawMissing,
     /// Too few independently assigned units in an arm for a normal interval over the
     /// covariance. Adding rows inside existing units does not change this.
@@ -227,112 +227,268 @@ fn check_request(
     e: &JointExperimentEvidence,
     r: &Request,
 ) -> Result<Option<String>, EvidenceRefusal> {
-    let valid_compiled_design =
-        match (&*e.design.assignment_design, &e.design_details, &e.dependence) {
-            (
-                "matched_pairs",
-                Some(super::DesignDetails::MatchedPairs {
-                    cluster_ids,
-                    pairs,
-                    matching_variables,
-                    treatment_probabilities,
-                    cluster_sizes,
-                    realized_assignment,
-                    preassignment_assumption_id,
-                    independent_pairs_assumption_id,
-                }),
-                Dependence::JointArms { .. },
-            ) => {
-                let n = cluster_ids.len();
-                let mut seen = vec![false; n];
-                let pairs_ok = pairs.iter().all(|&(a, b)| {
-                    if a >= n || b >= n || a == b || seen[a] || seen[b] {
+    let valid_compiled_design = match (
+        &*e.design.assignment_design,
+        &e.design_details,
+        &e.dependence,
+    ) {
+        (
+            "matched_pairs",
+            Some(super::DesignDetails::MatchedPairs {
+                cluster_ids,
+                pairs,
+                matching_variables,
+                treatment_probabilities,
+                cluster_sizes,
+                realized_assignment,
+                preassignment_assumption_id,
+                independent_pairs_assumption_id,
+                consistency_assumption_id,
+            }),
+            Dependence::JointArms { .. },
+        ) => {
+            let n = cluster_ids.len();
+            let mut seen = vec![false; n];
+            let pairs_ok = pairs.iter().all(|&(a, b)| {
+                if a >= n || b >= n || a == b || seen[a] || seen[b] {
+                    return false;
+                }
+                seen[a] = true;
+                seen[b] = true;
+                realized_assignment
+                    .get(a)
+                    .zip(realized_assignment.get(b))
+                    .is_some_and(|(x, y)| x != y)
+            });
+            n >= 4
+                && pairs.len().checked_mul(2) == Some(n)
+                && pairs_ok
+                && cluster_ids.iter().all(|s| !s.trim().is_empty())
+                && cluster_ids.iter().collect::<std::collections::BTreeSet<_>>().len() == n
+                && !matching_variables.is_empty()
+                && matching_variables.iter().all(|s| !s.trim().is_empty())
+                && !preassignment_assumption_id.trim().is_empty()
+                && !independent_pairs_assumption_id.trim().is_empty()
+                && !consistency_assumption_id.trim().is_empty()
+                && treatment_probabilities.len() == n
+                && treatment_probabilities.iter().all(|p| *p == 0.5)
+                && cluster_sizes.len() == n
+                && !cluster_sizes.contains(&0)
+                && realized_assignment.len() == n
+                && cluster_sizes.iter().try_fold(0usize, |a, b| a.checked_add(*b))
+                    == Some(e.design.outcome_rows)
+                && e.design.treated_units == pairs.len()
+                && e.design.control_units == pairs.len()
+        }
+        (
+            "switchback",
+            Some(super::DesignDetails::Switchback {
+                sequence_ids,
+                period_ids,
+                treatment_probabilities,
+                realized_assignment,
+                no_carryover_assumption_id,
+                washout_rule_id,
+                washout_periods,
+                independent_sequences_assumption_id,
+                consistency_assumption_id,
+            }),
+            Dependence::JointArms { .. },
+        ) => {
+            let n = sequence_ids.len();
+            let mut counts = std::collections::BTreeMap::new();
+            let mut seen = std::collections::BTreeSet::new();
+            let aligned = n > 0
+                && period_ids.len() == n
+                && treatment_probabilities.len() == n
+                && realized_assignment.len() == n;
+            let rows_ok = aligned
+                && sequence_ids.iter().zip(period_ids).zip(treatment_probabilities).all(
+                    |((s, p), prob)| {
+                        if s.trim().is_empty()
+                            || p.trim().is_empty()
+                            || !prob.is_finite()
+                            || *prob < 0.2
+                            || *prob > 0.8
+                            || !seen.insert((s, p))
+                        {
+                            return false;
+                        }
+                        *counts.entry(s).or_insert(0usize) += 1;
+                        true
+                    },
+                );
+            rows_ok
+                && !no_carryover_assumption_id.trim().is_empty()
+                && !washout_rule_id.trim().is_empty()
+                && *washout_periods == 0
+                && !independent_sequences_assumption_id.trim().is_empty()
+                && !consistency_assumption_id.trim().is_empty()
+                && counts
+                    .values()
+                    .next()
+                    .is_some_and(|first| *first >= 2 && counts.values().all(|v| v == first))
+                && e.design.treated_units == counts.len()
+                && e.design.control_units == counts.len()
+                && e.design.outcome_rows == n
+                && realized_assignment.iter().filter(|a| **a).count() >= 30
+                && realized_assignment.iter().filter(|a| !**a).count() >= 30
+        }
+        (
+            "temporal_excursion",
+            Some(super::DesignDetails::TemporalExcursion {
+                unit_ids,
+                periods,
+                treatment_probabilities,
+                realized_assignment,
+                lag,
+                min_probability,
+                assignment_law_id,
+                independent_units_assumption_id,
+                administrative_followup_assumption_id,
+                consistency_assumption_id,
+                paired_decisions,
+            }),
+            Dependence::JointArms { .. },
+        ) => {
+            let n = unit_ids.len();
+            let mut rows = std::collections::BTreeSet::new();
+            let mut maxima = std::collections::BTreeMap::<&str, i64>::new();
+            let aligned = n > 0
+                && periods.len() == n
+                && treatment_probabilities.len() == n
+                && realized_assignment.len() == n;
+            let valid = aligned
+                && unit_ids.iter().zip(periods).zip(treatment_probabilities).all(|((u, t), p)| {
+                    if u.trim().is_empty()
+                        || !p.is_finite()
+                        || *p < *min_probability
+                        || (1.0 - *p) < *min_probability
+                        || !rows.insert((u.as_str(), *t))
+                    {
                         return false;
                     }
-                    seen[a] = true;
-                    seen[b] = true;
-                    realized_assignment
-                        .get(a)
-                        .zip(realized_assignment.get(b))
-                        .is_some_and(|(x, y)| x != y)
+                    maxima.entry(u.as_str()).and_modify(|v| *v = (*v).max(*t)).or_insert(*t);
+                    true
                 });
-                n >= 4
-                    && pairs.len().checked_mul(2) == Some(n)
-                    && pairs_ok
-                    && cluster_ids.iter().all(|s| !s.trim().is_empty())
-                    && cluster_ids.iter().collect::<std::collections::BTreeSet<_>>().len() == n
-                    && !matching_variables.is_empty()
-                    && matching_variables.iter().all(|s| !s.trim().is_empty())
-                    && !preassignment_assumption_id.trim().is_empty()
-                    && !independent_pairs_assumption_id.trim().is_empty()
-                    && treatment_probabilities.len() == n
-                    && treatment_probabilities.iter().all(|p| *p == 0.5)
-                    && cluster_sizes.len() == n
-                    && !cluster_sizes.contains(&0)
-                    && realized_assignment.len() == n
-                    && cluster_sizes.iter().try_fold(0usize, |a, b| a.checked_add(*b))
-                        == Some(e.design.outcome_rows)
-                    && e.design.treated_units == pairs.len()
-                    && e.design.control_units == pairs.len()
-            }
-            (
-                "switchback",
-                Some(super::DesignDetails::Switchback {
-                    sequence_ids,
-                    period_ids,
-                    treatment_probabilities,
-                    realized_assignment,
-                    no_carryover_assumption_id,
-                    washout_rule_id,
-                    washout_periods,
-                    independent_sequences_assumption_id,
-                }),
-                Dependence::JointArms { .. },
-            ) => {
-                let n = sequence_ids.len();
-                let mut counts = std::collections::BTreeMap::new();
-                let mut seen = std::collections::BTreeSet::new();
-                let aligned = n > 0
-                    && period_ids.len() == n
-                    && treatment_probabilities.len() == n
-                    && realized_assignment.len() == n;
-                let rows_ok = aligned
-                    && sequence_ids.iter().zip(period_ids).zip(treatment_probabilities).all(
-                        |((s, p), prob)| {
-                            if s.trim().is_empty()
-                                || p.trim().is_empty()
-                                || !prob.is_finite()
-                                || *prob < 0.2
-                                || *prob > 0.8
-                                || !seen.insert((s, p))
-                            {
-                                return false;
-                            }
-                            *counts.entry(s).or_insert(0usize) += 1;
+            let mut paired = 0usize;
+            let mut arm_counts = [0usize; 2];
+            let mut units = std::collections::BTreeSet::new();
+            let followup_ok = valid
+                && unit_ids.iter().zip(periods).zip(realized_assignment).all(
+                    |((u, t), assigned)| {
+                        let Some(next) = t.checked_add(i64::from(*lag)) else { return false };
+                        if rows.contains(&(u.as_str(), next)) {
+                            paired += 1;
+                            arm_counts[usize::from(*assigned)] += 1;
+                            units.insert(u.as_str());
                             true
-                        },
-                    );
-                rows_ok
-                    && !no_carryover_assumption_id.trim().is_empty()
-                    && !washout_rule_id.trim().is_empty()
-                    && *washout_periods == 0
-                    && !independent_sequences_assumption_id.trim().is_empty()
-                    && counts
-                        .values()
-                        .next()
-                        .is_some_and(|first| *first >= 2 && counts.values().all(|v| v == first))
-                    && e.design.treated_units == counts.len()
-                    && e.design.control_units == counts.len()
-                    && e.design.outcome_rows == n
-                    && realized_assignment.iter().filter(|a| **a).count() >= 30
-                    && realized_assignment.iter().filter(|a| !**a).count() >= 30
+                        } else {
+                            maxima.get(u.as_str()).is_some_and(|max| next > *max)
+                        }
+                    },
+                );
+            valid
+                && followup_ok
+                && min_probability.is_finite()
+                && *min_probability > 0.0
+                && *min_probability <= 0.5
+                && !assignment_law_id.trim().is_empty()
+                && !independent_units_assumption_id.trim().is_empty()
+                && !administrative_followup_assumption_id.trim().is_empty()
+                && !consistency_assumption_id.trim().is_empty()
+                && paired == *paired_decisions
+                && paired > 0
+                && !arm_counts.contains(&0)
+                && e.design.outcome_rows == n
+                && e.design.treated_units == units.len()
+                && e.design.control_units == units.len()
+                && matches!(&e.exposure, Exposure::NoBetweenUnitInterference { assumption_id } if !assumption_id.trim().is_empty())
+        }
+        (
+            "temporal_regime",
+            Some(super::DesignDetails::TemporalRegime {
+                unit_ids,
+                periods,
+                realized_assignment,
+                observed_minimum_probabilities,
+                confounder_ids,
+                active_path,
+                reference_path,
+                method,
+                min_probability,
+                positivity_assumption_id,
+                exchangeability_assumption_id,
+                consistency_assumption_id,
+                followup_assumption_id,
+                model_assumption_id,
+                bootstrap_replicates,
+            }),
+            Dependence::PointOnly | Dependence::JointArms { .. },
+        ) => {
+            let n = unit_ids.len();
+            let mut by_unit = std::collections::BTreeMap::<&str, Vec<i64>>::new();
+            let aligned = n > 0 && periods.len() == n && realized_assignment.len() == n;
+            if aligned {
+                for (unit, period) in unit_ids.iter().zip(periods) {
+                    by_unit.entry(unit).or_default().push(*period);
+                }
             }
-            ("matched_pairs" | "switchback", ..) => false,
-            _ => true,
-        };
+            for schedule in by_unit.values_mut() {
+                schedule.sort_unstable();
+            }
+            let same = by_unit.values().next().is_some_and(|first| {
+                first.len() == active_path.len()
+                    && first.windows(2).all(|w| w[0] < w[1])
+                    && by_unit.values().all(|v| v == first)
+            });
+            aligned
+                && same
+                && unit_ids.iter().all(|v| !v.trim().is_empty())
+                && by_unit.len() >= 2
+                && !confounder_ids.is_empty()
+                && confounder_ids.iter().all(|v| !v.trim().is_empty())
+                && active_path != reference_path
+                && active_path.len() == reference_path.len()
+                && active_path.len() == e.horizon as usize
+                && matches!(
+                    method.as_str(),
+                    "g_formula" | "inverse_probability_weighting" | "doubly_robust"
+                )
+                && min_probability.is_finite()
+                && *min_probability > 0.0
+                && *min_probability <= 0.5
+                && observed_minimum_probabilities.len() == e.components.len()
+                && observed_minimum_probabilities.iter().all(|v| {
+                    if method == "g_formula" {
+                        v.is_none()
+                    } else {
+                        v.is_some_and(|p| p.is_finite() && p >= *min_probability)
+                    }
+                })
+                && !positivity_assumption_id.trim().is_empty()
+                && !exchangeability_assumption_id.trim().is_empty()
+                && !consistency_assumption_id.trim().is_empty()
+                && !followup_assumption_id.trim().is_empty()
+                && !model_assumption_id.trim().is_empty()
+                && match &e.dependence {
+                    Dependence::PointOnly => bootstrap_replicates.is_none_or(|r| r >= 99),
+                    Dependence::JointArms { .. } => bootstrap_replicates.is_some_and(|r| r >= 99),
+                    _ => false,
+                }
+                && e.design.outcome_rows == n
+                && e.design.treated_units == by_unit.len()
+                && e.design.control_units == by_unit.len()
+                && matches!(&e.exposure, Exposure::NoBetweenUnitInterference { assumption_id } if !assumption_id.trim().is_empty())
+        }
+        ("matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime", ..) => false,
+        _ => true,
+    };
     if !valid_compiled_design
-        || (matches!(e.design.assignment_design.as_str(), "matched_pairs" | "switchback")
-            && e.design_contract_id.as_deref().is_none_or(|id| id.trim().is_empty()))
+        || (matches!(
+            e.design.assignment_design.as_str(),
+            "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
+        ) && e.design_contract_id.as_deref().is_none_or(|id| id.trim().is_empty()))
     {
         return Err(EvidenceRefusal::Invalid("experimental evidence must retain a consistent compiled design and joint arm dependence".into()));
     }
@@ -358,10 +514,14 @@ fn check_request(
     if matches!(e.exposure, Exposure::Unspecified) {
         return Err(EvidenceRefusal::InterferenceUnspecified);
     }
-    match &r.target {
-        Target::ExperimentalContrast => Ok(None),
-        Target::Deployment { bridge_assumption_id: Some(id) } => Ok(Some(id.clone())),
-        Target::Deployment { bridge_assumption_id: None } => {
+    match (&e.design_details, &r.target) {
+        (Some(super::DesignDetails::TemporalExcursion { lag, assignment_law_id, .. }), Target::Excursion { lag: requested_lag, assignment_law_id: requested_law }) if lag == requested_lag && assignment_law_id == requested_law => Ok(None),
+        (Some(super::DesignDetails::TemporalRegime {active_path,exchangeability_assumption_id,..}), Target::Regime {periods,exchangeability_assumption_id:requested}) if active_path.len()==*periods as usize && exchangeability_assumption_id==requested => Ok(None),
+        (Some(super::DesignDetails::TemporalRegime { .. }), _) | (_, Target::Regime { .. }) => Err(EvidenceRefusal::Invalid("whole-regime evidence requires the same regime horizon and identification assumption".into())),
+        (Some(super::DesignDetails::TemporalExcursion { .. }), _) | (_, Target::Excursion { .. }) => Err(EvidenceRefusal::Invalid("excursion evidence requires the same lag and sequential assignment law; a different temporal estimand needs an explicit bridge".into())),
+        (_, Target::ExperimentalContrast) => Ok(None),
+        (_, Target::Deployment { bridge_assumption_id: Some(id) }) => Ok(Some(id.clone())),
+        (_, Target::Deployment { bridge_assumption_id: None }) => {
             Err(EvidenceRefusal::DeploymentBridgeMissing)
         }
     }
@@ -558,6 +718,9 @@ pub fn derive(
                 "switchback" => {
                     "first-order delta method through the sequence-level switchback covariance, with a Student reference using sequences minus one degrees of freedom; calibration is unmeasured and no component license is inherited"
                 }
+                "temporal_regime" => {
+                    "first-order delta method through aligned whole-subject bootstrap covariance with a normal reference; calibration is unmeasured and no component license is inherited"
+                }
                 _ => DELTA_METHOD_STATEMENT,
             },
             separation: SEPARATION_STATEMENT,
@@ -651,6 +814,7 @@ pub fn derive(
                 }
                 value
             }
+            Dependence::PointOnly => return None,
             Dependence::MarginalsOnly { treated, control } => {
                 quad(&ht, treated, false) + quad(&hc, control, false)
             }
@@ -699,6 +863,9 @@ pub fn derive(
         });
     }
     let (sampling, vertices) = if few_units {
+        (None, Vec::new())
+    } else if matches!(evidence.dependence, Dependence::PointOnly) {
+        unresolved.push(UnresolvedReason::JointLawMissing);
         (None, Vec::new())
     } else if marginals_only_combination {
         unresolved.push(UnresolvedReason::JointLawMissing);
@@ -1303,12 +1470,20 @@ pub fn decision_interval_calibration_basis(
     let result = derive(evidence, request, quantity)?;
     if result.sampling.is_none()
         || result.assumption_range.is_some()
-        || !matches!(request.target, Target::ExperimentalContrast)
+        || !matches!(
+            (&*evidence.design.assignment_design, &request.target),
+            ("cluster" | "complete" | "matched_pairs" | "switchback", Target::ExperimentalContrast)
+                | ("temporal_excursion", Target::Excursion { .. })
+                | ("temporal_regime", Target::Regime { .. })
+        )
         || !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. })
         || !matches!(
             (evidence.design.assignment_design.as_str(), &evidence.dependence),
             ("cluster" | "complete", Dependence::Joint { .. })
-                | ("matched_pairs" | "switchback", Dependence::JointArms { .. })
+                | (
+                    "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime",
+                    Dependence::JointArms { .. }
+                )
         )
         || quantity.inputs.iter().any(|b| !matches!(b, InputBinding::Measured(_)))
     {
@@ -1318,7 +1493,12 @@ pub fn decision_interval_calibration_basis(
     }
     let key = [
         "DecisionEvidence".to_owned(),
-        "RandomizedTrial".to_owned(),
+        if evidence.design.assignment_design == "temporal_regime" {
+            "Observational"
+        } else {
+            "RandomizedTrial"
+        }
+        .to_owned(),
         "design".to_owned(),
         "tabular".to_owned(),
         "Frequentist".to_owned(),
@@ -1332,19 +1512,59 @@ pub fn decision_interval_calibration_basis(
         match evidence.design.assignment_design.as_str() {
             "matched_pairs" => "matched_pair_delta",
             "switchback" => "switchback_sequence_delta",
+            "temporal_excursion" => "temporal_cluster_ratio_delta",
+            "temporal_regime" => "temporal_regime_bootstrap_delta",
             _ => "joint_neyman_delta",
         }
         .to_owned(),
-        "independent_assignment_units".to_owned(),
+        if evidence.design.assignment_design == "temporal_regime" {
+            "independent_subjects"
+        } else {
+            "independent_assignment_units"
+        }
+        .to_owned(),
         String::new(),
-        format!("derived_{}", result.quantity_identity),
+        match &request.target {
+            Target::Excursion { lag, assignment_law_id } => {
+                let mut w = CanonicalWriter::new(
+                    "antecedent.decision_evidence.excursion_calibration_target.v1",
+                );
+                w.text(&result.quantity_identity).word(u64::from(*lag)).text(assignment_law_id);
+                format!("excursion_{}", w.finish_hex())
+            }
+            Target::Regime { periods, exchangeability_assumption_id } => {
+                let Some(super::DesignDetails::TemporalRegime {
+                    method,
+                    bootstrap_replicates: Some(replicates),
+                    ..
+                }) = &evidence.design_details
+                else {
+                    return Err(EvidenceRefusal::Invalid(
+                        "regime calibration requires aligned bootstrap metadata".into(),
+                    ));
+                };
+                let mut w = CanonicalWriter::new(
+                    "antecedent.decision_evidence.regime_calibration_target.v1",
+                );
+                w.text(&result.quantity_identity)
+                    .word(u64::from(*periods))
+                    .text(exchangeability_assumption_id)
+                    .text(method)
+                    .word(*replicates as u64);
+                format!("regime_{}", w.finish_hex())
+            }
+            _ => format!("derived_{}", result.quantity_identity),
+        },
     ]
     .map(std::sync::Arc::<str>::from);
     Ok(antecedent_core::CalibrationBasis::new(
         key,
         0.95,
         "point".into(),
-        (if matches!(evidence.design.assignment_design.as_str(), "matched_pairs" | "switchback") {
+        (if matches!(
+            evidence.design.assignment_design.as_str(),
+            "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
+        ) {
             evidence.design.treated_units
         } else {
             evidence.design.treated_units + evidence.design.control_units

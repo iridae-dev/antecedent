@@ -88,6 +88,25 @@ def condition(
     )
 
 
+def condition_excursion(
+    handle: Any, *, evidence: Any, component: str, likelihood_assumption_id: str, **declaration: Any
+) -> PanelExperiment:
+    """Condition a panel through an explicitly bridged compiled excursion source."""
+    from .decision_evidence import JointEvidence
+
+    if not isinstance(evidence, JointEvidence):
+        raise CausalTypeError("condition_excursion needs retained JointEvidence")
+    evidence_json = json.dumps(dict(evidence.wire), allow_nan=False)
+
+    class BoundExcursion:
+        def condition_experiment(self, payload: str, ledger: Any, **controls: Any) -> Any:
+            return handle.condition_excursion(
+                payload, evidence_json, component, likelihood_assumption_id, ledger, **controls
+            )
+
+    return condition(BoundExcursion(), **declaration)
+
+
 def native_quantity(handle: Any, binding: Mapping[str, Any]) -> Any:
     """Bind a scalar projection while preserving the original method-native target kind."""
     from .joint_distribution import ScientificQuantity

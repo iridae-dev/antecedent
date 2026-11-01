@@ -5,12 +5,16 @@
 pub(crate) mod budget;
 pub mod capabilities;
 pub mod compiled;
+pub mod cluster_decision;
+pub mod excursion;
+pub mod experiment;
 pub mod gaussian_longitudinal;
 pub mod instrumented;
 pub mod local_instrument;
 pub mod longitudinal;
 pub mod randomized;
 pub mod rollout;
+pub mod static_regime;
 pub mod switchback;
 pub mod synthetic;
 

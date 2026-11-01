@@ -171,6 +171,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_r
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_static::MzRecalcSession [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_static::StaticResponseSession [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_split_analysis::SplitDiscovery [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::FittedGcm [auto]
@@ -218,6 +219,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_rece
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_static::MzRecalcSession [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_static::StaticResponseSession [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_split_analysis::SplitDiscovery [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::gcm::FittedGcm [auto]
@@ -988,8 +990,17 @@ impl core::clone::Clone for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::clone::Clone for antecedent::counterfactual_id::PreparedCounterfactualId
 impl core::clone::Clone for antecedent::cross_world::CrossWorldEffect
 impl core::clone::Clone for antecedent::cross_world::CrossWorldOptions
+impl core::clone::Clone for antecedent::decision_evidence::CompiledClusterEvidence
+impl core::clone::Clone for antecedent::decision_evidence::CompiledExcursionEvidence
+impl core::clone::Clone for antecedent::decision_evidence::CompiledExperimentalEvidence
+impl core::clone::Clone for antecedent::decision_evidence::CompiledJointExcursion
+impl core::clone::Clone for antecedent::decision_evidence::CompiledJointStaticRegime
 impl core::clone::Clone for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::clone::Clone for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::clone::Clone for antecedent::decision_evidence::CompiledRegimeEvidence
+impl core::clone::Clone for antecedent::decision_evidence::ExcursionPanelUpdate
+impl core::clone::Clone for antecedent::decision_evidence::JointExcursionDesign
+impl core::clone::Clone for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::clone::Clone for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::clone::Clone for antecedent::decision_evidence::MatchedPairDesign
 impl core::clone::Clone for antecedent::design::DesignRankPreview
@@ -1771,8 +1782,12 @@ impl core::cmp::PartialEq for antecedent::analysis::typed_transported_mechanism:
 impl core::cmp::PartialEq for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::cmp::PartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::cmp::PartialEq for antecedent::cross_world::CrossWorldOptions
+impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointExcursion
+impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointStaticRegime
 impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::cmp::PartialEq for antecedent::decision_evidence::JointExcursionDesign
+impl core::cmp::PartialEq for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::cmp::PartialEq for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::cmp::PartialEq for antecedent::decision_evidence::MatchedPairDesign
 impl core::cmp::PartialEq for antecedent::design::DesignRankPreview
@@ -2847,8 +2862,17 @@ impl core::fmt::Debug for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::fmt::Debug for antecedent::counterfactual_id::PreparedCounterfactualId
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldEffect
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldOptions
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledClusterEvidence
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledExcursionEvidence
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledExperimentalEvidence
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledJointExcursion
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledJointStaticRegime
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledRegimeEvidence
+impl core::fmt::Debug for antecedent::decision_evidence::ExcursionPanelUpdate
+impl core::fmt::Debug for antecedent::decision_evidence::JointExcursionDesign
+impl core::fmt::Debug for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::fmt::Debug for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::fmt::Debug for antecedent::decision_evidence::MatchedPairDesign
 impl core::fmt::Debug for antecedent::design::DesignRankPreview
@@ -4025,8 +4049,17 @@ impl core::marker::Freeze for antecedent::counterfactual_id::CounterfactualIdOpt
 impl core::marker::Freeze for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledClusterEvidence [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledJointExcursion [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledJointStaticRegime [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::JointExcursionDesign [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Freeze for antecedent::design::DesignRankPreview [auto]
@@ -4937,8 +4970,17 @@ impl core::marker::Send for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Send for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledClusterEvidence [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledJointExcursion [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledJointStaticRegime [auto]
 impl core::marker::Send for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::marker::Send for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::marker::Send for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Send for antecedent::decision_evidence::JointExcursionDesign [auto]
+impl core::marker::Send for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Send for antecedent::design::DesignRankPreview [auto]
@@ -5510,8 +5552,12 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::typed_transport
 impl core::marker::StructuralPartialEq for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::marker::StructuralPartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::StructuralPartialEq for antecedent::cross_world::CrossWorldOptions
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointExcursion
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointStaticRegime
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointExcursionDesign
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::MatchedPairDesign
 impl core::marker::StructuralPartialEq for antecedent::design::DesignRankPreview
@@ -6385,8 +6431,17 @@ impl core::marker::Sync for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Sync for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledClusterEvidence [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledJointExcursion [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledJointStaticRegime [auto]
 impl core::marker::Sync for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::marker::Sync for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::marker::Sync for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Sync for antecedent::decision_evidence::JointExcursionDesign [auto]
+impl core::marker::Sync for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Sync for antecedent::design::DesignRankPreview [auto]
@@ -7298,8 +7353,17 @@ impl core::marker::Unpin for antecedent::counterfactual_id::CounterfactualIdOpti
 impl core::marker::Unpin for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledClusterEvidence [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledJointExcursion [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledJointStaticRegime [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::JointExcursionDesign [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Unpin for antecedent::design::DesignRankPreview [auto]
@@ -8178,8 +8242,16 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledClusterEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledJointExcursion [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledJointStaticRegime [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointExcursionDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::DesignRankPreview [auto]
@@ -9044,8 +9116,16 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::Cou
 impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledClusterEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledJointExcursion [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledJointStaticRegime [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointExcursionDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::DesignRankPreview [auto]
@@ -12480,12 +12560,44 @@ pub field antecedent::cross_world::CrossWorldEffect::unit_effects: alloc::sync::
 pub field antecedent::cross_world::CrossWorldEffect::witness: antecedent_identify::cross_world::CrossWorldWitness
 pub field antecedent::cross_world::CrossWorldOptions::interval_requested: bool
 pub field antecedent::cross_world::CrossWorldOptions::mechanism: antecedent::gcm::NestedOutcomeMechanism
+pub field antecedent::decision_evidence::CompiledJointExcursion::design: antecedent::decision_evidence::JointExcursionDesign
+pub field antecedent::decision_evidence::CompiledJointExcursion::identity: alloc::string::String
+pub field antecedent::decision_evidence::CompiledJointExcursion::independent_units: usize
+pub field antecedent::decision_evidence::CompiledJointExcursion::obligations: alloc::vec::Vec<&'static str>
+pub field antecedent::decision_evidence::CompiledJointExcursion::paired_decisions: usize
+pub field antecedent::decision_evidence::CompiledJointStaticRegime::design: antecedent::decision_evidence::JointStaticRegimeDesign
+pub field antecedent::decision_evidence::CompiledJointStaticRegime::identity: alloc::string::String
+pub field antecedent::decision_evidence::CompiledJointStaticRegime::obligations: alloc::vec::Vec<&'static str>
+pub field antecedent::decision_evidence::CompiledJointStaticRegime::units: usize
 pub field antecedent::decision_evidence::CompiledJointSwitchback::design: antecedent::decision_evidence::JointSwitchbackDesign
 pub field antecedent::decision_evidence::CompiledJointSwitchback::identity: alloc::string::String
 pub field antecedent::decision_evidence::CompiledJointSwitchback::obligations: alloc::vec::Vec<&'static str>
 pub field antecedent::decision_evidence::CompiledMatchedPairDesign::design: antecedent::decision_evidence::MatchedPairDesign
 pub field antecedent::decision_evidence::CompiledMatchedPairDesign::identity: alloc::string::String
 pub field antecedent::decision_evidence::CompiledMatchedPairDesign::obligations: alloc::vec::Vec<&'static str>
+pub field antecedent::decision_evidence::JointExcursionDesign::administrative_followup_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointExcursionDesign::assignment_law_id: alloc::string::String
+pub field antecedent::decision_evidence::JointExcursionDesign::consistency_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointExcursionDesign::independent_units_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointExcursionDesign::lag: u32
+pub field antecedent::decision_evidence::JointExcursionDesign::min_probability: f64
+pub field antecedent::decision_evidence::JointExcursionDesign::periods: alloc::vec::Vec<i64>
+pub field antecedent::decision_evidence::JointExcursionDesign::treatment_probabilities: alloc::vec::Vec<f64>
+pub field antecedent::decision_evidence::JointExcursionDesign::unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::active_path: alloc::vec::Vec<bool>
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::confounder_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::consistency_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::exchangeability_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::followup_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::method: alloc::string::String
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::min_probability: f64
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::model_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::periods: alloc::vec::Vec<i64>
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::positivity_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::realized_assignment: alloc::vec::Vec<bool>
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::reference_path: alloc::vec::Vec<bool>
+pub field antecedent::decision_evidence::JointStaticRegimeDesign::unit_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::JointSwitchbackDesign::consistency_assumption_id: alloc::string::String
 pub field antecedent::decision_evidence::JointSwitchbackDesign::independent_sequences_assumption_id: alloc::string::String
 pub field antecedent::decision_evidence::JointSwitchbackDesign::no_carryover_assumption_id: alloc::string::String
 pub field antecedent::decision_evidence::JointSwitchbackDesign::period_ids: alloc::vec::Vec<alloc::string::String>
@@ -12495,6 +12607,7 @@ pub field antecedent::decision_evidence::JointSwitchbackDesign::washout_periods:
 pub field antecedent::decision_evidence::JointSwitchbackDesign::washout_rule_id: alloc::string::String
 pub field antecedent::decision_evidence::MatchedPairDesign::cluster_ids: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::decision_evidence::MatchedPairDesign::cluster_sizes: alloc::vec::Vec<usize>
+pub field antecedent::decision_evidence::MatchedPairDesign::consistency_assumption_id: alloc::string::String
 pub field antecedent::decision_evidence::MatchedPairDesign::independent_pairs_assumption_id: alloc::string::String
 pub field antecedent::decision_evidence::MatchedPairDesign::matching_variables: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::decision_evidence::MatchedPairDesign::pairs: alloc::vec::Vec<(usize, usize)>
@@ -14566,12 +14679,16 @@ pub fn <antecedent::analysis::joint_panel::PreparedJointDesign>::fn identificati
 pub fn <antecedent::analysis::joint_panel::PreparedJointDesign>::fn proof(&self) -> &antecedent::analysis::joint_panel::JointDesignProof
 pub fn <antecedent::analysis::joint_panel::PreparedJointPanelImputation>::fn estimate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::JointPanelImputedResult, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::JointDesignSourceBinding>::fn from_world(world: &antecedent_core::scientific_target::model::InterventionWorld, population_description: alloc::string::String) -> core::result::Result<Self, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::const fn calibration(&self) -> &'static str
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::const fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::const fn support(&self) -> &'static str
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn condition_native_experiment(&self, binding: antecedent::analysis::joint_panel::NativeExperimentBinding, request: antecedent::analysis::joint_panel::JointLawExperimentRequest, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::NativeJointExperimentResult, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn experiment_quantities(&self, binding: &antecedent::analysis::joint_panel::NativeExperimentBinding) -> core::result::Result<alloc::vec::Vec<antecedent_contract::quantity::ScientificQuantity>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn experiment_quantity(&self, binding: &antecedent::analysis::joint_panel::NativeExperimentBinding) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn export_artifact(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn export_artifact_with_context(&self, ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::DesignArtifactLimits) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn export_artifact_with_limits(&self, limits: antecedent::analysis::joint_panel::DesignArtifactLimits) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn inference(&self) -> &antecedent_estimate::joint_design::compiled::JointDesignInference
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn law(&self) -> &antecedent_estimate::joint_design::compiled::JointNativeDesignLaw
 pub fn <antecedent::analysis::joint_panel::designs::NativeJointDesignResult>::fn prepared(&self) -> &antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign
 pub fn <antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign>::const fn dependency(&self) -> antecedent_core::identity::SemanticDigest
@@ -15059,6 +15176,18 @@ pub fn <antecedent::counterfactual_id::PreparedCounterfactualId>::const fn deriv
 pub fn <antecedent::counterfactual_id::PreparedCounterfactualId>::const fn query(&self) -> &antecedent_core::query::counterfactual_event::CounterfactualEventQuery
 pub fn <antecedent::counterfactual_id::PreparedCounterfactualId>::fn evaluate(&self, law: &antecedent_expr::exact::ExactDiscreteLaw, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::counterfactual_id::CounterfactualIdEffect, antecedent::CausalError>
 pub fn <antecedent::cross_world::CrossWorldEffect>::fn export_artifact(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
+pub fn <antecedent::decision_evidence::CompiledClusterEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
+pub fn <antecedent::decision_evidence::CompiledClusterEvidence>::fn source(&self) -> &antecedent::analysis::joint_panel::designs::NativeJointDesignResult
+pub fn <antecedent::decision_evidence::CompiledExcursionEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
+pub fn <antecedent::decision_evidence::CompiledExcursionEvidence>::fn source(&self) -> &antecedent::analysis::joint_panel::designs::NativeJointDesignResult
+pub fn <antecedent::decision_evidence::CompiledExperimentalEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
+pub fn <antecedent::decision_evidence::CompiledExperimentalEvidence>::fn source(&self) -> &antecedent::analysis::joint_panel::designs::NativeJointDesignResult
+pub fn <antecedent::decision_evidence::CompiledRegimeEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
+pub fn <antecedent::decision_evidence::CompiledRegimeEvidence>::fn source(&self) -> &antecedent::analysis::joint_panel::designs::NativeJointDesignResult
+pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn excursion(&self) -> &antecedent::decision_evidence::CompiledExcursionEvidence
+pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn into_parts(self) -> (antecedent::analysis::joint_panel::PanelExperimentResult, antecedent::decision_evidence::CompiledExcursionEvidence)
+pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn law_source(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn likelihood_assumption_id(&self) -> &str
 pub fn <antecedent::error::PendingEdge>::fn new(source: impl core::convert::Into<alloc::string::String>, target: impl core::convert::Into<alloc::string::String>, at_source: impl core::convert::Into<alloc::string::String>, at_target: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::const fn query(&self) -> &antecedent_core::query::counterfactual::CounterfactualQuery
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::fn graph(&self) -> &antecedent_graph::dag::Dag
@@ -15599,6 +15728,7 @@ pub fn antecedent::analysis::joint_panel::designs::joint_design_world_identity(w
 pub fn antecedent::analysis::joint_panel::designs::replay_joint_design_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::compiled::JointDesignLaw, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::analysis::joint_panel::designs::replay_joint_design_artifact_with_limits(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::DesignArtifactLimits) -> core::result::Result<antecedent_estimate::joint_design::compiled::JointDesignLaw, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::analysis::joint_panel::designs::replay_native_joint_design(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::compiled::JointNativeDesignLaw, antecedent::analysis::joint_panel::JointPanelError>
+pub fn antecedent::analysis::joint_panel::designs::replay_native_joint_design_execution(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::DesignArtifactLimits) -> core::result::Result<antecedent::analysis::joint_panel::designs::NativeJointDesignResult, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::analysis::joint_panel::designs::replay_native_joint_design_with_limits(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, limits: antecedent::analysis::joint_panel::DesignArtifactLimits) -> core::result::Result<antecedent_estimate::joint_design::compiled::JointNativeDesignLaw, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::analysis::joint_panel::dummy_code_panel(data: &antecedent_data::panel::PanelData, columns: &antecedent::analysis::joint_panel::JointPanelColumns, categorical: &[antecedent::analysis::joint_panel::PanelCategoricalChannel]) -> core::result::Result<antecedent::analysis::joint_panel::DummyCodedPanel, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::analysis::joint_panel::joint_experiment_acceptance_matrix() -> antecedent::analysis::joint_panel::JointExperimentAcceptanceMatrix
@@ -15753,9 +15883,26 @@ pub fn antecedent::cross_world::check(graph: &antecedent_graph::dag::Dag, query:
 pub fn antecedent::cross_world::consume_cross_world_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u8], expected_data_digest: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_cluster(recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe, evidence_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledClusterEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_excursion(design: &antecedent::decision_evidence::CompiledJointExcursion, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledExcursionEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_static_regime(design: &antecedent::decision_evidence::CompiledJointStaticRegime, outcomes: &[&[f64]], confounders: &[alloc::vec::Vec<f64>], evidence_id: &str, population_id: &str, regimes: (&str, &str), components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_static_regime_bootstrap(design: &antecedent::decision_evidence::CompiledJointStaticRegime, outcomes: &[&[f64]], confounders: &[alloc::vec::Vec<f64>], evidence_id: &str, population_id: &str, regimes: (&str, &str), components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, replicates: usize, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_switchback(design: &antecedent::decision_evidence::CompiledJointSwitchback, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledExperimentalEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_matched_pairs(design: &antecedent::decision_evidence::CompiledMatchedPairDesign, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledExperimentalEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_joint_excursion(design: antecedent::decision_evidence::JointExcursionDesign) -> core::result::Result<antecedent::decision_evidence::CompiledJointExcursion, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_joint_static_regime(design: antecedent::decision_evidence::JointStaticRegimeDesign) -> core::result::Result<antecedent::decision_evidence::CompiledJointStaticRegime, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_joint_switchback(design: antecedent::decision_evidence::JointSwitchbackDesign) -> core::result::Result<antecedent::decision_evidence::CompiledJointSwitchback, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_matched_pair_design(design: antecedent::decision_evidence::MatchedPairDesign) -> core::result::Result<antecedent::decision_evidence::CompiledMatchedPairDesign, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compiled_decision_refusal(error: antecedent::analysis::joint_panel::JointPanelError) -> antecedent_design::decision_evidence::EvidenceRefusal
+pub fn antecedent::decision_evidence::compiled_excursion_quantity(evidence: &antecedent::decision_evidence::CompiledExcursionEvidence, component: &str) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::condition_panel_on_compiled_excursion(panel: &antecedent::analysis::joint_panel::JointPanelResult, excursion: antecedent::decision_evidence::CompiledExcursionEvidence, component: &str, update: antecedent::analysis::joint_panel::PanelExperimentUpdate, likelihood_assumption_id: &str, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::ExcursionPanelUpdate, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::decision_evidence::evidence_from_cluster_contrast(contrast: &antecedent_estimate::randomized_joint::JointClusterContrast, evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, outcome_rows: usize, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_compiled_cluster(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str), horizon: u32) -> core::result::Result<antecedent::decision_evidence::CompiledClusterEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_compiled_excursion(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str), horizon: u32) -> core::result::Result<antecedent::decision_evidence::CompiledExcursionEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_compiled_experiment(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str), horizon: u32) -> core::result::Result<antecedent::decision_evidence::CompiledExperimentalEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_compiled_static_regime(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str)) -> core::result::Result<antecedent::decision_evidence::CompiledRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_joint_excursion(design: &antecedent::decision_evidence::CompiledJointExcursion, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_joint_static_regime(design: &antecedent::decision_evidence::CompiledJointStaticRegime, outcomes: &[&[f64]], confounders: &[alloc::vec::Vec<f64>], evidence_id: &str, population_id: &str, regimes: (&str, &str), components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_joint_switchback(design: &antecedent::decision_evidence::CompiledJointSwitchback, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_matched_pairs(design: &antecedent::decision_evidence::CompiledMatchedPairDesign, totals: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::design::preview_design_rank<A, O>(contract: &antecedent::CausalContract, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError>
@@ -16840,8 +16987,22 @@ pub struct antecedent::counterfactual_id::PreparedCounterfactualId has private f
 pub struct antecedent::cross_world::CrossWorldEffect
 pub struct antecedent::cross_world::CrossWorldEffect has private fields
 pub struct antecedent::cross_world::CrossWorldOptions
+pub struct antecedent::decision_evidence::CompiledClusterEvidence
+pub struct antecedent::decision_evidence::CompiledClusterEvidence has private fields
+pub struct antecedent::decision_evidence::CompiledExcursionEvidence
+pub struct antecedent::decision_evidence::CompiledExcursionEvidence has private fields
+pub struct antecedent::decision_evidence::CompiledExperimentalEvidence
+pub struct antecedent::decision_evidence::CompiledExperimentalEvidence has private fields
+pub struct antecedent::decision_evidence::CompiledJointExcursion
+pub struct antecedent::decision_evidence::CompiledJointStaticRegime
 pub struct antecedent::decision_evidence::CompiledJointSwitchback
 pub struct antecedent::decision_evidence::CompiledMatchedPairDesign
+pub struct antecedent::decision_evidence::CompiledRegimeEvidence
+pub struct antecedent::decision_evidence::CompiledRegimeEvidence has private fields
+pub struct antecedent::decision_evidence::ExcursionPanelUpdate
+pub struct antecedent::decision_evidence::ExcursionPanelUpdate has private fields
+pub struct antecedent::decision_evidence::JointExcursionDesign
+pub struct antecedent::decision_evidence::JointStaticRegimeDesign
 pub struct antecedent::decision_evidence::JointSwitchbackDesign
 pub struct antecedent::decision_evidence::MatchedPairDesign
 pub struct antecedent::design::DesignRankPreview

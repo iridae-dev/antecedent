@@ -52,6 +52,12 @@ def _evidence(clusters: int, **kwargs) -> de.JointEvidence:
     options = {
         "exposure": "no_between_unit_interference",
         "exposure_assumption_id": NO_SPILL,
+        "cluster_ids": [f"cluster-{i}" for i in range(clusters)],
+        "cluster_sizes": [ROWS] * clusters,
+        "assignment_law_id": "complete-randomization",
+        "treated_clusters": sum(assigned),
+        "consistency_assumption_id": "consistency",
+        "adjustment_preassignment_id": "preassignment",
         **kwargs,
     }
     return de.JointEvidence.from_cluster_totals(
@@ -80,6 +86,16 @@ def _margin(cost) -> DerivedQuantity:
 
 FRAME = DecisionFrame("launch_free_shipping", "keep_standard", 0.0)
 COST_RANGE = Assumed(4.0, 12.0, "assumption.unit_cost_range")
+
+
+def test_cluster_evidence_refuses_unbound_numeric_edits():
+    ev = _evidence(80)
+    assert ev.wire["compiled_source_artifact"]
+    edited = dict(ev.wire)
+    edited["treated_means"] = list(edited["treated_means"])
+    edited["treated_means"][0] += 1.0
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.evaluate(de.JointEvidence(edited), _margin(Measured("cost")))
 
 
 def test_nonlinear_margin_has_a_sampling_interval_and_inherits_no_license():
@@ -253,6 +269,7 @@ def test_matched_pair_design_keeps_joint_arms_and_scope():
         "cluster_sizes": [1] * (2 * n),
         "preassignment_assumption_id": "fixed-pairs",
         "independent_pairs_assumption_id": "independent-pairs",
+        "consistency_assumption_id": "consistency",
     }
     prepared = de.compile_experimental_design(design)
     assert prepared["identity"] and prepared["obligations"]
@@ -318,6 +335,7 @@ def test_switchback_joint_evidence_uses_sequences_not_periods():
         "washout_rule_id": "washout-zero",
         "washout_periods": 0,
         "independent_sequences_assumption_id": "independent-sequences",
+        "consistency_assumption_id": "consistency",
     }
     de.compile_experimental_design(design)
     assigned = [(i + (i // periods) % 3) % 2 == 0 for i in range(n)]
@@ -344,3 +362,233 @@ def test_switchback_joint_evidence_uses_sequences_not_periods():
     )
     assert de.evaluate(ev, q).derived["sampling"] is not None
     assert ev.wire["design"]["treated_units"] == sequences
+
+
+def test_joint_excursion_preserves_lag_and_distinguishes_regime():
+    units, periods = 40, 5
+    n = units * periods
+    assigned = [(i * 73 + (i // periods) * 19) % 11 < 5 for i in range(n)]
+    design = {
+        "kind": "temporal_excursion",
+        "unit_ids": [f"geo-{i // periods}" for i in range(n)],
+        "periods": [i % periods for i in range(n)],
+        "treatment_probabilities": [0.5] * n,
+        "lag": 1,
+        "min_probability": 0.1,
+        "assignment_law_id": "weekly-law",
+        "independent_units_assumption_id": "geos-independent",
+        "administrative_followup_assumption_id": "end-of-study",
+        "consistency_assumption_id": "consistency",
+    }
+    assert de.compile_experimental_design(design)["obligations"]
+    y = [
+        2.0
+        + 0.2 * math.sin((i // periods) * 0.17)
+        + (1.0 if i % periods and assigned[i - 1] else 0.0)
+        for i in range(n)
+    ]
+    z = [
+        5.0
+        + 0.4 * math.sin((i // periods) * 0.17)
+        + (0.6 if i % periods and assigned[i - 1] else 0.0)
+        for i in range(n)
+    ]
+    ev = de.JointEvidence.from_experimental_design(
+        design=design,
+        outcomes=[y, z],
+        assigned=assigned,
+        evidence_id="pulse",
+        population_id="pop",
+        treated_regime_id="on",
+        control_regime_id="off",
+        horizon=4,
+        components={"frequency": ("frequency", "u"), "value": ("value", "u")},
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="no-spill",
+    )
+    result = de.evaluate(ev, DerivedQuantity("effect", "u", Expr.input(0), [Measured("frequency")]))
+    assert result.derived["sampling"] is not None
+    assert ev.wire["design"]["treated_units"] == units
+    assert ev.wire["design_details"]["paired_decisions"] == units * (periods - 1)
+    assert ev.wire["compiled_source_artifact"]
+    source_quantity = ev.excursion_quantity("frequency")
+    assert source_quantity.functional_id == "sequential_randomized_excursion_mean_contrast"
+    assert source_quantity.regime_id.startswith("excursion:")
+    edited = dict(ev.wire)
+    edited["treated_means"] = list(edited["treated_means"])
+    edited["treated_means"][0] += 1.0
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.evaluate(
+            de.JointEvidence(edited),
+            DerivedQuantity("effect", "u", Expr.input(0), [Measured("frequency")]),
+        )
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.evaluate(
+            ev,
+            DerivedQuantity("effect", "u", Expr.input(0), [Measured("frequency")]),
+            deployment=True,
+            bridge_assumption_id="bare-id",
+        )
+    bridge = {
+        "source": {"kind": "excursion", "lag": 1, "assignment_law_id": "weekly-law"},
+        "target": {
+            "kind": "fixed_schedule",
+            "active_schedule_id": "sustained",
+            "reference_schedule_id": "status-quo",
+            "horizon": 12,
+        },
+        "source_component": "frequency",
+        "target_variable_id": "frequency",
+        "target_units": "u",
+        "mapping": {
+            "kind": "causal_effect_bounds",
+            "multiplier": [0.8, 1.2],
+            "residual": [-0.1, 0.1],
+            "assumption_id": "bridge",
+            "mapping_evidence_id": "bridge-study",
+        },
+    }
+    answer = de.decide_with_temporal_bridge(ev, bridge, DecisionFrame("on", "off", 0))
+    assert answer["evidence_ids"] == ["pulse", "bridge-study"]
+    bridge["mapping"] = {"kind": "predictive_association"}
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.decide_with_temporal_bridge(ev, bridge, DecisionFrame("on", "off", 0))
+
+
+def test_static_regime_values_remain_point_only_without_joint_uncertainty():
+    units, periods = 120, 2
+    n = units * periods
+    assigned = [((i // 2) % 2 == 0 if i % 2 == 0 else (i // 4) % 2 == 0) for i in range(n)]
+    conf = [math.sin((i // 2) * 0.13) + 0.1 * (i % 2) for i in range(n)]
+    y = [
+        1.0
+        + 0.5 * conf[i]
+        + float(assigned[(i // 2) * 2])
+        + 2.0 * float(assigned[(i // 2) * 2 + 1])
+        for i in range(n)
+    ]
+    design = {
+        "kind": "temporal_regime",
+        "unit_ids": [f"u-{i // 2}" for i in range(n)],
+        "periods": [i % 2 for i in range(n)],
+        "realized_assignment": assigned,
+        "confounder_ids": ["history"],
+        "active_path": [True, True],
+        "reference_path": [False, False],
+        "method": "g_formula",
+        "min_probability": 0.05,
+        "positivity_assumption_id": "positivity",
+        "exchangeability_assumption_id": "exchangeability",
+        "consistency_assumption_id": "consistency",
+        "followup_assumption_id": "complete",
+        "model_assumption_id": "specified-model",
+    }
+    assert de.compile_experimental_design(design)["obligations"]
+    ev = de.JointEvidence.from_experimental_design(
+        design=design,
+        outcomes=[y],
+        assigned=assigned,
+        confounders=[conf],
+        evidence_id="regime-study",
+        population_id="pop",
+        treated_regime_id="active",
+        control_regime_id="reference",
+        horizon=periods,
+        components={"value": ("value", "u")},
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="no-spill",
+    )
+    answer = de.evaluate(
+        ev,
+        DerivedQuantity("regime-value", "u", Expr.input(0), [Measured("value")]),
+        frame=DecisionFrame("active", "reference", 0),
+    )
+    assert answer.derived["contrast"] == pytest.approx(3.0, abs=0.1)
+    assert answer.derived["sampling"] is None
+    assert answer.verdict == "unresolved"
+    assert answer.derived["unresolved"][0]["code"] == "joint_law_missing"
+    bridge = {
+        "source": {
+            "kind": "static_regime",
+            "active_regime_id": "active",
+            "reference_regime_id": "reference",
+            "horizon": 2,
+            "exchangeability_assumption_id": "exchangeability",
+        },
+        "target": {
+            "kind": "model_response",
+            "model_id": "model-v1",
+            "active_schedule_id": "active-path",
+            "reference_schedule_id": "reference-path",
+            "horizon": 2,
+        },
+        "source_component": "value",
+        "target_variable_id": "value",
+        "target_units": "u",
+        "mapping": {
+            "kind": "causal_effect_bounds",
+            "multiplier": [1.0, 1.0],
+            "residual": [0.0, 0.0],
+            "assumption_id": "model-bridge",
+            "mapping_evidence_id": "mapping-evidence",
+        },
+    }
+    assert (
+        de.decide_with_temporal_bridge(ev, bridge, DecisionFrame("active", "reference", 0))[
+            "verdict"
+        ]["class"]
+        == "unresolved"
+    )
+
+
+def test_static_regime_aligned_bootstrap_retains_joint_sampling_law():
+    n = 120
+    assigned = [i % 2 == 0 for i in range(n)]
+    x = [math.sin(i * 0.29) for i in range(n)]
+    y = [2.0 + x[i] + (0.7 if assigned[i] else 0.0) + 0.1 * ((i * 7) % 13) for i in range(n)]
+    z = [2.0 * value for value in y]
+    design = {
+        "kind": "temporal_regime",
+        "unit_ids": [f"u{i}" for i in range(n)],
+        "periods": [0] * n,
+        "realized_assignment": assigned,
+        "confounder_ids": ["x"],
+        "active_path": [True],
+        "reference_path": [False],
+        "method": "g_formula",
+        "min_probability": 0.05,
+        "positivity_assumption_id": "positivity",
+        "exchangeability_assumption_id": "exchangeability",
+        "consistency_assumption_id": "consistency",
+        "followup_assumption_id": "followup",
+        "model_assumption_id": "specified-model",
+        "bootstrap_replicates": 99,
+        "bootstrap_seed": 123,
+    }
+    ev = de.JointEvidence.from_experimental_design(
+        design=design,
+        outcomes=[y, z],
+        confounders=[x],
+        assigned=assigned,
+        evidence_id="e",
+        population_id="pop",
+        treated_regime_id="on",
+        control_regime_id="off",
+        horizon=1,
+        components={"y": ("y", "u"), "z": ("z", "u")},
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="isolation",
+    )
+    assert ev.wire["dependence"]["kind"] == "joint_arms"
+    result = de.evaluate(ev, DerivedQuantity("y", "u", Expr.input(0), [Measured("y")])).derived
+    assert result["sampling"] is not None
+    assert (result["license"], result["calibration"]) == ("none", "unmeasured")
+
+
+def test_compiled_evidence_obeys_execution_memory_limit():
+    from antecedent.execution import Execution, ResourceLimits
+
+    evidence = _evidence(80)
+    constrained = Execution(limits=ResourceLimits(memory_bytes=1))
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.evaluate(evidence, _margin(Measured("cost")), execution=constrained)

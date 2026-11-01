@@ -1,0 +1,24 @@
+feature_id = "decision_evidence.joint_excursion"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Assessing Time-Varying Causal Effect Moderation in Mobile Health", doi = "10.1080/01621459.2017.1305274", sections = ["Sequentially randomized excursion effects and recorded assignment probabilities"] },
+]
+
+implementation_deviations = [
+  "Joint outcome coordinates share the original unit-period pairs and the cluster ratio covariance. The lagged excursion includes carryover under the recorded assignment law and is not a sustained intervention effect.",
+  "The independent rational reference covers one lag-one, two-outcome design with equal assignment probabilities; it does not establish calibration or a license.",
+  "The native joint-design compiler retains an excursion recipe and law; the older decision-evidence producer still needs migration to this retained route.",
+]
+
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/decision_evidence_workflow.rs (joint_excursion_matches_independent_rational_oracle)",
+  "crates/antecedent-estimate/src/joint_design/excursion.rs",
+  "crates/antecedent/tests/oracle_data/joint_excursion_reference.py",
+  "crates/antecedent/tests/oracle_data/joint_excursion_reference.json",
+]

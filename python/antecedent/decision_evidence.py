@@ -28,8 +28,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import _native
+from ._panel_execution import run_panel
 from ._refusal import StructuredRefusal, raise_refusal
 from .errors import CausalValueError
+from .execution import Execution
 
 __all__ = [
     "Assumed",
@@ -47,6 +49,7 @@ __all__ = [
     "compile_experiment",
     "compile_experimental_design",
     "decide_with_proxy",
+    "decide_with_temporal_bridge",
     "evaluate",
     "reuse_receipt",
 ]
@@ -212,14 +215,21 @@ def _exposure(
     return body
 
 
-def compile_experimental_design(design: Mapping[str, Any]) -> dict[str, Any]:
-    """Validate an explicit matched-pair or switchback design before fitting outcomes.
+def compile_experimental_design(
+    design: Mapping[str, Any], *, execution: Execution | None = None
+) -> dict[str, Any]:
+    """Validate a matched-pair, switchback, excursion or static-regime design before fitting outcomes.
 
     The returned identity and obligations describe the declared design; they do not establish
     its assumptions. The same declaration must be supplied to ``from_experimental_design``.
     """
     return _call(
-        _native.decision_evidence_experimental(json.dumps({"design": dict(design)}), False)
+        run_panel(
+            execution,
+            _native.decision_evidence_experimental,
+            json.dumps({"design": dict(design)}),
+            False,
+        )
     )
 
 
@@ -237,6 +247,21 @@ class JointEvidence:
     def evidence_id(self) -> str:
         """Identity of the observations and assignment the estimates came from."""
         return str(self.wire["evidence_id"])
+
+    def excursion_quantity(self, component: str, *, execution: Execution | None = None) -> Any:
+        """Exact retained excursion quantity for an explicit scientific bridge."""
+        from .joint_distribution import ScientificQuantity
+
+        return ScientificQuantity._from_wire(
+            _call(
+                run_panel(
+                    execution,
+                    _native.decision_evidence_excursion_quantity,
+                    json.dumps(dict(self.wire)),
+                    component,
+                )
+            )
+        )
 
     @staticmethod
     def from_cluster_totals(
@@ -258,95 +283,122 @@ class JointEvidence:
         adjustments: Sequence[Mapping[str, Any]] = (),
         cluster_sizes: Sequence[int] | None = None,
         pretreatment_totals: Mapping[str, Sequence[float]] | None = None,
+        cluster_ids: Sequence[str] | None = None,
+        assignment_law_id: str | None = None,
+        treated_clusters: int | None = None,
+        consistency_assumption_id: str | None = None,
+        adjustment_preassignment_id: str | None = None,
+        execution: Execution | None = None,
     ) -> JointEvidence:
         """Estimate cluster-randomized outcomes jointly.
 
         ``components`` maps each outcome name to ``(variable_id, units)``; ``totals[k][c]`` is
-        outcome ``k`` summed over the rows of cluster ``c`` (adjusted already by any fixed
-        pre-assignment coefficient declared in ``adjustments``); ``assigned[c]`` is the realized
-        arm. ``exposure`` is ``"no_between_unit_interference"``, ``"bounded_spillover"`` or
-        ``"unspecified"``; the first two are assumptions you declare, not findings.
+        the original outcome total in cluster ``c`` and ``assigned[c]`` is its realized arm.
+        Fixed preassignment adjustments are computed by the retained compiler from the declared
+        pretreatment totals. Cluster identities, fixed sizes, assignment law and consistency
+        assumption must be supplied explicitly. Exposure assumptions are declarations, not findings.
         """
         if len(components) != len(totals):
             raise CausalValueError("components must align with the outcome totals")
-        prepared = [[float(v) for v in row] for row in totals]
-        centered = [a for a in adjustments if a.get("kind") == "centered_fixed_cuped"]
-        if centered:
+        if (
+            cluster_ids is None
+            or cluster_sizes is None
+            or len(cluster_ids) != len(assigned)
+            or len(cluster_sizes) != len(assigned)
+            or sum(cluster_sizes) != outcome_rows
+            or not assignment_law_id
+            or treated_clusters is None
+            or not consistency_assumption_id
+        ):
+            raise CausalValueError(
+                "cluster IDs, fixed sizes, assignment law, prespecified treated count and consistency assumption are required"
+            )
+        source_adjustments = []
+        for adjustment in adjustments:
+            kind = adjustment.get("kind")
+            if kind == "none":
+                continue
+            if kind not in {"fixed_cuped", "centered_fixed_cuped"}:
+                raise CausalValueError("unsupported cluster adjustment")
+            covariate = str(adjustment["covariate"])
             if (
-                cluster_sizes is None
-                or pretreatment_totals is None
-                or len(cluster_sizes) != len(assigned)
-                or any(n <= 0 for n in cluster_sizes)
-                or sum(cluster_sizes) != outcome_rows
+                pretreatment_totals is None
+                or covariate not in pretreatment_totals
+                or not adjustment_preassignment_id
             ):
                 raise CausalValueError(
-                    "centered CUPED requires positive cluster sizes summing to outcome_rows"
+                    "fixed CUPED needs pretreatment totals and a preassignment assumption"
                 )
-            names = list(components)
-            seen = set()
-            for a in centered:
-                name, covariate = str(a["component"]), str(a["covariate"])
-                if name in seen or name not in names or covariate not in pretreatment_totals:
-                    raise CausalValueError(
-                        "centered CUPED needs one known adjustment per component and pretreatment totals"
-                    )
-                seen.add(name)
-                xs = [float(x) for x in pretreatment_totals[covariate]]
-                if len(xs) != len(assigned) or len(prepared[names.index(name)]) != len(assigned):
-                    raise CausalValueError(
-                        "pretreatment and outcome totals must align with clusters"
-                    )
-                mean = sum(xs) / outcome_rows
-                coefficient = float(a["coefficient"])
-                i = names.index(name)
-                prepared[i] = [
-                    y - coefficient * (x - n * mean)
-                    for y, x, n in zip(prepared[i], xs, cluster_sizes, strict=True)
-                ]
-        raw = _native.decision_evidence_cluster_contrast(
-            prepared, [bool(a) for a in assigned], int(outcome_rows)
-        )
-        if raw is None:
-            raise CausalValueError(
-                "the totals cannot support a joint estimate: need aligned finite totals, at least "
-                "two clusters in each arm and a positive row count"
+            source_adjustments.append(
+                {
+                    "component_name": str(adjustment["component"]),
+                    "covariate": covariate,
+                    "coefficient": float(adjustment["coefficient"]),
+                    "pretreatment_totals": list(pretreatment_totals[covariate]),
+                    "centered": kind == "centered_fixed_cuped",
+                    "preassignment": adjustment_preassignment_id,
+                }
             )
-        c = json.loads(raw)
         exposure_wire = _exposure(exposure, exposure_assumption_id, spillover_bias_bounds)
-        if exposure == "bounded_arm_spillover":
-            exposure_wire["treated_bias_bounds"] = [
-                float(b) for b in treated_spillover_bias_bounds or ()
-            ]
-            exposure_wire["control_bias_bounds"] = [
-                float(b) for b in control_spillover_bias_bounds or ()
-            ]
-        return JointEvidence(
-            {
-                "evidence_id": evidence_id,
-                "population_id": population_id,
-                "treated_regime_id": treated_regime_id,
-                "control_regime_id": control_regime_id,
-                "horizon": int(horizon),
-                "components": [
-                    {"name": name, "variable_id": vid, "units": units}
-                    for name, (vid, units) in components.items()
-                ],
-                "treated_means": c["treated_means"],
-                "control_means": c["control_means"],
-                "dependence": {
-                    "kind": "joint",
-                    "treated": c["treated_covariance"],
-                    "control": c["control_covariance"],
-                },
-                "design": {
-                    "assignment_design": "cluster",
-                    "treated_units": c["treated_clusters"],
-                    "control_units": c["control_clusters"],
-                    "outcome_rows": int(outcome_rows),
-                },
-                "adjustments": [dict(a) for a in adjustments],
-                "exposure": exposure_wire,
+        if exposure == "no_between_unit_interference":
+            source_exposure = {"kind": "no_interference", "assumption": exposure_assumption_id}
+        elif exposure == "bounded_spillover":
+            source_exposure = {
+                "kind": "contrast_bounds",
+                "assumption": exposure_assumption_id,
+                "bounds": list(spillover_bias_bounds or ()),
             }
+        elif exposure == "bounded_arm_spillover":
+            exposure_wire["treated_bias_bounds"] = list(treated_spillover_bias_bounds or ())
+            exposure_wire["control_bias_bounds"] = list(control_spillover_bias_bounds or ())
+            source_exposure = {
+                "kind": "arm_bounds",
+                "assumption": exposure_assumption_id,
+                "treated": list(treated_spillover_bias_bounds or ()),
+                "control": list(control_spillover_bias_bounds or ()),
+            }
+        else:
+            source_exposure = {"kind": "unspecified"}
+        component_wire = [
+            {"name": name, "variable_id": vid, "units": units}
+            for name, (vid, units) in components.items()
+        ]
+        recipe = {
+            "population": population_id,
+            "treated_regime_id": treated_regime_id,
+            "control_regime_id": control_regime_id,
+            "horizon": horizon,
+            "cluster_ids": list(cluster_ids),
+            "cluster_sizes": list(cluster_sizes),
+            "assignment_law": assignment_law_id,
+            "treated_clusters": treated_clusters,
+            "consistency": consistency_assumption_id,
+            "assignments": list(assigned),
+            "outcomes": [
+                {"component_name": name, "variable_id": vid, "units": units, "values": list(values)}
+                for (name, (vid, units)), values in zip(components.items(), totals, strict=True)
+            ],
+            "adjustments": source_adjustments,
+            "exposure": source_exposure,
+        }
+        return JointEvidence(
+            _call(
+                run_panel(
+                    execution,
+                    _native.decision_evidence_compiled_cluster,
+                    json.dumps(
+                        {
+                            "recipe": recipe,
+                            "evidence_id": evidence_id,
+                            "components": component_wire,
+                            "adjustments": [
+                                dict(a) for a in adjustments if a.get("kind") != "none"
+                            ],
+                            "exposure": exposure_wire,
+                        }
+                    ),
+                )
+            )
         )
 
     @staticmethod
@@ -363,8 +415,10 @@ class JointEvidence:
         components: Mapping[str, tuple[str, str]],
         exposure: str,
         exposure_assumption_id: str | None = None,
+        confounders: Sequence[Sequence[float]] = (),
+        execution: Execution | None = None,
     ) -> JointEvidence:
-        """Estimate matched-pair totals or switchback period outcomes under a declared design.
+        """Estimate matched-pair, switchback, excursion or static-regime outcomes under a declared design.
 
         Call :func:`compile_experimental_design` first to inspect obligations. Matched pair
         outcomes are cluster totals; switchback outcomes are retained sequence-period rows.
@@ -373,6 +427,7 @@ class JointEvidence:
             "design": dict(design),
             "outcomes": [list(y) for y in outcomes],
             "assigned": list(assigned),
+            "confounders": [list(column) for column in confounders],
             "evidence_id": evidence_id,
             "population_id": population_id,
             "treated_regime_id": treated_regime_id,
@@ -384,7 +439,11 @@ class JointEvidence:
             "exposure": _exposure(exposure, exposure_assumption_id, None),
         }
         return JointEvidence(
-            _call(_native.decision_evidence_experimental(json.dumps(payload), True))
+            _call(
+                run_panel(
+                    execution, _native.decision_evidence_experimental, json.dumps(payload), True
+                )
+            )
         )
 
     def marginals_only(self) -> JointEvidence:
@@ -396,9 +455,9 @@ class JointEvidence:
         wire = dict(self.wire)
         k = len(wire["components"])
         dep = wire["dependence"]
-        if dep["kind"] == "joint_arms":
+        if dep["kind"] in {"joint_arms", "point_only"}:
             raise CausalValueError(
-                "withholding cross-arm dependence is not supported for paired or switchback evidence"
+                "marginal-only conversion cannot preserve this evidence's cross-arm dependence or point-only standing"
             )
         wire["dependence"] = {
             "kind": "marginals_only",
@@ -436,10 +495,32 @@ def compile_experiment(
     return _call(_native.decision_evidence_compile(json.dumps(spec)))
 
 
+def _target_for_evidence(w: Mapping[str, Any]) -> dict[str, Any]:
+    """Preserve the estimand owned by the retained design."""
+    kind = w.get("design", {}).get("assignment_design")
+    if kind == "temporal_excursion":
+        details = w["design_details"]
+        return {
+            "kind": "excursion",
+            "lag": details["lag"],
+            "assignment_law_id": details["assignment_law_id"],
+        }
+    if kind == "temporal_regime":
+        details = w["design_details"]
+        return {
+            "kind": "regime",
+            "periods": len(details["active_path"]),
+            "exchangeability_assumption_id": details["exchangeability_assumption_id"],
+        }
+    return {"kind": "experimental_contrast"}
+
+
 def decide_with_proxy(
     evidence: JointEvidence,
     bridge: Mapping[str, Any],
     frame: DecisionFrame,
+    *,
+    execution: Execution | None = None,
 ) -> dict[str, Any]:
     """Bound a target causal effect using a declared effect mapping and its evidence.
 
@@ -452,7 +533,7 @@ def decide_with_proxy(
         "treated_regime_id": w["treated_regime_id"],
         "control_regime_id": w["control_regime_id"],
         "horizon": w["horizon"],
-        "target": {"kind": "experimental_contrast"},
+        "target": _target_for_evidence(w),
     }
     payload = {
         "evidence": dict(w),
@@ -460,7 +541,38 @@ def decide_with_proxy(
         "bridge": dict(bridge),
         "frame": frame._wire(),
     }
-    return _call(_native.decision_evidence_proxy(json.dumps(payload)))
+    return _call(run_panel(execution, _native.decision_evidence_proxy, json.dumps(payload)))
+
+
+def decide_with_temporal_bridge(
+    evidence: JointEvidence,
+    bridge: Mapping[str, Any],
+    frame: DecisionFrame,
+    *,
+    execution: Execution | None = None,
+) -> dict[str, Any]:
+    """Apply a declared bounded mapping from an excursion or static regime to another temporal estimand.
+
+    The bridge retains both estimand identities and mapping evidence. Its bounds are assumptions,
+    and they do not license an ongoing policy, fixed schedule or response model automatically.
+    """
+    w = evidence.wire
+    request = {
+        "population_id": w["population_id"],
+        "treated_regime_id": w["treated_regime_id"],
+        "control_regime_id": w["control_regime_id"],
+        "horizon": w["horizon"],
+        "target": _target_for_evidence(w),
+    }
+    payload = {
+        "evidence": dict(w),
+        "request": request,
+        "bridge": dict(bridge),
+        "frame": frame._wire(),
+    }
+    return _call(
+        run_panel(execution, _native.decision_evidence_temporal_bridge, json.dumps(payload))
+    )
 
 
 @dataclass(frozen=True)
@@ -507,6 +619,7 @@ def evaluate(
     bridge_assumption_id: str | None = None,
     frame: DecisionFrame | None = None,
     candidates: Sequence[Mapping[str, Any]] = (),
+    execution: Execution | None = None,
 ) -> Evaluation:
     """Derive ``quantity`` over ``evidence`` and, with ``frame``, classify the decision.
 
@@ -525,7 +638,7 @@ def evaluate(
         "horizon": int(horizon if horizon is not None else w["horizon"]),
         "target": {"kind": "deployment", "bridge_assumption_id": bridge_assumption_id}
         if deployment
-        else {"kind": "experimental_contrast"},
+        else _target_for_evidence(w),
     }
     payload: dict[str, Any] = {
         "evidence": dict(w),
@@ -536,7 +649,9 @@ def evaluate(
         payload["frame"] = frame._wire()
     if candidates:
         payload["candidates"] = [dict(c) for c in candidates]
-    return Evaluation(_call(_native.decision_evidence_evaluate(json.dumps(payload))))
+    return Evaluation(
+        _call(run_panel(execution, _native.decision_evidence_evaluate, json.dumps(payload)))
+    )
 
 
 @dataclass(frozen=True)
