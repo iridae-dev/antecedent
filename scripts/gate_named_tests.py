@@ -109,20 +109,20 @@ def problems(listings: dict[str, dict], named=NAMED) -> list[str]:
             found.append(f"{where}: no such test binary")
             continue
         names = [
-            (name, case["ignored"])
+            (name, case["ignored"], case.get("filter-match", {}).get("status", "matches"))
             for i in ids
             for name, case in suites[i]["testcases"].items()
             if needle in name
         ]
         if not names:
             found.append(f"{where} {needle}: the filter selects no test")
-        elif all(ignored for _, ignored in names):
-            found.append(f"{where} {needle}: every selected test is #[ignore]d")
+        elif all(ignored or status != "matches" for _, ignored, status in names):
+            found.append(f"{where} {needle}: no non-ignored test is selected by the default filter")
     return found
 
 
 def nextest(args: list[str]) -> dict:
-    command = ["cargo", "nextest", "list", "--ignore-default-filter", *args, "--message-format", "json"]
+    command = ["cargo", "nextest", "list", *args, "--message-format", "json"]
     print("==", " ".join(command), flush=True)
     proc = subprocess.run(command, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
@@ -169,6 +169,11 @@ if sys.argv[1:] == ["--self-test"]:
         "ignored"
     ] = True
     case("ignored-only selection fails", ignored, True)
+    filtered = good()
+    filtered["workspace"]["rust-suites"]["antecedent-stats"]["testcases"]["m::cox_ipcw_t"][
+        "filter-match"
+    ] = {"status": "mismatch"}
+    case("default-filtered selection fails", filtered, True)
     missing = good()
     del missing["workspace"]["rust-suites"]["antecedent::response_facade"]
     case("missing --test target fails", missing, True)

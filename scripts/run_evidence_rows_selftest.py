@@ -105,6 +105,36 @@ evidence_assertion = "evidence_test"
         if setting == "EMPTY":
             assert "self_test: 2 failing row(s): first, second" in bad.stdout, bad.stdout
 
+    (root / "parity").mkdir()
+    registry = root / "parity/v3_test_registry.toml"
+    registry.write_text(
+        '[[test]]\npath="crates/example/src/lib.rs"\ncrate="example"\n'
+        'cargo_target="lib"\ncalibration_simulation_assertions=["evidence_test"]\n',
+        encoding="utf-8",
+    )
+    excluded = run()
+    assert excluded.returncode != 0 and "INCOMPLETE" in excluded.stdout, excluded.stdout + excluded.stderr
+    assert "nextest run" not in calls.read_text(encoding="utf-8"), "excluded simulation was executed"
+    opted_in = run(ANTECEDENT_RUN_CALIBRATION_SIMULATIONS="1")
+    assert opted_in.returncode == 0, opted_in.stdout + opted_in.stderr
+    assert "--ignore-default-filter" in calls.read_text(encoding="utf-8")
+    (root / "crates/example/src/lib.rs").write_text(
+        "#[test] fn evidence_test() {}\n#[test] fn simulation_test() {}\n", encoding="utf-8"
+    )
+    registry.write_text(
+        '[[test]]\npath="crates/example/src/lib.rs"\ncrate="example"\n'
+        'cargo_target="lib"\ncalibration_simulation_assertions=["simulation_test"]\n',
+        encoding="utf-8",
+    )
+    (root / "evidence.toml").write_text(
+        '[[fixture_evidence]]\nid="filtered"\nevidence_test="crates/example/src/lib.rs"\n'
+        'evidence_assertion="evidence_test"\ncomposition_filter="simulation"\n', encoding="utf-8"
+    )
+    filtered = run()
+    assert filtered.returncode != 0 and "filter 'simulation' includes a calibration simulation" in filtered.stdout
+    assert "-E simulation" not in calls.read_text(encoding="utf-8")
+    registry.unlink()
+
     uv = bin_dir / "uv"
     uv.write_text(
         """#!/usr/bin/env python3
@@ -137,5 +167,11 @@ evidence_assertion = "test_evidence"
     assert good_python.returncode == 0 and "ok: python_second" in good_python.stdout
     skipped = run(PY_SKIP="1")
     assert skipped.returncode != 0 and "python_first" in skipped.stdout
+    (root / "python/tests/test_evidence.py").write_text(
+        "import pytest\n@pytest.mark.calibration_simulation\ndef test_evidence(): pass\n", encoding="utf-8"
+    )
+    excluded_python = run()
+    assert excluded_python.returncode != 0 and "INCOMPLETE" in excluded_python.stdout
+    assert "cited Python test executed" not in excluded_python.stdout
 
 print("grouped evidence self-test: ok")

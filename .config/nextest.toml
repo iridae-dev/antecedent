@@ -4,6 +4,8 @@
 # budget so those workers do not stack on top of other tests.
 [profile.default]
 # Generated from parity/v3_test_registry.toml; the evidence-audit test checks for drift.
+# Opt in to repeated-sampling checks with:
+# cargo nextest run --ignore-default-filter -E "$(python3 scripts/evidence_audit.py rust-calibration-simulation-filter)"
 default-filter = """
 not ((package(=antecedent-design) and binary(=suite_01) and test(=decision_reliability::measured_routes_respect_current_attestation_and_report_their_closures)) or
 (package(=antecedent-design) and binary(=suite_01) and test(=decision_reliability_intervals::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it)) or
@@ -17,7 +19,120 @@ not ((package(=antecedent-design) and binary(=suite_01) and test(=decision_relia
 (package(=antecedent) and binary(=suite_09) and test(=predictive_score_interval_facade::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary)) or
 (package(=antecedent) and binary(=suite_07) and test(=scientific_bridge_interval_facade::a_correction_inside_a_measured_record_is_published_bound_to_it)) or
 (package(=antecedent) and binary(=suite_07) and test(=scientific_bridge_interval_facade::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it)) or
-(package(=antecedent-io) and kind(lib) and test(=measured_inference::transport::native_lifecycle_tests::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit)))
+(package(=antecedent-io) and kind(lib) and test(=measured_inference::transport::native_lifecycle_tests::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit)) or
+(package(=antecedent-design) and kind(lib) and test(=program_search::selection::tests::correlated_gaussian_selected_value_simulation_exercises_joint_intervals)) or
+(package(=antecedent-design) and kind(lib) and test(=program_search::selection::procedure::tests::heldout_selected_value_has_known_normal_coverage_despite_training_optimism)) or
+(package(=antecedent) and binary(=suite_05) and test(=numeric_pins::plugin_set_intervals_include_model_fit_uncertainty)) or
+(package(=antecedent) and binary(=suite_05) and test(=numeric_pins::kernel_target_population_coverage_over_seed_grid)) or
+(package(=antecedent) and binary(=suite_05) and test(=numeric_pins::cpdag_shared_row_aggregate_coverage_over_seed_grid)) or
+(package(=antecedent) and binary(=suite_05) and test(=numeric_pins::pag_two_atom_response_coverage_preserves_shared_row_dependence)) or
+(package(=antecedent-estimate) and binary(=multiple_imputation) and test(=imputation_recovers_a_linear_truth_with_valid_coverage_where_complete_cases_are_biased)) or
+(package(=antecedent-validate) and kind(lib) and test(=target_native::joint::tests::unbiased_bootstrap_discrepancy_is_the_monte_carlo_error_not_chi_square)) or
+(package(=antecedent-estimate) and kind(lib) and test(=propensity::matching::tests::abadie_imbens_ate_se_coverage_direction)) or
+(package(=antecedent-estimate) and binary(=bayesian_robust_ate_calibration) and test(=repeated_sampling_is_scoped_to_one_correct_linear_nuisance)) or
+(package(=antecedent-estimate) and binary(=cluster_dml_known_truth) and test(=the_cluster_sandwich_receipt_covers_the_known_effect_and_the_iid_se_does_not)) or
+(package(=antecedent-estimate) and binary(=effect_constancy_calibration) and test(=known_gaussian_null_power_and_holm_grid)) or
+(package(=antecedent-estimate) and binary(=interference_observational_calibration) and test(=known_exposure_probabilities_have_pointwise_cluster_coverage)) or
+(package(=antecedent-estimate) and binary(=interference_saturation_calibration) and test(=complete_cluster_total_interval_calibrates_at_support_boundary)) or
+(package(=antecedent-estimate) and binary(=interference_saturation_calibration) and test(=saturation_pointwise_intervals_cover_effects_across_neighbor_mappings)) or
+(package(=antecedent-estimate) and binary(=interference_saturation_calibration) and test(=complete_cluster_randomization_pointwise_total_interval_covers_truth)) or
+(package(=antecedent-estimate) and binary(=local_polynomial_ratio_calibration) and test(=regression_kink_quartic_trend_uses_the_higher_order_pilot)) or
+(package(=antecedent-estimate) and binary(=local_polynomial_ratio_calibration) and test(=fuzzy_jump_ratio_normal_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and binary(=local_polynomial_ratio_calibration) and test(=regression_kink_ratio_normal_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and binary(=longitudinal_g_formula_calibration) and test(=fixed_known_q_subject_intervals_cover_two_period_regime_truth)) or
+(package(=antecedent-estimate) and binary(=penalized_aipw) and test(=the_influence_interval_covers_the_known_effect_in_repeated_sampling)) or
+(package(=antecedent-estimate) and binary(=temporal_dependent_interval) and test(=dynamic_scm_studentized_interval_covers_independent_truth)) or
+(package(=antecedent-learn) and binary(=bayesian_basis) and test(=basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage)) or
+(package(=antecedent-stats) and binary(=adaptive_participant_family) and test(=the_simultaneous_family_covers_the_data_selected_best_treatment)) or
+(package(=antecedent-stats) and binary(=repeated_measures_posterior) and test(=credible_coverage_is_nominal_under_epsilon_greedy_assignment_without_correction)) or
+(package(=antecedent) and binary(=suite_01) and test(=adaptive_participant_acceptance::adaptive_simultaneous_comparisons_against_control)) or
+(package(=antecedent) and binary(=suite_01) and test(=adaptive_participant_acceptance::adaptive_selected_alternative_data_chosen)) or
+(package(=antecedent) and binary(=suite_01) and test(=adaptive_participant_facade::a_simulation_returns_a_receipt_and_labelled_measured_properties)) or
+(package(=antecedent) and binary(=suite_01) and test(=batch_retarget_known_truth::the_max_t_band_covers_the_known_retargeted_truths_family_wise)) or
+(package(=antecedent) and binary(=suite_01) and test(=bayesian_iv_rd_staged::iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law)) or
+(package(=antecedent) and binary(=suite_01) and test(=bayesian_iv_rd_staged::rd_posterior_intervals_calibrate_under_declared_local_linear_law)) or
+(package(=antecedent) and binary(=suite_05) and test(=panel_did_interval_calibration::retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth)) or
+(package(=antecedent) and binary(=suite_05) and test(=panel_did_interval_calibration::retained_staggered_event_study_post_adoption_interval_covers_parallel_trends_truth)) or
+(package(=antecedent) and binary(=suite_05) and test(=panel_did_interval_calibration::retained_repeated_cross_section_did_interval_covers_parallel_trends_truth)) or
+(package(=antecedent) and binary(=suite_07) and test(=smoothed_dose_posterior_facade::posterior_covers_the_closed_form_smoothed_target_under_both_designs)) or
+(package(=antecedent-attribution) and kind(lib) and test(=mechanism_change::tests::mean_diff_null_split_type_i_smoke)) or
+(package(=antecedent-attribution) and kind(lib) and test(=mechanism_change::tests::mean_diff_null_split_family_wise_type_i_rate)) or
+(package(=antecedent-estimate) and kind(lib) and test(=ancova::tests::bernoulli_ancova_hc0_covers_known_finite_population_effect)) or
+(package(=antecedent-estimate) and kind(lib) and test(=bayesian_iv::tests::joint_fixed_loading_intervals_calibrate_under_the_declared_law)) or
+(package(=antecedent-estimate) and kind(lib) and test(=continuous_dose::policy_tests::fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=continuous_dose::policy_tests::fixed_group_dose_policy_support_boundary_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=continuous_dose::policy_tests::nonuniform_density_heteroscedastic_intervals_cover_quadrature_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=cyclic_dynamic_inference::tests::shared_mechanism_posterior_centres_on_and_covers_truth_across_seeds)) or
+(package(=antecedent-estimate) and kind(lib) and test(=experimental_fit::tests::coefficient_intervals_cover_near_their_nominal_rate)) or
+(package(=antecedent-estimate) and kind(lib) and test(=frontdoor_functional::tests::saturated_influence_se_matches_sampling_sd_and_covers)) or
+(package(=antecedent-estimate) and kind(lib) and test(=frontdoor_functional::tests::arm_linear_influence_se_matches_sampling_sd_and_covers)) or
+(package(=antecedent-estimate) and kind(lib) and test(=heterogeneity_robust_did::tests::whole_procedure_intervals_cover_the_simulated_truth_in_most_samples)) or
+(package(=antecedent-estimate) and kind(lib) and test(=interference::tests::cluster_total_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=interference_observational::tests::observational_known_exposure_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=interference_saturation::tests::two_stage_direct_spillover_total_pointwise_coverage)) or
+(package(=antecedent-estimate) and kind(lib) and test(=interference_saturation::tests::saturation_exposure_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=iv::tests::anderson_rubin_coverage_on_weakish_dgp)) or
+(package(=antecedent-estimate) and kind(lib) and test(=marginal_structural_model::tests::subject_clustered_msm_intervals_cover_known_coefficients)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::crossfit_aipw_policy_intervals_cover_known_values)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::held_out_aipw_and_constrained_multi_action_intervals_cover_known_values)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::held_out_uplift_bin_intervals_cover_fixed_rank_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::boundary_probability_multi_action_cate_intervals_cover_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::pointwise_policy_interval_repeated_sampling_coverage)) or
+(package(=antecedent-estimate) and kind(lib) and test(=policy_value::tests::finite_fixed_class_regret_simultaneous_interval_covers_oracle_gap)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::complete_unit_randomization_covers_known_itt_and_withholds_sparse_interval)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::complete_interval_support_boundary_covers_known_itt)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::blocked_randomization_covers_known_itt_and_withholds_sparse_blocks)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::factorial_cell_randomization_covers_three_known_pointwise_effects)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::fixed_population_cluster_randomization_covers_known_itt)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::cluster_interval_support_boundary_covers_known_itt)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_neyman::tests::fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_scores::tests::independent_bernoulli_and_multi_arm_coverage)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_scores::tests::fixed_preassignment_cuped_score_covers_original_itt)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_scores::tests::independent_two_action_coverage_at_the_arm_support_boundary)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_scores::tests::complier_wald_influence_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_scores::tests::one_sided_treatment_on_treated_influence_interval_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=response::tests::exchangeable_rank_interval_covers_an_exchangeable_truth_at_the_level)) or
+(package(=antecedent-estimate) and kind(lib) and test(=staggered_event_study::tests::calibrated_event_time_cluster_coverage_and_thin_cluster_boundary)) or
+(package(=antecedent-estimate) and kind(lib) and test(=staggered_event_study::tests::shared_cluster_shocks_keep_supported_post_event_coverage)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::repeated_sampling_pointwise_bootstrap_covers_simple_survival_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::randomized_survival_scalar_bootstrap_support_boundary_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::delayed_entry_scalar_bootstrap_support_boundary_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::fixed_g_ipcw_scalar_bootstrap_support_boundary_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::delayed_entry_fixed_g_scalar_bootstrap_support_boundary_covers_known_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::delayed_entry_competing_risk_bootstrap_covers_cif_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::delayed_entry_fixed_g_bootstrap_covers_survival_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::delayed_entry_fixed_g_bootstrap_covers_competing_incidence_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::simultaneous_survival_difference_band_covers_entire_event_grid)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::simultaneous_competing_incidence_band_covers_entire_event_grid)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::repeated_sampling_fixed_g_bootstrap_covers_survival_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=survival::tests::repeated_sampling_competing_risk_bootstrap_covers_cif_truth)) or
+(package(=antecedent-estimate) and kind(lib) and test(=synthetic_rollout::tests::conformal_period_intervals_cover_the_effect_at_the_nominal_rate)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::advanced::gpdc_tests::gpdc_scaled_z_null_and_power)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::advanced::knn_tests::knn_null_preserves_yz_dependence)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::advanced::knn_tests::knn_continuous_z_null_type_i_not_near_one)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::advanced::knn_tests::knn_bivariate_z_conditional_null)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::calibration::tests::parcorr_calibration_type_i_near_alpha_and_power)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::calibration::tests::gsquared_calibration_type_i_and_power)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::calibration::tests::robust_parcorr_calibration_smoke)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::calibration::tests::weighted_parcorr_calibration_smoke)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::calibration::tests::multivariate_and_regression_match_parcorr_on_scalars)) or
+(package(=antecedent-stats) and kind(lib) and test(=ci::calibration::tests::multivariate_block_calibration_smoke)) or
+(package(=antecedent-stats) and kind(lib) and test(=longitudinal_regime::tests::three_period_sequential_dr_interval_covers_randomized_truth)) or
+(package(=antecedent-stats) and kind(lib) and test(=longitudinal_regime::tests::three_period_excluded_fold_q_interval_covers_randomized_truth)) or
+(package(=antecedent-stats) and kind(lib) and test(=longitudinal_regime::tests::fixed_exogenous_q_sequential_dr_subject_scores_cover_randomized_truth)) or
+(package(=antecedent-stats) and kind(lib) and test(=longitudinal_regime::tests::subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth)) or
+(package(=antecedent-stats) and kind(lib) and test(=longitudinal_regime::tests::subject_ipw_interval_recovers_randomized_censored_truth_over_repeated_samples)) or
+(package(=antecedent-stats) and kind(lib) and test(=longitudinal_regime::tests::fixed_known_q_g_formula_interval_covers_regime_truth)) or
+(package(=antecedent-validate) and kind(lib) and test(=bayesian_checks::tests::calibration_gate::sbc_glm_families_rank_on_the_response_scale)) or
+(package(=antecedent-validate) and kind(lib) and test(=stability::null_calibration::tests::synthetic_null_fpr_near_alpha_gate)) or
+(package(=antecedent-validate) and kind(lib) and test(=stability::null_calibration::tests::synthetic_null_smoke)) or
+(package(=antecedent-validate) and kind(lib) and test(=bayesian_checks::ppc_prior_sensitivity_reference_tests::ppc_prior_sensitivity_simulation_based_calibration_matches_the_exact_conjugate_ranks)) or
+(package(=antecedent-validate) and kind(lib) and test(=bayesian_checks::ppc_prior_sensitivity_reference_tests::ppc_prior_sensitivity_simulation_based_calibration_reads_every_option)) or
+(package(=antecedent-validate) and kind(lib) and test(=discovery_stability_reference_tests::discovery_stability_synthetic_null_matches_reference)) or
+(package(=antecedent-validate) and kind(lib) and test(=discovery_stability_reference_tests::discovery_stability_synthetic_null_runs_discovery_at_the_declared_alpha)) or
+(package(=antecedent-estimate) and kind(lib) and test(=randomized_joint::tests::joint_wald_region_covers_the_known_effect_vector_across_allocations)))
 """
 test-threads = "num-cpus"
 

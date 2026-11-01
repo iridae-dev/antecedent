@@ -162,6 +162,7 @@ def test_local_polynomial_rd_refuses_weak_first_stage_and_sparse_side_support():
         )
 
 
+@pytest.mark.calibration_simulation
 def test_fuzzy_rd_rbc_interval_has_nominal_coverage_in_seeded_known_truth_fixture():
     rng = np.random.default_rng(20260926)
     running = np.linspace(-1.0, 1.0, 602, dtype=np.float64)[1:-1]

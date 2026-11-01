@@ -86,6 +86,9 @@ id = "joint-selected-program-intervals"
 crate = "antecedent-design"
 cargo_target = "lib"
 path = "crates/antecedent-design/src/program_search/selection.rs"
+calibration_simulation_assertions = [
+    "correlated_gaussian_selected_value_simulation_exercises_joint_intervals",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -128,6 +131,9 @@ id = "joint-whole-selection-procedure"
 crate = "antecedent-design"
 cargo_target = "lib"
 path = "crates/antecedent-design/src/program_search/selection/procedure.rs"
+calibration_simulation_assertions = [
+    "heldout_selected_value_has_known_normal_coverage_despite_training_optimism",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -451,6 +457,13 @@ id = "joint-target-production-batch"
 crate = "antecedent"
 cargo_target = "suite_05"
 path = "crates/antecedent/tests/numeric_pins.rs"
+calibration_simulation_assertions = [
+    "plugin_set_intervals_include_model_fit_uncertainty",
+
+    "kernel_target_population_coverage_over_seed_grid",
+    "cpdag_shared_row_aggregate_coverage_over_seed_grid",
+    "pag_two_atom_response_coverage_preserves_shared_row_dependence",
+]
 gates = ["inventory", "named"]
 suite_map_line = "suite_05: inverse_forward_sources_facade, joint_class_response, joint_law_propagation_facade, joint_sensitivity_lifecycle, learned_continuous_lifecycle, local_polynomial_ratio_route, longitudinal_regime_route, mag_visible_numeric, manufacturing_temporal, mapped_posterior_transfer, measurement_model_facade, mechanism_composition_facade, mnar_sensitivity_facade, msm_sensitivity_decision, multi_source_acceptance, mz_transport_lifecycle, nan_cell_ingest, native_claim_support_and_horizon_draws, native_claims, native_coordinate_parity, nested_counterfactual_route_evidence, numeric_pins, observation_query_facade, observation_recovery_lifecycle, observational_interference_route, pag, pag_admg_numeric_pins, pag_identified_envelope_numeric_pins, panel_did_interval_calibration, panel_did_route, path_specific_edge_gformula_pins"
 
@@ -752,6 +765,9 @@ id = "multiple-imputation-engine"
 crate = "antecedent-estimate"
 cargo_target = "multiple_imputation"
 path = "crates/antecedent-estimate/tests/multiple_imputation.rs"
+calibration_simulation_assertions = [
+    "imputation_recovers_a_linear_truth_with_valid_coverage_where_complete_cases_are_biased",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -892,6 +908,9 @@ id = "target-native-joint-statistic"
 crate = "antecedent-validate"
 cargo_target = "lib"
 path = "crates/antecedent-validate/src/target_native/joint.rs"
+calibration_simulation_assertions = [
+    "unbiased_bootstrap_discrepancy_is_the_monte_carlo_error_not_chi_square",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -1588,6 +1607,9 @@ id = "matching-pass-budget-quote"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
+calibration_simulation_assertions = [
+    "abadie_imbens_ate_se_coverage_direction",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2646,6 +2668,7 @@ id = "bayesian-robust-ate-calibration"
 crate = "antecedent-estimate"
 cargo_target = "bayesian_robust_ate_calibration"
 path = "crates/antecedent-estimate/tests/bayesian_robust_ate_calibration.rs"
+calibration_simulation_assertions = ["repeated_sampling_is_scoped_to_one_correct_linear_nuisance"]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2688,6 +2711,9 @@ id = "cluster-dml-known-truth"
 crate = "antecedent-estimate"
 cargo_target = "cluster_dml_known_truth"
 path = "crates/antecedent-estimate/tests/cluster_dml_known_truth.rs"
+calibration_simulation_assertions = [
+    "the_cluster_sandwich_receipt_covers_the_known_effect_and_the_iid_se_does_not",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2772,6 +2798,9 @@ id = "effect-constancy-calibration"
 crate = "antecedent-estimate"
 cargo_target = "effect_constancy_calibration"
 path = "crates/antecedent-estimate/tests/effect_constancy_calibration.rs"
+calibration_simulation_assertions = [
+    "known_gaussian_null_power_and_holm_grid",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2779,6 +2808,9 @@ id = "interference-observational-calibration"
 crate = "antecedent-estimate"
 cargo_target = "interference_observational_calibration"
 path = "crates/antecedent-estimate/tests/interference_observational_calibration.rs"
+calibration_simulation_assertions = [
+    "known_exposure_probabilities_have_pointwise_cluster_coverage",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2786,6 +2818,11 @@ id = "interference-saturation-calibration"
 crate = "antecedent-estimate"
 cargo_target = "interference_saturation_calibration"
 path = "crates/antecedent-estimate/tests/interference_saturation_calibration.rs"
+calibration_simulation_assertions = [
+    "complete_cluster_total_interval_calibrates_at_support_boundary",
+    "saturation_pointwise_intervals_cover_effects_across_neighbor_mappings",
+    "complete_cluster_randomization_pointwise_total_interval_covers_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2849,6 +2886,11 @@ id = "local-polynomial-ratio-calibration"
 crate = "antecedent-estimate"
 cargo_target = "local_polynomial_ratio_calibration"
 path = "crates/antecedent-estimate/tests/local_polynomial_ratio_calibration.rs"
+calibration_simulation_assertions = [
+    "regression_kink_quartic_trend_uses_the_higher_order_pilot",
+    "fuzzy_jump_ratio_normal_interval_covers_known_truth",
+    "regression_kink_ratio_normal_interval_covers_known_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2856,6 +2898,9 @@ id = "longitudinal-g-formula-calibration"
 crate = "antecedent-estimate"
 cargo_target = "longitudinal_g_formula_calibration"
 path = "crates/antecedent-estimate/tests/longitudinal_g_formula_calibration.rs"
+calibration_simulation_assertions = [
+    "fixed_known_q_subject_intervals_cover_two_period_regime_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -2982,6 +3027,9 @@ id = "penalized-aipw"
 crate = "antecedent-estimate"
 cargo_target = "penalized_aipw"
 path = "crates/antecedent-estimate/tests/penalized_aipw.rs"
+calibration_simulation_assertions = [
+    "the_influence_interval_covers_the_known_effect_in_repeated_sampling",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -3087,6 +3135,9 @@ id = "temporal-dependent-interval"
 crate = "antecedent-estimate"
 cargo_target = "temporal_dependent_interval"
 path = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs"
+calibration_simulation_assertions = [
+    "dynamic_scm_studentized_interval_covers_independent_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -4062,6 +4113,9 @@ id = "bayesian-basis"
 crate = "antecedent-learn"
 cargo_target = "bayesian_basis"
 path = "crates/antecedent-learn/tests/bayesian_basis.rs"
+calibration_simulation_assertions = [
+    "basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -4277,6 +4331,9 @@ id = "adaptive-participant-family"
 crate = "antecedent-stats"
 cargo_target = "adaptive_participant_family"
 path = "crates/antecedent-stats/tests/adaptive_participant_family.rs"
+calibration_simulation_assertions = [
+    "the_simultaneous_family_covers_the_data_selected_best_treatment",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -4362,6 +4419,9 @@ id = "repeated-measures-posterior"
 crate = "antecedent-stats"
 cargo_target = "repeated_measures_posterior"
 path = "crates/antecedent-stats/tests/repeated_measures_posterior.rs"
+calibration_simulation_assertions = [
+    "credible_coverage_is_nominal_under_epsilon_greedy_assignment_without_correction",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -4431,6 +4491,10 @@ id = "adaptive-participant-acceptance"
 crate = "antecedent"
 cargo_target = "suite_01"
 path = "crates/antecedent/tests/adaptive_participant_acceptance.rs"
+calibration_simulation_assertions = [
+    "adaptive_simultaneous_comparisons_against_control",
+    "adaptive_selected_alternative_data_chosen",
+]
 suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
 gates = ["inventory", "named"]
 
@@ -4439,6 +4503,9 @@ id = "adaptive-participant-facade"
 crate = "antecedent"
 cargo_target = "suite_01"
 path = "crates/antecedent/tests/adaptive_participant_facade.rs"
+calibration_simulation_assertions = [
+    "a_simulation_returns_a_receipt_and_labelled_measured_properties",
+]
 suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
 gates = ["inventory", "named"]
 
@@ -4625,6 +4692,9 @@ id = "batch-retarget-known-truth"
 crate = "antecedent"
 cargo_target = "suite_01"
 path = "crates/antecedent/tests/batch_retarget_known_truth.rs"
+calibration_simulation_assertions = [
+    "the_max_t_band_covers_the_known_retargeted_truths_family_wise",
+]
 suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
 gates = ["inventory", "named"]
 
@@ -4679,6 +4749,10 @@ id = "bayesian-iv-rd-staged"
 crate = "antecedent"
 cargo_target = "suite_01"
 path = "crates/antecedent/tests/bayesian_iv_rd_staged.rs"
+calibration_simulation_assertions = [
+    "iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law",
+    "rd_posterior_intervals_calibrate_under_declared_local_linear_law",
+]
 suite_map_line = "suite_01: adaptive_inference_facade, adaptive_participant_acceptance, adaptive_participant_facade, adaptive_procedure_facade, adaptive_repeated_measures_consumer, adaptive_repeated_measures_facade, admg_conditional_transport_lifecycle, admg_functional_effect_route_evidence, admg_intervention_response_route_evidence, admg_posterior_ate, admg_posterior_response, admg_response_curve_route_evidence, arrow_null_ingest, artifact_compat_earlier_release, artifact_migrate, attribution, augmented_panel_did_route, batch_analysis, batch_analyze_many, batch_retarget, batch_retarget_known_truth, bayesian, bayesian_design_posterior_routes, bayesian_functional_routes, bayesian_design_routes, bayesian_iv_rd_staged, bayesian_likelihood, bayesian_prior_in_force, bayesian_randomized_routes, bayesian_robust_ate, bayesian_trial_transport, calibration_binding, calibration_grid_binding, callback_nested_overlap_facade, cancellation_expansion_cells, categorical_treatment_posterior_facade, joint_panel_workflow"
 gates = ["inventory", "named"]
 
@@ -6183,6 +6257,11 @@ id = "panel-did-interval-calibration"
 crate = "antecedent"
 cargo_target = "suite_05"
 path = "crates/antecedent/tests/panel_did_interval_calibration.rs"
+calibration_simulation_assertions = [
+    "retained_panel_did_cluster_normal_interval_covers_parallel_trends_truth",
+    "retained_staggered_event_study_post_adoption_interval_covers_parallel_trends_truth",
+    "retained_repeated_cross_section_did_interval_covers_parallel_trends_truth",
+]
 suite_map_line = "suite_05: inverse_forward_sources_facade, joint_class_response, joint_law_propagation_facade, joint_sensitivity_lifecycle, learned_continuous_lifecycle, local_polynomial_ratio_route, longitudinal_regime_route, mag_visible_numeric, manufacturing_temporal, mapped_posterior_transfer, measurement_model_facade, mechanism_composition_facade, mnar_sensitivity_facade, msm_sensitivity_decision, multi_source_acceptance, mz_transport_lifecycle, nan_cell_ingest, native_claim_support_and_horizon_draws, native_claims, native_coordinate_parity, nested_counterfactual_route_evidence, numeric_pins, observation_query_facade, observation_recovery_lifecycle, observational_interference_route, pag, pag_admg_numeric_pins, pag_identified_envelope_numeric_pins, panel_did_interval_calibration, panel_did_route, path_specific_edge_gformula_pins"
 gates = ["inventory", "named"]
 
@@ -6853,6 +6932,9 @@ id = "smoothed-dose-posterior-facade"
 crate = "antecedent"
 cargo_target = "suite_07"
 path = "crates/antecedent/tests/smoothed_dose_posterior_facade.rs"
+calibration_simulation_assertions = [
+    "posterior_covers_the_closed_form_smoothed_target_under_both_designs",
+]
 suite_map_line = "suite_07: refute_validator_not_applicable, repeated_measures_posterior_facade, rollout_artifact, route_evidence_joint_law_propagation, route_evidence_observation_query, sample_split_analysis_facade, sample_split_effect_facade, sample_split_parent_set_effect_facade, sample_split_weighted_acceptance, saturation_interference_route, schema_binding, scientific_bridge_facade, scientific_bridge_interval_facade, selective_discovery_facade, sequential_evaluation_facade, short_series_measurement, smoothed_dose_lifecycle, smoothed_dose_posterior_facade, source_evidence, source_projection, specification_conformance, staged_attribution_transport_interference, staged_bayesian_basis_gcomp, static_class_bounds, statistical_transport_numeric, survival_route, switchback_interval_route, synthetic_control_route, synthetic_did_randomization_route, temporal_admg_route_evidence, temporal_attribution_route_evidence, temporal_class_bayesian_envelope, temporal_class_envelope_numeric_pins, temporal_class_observation"
 gates = ["inventory", "named"]
 
@@ -12636,6 +12718,10 @@ id = "audit-crates-antecedent-attribution-src-mechanism-change-rs"
 crate = "antecedent-attribution"
 cargo_target = "lib"
 path = "crates/antecedent-attribution/src/mechanism_change.rs"
+calibration_simulation_assertions = [
+    "mean_diff_null_split_type_i_smoke",
+    "mean_diff_null_split_family_wise_type_i_rate",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -13294,6 +13380,13 @@ id = "audit-crates-antecedent-counterfactual-src-engine-rs"
 crate = "antecedent-counterfactual"
 cargo_target = "lib"
 path = "crates/antecedent-counterfactual/src/engine.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-counterfactual-src-error-rs"
+crate = "antecedent-counterfactual"
+cargo_target = "lib"
+path = "crates/antecedent-counterfactual/src/error.rs"
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14029,6 +14122,9 @@ id = "audit-crates-antecedent-estimate-src-ancova-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/ancova.rs"
+calibration_simulation_assertions = [
+    "bernoulli_ancova_hc0_covers_known_finite_population_effect",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14071,6 +14167,9 @@ id = "audit-crates-antecedent-estimate-src-bayesian-iv-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/bayesian_iv.rs"
+calibration_simulation_assertions = [
+    "joint_fixed_loading_intervals_calibrate_under_the_declared_law",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14176,6 +14275,11 @@ id = "audit-crates-antecedent-estimate-src-continuous-dose-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/continuous_dose.rs"
+calibration_simulation_assertions = [
+    "fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth",
+    "fixed_group_dose_policy_support_boundary_covers_known_truth",
+    "nonuniform_density_heteroscedastic_intervals_cover_quadrature_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14218,6 +14322,9 @@ id = "audit-crates-antecedent-estimate-src-cyclic-dynamic-inference-tests-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/cyclic_dynamic_inference/tests.rs"
+calibration_simulation_assertions = [
+    "shared_mechanism_posterior_centres_on_and_covers_truth_across_seeds",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14309,6 +14416,11 @@ id = "audit-crates-antecedent-estimate-src-experimental-fit-tests-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/experimental_fit_tests.rs"
+# Included as `experimental_fit::tests` by the parent module.
+calibration_simulation_module = "experimental_fit::tests"
+calibration_simulation_assertions = [
+    "coefficient_intervals_cover_near_their_nominal_rate",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14323,6 +14435,10 @@ id = "audit-crates-antecedent-estimate-src-frontdoor-functional-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/frontdoor_functional.rs"
+calibration_simulation_assertions = [
+    "saturated_influence_se_matches_sampling_sd_and_covers",
+    "arm_linear_influence_se_matches_sampling_sd_and_covers",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14358,6 +14474,9 @@ id = "audit-crates-antecedent-estimate-src-heterogeneity-robust-did-tests-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs"
+calibration_simulation_assertions = [
+    "whole_procedure_intervals_cover_the_simulated_truth_in_most_samples",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14372,6 +14491,9 @@ id = "audit-crates-antecedent-estimate-src-interference-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/interference.rs"
+calibration_simulation_assertions = [
+    "cluster_total_interval_covers_known_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14379,6 +14501,9 @@ id = "audit-crates-antecedent-estimate-src-interference-observational-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/interference_observational.rs"
+calibration_simulation_assertions = [
+    "observational_known_exposure_interval_covers_known_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14386,6 +14511,10 @@ id = "audit-crates-antecedent-estimate-src-interference-saturation-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/interference_saturation.rs"
+calibration_simulation_assertions = [
+    "two_stage_direct_spillover_total_pointwise_coverage",
+    "saturation_exposure_interval_covers_known_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14393,6 +14522,9 @@ id = "audit-crates-antecedent-estimate-src-iv-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/iv.rs"
+calibration_simulation_assertions = [
+    "anderson_rubin_coverage_on_weakish_dgp",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14484,6 +14616,7 @@ id = "audit-crates-antecedent-estimate-src-marginal-structural-model-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/marginal_structural_model.rs"
+calibration_simulation_assertions = ["subject_clustered_msm_intervals_cover_known_coefficients"]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14561,6 +14694,15 @@ id = "audit-crates-antecedent-estimate-src-policy-value-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/policy_value.rs"
+calibration_simulation_assertions = [
+    "crossfit_aipw_policy_intervals_cover_known_values",
+    "held_out_aipw_and_constrained_multi_action_intervals_cover_known_values",
+    "held_out_uplift_bin_intervals_cover_fixed_rank_truth",
+    "boundary_probability_multi_action_cate_intervals_cover_known_truth",
+    "fixed_multi_action_cate_intervals_cover_group_truth_and_refuse_weak_support",
+    "pointwise_policy_interval_repeated_sampling_coverage",
+    "finite_fixed_class_regret_simultaneous_interval_covers_oracle_gap",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14708,6 +14850,15 @@ id = "audit-crates-antecedent-estimate-src-randomized-neyman-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/randomized_neyman.rs"
+calibration_simulation_assertions = [
+    "complete_unit_randomization_covers_known_itt_and_withholds_sparse_interval",
+    "complete_interval_support_boundary_covers_known_itt",
+    "blocked_randomization_covers_known_itt_and_withholds_sparse_blocks",
+    "factorial_cell_randomization_covers_three_known_pointwise_effects",
+    "fixed_population_cluster_randomization_covers_known_itt",
+    "cluster_interval_support_boundary_covers_known_itt",
+    "fixed_cuped_cluster_totals_cover_the_unadjusted_known_itt",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14715,6 +14866,13 @@ id = "audit-crates-antecedent-estimate-src-randomized-scores-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/randomized_scores.rs"
+calibration_simulation_assertions = [
+    "independent_bernoulli_and_multi_arm_coverage",
+    "fixed_preassignment_cuped_score_covers_original_itt",
+    "independent_two_action_coverage_at_the_arm_support_boundary",
+    "complier_wald_influence_interval_covers_known_truth",
+    "one_sided_treatment_on_treated_influence_interval_covers_known_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14764,6 +14922,9 @@ id = "audit-crates-antecedent-estimate-src-response-tests-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/response/tests.rs"
+calibration_simulation_assertions = [
+    "exchangeable_rank_interval_covers_an_exchangeable_truth_at_the_level",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14848,6 +15009,10 @@ id = "audit-crates-antecedent-estimate-src-staggered-event-study-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/staggered_event_study.rs"
+calibration_simulation_assertions = [
+    "calibrated_event_time_cluster_coverage_and_thin_cluster_boundary",
+    "shared_cluster_shocks_keep_supported_post_event_coverage",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14876,6 +15041,21 @@ id = "audit-crates-antecedent-estimate-src-survival-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/survival.rs"
+calibration_simulation_assertions = [
+    "repeated_sampling_pointwise_bootstrap_covers_simple_survival_truth",
+    "randomized_survival_scalar_bootstrap_support_boundary_covers_known_truth",
+    "delayed_entry_scalar_bootstrap_support_boundary_covers_known_truth",
+    "fixed_g_ipcw_scalar_bootstrap_support_boundary_covers_known_truth",
+    "delayed_entry_fixed_g_scalar_bootstrap_support_boundary_covers_known_truth",
+    "delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth",
+    "delayed_entry_competing_risk_bootstrap_covers_cif_truth",
+    "delayed_entry_fixed_g_bootstrap_covers_survival_truth",
+    "delayed_entry_fixed_g_bootstrap_covers_competing_incidence_truth",
+    "simultaneous_survival_difference_band_covers_entire_event_grid",
+    "simultaneous_competing_incidence_band_covers_entire_event_grid",
+    "repeated_sampling_fixed_g_bootstrap_covers_survival_truth",
+    "repeated_sampling_competing_risk_bootstrap_covers_cif_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -14897,6 +15077,9 @@ id = "audit-crates-antecedent-estimate-src-synthetic-rollout-tests-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/synthetic_rollout/tests.rs"
+calibration_simulation_assertions = [
+    "conformal_period_intervals_cover_the_effect_at_the_nominal_rate",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16837,6 +17020,9 @@ id = "audit-crates-antecedent-stats-src-ci-advanced-gpdc-tests-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
 path = "crates/antecedent-stats/src/ci/advanced/gpdc_tests.rs"
+calibration_simulation_assertions = [
+    "gpdc_scaled_z_null_and_power",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16844,6 +17030,12 @@ id = "audit-crates-antecedent-stats-src-ci-advanced-knn-tests-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
 path = "crates/antecedent-stats/src/ci/advanced/knn_tests.rs"
+calibration_simulation_assertions = [
+    "knn_null_preserves_yz_dependence",
+
+    "knn_continuous_z_null_type_i_not_near_one",
+    "knn_bivariate_z_conditional_null",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -16893,6 +17085,14 @@ id = "audit-crates-antecedent-stats-src-ci-calibration-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
 path = "crates/antecedent-stats/src/ci/calibration.rs"
+calibration_simulation_assertions = [
+    "parcorr_calibration_type_i_near_alpha_and_power",
+    "gsquared_calibration_type_i_and_power",
+    "robust_parcorr_calibration_smoke",
+    "weighted_parcorr_calibration_smoke",
+    "multivariate_and_regression_match_parcorr_on_scalars",
+    "multivariate_block_calibration_smoke",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17117,6 +17317,14 @@ id = "audit-crates-antecedent-stats-src-longitudinal-regime-rs"
 crate = "antecedent-stats"
 cargo_target = "lib"
 path = "crates/antecedent-stats/src/longitudinal_regime.rs"
+calibration_simulation_assertions = [
+    "three_period_sequential_dr_interval_covers_randomized_truth",
+    "three_period_excluded_fold_q_interval_covers_randomized_truth",
+    "fixed_exogenous_q_sequential_dr_subject_scores_cover_randomized_truth",
+    "subject_excluded_fold_q_sequential_dr_scores_cover_randomized_truth",
+    "subject_ipw_interval_recovers_randomized_censored_truth_over_repeated_samples",
+    "fixed_known_q_g_formula_interval_covers_regime_truth",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17222,6 +17430,9 @@ id = "audit-crates-antecedent-validate-src-bayesian-checks-tests-rs"
 crate = "antecedent-validate"
 cargo_target = "lib"
 path = "crates/antecedent-validate/src/bayesian_checks/tests.rs"
+calibration_simulation_assertions = [
+    "sbc_glm_families_rank_on_the_response_scale",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -17341,6 +17552,11 @@ id = "audit-crates-antecedent-validate-src-stability-null-calibration-rs"
 crate = "antecedent-validate"
 cargo_target = "lib"
 path = "crates/antecedent-validate/src/stability/null_calibration.rs"
+calibration_simulation_assertions = [
+    "synthetic_null_fpr_near_alpha_gate",
+
+    "synthetic_null_smoke",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -19755,6 +19971,10 @@ id = "audit-crates-antecedent-validate-src-bayesian-checks-ppc-prior-sensitivity
 crate = "antecedent-validate"
 cargo_target = "lib"
 path = "crates/antecedent-validate/src/bayesian_checks/ppc_prior_sensitivity_reference_tests.rs"
+calibration_simulation_assertions = [
+    "ppc_prior_sensitivity_simulation_based_calibration_matches_the_exact_conjugate_ranks",
+    "ppc_prior_sensitivity_simulation_based_calibration_reads_every_option",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -19762,6 +19982,11 @@ id = "audit-crates-antecedent-validate-src-discovery-stability-reference-tests-r
 crate = "antecedent-validate"
 cargo_target = "lib"
 path = "crates/antecedent-validate/src/discovery_stability_reference_tests.rs"
+calibration_simulation_assertions = [
+    "discovery_stability_synthetic_null_matches_reference",
+
+    "discovery_stability_synthetic_null_runs_discovery_at_the_declared_alpha",
+]
 gates = ["inventory", "named"]
 
 [[test]]
@@ -21098,6 +21323,9 @@ id = "inventory-crates-antecedent-estimate-src-randomized-joint-rs"
 crate = "antecedent-estimate"
 cargo_target = "lib"
 path = "crates/antecedent-estimate/src/randomized_joint.rs"
+calibration_simulation_assertions = [
+    "joint_wald_region_covers_the_known_effect_vector_across_allocations",
+]
 gates = ["inventory"]
 
 [[test]]

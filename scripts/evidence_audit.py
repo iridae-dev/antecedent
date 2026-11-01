@@ -42,6 +42,7 @@ from test_evidence import (
     python_test_declarations,
     python_test_markers,
     registered_calibration_acceptance,
+    registered_calibration_simulations,
     registered_rust_assertions,
     rust_test_declaration_problems,
     script_test_declaration_problems,
@@ -250,7 +251,19 @@ def claim_rows(root: Path) -> list[dict]:
         (r["evidence_test"], r["evidence_assertion"])
         for r in registered_calibration_acceptance(root)
     )
+    calibration_simulations = {
+        (r["evidence_test"], r["evidence_assertion"])
+        for r in registered_calibration_simulations(root)
+    }
+    calibration_simulations.update(
+        (path.relative_to(root).as_posix(), name)
+        for path in root.glob("python/tests/test_*.py")
+        for name, markers in python_test_markers(path).items()
+        if "calibration_simulation" in markers
+    )
     for claim in claims:
+        if (claim.get("evidence_test"), claim.get("evidence_assertion")) in calibration_simulations:
+            claim["calibration_simulation"] = True
         if (
             claim.get("evidence_test"),
             claim.get("evidence_assertion"),
@@ -834,8 +847,12 @@ def render(report: dict) -> str:
 def scientific_rows(claims: list[dict]) -> list[dict]:
     """Deduplicate assertions, not claims; each claim retains its own audit links."""
     found = {}
+    incomplete = []
     for row in claims:
         if "scientific" not in row["roles"]:
+            continue
+        if row.get("calibration_simulation"):
+            incomplete.append(f"{row.get('evidence_test')}::{row.get('evidence_assertion')}")
             continue
         if row.get("evidence_activity") == "calibration_acceptance":
             continue
@@ -849,6 +866,9 @@ def scientific_rows(claims: list[dict]) -> list[dict]:
                     "evidence_assertion": assertion,
                 },
             )
+    if incomplete:
+        raise ValueError("scientific evidence incomplete: calibration simulations were not run: "
+                         + ", ".join(sorted(set(incomplete))))
     if not found:
         raise ValueError("scientific selection is empty")
     return list(found.values())
@@ -858,7 +878,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("report", "run-scientific", "rust-calibration-filter", "scientific-filter"),
+        choices=("report", "run-scientific", "rust-calibration-filter", "rust-calibration-simulation-filter", "rust-software-exclusion-filter", "scientific-filter"),
     )
     parser.add_argument(
         "--python-only",
@@ -869,8 +889,12 @@ def main() -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true")
     args = parser.parse_args()
-    if args.command == "rust-calibration-filter":
-        rows = registered_calibration_acceptance(REPO_ROOT)
+    if args.command in ("rust-calibration-filter", "rust-calibration-simulation-filter", "rust-software-exclusion-filter"):
+        rows = []
+        if args.command != "rust-calibration-simulation-filter":
+            rows += registered_calibration_acceptance(REPO_ROOT)
+        if args.command != "rust-calibration-filter":
+            rows += registered_calibration_simulations(REPO_ROOT)
         if not rows:
             raise ValueError("calibration acceptance selection is empty")
         if args.listing:

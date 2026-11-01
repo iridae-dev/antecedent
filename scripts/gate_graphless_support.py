@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 from pathlib import Path
 
@@ -23,9 +24,13 @@ def citations() -> list[tuple[Path, str]]:
     return out
 
 
-def problems(cited: list[tuple[Path, str]]) -> list[str]:
+def problems(cited: list[tuple[Path, str]], excluded: set[tuple[str, str]] | None = None) -> list[str]:
     found = []
     for path, function in cited:
+        relative = path.relative_to(te.ROOT).as_posix()
+        if excluded and (relative, function) in excluded:
+            found.append(f"{relative}::{function}: calibration simulation is excluded from the software lane")
+            continue
         _, reasons = te.resolve_rust_test(path, function)
         found.extend(f"{path.relative_to(te.ROOT)}::{function}: {reason}" for reason in reasons)
     return found
@@ -64,13 +69,19 @@ if sys.argv[1:] == ["--self-test"]:
     moved[key0] = (moved[key0] - {full0}) | {f"elsewhere::tests::{function0}"}
     run("same function name in another module fails", moved, set(), True)
     run("cited test listed as ignored fails", targets, {full0}, True)
+    excluded = {(path0.relative_to(te.ROOT).as_posix(), function0)}
+    if not problems([(path0, function0)], excluded):
+        sys.exit("graphless self-test: excluded simulation must be incomplete")
+    print("ok  excluded simulation is incomplete")
     print("graphless support self-test: ok")
     sys.exit(0)
 
 print(
     f"== resolving {len(cited)} graphless evidence citation(s) via cargo test -- --list", flush=True
 )
-found = problems(cited)
+excluded = (set() if os.environ.get("ANTECEDENT_RUN_CALIBRATION_SIMULATIONS") == "1" else
+            {(row["evidence_test"], row["evidence_assertion"]) for row in te.registered_calibration_simulations()})
+found = problems(cited, excluded)
 if found:
     print("graphless support evidence is not an executing test:", file=sys.stderr)
     for problem in found:

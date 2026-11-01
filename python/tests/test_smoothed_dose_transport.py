@@ -461,6 +461,7 @@ def test_posterior_covers_the_closed_form_target_with_the_joint_covariance(desig
 
 
 @pytest.mark.parametrize("design", DESIGNS)
+@pytest.mark.calibration_simulation
 def test_posterior_intervals_cover_the_closed_form_target_at_the_nominal_rate(design):
     covered = total = 0
     for data_seed in range(3, 15):

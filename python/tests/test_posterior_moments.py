@@ -603,6 +603,7 @@ def test_prepared_response_accepts_explicit_complete_all_observed(accepted):
 
 
 @pytest.mark.parametrize("backend", ["conjugate", "laplace"])
+@pytest.mark.calibration_simulation
 def test_stationary_sustained_intervals_cover_shared_mechanism_truth(backend):
     # Independent Gaussian innovations, one stationary a in two causal paths.
     # The old independent-time-copy fit covered only 83% at the nominal 95% level.

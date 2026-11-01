@@ -729,7 +729,7 @@ jobs:
 
       - name: pytest with coverage floor
         working-directory: python
-        run: uv run --no-sync pytest -q -m 'not requires_calibration' --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+        run: uv run --no-sync pytest -q -m 'not requires_calibration and not calibration_simulation' --durations=30 --cov=antecedent --cov-report=term-missing --cov-fail-under=85
 
       - name: Compiler cache statistics
         if: always()
@@ -860,7 +860,7 @@ jobs:
           # hand-maintained file allowlist here: the previous 11-of-56 list silently
           # excluded every test added by the 0.4.0 refactor.
           ROOT="${{ github.workspace }}"
-          pytest -q -m 'not requires_calibration' --durations=30 "$ROOT/python/tests"
+          pytest -q -m 'not requires_calibration and not calibration_simulation' --durations=30 "$ROOT/python/tests"
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

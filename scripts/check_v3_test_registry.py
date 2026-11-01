@@ -27,7 +27,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from test_evidence import mask_rust, registered_calibration_acceptance, source_masked, target_files
+from test_evidence import mask_rust, registered_calibration_acceptance, registered_calibration_simulations, source_masked, target_files
 
 REGISTRY = "parity/v3_test_registry.toml"
 KNOWN_GATES = (
@@ -366,11 +366,12 @@ def problems(root: Path, head: str | None) -> list[str]:
     registered = {e.get("path") for e in entries if isinstance(e, dict)}
     for rel in unregistered(root, registered):
         errors.append(f"FAIL: {rel}: test file has no registry row")
-    if any(entry.get("calibration_acceptance_assertions") for entry in entries if isinstance(entry, dict)):
+    if any(entry.get("calibration_acceptance_assertions") or entry.get("calibration_simulation_assertions") for entry in entries if isinstance(entry, dict)):
         try:
             registered_calibration_acceptance(root)
+            registered_calibration_simulations(root)
         except (ValueError, OSError, KeyError) as exc:
-            errors.append(f"FAIL: calibration acceptance registration: {exc}")
+            errors.append(f"FAIL: calibration registration: {exc}")
     return errors
 
 

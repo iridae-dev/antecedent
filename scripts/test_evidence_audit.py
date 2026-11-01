@@ -832,7 +832,7 @@ class Classification(unittest.TestCase):
     def test_default_nextest_filter_matches_calibration_registry(self):
         root = Path(__file__).parents[1]
         selection = subprocess.check_output(
-            [sys.executable, str(root / "scripts/evidence_audit.py"), "rust-calibration-filter"],
+            [sys.executable, str(root / "scripts/evidence_audit.py"), "rust-software-exclusion-filter"],
             cwd=root,
             text=True,
         ).strip()
@@ -841,6 +841,29 @@ class Classification(unittest.TestCase):
         self.assertEqual(actual, f"not ({selection})")
         runner = (root / "scripts/test.sh").read_text(encoding="utf-8")
         self.assertIn("--ignore-default-filter", runner)
+
+    def test_calibration_simulations_are_distinct_and_explicitly_selectable(self):
+        root = Path(__file__).parents[1]
+        simulations = evidence.registered_calibration_simulations(root)
+        acceptance = evidence.registered_calibration_acceptance(root)
+        self.assertTrue(simulations)
+        self.assertFalse({(r["evidence_test"], r["evidence_assertion"]) for r in simulations}
+                         & {(r["evidence_test"], r["evidence_assertion"]) for r in acceptance})
+        selected = subprocess.check_output(
+            [sys.executable, str(root / "scripts/evidence_audit.py"), "rust-calibration-simulation-filter"],
+            cwd=root, text=True,
+        ).strip()
+        self.assertEqual(selected, evidence.nextest_selection(simulations))
+        rows = [
+            {"key": "sim", "roles": ["scientific"], "evidence_test": "sim.rs",
+             "evidence_assertion": "simulation", "calibration_simulation": True},
+            {"key": "reference", "roles": ["scientific"], "evidence_test": "reference.rs",
+             "evidence_assertion": "reference"},
+        ]
+        with self.assertRaisesRegex(ValueError, "scientific evidence incomplete"):
+            audit.scientific_rows(rows)
+        runner = (root / "scripts/test.sh").read_text(encoding="utf-8")
+        self.assertIn('"$ROOT/scripts/evidence_audit.py" rust-software-exclusion-filter', runner)
 
     def test_python_software_selection_preserves_a_caller_marker(self):
         runner = (Path(__file__).parents[1] / "scripts/test.sh").read_text(encoding="utf-8")
@@ -851,7 +874,7 @@ class Classification(unittest.TestCase):
         command += "python_software_tests -m 'slow or integration' tests/test_example.py\n"
         args = subprocess.check_output(["bash", "-c", command], text=True).splitlines()
         self.assertEqual(
-            args, ["tests/test_example.py", "-m", "(slow or integration) and not requires_calibration"]
+            args, ["tests/test_example.py", "-m", "(slow or integration) and not requires_calibration and not calibration_simulation"]
         )
 
     def test_pytest_defaults_to_the_software_lane(self):
@@ -859,6 +882,9 @@ class Classification(unittest.TestCase):
         config = tomllib.loads((root / "python/pyproject.toml").read_text(encoding="utf-8"))
         addopts = config["tool"]["pytest"]["ini_options"]["addopts"]
         self.assertIn("not requires_calibration", addopts)
+        self.assertIn("not calibration_simulation", addopts)
+        workflow = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertEqual(workflow.count("-m 'not requires_calibration and not calibration_simulation'"), 2)
 
     def test_generator_presence_requires_an_explicit_retained_path(self):
         with tempfile.TemporaryDirectory() as tmp:

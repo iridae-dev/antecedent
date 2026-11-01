@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Verify generated graphless licenses and that each cited test is executing evidence.
 #
-# `cargo test --workspace` on the Rust job already runs these tests. This gate
+# The Rust job runs the default nextest selection. This gate reports excluded
+# calibration simulations as incomplete unless explicitly opted in, and
 # resolves every cited `path::function` to its full libtest name (module path
 # derived from the cited file) through scripts/test_evidence.py: the name must be
 # listed by `cargo test -- --list` and absent from `-- --list --ignored`, and the

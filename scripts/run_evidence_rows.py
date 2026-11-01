@@ -5,7 +5,8 @@
 ROOT holds the workspace the rows point into, LEDGER is the TOML registry
 relative to ROOT, and REPO supplies the Python project. TABLE names the array
 of rows (`id`, `evidence_test`, `evidence_assertion`, optional
-`composition_filter`); GATE labels the summary lines.
+`composition_filter`); GATE labels the summary lines. Simulation evidence is
+incomplete unless ANTECEDENT_RUN_CALIBRATION_SIMULATIONS=1 explicitly opts in.
 """
 
 import os
@@ -20,12 +21,17 @@ from functools import cache
 from pathlib import Path
 
 from _repo import cargo_target_feature_args, test_target
+from test_evidence import python_test_markers, registered_calibration_simulations
 
 root = Path(sys.argv[1]).resolve()
 ledger = Path(sys.argv[2])
 repo = Path(sys.argv[3]).resolve()
 table = sys.argv[4] if len(sys.argv) > 4 else "capabilities"
 gate = sys.argv[5] if len(sys.argv) > 5 else "gate_composition"
+simulation_rows = (registered_calibration_simulations(root)
+                   if (root / "parity/v3_test_registry.toml").exists() else [])
+simulations = {(r["evidence_test"], r["evidence_assertion"]) for r in simulation_rows}
+run_simulations = os.environ.get("ANTECEDENT_RUN_CALIBRATION_SIMULATIONS") == "1"
 
 CARGO_RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
@@ -184,6 +190,13 @@ for row in rows:
         print(f"FAIL: {cid}: no evidence_test/evidence_assertion; every {gate} row must execute")
         continue
 
+    python_simulation = (test_rel.endswith(".py") and (root / test_rel).is_file()
+                         and "calibration_simulation" in python_test_markers(root / test_rel).get(assertion, set()))
+    if not run_simulations and ((test_rel, assertion) in simulations or python_simulation):
+        failures.append(cid)
+        print(f"INCOMPLETE: {cid}: cited calibration simulation was not run")
+        continue
+
     if test_rel.endswith(".py"):
         if not test_rel.startswith("python/"):
             failures.append(cid)
@@ -217,6 +230,10 @@ for row in rows:
         continue
     rust_batches[(crate, tuple(target))][name].append(cid)
     for part in filters(row.get("composition_filter")):
+        if not run_simulations and any(r["crate"] == crate and part in r["libtest_name"] for r in simulation_rows):
+            failures.append(f"{cid}.filter[{part}]")
+            print(f"INCOMPLETE: {cid}: filter {part!r} includes a calibration simulation")
+            continue
         filter_batches[(crate, tuple(target), part)].append(f"{cid}.filter[{part}]")
 
 print(
@@ -236,7 +253,7 @@ for (crate, target), members in rust_batches.items():
             "run",
             "--no-tests",
             "fail",
-            "--ignore-default-filter",
+            *(["--ignore-default-filter"] if run_simulations else []),
             "-p",
             crate,
             *target,
@@ -304,6 +321,7 @@ if python_nodes:
         "-rA",
         "-p",
         "no:cacheprovider",
+        *(["-m", "not requires_calibration or calibration_simulation"] if run_simulations else []),
         *python_nodes,
     ]
     print(f"{gate}: running {len(python_nodes)} distinct Python nodes", flush=True)
@@ -329,6 +347,7 @@ if python_nodes:
                 "-rA",
                 "-p",
                 "no:cacheprovider",
+                *(["-m", "not requires_calibration or calibration_simulation"] if run_simulations else []),
                 node,
             ]
             exact_code, detail = run(exact, root / "python")

@@ -67,9 +67,10 @@ dev = [
 testpaths = ["tests"]
 # -rs lists every skip with its reason; the skip bound in tests/conftest.py fails
 # a session that mostly skips, which is what a broken native extension looks like.
-addopts = "--strict-markers -rs -m 'not requires_calibration'"
+addopts = "--strict-markers -rs -m 'not requires_calibration and not calibration_simulation'"
 markers = [
   "requires_calibration: measured-record acceptance; select explicitly after branch calibration",
+  "calibration_simulation: repeated-sampling coverage or type-I check; select explicitly with -m calibration_simulation",
 ]
 
 [tool.coverage.run]

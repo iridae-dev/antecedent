@@ -526,12 +526,21 @@ def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
     nextest runs exclude these assertions; the explicit calibration-acceptance
     lane runs them after the required records exist.
     """
+    return _registered_calibration_assertions(root, "calibration_acceptance_assertions")
+
+
+def registered_calibration_simulations(root: Path = ROOT) -> list[dict]:
+    """Repeated-sampling calibration checks, available via explicit opt-in."""
+    return _registered_calibration_assertions(root, "calibration_simulation_assertions")
+
+
+def _registered_calibration_assertions(root: Path, field: str) -> list[dict]:
     registry = root / "parity/v3_test_registry.toml"
     rows = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])
     found = []
     seen = set()
     for row in rows:
-        names = row.get("calibration_acceptance_assertions", [])
+        names = row.get(field, [])
         if not isinstance(names, list) or any(not isinstance(n, str) for n in names):
             raise ValueError(f"invalid calibration acceptance assertions: {row['path']}")
         if not names:
@@ -554,9 +563,12 @@ def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
             if key in seen or problems:
                 raise ValueError(f"invalid calibration acceptance assertion {key}: {problems or 'duplicate'}")
             seen.add(key)
+            libtest = libtest_name(path, name, target_source)
+            if field == "calibration_simulation_assertions" and "calibration_simulation_module" in row:
+                libtest = f"{row['calibration_simulation_module']}::{name}"
             found.append({"evidence_test": row["path"], "evidence_assertion": name,
                           "crate": row["crate"], "cargo_target": target,
-                          "libtest_name": libtest_name(path, name, target_source)})
+                          "libtest_name": libtest})
     return found
 
 

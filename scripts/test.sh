@@ -27,11 +27,11 @@ Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|
   scripts Run discovered script unit tests in their isolated locked environment.
           Empty selections and unexpected skipped assertions fail.
   python  Sync the locked dev environment, rebuild the release extension, run pytest.
-          Excludes tests marked requires_calibration; preserves other marker filters.
+          Excludes measured acceptance and calibration simulations; preserves other marker filters.
           Set ANTECEDENT_SKIP_NATIVE_BUILD=1 to reuse an already current extension.
   python-test  Run pytest against the existing extension without sync/rebuild.
           Use after Python/test edits; measured-record acceptance is excluded.
-  python-software  Run pytest without measured-record acceptance assertions.
+  python-software  Run pytest without measured acceptance or calibration simulations.
           Requires an existing current extension. Deselections are reported.
   python-calibration-acceptance  Run measured-record acceptance assertions.
           Requires a current extension and attesting frozen-branch calibration.
@@ -139,9 +139,9 @@ python_software_selection() {
     mark="$value"
   done
   if [[ -n "$mark" ]]; then
-    mark="($mark) and not requires_calibration"
+    mark="($mark) and not requires_calibration and not calibration_simulation"
   else
-    mark="not requires_calibration"
+    mark="not requires_calibration and not calibration_simulation"
   fi
   python_software_args=("${args[@]}" -m "$mark")
 }
@@ -187,7 +187,7 @@ print('internal extension:', _native.__file__)") || return 1
   # Skips for a missing hook fail in the report check below, not the session bound.
   (cd "$dir/run" && ANTECEDENT_MAX_SKIP_FRACTION=1 "$py" -m pytest -c "$ROOT/python/pyproject.toml" \
     --rootdir "$ROOT/python" -p no:cacheprovider --junitxml="$dir/junit.xml" \
-    -m 'not requires_calibration' "${modules[@]}") || status=$?
+    -m 'not requires_calibration and not calibration_simulation' "${modules[@]}") || status=$?
   python3 "$ROOT/scripts/check_python_internal_lane.py" junit "$dir/junit.xml" || status=1
   return "$status"
 }
@@ -208,8 +208,9 @@ case "$suite" in
     cargo nextest list --locked "${workspace[@]}" --ignore-default-filter --message-format json -E "$selection" > "$listing"
     python3 "$ROOT/scripts/evidence_audit.py" rust-calibration-filter --listing "$listing" > /dev/null
     if [[ "$suite" == rust-software ]]; then
+      selection="$(python3 "$ROOT/scripts/evidence_audit.py" rust-software-exclusion-filter)"
       selection="not ($selection)"
-      echo "Explicitly deselecting registered measured-record acceptance assertions; discovery: $listing"
+      echo "Explicitly deselecting registered calibration acceptance and simulation assertions; acceptance discovery: $listing"
     fi
     rust_tests "${workspace[@]}" --ignore-default-filter -E "$selection"
     ;;
