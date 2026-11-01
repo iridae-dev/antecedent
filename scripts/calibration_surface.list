@@ -509,7 +509,7 @@ allow design crates/antecedent/src/analysis/contract.rs CandidateDesign DesignEv
 # compiled; it reads the graph and the identification result and runs no estimator.
 allow design crates/antecedent/src/analysis/contract/evidence_needs.rs LatentCause antecedent_design identification_failure_obligations latent_expansion obligation_adapters
 allow design crates/antecedent/src/error.rs DesignError antecedent_design
-allow design crates/antecedent/src/lib.rs design choice_evidence decision_evidence
+allow design crates/antecedent/src/lib.rs design decision_evidence
 
 # ---- reviewed decision, planning and structure routes -----------------------
 key design query *Decision* *Planning* *Evsi* *ProgramSearch* *JointPanel*
@@ -709,7 +709,8 @@ design crates/antecedent/src/analysis/decision_contract_facade.rs
 design crates/antecedent/src/analysis/design_exports.rs
 design crates/antecedent/src/analysis/design_ranking.rs
 # Facade re-exports of the design-owned evidence lifecycles belong to the design facet.
-design crates/antecedent/src/choice_evidence.rs
+design crates/antecedent-design/src/choice_evsi.rs
+design crates/antecedent/src/analysis/choice_ranking.rs
 design crates/antecedent/src/decision_evidence.rs
 # Hypothetical identification repair and decision-valued study ranking; public
 # re-exports belong to the owning facet as do the existing repair/planning facades.
@@ -729,7 +730,7 @@ mechanism crates/antecedent-io-core/src/transported_counterfactual_artifact.rs
 
 # The analysis module root declares and re-exports the design facade modules; the
 # transport plan helper's `evaluate` is its own closure parameter.
-allow design crates/antecedent/src/analysis/mod.rs ActionRobustness AdaptedClaims AdaptedDecision AdapterError AdmissibilityError AdmissibilityRules AdmissibleContractArtifact AdmissibleDecisionContract AtomSupport BoundDecisionContract BoundTransportedDecision ClaimProbability ClaimProfile DecisionClaimKind DecisionDeclaredExclusion DecisionFacadeRefusal DecisionSupportRule DecisionUncertaintyKind ExternalCallbackReceipt ExternalTrustLimit IdentifiedActionRange IdentifiedSetDecision IdentifiedUtility IdentifiedVerdict InputSupport ReplayReceipt RobustDecisionResult RobustResultArtifact RobustVerdict RobustnessError SuppliedClaim SupportPolicy SupportShortfall TransportDeclaration TransportReceipt TransportedDecision TransportedDecisionInspection TransportedDemand TransportedRefusal TransportedRepresentation TransportedResponse TransportedRoute TransportedValue UncertaintyRequirement adapt_finite_scenarios adapt_graph_dependent_claims adapt_point_claim adapt_weighted_graph_atoms assess_robustness composition contract_needs_law decision_claims decision_contract_facade design_exports design_ranking evaluate_adapted evaluate_identified_sets evaluate_robust evaluate_transported_decision inverse_query native_claims planning repair sensitivity_decision source_evidence utility_interval evidence_plan
+allow design crates/antecedent/src/analysis/mod.rs ActionRobustness AdaptedClaims AdaptedDecision AdapterError AdmissibilityError AdmissibilityRules AdmissibleContractArtifact AdmissibleDecisionContract AtomSupport BoundDecisionContract BoundTransportedDecision ClaimProbability ClaimProfile DecisionClaimKind DecisionDeclaredExclusion DecisionFacadeRefusal DecisionSupportRule DecisionUncertaintyKind ExternalCallbackReceipt ExternalTrustLimit IdentifiedActionRange IdentifiedSetDecision IdentifiedUtility IdentifiedVerdict InputSupport ReplayReceipt RobustDecisionResult RobustResultArtifact RobustVerdict RobustnessError SuppliedClaim SupportPolicy SupportShortfall TransportDeclaration TransportReceipt TransportedDecision TransportedDecisionInspection TransportedDemand TransportedRefusal TransportedRepresentation TransportedResponse TransportedRoute TransportedValue UncertaintyRequirement adapt_finite_scenarios adapt_graph_dependent_claims adapt_point_claim adapt_weighted_graph_atoms assess_robustness composition contract_needs_law decision_claims decision_contract_facade design_exports design_ranking evaluate_adapted evaluate_identified_sets evaluate_robust evaluate_transported_decision inverse_query native_claims planning repair sensitivity_decision source_evidence utility_interval evidence_plan choice_ranking
 allow design crates/antecedent/src/analysis/transport_common.rs evaluate
 # Crate-root declarations and re-exports of the mechanism wire modules, and the
 # PolicyValue route-input variant: names, not mechanism execution.
@@ -941,7 +942,7 @@ adaptive_interval crates/antecedent-io/src/measured_inference/choice_interval.rs
 key adaptive_interval estimator adaptive.* choice.*
 allow adaptive_interval crates/antecedent-estimate/src/lib.rs adaptive_inference adaptive_measured_interval choice_inference
 allow adaptive_interval crates/antecedent-io/src/measured_inference.rs adaptive_interval choice_interval
-allow adaptive_interval crates/antecedent-io/src/choice_inference_result_artifact.rs AdaptiveInferenceError HierarchicalChoicePrior adaptive_inference choice_inference choice_posterior choice_stopping_decision contract_stopping_rule hierarchical_choice_posterior hierarchical_stopping_decision qualify_contract_prior
+allow adaptive_interval crates/antecedent-io/src/choice_inference_result_artifact.rs AdaptiveInferenceError HierarchicalChoicePrior adaptive_inference choice_inference choice_posterior choice_stopping_decision contract_pooled_counts contract_stopping_rule hierarchical_choice_posterior hierarchical_stopping_decision qualify_contract_prior
 
 # Composed intervals: the key a sealed claim derives and its registry resolution.
 joint_law_composed crates/antecedent/src/analysis/joint_law_composed_basis.rs
@@ -1084,9 +1085,11 @@ suite.whole_path_account_facade_oracle crates/antecedent/tests/whole_path_accoun
 # Simulation-based calibration of the adaptive-procedure posterior report (ignored;
 # measured only at the final measurement step).
 suite.adaptive_procedure_prior_predictive_calibration crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs
-# Categorical-choice lifecycle prior-predictive expectations (ignored; measured only at the
-# final measurement step; no record).
-suite.choice_evidence_calibration crates/antecedent-design/tests/choice_evidence_calibration.rs
+# Choice-study expectation gates (ignored; measured only at the final measurement step; no
+# record) and the credible-interval designs of the two measured choice cells (ignored; they
+# emit records only at that step).
+suite.choice_inference_calibration crates/antecedent/tests/choice_inference_calibration.rs
+suite.choice_interval_calibration crates/antecedent-estimate/tests/choice_interval_calibration.rs
 suite.decision_reliability_calibration crates/antecedent-design/tests/decision_reliability_calibration.rs
 
 # Decision-reliability published routes: whole-procedure coverage against a known optimum.
@@ -1195,3 +1198,5 @@ allow mechanism crates/antecedent/src/analysis/contract/wire.rs counterfactual_c
 allow mechanism crates/antecedent/src/analysis/execute/route_call.rs ChangeAttribution
 # Categorical measurement functional variant, not a GCM outcome contrast.
 allow mechanism crates/antecedent/src/analysis/measurement_model.rs OutcomeContrast
+allow adaptive_interval crates/antecedent/src/analysis/choice_inference.rs AdaptiveInferenceError ChoiceKernel ChoiceOperatingCharacteristics ChoiceProcedureSpec ChoiceStoppingRule adaptive_inference choice_inference choice_operating_characteristics contract_posterior contract_procedure_spec
+allow design crates/antecedent/src/analysis/choice_inference.rs ChoiceEvsiError EvsiMethod StudyCandidate StudyRank choice_ranking rank_studies

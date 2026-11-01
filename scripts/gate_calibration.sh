@@ -204,8 +204,10 @@ grid_group() {
     # Native linear cohort effect: the gated randomized/confounded designs and the named boundaries.
     cohort_linear_effect_calibration:*) return 0 ;;
     count_fitted_posterior_calibration:*) return 0 ;;
-    # Categorical-choice lifecycle: prior-predictive expectation gates; no coverage record.
-    choice_evidence_calibration:*) return 1 ;;
+    # Choice-study expectation gates (posterior probability best, sequential selection, study
+    # value, procedure law); no coverage record. The interval designs below emit records.
+    choice_inference_calibration:*) return 1 ;;
+    choice_interval_calibration:*) return 0 ;;
     decision_reliability_calibration:*) return 1 ;;
     # Decision-reliability published routes: coverage records over the Monte Carlo budget grid.
     decision_reliability_interval_calibration:*) return 0 ;;
@@ -625,14 +627,24 @@ run_decision_reliability_expectation() {
 echo "== decision reliability winner's curse expectation =="
 run_decision_reliability_expectation winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased
 
-run_choice_evidence_expectation() {
+run_choice_inference_expectation() {
   local name="$1"
-  check "choice_evidence_calibration: ${name}" cargo test --release -p antecedent-design --test choice_evidence_calibration "$name" -- --ignored --exact --nocapture
+  check "choice_inference_calibration: ${name}" cargo test --release -p antecedent --features calibration-internal --test choice_inference_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== categorical-choice lifecycle prior-predictive expectations =="
-run_choice_evidence_expectation posterior_probability_best_is_calibrated
-run_choice_evidence_expectation sequential_selection_is_correct_at_least_at_the_threshold
-run_choice_evidence_expectation study_value_matches_realized_gain
+echo "== choice-study prior-predictive expectations =="
+run_choice_inference_expectation posterior_probability_best_is_calibrated
+run_choice_inference_expectation sequential_selection_is_correct_at_least_at_the_threshold
+run_choice_inference_expectation study_value_matches_realized_gain
+run_choice_inference_expectation procedure_law_matches_simulation
+
+run_choice_interval() {
+  local name="$1"
+  check "choice_interval_calibration: ${name}" cargo test --release -p antecedent-estimate --features calibration-internal --test choice_interval_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== choice-study credible intervals (measured cells) =="
+for name in choice_dirichlet_share_options_2_l95 choice_dirichlet_share_options_3_l95 choice_dirichlet_share_options_5_l95 choice_hierarchical_share_options_3_l95; do
+  run_choice_interval "${name}"
+done
 
 run_decision_reliability_interval() {
   local name="$1"

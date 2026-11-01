@@ -91,6 +91,7 @@ pub mod api;
 
 pub mod adaptive_inference;
 pub mod choice_inference;
+pub mod choice_ranking;
 pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;

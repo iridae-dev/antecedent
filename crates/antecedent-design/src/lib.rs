@@ -9,7 +9,7 @@ pub mod adaptive_policy;
 pub mod adaptive_policy_search;
 pub mod candidate;
 pub mod candidate_generation;
-pub mod choice_evidence;
+pub mod choice_evsi;
 pub mod cohort_decision_input;
 pub mod composition_boundary;
 pub mod composition_bundle;

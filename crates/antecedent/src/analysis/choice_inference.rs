@@ -20,15 +20,19 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::choice_ranking::{ChoiceEvsiError, rank_studies};
+pub use super::choice_ranking::{EvsiMethod, StudyCandidate, StudyRank};
 use antecedent_contract::adaptive_design::{CellStatus, ProcedureCell, procedure_status};
 pub use antecedent_contract::adaptive_design::{
     ChoiceDesignContract, ChoiceDesignDeclaration, ChoiceLook, ChoiceRespondent,
     RetainedChoiceSource,
 };
 use antecedent_core::ExecutionContext;
+pub use antecedent_estimate::choice_inference::{
+    ChoiceKernel, ChoiceOperatingCharacteristics, ChoiceProcedureSpec, ChoiceStoppingRule,
+};
 use antecedent_estimate::choice_inference::{
-    ChoiceKernel, ChoiceOperatingCharacteristics, choice_operating_characteristics,
-    contract_procedure_spec,
+    choice_operating_characteristics, contract_posterior, contract_procedure_spec,
 };
 pub use antecedent_io::choice_inference_result_artifact::ChoiceResultSpec as ChoiceRequest;
 use antecedent_io::choice_inference_result_artifact::{
@@ -183,6 +187,31 @@ impl ChoiceInferenceSession {
     ) -> Result<ChoiceOperatingCharacteristics, ChoiceInferenceRefusal> {
         let spec = contract_procedure_spec(&self.contract).map_err(from_estimator)?;
         choice_operating_characteristics(&spec, kernel, ctx).map_err(from_estimator)
+    }
+
+    /// Rank candidate additional studies by the expected value of sample information about the
+    /// pooled posterior at `look`, net of cost. `values` is the value of each option when
+    /// chosen, per unit share.
+    ///
+    /// # Errors
+    /// A repeated-choice contract, a look the contract does not declare, values or candidates
+    /// outside their domain, or cancellation.
+    pub fn rank_studies(
+        &self,
+        look: usize,
+        values: &[f64],
+        candidates: &[StudyCandidate],
+        seed: u64,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<StudyRank>, ChoiceInferenceRefusal> {
+        let posterior = contract_posterior(&self.contract, look, ctx).map_err(from_estimator)?;
+        rank_studies(&posterior.alpha, values, candidates, seed).map_err(|e: ChoiceEvsiError| {
+            ChoiceInferenceRefusal {
+                code: e.registered_code(),
+                detail: "choice_inference.ranking_invalid".to_owned(),
+                message: e.to_string(),
+            }
+        })
     }
 
     /// Request an interval or coverage statement without naming a result.

@@ -72,6 +72,10 @@ name = "recalc_joint_bayesian"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "choice_inference_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "temporal_recalc_calibration"
 required-features = ["calibration-internal"]
 

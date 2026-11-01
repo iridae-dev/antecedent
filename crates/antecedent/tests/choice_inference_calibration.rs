@@ -1,8 +1,8 @@
-//! Prior-predictive expectation checks of the categorical-choice evidence-to-decision lifecycle.
+//! Prior-predictive expectation checks of the categorical-choice inference and decision routes.
 //!
 //! Nothing here is measured at implementation time: every test is `#[ignore]`d and runs only at
 //! the final measurement step. They state no coverage and issue no record; each checks an
-//! expectation statement that the lifecycle's posterior reading makes about the whole procedure,
+//! expectation statement that the choice posterior reading makes about the whole procedure,
 //! with the truth drawn from the prior (or, for study value, from the current posterior) by an
 //! independent generator, so the nominal reading is exact for a correct posterior:
 //!
@@ -21,8 +21,15 @@
 //!   rather than before. Axis: study size {10, 50, 200}, option values (1.0, 1.1, 0.9).
 //!   Boundary probe: the Monte Carlo branch (study size 200 over 5 options).
 //!
+//! * `procedure_law_matches_simulation`: the exact law of the sequential procedure
+//!   (`choice_operating_characteristics`) agrees with the frequency of the same procedure
+//!   simulated under the same truth, for each selection probability and the expected enrolment.
+//!
+//! The credible-interval coverage of the two measured cells, which does emit records, is
+//! `antecedent-estimate/tests/choice_interval_calibration.rs`.
+//!
 //! No coverage is claimed for any interval, no frequentist error rate for the stopping rule, and
-//! no behavioural reading of stated choices: the lifecycle claims none of these. A prior chosen
+//! no behavioural reading of stated choices: the choice routes claim none of these. A prior chosen
 //! after seeing outcomes, or a source that conflicts with the truth, is outside these designs.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -34,12 +41,17 @@
     reason = "bounded simulation sizes and small indices"
 )]
 
-#[path = "../../antecedent/tests/common/calibration.rs"]
+#[path = "common/calibration.rs"]
 mod calibration;
+#[path = "common/choice_dgp.rs"]
+mod dgp;
+use dgp::{choices, dirichlet};
 
-use antecedent_design::choice_evidence::{
-    ChoiceFrame, ChoiceMeaning, ChoiceObservations, ConflictPolicy, LookOutcome, SequentialRule,
-    StudyCandidate, qualify_prior, rank_studies, update,
+use antecedent_core::ExecutionContext;
+use antecedent_design::choice_evsi::{StudyCandidate, rank_studies};
+use antecedent_estimate::choice_inference::{
+    ChoiceKernel, ChoiceProcedureSpec, ChoiceStoppingRule, choice_operating_characteristics,
+    choice_posterior, choice_stopping_decision,
 };
 use calibration::{grid_seed, map_replicates, n_sim, smoke, uniform};
 
@@ -47,57 +59,8 @@ fn replicates() -> u32 {
     if smoke() { n_sim() } else { n_sim().max(20_000) }
 }
 
-fn never() -> bool {
-    false
-}
-
-fn frame(options: usize) -> ChoiceFrame {
-    ChoiceFrame {
-        options: (0..options).map(|i| format!("option_{i}")).collect(),
-        population: "calibration".into(),
-        meaning: ChoiceMeaning::StatedPreference,
-    }
-}
-
-/// Independent Marsaglia-Tsang gamma draw (shape at least one); the product sampler is not
-/// reused.
-fn gamma(shape: f64, normal: &mut impl FnMut() -> f64, unit: &mut impl FnMut() -> f64) -> f64 {
-    let d = shape - 1.0 / 3.0;
-    let c = 1.0 / (9.0 * d).sqrt();
-    loop {
-        let x = normal();
-        let v = (1.0 + c * x).powi(3);
-        if v > 0.0 && unit().ln() < 0.5 * x * x + d - d * v + d * v.ln() {
-            return d * v;
-        }
-    }
-}
-
-/// A Dirichlet draw from independent gammas.
-fn dirichlet(alpha: &[f64], seed: u64) -> Vec<f64> {
-    let mut normal = calibration::gaussian(seed);
-    let mut unit = uniform(seed, 11);
-    let g: Vec<f64> = alpha.iter().map(|a| gamma(*a, &mut normal, &mut unit)).collect();
-    let total: f64 = g.iter().sum();
-    g.iter().map(|x| x / total).collect()
-}
-
-/// `n` categorical choices from `theta`, as counts.
-fn choices(theta: &[f64], n: usize, next: &mut impl FnMut() -> f64) -> Vec<f64> {
-    let mut counts = vec![0.0; theta.len()];
-    for _ in 0..n {
-        let mut u = next();
-        let mut pick = theta.len() - 1;
-        for (j, t) in theta.iter().enumerate() {
-            if u < *t {
-                pick = j;
-                break;
-            }
-            u -= t;
-        }
-        counts[pick] += 1.0;
-    }
-    counts
+fn ctx() -> ExecutionContext {
+    ExecutionContext::for_tests(0x5c)
 }
 
 fn argmax(values: &[f64]) -> usize {
@@ -112,20 +75,13 @@ fn standard_error(values: &[f64]) -> f64 {
 
 fn probability_best_design(options: usize, observations: usize, concentration: f64, cell: u64) {
     let prior = vec![concentration; options];
-    let t = frame(options);
-    let empty = qualify_prior(&t, &prior, &[], ConflictPolicy::Report).expect("prior");
     let results = map_replicates(replicates(), |replicate| {
         let seed = grid_seed(0x5c_0000 + cell * 1_000_003 + replicate);
         let theta = dirichlet(&prior, seed);
         let mut next = uniform(seed, 12);
         let counts = choices(&theta, observations, &mut next);
-        let inference = update(
-            &empty,
-            &ChoiceObservations { counts, observation_ids: vec![format!("replicate.{replicate}")] },
-            &never,
-        )
-        .expect("inference");
-        (inference.probability_best, argmax(&theta))
+        let posterior = choice_posterior(&prior, &counts, &ctx()).expect("posterior");
+        (posterior.probability_best, argmax(&theta))
     });
     let n = results.len() as f64;
     // Aggregate: for each option, mean stated probability against the frequency of being best.
@@ -179,14 +135,10 @@ fn posterior_probability_best_is_calibrated() {
 fn sequential_design(threshold: f64, cell: u64) {
     let (options, step, ceiling) = (3, 20_u32, 400_u32);
     let prior = vec![1.0; options];
-    let t = frame(options);
-    let empty = qualify_prior(&t, &prior, &[], ConflictPolicy::Report).expect("prior");
-    let rule = SequentialRule {
-        min_probability_best: threshold,
-        max_expected_loss: 1.0,
-        min_observations: f64::from(step),
-        max_observations: f64::from(ceiling),
-        allocation_floor: 0.0,
+    let rule = ChoiceStoppingRule {
+        min_probability_best: Some(threshold),
+        max_expected_loss: None,
+        min_observations: step,
     };
     let results = map_replicates(replicates(), |replicate| {
         let seed = grid_seed(0x5d_0000 + cell * 1_000_003 + replicate);
@@ -197,19 +149,13 @@ fn sequential_design(threshold: f64, cell: u64) {
             for (c, add) in counts.iter_mut().zip(choices(&theta, step as usize, &mut next)) {
                 *c += add;
             }
-            let inference = update(
-                &empty,
-                &ChoiceObservations {
-                    counts: counts.clone(),
-                    observation_ids: vec!["running".into()],
-                },
-                &never,
-            )
-            .expect("inference");
-            match rule.evaluate(&inference).expect("rule") {
-                LookOutcome::Select { option } => return Some(option == argmax(&theta)),
-                LookOutcome::BudgetExhausted => return None,
-                LookOutcome::Continue { .. } => {}
+            let posterior = choice_posterior(&prior, &counts, &ctx()).expect("posterior");
+            let decision = choice_stopping_decision(&posterior, rule).expect("rule");
+            if decision.stop {
+                return Some(decision.best_option == argmax(&theta));
+            }
+            if counts.iter().sum::<f64>() >= f64::from(ceiling) {
+                return None;
             }
         }
     });
@@ -236,23 +182,14 @@ fn sequential_selection_is_correct_at_least_at_the_threshold() {
 fn study_value_design(options: usize, study: u32, cell: u64) {
     let values: Vec<f64> = (0..options).map(|i| [1.0, 1.1, 0.9, 1.05, 0.95][i]).collect();
     let prior = vec![1.0; options];
-    let t = frame(options);
-    let empty = qualify_prior(&t, &prior, &[], ConflictPolicy::Report).expect("prior");
     // The decision-maker starts from a fixed, modest sample.
-    let current = update(
-        &empty,
-        &ChoiceObservations {
-            counts: (0..options).map(|i| 6.0 + 3.0 * i as f64).collect(),
-            observation_ids: vec!["current".into()],
-        },
-        &never,
-    )
-    .expect("current");
-    let alpha = current.posterior.alpha().to_vec();
+    let current_counts: Vec<f64> = (0..options).map(|i| 6.0 + 3.0 * i as f64).collect();
+    let current = choice_posterior(&prior, &current_counts, &ctx()).expect("current");
+    let alpha = current.alpha.clone();
     let total: f64 = alpha.iter().sum();
     let now = argmax(&values.iter().zip(&alpha).map(|(v, a)| v * a / total).collect::<Vec<_>>());
     let candidate = StudyCandidate { label: "study".into(), observations: study, cost: 0.0 };
-    let predicted = rank_studies(&current, &values, &[candidate], 17).expect("rank")[0].evsi;
+    let predicted = rank_studies(&alpha, &values, &[candidate], 17).expect("rank")[0].evsi;
     let gains = map_replicates(replicates(), |replicate| {
         let seed = grid_seed(0x5e_0000 + cell * 1_000_003 + replicate);
         // The truth comes from the current posterior; the study then observes from it.
@@ -279,4 +216,58 @@ fn study_value_matches_realized_gain() {
     for (cell, (options, study)) in [(3, 10), (3, 50), (3, 200), (5, 200)].into_iter().enumerate() {
         study_value_design(options, study, cell as u64);
     }
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn procedure_law_matches_simulation() {
+    let theta = [0.5, 0.3, 0.2];
+    let spec = ChoiceProcedureSpec {
+        prior: vec![1.0; 3],
+        batches: vec![10; 6],
+        rule: ChoiceStoppingRule {
+            min_probability_best: Some(0.9),
+            max_expected_loss: None,
+            min_observations: 10,
+        },
+    };
+    let law = choice_operating_characteristics(
+        &spec,
+        &ChoiceKernel::Fixed { theta: theta.to_vec() },
+        &ctx(),
+    )
+    .expect("law");
+    let runs = map_replicates(replicates(), |replicate| {
+        let seed = grid_seed(0x61_0000 + replicate);
+        let mut next = uniform(seed, 18);
+        let mut counts = vec![0.0; 3];
+        for batch in &spec.batches {
+            for (c, add) in counts.iter_mut().zip(choices(&theta, *batch as usize, &mut next)) {
+                *c += add;
+            }
+            let posterior = choice_posterior(&spec.prior, &counts, &ctx()).expect("posterior");
+            let decision = choice_stopping_decision(&posterior, spec.rule).expect("rule");
+            if decision.stop {
+                return (Some(decision.best_option), counts.iter().sum::<f64>());
+            }
+        }
+        (None, counts.iter().sum::<f64>())
+    });
+    let m = runs.len() as f64;
+    for (k, expected) in law.selection.iter().enumerate() {
+        let hits = runs.iter().filter(|(pick, _)| *pick == Some(k)).count() as f64;
+        let rate = hits / m;
+        let tolerance = 4.5 * (expected * (1.0 - expected) / m).sqrt() + 1e-9;
+        assert!(
+            (rate - expected).abs() <= tolerance,
+            "option {k}: {rate:.4} against {expected:.4}"
+        );
+    }
+    let enrolled: Vec<f64> = runs.iter().map(|(_, n)| *n).collect();
+    let mean = enrolled.iter().sum::<f64>() / m;
+    assert!(
+        (mean - law.expected_enrolled).abs() <= 4.5 * standard_error(&enrolled).max(1e-9),
+        "expected enrolment {mean:.3} against {:.3}",
+        law.expected_enrolled
+    );
 }

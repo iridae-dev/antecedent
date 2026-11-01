@@ -31,8 +31,9 @@ use antecedent_contract::adaptive_design::{
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::adaptive_inference::AdaptiveInferenceError;
 use antecedent_estimate::choice_inference::{
-    HierarchicalChoicePrior, choice_posterior, choice_stopping_decision, contract_stopping_rule,
-    hierarchical_choice_posterior, hierarchical_stopping_decision, qualify_contract_prior,
+    HierarchicalChoicePrior, choice_posterior, choice_stopping_decision, contract_pooled_counts,
+    contract_stopping_rule, hierarchical_choice_posterior, hierarchical_stopping_decision,
+    qualify_contract_prior,
 };
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     AdaptiveMonitoringContractError, RuleWire, rule_from_wire, rule_to_wire,
@@ -203,19 +204,6 @@ fn request_invalid(detail: &str, message: &str) -> ChoiceResultError {
 
 // -- computation ------------------------------------------------------------------------------
 
-fn pooled_counts(
-    contract: &ChoiceDesignContract,
-    look: usize,
-) -> Result<Vec<f64>, ChoiceResultError> {
-    let mut counts = vec![0.0; contract.options()];
-    for respondent in contract.respondents_at(look).map_err(|r| contract_refusal(&r))? {
-        for (total, c) in counts.iter_mut().zip(&respondent.counts) {
-            *total += f64::from(*c);
-        }
-    }
-    Ok(counts)
-}
-
 fn hierarchical_inputs(
     contract: &ChoiceDesignContract,
     look: usize,
@@ -272,7 +260,7 @@ pub fn compute_choice_result(
     match spec {
         ChoiceResultSpec::Posterior { .. } | ChoiceResultSpec::Stopping { .. } => {
             let prior = qualify_contract_prior(contract)?;
-            let counts = pooled_counts(contract, look)?;
+            let counts = contract_pooled_counts(contract, look)?;
             let posterior = choice_posterior(&prior.alpha, &counts, ctx)?;
             if matches!(spec, ChoiceResultSpec::Stopping { .. }) {
                 let decision =

@@ -356,6 +356,53 @@ pub fn qualify_contract_prior(
     qualify_choice_prior(&declaration.initial_prior, &sources, ChoiceConflictPolicy::Report)
 }
 
+/// Choices of each option over the respondents enrolled at `look`.
+///
+/// # Errors
+/// A look the contract does not declare.
+pub fn contract_pooled_counts(
+    contract: &antecedent_contract::adaptive_design::ChoiceDesignContract,
+    look: usize,
+) -> Result<Vec<f64>, AdaptiveInferenceError> {
+    let respondents = contract.respondents_at(look).map_err(|r| {
+        AdaptiveInferenceError::new(
+            r.code,
+            "choice_inference.look_out_of_range",
+            "the look is not one of the contract's interim analyses",
+        )
+    })?;
+    let mut counts = vec![0.0; contract.options()];
+    for respondent in respondents {
+        for (total, c) in counts.iter_mut().zip(&respondent.counts) {
+            *total += f64::from(*c);
+        }
+    }
+    Ok(counts)
+}
+
+/// The pooled Dirichlet posterior of a categorical-choice contract at `look`, on the prior its
+/// retained sources qualify.
+///
+/// # Errors
+/// A repeated-choice contract (its posterior is hierarchical), a look the contract does not
+/// declare, or a numerical refusal.
+pub fn contract_posterior(
+    contract: &antecedent_contract::adaptive_design::ChoiceDesignContract,
+    look: usize,
+    ctx: &ExecutionContext,
+) -> Result<ChoicePosterior, AdaptiveInferenceError> {
+    if contract.cell().outcome
+        != antecedent_contract::adaptive_design::OutcomeStructure::CategoricalChoice
+    {
+        return Err(invalid(
+            "choice_inference.route_outcome_mismatch",
+            "a pooled posterior is for one choice per respondent",
+        ));
+    }
+    let prior = qualify_contract_prior(contract)?;
+    choice_posterior(&prior.alpha, &contract_pooled_counts(contract, look)?, ctx)
+}
+
 /// The stopping rule a choice contract declares, as the rule the procedure law evaluates.
 ///
 /// # Errors
@@ -485,6 +532,8 @@ pub const HIERARCHICAL_DEPENDENCE: &str = "repeated_choices_per_respondent_final
 pub const DIRICHLET_PRIOR: &str = "dirichlet_multinomial.uniform_prior";
 /// Prior of the hierarchical posterior's measured design.
 pub const HIERARCHICAL_PRIOR: &str = "hierarchical_dirichlet_multinomial.declared_hyperprior";
+/// Interval method of every measured choice interval: equal-tailed posterior quantiles.
+pub const CHOICE_INTERVAL_METHOD: &str = "posterior_quantile";
 /// Nominal level of every measured choice interval.
 pub const MEASURED_LEVEL: f64 = 0.95;
 
@@ -508,7 +557,7 @@ pub fn calibration_basis(
             a("choice_study_history"),
             a("Bayesian"),
             a(estimator),
-            a("posterior_quantile"),
+            a(CHOICE_INTERVAL_METHOD),
             a(""),
             a(dependence),
             a(prior),
