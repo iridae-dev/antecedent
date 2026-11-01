@@ -972,13 +972,14 @@ fn atom_plugin_scalar(response: &CausalResponse) -> Option<f64> {
 
 /// Refit the same intervention *level* and response procedure on perturbed rows.
 #[derive(Clone, Copy)]
-struct StaticResponseLevelRefit<'a> {
-    study: &'a Study,
-    query: &'a ResponseQuery,
-    estimand: &'a IdentifiedEstimand,
-    status: IdentificationStatus,
-    assumptions: &'a antecedent_core::AssumptionSet,
-    operational: Option<&'a std::cell::RefCell<Option<antecedent_validate::ValidationError>>>,
+pub(super) struct StaticResponseLevelRefit<'a> {
+    pub(super) study: &'a Study,
+    pub(super) query: &'a ResponseQuery,
+    pub(super) estimand: &'a IdentifiedEstimand,
+    pub(super) status: IdentificationStatus,
+    pub(super) assumptions: &'a antecedent_core::AssumptionSet,
+    pub(super) operational:
+        Option<&'a std::cell::RefCell<Option<antecedent_validate::ValidationError>>>,
 }
 
 impl std::fmt::Debug for StaticResponseLevelRefit<'_> {
@@ -1147,7 +1148,7 @@ impl antecedent_validate::common::EffectRefit for StaticResponseLevelRefit<'_> {
 /// Drop each adjustment column while refitting the same level on one fixed
 /// complete-case population. The generic GraphRefuter cannot do this through
 /// EffectRefit, whose trait does not receive the reduced estimand.
-fn level_adjustment_sensitivity(
+pub(super) fn level_adjustment_sensitivity(
     refitter: &StaticResponseLevelRefit<'_>,
     data: &TabularData,
     original: &EffectEstimate,

@@ -21151,6 +21151,13 @@ path = "crates/antecedent/src/analysis/execute/class_posterior_response.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "engineering-crates-antecedent-src-analysis-execute-class-response-refutation"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/class_response_refutation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "inventory-crates-antecedent-src-analysis-execute-cross-world-posterior-rs"
 crate = "antecedent"
 cargo_target = "lib"

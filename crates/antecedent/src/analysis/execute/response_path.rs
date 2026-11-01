@@ -2240,7 +2240,7 @@ impl super::Study {
             let (reports, notes) =
                 super::class_response_refutation::refute_class_intervention_atoms(
                     self,
-                    data,
+                    (data, query),
                     envelope,
                     &mixed.weighted,
                     (treatment, outcome),
