@@ -509,7 +509,7 @@ allow design crates/antecedent/src/analysis/contract.rs CandidateDesign DesignEv
 # compiled; it reads the graph and the identification result and runs no estimator.
 allow design crates/antecedent/src/analysis/contract/evidence_needs.rs LatentCause antecedent_design identification_failure_obligations latent_expansion obligation_adapters
 allow design crates/antecedent/src/error.rs DesignError antecedent_design
-allow design crates/antecedent/src/lib.rs design
+allow design crates/antecedent/src/lib.rs design choice_evidence decision_evidence
 
 # ---- reviewed decision, planning and structure routes -----------------------
 key design query *Decision* *Planning* *Evsi* *ProgramSearch* *JointPanel*
@@ -708,6 +708,9 @@ design crates/antecedent/src/analysis/decision_claims.rs
 design crates/antecedent/src/analysis/decision_contract_facade.rs
 design crates/antecedent/src/analysis/design_exports.rs
 design crates/antecedent/src/analysis/design_ranking.rs
+# Facade re-exports of the design-owned evidence lifecycles belong to the design facet.
+design crates/antecedent/src/choice_evidence.rs
+design crates/antecedent/src/decision_evidence.rs
 # Hypothetical identification repair and decision-valued study ranking; public
 # re-exports belong to the owning facet as do the existing repair/planning facades.
 design crates/antecedent/src/analysis/evidence_plan.rs
@@ -1077,6 +1080,9 @@ suite.whole_path_account_facade_oracle crates/antecedent/tests/whole_path_accoun
 # Simulation-based calibration of the adaptive-procedure posterior report (ignored;
 # measured only at the final measurement step).
 suite.adaptive_procedure_prior_predictive_calibration crates/antecedent-estimate/tests/adaptive_procedure_prior_predictive_calibration.rs
+# Categorical-choice lifecycle prior-predictive expectations (ignored; measured only at the
+# final measurement step; no record).
+suite.choice_evidence_calibration crates/antecedent-design/tests/choice_evidence_calibration.rs
 suite.decision_reliability_calibration crates/antecedent-design/tests/decision_reliability_calibration.rs
 
 # Decision-reliability published routes: whole-procedure coverage against a known optimum.

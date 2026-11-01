@@ -23,6 +23,12 @@ The same observation identity is never counted twice, across sources or between 
 
 The Dirichlet family is checked against an independent mpmath reference (`crates/antecedent-stats/tests/oracle_data/dirichlet_choice_reference.py`): probability of being best, expected loss, and the exact ordered-sequence log marginal likelihood, at 1e-9 and 1e-10. The EVSI enumeration is checked against a closed-form beta-binomial sum for two options and against Monte Carlo within its standard error.
 
+## Calibration (owed, not run)
+
+The lifecycle is wired for the final measurement step and measured nothing. `crates/antecedent-design/tests/choice_evidence_calibration.rs` holds three `#[ignore]`d prior-predictive expectation gates, registered in `scripts/calibration_surface.list` (suite and facade facet), `parity/v3_test_registry.toml` and `scripts/gate_calibration.sh` (pass/fail, no coverage record): calibration of the probability that each option is best (options 2 to 5, 20 to 400 observations, flat and informative priors), correctness of the selected option at or above the stopping threshold (0.90, 0.95, 0.99), and agreement of the reported expected value of sample information with the realized gain (study sizes 10 to 200, including the Monte Carlo branch). Until they run, every output carries `calibration: unmeasured`.
+
+Owed at the final step, after the branch is stable: run the gates, refresh the frozen family roster (`scripts/calibration_family.py --refresh`, after review) so the new gate groups are in the allocation, and let the collector write their rows. Nothing licensed here depends on them; any edit to this code or to `antecedent-stats` re-opens them. Interval coverage is not designed because no interval is reported.
+
 ## What is not claimed
 
 - **Calibration.** No coverage of any interval, no frequentist error rate of a stopping rule, no operating characteristic of the allocation: `calibration` is `unmeasured` everywhere.

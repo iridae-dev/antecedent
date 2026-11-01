@@ -42,7 +42,7 @@ pub const MONTE_CARLO_DRAWS: usize = 20_000;
 pub const MAX_MONTE_CARLO_STUDY: u32 = 10_000;
 
 /// Log Bayes factor above which a source is flagged as conflicting with the rest (`ln 10`).
-pub const CONFLICT_LOG_BAYES_FACTOR: f64 = 2.302_585_092_994_046;
+pub const CONFLICT_LOG_BAYES_FACTOR: f64 = std::f64::consts::LN_10;
 
 /// What the posterior shares are shares of.
 pub const MEANING_STATEMENT: &str = "shares of repeated categorical choices as declared; stated preferences do not identify behavioural or causal outcomes";
@@ -565,7 +565,7 @@ fn compositions(n: u32, k: usize) -> u64 {
             return u64::MAX;
         }
     }
-    c as u64
+    u64::try_from(c).unwrap_or(u64::MAX)
 }
 
 fn best_value(values: &[f64], alpha: &[f64], counts: &[f64], total: f64) -> f64 {
@@ -576,42 +576,53 @@ fn best_value(values: &[f64], alpha: &[f64], counts: &[f64], total: f64) -> f64 
         .fold(f64::MIN, f64::max)
 }
 
+struct Enumeration<'a> {
+    alpha: &'a [f64],
+    values: &'a [f64],
+    base: f64,
+    post_total: f64,
+    counts: Vec<f64>,
+    acc: f64,
+}
+
+impl Enumeration<'_> {
+    fn go(&mut self, i: usize, left: u32) {
+        if i + 1 == self.counts.len() {
+            self.counts[i] = f64::from(left);
+            let ln_p = self.base
+                + self
+                    .counts
+                    .iter()
+                    .zip(self.alpha)
+                    .map(|(c, a)| ln_gamma(a + c) - ln_gamma(c + 1.0))
+                    .sum::<f64>();
+            self.acc +=
+                ln_p.exp() * best_value(self.values, self.alpha, &self.counts, self.post_total);
+            return;
+        }
+        for c in 0..=left {
+            self.counts[i] = f64::from(c);
+            self.go(i + 1, left - c);
+        }
+    }
+}
+
 fn exact_evsi(alpha: &[f64], values: &[f64], n: u32) -> f64 {
     let a0: f64 = alpha.iter().sum();
     let nf = f64::from(n);
     let base = ln_gamma(nf + 1.0) + ln_gamma(a0)
         - ln_gamma(a0 + nf)
         - alpha.iter().map(|a| ln_gamma(*a)).sum::<f64>();
-    let mut counts = vec![0.0; alpha.len()];
-    let mut acc = 0.0;
-    fn go(
-        i: usize,
-        left: u32,
-        counts: &mut [f64],
-        alpha: &[f64],
-        values: &[f64],
-        base: f64,
-        post_total: f64,
-        acc: &mut f64,
-    ) {
-        if i + 1 == counts.len() {
-            counts[i] = f64::from(left);
-            let ln_p = base
-                + counts
-                    .iter()
-                    .zip(alpha)
-                    .map(|(c, a)| ln_gamma(a + c) - ln_gamma(c + 1.0))
-                    .sum::<f64>();
-            *acc += ln_p.exp() * best_value(values, alpha, counts, post_total);
-            return;
-        }
-        for c in 0..=left {
-            counts[i] = f64::from(c);
-            go(i + 1, left - c, counts, alpha, values, base, post_total, acc);
-        }
-    }
-    go(0, n, &mut counts, alpha, values, base, a0 + nf, &mut acc);
-    acc
+    let mut walk = Enumeration {
+        alpha,
+        values,
+        base,
+        post_total: a0 + nf,
+        counts: vec![0.0; alpha.len()],
+        acc: 0.0,
+    };
+    walk.go(0, n);
+    walk.acc
 }
 
 fn monte_carlo_evsi(alpha: &[f64], values: &[f64], n: u32, seed: u64) -> (f64, f64) {

@@ -204,6 +204,8 @@ grid_group() {
     # Native linear cohort effect: the gated randomized/confounded designs and the named boundaries.
     cohort_linear_effect_calibration:*) return 0 ;;
     count_fitted_posterior_calibration:*) return 0 ;;
+    # Categorical-choice lifecycle: prior-predictive expectation gates; no coverage record.
+    choice_evidence_calibration:*) return 1 ;;
     decision_reliability_calibration:*) return 1 ;;
     # Decision-reliability published routes: coverage records over the Monte Carlo budget grid.
     decision_reliability_interval_calibration:*) return 0 ;;
@@ -622,6 +624,15 @@ run_decision_reliability_expectation() {
 }
 echo "== decision reliability winner's curse expectation =="
 run_decision_reliability_expectation winners_curse_bound_holds_on_average_and_held_out_value_is_unbiased
+
+run_choice_evidence_expectation() {
+  local name="$1"
+  check "choice_evidence_calibration: ${name}" cargo test --release -p antecedent-design --test choice_evidence_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== categorical-choice lifecycle prior-predictive expectations =="
+run_choice_evidence_expectation posterior_probability_best_is_calibrated
+run_choice_evidence_expectation sequential_selection_is_correct_at_least_at_the_threshold
+run_choice_evidence_expectation study_value_matches_realized_gain
 
 run_decision_reliability_interval() {
   local name="$1"

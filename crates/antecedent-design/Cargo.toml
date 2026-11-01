@@ -49,6 +49,10 @@ name = "inverse_evsi"
 harness = false
 
 [[test]]
+name = "choice_evidence_calibration"
+path = "tests/choice_evidence_calibration.rs"
+
+[[test]]
 name = "decision_reliability_calibration"
 path = "tests/decision_reliability_calibration.rs"
 

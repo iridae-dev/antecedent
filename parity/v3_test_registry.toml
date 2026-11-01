@@ -2130,6 +2130,13 @@ suite_map_line = "suite_01: artifact_compat_inherited, artifact_compat_sequentia
 gates = ["inventory", "named"]
 
 [[test]]
+id = "choice-evidence-calibration"
+crate = "antecedent-design"
+cargo_target = "choice_evidence_calibration"
+path = "crates/antecedent-design/tests/choice_evidence_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "decision-reliability-calibration"
 crate = "antecedent-design"
 cargo_target = "decision_reliability_calibration"
@@ -18579,6 +18586,13 @@ id = "beta-bernoulli-reference"
 crate = "antecedent-stats"
 cargo_target = "beta_bernoulli_reference"
 path = "crates/antecedent-stats/tests/beta_bernoulli_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "dirichlet-choice-reference"
+crate = "antecedent-stats"
+cargo_target = "dirichlet_choice_reference"
+path = "crates/antecedent-stats/tests/dirichlet_choice_reference.rs"
 gates = ["inventory", "named"]
 
 [[test]]
