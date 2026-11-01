@@ -35,11 +35,11 @@ use antecedent_estimate::temporal_refresh::{
 };
 use antecedent_io::period_refresh_artifact::{
     BlockWire, LeastSquaresWire, PERIOD_EXTENDED, PERIOD_REFRESH_ARTIFACT_FEATURE,
-    PERIOD_REFRESH_ARTIFACT_KIND, PERIOD_REFRESH_ARTIFACT_VERSION, PERIOD_REFRESH_SUMMARY_FEATURE,
-    PERIOD_REFRESH_SUMMARY_KIND, PERIOD_REFRESH_SUMMARY_RETENTION, PERIOD_REFRESH_SUMMARY_VERSION,
-    PERIOD_RESTARTED, PERIOD_START, PeriodEventWire, PeriodRefreshArtifactWire,
-    PeriodRefreshSummaryWire, PosteriorWire, PriorWire, RowWire, SummaryLedgerWire, product_label,
-    standing_label,
+    PERIOD_REFRESH_ARTIFACT_KIND, PERIOD_REFRESH_ARTIFACT_MAX_LAGS,
+    PERIOD_REFRESH_ARTIFACT_VERSION, PERIOD_REFRESH_SUMMARY_FEATURE, PERIOD_REFRESH_SUMMARY_KIND,
+    PERIOD_REFRESH_SUMMARY_RETENTION, PERIOD_REFRESH_SUMMARY_VERSION, PERIOD_RESTARTED,
+    PERIOD_START, PeriodEventWire, PeriodRefreshArtifactWire, PeriodRefreshSummaryWire,
+    PosteriorWire, PriorWire, RowWire, SummaryLedgerWire, product_label, standing_label,
 };
 use antecedent_io::temporal_refresh_artifact::WindowIdentityWire;
 use antecedent_state::retention::{RetainedOperation, RetentionMode};
@@ -282,8 +282,11 @@ impl PeriodRefresh {
         values: &[f64],
     ) -> Result<Self, StateError> {
         let PeriodRefreshSpec { series_id, cadence, initial_law, standing, lags } = *spec;
-        if lags == 0 || prior.ncols() != lags + 1 {
-            return Err(invalid("a lag order of at least one and a prior of width lags + 1"));
+        if lags == 0 || lags > PERIOD_REFRESH_ARTIFACT_MAX_LAGS || prior.ncols() != lags + 1 {
+            return Err(invalid(
+                "a lag order of at least one and at most the artifact limit, and a prior of \
+                 width lags + 1",
+            ));
         }
         let factors = WindowFactors::try_from_window(window, cadence, initial_law)
             .map_err(|e| estimation(&e))?;

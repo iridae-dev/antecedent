@@ -27,6 +27,9 @@ use antecedent_stats::invert_square;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+/// Most lags a ledger may carry. Verification inverts and factors a `(lags + 1)`-square matrix,
+/// so the order is bounded before any of that work.
+pub const PERIOD_REFRESH_ARTIFACT_MAX_LAGS: usize = 256;
 /// The artifact format this reader writes and accepts.
 pub const PERIOD_REFRESH_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
@@ -534,6 +537,7 @@ impl PeriodRefreshArtifactWire {
         let lags = usize::try_from(self.lags).map_err(|_| mismatch(PREFIX, "lags"))?;
         let finite = self.prior.mean.iter().chain(&self.prior.precision).all(|v| v.is_finite());
         if lags == 0
+            || lags > PERIOD_REFRESH_ARTIFACT_MAX_LAGS
             || lags.checked_add(1) != Some(p)
             || !prior_precision_is_spd(&self.prior.precision, p)
             || !finite

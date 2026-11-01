@@ -264,6 +264,18 @@ fn an_undeclared_mechanism_restarts_on_the_new_period_alone() {
 }
 
 #[test]
+fn a_lag_order_beyond_the_artifact_limit_is_refused_before_any_fit() {
+    let lags = antecedent_io::period_refresh_artifact::PERIOD_REFRESH_ARTIFACT_MAX_LAGS + 1;
+    let prior = ConjugateOlsPrior::isotropic(lags + 1, 1.0, 3.0, 2.0).unwrap();
+    let values = vec![0.0; 600];
+    let spec = PeriodRefreshSpec { lags, ..spec(MechanismStanding::DeclaredInvariant) };
+    let error = PeriodRefresh::start(&spec, &window(0, 600, "snap_1"), &prior, &values)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("artifact limit"), "{error}");
+}
+
+#[test]
 fn an_overlapping_period_a_reused_snapshot_and_a_changed_prior_are_typed_refusals() {
     let data = autoregressive_pulse_series(N, 0.6, false, 31);
     let study = prepared(&data);

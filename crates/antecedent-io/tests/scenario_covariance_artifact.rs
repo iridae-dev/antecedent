@@ -411,6 +411,20 @@ fn covariance_artifact_invalid_declarations_refuse_with_typed_details() {
 }
 
 #[test]
+fn covariance_artifact_refuses_a_linear_score_with_too_many_terms() {
+    let mut declared = spec(&["a"], exact(0.0));
+    declared.scenarios[0].functional = FunctionalWire::LinearScore {
+        terms: vec![
+            term(1.0, &[("z", 1)]);
+            antecedent_io::scenario_covariance_artifact::MAX_SCORE_TERMS + 1
+        ],
+    };
+    let (code, message) = refused(declared.compute(&ctx()));
+    assert_eq!(code, "cell_not_licensed");
+    assert!(message.starts_with("scenario_covariance.too_many_terms"), "{message}");
+}
+
+#[test]
 fn covariance_artifact_rejects_empty_table_before_constructing_estimators() {
     for name in ["a", "adjusted"] {
         let mut declared = spec(&[name], exact(0.0));

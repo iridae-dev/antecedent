@@ -49,6 +49,8 @@ pub const SCENARIO_COVARIANCE_ARTIFACT_VERSION: u32 = 1;
 pub const SCENARIO_COVARIANCE_ARTIFACT_FEATURE: &str = "scenario_shared_covariance_v1";
 /// Most rows of one stored row table.
 pub const MAX_TABLE_ROWS: usize = 10_000;
+/// Most terms of one linear score. Each term is matched against every stored row.
+pub const MAX_SCORE_TERMS: usize = 1_024;
 // There is no column-count cap: the in-memory estimators take any number of columns, and the
 // width of a stored table is bounded by the stored row bytes.
 
@@ -246,6 +248,12 @@ fn linear_estimator(table: &RowTableWire, terms: &[ScoreTermWire]) -> Result<Est
             "scenario_covariance.invalid_functional",
             "a linear score needs a term",
         ));
+    }
+    if terms.len() > MAX_SCORE_TERMS {
+        return Err(IoError::Refused {
+            code: reason_code!("cell_not_licensed"),
+            message: format!("scenario_covariance.too_many_terms: at most {MAX_SCORE_TERMS} terms"),
+        });
     }
     let mut compiled = Vec::with_capacity(terms.len());
     for term in terms {
