@@ -485,6 +485,103 @@ fn temporal_response_member_values(
     })
 }
 
+// Static refits must keep every structural contributor, including nonidentified
+// atoms: changing the conditioning mass would change the target being checked.
+fn check_static_response_contributors(
+    before: &crate::result::StructuralResponseMixture,
+    after: &crate::result::StructuralResponseMixture,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<(), TargetRefitError> {
+    let changed = || {
+        unsupported(
+            "refit changed structural contributors, mass, or coordinates",
+            "refit the same identified structural contributors",
+        )
+    };
+    if before.atoms.is_empty()
+        || before.atoms.len() != after.atoms.len()
+        || before.weight_basis != after.weight_basis
+        || before.aggregation_policy != after.aggregation_policy
+        || before.full_mass_scope != after.full_mass_scope
+        || before.truncated_atoms != after.truncated_atoms
+        || [
+            before.identified_mass,
+            before.unidentified_mass,
+            before.unevaluable_mass,
+            before.subsampled_out_mass,
+        ]
+        .iter()
+        .zip([
+            after.identified_mass,
+            after.unidentified_mass,
+            after.unevaluable_mass,
+            after.subsampled_out_mass,
+        ])
+        .any(|(a, b)| !a.is_finite() || !b.is_finite() || a.to_bits() != b.to_bits())
+    {
+        return Err(changed());
+    }
+    let count = u64::try_from(before.atoms.len()).map_err(|_| changed())?;
+    let work = count.checked_mul(count).and_then(|n| n.checked_mul(2)).ok_or_else(changed)?;
+    budget
+        .charge_work(work)
+        .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+    for atom in &before.atoms {
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled { stage: "static response contributors" }));
+        }
+        if !atom.weight.is_finite()
+            || atom.weight < 0.0
+            || before.atoms.iter().filter(|other| other.graph_key == atom.graph_key).count() != 1
+        {
+            return Err(changed());
+        }
+        let mut matches = after.atoms.iter().filter(|other| other.graph_key == atom.graph_key);
+        let other = matches.next().ok_or_else(changed)?;
+        if matches.next().is_some()
+            || atom.weight.to_bits() != other.weight.to_bits()
+            || atom.status != other.status
+            || !same_static_response_layout(atom, other)
+        {
+            return Err(changed());
+        }
+    }
+    Ok(())
+}
+
+fn same_static_response_layout(
+    a: &crate::result::StructuralResponseAtom,
+    b: &crate::result::StructuralResponseAtom,
+) -> bool {
+    match (&a.response, &b.response) {
+        (None, None) => {}
+        (Some(x), Some(y))
+            if x.estimand == y.estimand
+                && x.support.status == y.support.status
+                && x.support.point_status == y.support.point_status => {}
+        _ => return false,
+    }
+    match (&a.value, &b.value) {
+        (None, None) | (Some(ResponseValue::Scalar(_)), Some(ResponseValue::Scalar(_))) => true,
+        (Some(ResponseValue::Vector(x)), Some(ResponseValue::Vector(y))) => x.len() == y.len(),
+        (
+            Some(ResponseValue::Surface { grid: x, dimension: dx, mean: mx }),
+            Some(ResponseValue::Surface { grid: y, dimension: dy, mean: my }),
+        ) => {
+            dx == dy
+                && mx.len() == my.len()
+                && x.len() == y.len()
+                && x.iter().zip(y.iter()).all(|(a, b)| a.to_bits() == b.to_bits())
+        }
+        (
+            Some(ResponseValue::Jacobian { outcomes: ox, treatments: tx, values: x }),
+            Some(ResponseValue::Jacobian { outcomes: oy, treatments: ty, values: y }),
+        ) => ox == oy && tx == ty && x.len() == y.len(),
+        _ => false,
+    }
+}
+
 fn same_temporal_point_layout(
     a: &crate::result::StructuralResponseAtom,
     b: &crate::result::StructuralResponseAtom,
@@ -2486,7 +2583,7 @@ impl PreparedRefit<'_> {
             Modal::MultiEnv(data) => self.prepared.estimate_multi_env(data, ctx),
         }
         .map_err(|error| failed(&error))?;
-        self.read_back(&refitted, ctx)
+        self.read_back(&refitted, true, ctx)
     }
 
     fn reestimate_materialised_series(
@@ -2499,7 +2596,7 @@ impl PreparedRefit<'_> {
             .prepared
             .estimate_series_with_provenance(data, provenance, ctx)
             .map_err(|error| failed(&error))?;
-        self.read_back(&result, ctx)
+        self.read_back(&result, true, ctx)
     }
 
     fn reestimate_gathered_series(
@@ -2523,16 +2620,71 @@ impl PreparedRefit<'_> {
             .prepared
             .estimate_series_with_provenance(data, Some(&provenance), ctx)
             .map_err(|error| failed(&error))?;
-        self.read_back(&result, ctx)
+        self.read_back(&result, true, ctx)
     }
 
     /// The refitted target vector, in the original coordinate order.
     fn read_back(
         &self,
         refitted: &StudyResult,
+        same_prepared: bool,
         ctx: &ExecutionContext,
     ) -> Result<Vec<f64>, TargetRefitError> {
         let mut budget = self.temporal_budget.clone();
+        if matches!(self.data, PreparedTargetData::Tabular(_)) && self.result.response().is_some() {
+            match (&self.result.structural_response, &refitted.structural_response) {
+                (Some(before), Some(after)) => {
+                    // Graph keys are opaque, not globally collision-resistant. They
+                    // identify masks only within this exact retained DAG posterior:
+                    // construction rejects collisions between distinct adjacency masks.
+                    let posterior = self.study().graph_posterior.as_ref().filter(|posterior| {
+                        same_prepared
+                            && posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag
+                    }).ok_or_else(|| unsupported(
+                        "structural contributor identities cannot be verified for this refit",
+                        "retain full completion identities for the refitted structure",
+                    ))?;
+                    let lookup_work = u64::try_from(before.atoms.len())
+                        .ok()
+                        .and_then(|n| {
+                            u64::try_from(posterior.graph_keys().len())
+                                .ok()
+                                .and_then(|m| n.checked_mul(m))
+                        })
+                        .ok_or_else(|| {
+                            failed(&CausalError::Resource {
+                                message: "static contributor lookup overflow".into(),
+                            })
+                        })?;
+                    budget.charge_work(lookup_work).map_err(|error| {
+                        failed(&CausalError::Resource { message: error.to_string() })
+                    })?;
+                    if before.atoms.len() != posterior.graph_keys().len()
+                        || before.atoms.iter().any(|atom| {
+                            posterior
+                                .graph_keys()
+                                .iter()
+                                .filter(|key| **key == atom.graph_key)
+                                .count()
+                                != 1
+                        })
+                    {
+                        return Err(unsupported(
+                            "structural contributor key is absent or ambiguous in the retained posterior",
+                            "retain unique semantic graph identities",
+                        ));
+                    }
+                    check_static_response_contributors(before, after, &mut budget, ctx)?;
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(unsupported(
+                        "refit changed structural response availability",
+                        "refit the same identified structural contributors",
+                    ));
+                }
+            }
+        }
         check_temporal_response_contributors(
             self.result,
             refitted,
@@ -3129,7 +3281,7 @@ impl PreparedRefit<'_> {
                 "a route that admits an extra declared covariate",
             )
         })?;
-        self.read_back(&refitted, ctx)
+        self.read_back(&refitted, false, ctx)
     }
 
     fn tabular_refit(
@@ -5249,5 +5401,79 @@ mod temporal_contributor_order_tests {
                 _lease: ctx.acquire_admission(0, 0).unwrap(),
             }));
         assert!(compare(&changed).is_err());
+    }
+}
+
+#[cfg(test)]
+mod static_contributor_tests {
+    use super::*;
+    use crate::result::{
+        StructuralAggregationPolicy, StructuralResponseAtom, StructuralResponseMixture,
+        StructuralWeightBasis,
+    };
+    use antecedent_core::IdentificationStatus;
+
+    fn mixture() -> StructuralResponseMixture {
+        let atom = |graph_key, weight, value| StructuralResponseAtom {
+            graph_key,
+            weight,
+            status: IdentificationStatus::NonparametricallyIdentified,
+            value: Some(value),
+            posterior: None,
+            response: None,
+        };
+        StructuralResponseMixture {
+            weight_basis: StructuralWeightBasis::PosteriorProbability,
+            atoms: vec![
+                atom(7, 0.4, ResponseValue::Scalar(1.0)),
+                atom(9, 0.6, ResponseValue::Vector(Arc::from([2.0, 3.0]))),
+            ],
+            identified_mass: 1.0,
+            unidentified_mass: 0.0,
+            unevaluable_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            identified_set: None,
+            identified_set_interval: None,
+            conditional_on_identified: Some(ResponseValue::Scalar(2.0)),
+            full_mass_scope: true,
+            truncated_atoms: 0,
+            aggregation_policy: Some(StructuralAggregationPolicy::SameEstimandWeightedMean),
+        }
+    }
+
+    #[test]
+    fn static_contributors_require_unique_stable_identities_mass_and_coordinates() {
+        let ctx = ExecutionContext::for_tests(1);
+        let original = mixture();
+        let check = |candidate: &StructuralResponseMixture| {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            check_static_response_contributors(&original, candidate, &mut budget, &ctx)
+        };
+        let mut reordered = original.clone();
+        reordered.atoms.reverse();
+        reordered.atoms[0].value = Some(ResponseValue::Vector(Arc::from([4.0, 5.0])));
+        assert!(check(&reordered).is_ok());
+        let mut missing = original.clone();
+        missing.atoms.pop();
+        assert!(check(&missing).is_err());
+        let mut changed_key = original.clone();
+        changed_key.atoms[0].graph_key = 8;
+        assert!(check(&changed_key).is_err());
+        let mut ambiguous = original.clone();
+        ambiguous.atoms[1].graph_key = ambiguous.atoms[0].graph_key;
+        assert!(check(&ambiguous).is_err());
+        let mut changed_weight = original.clone();
+        changed_weight.atoms[0].weight = 0.5;
+        assert!(check(&changed_weight).is_err());
+        let mut changed_mass = original.clone();
+        changed_mass.unidentified_mass = 0.1;
+        assert!(check(&changed_mass).is_err());
+        let mut changed_coordinates = original.clone();
+        changed_coordinates.atoms[1].value = Some(ResponseValue::Vector(Arc::from([4.0])));
+        assert!(check(&changed_coordinates).is_err());
+        let mut changed_status = original.clone();
+        changed_status.atoms[0].status = IdentificationStatus::NotIdentified;
+        assert!(check(&changed_status).is_err());
     }
 }

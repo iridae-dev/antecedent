@@ -552,3 +552,64 @@ fn an_attribution_vector_is_refuted_by_refits_of_its_own_attribution_program() {
     assert!(!kinds.is_empty(), "{:?}", outcome.run.refused);
     assert!(outcome.run.reports.iter().all(|report| report.original.len() == values.len()));
 }
+
+#[test]
+fn retained_dag_posterior_refits_preserve_structural_contributors() {
+    use antecedent_discovery::{GraphPosterior, SamplingSummary};
+    use antecedent_prob::InferenceDiagnostics;
+
+    let (data, _) = fixture(120);
+    let mut mask = antecedent_discovery::adjacency_mask::AdjacencyMask::EMPTY;
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        mask = antecedent_discovery::adjacency_mask::set_edge(mask, 3, source, target, true);
+    }
+    let posterior = GraphPosterior::from_atoms(
+        3,
+        vec![1.0],
+        vec![mask],
+        vec![0.0; 9],
+        vec![0.0; 9],
+        SamplingSummary {
+            ess: 1.0,
+            diagnostics: InferenceDiagnostics::analytic("static_contributor_refit"),
+            rejected_invalid: 0,
+        },
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(71);
+    let prepared = Study::tabular(data.clone())
+        .graph_posterior(posterior)
+        .query(CausalQuery::Response(ResponseQuery::new(
+            ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(2),
+                interventions: Arc::from([Intervention::set(
+                    VariableId::from_raw(0),
+                    Value::f64(2.0),
+                )]),
+            },
+        )))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.structural_response.is_some());
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &TargetRefutationConfig { replicates: 4, ..Default::default() },
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(
+        outcome.run.reports.iter().any(|report| report.kind == TargetRefuterKind::SubsetStability),
+        "{:?}",
+        outcome.run.refused
+    );
+}
