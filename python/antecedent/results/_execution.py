@@ -953,6 +953,31 @@ class ResultAPI:
 
         return FittedEffectModel.load(bytes(self.export()))
 
+    def fitted_model_from_source(self, data: Any) -> FittedEffectModel:
+        """Replay the fit using an explicitly supplied copy of its source table.
+
+        The resulting portable model contains the complete source table, including
+        unused columns and individual rows. Share its exported bytes accordingly.
+        The source must exactly match the execution's recorded data snapshot.
+        """
+        from ..estimation import _prepared_columns
+        from ..prediction import FittedEffectModel
+
+        execution = getattr(self, "_execution", None)
+        if execution is None:
+            raise CausalUnsupportedError(
+                "This result has no retained execution artifact.", reason_code="not_executed"
+            )
+        if getattr(self, "quantities", None) is not None:
+            raise CausalUnsupportedError(
+                "Source export does not support labelled scientific quantities.",
+                reason_code="option_not_applicable",
+            )
+        names, columns, _ = _prepared_columns(data)
+        return FittedEffectModel.load(
+            execution.export_contracted_artifact_with_source(names, columns)
+        )
+
     @describe_refusal
     def export(
         self,

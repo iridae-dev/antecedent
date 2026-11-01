@@ -25,20 +25,24 @@ def ml_prepare():
         data,
         graph=[("z", "a"), ("z", "y"), ("a", "y")],
         query=ac.AverageEffect(treatment="a", outcome="y"),
-        estimator=DRLearner(outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()),
+        estimator=DRLearner(
+            outcome=Ridge(0.1), treatment=Logistic(), final_learner=Linear()
+        ),
         inference=ac.Frequentist(bootstrap=0),
         refute=False,
         execution=ac.Execution(seed=9, threads=1),
     )
-    return study
+    return study, data
 
 
 def ml_example():
-    study = ml_prepare()
+    study, data = ml_prepare()
     result = require_success(ac.estimate(study))
-    model = FittedEffectModel.load(result.fitted_model.export())
+    # The verified portable model contains the source rows; share it accordingly.
+    fitted = result.fitted_model_from_source(data)
+    model = FittedEffectModel.load(fitted.export())
     predictions = model.predict({"z": [-1.0, 0.0, 1.0]})
-    assert predictions == result.fitted_model.predict({"z": [-1.0, 0.0, 1.0]})
+    assert predictions == fitted.predict({"z": [-1.0, 0.0, 1.0]})
     return study, result, model
 
 

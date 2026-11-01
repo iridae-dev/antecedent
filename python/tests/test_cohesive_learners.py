@@ -54,6 +54,19 @@ def test_structured_learner_parameters_change_identity():
     assert loads(bytes(a.export())).contract != loads(bytes(b.export())).contract
 
 
+def test_fitted_model_requires_explicit_matching_source_for_replay():
+    result = analyze(DRLearner(final_learner=Linear()))
+    with pytest.raises(Exception, match="verified parent claim"):
+        _ = result.fitted_model
+    source = data_fixture()
+    model = result.fitted_model_from_source(source)
+    assert len(require_success(model.predict({"z": [0.0]})).values) == 1
+    assert FittedEffectModel.load(bytes(model.export())).parent_claim == model.parent_claim
+    source["y"][0] += 1.0
+    with pytest.raises(Exception, match="digest|snapshot"):
+        result.fitted_model_from_source(source)
+
+
 @pytest.mark.parametrize(
     "estimator",
     [
@@ -64,7 +77,7 @@ def test_structured_learner_parameters_change_identity():
 )
 def test_fitted_effect_predicts_after_verified_reload(estimator):
     result = analyze(estimator)
-    model = result.fitted_model
+    model = result.fitted_model_from_source(data_fixture())
     x = {"z": np.array([-1.0, 0.0, 1.0])}
     expected = require_success(model.predict(x))
     loaded = FittedEffectModel.load(bytes(model.export()))
@@ -81,7 +94,7 @@ def test_fitted_effect_predicts_after_verified_reload(estimator):
 def test_fitted_effect_prediction_warns_on_digit_strings():
     # The strict ingest refuses digit strings; prediction still parses them for now
     # but says so, naming the column.
-    model = analyze(DRLearner(final_learner=Linear())).fitted_model
+    model = analyze(DRLearner(final_learner=Linear())).fitted_model_from_source(data_fixture())
     with pytest.warns(FutureWarning, match="column 'z'"):
         parsed = require_success(model.predict({"z": np.array(["1", "2"])}))
     assert parsed == require_success(model.predict({"z": np.array([1.0, 2.0])}))

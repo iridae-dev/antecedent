@@ -31,13 +31,17 @@ W = [0.25, 0.25, 0.5]
 ROW_TOLERANCE = 1e-9
 
 
-def fitted_result(effect: float = 2.0):
+def source_data(effect: float = 2.0):
     rng = np.random.default_rng(19)
     z = np.tile(np.linspace(-1.0, 1.0, 21), 80)
     treatment = rng.binomial(1, 0.5, len(z)).astype(float)
+    return {"z": z, "t": treatment, "y": treatment * (effect + 0.4 * z) + z}
+
+
+def fitted_result(effect: float = 2.0):
     return require_success(
         ac.analyze(
-            {"z": z, "t": treatment, "y": treatment * (effect + 0.4 * z) + z},
+            source_data(effect),
             graph=[("z", "t"), ("z", "y"), ("t", "y")],
             query=ac.AverageEffect(treatment="t", outcome="y"),
             estimator=DRLearner(),
@@ -50,12 +54,12 @@ def fitted_result(effect: float = 2.0):
 
 @pytest.fixture(scope="module")
 def model() -> FittedEffectModel:
-    return fitted_result().fitted_model
+    return fitted_result().fitted_model_from_source(source_data())
 
 
 @pytest.fixture(scope="module")
 def other_model() -> FittedEffectModel:
-    return fitted_result(3.0).fitted_model
+    return fitted_result(3.0).fitted_model_from_source(source_data(3.0))
 
 
 def cohort(z=Z, w=W, population: str = "target", snapshot: str = "clinic-2026-q1"):

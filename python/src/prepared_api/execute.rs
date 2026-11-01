@@ -426,6 +426,40 @@ impl PyPreparedAnalysis {
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
+    /// Export an analysis result with its explicitly supplied full source table.
+    #[pyo3(signature = (names, columns, *, artifact_id="prepared-contract"))]
+    fn export_contracted_artifact_with_source<'py>(
+        &self,
+        py: Python<'py>,
+        names: Vec<String>,
+        columns: Vec<Bound<'py, PyAny>>,
+        artifact_id: &str,
+    ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
+        require_prepared_names(&self.names, &names, "source export")?;
+        let result =
+            Arc::clone(self.last.as_ref().ok_or_else(|| {
+                crate::value_err("estimate before exporting a contracted artifact")
+            })?);
+        let (data, _) = tabular_from_py_columns(names, columns)?;
+        let study = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
+        let seed = self.last_seed;
+        let threads = self.last_threads;
+        let artifact_id = artifact_id.to_owned();
+        let bytes = detach_catch(py, move || {
+            let ctx = crate::py_execution_context_ext(
+                seed,
+                threads,
+                None,
+                None,
+                Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+            );
+            study
+                .encode_contracted_result_with_source(&result, &data, &artifact_id, &ctx)
+                .map_err(py_err)
+        })?;
+        Ok(pyo3::types::PyBytes::new(py, &bytes))
+    }
+
     /// Refute against the retained immutable execution and table.
     #[pyo3(signature = (suite, *, seed=1, threads=None, cancel=None))]
     fn refute_bound(

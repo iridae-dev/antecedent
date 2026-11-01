@@ -1624,6 +1624,13 @@ class PreparedAnalysis:
         artifact_id: str = "prepared-contract",
         quantities_json: str | None = None,
     ) -> bytes: ...
+    def export_contracted_artifact_with_source(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        artifact_id: str = "prepared-contract",
+    ) -> bytes: ...
     @staticmethod
     def identify_existing(
         names: list[str],
