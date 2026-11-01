@@ -490,7 +490,7 @@ inference = "temporal.linear.adjustment on the lag-0 pulse: per-completion tempo
 gap = "none"
 missing = "none"
 owner = "crates/antecedent"
-fixtures = "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"
+fixtures = "crates/antecedent/tests/lag_zero_average_effect_truth.rs::lag_zero_average_effect_matches_the_structural_coefficient_on_every_temporal_cell;crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"
 consumer = "crates/antecedent/src/analysis/query_license.rs;python/tests/test_lag_zero_average_effect.py"
 notes = "AverageEffect on one series under TemporalDag, TemporalCpdag or TemporalPag is the lag-0 contrast, compiled as the pulse at offset 0 read at horizon 1. Licensed: the AverageEffect cells on these classes match the structural coefficient (lag_zero_average_effect_truth.rs) and the result discloses estimate.temporal_class.lag_zero_average_effect; calibration unmeasured."
 
@@ -504,7 +504,7 @@ inference = "bayesian.temporal.gcomp on the lag-0 pulse: per-completion conjugat
 gap = "none"
 missing = "none"
 owner = "crates/antecedent"
-fixtures = "crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"
+fixtures = "crates/antecedent/tests/lag_zero_average_effect_truth.rs::lag_zero_average_effect_matches_the_structural_coefficient_on_every_temporal_cell;crates/antecedent/tests/lag_zero_average_effect.rs::the_lag_zero_average_effect_is_the_explicit_pulse_and_stays_unlicensed"
 consumer = "crates/antecedent/src/analysis/query_license.rs;python/tests/test_lag_zero_average_effect.py"
 notes = "Unidentified mass stays mass, not a weight. Licensed through the same cells as P06.temporal.frequentist; calibration unmeasured."
 
