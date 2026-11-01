@@ -1250,7 +1250,7 @@ guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", patt
 refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'if bytes\.len\(\) > max_bytes \{\s*return Err\(IoError::TooLarge\)' }
 
 [[bound]]
-record = "scientific_bridge.typed_bridges"
+record = "scientific_bridge.distribution_bridges"
 key = "max_assumptions"
 implementation = [{ path = "crates/antecedent-contract/src/bridge/contract.rs", constant = "MAX_BRIDGE_ASSUMPTIONS" }]
 documentation = [{ path = "crates/antecedent-contract/src/bridge/contract.rs", constant = "MAX_BRIDGE_ASSUMPTIONS" }]
@@ -1258,7 +1258,7 @@ guard = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = '
 refusal = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = 'MAX_BRIDGE_ASSUMPTIONS \{\s*return Err\(ScientificBridgeArtifactError::LimitsExceeded\("assumptions"\)' }
 
 [[bound]]
-record = "scientific_bridge.typed_bridges"
+record = "scientific_bridge.distribution_bridges"
 key = "max_validation_trials"
 implementation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
 documentation = [{ path = "crates/antecedent-contract/src/bridge/mapping.rs", constant = "MAX_VALIDATION_TRIALS" }]
@@ -1436,7 +1436,7 @@ refusal = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs
 
 [[bound]]
 record = "cross_world_execution.finite_markovian_scm"
-key = "max_joint_exogenous_states"
+key = "max_enumerated_joint_exogenous_states"
 implementation = [{ path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", constant = "MAX_JOINT_STATES" }]
 documentation = [{ path = "docs/cross-world-execution.md", pattern = "Joint exogenous states: (\\d+)" }]
 guard = { path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs", pattern = "<= MAX_JOINT_STATES" }
