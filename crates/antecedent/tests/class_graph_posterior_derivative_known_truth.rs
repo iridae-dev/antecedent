@@ -397,6 +397,40 @@ fn class_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
 }
 
 #[test]
+fn frequentist_class_posterior_vector_derivatives_report_bands_or_withhold() {
+    let pin = fixture();
+    let data = Fixture::new().data();
+    for structure in [Structure::Cpdag, Structure::Pag, Structure::Admg, Structure::TemporalAdmg] {
+        for (key, functional, _, _) in cases(&pin, number(&pin, "at")) {
+            if !matches!(key, "jacobian" | "directional") {
+                continue;
+            }
+            let ctx = ExecutionContext::for_tests(824);
+            let result =
+                study(&data, structure, &functional, InferenceMode::Frequentist, RefuteSuite::None)
+                    .build()
+                    .unwrap()
+                    .prepare(&ctx)
+                    .unwrap()
+                    .estimate(&data, &ctx)
+                    .unwrap();
+            assert!(
+                matches!(
+                    result.response().unwrap().uncertainty,
+                    antecedent_core::ResponseUncertainty::None
+                        | antecedent_core::ResponseUncertainty::PointwiseBand {
+                            interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                            ..
+                        }
+                ),
+                "{structure:?} {key}: {:?}",
+                result.response().unwrap().uncertainty
+            );
+        }
+    }
+}
+
+#[test]
 fn class_graph_posterior_derivative_planted_off_support_point_is_detected() {
     let pin = fixture();
     let data = Fixture::new().data();

@@ -267,6 +267,47 @@ DECLARED_UNMEASURED = {
 }
 
 
+def derivative_uncertainty(
+    query: str, graph: str, estimator: str, inference: str, structure: str
+):
+    """Known, uncalibrated vector-derivative behavior on checked routes.
+
+    A supplied DAG withholds the plug-in interval. Class routes can form a
+    pointwise influence band; other input-dependent cases may still withhold it.
+    This describes a construction, not measured coverage.
+    """
+    if (
+        query not in {"DirectionalDerivative", "ResponseJacobian"}
+        or estimator != "response.gam_derivative"
+        or inference != "Frequentist"
+    ):
+        return None
+    if graph == "Dag" and structure in {"explicit", "accepted"}:
+        return (
+            ["none"],
+            "crates/antecedent/tests/checked_derivative_response_route_evidence.rs::all_frequentist_static_dag_derivative_coordinates_are_sealed_and_dependency_refused",
+        )
+    if graph == "Dag" and structure == "graph_posterior":
+        return (
+            ["analytic", "none"],
+            "crates/antecedent/tests/graph_posterior_derivative_known_truth.rs::frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured",
+        )
+    if graph in {"Cpdag", "Pag", "Admg"} and structure in {"explicit", "accepted"}:
+        return (
+            ["analytic", "none"],
+            "crates/antecedent/tests/class_derivative_known_truth.rs::frequentist_class_vector_derivatives_report_bands_or_withhold",
+        )
+    if (
+        graph in {"Cpdag", "Pag", "Admg", "TemporalAdmg"}
+        and structure == "graph_posterior"
+    ):
+        return (
+            ["analytic", "none"],
+            "crates/antecedent/tests/class_graph_posterior_derivative_known_truth.rs::frequentist_class_posterior_vector_derivatives_report_bands_or_withhold",
+        )
+    return None
+
+
 T = "crates/antecedent/tests/"
 # Executing routes whose evidence the literal search cannot find: the tests that run them.
 EVIDENCE_OVERRIDE = {
@@ -729,8 +770,8 @@ def licensed_methods(src: Sources) -> list[dict]:
                 elif inherited:
                     kinds, basis = inherited, "estimator_records"
                     sources_ = [f"estimator:{estimator}:{inference}:{inherited_design}:{structure}"]
-                elif (estimator, inference) in DECLARED_UNMEASURED:
-                    kinds_list, test = DECLARED_UNMEASURED[(estimator, inference)]
+                elif declaration := derivative_uncertainty(query, graph, estimator, inference, structure) or DECLARED_UNMEASURED.get((estimator, inference)):
+                    kinds_list, test = declaration
                     kinds, basis, sources_ = (
                         set(kinds_list),
                         "declared_unmeasured",
@@ -1478,6 +1519,52 @@ def report(methods: list[dict]) -> str:
 
 
 def self_test() -> int:
+    dag = derivative_uncertainty(
+        "ResponseJacobian", "Dag", "response.gam_derivative", "Frequentist", "explicit"
+    )
+    assert dag is not None and dag[0] == ["none"]
+    cls = derivative_uncertainty(
+        "DirectionalDerivative",
+        "Cpdag",
+        "response.gam_derivative",
+        "Frequentist",
+        "accepted",
+    )
+    assert cls is not None and cls[0] == ["analytic", "none"]
+    posterior = derivative_uncertainty(
+        "ResponseJacobian",
+        "TemporalAdmg",
+        "response.gam_derivative",
+        "Frequentist",
+        "graph_posterior",
+    )
+    assert posterior is not None and posterior[0] == ["analytic", "none"]
+    assert (
+        derivative_uncertainty(
+            "ResponseJacobian", "Dag", "response.gam_derivative", "Bayesian", "explicit"
+        )
+        is None
+    )
+    assert (
+        derivative_uncertainty(
+            "PointDerivative",
+            "Dag",
+            "response.gam_derivative",
+            "Frequentist",
+            "explicit",
+        )
+        is None
+    )
+    assert (
+        derivative_uncertainty(
+            "ResponseJacobian",
+            "TemporalAdmg",
+            "response.gam_derivative",
+            "Frequentist",
+            "explicit",
+        )
+        is None
+    )
     text = (
         "pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {\n    match id {\n"
         '        IdentifierId::BackdoorAdjustment => IdentifierData {\n            name: "backdoor.adjustment",\n        },\n    }\n}\n'

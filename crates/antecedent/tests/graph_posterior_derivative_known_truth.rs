@@ -307,6 +307,38 @@ fn graph_posterior_derivative_mixtures_and_refuter_states_known_truth() {
 }
 
 #[test]
+fn frequentist_dag_posterior_vector_derivative_uncertainty_is_unmeasured() {
+    let pin = fixture();
+    let weights = numbers(&pin["atoms"], "fully_identified_weights");
+    for (key, functional, _) in cases(number(&pin, "at")) {
+        if !matches!(key, "jacobian" | "directional") {
+            continue;
+        }
+        let gp = posterior(&[&PLAIN_EDGES, &CONFOUNDED_EDGES], &weights);
+        let ctx = ExecutionContext::for_tests(818);
+        let result = study(gp, &functional, false, RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&table(), &ctx)
+            .unwrap();
+        assert!(
+            matches!(
+                result.response().unwrap().uncertainty,
+                antecedent_core::ResponseUncertainty::None
+                    | antecedent_core::ResponseUncertainty::PointwiseBand {
+                        interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                        ..
+                    }
+            ),
+            "{key}: {:?}",
+            result.response().unwrap().uncertainty
+        );
+    }
+}
+
+#[test]
 fn graph_posterior_derivative_lost_mass_is_stated_and_the_identified_mixture_is_the_truth() {
     let pin = fixture();
     let weights = numbers(&pin["atoms"], "weights");
