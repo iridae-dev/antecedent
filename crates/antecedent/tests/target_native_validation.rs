@@ -17,7 +17,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_validate::RefutationReport;
 
 /// `y = 5 + 2a − 0.5b + e`, `a` confounded by `b`; the derivative of `E[y | do(a)]` is 2.
@@ -86,6 +86,70 @@ fn checked_outcome(
         ctx,
     )
     .unwrap()
+}
+
+#[test]
+fn a_point_identified_class_derivative_accepts_a_separate_whole_target_refutation() {
+    let (data, _) = fixture(240);
+    let mut graph = Cpdag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query()))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.structural_response.is_some());
+    let target = result_refutation_target(&result).unwrap();
+    let outcome = refute_prepared_target(
+        &prepared,
+        &result,
+        PreparedTargetData::Tabular(&data),
+        TargetSuite::Cheap,
+        &TargetRefutationConfig { replicates: 8, ..TargetRefutationConfig::default() },
+        &TargetRefitOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(outcome.plan.target(), &target);
+    assert!(!outcome.run.reports.is_empty(), "{:?}", outcome.run.refused);
+    certify_result_refutations(&result, &outcome).unwrap();
+}
+
+#[test]
+fn completion_refutations_do_not_certify_the_whole_class_response() {
+    let (data, _) = fixture(240);
+    let mut graph = Cpdag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let ctx = ExecutionContext::for_tests(61);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query()))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::Cheap)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert!(result.structural_response.is_some());
+    assert!(!result.refutations.is_empty());
+    let error = result.claim(&prepared.contract().unwrap(), &ctx).unwrap_err();
+    assert!(error.to_string().contains("was computed on target"), "{error}");
 }
 
 #[test]

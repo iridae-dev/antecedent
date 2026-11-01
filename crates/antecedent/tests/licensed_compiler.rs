@@ -2495,6 +2495,21 @@ fn compiler_fixture_handles_derivatives_and_compact_refutation_replay() {
     }
 }
 
+#[test]
+fn temporal_class_posterior_vector_derivative_cells_encode() {
+    for query in ["DirectionalDerivative", "ResponseJacobian"] {
+        for graph in ["TemporalCpdag", "TemporalPag"] {
+            for inference in ["Frequentist", "Bayesian"] {
+                let coordinate = format!("{query}:{graph}:graph_posterior:{inference}:none");
+                let cell = licensed_support_cells()
+                    .find(|cell| cell_coordinate(*cell) == coordinate)
+                    .expect("vector derivative coordinate is licensed");
+                consume_setup(cell_setup(cell).unwrap()).unwrap_or_else(|error| panic!("{error}"));
+            }
+        }
+    }
+}
+
 /// `parity/licensed_routes.toml` as the executions produce it.
 fn render_routes(routes: &[Route]) -> String {
     let mut out = String::from(concat!(

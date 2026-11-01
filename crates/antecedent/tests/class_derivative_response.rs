@@ -537,6 +537,10 @@ fn completions_that_disagree_publish_the_identified_set_of_the_independent_refer
     else {
         panic!("disagreeing completions must publish their identified set");
     };
+    assert!(
+        antecedent::analysis::target_validation::result_target_values(&result).is_err(),
+        "a set-valued response must not be certified as a point target"
+    );
     assert!((set.lower[0] - values[0]).abs() < 1e-9 && (set.upper[0] - values[1]).abs() < 1e-9);
     // The sampling band of the identified set: the Imbens-Manski interval of the completions'
     // slopes, from their joint row influence. It contains the set, and each independent
