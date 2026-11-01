@@ -397,6 +397,9 @@ fn claim_from(
     Ok(SuppliedClaim { id: wire.id, probability, evidence, support: support_from(wire.support)? })
 }
 
+/// Most draw bytes the claims of one decision may copy between them.
+const MAX_CLAIM_DRAW_BYTES: usize = 512 * 1024 * 1024;
+
 struct Prepared {
     contract: AdmissibleDecisionContract,
     adapted: AdaptedClaims,
@@ -416,6 +419,21 @@ fn prepare(
         .map_err(|e| invalid_json("decision_adapters.invalid_claims", Some(e.to_string())))?;
     if wires.len() != sources.len() {
         return Err(invalid_json("decision_adapters.claims_sources_mismatch", None));
+    }
+    // Each evaluated claim owns a copy of its draw artifact: bound the total before cloning.
+    let cloned_bytes = wires
+        .iter()
+        .zip(sources)
+        .filter(|(wire, _)| wire.status == "evaluated")
+        .filter_map(|(_, source)| source.as_deref())
+        .try_fold(0usize, |total, source| {
+            total.checked_add(source.inner().draws().len().checked_mul(size_of::<f64>())?)
+        });
+    if cloned_bytes.is_none_or(|bytes| bytes > MAX_CLAIM_DRAW_BYTES) {
+        return Err(invalid_json(
+            "decision_adapters.claim_draws_too_large",
+            Some(format!("the claims copy more than {MAX_CLAIM_DRAW_BYTES} bytes of draws")),
+        ));
     }
     let claims = wires
         .into_iter()

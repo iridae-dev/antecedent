@@ -214,8 +214,14 @@ fn variables_of(ids: &[u32]) -> Result<CyclicVariables, CyclicArtifactError> {
         .map_err(refused)
 }
 
+/// Admission work one world's compilation may charge (a dense 1024-node block is about 10^10).
+const MAX_WORLD_WORK: u64 = 10_000_000_000_000;
+
 fn budget(ctx: &ExecutionContext) -> CompileBudget {
-    CompileBudget { max_work: u64::MAX, max_bytes: ctx.memory_limit_bytes().unwrap_or(u64::MAX) }
+    CompileBudget {
+        max_work: MAX_WORLD_WORK,
+        max_bytes: ctx.memory_limit_bytes().unwrap_or(u64::MAX),
+    }
 }
 
 /// Whether a linear world without a certificate is answered.
