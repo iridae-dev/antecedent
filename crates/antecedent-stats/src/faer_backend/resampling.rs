@@ -310,7 +310,7 @@ mod tests {
         let p = 22;
         let mut state = 317_u64;
         let mut uniform = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
             (state >> 11) as f64 / (1_u64 << 53) as f64
         };
         let mut x = vec![0.0; n * p];

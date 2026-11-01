@@ -86,7 +86,7 @@ fn unit_summary_variances_and_design_effects_match_the_exact_inverse() {
     let rows = reference["summaries"].as_array().unwrap();
     assert!(rows.len() > 100);
     for row in rows {
-        let m = row["measurements"].as_u64().unwrap() as u32;
+        let m = u32::try_from(row["measurements"].as_u64().unwrap()).expect("fixture value fits");
         let summary = if row["summary"] == "gls" { UnitSummary::Gls } else { UnitSummary::Mean };
         let label = format!("{} m={m} {} {}", row["name"], row["summary"], row["structure"]);
         let spec = spec(structure(&row["structure"], m), summary, 4, 0.5);
@@ -110,7 +110,7 @@ fn unit_summary_variances_and_design_effects_match_the_exact_inverse() {
 fn the_fixed_allocation_mixture_matches_the_exact_binomial_weights() {
     let reference = reference();
     for case in reference["mixtures"].as_array().unwrap() {
-        let n = case["n"].as_u64().unwrap() as u32;
+        let n = u32::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits");
         let p = frac(&case["plus_probability"]);
         let v = case["summary_variance"].as_f64().unwrap();
         let delta = case["delta"].as_f64().unwrap();
@@ -126,7 +126,7 @@ fn the_fixed_allocation_mixture_matches_the_exact_binomial_weights() {
         let label = format!("n={n} p={p}");
         assert_eq!(
             law.components.len(),
-            case["component_count"].as_u64().unwrap() as usize,
+            usize::try_from(case["component_count"].as_u64().unwrap()).expect("fixture value fits"),
             "{label}"
         );
         relative(law.defined_mass(), case["defined_mass"].as_f64().unwrap(), 1e-12, &label);

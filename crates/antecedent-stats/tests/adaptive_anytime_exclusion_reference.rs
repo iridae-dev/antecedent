@@ -61,8 +61,12 @@ fn reported_bounds_match_the_reference_radius() {
     });
     let spec = spec(&declaration);
     for row in reference["reports"].as_array().expect("reports") {
-        let counts: Vec<u16> =
-            row["counts"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap() as u16).collect();
+        let counts: Vec<u16> = row["counts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| u16::try_from(n.as_u64().unwrap()).expect("fixture value fits"))
+            .collect();
         let alpha = level(&row["alpha"]);
         let report = anytime_valid_report(&spec, &counts, alpha, level(&row["tuning"])).unwrap();
         assert_eq!(report.calibration, DERIVED_UNMEASURED);

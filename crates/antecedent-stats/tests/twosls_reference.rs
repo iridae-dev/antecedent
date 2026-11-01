@@ -36,9 +36,9 @@ fn two_stage_least_squares_matches_exact_arithmetic() {
     for case in doc.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let (n, k, px) = (
-            case["n"].as_u64().unwrap() as usize,
-            case["k"].as_u64().unwrap() as usize,
-            case["x_ncols"].as_u64().unwrap() as usize,
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["x_ncols"].as_u64().unwrap()).expect("fixture value fits"),
         );
         let (z, x, t, y) =
             (floats(&case["z"]), floats(&case["x"]), floats(&case["t"]), floats(&case["y"]));
@@ -56,7 +56,9 @@ fn two_stage_least_squares_matches_exact_arithmetic() {
         let diag = &fit.first_stage_diagnostics;
         let f = rel(diag.f_statistic, case["f_statistic"].as_f64().unwrap());
         let r2 = rel(diag.partial_r2, case["partial_r2"].as_f64().unwrap());
-        let df_ok = diag.df1 == k && diag.df2 == case["df2"].as_u64().unwrap() as usize;
+        let df_ok = diag.df1 == k
+            && diag.df2
+                == usize::try_from(case["df2"].as_u64().unwrap()).expect("fixture value fits");
         eprintln!("{name:28} coef {coef:.2e} rss {rss:.2e} F {f:.2e} R2 {r2:.2e}");
         if coef > 1e-9 || rss > 1e-9 || f > 1e-9 || r2 > 1e-9 || !df_ok {
             failures.push(format!(
@@ -109,9 +111,9 @@ fn anderson_rubin_statistic_critical_value_and_set_match_exact_arithmetic() {
     for case in doc.as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
         let (n, k, px) = (
-            case["n"].as_u64().unwrap() as usize,
-            case["k"].as_u64().unwrap() as usize,
-            case["x_ncols"].as_u64().unwrap() as usize,
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["x_ncols"].as_u64().unwrap()).expect("fixture value fits"),
         );
         let (z, x, t, y) =
             (floats(&case["z"]), floats(&case["x"]), floats(&case["t"]), floats(&case["y"]));
@@ -124,7 +126,7 @@ fn anderson_rubin_statistic_critical_value_and_set_match_exact_arithmetic() {
         };
         let mut ws = LeastSquaresWorkspace::default();
         let level = case["level"].as_f64().unwrap();
-        let df = case["df2"].as_u64().unwrap() as usize;
+        let df = usize::try_from(case["df2"].as_u64().unwrap()).expect("fixture value fits");
 
         let crit = rel(f_critical(level, k, df), case["f_critical"].as_f64().unwrap());
         let at_beta0 = anderson_rubin_statistic(

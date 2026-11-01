@@ -45,12 +45,13 @@ fn scores_and_weighted_estimates_match_the_reference() {
     let reference = reference();
     let mut compared = 0;
     for case in reference["cases"].as_array().expect("cases") {
-        let arms = case["arms"].as_u64().expect("arms") as usize;
+        let arms =
+            usize::try_from(case["arms"].as_u64().expect("arms")).expect("fixture value fits");
         let assigned: Vec<usize> = case["assigned"]
             .as_array()
             .expect("assigned")
             .iter()
-            .map(|a| a.as_u64().expect("arm") as usize)
+            .map(|a| usize::try_from(a.as_u64().expect("arm")).expect("fixture value fits"))
             .collect();
         let probabilities: Vec<f64> = case["probabilities"]
             .as_array()

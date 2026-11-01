@@ -28,9 +28,11 @@ fn reference() -> Value {
 
 fn observed(value: &Value) -> ObservedTerminal {
     ObservedTerminal {
-        look: value["look"].as_u64().unwrap() as usize,
+        look: usize::try_from(value["look"].as_u64().unwrap()).expect("fixture value fits"),
         rule_stopped: value["stopped"].as_bool().unwrap(),
-        decision: value["decision"].as_u64().map(|d| d as usize),
+        decision: value["decision"]
+            .as_u64()
+            .map(|d| usize::try_from(d).expect("fixture value fits")),
         estimate: frac(&value["estimate"]),
     }
 }
@@ -82,7 +84,11 @@ fn the_inversion_accepts_exactly_the_contrasts_the_exact_tails_allow() {
                 .expect("an interval");
         let want = fracs(&inversion["accepted"]);
         assert_eq!(result.accepted, want, "accepted set at alpha {alpha}");
-        assert_eq!(result.laws_evaluated, inversion["laws_evaluated"].as_u64().unwrap() as usize);
+        assert_eq!(
+            result.laws_evaluated,
+            usize::try_from(inversion["laws_evaluated"].as_u64().unwrap())
+                .expect("fixture value fits")
+        );
         assert_eq!(result.lower, want.first().copied());
         assert_eq!(result.upper, want.last().copied());
         assert_eq!(result.calibration, antecedent_stats::adaptive_inference::DERIVED_UNMEASURED);

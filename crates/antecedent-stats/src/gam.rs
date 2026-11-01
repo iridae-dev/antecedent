@@ -2884,7 +2884,7 @@ mod tests {
         let n = 512;
         let mut state = 17_u64;
         let mut random = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
             (state >> 11) as f64 / (1_u64 << 53) as f64
         };
         let x: Vec<_> = (0..n * 4).map(|_| 2.0 * random() - 1.0).collect();

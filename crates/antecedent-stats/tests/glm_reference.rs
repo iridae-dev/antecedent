@@ -50,7 +50,10 @@ fn fit_case(
     weights: Option<&[f64]>,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
-    let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
+    let (n, p) = (
+        usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+        usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+    );
     let (x, y) = (floats(&case["x"]), floats(&case["y"]));
     let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y };
     let mut ws = LeastSquaresWorkspace::default();
@@ -196,7 +199,10 @@ fn ridge_fits_match_the_exact_penalised_maximiser() {
         let lambda = case["lambda"].as_f64().unwrap();
         let want = floats(&case["coef"]);
         let weights = optional_floats(&case["w"]);
-        let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
+        let (n, p) = (
+            usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+        );
         let (x, y) = (floats(&case["x"]), floats(&case["y"]));
         let design = GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y };
         let mut ws = LeastSquaresWorkspace::default();
@@ -315,7 +321,10 @@ fn an_iteration_limit_is_reported_as_non_convergence() {
 fn invalid_outcomes_and_weights_are_refused() {
     let doc: Value = serde_json::from_str(REFERENCE).unwrap();
     let case = &doc["fits"][0];
-    let (n, p) = (case["n"].as_u64().unwrap() as usize, case["p"].as_u64().unwrap() as usize);
+    let (n, p) = (
+        usize::try_from(case["n"].as_u64().unwrap()).expect("fixture value fits"),
+        usize::try_from(case["p"].as_u64().unwrap()).expect("fixture value fits"),
+    );
     let x = floats(&case["x"]);
     let mut ws = LeastSquaresWorkspace::default();
     let mut y = floats(&case["y"]);

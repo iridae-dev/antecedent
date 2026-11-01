@@ -37,7 +37,8 @@ fn request(case: &Value, seed: u64) -> SimulationRequest {
         }
     };
     SimulationRequest {
-        replications: case["replications"].as_u64().unwrap() as u32,
+        replications: u32::try_from(case["replications"].as_u64().unwrap())
+            .expect("fixture value fits"),
         seed,
         estimand,
         scheme: if case["scheme"] == "uniform" {
@@ -81,7 +82,7 @@ fn the_simulated_law_agrees_with_the_exact_law_of_the_procedure() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|n| n.as_u64().unwrap() as u32)
+            .map(|n| u32::try_from(n.as_u64().unwrap()).expect("fixture value fits"))
             .sum();
         within_sigmas(
             law.mean_enrolled(),

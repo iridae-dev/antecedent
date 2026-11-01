@@ -62,7 +62,8 @@ fn the_declared_correlation_posterior_matches_the_exact_polynomial_integrals() {
             })
             .collect();
         let request = PosteriorRequest {
-            responses: case["responses"].as_u64().unwrap() as u32,
+            responses: u32::try_from(case["responses"].as_u64().unwrap())
+                .expect("fixture value fits"),
             correlation: CorrelationModel::Declared(frac(&case["rho"])),
             arms: &arms,
             exceedance_margin: case["margin"].as_str().map(|_| frac(&case["margin"])),
@@ -95,7 +96,7 @@ fn the_declared_correlation_posterior_matches_the_exact_polynomial_integrals() {
 fn the_beta_binomial_mass_matches_the_exact_product_form() {
     let reference = reference();
     for row in reference["pmfs"].as_array().unwrap() {
-        let m = row["responses"].as_u64().unwrap() as u32;
+        let m = u32::try_from(row["responses"].as_u64().unwrap()).expect("fixture value fits");
         let (mean, rho) = (frac(&row["mean"]), frac(&row["rho"]));
         let got = beta_binomial_pmf(m, mean, rho);
         let want = numbers(&row["pmf"]);

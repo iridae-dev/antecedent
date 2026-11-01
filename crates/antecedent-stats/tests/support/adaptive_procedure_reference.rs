@@ -36,7 +36,7 @@ fn prior(value: &Value) -> BetaPrior {
 }
 
 pub fn declaration(d: &Value) -> ProcedureDeclaration {
-    let arms = d["arms"].as_u64().expect("arms") as usize;
+    let arms = usize::try_from(d["arms"].as_u64().expect("arms")).expect("fixture value fits");
     let a = &d["assignment"];
     let assignment = match a["kind"].as_str().expect("kind") {
         "fixed" => AssignmentRule::Fixed { probabilities: fracs(&a["probabilities"]) },
@@ -55,9 +55,10 @@ pub fn declaration(d: &Value) -> ProcedureDeclaration {
     let s = &d["stopping"];
     let stopping = match s["kind"].as_str().expect("kind") {
         "none" => StoppingRule::NoStopping,
-        "cap" => {
-            StoppingRule::ResourceCap { max_units: s["max_units"].as_u64().expect("cap") as u32 }
-        }
+        "cap" => StoppingRule::ResourceCap {
+            max_units: u32::try_from(s["max_units"].as_u64().expect("cap"))
+                .expect("fixture value fits"),
+        },
         "best" => StoppingRule::PosteriorProbabilityBest {
             threshold: frac(&s["threshold"]),
             prior: prior(&s["prior"]),
@@ -89,7 +90,9 @@ pub fn declaration(d: &Value) -> ProcedureDeclaration {
     };
     let retain = d.get("retain").map_or((1.0, 1.0), |r| (frac(&r[0]), frac(&r[1])));
     let observation = OutcomeObservation {
-        lag_looks: d.get("lag").map_or(0, |l| l.as_u64().expect("lag") as usize),
+        lag_looks: d
+            .get("lag")
+            .map_or(0, |l| usize::try_from(l.as_u64().expect("lag")).expect("fixture value fits")),
         retain_success: retain.0,
         retain_failure: retain.1,
     };
@@ -97,7 +100,8 @@ pub fn declaration(d: &Value) -> ProcedureDeclaration {
         || ExposureModel::none(arms),
         |e| ExposureModel {
             failure_probability: fracs(&e["failure"]),
-            fallback_arm: e["fallback"].as_u64().expect("fallback") as usize,
+            fallback_arm: usize::try_from(e["fallback"].as_u64().expect("fallback"))
+                .expect("fixture value fits"),
             attribution: if e["attribution"] == "assigned" {
                 Attribution::Assigned
             } else {
@@ -114,7 +118,7 @@ pub fn declaration(d: &Value) -> ProcedureDeclaration {
                 .as_array()
                 .expect("enrolment")
                 .iter()
-                .map(|n| n.as_u64().expect("units") as u32)
+                .map(|n| u32::try_from(n.as_u64().expect("units")).expect("fixture value fits"))
                 .collect(),
         ),
         observation: Some(observation),
@@ -142,15 +146,17 @@ pub fn assert_atoms(law: &ProcedureLaw, atoms: &Value, tolerance: f64, what: &st
     let atoms = atoms.as_array().expect("atoms");
     let mut matched = vec![false; law.atoms.len()];
     for atom in atoms {
-        let look = atom["look"].as_u64().expect("look") as usize;
+        let look =
+            usize::try_from(atom["look"].as_u64().expect("look")).expect("fixture value fits");
         let stopped = atom["stopped"].as_bool().expect("stopped");
         let observed: Vec<u16> = atom["observed"]
             .as_array()
             .expect("observed")
             .iter()
-            .map(|n| n.as_u64().expect("count") as u16)
+            .map(|n| u16::try_from(n.as_u64().expect("count")).expect("fixture value fits"))
             .collect();
-        let decision = atom["decision"].as_u64().map(|n| n as usize);
+        let decision =
+            atom["decision"].as_u64().map(|n| usize::try_from(n).expect("fixture value fits"));
         let want = atom["pf"].as_f64().expect("probability");
         let found = law.atoms.iter().position(|a| {
             a.look == look

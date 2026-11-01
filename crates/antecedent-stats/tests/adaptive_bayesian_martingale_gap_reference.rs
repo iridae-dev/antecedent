@@ -88,8 +88,12 @@ fn posterior_reports_match_the_exact_beta_values() {
     let spec: ProcedureSpec = support::spec(&declaration);
     for row in rows {
         let prior = priors(&Value::Array(vec![row["prior"].clone()]))[0];
-        let counts: Vec<u16> =
-            row["counts"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap() as u16).collect();
+        let counts: Vec<u16> = row["counts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| u16::try_from(n.as_u64().unwrap()).expect("fixture value fits"))
+            .collect();
         let report = bayesian_report(&spec, prior, &counts, &never).expect("a report");
         for arm in 0..2 {
             let shape = &row["posteriors"][arm];
