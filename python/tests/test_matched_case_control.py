@@ -33,7 +33,9 @@ def test_missing_strata_are_rejected_before_grouping():
     for missing in (None, float("nan"), pd.NA):
         with pytest.raises(ValueError, match="stratum labels must not be missing"):
             matched_case_control_odds_ratio(
-                stratum=[missing, missing], case=[1, 0], exposed=[1, 0],
+                stratum=[missing, missing],
+                case=[1, 0],
+                exposed=[1, 0],
                 sampling="matched_case_control",
             )
 

@@ -48,9 +48,9 @@ PROGRAMS = {
 def increment(levels):
     """Terminal response under a constant program: lags have washed out by week 23."""
     saturated = [x / (x + TRUTH["half"]) for x in levels]
-    return math.fsum(
-        c * s for c, s in zip(TRUTH["coefficients"], saturated, strict=True)
-    ) + (TRUTH["interaction"] * saturated[0] * saturated[2])
+    return math.fsum(c * s for c, s in zip(TRUTH["coefficients"], saturated, strict=True)) + (
+        TRUTH["interaction"] * saturated[0] * saturated[2]
+    )
 
 
 def simulate():
@@ -60,18 +60,14 @@ def simulate():
         z = [rng.gauss(0, 1) for _ in range(74)]
         # Budgets respond to observed anticipated demand. No randomized program is assigned.
         data = {
-            name: [
-                max(0.0, rng.choice((0.0, 2.0, 4.0)) + 0.25 * demand) for demand in z
-            ]
+            name: [max(0.0, rng.choice((0.0, 2.0, 4.0)) + 0.25 * demand) for demand in z]
             for name in CHANNELS
         }
         data.update(z=z, season=[float(t % 4) for t in range(74)], y=[None, None])
         for t in range(2, 74):
             s = []
             for name in CHANNELS:
-                exposure = sum(
-                    w * data[name][t - k] for k, w in enumerate(TRUTH["lag"])
-                )
+                exposure = sum(w * data[name][t - k] for k, w in enumerate(TRUTH["lag"]))
                 s.append(exposure / (exposure + TRUTH["half"]))
             data["y"].append(
                 10
@@ -100,9 +96,7 @@ def worlds(scenarios, name, levels):
         {
             "id": label,
             "reference": i == 0,
-            "channels": {
-                n: [v] * HORIZON for n, v in zip(CHANNELS, doses, strict=True)
-            },
+            "channels": {n: [v] * HORIZON for n, v in zip(CHANNELS, doses, strict=True)},
             "scenarios": scenarios,
         }
         for i, (label, doses) in enumerate((("hold", (0.0, 0.0, 0.0)), (name, levels)))
@@ -137,9 +131,7 @@ def bridge_for(target):
             ),
         ),
         mapping_uncertainty=sb.MappingUncertainty("fixed_identity", 0.0, 0.0, 0.0),
-        source_dependence=sb.SourceDependence(
-            "slope_covariance", "retained_slots", 0.0
-        ),
+        source_dependence=sb.SourceDependence("slope_covariance", "retained_slots", 0.0),
         estimand_bridge=sb.EstimandBridge(
             "same_program",
             "geo_experiment",
@@ -271,10 +263,7 @@ def run():
     )
     print(
         "Search-only pulse of 4, subsequent weekly increments:",
-        [
-            search["coefficient"] * (4 * w) / (4 * w + half)
-            for w in [*search["lag"], 0.0]
-        ],
+        [search["coefficient"] * (4 * w) / (4 * w + half) for w in [*search["lag"], 0.0]],
         flush=True,
     )
 
@@ -299,20 +288,15 @@ def run():
     assert prepared.inspect()["fits_performed"] == 1
     assert report["identified"] is False
     # Meaningful refusal: a missing whole-program assignment proof cannot be supplied by fit.
-    rejected = [
-        a for a in inspection["attempts"] if a["outcome"] in ("Rejected", "Unsupported")
-    ]
+    rejected = [a for a in inspection["attempts"] if a["outcome"] in ("Rejected", "Unsupported")]
     assert rejected
     print("Identification refusal:", rejected, flush=True)
     draws = report["draws"]
-    assert all(row is not None for row in draws), (
-        "Incomplete posterior slots cannot be conditioned"
-    )
+    assert all(row is not None for row in draws), "Incomplete posterior slots cannot be conditioned"
     contrasts = [row[1]["means"][-1] - row[0]["means"][-1] for row in draws]
     contrast = result.scheduled_contrast("terminal_mean")
     assert all(
-        math.isclose(a, b, abs_tol=1e-9)
-        for a, b in zip(contrast["draws"], contrasts, strict=True)
+        math.isclose(a, b, abs_tol=1e-9) for a, b in zip(contrast["draws"], contrasts, strict=True)
     )
     assert math.isclose(
         statistics.variance(contrasts),
@@ -337,19 +321,13 @@ def run():
     ledger = EvidenceLedger()
     dependency = report["dependency"]
     model = ledger.add_source(
-        SourceDeclaration(
-            dependency, "fitted_model", [("panel", str(i)) for i in range(288)]
-        )
+        SourceDeclaration(dependency, "fitted_model", [("panel", str(i)) for i in range(288)])
     )
     experiment = ledger.add_source(
-        SourceDeclaration(
-            "geo_experiment", "experiment", [("geo", str(i)) for i in range(16)]
-        )
+        SourceDeclaration("geo_experiment", "experiment", [("geo", str(i)) for i in range(16)])
     )
     mapping = ledger.add_source(
-        SourceDeclaration(
-            "exact_program_mapping", "fitted_model", [("mapping", "declaration")]
-        )
+        SourceDeclaration("exact_program_mapping", "fitted_model", [("mapping", "declaration")])
     )
     updated = result.condition_experiment(
         bridge=bridge_for(target),
@@ -390,14 +368,9 @@ def run():
     weights = posterior["posterior_weights"]
     variance = 0.8**2 / len(geo)
     anchor = min(contrasts, key=lambda x: abs(x - observed))
-    raw = [
-        math.exp((x - anchor) * (2 * observed - x - anchor) / (2 * variance))
-        for x in contrasts
-    ]
+    raw = [math.exp((x - anchor) * (2 * observed - x - anchor) / (2 * variance)) for x in contrasts]
     normalizer = math.fsum(raw)
-    assert all(
-        abs(w - r / normalizer) < 1e-12 for w, r in zip(weights, raw, strict=True)
-    )
+    assert all(abs(w - r / normalizer) < 1e-12 for w, r in zip(weights, raw, strict=True))
     before = statistics.mean(contrasts)
     after = math.fsum(w * x for w, x in zip(weights, contrasts, strict=True))
     assert abs(after - observed) < abs(before - observed)
@@ -408,14 +381,10 @@ def run():
     # terminal-outcome decision's units; it is not a claim about cumulative revenue.
     margin, price = 0.4, 0.009
     cost = 144 * price
-    coordinates = tuple(
-        ScientificQuantity.from_wire(q) for q in posterior["quantities"]
-    )
+    coordinates = tuple(ScientificQuantity.from_wire(q) for q in posterior["quantities"])
     contract = decision.Contract(
         actions=(
-            decision.Action(
-                "hold", inputs=coordinates, utility=0 * decision.x(0), kind="policy"
-            ),
+            decision.Action("hold", inputs=coordinates, utility=0 * decision.x(0), kind="policy"),
             decision.Action(
                 selected,
                 inputs=coordinates,
@@ -442,9 +411,7 @@ def run():
     )
     assert updated.decide(expensive, ledger)["verdict"] == {"uniquely_optimal": "hold"}
     by_id = {a["id"]: a for a in chosen["actions"]}
-    assert math.isclose(
-        by_id[selected]["expected_utility"], margin * after - cost, abs_tol=1e-9
-    )
+    assert math.isclose(by_id[selected]["expected_utility"], margin * after - cost, abs_tol=1e-9)
     actions = [
         {"id": "hold", "intercept": 0.0, "coefficients": [0.0, 0.0]},
         {"id": selected, "intercept": -cost, "coefficients": [-margin, margin]},
@@ -472,13 +439,8 @@ def run():
     assert ranking[0]["id"] == "repeat_geo"
     assert ranking[0]["gross_evsi"] == ranking[1]["gross_evsi"]
     for row, study_cost in zip(ranking, (0.001, 0.05), strict=True):
-        assert math.isclose(
-            row["net_value"], row["gross_evsi"] - study_cost, abs_tol=1e-12
-        )
-    assert (
-        ranking[0]["admissible_action_identity"]
-        == ranking[1]["admissible_action_identity"]
-    )
+        assert math.isclose(row["net_value"], row["gross_evsi"] - study_cost, abs_tol=1e-12)
+    assert ranking[0]["admissible_action_identity"] == ranking[1]["admissible_action_identity"]
 
     reference, quadrature_error = study_value(
         contrasts, weights, margin, cost, math.sqrt(0.64 / 16)
@@ -496,22 +458,16 @@ def run():
     updated.verify_current(updated_artifact, ledger, execution=EXECUTION)
     require_success(
         ledger.revise_source(
-            require_success(
-                SourceRevision.withdraw(experiment, "geo audit withdrew contrast")
-            )
+            require_success(SourceRevision.withdraw(experiment, "geo audit withdrew contrast"))
         )
     )
     try:
         updated.decide(contract, ledger)
     except ValueError as error:
-        assert any(
-            word in str(error) for word in ("withdrawn", "missing", "superseded")
-        )
+        assert any(word in str(error) for word in ("withdrawn", "missing", "superseded"))
         withdrawal = str(error)
     else:
-        raise AssertionError(
-            "Current decision must depend on the experimental evidence"
-        )
+        raise AssertionError("Current decision must depend on the experimental evidence")
     replay = require_success(jp.consume(fitted_artifact, execution=EXECUTION))
     assert replay["point"] == report["point"] and not replay["grants_current_authority"]
     return {
@@ -524,9 +480,7 @@ def run():
         "uncertainty": contrast["uncertainty"],
         "prior_posterior_sd": statistics.stdev(contrasts),
         "updated_posterior_sd": math.sqrt(
-            math.fsum(
-                w * (c - after) ** 2 for w, c in zip(weights, contrasts, strict=True)
-            )
+            math.fsum(w * (c - after) ** 2 for w, c in zip(weights, contrasts, strict=True))
         ),
         "evsi_quadrature": reference,
         "evsi_quadrature_error_bound": quadrature_error,

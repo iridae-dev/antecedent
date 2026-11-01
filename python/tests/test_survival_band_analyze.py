@@ -75,9 +75,7 @@ def test_simultaneous_difference_band_round_trip_and_determinism(competing: bool
     # Independent empirical reference: nothing is censored before tau, so the Kaplan-Meier
     # survival is the share still at risk and the cause-1 incidence is the share failing from
     # cause 1 by t; the band's difference is treated minus control.
-    arms = {
-        arm: [i for i, a in enumerate(data["treatment"]) if a == arm] for arm in (0.0, 1.0)
-    }
+    arms = {arm: [i for i, a in enumerate(data["treatment"]) if a == arm] for arm in (0.0, 1.0)}
 
     def level(arm: float, t: float) -> float:
         rows = arms[arm]

@@ -74,7 +74,9 @@ def test_explicit_encoding_digest_binds_only_bytes():
         ac.load(data, expected={"expected_encoding_sha256": "0" * 64})
     with pytest.raises(CausalValueError, match="hexadecimal"):
         consume_posterior(data, expected_encoding_sha256="not a digest")
-    with pytest.raises(CausalTypeError, match=r"expected_encoding_sha256 must be a hexadecimal string"):
+    with pytest.raises(
+        CausalTypeError, match=r"expected_encoding_sha256 must be a hexadecimal string"
+    ):
         consume_posterior(data, expected_encoding_sha256=12)
 
 
@@ -217,9 +219,16 @@ def test_retained_bayesian_result_exports_and_loads_without_refitting(monkeypatc
     ],
 )
 def test_moments_constructor_refuses_invalid_summaries(change, message):
-    kwargs = dict(n_draws=3, mean=[2.0], sd=[1.0], q025=[1.0], q975=[3.0],
-                  backend_id="conjugate", identification="NonparametricallyIdentified",
-                  quantity_names=["ate"])
+    kwargs = dict(
+        n_draws=3,
+        mean=[2.0],
+        sd=[1.0],
+        q025=[1.0],
+        q975=[3.0],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
+        quantity_names=["ate"],
+    )
     kwargs.update(change)
     with pytest.raises(CausalValueError, match=message):
         _native.PosteriorArtifact.from_moments(**kwargs)
@@ -229,9 +238,14 @@ def test_moments_constructor_accepts_deterministic_and_skewed_summaries():
     # Zero SD is a legitimate point mass; a nonzero-SD mean need not lie
     # inside its central quantile interval for a skewed distribution.
     artifact = _native.PosteriorArtifact.from_moments(
-        n_draws=3, mean=[2.0, 2.0], sd=[0.0, 10.0],
-        q025=[2.0, 0.0], q975=[2.0, 1.0], backend_id="conjugate",
-        identification="NonparametricallyIdentified", quantity_names=["ate", "skewed"],
+        n_draws=3,
+        mean=[2.0, 2.0],
+        sd=[0.0, 10.0],
+        q025=[2.0, 0.0],
+        q975=[2.0, 1.0],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
+        quantity_names=["ate", "skewed"],
     )
     assert np.isnan(artifact.hessian_condition)
     decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(artifact))
@@ -246,8 +260,13 @@ def test_moments_constructor_accepts_deterministic_and_skewed_summaries():
 def test_moments_accept_zero_sd_with_distinct_tiny_quantiles():
     # A variance calculation can underflow to zero while values remain distinct.
     artifact = _native.PosteriorArtifact.from_moments(
-        n_draws=2, mean=[0.0], sd=[0.0], q025=[-1e-200], q975=[1e-200],
-        backend_id="conjugate", identification="NonparametricallyIdentified",
+        n_draws=2,
+        mean=[0.0],
+        sd=[0.0],
+        q025=[-1e-200],
+        q975=[1e-200],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
         quantity_names=["ate"],
     )
     decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(artifact))
@@ -271,18 +290,33 @@ def test_moments_accept_zero_sd_with_distinct_tiny_quantiles():
     ],
 )
 def test_draw_constructor_refuses_invalid_metadata_and_draws(change, message):
-    kwargs = dict(n_draws=3, mean=[2.0], sd=[1.0], q025=[1.05], q975=[2.95],
-                  draws=[1.0, 2.0, 3.0], backend_id="conjugate",
-                  identification="NonparametricallyIdentified", quantity_names=["ate"])
+    kwargs = dict(
+        n_draws=3,
+        mean=[2.0],
+        sd=[1.0],
+        q025=[1.05],
+        q975=[2.95],
+        draws=[1.0, 2.0, 3.0],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
+        quantity_names=["ate"],
+    )
     kwargs.update(change)
     with pytest.raises(CausalValueError, match=message):
         _native.PosteriorArtifact(**kwargs)
 
 
 def test_draw_constructor_accepts_valid_draws_and_explicit_empty_summary():
-    kwargs = dict(n_draws=3, mean=[2.0], sd=[1.0], q025=[1.05], q975=[2.95],
-                  backend_id="conjugate", identification="NonparametricallyIdentified",
-                  quantity_names=["ate"])
+    kwargs = dict(
+        n_draws=3,
+        mean=[2.0],
+        sd=[1.0],
+        q025=[1.05],
+        q975=[2.95],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
+        quantity_names=["ate"],
+    )
     full = _native.PosteriorArtifact(**kwargs, draws=[1.0, 2.0, 3.0])
     roundtrip = _native.decode_posterior_artifact(_native.encode_posterior_artifact(full))
     np.testing.assert_array_equal(roundtrip.draws, [1.0, 2.0, 3.0])
@@ -293,11 +327,18 @@ def test_draw_constructor_accepts_valid_draws_and_explicit_empty_summary():
     assert decoded.mean == [2.0]
 
 
-@pytest.mark.parametrize("name", ["coef_", "coef_x", "coef_-1", "coef_01", "coef_+1", "coef_4294967296"])
+@pytest.mark.parametrize(
+    "name", ["coef_", "coef_x", "coef_-1", "coef_01", "coef_+1", "coef_4294967296"]
+)
 def test_posterior_encoding_refuses_invalid_reserved_coefficient_indices(name):
     artifact = _native.PosteriorArtifact.from_moments(
-        n_draws=3, mean=[2.0], sd=[1.0], q025=[1.0], q975=[3.0],
-        backend_id="conjugate", identification="NonparametricallyIdentified",
+        n_draws=3,
+        mean=[2.0],
+        sd=[1.0],
+        q025=[1.0],
+        q975=[3.0],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
         quantity_names=[name],
     )
     with pytest.raises(CausalValueError, match="invalid indexed coefficient quantity"):
@@ -306,8 +347,13 @@ def test_posterior_encoding_refuses_invalid_reserved_coefficient_indices(name):
 
 def test_posterior_encoding_preserves_indexed_coefficient_and_named_effect():
     artifact = _native.PosteriorArtifact.from_moments(
-        n_draws=3, mean=[2.0, 3.0], sd=[1.0, 0.5], q025=[1.0, 2.0], q975=[3.0, 4.0],
-        backend_id="conjugate", identification="NonparametricallyIdentified",
+        n_draws=3,
+        mean=[2.0, 3.0],
+        sd=[1.0, 0.5],
+        q025=[1.0, 2.0],
+        q975=[3.0, 4.0],
+        backend_id="conjugate",
+        identification="NonparametricallyIdentified",
         quantity_names=["coef_7", "my_named_effect"],
     )
     decoded = _native.decode_posterior_artifact(_native.encode_posterior_artifact(artifact))

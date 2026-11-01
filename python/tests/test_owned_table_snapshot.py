@@ -110,7 +110,9 @@ def test_snapshot_ownership_refuses_insufficient_memory_and_honors_cancellation(
     from antecedent.state import CancellationToken
 
     limited = Execution(limits=ResourceLimits(memory_bytes=1))
-    with pytest.raises(CausalResourceError, match=r"admission wait of 0ns ended before the budget had room"):
+    with pytest.raises(
+        CausalResourceError, match=r"admission wait of 0ns ended before the budget had room"
+    ):
         limited._call(table, {"x": np.arange(8.0)})
     assert limited._handle.available_memory_bytes == 1
     token = CancellationToken()

@@ -66,7 +66,9 @@ def test_each_temporal_derivative_matches_its_structural_target_and_independent_
     result = require_success(study.estimate())
     # The data are exactly linear, so the fit reproduces the target to about 7e-3 at worst
     # (the semi-elasticity, which scales the slope by 2); 0.015 admits no mis-specified target.
-    np.testing.assert_allclose(np.asarray(result.estimate).reshape(-1), expected, atol=0.015, rtol=0)
+    np.testing.assert_allclose(
+        np.asarray(result.estimate).reshape(-1), expected, atol=0.015, rtol=0
+    )
     assert result.program_id
     assert result.data_snapshot_id
     assert study.plan_view().identity == plan.identity

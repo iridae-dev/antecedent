@@ -721,7 +721,9 @@ def s5_producer():
     per_unit = float(np.mean(s5_outcome(ACTIVE, m0) - s5_outcome(CONTROL, m0)))
     plug_in = float(s5_outcome(ACTIVE, m0.mean()) - s5_outcome(CONTROL, m0.mean()))
     assert abs(per_unit - plug_in) > 1.0
-    assert abs(shared.point - per_unit) < 0.12  # observed 0.073 and abs(shared.point - plug_in) > 1.0
+    assert (
+        abs(shared.point - per_unit) < 0.12
+    )  # observed 0.073 and abs(shared.point - plug_in) > 1.0
     separable = path_specific_effect(s5_dag(), data, direct).point
     assert abs(separable - per_unit) > 1.0
     # Typed refusals.

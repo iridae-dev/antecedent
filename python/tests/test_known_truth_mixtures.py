@@ -589,7 +589,9 @@ def test_frequentist_discovered_dbn_posterior_pulse_is_routed() -> None:
     )
     # The DGP is defect_t = 0.9 * pressure_{t-1} with no noise, and every identified atom
     # recovers that law, so the mixture over identified atoms is 0.9 (observed deviation 2e-16).
-    assert result.ate == pytest.approx(float(TEMPORAL["expected_effect_given_identified"]), abs=1e-6)
+    assert result.ate == pytest.approx(
+        float(TEMPORAL["expected_effect_given_identified"]), abs=1e-6
+    )
     assert result.estimate.se_bootstrap is not None and result.estimate.se_bootstrap > 0
     assert result.structural_weight_basis == "posterior_probability"
     masses = (

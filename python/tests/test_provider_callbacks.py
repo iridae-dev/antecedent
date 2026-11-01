@@ -956,7 +956,9 @@ def test_a_callback_is_connected_to_its_consumer_before_the_provider_ever_runs()
     assert isinstance(refused, pc.CallbackExecutionRefusal) and refused.invocations == 0
     assert fresh.invocations == 0 and counted(never) == []
     assert session.invocations == 1
-    with pytest.raises(CausalTypeError, match=r"consumer\ must\ be\ an\ interface_contract\.InterfaceContract"):
+    with pytest.raises(
+        CausalTypeError, match=r"consumer\ must\ be\ an\ interface_contract\.InterfaceContract"
+    ):
         session.execute_for_consumer(provider, decl, request, {"component": "x"}, "law_in")
 
 

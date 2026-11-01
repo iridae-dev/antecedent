@@ -66,9 +66,16 @@ def test_the_declaration_is_validated_and_carried_to_the_native_option():
         MissingPolicy("complete_case", imputation=ImputationSpec())
 
 
-@pytest.mark.parametrize("name,value", [("imputations", 0), ("imputations", 1),
-                                         ("imputations", 1001), ("iterations", 0),
-                                         ("iterations", 1001)])
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("imputations", 0),
+        ("imputations", 1),
+        ("imputations", 1001),
+        ("iterations", 0),
+        ("iterations", 1001),
+    ],
+)
 def test_imputation_counts_respect_documented_bounds(name, value):
     with pytest.raises(CausalValueError, match=name):
         ImputationSpec(**{name: value})
@@ -102,7 +109,9 @@ def test_graph_selection_converts_pandas_na_before_native_call(monkeypatch):
     monkeypatch.setattr(_native, "graph_selection_imputation_run", capture)
     with pytest.raises(Captured):
         multiple_imputation_with_graph_selection(
-            {"t": [0, 1], "y": [1, pd.NA]}, treatment="t", outcome="y",
+            {"t": [0, 1], "y": [1, pd.NA]},
+            treatment="t",
+            outcome="y",
             domains=(("y", "binary"),),
         )
 
@@ -224,7 +233,11 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     data = _selection_data(500, 3)
     data["t"][::10] = np.nan
     result = multiple_imputation_with_graph_selection(
-        data, treatment="t", outcome="y", imputations=4, domains=(("t", "binary"),),
+        data,
+        treatment="t",
+        outcome="y",
+        imputations=4,
+        domains=(("t", "binary"),),
         iterations=3,
         n_draws=200,
         execution=ant.Execution(seed=2),
@@ -265,12 +278,21 @@ def test_explicit_constant_domains_are_carried_and_change_identity():
         _analyze(data, MissingPolicy.multiple_imputation(**kwargs))
     a = _analyze(data, binary)
     b = _analyze(data, continuous)
-    assert a.missing_data.imputation.assumptions_digest != b.missing_data.imputation.assumptions_digest
+    assert (
+        a.missing_data.imputation.assumptions_digest != b.missing_data.imputation.assumptions_digest
+    )
     assert a.missing_data.imputation.domains == {"w": "binary"}
-    assert a.missing_data.imputation.binary_boundaries == {"w": {"class": 0, "method": "binary_single_class_empirical_boundary_v1"}}
+    assert a.missing_data.imputation.binary_boundaries == {
+        "w": {"class": 0, "method": "binary_single_class_empirical_boundary_v1"}
+    }
     assert b.missing_data.imputation.domains == {"w": "continuous"}
     assert not b.missing_data.imputation.binary_boundaries
     with pytest.raises(CausalError, match="binary_under_joint_normal|binary"):
-        _analyze(data, MissingPolicy.multiple_imputation(**kwargs, model="joint_normal", domains=(("w", "binary"),)))
+        _analyze(
+            data,
+            MissingPolicy.multiple_imputation(
+                **kwargs, model="joint_normal", domains=(("w", "binary"),)
+            ),
+        )
     with pytest.raises(CausalValueError):
         ImputationSpec(domains=(("w", "binary"), ("w", "continuous")))

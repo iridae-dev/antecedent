@@ -658,8 +658,12 @@ def compose_external_priors(
         coef_index=coef_index,
     )
     return _composed_prior_from_native(
-        raw, srcs, baseline_mean=baseline_mean, baseline_variance=baseline_var,
-        conflict=conflict, transport=transport,
+        raw,
+        srcs,
+        baseline_mean=baseline_mean,
+        baseline_variance=baseline_var,
+        conflict=conflict,
+        transport=transport,
     )
 
 

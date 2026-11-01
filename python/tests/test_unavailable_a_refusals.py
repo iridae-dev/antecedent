@@ -38,7 +38,9 @@ def test_two_arm_factorial_and_switchback_refuse_a_third_treatment_level(levels)
         )
     with pytest.raises(CausalValueError, match="second_factor_assignment entries must be bool"):
         ant.experiment.FactorialRandomization(levels, (1, 1, 1, 1))
-    with pytest.raises(CausalValueError, match="switchback realized_assignment entries must be bool"):
+    with pytest.raises(
+        CausalValueError, match="switchback realized_assignment entries must be bool"
+    ):
         ant.experiment.SwitchbackDesign(
             levels, ["s0", "s0", "s1", "s1"], ["p0", "p1", "p0", "p1"], [0.5] * 4
         )
@@ -51,9 +53,11 @@ def test_two_arm_factorial_and_switchback_refuse_a_third_treatment_level(levels)
 def test_every_difference_in_differences_form_refuses_a_third_treatment_level():
     with pytest.raises(CausalValueError, match="treated values must be bool or encoded as 0/1"):
         estimate_did(
-            {"y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-             "group": [0, 0, 1, 1, 2, 2, 0, 1],
-             "after": [0, 1, 0, 1, 0, 1, 1, 0]},
+            {
+                "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                "group": [0, 0, 1, 1, 2, 2, 0, 1],
+                "after": [0, 1, 0, 1, 0, 1, 1, 0],
+            },
             DifferenceInDifferences("y", "group", "after"),
         )
     subjects = [f"s{i}" for i in range(8) for _ in range(2)]
@@ -78,7 +82,9 @@ def test_every_difference_in_differences_form_refuses_a_third_treatment_level():
     }
     with pytest.raises(CausalError, match="treated values must be bool or encoded as 0/1"):
         require_success(
-            ant.analyze(data, query=AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True))
+            ant.analyze(
+                data, query=AugmentedPanelDiD("pre", "post", "id", "treated", "p", "m0", True)
+            )
         )
     data["treated"] = [i % 2 for i in range(n)]
     result = require_success(
@@ -114,7 +120,11 @@ def test_augmented_panel_refuses_a_repeated_cross_section_and_missing_period_out
 
 
 def test_synthetic_control_and_staggered_adoption_are_refused_on_a_single_period_table():
-    rows = {"y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "unit": ["t", "a", "b", "c", "d", "e"], "period": [1] * 6}
+    rows = {
+        "y": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+        "unit": ["t", "a", "b", "c", "d", "e"],
+        "period": [1] * 6,
+    }
     for intervention in (1, 2):
         with pytest.raises(
             CausalCompileError,
@@ -129,10 +139,14 @@ def test_synthetic_control_and_staggered_adoption_are_refused_on_a_single_period
         "period": [1] * 6,
         "cohort": [0, 0, 0, 2, 2, 2],
     }
-    with pytest.raises(CausalValueError, match="staggered group-time ATT requires at least two periods"):
+    with pytest.raises(
+        CausalValueError, match="staggered group-time ATT requires at least two periods"
+    ):
         estimate_group_time_att(staggered, StaggeredAdoption("y", "id", "period", "cohort"))
     with pytest.raises(CausalError, match="a rollout needs at least two periods"):
-        require_success(ant.analyze(staggered, query=StaggeredRollout("y", "id", "period", "cohort")))
+        require_success(
+            ant.analyze(staggered, query=StaggeredRollout("y", "id", "period", "cohort"))
+        )
 
 
 def test_a_one_period_switchback_is_refused_because_it_never_switches_back():
@@ -143,7 +157,8 @@ def test_a_one_period_switchback_is_refused_because_it_never_switches_back():
     with pytest.raises(CausalError, match="never switches back") as caught:
         require_success(
             ant.analyze(
-                {"outcome": np.arange(8.0)}, query=ant.experiment.SwitchbackEffect("outcome", design)
+                {"outcome": np.arange(8.0)},
+                query=ant.experiment.SwitchbackEffect("outcome", design),
             )
         )
     assert caught.value.reason_code == "option_not_applicable"

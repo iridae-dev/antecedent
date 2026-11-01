@@ -409,7 +409,9 @@ def factorized_joint_cells(
     supported.
     """
     for name, value in (
-        ("adjustment", adjustment), ("ordering", ordering), ("contrasts", contrasts)
+        ("adjustment", adjustment),
+        ("ordering", ordering),
+        ("contrasts", contrasts),
     ):
         if isinstance(value, str):
             raise CausalTypeError(f"{name} must be a sequence of names, not a string")

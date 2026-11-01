@@ -448,9 +448,10 @@ def _wrap_prepared_response(
     if reports:
         import math
 
-        scoped_checks = execution is not None and getattr(
-            execution, "response_checks_are_scoped", lambda: False
-        )()
+        scoped_checks = (
+            execution is not None
+            and getattr(execution, "response_checks_are_scoped", lambda: False)()
+        )
         validation = ResponseValidationView(
             whole_target=not scoped_checks,
             checks=tuple(
@@ -463,7 +464,7 @@ def _wrap_prepared_response(
                     + (failure or ("informative check" if informative else "uninformative check")),
                 )
                 for name, passed, informative, _original, refuted, failure in reports
-            )
+            ),
         )
     certificate_json = getattr(raw, "certificate_json", None)
     envelope = None

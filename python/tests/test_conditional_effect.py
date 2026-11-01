@@ -53,9 +53,7 @@ def test_conditional_bayesian_consults_prior():
     assert result.posterior is not None
     assert require_success(antecedent.load(result.export(quantity="posterior"))).n_draws == 512
     # Weak conjugate prior: within 0.015 of the independent least-squares effect (observed 0.005).
-    assert result.ate == pytest.approx(
-        _ols_effect_at_the_mean_modifier(t, w, data["y"]), abs=0.015
-    )
+    assert result.ate == pytest.approx(_ols_effect_at_the_mean_modifier(t, w, data["y"]), abs=0.015)
     assert abs(result.ate - (2 + 0.5 * w.mean())) < 0.05
     assert result.estimate.estimator_id == "conditional.bayesian"
 
@@ -77,9 +75,7 @@ def test_handle_conditional_bayesian_uses_staged_estimator():
     )
     assert result.estimate.estimator_id == "conditional.bayesian"
     assert result.posterior is not None
-    assert result.ate == pytest.approx(
-        _ols_effect_at_the_mean_modifier(t, w, data["y"]), abs=0.015
-    )
+    assert result.ate == pytest.approx(_ols_effect_at_the_mean_modifier(t, w, data["y"]), abs=0.015)
 
 
 def test_the_frequentist_conditional_effect_is_the_linear_adjustment_with_one_modifier():

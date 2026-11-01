@@ -564,7 +564,9 @@ class ObservationClaim(ScientificResult):
         if self.kind != "required_bayes_factor":
             return None
         if self._result["factor_status"] != "finite":
-            raise CausalValueError("required Bayes factor is not representable; use required_log_factor")
+            raise CausalValueError(
+                "required Bayes factor is not representable; use required_log_factor"
+            )
         return float(self._result["factor"])
 
     @property
@@ -590,7 +592,11 @@ class ObservationClaim(ScientificResult):
     @property
     def bayes_factor_per_observation_status(self) -> str | None:
         """Status of a binary signal's per-observation Bayes factor."""
-        return str(self._result["bayes_factor_status"]) if self.kind == "required_observations" else None
+        return (
+            str(self._result["bayes_factor_status"])
+            if self.kind == "required_observations"
+            else None
+        )
 
     @property
     def log_bayes_factor_per_observation(self) -> float | None:

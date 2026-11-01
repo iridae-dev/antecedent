@@ -32,9 +32,7 @@ def refused(call) -> md.MixedDecisionRefusal:
 
 # -- 1. Build the decision from three routes ------------------------------------------------
 # The dependence between the routes is declared, never defaulted: here they are independent.
-workflow = md.run_mixed_decision(
-    md.Dependence.independent(), execution=Execution(seed=SEED)
-)
+workflow = md.run_mixed_decision(md.Dependence.independent(), execution=Execution(seed=SEED))
 routes = workflow.routes
 decision = workflow.decision()
 print(
@@ -48,11 +46,7 @@ assert routes.cluster_trials == 1 and routes.temporal_means == 2
 assert decision.dependence == "independent"
 # The combined mean is the sum of the three published moments (benefit one).
 assert (
-    abs(
-        decision.mean
-        - (decision.margin_mean + routes.temporal_effect - routes.cost_mean)
-    )
-    < 1e-9
+    abs(decision.mean - (decision.margin_mean + routes.temporal_effect - routes.cost_mean)) < 1e-9
 )
 assert decision.evaluation.verdict == "uniquely_optimal"
 assert decision.evaluation.chosen == (("act",) if decision.mean > 0.0 else ("decline",))
@@ -65,11 +59,7 @@ after = workflow.decision()
 current = workflow.routes
 assert after.margin_mean == decision.margin_mean
 assert (
-    abs(
-        after.mean
-        - (2.0 * after.margin_mean + current.temporal_effect - current.cost_mean)
-    )
-    < 1e-9
+    abs(after.mean - (2.0 * after.margin_mean + current.temporal_effect - current.cost_mean)) < 1e-9
 )
 assert current.cluster_effect == routes.cluster_effect
 assert current.temporal_effect == routes.temporal_effect
@@ -81,9 +71,7 @@ exported = workflow.export_decision()
 loaded = workflow.load(exported.artifact, exported.identity)
 assert (loaded.mean, loaded.variance) == (after.mean, after.variance)
 # An independent consumer replays the numbers from the bytes alone and is granted no authority.
-replayed = md.replay_decision(
-    exported.artifact, exported.identity, execution=Execution(seed=SEED)
-)
+replayed = md.replay_decision(exported.artifact, exported.identity, execution=Execution(seed=SEED))
 assert replayed == (after.mean, after.variance)
 
 # -- 4. Withdraw the trial ------------------------------------------------------------------
@@ -97,9 +85,7 @@ assert verification.classify("decision").authority_retained is False
 
 # Historical numerical replay still succeeds, and gives exactly the sealed numbers.
 assert (
-    md.replay_decision(
-        exported.artifact, exported.identity, execution=Execution(seed=SEED)
-    )
+    md.replay_decision(exported.artifact, exported.identity, execution=Execution(seed=SEED))
     == replayed
 )
 

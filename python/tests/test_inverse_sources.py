@@ -455,9 +455,13 @@ def test_a_transported_response_is_read_only_when_accepted_and_carries_its_recei
 def test_only_a_transported_response_is_a_transported_source() -> None:
     with pytest.raises(CausalTypeError, match=r"response\ must\ be\ a\ TransportedResponse"):
         src.transported_forward_source(object())  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError, match=r"composition\ must\ be\ a\ PreparedMechanismComposition"):
+    with pytest.raises(
+        CausalTypeError, match=r"composition\ must\ be\ a\ PreparedMechanismComposition"
+    ):
         require_success(src.derive_composed_source(object(), gaussian_actions()))  # type: ignore[arg-type]
-    with pytest.raises(CausalTypeError, match=r"source\ must\ be\ a\ cohort_decision\.CohortDecisionSource"):
+    with pytest.raises(
+        CausalTypeError, match=r"source\ must\ be\ a\ cohort_decision\.CohortDecisionSource"
+    ):
         src.cohort_forward_source(point(2.0))  # type: ignore[arg-type]
 
 

@@ -64,8 +64,7 @@ _REMOVED = frozenset({"OverlapDiagnostic", "TransportOverlapReport"})
 def __getattr__(name: str) -> NoReturn:
     if name in _MOVED_TO_ADVANCED:
         raise AttributeError(
-            f"antecedent.transport.{name} moved to antecedent.transport.advanced.{name} "
-            "in 2.0"
+            f"antecedent.transport.{name} moved to antecedent.transport.advanced.{name} in 2.0"
         )
     if name in _REMOVED:
         raise AttributeError(

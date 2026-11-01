@@ -491,7 +491,9 @@ def _declared_arguments(
     if sampling_weights is not None:
         weights = _column(sampling_weights, "sampling_weights")
         if len(weights) != rows:
-            raise _invalid(f"{len(weights)} sampling weights were declared for {rows} rows", "sampling_weights")
+            raise _invalid(
+                f"{len(weights)} sampling weights were declared for {rows} rows", "sampling_weights"
+            )
         out["sampling_weights"] = weights
     if cluster is not None:
         out["cluster"] = _cluster_ids(cluster, rows)

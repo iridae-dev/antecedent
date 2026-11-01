@@ -31,8 +31,10 @@ def did_2x2(rows, level, reference):
     cell = {}
     for y, group, post in rows:
         cell.setdefault((group, post), []).append(frac(y))
+
     def change(g):
         return mean(cell[(g, 1)]) - mean(cell[(g, 0)])
+
     return change(level) - change(reference)
 
 

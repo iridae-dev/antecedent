@@ -107,12 +107,22 @@ class ImputationSpec:
         try:
             domains = tuple((name, domain) for name, domain in self.domains)
         except (TypeError, ValueError) as exc:
-            raise CausalTypeError("imputation domains must be name and domain pairs", reason_code="invalid_argument") from exc
-        if any(not isinstance(name, str) or not name or domain not in ("binary", "continuous") for name, domain in domains):
-            raise CausalValueError("imputation domains require a name and binary or continuous", reason_code="invalid_argument")
+            raise CausalTypeError(
+                "imputation domains must be name and domain pairs", reason_code="invalid_argument"
+            ) from exc
+        if any(
+            not isinstance(name, str) or not name or domain not in ("binary", "continuous")
+            for name, domain in domains
+        ):
+            raise CausalValueError(
+                "imputation domains require a name and binary or continuous",
+                reason_code="invalid_argument",
+            )
         domains = tuple(sorted(domains))
         if len({name for name, _ in domains}) != len(domains):
-            raise CausalValueError("imputation domain names must be unique", reason_code="invalid_argument")
+            raise CausalValueError(
+                "imputation domain names must be unique", reason_code="invalid_argument"
+            )
         object.__setattr__(self, "domains", domains)
         if self.model not in _MODELS:
             raise CausalValueError(
@@ -277,7 +287,13 @@ class MissingPolicy:
             "multiple_imputation",
             tuple(auxiliary),
             ImputationSpec(
-                model, imputations, iterations, seed, assumption, bootstrap_replicates, tuple(domains)
+                model,
+                imputations,
+                iterations,
+                seed,
+                assumption,
+                bootstrap_replicates,
+                tuple(domains),
             ),
         )
 
@@ -396,11 +412,12 @@ def multiple_imputation_with_graph_selection(
 
     if not isinstance(data, Mapping) or not data:
         raise CausalTypeError("data must be a non-empty mapping of column names to values")
-    declaration = ImputationSpec(imputations=imputations, iterations=iterations, domains=tuple(domains))
+    declaration = ImputationSpec(
+        imputations=imputations, iterations=iterations, domains=tuple(domains)
+    )
     names = [str(name) for name in data]
     columns = [
-        [float("nan") if _is_missing_scalar(v) else float(v) for v in data[name]]
-        for name in data
+        [float("nan") if _is_missing_scalar(v) else float(v) for v in data[name]] for name in data
     ]
     text, refusal = _run(
         names,

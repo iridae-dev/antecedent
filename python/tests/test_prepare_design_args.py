@@ -14,9 +14,7 @@ from known_truth import TEMPORAL, temporal_posterior, white_noise_pulse_series
 def test_replicates_without_resampling_refused():
     with pytest.raises(CausalError, match="replicates"):
         StaggeredRollout("y", "unit", "period", "cohort", replicates=99)
-    query = StaggeredRollout(
-        "y", "unit", "period", "cohort", resampling="cluster_bootstrap"
-    )
+    query = StaggeredRollout("y", "unit", "period", "cohort", resampling="cluster_bootstrap")
     assert query.replicates == 999
 
 

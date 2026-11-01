@@ -259,7 +259,9 @@ def _gaussian_fisher_information(theta: np.ndarray) -> np.ndarray:
             dt, u = times[k + 1] - times[k], _season(times[k])
             s, i = states[k][0], states[k][1]
             flux = beta * (1 + amplitude * u) * s * i / 1000.0
-            d_flux = np.array([(1 + amplitude * u) * s * i / 1000.0, beta * u * s * i / 1000.0, 0.0])
+            d_flux = np.array(
+                [(1 + amplitude * u) * s * i / 1000.0, beta * u * s * i / 1000.0, 0.0]
+            )
             d_recovery = np.array([0.0, 0.0, i])
             d_drift = (-d_flux, d_flux - d_recovery, d_recovery)
             d_variance = (d_flux, d_flux + d_recovery, d_recovery)

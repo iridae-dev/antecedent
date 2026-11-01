@@ -304,7 +304,8 @@ def test_route_interference_tabular_explicit():
     pi = 0.5 * 0.25
     y = data["y"]
     exact = (
-        y[(treated == 1.0) & (neighbors == 0.0)].sum() - y[(treated == 0.0) & (neighbors == 0.0)].sum()
+        y[(treated == 1.0) & (neighbors == 0.0)].sum()
+        - y[(treated == 0.0) & (neighbors == 0.0)].sum()
     ) / (pi * UNITS)
     assert result.estimate.ate == pytest.approx(exact, abs=0.05)
     assert result.estimate.se_analytic == pytest.approx(

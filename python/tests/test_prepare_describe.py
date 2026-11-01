@@ -34,5 +34,3 @@ def test_candidates_without_describe_refused():
             query=ant.AverageEffect("t", "y"),
             evidence_candidates=[object()],
         )
-
-

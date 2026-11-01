@@ -123,7 +123,9 @@ def test_replay_requires_live_scores_and_preserves_independent_load_semantics():
     assert loaded.study is None
     with pytest.raises(CausalStateError, match="live completed study"):
         replay_retarget(loaded, targeted.export())
-    with pytest.raises(CausalTypeError, match=r"requires\ one\ immutable\ prepared\ study\ or\ outcome"):
+    with pytest.raises(
+        CausalTypeError, match=r"requires\ one\ immutable\ prepared\ study\ or\ outcome"
+    ):
         replay_retarget({}, targeted.export())
     with pytest.raises(CausalTypeError, match=r"execution\ must\ be\ an\ Execution\ declaration"):
         replay_retarget(completed, targeted.export(), execution={"seed": 3})

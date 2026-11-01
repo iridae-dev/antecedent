@@ -386,9 +386,7 @@ def test_data_diagnostics_reaches_plan():
         )
 
     def duplicate_rows(prepared):
-        (check,) = (
-            c for c in prepared.data_diagnostics.checks if c.code == "data.duplicate_rows"
-        )
+        (check,) = (c for c in prepared.data_diagnostics.checks if c.code == "data.duplicate_rows")
         return check.status
 
     assert duplicate_rows(study()) == "evaluated"

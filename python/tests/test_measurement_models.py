@@ -287,7 +287,9 @@ def test_categorical_inversion_recovers_proportions_and_outcome_means():
     c_mat = np.array(CONFUSION).reshape(3, 3)
     p_obs = c_mat @ PI
     ybar_obs = (c_mat * PI * MU).sum(axis=1) / p_obs
-    assert contrast.naive_point == pytest.approx(ybar_obs[2] - ybar_obs[0], abs=1e-6), contrast.naive_point
+    assert contrast.naive_point == pytest.approx(ybar_obs[2] - ybar_obs[0], abs=1e-6), (
+        contrast.naive_point
+    )
     assert contrast.operation == "category_outcome_means"
     assert contrast.parameter_uncertainty == "propagated"
 

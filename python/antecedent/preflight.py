@@ -421,7 +421,7 @@ def _nonfinite(raw: Mapping[str, Any]) -> tuple[str, ...]:
 
 
 def _nested(raw: Mapping[str, Any], value: Mapping[str, Any], prefix: str) -> Mapping[str, Any]:
-    paths = tuple(p[len(prefix):] for p in _nonfinite(raw) if p.startswith(prefix + "/"))
+    paths = tuple(p[len(prefix) :] for p in _nonfinite(raw) if p.startswith(prefix + "/"))
     return {**value, "nonfinite_numeric_fields": paths} if paths else value
 
 
@@ -962,7 +962,9 @@ def diagnose_batch(native: Any, *, seed: int, threads: int | None) -> BatchPrefl
     """``PreparedBatch.diagnose``: fit-free preflight of every plan."""
     raw = _call(native, "diagnose_json", seed=seed, threads=threads)
     return BatchPreflightReport(
-        reports=tuple(_report(_nested(raw, r, f"/reports/{i}")) for i, r in enumerate(raw["reports"])),
+        reports=tuple(
+            _report(_nested(raw, r, f"/reports/{i}")) for i, r in enumerate(raw["reports"])
+        ),
         shares_covariates=raw["shares_covariates"],
         nonfinite_numeric_fields=_nonfinite(raw),
     )

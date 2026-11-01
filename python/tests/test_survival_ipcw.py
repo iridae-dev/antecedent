@@ -158,15 +158,18 @@ def test_ipcw_grid_ties_tau_boundaries_and_error_precedence(competing):
     matrix = np.ones((8, 6))[:, ::2]
     assert not matrix.flags.c_contiguous
     if competing:
+
         def invoke(d, t, g):
             return _native.randomized_cumulative_incidence_ipcw(
                 d, [1, 2, 0, 0] * 2, treated, t, g, 2.0, 1, 0.1
             )
     else:
+
         def invoke(d, t, g):
             return _native.randomized_survival_ipcw(
                 d, [True, False, False, False] * 2, treated, t, g, 2.0, 0.1
             )
+
     result = invoke(duration, grid, matrix)
     assert result[0] == grid
     bad_duration = duration.copy()

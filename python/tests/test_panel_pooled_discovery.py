@@ -100,8 +100,7 @@ def test_panel_lengths_reject_usize_overflow_as_typed_refusal():
 
     half = sys.maxsize + 1
     with pytest.raises(Exception) as caught:
-        _native.discover_pcmci(["x"], [np.array([0.0, 1.0, 2.0])],
-                               unit_lengths=[half, half + 3])
+        _native.discover_pcmci(["x"], [np.array([0.0, 1.0, 2.0])], unit_lengths=[half, half + 3])
     assert caught.value.reason_code == "invalid_argument"
 
 

@@ -205,7 +205,9 @@ def test_identity_is_verified_only_against_what_it_re_derives(
 def test_fit_refuses_support_violations_and_separation() -> None:
     x = [i / 10 for i in range(40)]
     bad = tmt.MechanismSpecification("n", parents=("x",), family="poisson")
-    with pytest.raises(tmt.TypedMechanismRefusal, match=r"outside\ the\ support\ of\ the\ poisson\ family"):
+    with pytest.raises(
+        tmt.TypedMechanismRefusal, match=r"outside\ the\ support\ of\ the\ poisson\ family"
+    ):
         tmt.fit_typed_mechanism(bad, {"x": x, "n": [-1.0] + [1.0] * 39}, population="p")
     separated = tmt.MechanismSpecification("n", parents=("x",), family="bernoulli")
     with pytest.raises(tmt.TypedMechanismRefusal) as caught:

@@ -190,7 +190,8 @@ def test_temporal_class_single_step_sustained_matches_pulse(class_name: str, gra
     assert pulse.ate == pytest.approx(sustained.ate, abs=1e-10)
     # Both equal the pinned closed-form envelope mean, not only each other.
     assert pulse.ate == pytest.approx(
-        float(_PIN[class_name]["pulse"]["ate"]), abs=float(_PIN[class_name]["pulse"]["absolute_tolerance"])
+        float(_PIN[class_name]["pulse"]["ate"]),
+        abs=float(_PIN[class_name]["pulse"]["absolute_tolerance"]),
     )
 
 

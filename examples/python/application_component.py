@@ -161,10 +161,7 @@ def main():
     decision = decide(response, policy)
     assert decision == "act"
     # The same answer under a stricter host policy is not acted on.
-    assert (
-        decide(response, AcceptancePolicy(accepted_support=frozenset()))
-        == "send_to_review"
-    )
+    assert decide(response, AcceptancePolicy(accepted_support=frozenset())) == "send_to_review"
 
     # 3. A typed refusal is scientific information, not an error to retry.
     refused_study = prepare_request(confounded_request(data))

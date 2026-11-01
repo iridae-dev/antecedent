@@ -143,7 +143,9 @@ def test_conjugate_posterior_controls_refit_the_original_inference_declaration()
 
 def test_bayesian_derivative_reports_unsupported_conjugate_and_checks_compatible_route():
     checks = v.TargetRefutationSpec(
-        replicates=12, derivative_step=0.2, derivative_tolerance=0.15,
+        replicates=12,
+        derivative_step=0.2,
+        derivative_tolerance=0.15,
         linearity_tolerance=0.3,
     )
     unsupported = ant.reconfigure(
@@ -160,7 +162,8 @@ def test_bayesian_derivative_reports_unsupported_conjugate_and_checks_compatible
     assert reports["target.finite_difference_consistency"].passed
     assert "target.prior_sensitivity" not in reports
     assert any(
-        item.refuter == "target.prior_sensitivity" and "does not use a coefficient prior" in item.reason
+        item.refuter == "target.prior_sensitivity"
+        and "does not use a coefficient prior" in item.reason
         for item in report.refused
     )
     assert report.calibration == "unmeasured"

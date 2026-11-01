@@ -122,7 +122,11 @@ def test_the_fitted_handle_reaches_expression_policies_selection_influence_and_n
     # Closed form: the noise terms of a, b and c reach c with coefficients 3, 2 and 0.5.
     # Observed relative errors 2.9%, 8.0% and 23% (the small source c is the noisiest at 600 outer
     # draws); the bounds are about three times those.
-    for source, (truth, relative) in {"a": (9.0, 0.09), "b": (4.0, 0.25), "c": (0.25, 0.35)}.items():
+    for source, (truth, relative) in {
+        "a": (9.0, 0.09),
+        "b": (4.0, 0.25),
+        "c": (0.25, 0.35),
+    }.items():
         assert abs(by_source[source] - truth) < relative * truth, (source, by_source[source])
 
     # Noise replay: the retained noise reproduces the draws and gives the counterfactual.
@@ -179,7 +183,10 @@ def test_a_prepared_policy_reuses_one_licence_and_equals_the_one_shot_results():
     # Cutting price by 15% raises demand by 0.8 * 0.15 * mean(price): the closed form of the
     # generating model, within a few simulation errors and the fitted slope's error.
     expected = 0.8 * 0.15 * data["price"].mean()
-    assert abs(value.mean_difference - expected) < 0.1, (value.mean_difference, expected)  # observed 0.032
+    assert abs(value.mean_difference - expected) < 0.1, (
+        value.mean_difference,
+        expected,
+    )  # observed 0.032
     assert value.difference_simulation_stderr < 0.1
     assert value.model_uncertainty == "unquantified"
     assert value.provenance_id == "model.intervention_programs"

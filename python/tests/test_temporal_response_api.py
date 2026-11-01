@@ -581,14 +581,18 @@ def test_declared_feedback_reaches_the_response(policy: str):
                     horizons=[1],
                     policy=policy,
                     treatment_lag=1,
-                    feedback=_feedback(**{"initial_law": "origin", "initial_state": 0.25, **changes}),
+                    feedback=_feedback(
+                        **{"initial_law": "origin", "initial_state": 0.25, **changes}
+                    ),
                 ),
                 refute=False,
                 inference=antecedent.Frequentist(bootstrap=0),
                 execution=antecedent.Execution(seed=21),
             )
         )
-        np.testing.assert_allclose(_response_means(varied), [expected], atol=1e-12, err_msg=str(changes))
+        np.testing.assert_allclose(
+            _response_means(varied), [expected], atol=1e-12, err_msg=str(changes)
+        )
 
 
 def test_feedback_is_keyword_only_and_validated():

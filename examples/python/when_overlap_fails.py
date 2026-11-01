@@ -124,9 +124,7 @@ def mean_difference(table: dict[str, np.ndarray]) -> tuple[float, float]:
     """Difference in mean 1978 earnings between treated and untreated rows, with its standard error."""
     t, y = table["treat"] == 1, table["re78"]
     diff = y[t].mean() - y[~t].mean()
-    return float(diff), float(
-        np.sqrt(y[t].var(ddof=1) / t.sum() + y[~t].var(ddof=1) / (~t).sum())
-    )
+    return float(diff), float(np.sqrt(y[t].var(ddof=1) / t.sum() + y[~t].var(ddof=1) / (~t).sum()))
 
 
 GRAPH = [(z, "treat") for z in COVARIATES] + [(z, "re78") for z in COVARIATES]
@@ -149,14 +147,10 @@ def main() -> None:
     real = real_tables()
     if real is None:
         (data, truth), benchmark = standin_table(), None
-        print(
-            f"DATA: synthetic stand-in (fixture effect on the treated ${truth:,.0f})."
-        )
+        print(f"DATA: synthetic stand-in (fixture effect on the treated ${truth:,.0f}).")
     else:
         data, benchmark = real
-        print(
-            "DATA: NSW treated group with the PSID comparison group (checksums verified)."
-        )
+        print("DATA: NSW treated group with the PSID comparison group (checksums verified).")
     n_treated = int(data["treat"].sum())
     assert n_treated == 185 and len(data["treat"]) == 2675
 

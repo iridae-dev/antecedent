@@ -42,9 +42,7 @@ MARGIN, AD_COST = (
     25.0,
     20_000.0,
 )  # dollars of margin per order; dollars of ads per region-day
-ROLLOUT = (
-    50 * 180
-)  # a rollout to 50 regions for 180 days: region-days that one unit of effect buys
+ROLLOUT = 50 * 180  # a rollout to 50 regions for 180 days: region-days that one unit of effect buys
 assert AD_COST / MARGIN == 800.0  # the break-even effect, in orders per region per day
 
 rng = np.random.default_rng(7)
@@ -77,9 +75,7 @@ assert abs(effect - EFFECT) < 1.0
 assert 0.06 < p_value < 0.08
 # 0.07 is how surprising an effect this large would be if the true effect were zero.
 # It is not the probability that the true effect is zero, and it is not a profit statement.
-assert (
-    effect * MARGIN > AD_COST
-)  # the point estimate is profitable: 25,000 against 20,000
+assert effect * MARGIN > AD_COST  # the point estimate is profitable: 25,000 against 20,000
 
 
 # -- 2. A decision contract: actions and utilities in dollars ----------------------------------
@@ -91,9 +87,7 @@ def profit(orders_effect):
 def contract_for(quantity, criterion, constraints=()):
     return decision.Contract(
         actions=(
-            decision.Action(
-                "continue", inputs=(quantity,), utility=profit(decision.x(0))
-            ),
+            decision.Action("continue", inputs=(quantity,), utility=profit(decision.x(0))),
             decision.Action("stop", inputs=(quantity,), utility=decision.x(0) * 0.0),
         ),
         utility_units="usd",
@@ -103,9 +97,7 @@ def contract_for(quantity, criterion, constraints=()):
     )
 
 
-effect_quantity = ScientificQuantity.from_effect(
-    result, outcome_units="orders_per_region_day"
-)
+effect_quantity = ScientificQuantity.from_effect(result, outcome_units="orders_per_region_day")
 mean_contract = contract_for(effect_quantity, decision.Criterion.expected_utility())
 decided = require_success(mean_contract.evaluate(result))
 values = {action.id: action.expected_utility for action in decided.actions}
@@ -148,8 +140,7 @@ INTERCEPT, SLOPE = -AD_COST * ROLLOUT, MARGIN * ROLLOUT
 continue_action, stop_action = declared.actions
 assert (continue_action.id, stop_action.id) == ("continue", "stop")
 assert (
-    abs(continue_action.intercept - INTERCEPT) < 1e-3
-    and abs(continue_action.slope - SLOPE) < 1e-6
+    abs(continue_action.intercept - INTERCEPT) < 1e-3 and abs(continue_action.slope - SLOPE) < 1e-6
 )
 assert stop_action.intercept == 0.0 and stop_action.slope == 0.0
 
@@ -167,10 +158,7 @@ bayesian = study_ranking.RankingStudy(
     outcome="orders",
     posterior=True,
 )
-assert (
-    study_ranking.compile_decision_for_study(sampling, declared, "mean").carrier
-    == "mean"
-)
+assert study_ranking.compile_decision_for_study(sampling, declared, "mean").carrier == "mean"
 try:
     study_ranking.compile_decision_for_study(sampling, declared, "parameter_posterior")
 except design.DesignRankingRefusal as refusal:
@@ -179,9 +167,7 @@ except design.DesignRankingRefusal as refusal:
     assert refusal.fields["next_attempt"] == "bayesian_realization"
 else:
     raise AssertionError("a sampling realization carries no parameter posterior")
-program = study_ranking.compile_decision_for_study(
-    bayesian, declared, "parameter_posterior"
-)
+program = study_ranking.compile_decision_for_study(bayesian, declared, "parameter_posterior")
 assert program.carrier == "parameter_posterior"
 # An outcome law (the risk of one region's orders) is refused on both realizations.
 for study in (sampling, bayesian):
@@ -198,9 +184,7 @@ for study in (sampling, bayesian):
 # judgment, stated, and Antecedent labels the source unverified with calibration unmeasured. The
 # finite law below holds 4,001 equally weighted atoms, so its mean is the estimate.
 belief_law = NormalDist(belief_mean, standard_error)
-atoms = np.array(
-    [[belief_law.inv_cdf((k + 0.5) / 4001)] for k in range(4001)], dtype=np.float64
-)
+atoms = np.array([[belief_law.inv_cdf((k + 0.5) / 4001)] for k in range(4001)], dtype=np.float64)
 belief = JointDistributionArtifact(
     DistributionIdentity(
         semantic="causal_functional_posterior",
@@ -223,9 +207,7 @@ assert abs(expected_values["continue"] - values["continue"]) < 1e-6 * values["co
 
 # The chance that continuing at least breaks even: the effect must reach 800 orders.
 profit_chance = require_success(
-    contract_for(
-        state_quantity, decision.Criterion.threshold_probability(0.0)
-    ).evaluate(belief)
+    contract_for(state_quantity, decision.Criterion.threshold_probability(0.0)).evaluate(belief)
 )
 chance = next(a.value for a in profit_chance.actions if a.id == "continue")
 assert abs(chance - (1.0 - belief_law.cdf(AD_COST / MARGIN))) < 2e-3
@@ -304,32 +286,24 @@ def evsi_closed_form(pairs: int) -> float:
     """Expected value of a Gaussian study for a two-action decision on a normal belief."""
     posterior_variance = 1.0 / (1.0 / belief_variance + pairs / PAIR_VARIANCE)
     spread = SLOPE * math.sqrt(belief_variance - posterior_variance)
-    now = (
-        INTERCEPT + SLOPE * belief_mean
-    )  # expected profit of continuing, decided today
+    now = INTERCEPT + SLOPE * belief_mean  # expected profit of continuing, decided today
     u = now / spread
     density = math.exp(-u * u / 2.0) / math.sqrt(2.0 * math.pi)
     return spread * density + now * 0.5 * math.erfc(-u / math.sqrt(2.0)) - max(now, 0.0)
 
 
-net = {
-    name: evsi_closed_form(pairs) - cost for name, (pairs, cost) in candidates.items()
-}
+net = {name: evsi_closed_form(pairs) - cost for name, (pairs, cost) in candidates.items()}
 for value in ranked.candidates:
     pairs, cost = candidates[value.id]
     assert value.integration.method == "exact"
     assert abs(value.evsi - evsi_closed_form(pairs)) < 1e-5 * value.evsi
     assert abs(value.net_value - (value.evsi - cost)) < 1e-5 * abs(value.evsi)
     assert value.evsi <= value.evpi + 1e-6
-assert [value.id for value in ranked.candidates] == sorted(
-    net, key=net.get, reverse=True
-)
+assert [value.id for value in ranked.candidates] == sorted(net, key=net.get, reverse=True)
 best = ranked.candidates[0]
 assert best.id == "twenty-more-pairs" and best.net_value > 0.0
 print(f"decide today: continue is worth {values['continue'] / 1e6:.1f} million dollars")
-print(
-    f"best study {best.id}: expected value {best.evsi / 1e6:.1f}, net {best.net_value / 1e6:.1f}"
-)
+print(f"best study {best.id}: expected value {best.evsi / 1e6:.1f}, net {best.net_value / 1e6:.1f}")
 
 # The ranking values expected utility only: it carries no hard constraint and no quantile.
 try:

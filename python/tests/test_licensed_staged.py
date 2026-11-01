@@ -392,9 +392,7 @@ def test_licensed_cell_prepare_matches_analyze(data, graph, query, refute, infer
         # Independent reference: E[y | do(t = g)] = b0 + b1 g + b2 mean(z) from the adjusted OLS.
         b0, b1, b2 = _adjusted_ols(data)
         expected = [b0 + b1 * g + b2 * float(np.mean(data["z"])) for g in (-0.5, 0.0, 0.5)]
-        np.testing.assert_allclose(
-            np.asarray(click.response.values).flatten(), expected, atol=0.05
-        )
+        np.testing.assert_allclose(np.asarray(click.response.values).flatten(), expected, atol=0.05)
         return
     if isinstance(query, antecedent.InterventionResponse):
         assert isinstance(click.estimate, float) and isinstance(fresh.estimate, float)

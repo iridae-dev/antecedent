@@ -515,20 +515,35 @@ def test_the_table_path_takes_execution_and_no_loose_seed_or_threads() -> None:
 def test_arm_weight_ess_availability_marks_unavailable_numeric_sentinel():
     from antecedent.preflight import _fit_diagnostics
 
-    raw = {"subject": "test", "propensity": {"status": "fitted", "converged": True,
-           "separated": True, "boundary_saturated": True, "iterations": 1,
-           "min": 0.0, "max": 1.0, "quantiles": [],
-           "arm_ess": [{"label": "treated", "rows": 3, "ess": None},
-                       {"label": "control", "rows": 3, "ess": 2.5}]}}
+    raw = {
+        "subject": "test",
+        "propensity": {
+            "status": "fitted",
+            "converged": True,
+            "separated": True,
+            "boundary_saturated": True,
+            "iterations": 1,
+            "min": 0.0,
+            "max": 1.0,
+            "quantiles": [],
+            "arm_ess": [
+                {"label": "treated", "rows": 3, "ess": None},
+                {"label": "control", "rows": 3, "ess": 2.5},
+            ],
+        },
+    }
     arms = _fit_diagnostics(raw).fit.arm_ess
     assert arms[0].ess is None and arms[0].ess_status == "unavailable"
     assert arms[1].ess == 2.5 and arms[1].ess_status == "available"
 
 
 def test_overflowed_relation_coefficient_is_explicitly_unavailable():
-    data = _frame([0, 1, 0, 1], [0, 1, 2, 3],
-                  small=[-5e-156, 5e-156, -5e-156, 5e-156],
-                  large=[-5e153, 5e153, -5e153, 5e153])
+    data = _frame(
+        [0, 1, 0, 1],
+        [0, 1, 2, 3],
+        small=[-5e-156, 5e-156, -5e-156, 5e-156],
+        large=[-5e153, 5e153, -5e153, 5e153],
+    )
     report = pf.preflight(data, treatment="t", outcome="y", adjustment=["small", "large"])
     assert report.rank.numerical_rank == 2
     large = next(d for d in report.rank.dependent if d.column == "large")

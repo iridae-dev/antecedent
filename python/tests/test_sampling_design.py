@@ -65,9 +65,7 @@ def test_the_declaration_is_part_of_the_study_identity():
             query=QUERY,
             inference=ant.Frequentist(bootstrap=0),
             # A clustered-panel declaration needs the cluster standard error that reads it.
-            estimator=LinearAdjustment(
-                se="cluster", cluster_ids=[i % 12 for i in range(120)]
-            ),
+            estimator=LinearAdjustment(se="cluster", cluster_ids=[i % 12 for i in range(120)]),
             refute=False,
             execution=ant.Execution(seed=1),
             **options,

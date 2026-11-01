@@ -283,11 +283,13 @@ def test_failed_branch_estimate_retains_previous_binding_and_error_context():
     )
     before = study.inspect()
     result = require_success(study.estimate())
-    branch = study.rebind(data={
+    branch = study.rebind(
+        data={
             "t": np.tile([0.0, 1.0], 2),
             "y": np.zeros(4),
             "z": np.tile([0.0, 1.0], 2),
-        })
+        }
+    )
     with pytest.raises(ant.errors.CausalEstimateError, match="rank deficient") as caught:
         require_success(branch.estimate())
     assert caught.value.reason_code == "design_rank_deficient"

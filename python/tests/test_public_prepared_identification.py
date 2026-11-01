@@ -146,7 +146,10 @@ def test_composite_summary_preserves_native_mass_and_horizon_without_single_verd
     assert view.child(0).summary.metadata["horizon"] == 1
     assert native.materializations == first.materializations == second.materializations == 0
     assert view.children(offset=2) == ()
-    with pytest.raises(CausalTypeError, match=r"read status and status_unavailable; identification has no boolean verdict"):
+    with pytest.raises(
+        CausalTypeError,
+        match=r"read status and status_unavailable; identification has no boolean verdict",
+    ):
         bool(view)
     with pytest.raises(TypeError, match="does not support item assignment"):
         view.summary.metadata["identified_weight"] = 1.0
@@ -183,7 +186,9 @@ def test_explicit_unavailable_identification_preserves_original_refusal():
     assert view.to_dict()["details"]["provider_requirements"] == ["declared-only"]
     assert view.children() == ()
     assert view.to_dict()["children"] == []
-    with pytest.raises(CausalValueError, match=r"unavailable identification has no retained children"):
+    with pytest.raises(
+        CausalValueError, match=r"unavailable identification has no retained children"
+    ):
         view.child(0)
 
 

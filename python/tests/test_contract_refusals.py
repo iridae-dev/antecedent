@@ -35,7 +35,9 @@ def test_require_refuses_what_the_mode_cannot_serve():
     policy = _native.RetentionPolicy.sufficient_statistics()
     assert policy.result_mode().as_str() == "summary-only"
     policy.require(_native.RetainedOperation.reuse_summary())
-    with pytest.raises(CausalStateError, match="summary-only cannot serve refit from retained rows"):
+    with pytest.raises(
+        CausalStateError, match="summary-only cannot serve refit from retained rows"
+    ):
         policy.require(_native.RetainedOperation.refit_from_retained_rows())
 
     assert _native.RetentionPolicy.bounded_window(0).result_mode().as_str() == "summary-only"
@@ -45,7 +47,10 @@ def test_require_refuses_what_the_mode_cannot_serve():
 
     _native.RetentionMode.disk_backed().require(_native.RetainedOperation.read_disk_artifact())
     _native.RetentionMode.default().require(_native.RetainedOperation.reuse_full_state())
-    with pytest.raises(CausalStateError, match="full reusable state cannot serve read of the declared disk artifact"):
+    with pytest.raises(
+        CausalStateError,
+        match="full reusable state cannot serve read of the declared disk artifact",
+    ):
         _native.RetentionMode.default().require(_native.RetainedOperation.read_disk_artifact())
 
 

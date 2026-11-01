@@ -158,7 +158,11 @@ def test_rollout_unsupported_state_meaning_support_weighting_and_missing_source_
         require_success(terminal().derive_rollout(source, quantity(), ranked))
     for source, error, code in [
         (law(weights=(0.5, 0.5)), CausalValueError, "rollout.unweighted_joint_state_required"),
-        (law(supported=(False, True)), CausalSerializationError, "distribution coordinate unsupported"),
+        (
+            law(supported=(False, True)),
+            CausalSerializationError,
+            "distribution coordinate unsupported",
+        ),
     ]:
         with pytest.raises(error, match=code):
             require_success(

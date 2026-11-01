@@ -115,7 +115,13 @@ def test_certificate_matches_schema():
         (dag, "point", "NonparametricallyIdentified", "backdoor.adjustment", "Dag"),
         (admg, "point", "NonparametricallyIdentified", "backdoor.adjustment", "Admg"),
         (cpdag, "cpdag_envelope", "NonparametricallyIdentified", "generalized.adjustment", "Cpdag"),
-        (pag, "temporal_envelope", pin["identification"]["status"], pin["identification"]["identifier"], "TemporalPag"),
+        (
+            pag,
+            "temporal_envelope",
+            pin["identification"]["status"],
+            pin["identification"]["identifier"],
+            "TemporalPag",
+        ),
     ]
     for result, kind, status, method, graph_class in expected:
         certificate = result.to_dict()["certificate"]

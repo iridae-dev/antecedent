@@ -29,7 +29,9 @@ from antecedent.transport import advanced
 
 from _repo_text import load_json
 
-ORACLE = Path(__file__).resolve().parents[2] / "crates" / "antecedent-estimate" / "tests" / "oracle_data"
+ORACLE = (
+    Path(__file__).resolve().parents[2] / "crates" / "antecedent-estimate" / "tests" / "oracle_data"
+)
 
 
 def oracle(name: str):
@@ -65,7 +67,9 @@ def dose_call(case, functional, **extra):
     return dose_functional(case["dose"], case["outcome"], **kwargs)
 
 
-@pytest.mark.parametrize("case", oracle("dose_grid_declared_reference.json"), ids=lambda c: c["name"])
+@pytest.mark.parametrize(
+    "case", oracle("dose_grid_declared_reference.json"), ids=lambda c: c["name"]
+)
 def test_dose_grid_declared_rows_match_the_multiprecision_reference(case):
     levels = dose_call(case, "level")
     slopes = dose_call(case, "derivative")
@@ -94,7 +98,11 @@ def test_dose_grid_declared_rows_match_the_multiprecision_reference(case):
 
 
 def test_dose_grid_declared_rows_bias_aware_intervals_follow_the_declared_dependence():
-    case = next(c for c in oracle("dose_grid_declared_reference.json") if c["name"] == "clusters_unbalanced_singletons")
+    case = next(
+        c
+        for c in oracle("dose_grid_declared_reference.json")
+        if c["name"] == "clusters_unbalanced_singletons"
+    )
     fit = dose_call(case, "level", curvature_bound=case["curvature_bound"], band_replicates=2000)
     assert fit.bias_aware is not None
     for j, expected in enumerate(case["points"]):
@@ -105,12 +113,19 @@ def test_dose_grid_declared_rows_bias_aware_intervals_follow_the_declared_depend
 
 def test_dose_grid_declarations_the_rows_cannot_honour_are_refused_by_name():
     dose = np.linspace(0.0, 4.0, 201)
-    outcome = 1.0 + 0.5 * dose + 0.25 * dose**2 + 0.01 * np.where(np.arange(201) % 2 == 0, 1.0, -1.0)
+    outcome = (
+        1.0 + 0.5 * dose + 0.25 * dose**2 + 0.01 * np.where(np.arange(201) % 2 == 0, 1.0, -1.0)
+    )
 
     def call(**extra):
         return dose_functional(
-            dose, outcome, bandwidth=0.4, bandwidth_range=(0.1, 1.0), grid=[1.0, 2.0],
-            minimum_local_ess=10.0, **extra
+            dose,
+            outcome,
+            bandwidth=0.4,
+            bandwidth_range=(0.1, 1.0),
+            grid=[1.0, 2.0],
+            minimum_local_ess=10.0,
+            **extra,
         )
 
     with pytest.raises(DoseGridRefusal, match="not offered together"):
@@ -140,7 +155,9 @@ def test_dose_grid_declarations_the_rows_cannot_honour_are_refused_by_name():
 # ---------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("case", oracle("categorical_declared_reference.json"), ids=lambda c: c["name"])
+@pytest.mark.parametrize(
+    "case", oracle("categorical_declared_reference.json"), ids=lambda c: c["name"]
+)
 def test_categorical_declared_rows_match_the_exact_reference(case):
     expected = case["expected"]
     kwargs = dict(
@@ -181,12 +198,18 @@ def test_categorical_declared_rows_match_the_exact_reference(case):
 
 
 def test_categorical_declarations_without_their_covariance_kind_are_refused_by_name():
-    case = next(c for c in oracle("categorical_declared_reference.json") if c["name"] == "weights_hc1")
-    base = dict(categories=case["levels"], reference="a", min_level_rows=1, adjust={"g": case["adjustment"]})
+    case = next(
+        c for c in oracle("categorical_declared_reference.json") if c["name"] == "weights_hc1"
+    )
+    base = dict(
+        categories=case["levels"], reference="a", min_level_rows=1, adjust={"g": case["adjustment"]}
+    )
     y, labels = case["outcomes"], case["row_levels"]
     n = len(y)
     with pytest.raises(ct.CategoricalTreatmentRefusal, match="cluster_unread"):
-        ct.categorical_effects(y, labels, covariance="hc1", cluster=[i % 4 for i in range(n)], **base)
+        ct.categorical_effects(
+            y, labels, covariance="hc1", cluster=[i % 4 for i in range(n)], **base
+        )
     with pytest.raises(ct.CategoricalTreatmentRefusal, match="cluster_ids_required"):
         ct.categorical_effects(y, labels, covariance="cluster_robust", **base)
     with pytest.raises(ct.CategoricalTreatmentRefusal, match="too_few_clusters"):
@@ -199,15 +222,25 @@ def test_categorical_declarations_without_their_covariance_kind_are_refused_by_n
         with pytest.raises(ct.CategoricalTreatmentRefusal, match="invalid_lag"):
             ct.categorical_effects(y, labels, covariance="newey_west", serial_lag=lag, **base)
     with pytest.raises(ct.CategoricalTreatmentRefusal, match="weights_need_robust_covariance"):
-        ct.categorical_effects(y, labels, covariance="model_based", sampling_weights=[1.0] * n, **base)
+        ct.categorical_effects(
+            y, labels, covariance="model_based", sampling_weights=[1.0] * n, **base
+        )
     with pytest.raises(CausalValueError, match="sampling weights were declared"):
-        ct.categorical_effects(y, labels, covariance="hc0", sampling_weights=[1.0] * (n - 1), **base)
+        ct.categorical_effects(
+            y, labels, covariance="hc0", sampling_weights=[1.0] * (n - 1), **base
+        )
     with pytest.raises(ct.CategoricalTreatmentRefusal, match="posterior_declared_rows"):
         ct.categorical_effects(
-            y, labels, covariance="hc0", sampling_weights=[1.0] * n,
+            y,
+            labels,
+            covariance="hc0",
+            sampling_weights=[1.0] * n,
             posterior=ct.CategoricalPosteriorPrior(
-                level_precision=1.0, nuisance_precision=0.01, variance_shape=2.0,
-                variance_scale=2.0, credible_level=0.95,
+                level_precision=1.0,
+                nuisance_precision=0.01,
+                variance_shape=2.0,
+                variance_scale=2.0,
+                credible_level=0.95,
             ),
             **base,
         )
@@ -259,14 +292,23 @@ def smoothed_fixture(n_trial=500, n_target=400, seed=3, **declared):
     )
     graph = ac.Admg.from_edges(["z", "a", "y"], [("z", "y"), ("a", "y")])
     query = advanced.SmoothedDoseQuery(
-        graph, advanced.SelectionDiagram("trial", "target", ["z"]), "a", "y", (1.0, 2.0), 0.5, (0.0, 4.0)
+        graph,
+        advanced.SelectionDiagram("trial", "target", ["z"]),
+        "a",
+        "y",
+        (1.0, 2.0),
+        0.5,
+        (0.0, 4.0),
     )
     return query, data, total
 
 
 def estimate(query, data, seed=7):
     study = advanced.prepare_smoothed_dose(
-        query, data, options=advanced.SmoothedDoseOptions(folds=3), execution=ac.Execution(seed=seed)
+        query,
+        data,
+        options=advanced.SmoothedDoseOptions(folds=3),
+        execution=ac.Execution(seed=seed),
     )
     return study, require_success(study.estimate())
 
@@ -317,27 +359,50 @@ def test_smoothed_dose_declared_rows_are_read_replayed_and_bound_by_the_artifact
 
 
 def test_smoothed_dose_refuses_unreadable_declarations_and_the_gaussian_posterior():
-    query, data, total = smoothed_fixture(cluster=[0] * 3 + [i % 20 for i in range(3, 900)], serial_lag=2)
-    with pytest.raises((CausalUnsupportedError, CausalValueError, ValueError), match="not offered together"):
+    query, data, total = smoothed_fixture(
+        cluster=[0] * 3 + [i % 20 for i in range(3, 900)], serial_lag=2
+    )
+    with pytest.raises(
+        (CausalUnsupportedError, CausalValueError, ValueError), match="not offered together"
+    ):
         advanced.prepare_smoothed_dose(
-            query, data, options=advanced.SmoothedDoseOptions(folds=3), execution=ac.Execution(seed=1)
+            query,
+            data,
+            options=advanced.SmoothedDoseOptions(folds=3),
+            execution=ac.Execution(seed=1),
         )
     query, data, _ = smoothed_fixture(serial_lag=0)
-    with pytest.raises((CausalUnsupportedError, CausalValueError, ValueError), match="invalid_declared_rows"):
+    with pytest.raises(
+        (CausalUnsupportedError, CausalValueError, ValueError), match="invalid_declared_rows"
+    ):
         advanced.prepare_smoothed_dose(
-            query, data, options=advanced.SmoothedDoseOptions(folds=3), execution=ac.Execution(seed=1)
+            query,
+            data,
+            options=advanced.SmoothedDoseOptions(folds=3),
+            execution=ac.Execution(seed=1),
         )
     query, data, _ = smoothed_fixture(sampling_weights=[-1.0] + [1.0] * 899)
-    with pytest.raises((CausalUnsupportedError, CausalValueError, ValueError), match="sampling_weights"):
+    with pytest.raises(
+        (CausalUnsupportedError, CausalValueError, ValueError), match="sampling_weights"
+    ):
         advanced.prepare_smoothed_dose(
-            query, data, options=advanced.SmoothedDoseOptions(folds=3), execution=ac.Execution(seed=1)
+            query,
+            data,
+            options=advanced.SmoothedDoseOptions(folds=3),
+            execution=ac.Execution(seed=1),
         )
     query, data, _ = smoothed_fixture(serial_lag=3)
     study = advanced.prepare_smoothed_dose(
         query, data, options=advanced.SmoothedDoseOptions(folds=3), execution=ac.Execution(seed=1)
     )
     model = advanced.SmoothedDosePosteriorModel(
-        intercept_scale=10.0, coefficient_scale=10.0, residual_variance=1.0, min_local_rows=50, draws=2000
+        intercept_scale=10.0,
+        coefficient_scale=10.0,
+        residual_variance=1.0,
+        min_local_rows=50,
+        draws=2000,
     )
-    with pytest.raises((CausalUnsupportedError, CausalValueError, ValueError), match="posterior_declared_rows"):
+    with pytest.raises(
+        (CausalUnsupportedError, CausalValueError, ValueError), match="posterior_declared_rows"
+    ):
         require_success(study.posterior(model))

@@ -87,8 +87,11 @@ def test_partitioned_frame_rejects_ignored_top_level_columns(kind):
     frame = ant.data.event(data, np.arange(64, dtype=np.int64) * 100, align_interval_ns=100)
     graph = ant.TemporalDag.from_lagged_edges(["x", "y"], [("x", 1, "y", 0)])
     study = prepare(
-        frame, graph=graph, query=ant.PulseEffect("x", "y"),
-        inference=ant.Frequentist(bootstrap=0), refute=False,
+        frame,
+        graph=graph,
+        query=ant.PulseEffect("x", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute=False,
     )
     payload = {"kind": kind}
     with pytest.raises(ValueError, match="top-level columns must be empty"):

@@ -115,7 +115,10 @@ def test_fit_with_a_registered_mechanism_recovers_the_closed_form_and_solves_the
     expected = reference_fixed_point(fitted, NOISE[0])
     assert artifact.report["worlds"][0][0]["values"] == pytest.approx(expected, abs=1e-8)
     assert artifact.report["worlds"][0][0]["globally_unique"] is True
-    assert artifact.report["worlds"][0][0]["evidence"]["contraction_bound_provenance"] == "declared_external_lipschitz"
+    assert (
+        artifact.report["worlds"][0][0]["evidence"]["contraction_bound_provenance"]
+        == "declared_external_lipschitz"
+    )
     assert artifact.trust == "verified_external"
     assert artifact.report["claim"] == "verified_external_model_conditional"
     [mechanism] = artifact.report["mechanisms"]
@@ -257,7 +260,9 @@ def test_a_resealed_request_is_refused_against_the_retained_identity():
 
 
 def test_an_analytic_declaration_requires_a_gradient_and_malformed_specs_are_refused():
-    with pytest.raises(CausalValueError, match="analytic derivative declaration needs input_gradient"):
+    with pytest.raises(
+        CausalValueError, match="analytic derivative declaration needs input_gradient"
+    ):
         em.register_mechanism(
             "lab/x",
             "1",

@@ -436,9 +436,7 @@ def test_rebinding_new_observations_leaves_the_source_study_unchanged():
 def test_average_effect_route_recovers_the_data_generating_total_effect(seed):
     # y = t + z + 0.8 m with m = 0.4 t + noise: the total effect of t is 1 + 0.8 * 0.4 = 1.32.
     data = _tabular("average", n=1000, seed=seed)
-    result = require_success(
-        ant.analyze(data, **_kwargs("average", "tabular", "explicit", ""))
-    )
+    result = require_success(ant.analyze(data, **_kwargs("average", "tabular", "explicit", "")))
     assert _point(result)[1] == pytest.approx(1.32, abs=0.05)
 
 

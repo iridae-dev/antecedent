@@ -131,9 +131,7 @@ def real_raw() -> dict[str, np.ndarray] | None:
     with paths["nhefs.csv"].open(newline="") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == N_ROWS, len(rows)
-    return {
-        k: np.array([float(r[k]) if r[k] != "" else np.nan for r in rows]) for k in RAW
-    }
+    return {k: np.array([float(r[k]) if r[k] != "" else np.nan for r in rows]) for k in RAW}
 
 
 def main() -> None:
@@ -141,18 +139,14 @@ def main() -> None:
     real = raw is not None
     if raw is None:
         raw = standin_raw()
-        print(
-            f"DATA: synthetic stand-in (fixture average effect of quitting {FIXTURE_EFFECT} kg)."
-        )
+        print(f"DATA: synthetic stand-in (fixture average effect of quitting {FIXTURE_EFFECT} kg).")
     else:
         print("DATA: NHEFS smoking-cessation subset (checksum verified).")
     data = design(raw)
     qsmk, outcome = data["qsmk"], data["wt82_71"]
     assert len(qsmk) == N_ROWS and int(np.isnan(outcome).sum()) == N_MISSING
     observed = ~np.isnan(outcome)
-    unadjusted = (
-        outcome[observed & (qsmk == 1)].mean() - outcome[observed & (qsmk == 0)].mean()
-    )
+    unadjusted = outcome[observed & (qsmk == 1)].mean() - outcome[observed & (qsmk == 0)].mean()
     print(f"Unadjusted difference (quitters minus others): {unadjusted:.2f} kg")
 
     # Declare the graph: every covariate may affect quitting and weight change.
@@ -202,15 +196,11 @@ def main() -> None:
         f"size {est.overlap_ess:.0f} of {missing.accounting.rows_kept} rows."
     )
     print("Calibration:", result.calibration.status)
-    assert (
-        est.overlap_propensity_min > 0.01
-    )  # good overlap, unlike the NSW/PSID comparison
+    assert est.overlap_propensity_min > 0.01  # good overlap, unlike the NSW/PSID comparison
     assert np.isfinite([effect, lo, hi]).all() and lo < hi
 
     # Continued use: the effect among the people who quit, a different estimand.
-    treated_query = ant.AverageEffect(
-        "qsmk", "wt82_71", target_population=population.Treated()
-    )
+    treated_query = ant.AverageEffect("qsmk", "wt82_71", target_population=population.Treated())
     among_quitters = ant.outcomes.require_success(
         ant.estimate(ant.reconfigure(study, query=treated_query))
     )
@@ -232,9 +222,7 @@ def main() -> None:
     imputed = ant.outcomes.require_success(
         ant.estimate(ant.reconfigure(study, missing="multiple_imputation"))
     )
-    print(
-        f"Multiple imputation of the {N_MISSING} missing outcomes: {imputed.answer.value:.2f} kg"
-    )
+    print(f"Multiple imputation of the {N_MISSING} missing outcomes: {imputed.answer.value:.2f} kg")
     estimates = [
         among_quitters.answer.value,
         aipw.answer.value,
@@ -246,9 +234,7 @@ def main() -> None:
     # Sensitivity: how strong must an unmeasured confounder be to explain the estimate away?
     # The E-value reads the effect on a standardized scale (effect / outcome standard deviation).
     sd = float(np.nanstd(outcome[qsmk == 0], ddof=1))
-    sens = v.evalue(
-        effect / sd, standard_error=se / sd, scale="standardized_mean_difference"
-    )
+    sens = v.evalue(effect / sd, standard_error=se / sd, scale="standardized_mean_difference")
     assert sens.range is not None and sens.range.break_even > 1.0
     print(
         f"E-value {sens.range.break_even:.2f}: an unmeasured confounder would need at least "
@@ -259,9 +245,7 @@ def main() -> None:
     if not real:
         # The stand-in has a stated truth, so recovery can be asserted. The real data have none.
         assert lo <= FIXTURE_EFFECT <= hi, (lo, hi, FIXTURE_EFFECT)
-        print(
-            f"Stand-in: the 99% interval contains the fixture effect, {FIXTURE_EFFECT} kg."
-        )
+        print(f"Stand-in: the 99% interval contains the fixture effect, {FIXTURE_EFFECT} kg.")
     else:
         print(
             "Hernan and Robins report about 3.4 kg (95% CI about 2.4 to 4.5) by inverse-probability "

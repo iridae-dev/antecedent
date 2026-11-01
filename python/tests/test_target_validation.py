@@ -141,14 +141,10 @@ def test_bayesian_target_checks():
 def test_posterior_predictive_tail_is_diagnostic_and_refuses_nonfinite_discrepancy():
     draws = [[0.0]] * 4
     replicated = [[-1.0], [-0.5], [0.5], [1.0]]
-    at_threshold = v.posterior_predictive_target(
-        ["a"], [1.0], draws, replicated, alpha=0.5
-    )
+    at_threshold = v.posterior_predictive_target(["a"], [1.0], draws, replicated, alpha=0.5)
     assert at_threshold.p_value == 0.5
     assert at_threshold.passed
-    assert not v.posterior_predictive_target(
-        ["a"], [1.0], draws, replicated, alpha=0.51
-    ).passed
+    assert not v.posterior_predictive_target(["a"], [1.0], draws, replicated, alpha=0.51).passed
     with pytest.raises((ValueError, CausalError), match="discrepancy is not finite"):
         v.posterior_predictive_target(["a"], [1e200], draws, replicated)
 

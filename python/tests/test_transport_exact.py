@@ -958,9 +958,7 @@ def test_raising_regime_property_propagates():
             object.__setattr__(self, "_selected_on", value)
 
     identified, _, data = fixture()
-    catalog = transport.EvidenceCatalog(
-        regimes=[Regime("obs", "target", measured=["x", "y"])]
-    )
+    catalog = transport.EvidenceCatalog(regimes=[Regime("obs", "target", measured=["x", "y"])])
     armed.append(True)
     with pytest.raises(RuntimeError, match="selected_on failed"):
         transport.evaluate_exact(identified, catalog, data, at={"x": 1.0})

@@ -39,13 +39,21 @@ def test_object_missing_values_are_excluded_from_checked_cohorts():
     source = {"x": values, "extra": np.arange(len(values))}
     closure = cp.ColumnClosure(target=("x",))
     assert cp.checked_projection(source, closure, ["x"]).tolist() == [0, 4]
-    assert cp.checked_push_filter(source, closure, "extra", [False] * len(values)).tolist() == [0, 4]
+    assert cp.checked_push_filter(source, closure, "extra", [False] * len(values)).tolist() == [
+        0,
+        4,
+    ]
 
 
-@pytest.mark.parametrize("dtype, values", [
-    ("Int64", [1, None, 3]), ("Float64", [1.0, None, 3.0]),
-    ("boolean", [True, None, False]), ("string", ["a", None, "b"]),
-])
+@pytest.mark.parametrize(
+    "dtype, values",
+    [
+        ("Int64", [1, None, 3]),
+        ("Float64", [1.0, None, 3.0]),
+        ("boolean", [True, None, False]),
+        ("string", ["a", None, "b"]),
+    ],
+)
 def test_pandas_nullable_missing_values_are_excluded(dtype, values):
     pd = pytest.importorskip("pandas")
     source = {"x": pd.Series(values, dtype=dtype), "extra": np.arange(3)}
@@ -73,7 +81,10 @@ def test_a_projection_that_drops_a_required_column_is_refused():
 
 def test_a_projection_that_keeps_an_extra_column_changes_the_cohort_and_is_refused():
     # Completing cases on the extra column as well would drop row 0: [3, 5] is not [0, 3, 5].
-    with pytest.raises(CausalValueError, match=r"pushdown rewrite: rewrite_legality\.sample_selection: column_filter_pushdown would alter sample selec"):
+    with pytest.raises(
+        CausalValueError,
+        match=r"pushdown rewrite: rewrite_legality\.sample_selection: column_filter_pushdown would alter sample selec",
+    ):
         cp.checked_projection(SOURCE, CLOSURE, ["y", "w", "x", "extra"])
 
 
@@ -83,7 +94,9 @@ def test_a_filter_that_drops_only_rows_outside_the_cohort_is_admitted():
 
 
 def test_a_filter_that_drops_a_cohort_row_is_refused():
-    with pytest.raises(CausalValueError, match=r"pushdown refused: column 'extra' must be retained"):
+    with pytest.raises(
+        CausalValueError, match=r"pushdown refused: column 'extra' must be retained"
+    ):
         cp.checked_push_filter(SOURCE, CLOSURE, "extra", [False, False, False, True, False, False])
 
 
@@ -105,7 +118,9 @@ def test_missing_cells_are_read_from_nan_none_and_nat():
 def test_unknown_columns_and_bad_declarations_are_refused():
     with pytest.raises(CausalValueError, match=r"source has no column 'w'"):
         cp.checked_projection({"y": SOURCE["y"]}, CLOSURE, ["y", "w", "x"])
-    with pytest.raises(CausalTypeError, match=r"keep must be a sequence of column names, not one string"):
+    with pytest.raises(
+        CausalTypeError, match=r"keep must be a sequence of column names, not one string"
+    ):
         cp.checked_projection(SOURCE, CLOSURE, "yw")
     with pytest.raises(CausalTypeError, match=r"closure must be a ColumnClosure"):
         cp.checked_push_filter(SOURCE, ("y",), "extra", [False] * 6)  # type: ignore[arg-type]

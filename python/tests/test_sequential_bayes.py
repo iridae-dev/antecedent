@@ -125,9 +125,7 @@ def test_prior_and_data_both_influence_posterior():
     # 0.4235 vs 0.4225).
     design = np.column_stack([np.ones(200), data["t"], data["z"]])
     ols = np.linalg.lstsq(design, data["y"], rcond=None)[0][1]
-    ridge = np.linalg.solve(
-        design.T @ design + np.eye(3) / 0.05**2, design.T @ data["y"]
-    )[1]
+    ridge = np.linalg.solve(design.T @ design + np.eye(3) / 0.05**2, design.T @ data["y"])[1]
     assert m_flat == pytest.approx(ols, abs=0.01)
     assert m_strong == pytest.approx(ridge, abs=0.01)
     # Strong isotropic prior at 0 must pull the ATE toward 0 vs flat.
@@ -183,7 +181,9 @@ def test_sequential_prior_named_subset_when_design_shrinks():
     )
     naive = np.polyfit(data["t"], data["y"], 1)[0]
     assert flat.posterior.effect_mean == pytest.approx(naive, abs=0.3)
-    assert a.posterior.effect_mean + 0.2 < b.posterior.effect_mean < flat.posterior.effect_mean - 0.2
+    assert (
+        a.posterior.effect_mean + 0.2 < b.posterior.effect_mean < flat.posterior.effect_mean - 0.2
+    )
     assert b.posterior.effect_sd < flat.posterior.effect_sd
 
 

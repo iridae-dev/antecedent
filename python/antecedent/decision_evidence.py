@@ -340,6 +340,7 @@ class JointEvidence:
                 }
             )
         exposure_wire = _exposure(exposure, exposure_assumption_id, spillover_bias_bounds)
+        source_exposure: dict[str, str | None | list[float]]
         if exposure == "no_between_unit_interference":
             source_exposure = {"kind": "no_interference", "assumption": exposure_assumption_id}
         elif exposure == "bounded_spillover":

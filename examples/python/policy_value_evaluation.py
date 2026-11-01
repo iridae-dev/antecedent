@@ -44,10 +44,7 @@ def main() -> None:
     print(f"treatment rate={result.treatment_rate} cost={result.total_treatment_cost}")
     print("uncertainty:", result.uncertainty)
     # The incremental value is the policy value net of the reference value.
-    assert (
-        abs(result.incremental_value - (result.policy_value - result.reference_value))
-        < 1e-9
-    )
+    assert abs(result.incremental_value - (result.policy_value - result.reference_value)) < 1e-9
     # Known truth: effect 2.0, cost 0.5 per treated row, half the rows treated.
     treated_share, effect, unit_cost = 0.5, 2.0, 0.5
     assert abs(result.treatment_rate - treated_share) < 1e-9

@@ -354,9 +354,7 @@ class CategoricalTreatmentIdentity:
 
     def _wire(self) -> dict[str, str]:
         return {
-            name: getattr(self, name)
-            for name in self.__slots__
-            if getattr(self, name) is not None
+            name: getattr(self, name) for name in self.__slots__ if getattr(self, name) is not None
         }
 
 

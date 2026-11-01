@@ -68,9 +68,7 @@ result = require_success(
 prior = result.report()
 draws = prior["law"]["Moments"]["Bayesian"]["draws"]
 COEFFICIENTS = [-1.0, 1.0]  # the contrast "active minus reference"
-contrasts = [
-    math.fsum(v * c for v, c in zip(row, COEFFICIENTS, strict=True)) for row in draws
-]
+contrasts = [math.fsum(v * c for v, c in zip(row, COEFFICIENTS, strict=True)) for row in draws]
 prior_contrast = math.fsum(contrasts) / len(contrasts)
 assert abs(prior_contrast - 1.0) < 0.1  # near the fixture's true contrast of 1.0
 
@@ -78,9 +76,7 @@ assert abs(prior_contrast - 1.0) < 0.1  # near the fixture's true contrast of 1.
 # The retained target is the whole-program population mean contrast. The experiment reports a
 # sample mean of the same contrast in the same population and regime. The bridge declares that
 # identity mapping, its premise, and that it carries no extra mapping uncertainty.
-target = result.experiment_quantity(
-    coefficients=COEFFICIENTS, outcome_units="outcome_unit"
-)
+target = result.experiment_quantity(coefficients=COEFFICIENTS, outcome_units="outcome_unit")
 assert target.functional_id.startswith("whole_program_population_mean:linear:")
 setting = sb.ExposureSetting(
     target.population_id,
@@ -125,15 +121,9 @@ bridge = sb.BridgeContract(
 # The ledger names the three sources the update depends on, so authority can follow them.
 ledger = EvidenceLedger()
 dependency = prior["dependency"]
-model = ledger.add_source(
-    SourceDeclaration(dependency, "fitted_model", [("model", "rows")])
-)
-experiment = ledger.add_source(
-    SourceDeclaration("new_experiment", "experiment", [("new", "rows")])
-)
-mapping = ledger.add_source(
-    SourceDeclaration("mapping", "fitted_model", [("mapping", "rows")])
-)
+model = ledger.add_source(SourceDeclaration(dependency, "fitted_model", [("model", "rows")]))
+experiment = ledger.add_source(SourceDeclaration("new_experiment", "experiment", [("new", "rows")]))
+mapping = ledger.add_source(SourceDeclaration("mapping", "fitted_model", [("mapping", "rows")]))
 
 OBSERVED = prior_contrast + 0.3
 OBSERVATION_VARIANCE = 0.2  # of one experimental observation
@@ -161,17 +151,12 @@ weights = report["posterior_weights"]
 # best supported by the experiment, normalised.
 variance = OBSERVATION_VARIANCE / SAMPLE_SIZE
 anchor = min(contrasts, key=lambda v: abs(OBSERVED - v))
-raw = [
-    math.exp((v - anchor) * (2 * OBSERVED - v - anchor) / (2 * variance))
-    for v in contrasts
-]
+raw = [math.exp((v - anchor) * (2 * OBSERVED - v - anchor) / (2 * variance)) for v in contrasts]
 expected_weights = [w / math.fsum(raw) for w in raw]
 assert all(abs(a - b) < 1e-12 for a, b in zip(weights, expected_weights, strict=True))
 posterior_contrast = math.fsum(v * w for v, w in zip(contrasts, weights, strict=True))
 assert posterior_contrast > prior_contrast + 0.1
-print(
-    f"contrast: {prior_contrast:.3f} before the experiment, {posterior_contrast:.3f} after"
-)
+print(f"contrast: {prior_contrast:.3f} before the experiment, {posterior_contrast:.3f} after")
 
 # -- 4. The changed decision -----------------------------------------------------------------
 # Act when the contrast beats a declared break-even of 1.1 outcome units; otherwise hold.
@@ -183,9 +168,7 @@ for i, c in enumerate(COEFFICIENTS):
     benefit = benefit + decision.x(i) * c
 contract = decision.Contract(
     actions=(
-        decision.Action(
-            "hold", inputs=coordinates, utility=0 * decision.x(0), kind="policy"
-        ),
+        decision.Action("hold", inputs=coordinates, utility=0 * decision.x(0), kind="policy"),
         decision.Action("act", inputs=coordinates, utility=benefit, kind="policy"),
     ),
     utility_units=target.units,

@@ -95,8 +95,7 @@ def fit_model(seed):
         [rows[n] for n in NAMES],
         EDGES,
         constraints={
-            name: {"required": "linear_gaussian"}
-            for name in ("price", "demand", "sales")
+            name: {"required": "linear_gaussian"} for name in ("price", "demand", "sales")
         },
     )
     return model
@@ -159,10 +158,7 @@ def oracle(strategy, price_noise, demand_noise):
     previous = history()[0]
     steps = []
     for t in range(WEEKS):
-        stock = (
-            np.maximum(0, previous["inventory"] - previous["sales"])
-            + previous["replenishment"]
-        )
+        stock = np.maximum(0, previous["inventory"] - previous["sales"]) + previous["replenishment"]
         generated_price = (
             TRUTH["price_intercept"] + TRUTH["inventory_slope"] * stock + price_noise[t]
         )
@@ -171,9 +167,7 @@ def oracle(strategy, price_noise, demand_noise):
         if strategy == "fixed":
             price = np.full(STORES, 10.0)
         elif strategy == "conditional":
-            price = np.where(
-                stock > 70, np.maximum(10, 0.85 * generated_price), generated_price
-            )
+            price = np.where(stock > 70, np.maximum(10, 0.85 * generated_price), generated_price)
         elif strategy == "adaptive":
             price = np.clip(
                 np.where(
@@ -185,9 +179,7 @@ def oracle(strategy, price_noise, demand_noise):
                 18,
             )
             orders = np.clip(previous["sales"] + 0.4 * (70 - stock), 0, 32)
-        demand = (
-            TRUTH["demand_intercept"] + TRUTH["price_slope"] * price + demand_noise[t]
-        )
+        demand = TRUTH["demand_intercept"] + TRUTH["price_slope"] * price + demand_noise[t]
         sales = np.minimum(stock, np.maximum(0, demand))
         previous = {
             "inventory": stock,
@@ -201,10 +193,7 @@ def oracle(strategy, price_noise, demand_noise):
 
 
 def columns(steps):
-    return [
-        {name: np.asarray(step.draws[i]) for i, name in enumerate(NAMES)}
-        for step in steps
-    ]
+    return [{name: np.asarray(step.draws[i]) for i, name in enumerate(NAMES)} for step in steps]
 
 
 def contribution(steps):
@@ -243,18 +232,12 @@ def callback_example(model, conditional):
         inputs=["g", "inventory"],
         name="discount",
     )
-    applied = CallbackProgram(
-        "price", callback, reads=[GENERATED, "inventory"], mode="transform"
-    )
+    applied = CallbackProgram("price", callback, reads=[GENERATED, "inventory"], mode="transform")
     expected = sample_policy(model, [conditional], 128, execution=EXECUTION).draws
     actual = sample_callbacks(model, [applied], 128, execution=EXECUTION).draws
     np.testing.assert_array_equal(actual, expected)
     assert batches == [(128,)]
-    refusals = [
-        expect_refusal(
-            "policy_callback_not_portable", lambda: callback_records([applied])
-        )
-    ]
+    refusals = [expect_refusal("policy_callback_not_portable", lambda: callback_records([applied]))]
     invalid = InterventionCallback(
         lambda g, stock: g[:-1], inputs=["g", "inventory"], name="wrong_shape"
     )
@@ -299,11 +282,7 @@ def callback_example(model, conditional):
     )
     artifact = encode_policy_program(
         NAMES,
-        [
-            CallbackProgram(
-                "price", recoverable, reads=[GENERATED, "inventory"], mode="transform"
-            )
-        ],
+        [CallbackProgram("price", recoverable, reads=[GENERATED, "inventory"], mode="transform")],
     )
     (record,) = required_callbacks(artifact)
     recovered = recover_callback(source, record)
@@ -435,29 +414,23 @@ def main():
     )
     u_price = np.array(
         [
-            s["price"]
-            - (TRUTH["price_intercept"] + TRUTH["inventory_slope"] * s["inventory"])
+            s["price"] - (TRUTH["price_intercept"] + TRUTH["inventory_slope"] * s["inventory"])
             for s in baseline_draw
         ]
     )
     u_demand = np.array(
         [
-            s["demand"]
-            - (TRUTH["demand_intercept"] + TRUTH["price_slope"] * s["price"])
+            s["demand"] - (TRUTH["demand_intercept"] + TRUTH["price_slope"] * s["price"])
             for s in baseline_draw
         ]
     )
-    for actual, expected in zip(
-        forward, oracle("adaptive", u_price, u_demand), strict=True
-    ):
+    for actual, expected in zip(forward, oracle("adaptive", u_price, u_demand), strict=True):
         for name in NAMES:
             np.testing.assert_allclose(actual[name], expected[name], rtol=0, atol=1e-8)
 
     artifact = encode_policy_program(NAMES, policies["adaptive"])
     identity = policy_program_identity(NAMES, policies["adaptive"])
-    verified = consume_policy_program(
-        artifact, expected_identity=identity, supplied=NAMES
-    )
+    verified = consume_policy_program(artifact, expected_identity=identity, supplied=NAMES)
     assert verified.identity == identity
     decoded = decode_policy_program(NAMES, artifact)
     assert encode_policy_program(NAMES, decoded) == artifact
@@ -504,9 +477,7 @@ def main():
         json.dumps(
             {
                 "worlds": results,
-                "forward_adaptive_mean_contribution": float(
-                    np.mean(contribution(forward))
-                ),
+                "forward_adaptive_mean_contribution": float(np.mean(contribution(forward))),
                 "support": asdict(support),
                 "refusals": [cycle, missing],
                 "program_identity": identity,

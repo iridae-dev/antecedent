@@ -57,9 +57,7 @@ def plan_study():
         simulation=planning.Simulation(512, 17),
     )
     assert plan.target_met and plan.analytic.value >= 0.8
-    previous = planning.operating_characteristics(
-        planning.Complete(), assumptions, plan.units - 1
-    )
+    previous = planning.operating_characteristics(planning.Complete(), assumptions, plan.units - 1)
     assert previous.analytic.value < 0.8
     simulation = plan.simulation
     assert abs(simulation.value - plan.analytic.value) < 6 * simulation.monte_carlo_se
@@ -105,9 +103,7 @@ def generate_study(n, seed, *, factorial=False):
     else:
         content = np.zeros(n, dtype=bool)
         content[rng.permutation(n)[: n // 2]] = True
-        pause = (
-            content.copy()
-        )  # the first interface bundles information and a review prompt
+        pause = content.copy()  # the first interface bundles information and a review prompt
     ability = rng.uniform(-0.06, 0.06, n)
     motivation = rng.normal(size=n)  # unobserved to the analysis
     baseline = TRUTH["baseline"] + ability + 0.03 * np.tanh(motivation)
@@ -168,9 +164,7 @@ def analyze(rows, primary, pause, unit_ids, *, factorial=False):
         expected_pause = 0.5 * ((cell[2] - cell[0]) + (cell[3] - cell[1]))
         expected_interaction = cell[3] - cell[2] - cell[1] + cell[0]
         assert math.isclose(fit.second_factor_effect, expected_pause, abs_tol=1e-12)
-        assert math.isclose(
-            fit.factorial_interaction, expected_interaction, abs_tol=1e-12
-        )
+        assert math.isclose(fit.factorial_interaction, expected_interaction, abs_tol=1e-12)
     else:
         expected = float(np.mean(y[primary]) - np.mean(y[~primary]))
     assert math.isclose(fit.effect, expected, abs_tol=1e-12)
@@ -287,12 +281,8 @@ def rank_followups(prior_source):
     mean, variance = 0.04, 0.04**2
     contract = decision.Contract(
         actions=(
-            decision.Action(
-                "retain_information", inputs=(state,), utility=decision.x(0) - 0.03
-            ),
-            decision.Action(
-                "omit_information", inputs=(state,), utility=0 * decision.x(0)
-            ),
+            decision.Action("retain_information", inputs=(state,), utility=decision.x(0) - 0.03),
+            decision.Action("omit_information", inputs=(state,), utility=0 * decision.x(0)),
         ),
         utility_units="accuracy_utility",
         criterion=decision.Criterion.expected_utility(),
@@ -357,9 +347,7 @@ def main():
     ledger = EvidenceLedger()
     rows, assigned, pause, ids = generate_study(plan.units, 17)
     pilot_source = ledger.add_source(
-        SourceDeclaration(
-            "pilot_participants", "experiment", [("pilot", i) for i in ids]
-        )
+        SourceDeclaration("pilot_participants", "experiment", [("pilot", i) for i in ids])
     )
     pilot_outcome, pilot, pilot_fit = analyze(rows, assigned, pause, ids)
     # Independent participant-level variance: repeated tasks are not independent participants.
@@ -381,12 +369,7 @@ def main():
     assert (
         abs(
             time_fit.effect
-            - (
-                float(
-                    np.mean(rows["seconds"][assigned])
-                    - np.mean(rows["seconds"][~assigned])
-                )
-            )
+            - (float(np.mean(rows["seconds"][assigned]) - np.mean(rows["seconds"][~assigned])))
         )
         < 1e-12
     )
@@ -398,10 +381,7 @@ def main():
     correct_fit = require_success(correct_outcome).randomized_effect
     assert math.isclose(
         correct_fit.effect,
-        float(
-            np.mean(rows["correct_ai"][assigned])
-            - np.mean(rows["correct_ai"][~assigned])
-        ),
+        float(np.mean(rows["correct_ai"][assigned]) - np.mean(rows["correct_ai"][~assigned])),
         abs_tol=1e-12,
     )
     assert correct_fit.interval_95[0] < 0 < correct_fit.interval_95[1]
@@ -496,17 +476,12 @@ def main():
     ]
     assert audit[0]["status"] == "supported"
     assert (
-        next(
-            c
-            for c in audit
-            if c["claim"] == "The interface did not slow participants down"
-        )["status"]
+        next(c for c in audit if c["claim"] == "The interface did not slow participants down")[
+            "status"
+        ]
         == "contradicted"
     )
-    assert (
-        protocol_text == json.dumps(protocol, sort_keys=True)
-        and protocol_id != amendment_id
-    )
+    assert protocol_text == json.dumps(protocol, sort_keys=True) and protocol_id != amendment_id
     record = ledger.add_source(
         SourceDeclaration(
             "paper_evidence",
@@ -515,10 +490,7 @@ def main():
             lineage=Lineage.derived_from_used_data([pilot_source, follow_source]),
         )
     )
-    assert (
-        ledger.sources[-1].effective_observations
-        == plan.units + ranking.best.sample_size
-    )
+    assert ledger.sources[-1].effective_observations == plan.units + ranking.best.sample_size
     artifact = pilot_outcome.export()
     replayed = ant.load(artifact, expected=artifact.expectation)
     assert replayed.inspect().answer == pilot.inspect().answer
@@ -532,9 +504,7 @@ def main():
     except ant.errors.CausalError:
         pass
     else:
-        raise AssertionError(
-            "The component result must not satisfy the bundle result expectation"
-        )
+        raise AssertionError("The component result must not satisfy the bundle result expectation")
     abstract = (
         f"In the recruited cohort and tested tasks, assignment to the bundled interface changed accuracy by {100 * pilot_fit.effect:.2f} percentage points "
         f"(95% interval {100 * pilot_fit.interval_95[0]:.2f} to {100 * pilot_fit.interval_95[1]:.2f}) and added {time_fit.effect:.2f} seconds per task. "
@@ -585,9 +555,7 @@ def main():
                 "supported_abstract": abstract,
                 "paper_evidence": record,
                 "pilot_artifact_sha256": hashlib.sha256(bytes(artifact)).hexdigest(),
-                "followup_artifact_sha256": hashlib.sha256(
-                    bytes(follow_artifact)
-                ).hexdigest(),
+                "followup_artifact_sha256": hashlib.sha256(bytes(follow_artifact)).hexdigest(),
                 "mismatched_result_expectation": "refused",
                 "distinct_participants": ledger.sources[-1].effective_observations,
                 "elapsed_seconds": time.perf_counter() - started,

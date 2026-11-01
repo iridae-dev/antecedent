@@ -842,13 +842,15 @@ def test_required_bayes_factor_overflow_reports_log_and_survives_replay():
 
 def test_required_observations_distinguish_settling_signal_and_numeric_overflow():
     exact = oq.required_observations_binary_signal(
-        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.0)
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.0
+    )
     assert exact.required_observations == 1
     assert exact.value_at_requirement == 1.0
     assert exact.bayes_factor_per_observation_status == "infinite"
     assert exact.log_bayes_factor_per_observation is None
     huge = oq.required_observations_binary_signal(
-        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=1e-320)
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=1e-320
+    )
     assert huge.required_observations == 1
     assert huge.bayes_factor_per_observation_status == "overflow"
     assert huge.log_bayes_factor_per_observation == pytest.approx(math.log(0.8) - math.log(1e-320))
@@ -856,7 +858,8 @@ def test_required_observations_distinguish_settling_signal_and_numeric_overflow(
     assert replay.bayes_factor_per_observation_status == "overflow"
     assert replay.log_bayes_factor_per_observation == huge.log_bayes_factor_per_observation
     normal = oq.required_observations_binary_signal(
-        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.2)
+        0.2, 0.8, rate_given_hypothesis=0.8, rate_given_complement=0.2
+    )
     assert normal.bayes_factor_per_observation_status == "finite"
     assert normal.log_bayes_factor_per_observation == pytest.approx(math.log(4.0))
 

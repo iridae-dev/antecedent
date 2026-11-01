@@ -204,4 +204,6 @@ def test_native_survival_rejects_censoring_data_without_floor():
     from antecedent import _native
 
     with pytest.raises(Exception, match="censoring.*floor"):
-        _native.PreparedAnalysis.prepare_survival([], [], "duration", "event", "treatment", 1.0, censoring_times=[0.5])
+        _native.PreparedAnalysis.prepare_survival(
+            [], [], "duration", "event", "treatment", 1.0, censoring_times=[0.5]
+        )

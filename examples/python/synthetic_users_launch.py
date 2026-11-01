@@ -32,12 +32,8 @@ MINIMUM_PILOT = 16
 EXPOSURE_PRICE = 0.009  # decision units per human shown any confidential content
 AUTH_EXPOSURE_PRICE = 0.001  # restricted authentication-only content
 FAILURE_PENALTY = 19.0  # launch utility +1 if requirements hold, -19 otherwise
-FLOOR = (
-    0.82  # business floor for human checkout-task completion, fixed before observations
-)
-RESOLUTION = (
-    4096  # deterministic rounding of weighted beliefs for the equal-draw ranker
-)
+FLOOR = 0.82  # business floor for human checkout-task completion, fixed before observations
+RESOLUTION = 4096  # deterministic rounding of weighted beliefs for the equal-draw ranker
 # Only the generator and independent truth checks read this object.
 TRUTH = {
     "human_old": (0.78, 0.76, 0.80, 0.65),
@@ -61,9 +57,7 @@ def traces(probabilities, n, seed):
 def hidden_checkout(world, bypass, uniforms):
     """Generator-only potential outcome with a shared uniform for each human."""
     base = TRUTH[world][2]
-    probability = (
-        TRUTH["auth_bypass_checkout"] if world == "conflict" and bypass else base
-    )
+    probability = TRUTH["auth_bypass_checkout"] if world == "conflict" and bypass else base
     return np.asarray(uniforms) < probability
 
 
@@ -101,13 +95,9 @@ def inspect_transport(data):
         )
         for name in names
     ]
-    target = [
-        fit.refit_in_target(data["human_old"], population="humans_old")
-        for fit in source
-    ]
+    target = [fit.refit_in_target(data["human_old"], population="humans_old") for fit in source]
     checks = {
-        name: tmt.check_invariance(s, t)
-        for name, s, t in zip(names, source, target, strict=True)
+        name: tmt.check_invariance(s, t) for name, s, t in zip(names, source, target, strict=True)
     }
     assert not checks["navigation"].rejected and not checks["discovery"].rejected
     assert checks["checkout"].rejected and checks["auth_recovery"].rejected
@@ -115,17 +105,13 @@ def inspect_transport(data):
         tmt.TypedTransport(
             source_population="agents_old",
             target_population="humans_old",
-            selection_nodes=(
-                tmt.SelectionNode("population_shift", ("checkout", "auth_recovery")),
-            ),
+            selection_nodes=(tmt.SelectionNode("population_shift", ("checkout", "auth_recovery")),),
         ),
         source,
         target,
     )
     assert old.receipt.native_variables == ("auth_recovery", "checkout")
-    assert (
-        old.receipt.support == "extrapolative" and old.receipt.inference == "point_only"
-    )
+    assert old.receipt.support == "extrapolative" and old.receipt.inference == "point_only"
     new_source = [
         tmt.fit_typed_mechanism(
             tmt.MechanismSpecification(name, family="bernoulli"),
@@ -139,9 +125,7 @@ def inspect_transport(data):
             tmt.TypedTransport(
                 source_population="agents_new",
                 target_population=POPULATION,
-                selection_nodes=(
-                    tmt.SelectionNode("unresolved_human_checkout", ("checkout",)),
-                ),
+                selection_nodes=(tmt.SelectionNode("unresolved_human_checkout", ("checkout",)),),
             ),
             new_source,
             [],
@@ -150,13 +134,10 @@ def inspect_transport(data):
         assert refusal.reason_code == "transport_missing_evidence"
         missing = refusal.details
     else:
-        raise AssertionError(
-            "Shifted human checkout cannot be manufactured from agents"
-        )
+        raise AssertionError("Shifted human checkout cannot be manufactured from agents")
     return {
         "old_site_checks": {
-            name: {"p_value": c.p_value, "rejected": c.rejected}
-            for name, c in checks.items()
+            name: {"p_value": c.p_value, "rejected": c.rejected} for name, c in checks.items()
         },
         "old_site_support": old.receipt.support,
         "inference": old.receipt.inference,
@@ -166,14 +147,9 @@ def inspect_transport(data):
 
 
 def make_prior(data, ledger):
-    means = {
-        name: np.array([np.mean(rows[s]) for s in STAGES])
-        for name, rows in data.items()
-    }
+    means = {name: np.array([np.mean(rows[s]) for s in STAGES]) for name, rows in data.items()}
     predicted = means["human_old"] + means["agent_new"] - means["agent_old"]
-    sampling = sum(
-        means[name] * (1 - means[name]) / len(data[name]["checkout"]) for name in data
-    )
+    sampling = sum(means[name] * (1 - means[name]) / len(data[name]["checkout"]) for name in data)
     # A declared transfer-discrepancy floor, independent of the number of agent runs.
     transfer = np.array([0.04, 0.04, 0.025]) ** 2
     variance = sampling + transfer
@@ -229,9 +205,7 @@ def make_prior(data, ledger):
     component = np.zeros((2, len(rates)))
     component[0, : len(grid)] = density(predicted[2], variance[2])
     for group in (1, 2, 3):
-        component[1, groups == group] = (
-            density(baseline_mean[2], baseline_variance[2]) / 3
-        )
+        component[1, groups == group] = density(baseline_mean[2], baseline_variance[2]) / 3
     joint = np.array([0.8, 0.2])[:, None] * component
     source_ids = [
         ledger.add_source(
@@ -272,8 +246,7 @@ def update(prior, data):
     n = len(data["checkout"])
     successes = np.array([sum(data[s]) for s in STAGES])
     log = np.sum(
-        successes * np.log(prior["rates"])
-        + (n - successes) * np.log1p(-prior["rates"]),
+        successes * np.log(prior["rates"]) + (n - successes) * np.log1p(-prior["rates"]),
         axis=1,
     )
     likelihood = np.exp(log - max(log))
@@ -350,18 +323,14 @@ def rank_signals(values, weights, actions, candidates, *, prior_id, context):
     if contract is None:
         contract = decision.Contract(
             actions=tuple(
-                decision.Action(
-                    name, inputs=(state,), utility=intercept + slope * decision.x(0)
-                )
+                decision.Action(name, inputs=(state,), utility=intercept + slope * decision.x(0))
                 for name, intercept, slope in actions
             ),
             utility_units="launch_utility",
             criterion=decision.Criterion.expected_utility(),
             target_population=POPULATION,
         )
-    declared = design.DesignDecision.from_contract(
-        contract, prior=design.StatePrior.draws(atoms)
-    )
+    declared = design.DesignDecision.from_contract(contract, prior=design.StatePrior.draws(atoms))
     assert [(a.id, a.intercept, a.slope) for a in declared.actions] == actions
     request = design.SignalSpec(
         prior_id=prior_id,
@@ -386,9 +355,7 @@ def rank_signals(values, weights, actions, candidates, *, prior_id, context):
             attestor="tutorial_application",
             law=design.ExternalLaw.likelihood(atoms, list(range(len(law))), likelihood),
         )
-        studies.append(
-            design.Candidate(name, n, provider, cost=price, cost_unit="launch_utility")
-        )
+        studies.append(design.Candidate(name, n, provider, cost=price, cost_unit="launch_utility"))
         utilities = np.array(
             [[intercept + slope * x for x in values] for _, intercept, slope in actions]
         )
@@ -410,9 +377,7 @@ def rank_signals(values, weights, actions, candidates, *, prior_id, context):
         assert abs(entry.evsi - oracle[entry.id]) < 1e-9
         cost = next(row[2] for row in candidates if row[0] == entry.id)
         assert abs(entry.net_value - (entry.evsi - cost)) < 1e-9
-    exact_order = sorted(
-        candidates, key=lambda c: original_oracle[c[0]] - c[2], reverse=True
-    )
+    exact_order = sorted(candidates, key=lambda c: original_oracle[c[0]] - c[2], reverse=True)
     assert [c.id for c in ranking.candidates] == [c[0] for c in exact_order]
     for entry in ranking.candidates:
         cost = next(c[2] for c in candidates if c[0] == entry.id)
@@ -433,10 +398,7 @@ def pilot_law(prior, weights, n):
     ]
     law = np.array(
         [
-            [
-                sum(w * math.comb(n, k) * p**k * (1 - p) ** (n - k))
-                for w in group_weights
-            ]
+            [sum(w * math.comb(n, k) * p**k * (1 - p) ** (n - k)) for w in group_weights]
             for k in range(n + 1)
         ]
     )
@@ -458,9 +420,7 @@ def pilot_information(prior, weights, n):
 def conflict_tail(prior, k, n):
     p = prior["rates"][:, 2]
     q = prior["joint"][0] / sum(prior["joint"][0])
-    return float(
-        sum(q * sum(math.comb(n, j) * p**j * (1 - p) ** (n - j) for j in range(k + 1)))
-    )
+    return float(sum(q * sum(math.comb(n, j) * p**j * (1 - p) ** (n - j) for j in range(k + 1))))
 
 
 def run_branch(name, prior, ledger):
@@ -488,21 +448,15 @@ def run_branch(name, prior, ledger):
                 f"{name}_posterior_{n}",
                 "fitted_model",
                 [],
-                lineage=Lineage.derived_from_used_data(
-                    [prior["prior_id"], *block_sources]
-                ),
+                lineage=Lineage.derived_from_used_data([prior["prior_id"], *block_sources]),
             )
         )
         current_prior = dict(prior, active_source=active_source)
         joint = update(prior, current)
         weights = np.sum(joint, axis=0)
         mass, selected, trust = launch_decision(joint, current_prior, f"{name}:{n}")
-        next_n = (
-            CHECKPOINTS[CHECKPOINTS.index(n) + 1] - n if n != CHECKPOINTS[-1] else None
-        )
-        information = (
-            pilot_information(current_prior, weights, next_n) if next_n else None
-        )
+        next_n = CHECKPOINTS[CHECKPOINTS.index(n) + 1] - n if n != CHECKPOINTS[-1] else None
+        information = pilot_information(current_prior, weights, next_n) if next_n else None
         k = int(sum(current["checkout"]))
         tail = conflict_tail(prior, k, n)
         # Conflict is diagnostic, not a sequential p-value test or a cause identifier.
@@ -528,9 +482,7 @@ def run_branch(name, prior, ledger):
                 "conflict_tail_diagnostic": tail,
                 "external_alpha_recommendation": alpha_recommendation,
                 "status": status,
-                "next_batch_net_value": None
-                if information is None
-                else information.best.net_value,
+                "next_batch_net_value": None if information is None else information.best.net_value,
             }
         )
         if status != "investigate" or alpha_recommendation == 0 or n == CHECKPOINTS[-1]:
@@ -549,9 +501,7 @@ def repair_candidates():
     # Authentication A is confounded with checkout C by unobserved error propensity U.
     # A directed edge plus A<->C blocks observational identification of do(A).
     contract = repair.HedgeContract(
-        graph=Admg.from_edges(
-            ["auth", "checkout"], [("auth", "checkout")], [("auth", "checkout")]
-        ),
+        graph=Admg.from_edges(["auth", "checkout"], [("auth", "checkout")], [("auth", "checkout")]),
         treatment="auth",
         outcome="checkout",
         population=POPULATION,
@@ -604,10 +554,7 @@ def follow_up(prior, branch):
     for name, n in (("generic_32", 32), ("auth_8", 8), ("auth_32", 32)):
         if name.startswith("generic"):
             law = np.array(
-                [
-                    aggregate(math.comb(n, k) * p**k * (1 - p) ** (n - k))
-                    for k in range(n + 1)
-                ]
+                [aggregate(math.comb(n, k) * p**k * (1 - p) ** (n - k)) for k in range(n + 1)]
             )
             cost = n * EXPOSURE_PRICE
         else:
@@ -624,9 +571,7 @@ def follow_up(prior, branch):
                 )
                 law[treated - control + arm] += aggregate(likelihood)
             cost = n * AUTH_EXPOSURE_PRICE
-        assert np.allclose(
-            np.sum(law, axis=0), np.ones(len(values)), atol=1e-12, rtol=0
-        )
+        assert np.allclose(np.sum(law, axis=0), np.ones(len(values)), atol=1e-12, rtol=0)
         candidates.append((name, n, cost, law))
     ranking, rounded = rank_signals(
         values,
@@ -638,9 +583,7 @@ def follow_up(prior, branch):
     )
     sufficient = repair_candidates()
     eligible = [
-        c
-        for c in ranking.candidates
-        if sufficient.classification(c.id) == "verified_sufficient"
+        c for c in ranking.candidates if sufficient.classification(c.id) == "verified_sufficient"
     ]
     print(
         "Follow-up candidates:",
@@ -650,9 +593,7 @@ def follow_up(prior, branch):
     assert eligible[0].net_value > 0
     return {
         "repair_outcome": sufficient.outcome,
-        "identification": {
-            name: sufficient.classification(name) for name, _, _, _ in candidates
-        },
+        "identification": {name: sufficient.classification(name) for name, _, _, _ in candidates},
         "ranking": [
             {
                 "id": r.id,
@@ -736,16 +677,12 @@ def main():
         TRUTH["agreement"][2],
         abs_tol=1e-12,
     )
-    assert math.isclose(
-        TRUTH["auth_bypass_checkout"] - TRUTH["conflict"][2], 0.33, abs_tol=1e-12
-    )
+    assert math.isclose(TRUTH["auth_bypass_checkout"] - TRUTH["conflict"][2], 0.33, abs_tol=1e-12)
     uniform_grid = (np.arange(10_000) + 0.5) / 10_000
     untreated = hidden_checkout("conflict", False, uniform_grid)
     treated = hidden_checkout("conflict", True, uniform_grid)
     assert np.mean(untreated) == 0.55 and np.mean(treated) == 0.88
-    assert math.isclose(
-        float(np.mean(treated.astype(float) - untreated)), 0.33, abs_tol=1e-12
-    )
+    assert math.isclose(float(np.mean(treated.astype(float) - untreated)), 0.33, abs_tol=1e-12)
     ledger = EvidenceLedger()
     transport = inspect_transport(data)
     prior = make_prior(data, ledger)
@@ -777,8 +714,7 @@ def main():
         flush=True,
     )
     initial = [
-        pilot_information(prior, np.sum(prior["joint"], axis=0), n).best
-        for n in (8, 16, 32)
+        pilot_information(prior, np.sum(prior["joint"], axis=0), n).best for n in (8, 16, 32)
     ]
     initial_plan = sorted(initial, key=lambda r: r.net_value, reverse=True)
     assert initial_plan[0].sample_size == 16 and initial_plan[0].net_value > 0

@@ -159,8 +159,11 @@ def test_malformed_declarations_are_refused_before_the_native_call():
 
 def test_family_table_observes_execution_cancellation():
     import antecedent
+
     token = antecedent.CancellationToken()
     token.cancel()
     estimate = pc.FamilyEstimate("a", 0.4, 0.1)
     with pytest.raises(antecedent.errors.CausalCancelledError):
-        pc.family_table([estimate], alignment="family-cancel", execution=antecedent.Execution(cancel=token))
+        pc.family_table(
+            [estimate], alignment="family-cancel", execution=antecedent.Execution(cancel=token)
+        )

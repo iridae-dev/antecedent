@@ -152,6 +152,7 @@ def test_correlations_and_a_scored_predictive_model() -> None:
             )
         )
     )
+
     # Sample distance correlation (V-statistic) from double-centred distance matrices.
     def centred(v: np.ndarray) -> np.ndarray:
         d = np.abs(v[:, None] - v[None, :])

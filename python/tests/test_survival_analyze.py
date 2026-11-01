@@ -326,5 +326,7 @@ def test_retained_competing_risk_known_g_pointwise_interval() -> None:
     # strictly, with the width of two binomial arms (0.2 each, 40 subjects): 2 * 1.96 * 0.0894.
     lower, upper = section.incidence_difference_interval
     assert lower < 0.0 < upper
-    assert (upper - lower) / (2 * 1.96 * (2 * 0.2 * 0.8 / 40) ** 0.5) == pytest.approx(1.0, abs=0.25)
+    assert (upper - lower) / (2 * 1.96 * (2 * 0.2 * 0.8 / 40) ** 0.5) == pytest.approx(
+        1.0, abs=0.25
+    )
     assert section.bootstrap_replicates_ok == 399

@@ -99,15 +99,11 @@ def main() -> None:
         execution=antecedent.Execution(seed=5),
     )
     assert math.isfinite(path.total_change)
-    mediated = next(
-        (c for p, c in path.path_breakdown if len(p) == 3 and p[1] == "m"), None
-    )
+    mediated = next((c for p, c in path.path_breakdown if len(p) == 3 and p[1] == "m"), None)
     assert mediated is not None, path.path_breakdown
     # Declared channel path: 0.6 * 0.8 = 0.48 (Monte Carlo tolerance).
     assert abs(mediated - 0.48) < 0.25, mediated
-    print(
-        f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}"
-    )
+    print(f"Path decompose total_change={path.total_change:.4f} paths={len(path.path_breakdown)}")
 
     ite = require_success(
         antecedent.analyze(
@@ -125,9 +121,7 @@ def main() -> None:
     # Second estimate click — still no discovery.
     study = bayes.study
     second = require_success(
-        antecedent.estimate(
-            antecedent.reconfigure(study, execution=antecedent.Execution(seed=4))
-        )
+        antecedent.estimate(antecedent.reconfigure(study, execution=antecedent.Execution(seed=4)))
     )
     assert second.data_snapshot_id == bayes.data_snapshot_id
     artifact = bayes.export()

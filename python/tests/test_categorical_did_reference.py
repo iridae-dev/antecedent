@@ -64,7 +64,12 @@ def test_the_two_by_two_contrast_of_every_level_equals_the_exact_cell_mean_refer
     }
     for entry in fit.contrasts:
         want = case["contrasts"][str(entry.level)]
-        close(entry.estimate, exact(want["did_2x2"]), 1e-12 if case["name"] != "offset_four_string_levels" else 1e-7, f"{case['name']} {entry.level}")
+        close(
+            entry.estimate,
+            exact(want["did_2x2"]),
+            1e-12 if case["name"] != "offset_four_string_levels" else 1e-7,
+            f"{case['name']} {entry.level}",
+        )
         assert entry.standard_error is None
 
 
@@ -82,7 +87,12 @@ def test_the_panel_contrast_and_cluster_standard_error_equal_the_exact_reference
         rel = 1e-7 if case["name"] == "offset_four_string_levels" else 1e-9
         close(entry.estimate, exact(want["panel"]), rel, f"{case['name']} {entry.level} estimate")
         variance = float(exact(want["panel_variance"]))
-        close(entry.standard_error, Fraction(math.sqrt(variance)), 1e-6 if rel > 1e-8 else 1e-9, f"{case['name']} {entry.level} se")
+        close(
+            entry.standard_error,
+            Fraction(math.sqrt(variance)),
+            1e-6 if rel > 1e-8 else 1e-9,
+            f"{case['name']} {entry.level} se",
+        )
         assert entry.level_units == want["level_subjects"]
         assert entry.reference_units == want["reference_subjects"]
 

@@ -259,8 +259,11 @@ def test_interference_direct_execution_work_memory_and_cancellation() -> None:
     )
     data = {"y": np.ones(21)}
     assignment = [i % 2 == 0 for i in range(21)]
+
     def run(execution: Execution):
-        return interference.estimate(data, assignment=assignment, edges=[], query=query, execution=execution)
+        return interference.estimate(
+            data, assignment=assignment, edges=[], query=query, execution=execution
+        )
 
     with pytest.raises(antecedent.errors.CausalResourceError, match="work limit"):
         run(Execution(exposure_probability_work_limit=1))
@@ -289,13 +292,19 @@ def test_interference_strided_input_admission_and_precancellation() -> None:
     assignment = [i % 2 == 0 for i in range(21)]
     with pytest.raises(antecedent.errors.CausalResourceError):
         interference.estimate(
-            {"y": outcome}, assignment=assignment, edges=[], query=query,
+            {"y": outcome},
+            assignment=assignment,
+            edges=[],
+            query=query,
             execution=Execution(limits=antecedent.ResourceLimits(memory_bytes=1)),
         )
     token = antecedent._native.CancellationToken()
     token.cancel()
     with pytest.raises(antecedent.errors.CausalCancelledError):
         interference.estimate(
-            {"y": outcome}, assignment=assignment, edges=[], query=query,
+            {"y": outcome},
+            assignment=assignment,
+            edges=[],
+            query=query,
             execution=Execution(cancel=token),
         )
