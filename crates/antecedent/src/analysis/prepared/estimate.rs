@@ -205,6 +205,14 @@ impl PreparedStudy {
             self.estimate_click(data, shared, &scoped, notes)?
         };
         result.stamp_lowered_program(self.plan.require_lowered(None)?);
+        // Every prepared tabular operation executes on these caller-supplied rows, including
+        // retained operations that bypass the ordinary dispatch stamping path. Preserve the
+        // engine-owned input identity before any whole-target refuter checks the result.
+        if result.executed_input.is_none() {
+            let input = DataInput::Tabular(data.clone());
+            result.executed_input =
+                Some(crate::analysis::target_validation::executed_input_identity(&input, ctx)?);
+        }
         crate::analysis::target_validation::stamp_route_refutations(&mut result);
         Ok(result)
     }
