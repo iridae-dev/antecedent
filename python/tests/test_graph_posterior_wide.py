@@ -65,6 +65,12 @@ def test_wide_adjacency_round_trips_as_python_integers():
     assert len(keys) == 2 and keys[0] != keys[1]
 
 
+def test_atom_posterior_refuses_a_variable_count_before_sizing_by_it():
+    names = [f"v{i}" for i in range(4097)]
+    with pytest.raises(ValueError, match="at most 4096 variables"):
+        GraphPosterior.from_atoms(names, [1.0], [0])
+
+
 def test_wide_adjacency_is_validated():
     names = [f"v{i}" for i in range(12)]
     cycle = _mask([("v0", "v1"), ("v1", "v2"), ("v2", "v0")], names)

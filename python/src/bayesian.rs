@@ -113,12 +113,9 @@ fn mask_from_pyint(value: &Bound<'_, PyAny>) -> PyResult<AdjacencyMask> {
     Ok(AdjacencyMask::from_le_bytes(&bytes))
 }
 
-/// Every edge bit of an `n_vars`-variable graph.
-fn full_edge_set(n_vars: usize) -> AdjacencyMask {
-    (0..n_directed_edges(n_vars)).fold(AdjacencyMask::EMPTY, |set, bit| {
-        set.with_bit(u32::try_from(bit).unwrap_or(u32::MAX), true)
-    })
-}
+/// Most variables of a supplied atom posterior. The default edge marginals are `n_vars²` cells,
+/// so the count is bounded before any edge set is sized by it.
+const MAX_ATOM_VARIABLES: usize = 4096;
 
 /// Arguments of [`PyGraphPosterior::from_atom_inputs`]: explicit posterior atoms.
 struct AtomInputs {
@@ -425,9 +422,14 @@ impl PyGraphPosterior {
         if n_vars == 0 {
             return Err(crate::value_err("from_atoms requires at least one variable"));
         }
-        let all_edges = full_edge_set(n_vars);
+        if n_vars > MAX_ATOM_VARIABLES {
+            return Err(crate::value_err(format!(
+                "from_atoms supports at most {MAX_ATOM_VARIABLES} variables, got {n_vars}"
+            )));
+        }
+        let edge_bits = n_directed_edges(n_vars);
         for (index, mask) in adjacency.iter().enumerate() {
-            if !all_edges.contains_all(mask) {
+            if mask.set_bits().any(|bit| bit as usize >= edge_bits) {
                 return Err(crate::value_err(format!(
                     "adjacency atom {index} sets edge bits beyond {n_vars} variables"
                 )));
