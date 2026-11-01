@@ -1027,12 +1027,9 @@ fn test_interventional_distribution_dag_explicit_frequentist_none_executes_check
     assert!(rejected.is_err(), "rehashed factor-law tampering must be refused");
 }
 
-/// Non-Dag explicit structure (a bidirected-free ADMG, class `Admg`) builds
-/// `PathSpecificEffect` as a refused cell that executes unlicensed: the study states `refused`.
-/// `ConditionalEffect` and the unconditional `InterventionalDistribution` on Admg are licensed
-/// separately.
+/// The mixed-graph conditional and path-specific routes have separate licensed cells.
 #[test]
-fn prepare_refuses_path_specific_and_licenses_conditional_on_admg() {
+fn prepare_licenses_path_specific_and_conditional_on_admg() {
     let (data, _dag, cq) = conditional_effect_fixture();
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
@@ -1055,8 +1052,8 @@ fn prepare_refuses_path_specific_and_licenses_conditional_on_admg() {
         .estimator(EstimatorId::FunctionalEffect)
         .refute(RefuteSuite::None)
         .build()
-        .expect("the path-specific effect on a mixed graph executes unlicensed");
-    assert_eq!(study.support_status().unwrap().as_str(), "refused");
+        .expect("the path-specific effect on this mixed graph is licensed");
+    assert_eq!(study.support_status().unwrap().as_str(), "licensed");
 }
 
 /// `PreparedStudy::refute` is licensed for `AverageEffect` only; a prepared

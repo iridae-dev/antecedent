@@ -538,7 +538,7 @@ mod tests {
         let workload = Workload { nrows: 60, folds: 3, epochs: 4, hidden: 4, ..Workload::SMALL };
         let run = run_workload::<Cpu>(&cpu_device(), &workload, &|| false).unwrap();
         assert_eq!(run.folds.len(), 3);
-        let mut seen = vec![0u8; 60];
+        let mut seen = [0u8; 60];
         for fold in &run.folds {
             assert!(fold.predict_rows.windows(2).all(|w| w[0] < w[1]));
             assert_eq!(fold.predictions.len(), fold.predict_rows.len());
