@@ -530,7 +530,7 @@ fn standalone_temporal_queries_say_what_runs_and_what_does_not() {
             .graph(temporal_chain())
             .query(CausalQuery::UnitChange(
                 UnitChangeQuery::new(VariableId::from_raw(1), 20)
-                    .with_unit_rows((0..20).collect::<Vec<usize>>()),
+                    .with_unit_rows((1..=20).collect::<Vec<usize>>()),
             ))
             .refute(RefuteSuite::None)
             .bootstrap_replicates(0)
@@ -538,6 +538,20 @@ fn standalone_temporal_queries_say_what_runs_and_what_does_not() {
             .unwrap();
         let result = study.prepare(&ctx).unwrap().estimate_series(&shifted_series(), &ctx).unwrap();
         assert!(result.posterior.is_none());
+        let no_history = Study::series(shifted_series())
+            .graph(temporal_chain())
+            .query(CausalQuery::UnitChange(
+                UnitChangeQuery::new(VariableId::from_raw(1), 1).with_unit_rows(vec![0]),
+            ))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate_series(&shifted_series(), &ctx)
+            .unwrap_err();
+        assert!(no_history.to_string().contains("without complete observed history"));
         // A mechanism-change test on one dependent series draws its null law by block
         // permutation of the residuals, and reads as a posterior probability of a change under
         // Bayesian inference and a declared prior.
