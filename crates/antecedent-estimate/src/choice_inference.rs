@@ -43,7 +43,7 @@ pub const CONFLICT_LOG_BAYES_FACTOR: f64 = std::f64::consts::LN_10;
 pub const MEANING_STATEMENT: &str = "shares of repeated categorical choices as declared; stated preferences do not identify behavioural or causal outcomes";
 
 /// What a conflict diagnostic is.
-pub const CONFLICT_STATEMENT: &str = "prior-predictive log Bayes factor of each source against a vague prior versus the remaining evidence; a screening diagnostic with unmeasured calibration";
+pub const CONFLICT_STATEMENT: &str = "prior-predictive log evidence ratio of each source against a vague prior versus the remaining evidence, including the current look when present; fractional power-prior counts yield a generalized score, and calibration is unmeasured";
 
 /// Premise of the posterior's validity under optional stopping.
 pub const CHOICE_POSTERIOR_PREMISE: &str = "the choice set is fixed, respondents are exchangeable draws from the declared population, and the stopping rule depends on the observed choices only";
@@ -378,6 +378,45 @@ pub fn contract_pooled_counts(
         }
     }
     Ok(counts)
+}
+
+/// Qualify the same prior and screen each source against other sources and the current look.
+/// The current look affects diagnostics only; it is not added to the prior or counted twice.
+///
+/// # Errors
+/// An invalid look, unsupported source, or invalid numerical input.
+pub fn qualify_contract_prior_at_look(
+    contract: &antecedent_contract::adaptive_design::ChoiceDesignContract,
+    look: usize,
+) -> Result<QualifiedChoicePrior, AdaptiveInferenceError> {
+    let mut prior = qualify_contract_prior(contract)?;
+    if prior.sources.is_empty() {
+        return Ok(prior);
+    }
+    let d = contract.declaration();
+    let observed = contract_pooled_counts(contract, look)?;
+    let mut inputs: Vec<_> = d
+        .retained_sources
+        .iter()
+        .map(|s| ChoiceSourceCounts {
+            label: &s.label,
+            counts: &s.counts,
+            discount: s.discount,
+            transferred: false,
+        })
+        .collect();
+    inputs.push(ChoiceSourceCounts {
+        label: "current look",
+        counts: &observed,
+        discount: 1.0,
+        transferred: false,
+    });
+    let screened = qualify_choice_prior(&d.initial_prior, &inputs, ChoiceConflictPolicy::Report)?;
+    for (source, diagnostic) in prior.sources.iter_mut().zip(screened.sources) {
+        source.conflict_log_bayes_factor = diagnostic.conflict_log_bayes_factor;
+        source.conflicting = diagnostic.conflicting;
+    }
+    Ok(prior)
 }
 
 /// The pooled Dirichlet posterior of a categorical-choice contract at `look`, on the prior its

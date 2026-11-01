@@ -15,7 +15,8 @@
 //!    source that rests on rows the respondents contribute (double counting) or on rows another
 //!    source contributes;
 //! 4. for every retained source, its option set, meaning and population against the target's,
-//!    its discount and, when its population differs, the declared reason it transfers;
+//!    its discount and its original native posterior identity when one is reused; unsupported
+//!    cross-population transfer is refused;
 //! 5. the looks over respondents and the stopping rule, whose kind and parameters must agree with
 //!    the procedure cell.
 //!
@@ -36,7 +37,8 @@ use super::matrix::{
 };
 use crate::ExternalRefusal;
 use crate::evidence_ledger::{
-    EvidenceLedger, ObservationId, Overlap, SourceDeclaration, SourceId, SourceKind,
+    EvidenceLedger, MAX_OBSERVATIONS_PER_SOURCE, ObservationId, Overlap, SourceDeclaration,
+    SourceId, SourceKind,
 };
 
 /// Version word of the canonical choice-contract encoding.
@@ -63,6 +65,15 @@ pub struct ChoiceRespondent {
     pub counts: Vec<u32>,
 }
 
+/// A native retained result and the identity held independently by its consumer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RetainedChoiceProof {
+    /// Checksummed native choice-inference result artifact.
+    pub artifact: Vec<u8>,
+    /// Identity retained independently of the artifact bytes.
+    pub expected_identity: String,
+}
+
 /// Evidence retained from an earlier study, as the counts it contributed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct RetainedChoiceSource {
@@ -80,8 +91,10 @@ pub struct RetainedChoiceSource {
     pub observation_ids: Vec<String>,
     /// Fraction of the source's information used, in `[0, 1]`.
     pub discount: f64,
-    /// Why a source from another population transfers; required exactly when it differs.
+    /// Legacy declaration; cross-population transfer is not supported.
     pub transfer_rationale: Option<String>,
+    /// Optional native posterior proof, replayed before licensed inference.
+    pub posterior_proof: Option<RetainedChoiceProof>,
 }
 
 /// One interim analysis over respondents.
@@ -162,6 +175,21 @@ fn respondent_rows(respondent: &ChoiceRespondent) -> impl Iterator<Item = String
     (0..total).map(|k| format!("{}#{k}", respondent.id))
 }
 
+// A pooled source must represent one choice per distinct respondent. Bare respondent IDs
+// and the explicit first-row spelling identify the same observation in the ledger.
+fn source_row(id: &str) -> Option<String> {
+    if id.trim().is_empty() {
+        return None;
+    }
+    match id.split_once('#') {
+        Some((respondent, "0")) if !respondent.trim().is_empty() && !respondent.contains('#') => {
+            Some(format!("{respondent}#0"))
+        }
+        Some(_) => None,
+        None => Some(format!("{id}#0")),
+    }
+}
+
 fn row_id(row: &str) -> ObservationId {
     ObservationId::from_key(ROW_DOMAIN, row.as_bytes())
 }
@@ -219,6 +247,18 @@ fn check_respondents(d: &ChoiceDesignDeclaration, refusals: &mut Vec<ExternalRef
         ));
         return;
     }
+    // Admit the aggregate before materializing row IDs; the per-respondent limit alone
+    // would otherwise allow vastly more rows than the ledger can hold.
+    let rows = d.respondents.iter().try_fold(0usize, |total, r| {
+        r.counts.iter().try_fold(total, |sum, &count| sum.checked_add(count as usize))
+    });
+    if rows.is_none_or(|n| n > MAX_OBSERVATIONS_PER_SOURCE) {
+        refusals.push(invalid(
+            "choice_inference.ledger_limit",
+            "reduce the total number of choices to the ledger's observation limit",
+        ));
+        return;
+    }
     // A pooled Dirichlet posterior counts every choice as independent; that is true only when
     // each respondent contributes one.
     if d.cell.outcome == OutcomeStructure::CategoricalChoice
@@ -253,6 +293,25 @@ fn check_sources(d: &ChoiceDesignDeclaration, refusals: &mut Vec<ExternalRefusal
         ));
         return;
     }
+    let proof_bytes = d.retained_sources.iter().try_fold(0usize, |n, s| {
+        n.checked_add(s.posterior_proof.as_ref().map_or(0, |p| p.artifact.len()))
+    });
+    if proof_bytes.is_none_or(|n| n > 16 * 1024 * 1024) {
+        refusals.push(invalid(
+            "choice_inference.ledger_limit",
+            "reduce retained native proof bytes to the 16 MiB limit",
+        ));
+        return;
+    }
+    let total_source_rows =
+        d.retained_sources.iter().try_fold(0usize, |n, s| n.checked_add(s.observation_ids.len()));
+    if total_source_rows.is_none_or(|n| n > MAX_OBSERVATIONS_PER_SOURCE) {
+        refusals.push(invalid(
+            "choice_inference.ledger_limit",
+            "reduce the total retained-source rows to the evidence-ledger limit",
+        ));
+        return;
+    }
     let labels: Vec<String> = d.retained_sources.iter().map(|s| s.label.clone()).collect();
     if !distinct_labels(&labels) {
         refusals.push(invalid(
@@ -273,28 +332,43 @@ fn check_sources(d: &ChoiceDesignDeclaration, refusals: &mut Vec<ExternalRefusal
                 "a source whose choices mean something else (stated preference, behaviour, another task) does not inform this posterior",
             ));
         }
-        let transferred = s.population != d.population;
-        let rationale = s.transfer_rationale.as_deref().is_some_and(|r| !r.trim().is_empty());
-        if transferred && !rationale {
+        if s.population != d.population {
             refusals.push(scope(
                 "choice_inference.source_population_mismatch",
-                "declare why a source from another population transfers, or leave it out; no transfer is assumed",
+                "a free-text rationale and discount do not establish source-to-target transport; use evidence from the same population",
             ));
-        }
-        if !transferred && s.transfer_rationale.is_some() {
+        } else if s.transfer_rationale.is_some() {
             refusals.push(invalid(
                 "choice_inference.transfer_rationale_unneeded",
-                "a transfer rationale is declared only for a source from another population",
+                "a transfer rationale is not used for a source from the same population",
             ));
+        }
+        if s.posterior_proof
+            .as_ref()
+            .is_some_and(|p| p.artifact.is_empty() || p.expected_identity.trim().is_empty())
+        {
+            refusals.push(invalid("choice_inference.source_invalid", "a native posterior source requires artifact bytes and an independently retained identity"));
         }
         if !(s.discount.is_finite() && (0.0..=1.0).contains(&s.discount))
             || s.counts.iter().any(|c| !(c.is_finite() && *c >= 0.0))
-            || s.observation_ids.iter().any(|id| id.trim().is_empty())
-            || (s.observation_ids.is_empty() && s.counts.iter().any(|c| *c > 0.0))
+            || (s.posterior_proof.is_none() && s.counts.iter().any(|c| c.fract() != 0.0))
+            || s.observation_ids.len() > MAX_OBSERVATIONS_PER_SOURCE
+            || s.observation_ids.iter().any(|id| source_row(id).is_none())
+            || s.observation_ids
+                .iter()
+                .filter_map(|id| source_row(id))
+                .collect::<BTreeSet<_>>()
+                .len()
+                != s.observation_ids.len()
+            || if s.posterior_proof.is_none() {
+                s.counts.iter().sum::<f64>() != s.observation_ids.len() as f64
+            } else {
+                s.counts.iter().sum::<f64>() > s.observation_ids.len() as f64 + 1e-7
+            }
         {
             refusals.push(invalid(
                 "choice_inference.source_invalid",
-                "a source has a discount in [0, 1], nonnegative counts and row-level identities for any counts",
+                "a raw pooled source has integer counts and one distinct respondent per choice; a replayed posterior may carry discounted effective counts and all original respondent identities",
             ));
         }
     }
@@ -385,7 +459,8 @@ fn account(d: &ChoiceDesignDeclaration) -> Result<ChoiceEvidence, ExternalRefusa
         .map_err(|_| limit("choice_inference.ledger_limit"))?;
     let mut sources = Vec::with_capacity(d.retained_sources.len());
     for s in &d.retained_sources {
-        let mut ids: Vec<ObservationId> = s.observation_ids.iter().map(|r| row_id(r)).collect();
+        let mut ids: Vec<ObservationId> =
+            s.observation_ids.iter().filter_map(|r| source_row(r)).map(|r| row_id(&r)).collect();
         ids.sort_unstable();
         ids.dedup();
         sources.push(
@@ -477,6 +552,50 @@ impl ChoiceDesignContract {
         &self.evidence
     }
 
+    /// Require every original respondent and prior source to remain active in the live ledger.
+    ///
+    /// # Errors
+    /// A required source has been withdrawn or is absent.
+    pub fn ensure_current(&self) -> Result<(), ExternalRefusal> {
+        for id in std::iter::once(&self.evidence.respondents).chain(self.evidence.sources.iter()) {
+            if !self.evidence.ledger.source(*id).is_some_and(|s| s.status.is_active()) {
+                return Err(ExternalRefusal::new(antecedent_core::reason_code!("evidence_source_withdrawn"), STAGE_BIND, "choice_inference.source_withdrawn")
+                    .with_remedy("withdrawn evidence cannot authorize a current choice result; prepare a new study without it"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Withdraw one retained source from the current evidence ledger.
+    ///
+    /// # Errors
+    /// Unknown source or a refused ledger operation.
+    pub fn withdraw_retained_source(
+        &mut self,
+        label: &str,
+        reason: &str,
+    ) -> Result<(), ExternalRefusal> {
+        let index =
+            self.declaration.retained_sources.iter().position(|s| s.label == label).ok_or_else(
+                || {
+                    ExternalRefusal::new(
+                        antecedent_core::reason_code!("invalid_argument"),
+                        STAGE_BIND,
+                        "choice_inference.source_unknown",
+                    )
+                    .with_remedy("choose a retained source in this study")
+                },
+            )?;
+        self.evidence.ledger.withdraw_source(self.evidence.sources[index], reason).map_err(
+            |e| {
+                ExternalRefusal::new(e.code, STAGE_BIND, e.detail)
+                    .with_offending(e.message)
+                    .with_remedy("provide a nonempty reason and an active retained source")
+            },
+        )?;
+        Ok(())
+    }
+
     /// Number of options.
     #[must_use]
     pub fn options(&self) -> usize {
@@ -527,6 +646,7 @@ impl ChoiceDesignContract {
         &self,
         paradigm: InferenceParadigm,
     ) -> Result<RouteAuthorization, ExternalRefusal> {
+        self.ensure_current()?;
         authorize_cell(&self.declaration.cell, paradigm)?;
         Ok(RouteAuthorization {
             cell: self.declaration.cell,
@@ -557,6 +677,10 @@ fn identity_of(d: &ChoiceDesignDeclaration) -> SemanticDigest {
         w.reals(&s.counts).texts(&s.observation_ids).real(s.discount);
         match &s.transfer_rationale {
             Some(t) => w.word(1).text(t),
+            None => w.word(0),
+        };
+        match &s.posterior_proof {
+            Some(p) => w.word(1).text(&p.expected_identity).bytes(&p.artifact),
             None => w.word(0),
         };
     }

@@ -25,15 +25,15 @@
 
 use antecedent_contract::adaptive_design::{
     AssignmentFamily, ChoiceDesignContract, ChoiceDesignDeclaration, ChoiceLook, ChoiceRespondent,
-    InferenceParadigm, MonitoringStrategy, OutcomeStructure, ProcedureCell, RetainedChoiceSource,
-    StoppingRuleKind,
+    InferenceParadigm, MonitoringStrategy, OutcomeStructure, ProcedureCell, RetainedChoiceProof,
+    RetainedChoiceSource, StoppingRuleKind,
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::adaptive_inference::AdaptiveInferenceError;
 use antecedent_estimate::choice_inference::{
     HierarchicalChoicePrior, choice_posterior, choice_stopping_decision, contract_pooled_counts,
     contract_stopping_rule, hierarchical_choice_posterior, hierarchical_stopping_decision,
-    qualify_contract_prior,
+    qualify_contract_prior_at_look,
 };
 use antecedent_io_core::adaptive_monitoring_contract_artifact::{
     AdaptiveMonitoringContractError, RuleWire, rule_from_wire, rule_to_wire,
@@ -211,6 +211,12 @@ fn hierarchical_inputs(
     mean: f64,
     sd: f64,
 ) -> Result<(HierarchicalChoicePrior, Vec<Vec<u32>>), ChoiceResultError> {
+    if shapes != contract.declaration().initial_prior.as_slice() {
+        return Err(request_invalid(
+            "choice_inference.prior_mismatch",
+            "the hierarchical population-share prior must match the study's declared initial prior",
+        ));
+    }
     let respondents = contract
         .respondents_at(look)
         .map_err(|r| contract_refusal(&r))?
@@ -250,6 +256,14 @@ pub fn compute_choice_result(
 ) -> Result<ChoiceResult, ChoiceResultError> {
     let paradigm = spec.paradigm();
     contract.admit_paradigm(paradigm).map_err(|r| contract_refusal(&r))?;
+    verify_retained_choice_sources(contract, ctx).map_err(|e| {
+        let (code, detail, message) = e.refusal().unwrap_or((
+            antecedent_core::reason_code!("invalid_argument"),
+            "choice_inference.source_invalid".into(),
+            e.to_string(),
+        ));
+        ChoiceResultError { code, detail, message }
+    })?;
     if contract.cell().outcome != spec.outcome() {
         return Err(request_invalid(
             "choice_inference.route_outcome_mismatch",
@@ -259,7 +273,10 @@ pub fn compute_choice_result(
     let look = spec.look() as usize;
     match spec {
         ChoiceResultSpec::Posterior { .. } | ChoiceResultSpec::Stopping { .. } => {
-            let prior = qualify_contract_prior(contract)?;
+            let prior = qualify_contract_prior_at_look(contract, look)?;
+            if matches!(spec, ChoiceResultSpec::Stopping { .. }) && prior.has_conflict() {
+                return Err(ChoiceResultError { code: antecedent_core::reason_code!("choice_evidence_conflict"), detail: "choice_inference.source_conflict".into(), message: "the current look conflicts with retained evidence; resolve the conflict before a stopping decision".into() });
+            }
             let counts = contract_pooled_counts(contract, look)?;
             let posterior = choice_posterior(&prior.alpha, &counts, ctx)?;
             if matches!(spec, ChoiceResultSpec::Stopping { .. }) {
@@ -405,6 +422,12 @@ pub struct SourceWire {
     pub discount_bits: u64,
     /// Declared transfer reason.
     pub transfer_rationale: Option<String>,
+    /// Optional native posterior artifact and independently retained identity.
+    #[serde(default)]
+    pub posterior_artifact: Option<Vec<u8>>,
+    /// Identity of the retained native posterior.
+    #[serde(default)]
+    pub posterior_identity: Option<String>,
 }
 
 /// The choice declaration on the wire.
@@ -505,6 +528,8 @@ pub fn declaration_to_wire(d: &ChoiceDesignDeclaration) -> ChoiceDeclarationWire
                 observation_ids: s.observation_ids.clone(),
                 discount_bits: s.discount.to_bits(),
                 transfer_rationale: s.transfer_rationale.clone(),
+                posterior_artifact: s.posterior_proof.as_ref().map(|p| p.artifact.clone()),
+                posterior_identity: s.posterior_proof.as_ref().map(|p| p.expected_identity.clone()),
             })
             .collect(),
         looks: d.looks.as_ref().map(|l| l.iter().map(|l| l.respondents).collect()),
@@ -527,6 +552,11 @@ pub fn declaration_from_wire(w: &ChoiceDeclarationWire) -> Result<ChoiceDesignDe
         stopping: StoppingRuleKind::from_name(&w.stopping)
             .ok_or(Error::UnsupportedSemantics("stopping rule kind"))?,
     };
+    if w.sources.iter().any(|s| s.posterior_artifact.is_some() != s.posterior_identity.is_some()) {
+        return Err(Error::Malformed(
+            "retained posterior artifact and identity must be declared together".into(),
+        ));
+    }
     let stopping_rule =
         w.stopping_rule.as_ref().map(rule_from_wire).transpose().map_err(|e| match e {
             AdaptiveMonitoringContractError::UnsupportedSemantics(what) => {
@@ -558,6 +588,13 @@ pub fn declaration_from_wire(w: &ChoiceDeclarationWire) -> Result<ChoiceDesignDe
                 observation_ids: s.observation_ids.clone(),
                 discount: f64::from_bits(s.discount_bits),
                 transfer_rationale: s.transfer_rationale.clone(),
+                posterior_proof: match (&s.posterior_artifact, &s.posterior_identity) {
+                    (Some(artifact), Some(expected_identity)) => Some(RetainedChoiceProof {
+                        artifact: artifact.clone(),
+                        expected_identity: expected_identity.clone(),
+                    }),
+                    _ => None,
+                },
             })
             .collect(),
         looks: w.looks.as_ref().map(|l| l.iter().map(|r| ChoiceLook { respondents: *r }).collect()),
@@ -699,6 +736,165 @@ fn check(
         return Err(Error::IdentityMismatch { field: "retained_identity" });
     }
     Ok(ChoiceInferenceResultArtifact { contract, spec, result: recomputed, identity })
+}
+
+/// Reconstruct a same-population pooled source from an independently identified native result.
+/// The source's replayed ancestors and their discounts are retained, and its original observations
+/// enter once. The base prior is not counted twice; ancestry is bounded by depth and artifact size.
+///
+/// # Errors
+/// Corrupt, unbound, incompatible, excessively nested, conflicting, or non-posterior artifacts.
+pub fn retained_choice_source_from_artifact(
+    bytes: &[u8],
+    expected_identity: &str,
+    label: &str,
+    discount: f64,
+    ctx: &ExecutionContext,
+) -> Result<RetainedChoiceSource, Error> {
+    if bytes.len() > 16 * 1024 * 1024
+        || expected_identity.trim().is_empty()
+        || label.trim().is_empty()
+        || !discount.is_finite()
+        || !(0.0..=1.0).contains(&discount)
+    {
+        return Err(malformed("invalid retained choice source identity, discount or size"));
+    }
+    let quote = u64::try_from(bytes.len())
+        .ok()
+        .and_then(|n| n.checked_mul(8))
+        .ok_or_else(|| malformed("retained posterior admission size overflow"))?;
+    let _lease = ctx.acquire_admission(0, quote).map_err(|error| {
+        if ctx.cancellation.is_cancelled() {
+            Error::refused(
+                antecedent_core::reason_code!("execution_cancelled"),
+                "choice_inference.source_cancelled",
+                error.to_string(),
+            )
+        } else {
+            Error::refused(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                "choice_inference.source_resource_limit",
+                error.to_string(),
+            )
+        }
+    })?;
+    let meta = decode_meta(bytes)?;
+    let source = check(&meta, Some(expected_identity), ctx)?;
+    let ChoiceResultSpec::Posterior { look } = source.spec() else {
+        return Err(malformed("a retained choice source requires a pooled posterior result"));
+    };
+    let d = source.contract().declaration();
+    let conflict_index = 4usize.saturating_mul(d.option_labels.len()).saturating_add(1);
+    if source.result().values.get(conflict_index).is_none_or(|v| *v > 0.0) {
+        return Err(malformed(
+            "a conflicting posterior source cannot be reused until its conflict is resolved",
+        ));
+    }
+    let respondents = source
+        .contract()
+        .respondents_at(*look as usize)
+        .map_err(|r| Error::refused(r.code, r.detail, r.remedy.unwrap_or("")))?;
+    let mut counts = vec![0.0; d.option_labels.len()];
+    let mut observation_ids = Vec::new();
+    for ancestor in &d.retained_sources {
+        for (sum, count) in counts.iter_mut().zip(&ancestor.counts) {
+            *sum += ancestor.discount * count;
+        }
+        observation_ids.extend(ancestor.observation_ids.iter().cloned());
+    }
+    for r in respondents {
+        for (sum, count) in counts.iter_mut().zip(&r.counts) {
+            *sum += f64::from(*count);
+        }
+    }
+    Ok(RetainedChoiceSource {
+        label: label.into(),
+        option_labels: d.option_labels.clone(),
+        meaning: d.meaning.clone(),
+        population: d.population.clone(),
+        counts,
+        observation_ids: {
+            observation_ids.extend(respondents.iter().map(|r| format!("{}#0", r.id)));
+            observation_ids
+        },
+        discount,
+        transfer_rationale: None,
+        posterior_proof: Some(RetainedChoiceProof {
+            artifact: bytes.to_vec(),
+            expected_identity: expected_identity.into(),
+        }),
+    })
+}
+
+/// Replay every native posterior source and bind its frame, observations and initial prior to the target.
+/// Declared raw observations remain ordinary input data and are not promoted to native posterior authority.
+///
+/// # Errors
+/// A stale, altered, mismatched or otherwise unsupported retained posterior.
+pub fn verify_retained_choice_sources(
+    contract: &ChoiceDesignContract,
+    ctx: &ExecutionContext,
+) -> Result<(), Error> {
+    thread_local! { static SOURCE_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+    struct DepthGuard;
+    impl Drop for DepthGuard {
+        fn drop(&mut self) {
+            SOURCE_DEPTH.with(|d| d.set(d.get() - 1));
+        }
+    }
+    let entered = SOURCE_DEPTH.with(|d| {
+        let depth = d.get();
+        if depth >= 8 {
+            false
+        } else {
+            d.set(depth + 1);
+            true
+        }
+    });
+    if !entered {
+        return Err(malformed("retained posterior ancestry exceeds eight levels"));
+    }
+    let _depth = DepthGuard;
+    let target = contract.declaration();
+    for source in &target.retained_sources {
+        let Some(proof) = &source.posterior_proof else { continue };
+        let quote = u64::try_from(proof.artifact.len())
+            .ok()
+            .and_then(|n| n.checked_mul(2))
+            .ok_or_else(|| malformed("retained posterior admission size overflow"))?;
+        let _lease = ctx.acquire_admission(0, quote).map_err(|error| {
+            if ctx.cancellation.is_cancelled() {
+                Error::refused(
+                    antecedent_core::reason_code!("execution_cancelled"),
+                    "choice_inference.source_cancelled",
+                    error.to_string(),
+                )
+            } else {
+                Error::refused(
+                    antecedent_core::reason_code!("execution_resource_limit"),
+                    "choice_inference.source_resource_limit",
+                    error.to_string(),
+                )
+            }
+        })?;
+        let meta = decode_meta(&proof.artifact)?;
+        if reals(&meta.declaration.initial_prior_bits) != target.initial_prior {
+            return Err(malformed("retained posterior and target must have the same base prior"));
+        }
+        let expected = retained_choice_source_from_artifact(
+            &proof.artifact,
+            &proof.expected_identity,
+            &source.label,
+            source.discount,
+            ctx,
+        )?;
+        if &expected != source {
+            return Err(malformed(
+                "retained posterior source differs from its replayed observations or frame",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn encode_meta(meta: &ChoiceResultMeta, artifact_id: &str) -> Result<Vec<u8>, Error> {

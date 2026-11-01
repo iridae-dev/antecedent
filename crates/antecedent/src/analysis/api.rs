@@ -32,10 +32,6 @@ pub use super::{
     evaluate_identified_sets, evaluate_robust, utility_interval,
 };
 pub use super::{
-    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
-    consume_choice_inference_result_artifact,
-};
-pub use super::{
     AdaptiveInferenceOutcome, AdaptiveInferenceRefusal, AdaptiveInferenceSession,
     ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact,
@@ -96,6 +92,10 @@ pub use super::{
     CategoricalTarget, ConsumedMeasurement, MeasurementAnalysisBinding, MeasurementDetail,
     MeasurementEstimate, MeasurementInput, MeasurementModelRefusal, MeasurementRefresh,
     PreparedMeasurementModel, consume_measurement_model_artifact,
+};
+pub use super::{
+    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
+    consume_choice_inference_result_artifact, retained_source_from_artifact,
 };
 pub use super::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,

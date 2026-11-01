@@ -3087,3 +3087,9 @@ rust = "antecedent::ChoiceInferenceSession"
 kind = "type"
 status = "bound"
 python = "antecedent.choice_inference.ChoiceInferenceSession"
+
+[[entry]]
+rust = "antecedent::analysis::api::retained_source_from_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.choice_inference.RetainedSource.from_result"

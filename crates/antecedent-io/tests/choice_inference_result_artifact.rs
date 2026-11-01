@@ -81,6 +81,7 @@ fn source() -> RetainedChoiceSource {
         observation_ids: (0..20).map(|i| format!("old{i}#0")).collect(),
         discount: 0.5,
         transfer_rationale: None,
+        posterior_proof: None,
     }
 }
 
@@ -322,12 +323,13 @@ fn a_source_on_the_respondents_rows_is_refused_at_consumption() {
 fn a_conflicting_source_is_reported_in_the_values_not_hidden() {
     let mut d = categorical(false);
     d.retained_sources[0].counts = vec![1.0, 1.0, 60.0];
+    d.retained_sources[0].observation_ids = (0..62).map(|i| format!("old{i}#0")).collect();
     d.retained_sources[0].discount = 1.0;
     let mut other = source();
     other.label = "wave1".into();
     other.counts = vec![60.0, 1.0, 1.0];
     other.discount = 1.0;
-    other.observation_ids = (0..20).map(|i| format!("older{i}#0")).collect();
+    other.observation_ids = (0..62).map(|i| format!("older{i}#0")).collect();
     d.retained_sources.push(other);
     let result =
         compute_choice_result(&contract(d), &ChoiceResultSpec::Posterior { look: 0 }, &ctx())
@@ -419,4 +421,99 @@ fn a_study_outside_the_measured_cells_is_refused_before_any_record_is_consulted(
     .unwrap();
     let text = format!("{:?}", Artifact::measure_interval(&stopping, &ctx()).unwrap_err());
     assert!(text.contains("protocol_not_measured"), "{text}");
+}
+
+#[test]
+fn retained_native_posterior_is_replayed_and_bound_to_its_original_rows() {
+    use antecedent_io::choice_inference_result_artifact::{
+        retained_choice_source_from_artifact, verify_retained_choice_sources,
+    };
+    let ctx = ExecutionContext::for_tests(19);
+    let mut original = categorical(false);
+    original.retained_sources.clear();
+    for respondent in &mut original.respondents {
+        respondent.id = format!("old-{}", respondent.id);
+    }
+    let contract = ChoiceDesignContract::new(original).unwrap();
+    let bytes = ChoiceInferenceResultArtifact::to_bytes(
+        &contract,
+        &ChoiceResultSpec::Posterior { look: 0 },
+        "source",
+        &ctx,
+    )
+    .unwrap();
+    let identity = ChoiceInferenceResultArtifact::decode_unchecked(&bytes).unwrap().identity;
+    let retained =
+        retained_choice_source_from_artifact(&bytes, &identity, "old", 0.5, &ctx).unwrap();
+    assert_eq!(retained.counts, vec![4.0, 1.0, 1.0]);
+    let mut target = categorical(false);
+    target.retained_sources = vec![retained.clone()];
+    let target = ChoiceDesignContract::new(target).unwrap();
+    verify_retained_choice_sources(&target, &ctx).unwrap();
+    let next = ChoiceInferenceResultArtifact::to_bytes(
+        &target,
+        &ChoiceResultSpec::Posterior { look: 0 },
+        "next",
+        &ctx,
+    )
+    .unwrap();
+    ChoiceInferenceResultArtifact::from_bytes(&next, None, &ctx).unwrap();
+    let mut altered = target.declaration().clone();
+    altered.retained_sources[0].counts = vec![3.0, 2.0, 1.0];
+    let altered = ChoiceDesignContract::new(altered).unwrap();
+    assert!(verify_retained_choice_sources(&altered, &ctx).is_err());
+    let mut wrong_prior = target.declaration().clone();
+    wrong_prior.initial_prior[0] = 2.0;
+    let wrong_prior = ChoiceDesignContract::new(wrong_prior).unwrap();
+    assert!(verify_retained_choice_sources(&wrong_prior, &ctx).is_err());
+    assert!(retained_choice_source_from_artifact(&bytes, "wrong", "old", 0.5, &ctx).is_err());
+    let nested = retained_choice_source_from_artifact(
+        &next,
+        &ChoiceInferenceResultArtifact::decode_unchecked(&next).unwrap().identity,
+        "nested",
+        0.5,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(nested.counts, vec![6.0, 1.5, 1.5]);
+    assert_eq!(nested.observation_ids.len(), 12);
+    let mut third = categorical(false);
+    for respondent in &mut third.respondents {
+        respondent.id = format!("new-{}", respondent.id);
+    }
+    third.retained_sources = vec![nested];
+    let third = ChoiceDesignContract::new(third).unwrap();
+    verify_retained_choice_sources(&third, &ctx).unwrap();
+}
+
+#[test]
+fn a_single_retained_source_is_screened_against_the_current_look() {
+    let mut d = categorical(false);
+    d.respondents = (0..80)
+        .map(|i| ChoiceRespondent { id: format!("now{i}"), counts: vec![1, 0, 0] })
+        .collect();
+    d.looks = Some(vec![ChoiceLook { respondents: 80 }]);
+    d.retained_sources[0].counts = vec![0.0, 80.0, 0.0];
+    d.retained_sources[0].observation_ids = (0..80).map(|i| format!("old{i}#0")).collect();
+    d.retained_sources[0].discount = 1.0;
+    let result =
+        compute_choice_result(&contract(d), &ChoiceResultSpec::Posterior { look: 0 }, &ctx())
+            .unwrap();
+    assert_eq!(result.values[12], 80.0);
+    assert_eq!(result.values[13], 1.0);
+    assert!(result.values[14] > std::f64::consts::LN_10);
+    assert_eq!(result.values[0], 81.0);
+    assert_eq!(result.values[4], 81.0);
+    let mut d = categorical(true);
+    d.respondents = (0..80)
+        .map(|i| ChoiceRespondent { id: format!("now{i}"), counts: vec![1, 0, 0] })
+        .collect();
+    d.looks = Some(vec![ChoiceLook { respondents: 40 }, ChoiceLook { respondents: 80 }]);
+    d.retained_sources[0].counts = vec![0.0, 80.0, 0.0];
+    d.retained_sources[0].observation_ids = (0..80).map(|i| format!("old{i}#0")).collect();
+    d.retained_sources[0].discount = 1.0;
+    let error =
+        compute_choice_result(&contract(d), &ChoiceResultSpec::Stopping { look: 1 }, &ctx())
+            .unwrap_err();
+    assert_eq!(error.code, "choice_evidence_conflict");
 }

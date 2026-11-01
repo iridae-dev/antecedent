@@ -9216,6 +9216,13 @@ def adaptive_procedure_matrix() -> str: ...
 
 class ChoiceInferenceHandle:
     def contract_identity(self) -> str: ...
+    def rank_hierarchical_studies(
+        self, ranking_json: str, cancel: CancellationToken | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def withdraw_source(self, label: str, reason: str) -> tuple[bool | None, str | None]: ...
+    def consume_current(
+        self, artifact: bytes, expected_identity: str, cancel: CancellationToken | None = None
+    ) -> tuple[ConsumedChoiceResultHandle | None, str | None]: ...
     def summary_json(self) -> str: ...
     def analyse(
         self, request_json: str, cancel: CancellationToken | None = None
@@ -9239,13 +9246,20 @@ class ConsumedChoiceResultHandle:
 
 def choice_inference_prepare(
     declaration_json: str,
+    cancel: CancellationToken | None = None,
 ) -> tuple[ChoiceInferenceHandle | None, str | None]: ...
+def choice_inference_retained_source(
+    artifact: bytes,
+    expected_identity: str,
+    label: str,
+    discount: float,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def choice_inference_result_consume(
     artifact: bytes,
     expected_identity: str | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[ConsumedChoiceResultHandle | None, str | None]: ...
-
 
 class AdaptiveProcedureHandle:
     def identity(self) -> str: ...
@@ -11670,7 +11684,6 @@ def diagnose_data_json(
     column_types_json: str | None = None,
 ) -> str: ...
 def data_diagnostic_registry_json() -> str: ...
-
 def decision_evidence_compile(spec_json: str) -> tuple[str | None, str | None]: ...
 def decision_evidence_experimental(
     payload_json: str,

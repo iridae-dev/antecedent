@@ -1,0 +1,23 @@
+feature_id = "choice_inference.hierarchical_study_value"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+implementation_deviations = [
+  "The existing hierarchical Dirichlet-multinomial posterior is refitted for each complete count vector of one prospective respondent making one or two choices; predictive masses use the multinomial coefficient and marginal-likelihood ratio.",
+  "The route checks posterior quadrature convergence and total predictive mass. Its reported convergence change is not a bound on marginal-likelihood error; pairwise rank ordering remains explicitly uncertain and no calibrated uncertainty is claimed.",
+  "Independent two-dimensional scipy quadrature and a three-option grid integral compute the one- and two-choice expected values. This numerical reference is not an independent scientific review or an attestation.",
+  "An importance-sampling expectation check is registered for calibration but has not been run.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/src/choice_evsi.rs (hierarchical_evsi_matches_independent_two_dimensional_quadrature)",
+  "crates/antecedent/tests/oracle_data/hierarchical_choice_evsi_reference.py",
+  "crates/antecedent/tests/oracle_data/hierarchical_choice_evsi_reference.json",
+  "crates/antecedent/tests/oracle_data/hierarchical_choice_evsi_three_reference.py",
+  "crates/antecedent/tests/oracle_data/hierarchical_choice_evsi_three_reference.json",
+  "crates/antecedent/tests/choice_inference_calibration.rs (hierarchical_study_value_matches_importance_sampling)",
+]

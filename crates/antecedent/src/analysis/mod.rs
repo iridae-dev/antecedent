@@ -90,8 +90,6 @@ pub(crate) use string_enum;
 pub mod api;
 
 pub mod adaptive_inference;
-pub mod choice_inference;
-pub mod choice_ranking;
 pub mod adaptive_participant_procedure;
 pub mod adaptive_procedure_declaration;
 pub mod adaptive_procedure_report;
@@ -120,6 +118,8 @@ mod checked_temporal_effect;
 mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
+pub mod choice_inference;
+pub mod choice_ranking;
 pub mod closed_pilots;
 pub mod cohort_decision;
 pub mod compact_export;
@@ -260,10 +260,6 @@ pub use adaptive_inference::{
     ConsumedAdaptiveResult, ConsumedMonitoringContract, consume_adaptive_inference_result_artifact,
     consume_adaptive_monitoring_contract_artifact,
 };
-pub use choice_inference::{
-    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
-    consume_choice_inference_result_artifact,
-};
 pub use adaptive_participant_procedure::{
     ParticipantHistoryReport, ParticipantProcedure, ParticipantRunReport,
     ParticipantSimulationReport,
@@ -309,6 +305,10 @@ pub(crate) use checked_temporal_graph_posterior_effect::{
 pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, CheckedTemporalGraphPosteriorResponsePremises,
     TemporalPosteriorResponseProof,
+};
+pub use choice_inference::{
+    ChoiceInferenceOutcome, ChoiceInferenceRefusal, ChoiceInferenceSession, ConsumedChoiceResult,
+    consume_choice_inference_result_artifact, retained_source_from_artifact,
 };
 pub use composition_verification::{
     CompositionVerification, CompositionVerificationRefusal, ConsumedCompositionVerification,

@@ -329,3 +329,78 @@ fn conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten() {
         }
     }
 }
+
+/// A registered prior-importance check of the hierarchical two-choice study value.
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn hierarchical_study_value_matches_importance_sampling() {
+    use antecedent_design::choice_evsi::rank_hierarchical_studies;
+    use antecedent_stats::adaptive_inference::{
+        HierarchicalChoicePosterior, HierarchicalChoicePrior,
+    };
+
+    let prior = HierarchicalChoicePrior {
+        shapes: vec![1.0, 1.0],
+        log_concentration_mean: 5.0_f64.ln(),
+        log_concentration_sd: 1.0,
+    };
+    let current =
+        vec![vec![3, 1], vec![1, 3], vec![2, 2], vec![4, 0], vec![0, 4], vec![3, 1], vec![2, 2]];
+    let cancelled = || false;
+    let base =
+        HierarchicalChoicePosterior::new(&prior, &current).unwrap().summary(&cancelled).unwrap();
+    let now = argmax(&base.mean);
+    let candidate = StudyCandidate { label: "two choices".into(), observations: 2, cost: 0.0 };
+    let predicted = rank_hierarchical_studies(&prior, &current, &[1.0, 1.0], &[candidate], &ctx())
+        .unwrap()[0]
+        .evsi;
+    let mut choices_after = [0usize; 3];
+    for a in 0..=2usize {
+        let mut updated = current.clone();
+        updated.push(vec![a as u32, (2 - a) as u32]);
+        let summary = HierarchicalChoicePosterior::new(&prior, &updated)
+            .unwrap()
+            .summary(&cancelled)
+            .unwrap();
+        choices_after[a] = argmax(&summary.mean);
+    }
+    let sequence_probability = |p: f64, k: f64, counts: &[u32]| {
+        let mut value = 1.0;
+        let mut total = 0u32;
+        for (probability, &count) in [p, 1.0 - p].iter().zip(counts) {
+            for j in 0..count {
+                value *= (k * probability + f64::from(j)) / (k + f64::from(total));
+                total += 1;
+            }
+        }
+        value
+    };
+    let samples = map_replicates(replicates(), |rep| {
+        let seed = grid_seed(0x5f_0000 + rep);
+        let mut uniform = uniform(seed, 71);
+        let mut normal = calibration::gaussian(seed ^ 0x5f_7191);
+        let p = uniform();
+        let k = (prior.log_concentration_mean + normal()).exp();
+        let weight = current.iter().map(|row| sequence_probability(p, k, row)).product::<f64>();
+        let share = [p, 1.0 - p];
+        let mut gain = 0.0;
+        for a in 0..=2usize {
+            let counts = [a as u32, (2 - a) as u32];
+            let multiplicity = if a == 1 { 2.0 } else { 1.0 };
+            gain += multiplicity
+                * sequence_probability(p, k, &counts)
+                * (share[choices_after[a]] - share[now]);
+        }
+        (weight, weight * gain)
+    });
+    let sum_weight = samples.iter().map(|x| x.0).sum::<f64>();
+    let estimate = samples.iter().map(|x| x.1).sum::<f64>() / sum_weight;
+    let mean_weight = sum_weight / samples.len() as f64;
+    let residuals: Vec<f64> =
+        samples.iter().map(|(w, g)| (g - estimate * w) / mean_weight).collect();
+    let se = standard_error(&residuals);
+    assert!(
+        (estimate - predicted).abs() <= 4.5 * se.max(1e-9) + 1e-6,
+        "importance estimate {estimate} vs quadrature {predicted}"
+    );
+}

@@ -3,8 +3,7 @@
 A choice study is declared once (:class:`ChoiceStudy`: ordered options, what a choice means, the
 population, every respondent's choices, the retained sources reused as prior and the looks and
 stopping rule) and validated by the Rust contract: the same observation row is never counted
-twice (the evidence ledger judges overlap), a source from another meaning or population needs a
-declared transfer rationale, and a missing element is a typed refusal.
+twice (the evidence ledger judges overlap), a source from another meaning or population is refused, and a missing element is a typed refusal.
 
 :class:`ChoiceInferenceSession` then runs one route at a time, each authorized by the procedure
 matrix: the pooled Dirichlet posterior, the hierarchical posterior of repeated choices, or the
@@ -118,8 +117,8 @@ class Respondent:
 class RetainedSource:
     """Retained choice counts reused as prior evidence at a power-prior ``discount``.
 
-    A source whose meaning or population differs from the study's must declare a
-    ``transfer_rationale``; the Rust contract refuses it otherwise, and refuses a source that
+    A source whose meaning or population differs from the study is refused. A free-text
+    rationale does not establish transport; the contract also refuses a source that
     shares observation rows with the respondents or another source.
     """
 
@@ -131,6 +130,35 @@ class RetainedSource:
     observation_ids: Sequence[str]
     discount: float
     transfer_rationale: str | None = None
+    posterior_artifact: bytes | None = None
+    posterior_identity: str | None = None
+
+    @classmethod
+    def from_result(
+        cls,
+        artifact: bytes,
+        expected_identity: str,
+        label: str,
+        discount: float,
+        *,
+        execution: Execution | None = None,
+    ) -> RetainedSource:
+        """Replay a native pooled posterior and retain its exact source and identity."""
+        execution = resolve_execution(execution)
+        artifact = container_bytes(artifact)
+        wire = json.loads(
+            _unwrap(
+                execution._call(
+                    _native.choice_inference_retained_source,
+                    bytes(artifact),
+                    expected_identity,
+                    label,
+                    float(discount),
+                    execution.cancel,
+                )
+            )
+        )
+        return cls(**wire, posterior_artifact=bytes(artifact), posterior_identity=expected_identity)
 
 
 @dataclass(frozen=True)
@@ -182,6 +210,10 @@ class ChoiceStudy:
                     "observation_ids": list(s.observation_ids),
                     "discount_bits": _bits(s.discount),
                     "transfer_rationale": s.transfer_rationale,
+                    "posterior_artifact": None
+                    if s.posterior_artifact is None
+                    else list(s.posterior_artifact),
+                    "posterior_identity": s.posterior_identity,
                 }
                 for s in self.sources
             ],
@@ -380,6 +412,7 @@ class StudyRank(ScientificResult):
     net_value: float
     rank_uncertain: bool
     method: dict[str, Any]
+    calibration: str = CALIBRATION
 
 
 # ---------------------------------------------------------------------------------- session
@@ -393,7 +426,9 @@ class ChoiceInferenceSession:
         self._summary: dict[str, Any] = json.loads(handle.summary_json())
 
     @classmethod
-    def prepare(cls, study: ChoiceStudy) -> ChoiceInferenceSession:
+    def prepare(
+        cls, study: ChoiceStudy, *, execution: Execution | None = None
+    ) -> ChoiceInferenceSession:
         """Validate the retained choice study.
 
         Raises:
@@ -402,7 +437,14 @@ class ChoiceInferenceSession:
         """
         if not isinstance(study, ChoiceStudy):
             raise CausalTypeError("study must be a ChoiceStudy")
-        return cls(_unwrap(_native.choice_inference_prepare(_json(study.to_wire()))))
+        execution = resolve_execution(execution)
+        return cls(
+            _unwrap(
+                execution._call(
+                    _native.choice_inference_prepare, _json(study.to_wire()), execution.cancel
+                )
+            )
+        )
 
     @property
     def contract_identity(self) -> str:
@@ -429,7 +471,11 @@ class ChoiceInferenceSession:
         """
         execution = resolve_execution(execution)
         wire = json.loads(
-            _unwrap(self._handle.analyse(_json(request._wire()), cancel=execution.cancel))
+            _unwrap(
+                execution._call(
+                    self._handle.analyse, _json(request._wire()), cancel=execution.cancel
+                )
+            )
         )
         return _result(wire["method"], wire["values"])
 
@@ -441,8 +487,10 @@ class ChoiceInferenceSession:
         execution = resolve_execution(execution)
         wire = json.loads(
             _unwrap(
-                self._handle.operating_characteristics(
-                    _json(kernel._wire()), cancel=execution.cancel
+                execution._call(
+                    self._handle.operating_characteristics,
+                    _json(kernel._wire()),
+                    cancel=execution.cancel,
                 )
             )
         )
@@ -481,7 +529,9 @@ class ChoiceInferenceSession:
             "seed": int(seed),
         }
         rows = json.loads(
-            _unwrap(self._handle.rank_studies(_json(payload), cancel=execution.cancel))
+            _unwrap(
+                execution._call(self._handle.rank_studies, _json(payload), cancel=execution.cancel)
+            )
         )
         return tuple(
             StudyRank(
@@ -496,6 +546,70 @@ class ChoiceInferenceSession:
             )
             for r in rows
         )
+
+    @outcome_operation
+    def rank_hierarchical_studies(
+        self,
+        request: Hierarchical,
+        values: Sequence[float],
+        candidates: Sequence[Candidate],
+        *,
+        execution: Execution | None = None,
+    ) -> tuple[StudyRank, ...]:
+        """Rank one- or two-choice studies of one new independent respondent.
+
+        All choices in each candidate come from the same respondent and preserve the
+        hierarchical model's within-respondent dependence.
+        """
+        if type(request) is not Hierarchical:
+            raise CausalTypeError("request must be a Hierarchical posterior request")
+        execution = resolve_execution(execution)
+        payload = {
+            "request": request._wire(),
+            "values": [float(v) for v in values],
+            "candidates": [
+                {"label": c.label, "observations": int(c.observations), "cost": float(c.cost)}
+                for c in candidates
+            ],
+        }
+        rows = json.loads(
+            _unwrap(
+                execution._call(
+                    self._handle.rank_hierarchical_studies, _json(payload), cancel=execution.cancel
+                )
+            )
+        )
+        return tuple(
+            StudyRank(
+                label=r["label"],
+                observations=int(r["observations"]),
+                cost=float(r["cost"]),
+                evsi=float(r["evsi"]),
+                standard_error=float(r["standard_error"]),
+                net_value=float(r["net_value"]),
+                rank_uncertain=bool(r["rank_uncertain"]),
+                method=dict(r["method"]),
+            )
+            for r in rows
+        )
+
+    def withdraw_source(self, label: str, reason: str) -> None:
+        """Withdraw a retained source from this session's current evidence ledger."""
+        _unwrap(self._handle.withdraw_source(label, reason))
+
+    @outcome_operation
+    def consume_current(
+        self, artifact: bytes, expected_identity: str, *, execution: Execution | None = None
+    ) -> ConsumedChoiceResult:
+        """Replay a result only while this session's required sources remain active."""
+        execution = resolve_execution(execution)
+        artifact = container_bytes(artifact)
+        handle = _unwrap(
+            execution._call(
+                self._handle.consume_current, bytes(artifact), expected_identity, execution.cancel
+            )
+        )
+        return _consumed_result(handle)
 
     def interval(self) -> None:
         """Ask for an interval or coverage statement without naming a result.
@@ -516,7 +630,9 @@ class ChoiceInferenceSession:
         from ._measured_inference import MeasuredInference
 
         native = _unwrap(
-            self._handle.measured_interval(_json(request._wire()), cancel=execution.cancel)
+            execution._call(
+                self._handle.measured_interval, _json(request._wire()), cancel=execution.cancel
+            )
         )
         return MeasuredInference._from_native(native)
 
@@ -531,7 +647,12 @@ class ChoiceInferenceSession:
         """Write ``choice_inference_result_v1`` for a request, with its producer identity."""
         execution = resolve_execution(execution)
         data, identity = _unwrap(
-            self._handle.export_result(_json(request._wire()), artifact_id, cancel=execution.cancel)
+            execution._call(
+                self._handle.export_result,
+                _json(request._wire()),
+                artifact_id,
+                cancel=execution.cancel,
+            )
         )
         kind = "choice_inference_result_v1"
         return ExportedArtifact(bytes(data), kind, ArtifactExpectation(kind, identity))
@@ -551,6 +672,18 @@ class ConsumedChoiceResult(ScientificResult):
     result: ChoiceResult
     closed_guarantee: str
     calibration: str = field(default=CALIBRATION)
+
+
+def _consumed_result(handle: Any) -> ConsumedChoiceResult:
+    wire = json.loads(handle.summary_json())
+    return ConsumedChoiceResult(
+        identity=wire["identity"],
+        procedure=wire["procedure"],
+        contract_identity=wire["contract_identity"],
+        method=wire["method"],
+        result=_result(wire["method"], wire["values"]),
+        closed_guarantee=wire["closed_guarantee"],
+    )
 
 
 @outcome_operation
@@ -574,16 +707,11 @@ def consume_choice_inference_result_artifact(
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
     handle = _unwrap(
-        _native.choice_inference_result_consume(
-            bytes(artifact), expected_identity, execution.cancel
+        execution._call(
+            _native.choice_inference_result_consume,
+            bytes(artifact),
+            expected_identity,
+            execution.cancel,
         )
     )
-    wire = json.loads(handle.summary_json())
-    return ConsumedChoiceResult(
-        identity=wire["identity"],
-        procedure=wire["procedure"],
-        contract_identity=wire["contract_identity"],
-        method=wire["method"],
-        result=_result(wire["method"], wire["values"]),
-        closed_guarantee=wire["closed_guarantee"],
-    )
+    return _consumed_result(handle)

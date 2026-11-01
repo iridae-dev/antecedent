@@ -44,10 +44,11 @@ fn source(label: &str, ids: &[&str]) -> RetainedChoiceSource {
         option_labels: labels(),
         meaning: "chosen in the pricing task".into(),
         population: "customers".into(),
-        counts: vec![10.0, 5.0, 5.0],
+        counts: vec![ids.len() as f64, 0.0, 0.0],
         observation_ids: ids.iter().map(|s| (*s).to_owned()).collect(),
         discount: 0.5,
         transfer_rationale: None,
+        posterior_proof: None,
     }
 }
 
@@ -205,7 +206,7 @@ fn a_source_is_scoped_to_the_target_options_meaning_and_population() {
     let mut d = final_only();
     s.transfer_rationale = Some("same market, same task".into());
     d.retained_sources = vec![s];
-    assert!(ChoiceDesignContract::new(d).is_ok());
+    assert_eq!(details(d), ["choice_inference.source_population_mismatch"]);
     let mut d = final_only();
     let mut s = source("old", &["old#0"]);
     s.transfer_rationale = Some("not needed".into());
@@ -258,4 +259,52 @@ fn looks_expose_nested_respondent_prefixes() {
         contract.respondents_at(2).unwrap_err().detail,
         "choice_inference.look_out_of_range"
     );
+}
+
+#[test]
+fn source_counts_must_match_distinct_original_rows() {
+    let mut d = final_only();
+    let mut s = source("old", &["old#0", "old#1"]);
+    s.counts = vec![10.0, 0.0, 0.0];
+    d.retained_sources = vec![s];
+    assert!(details(d).contains(&"choice_inference.source_invalid".to_owned()));
+
+    let mut d = final_only();
+    d.retained_sources = vec![source("old", &["duplicate", "duplicate"])];
+    assert!(details(d).contains(&"choice_inference.source_invalid".to_owned()));
+
+    let mut d = final_only();
+    d.retained_sources = vec![source("old", &["person#0", "person#1"])];
+    assert!(details(d).contains(&"choice_inference.source_invalid".to_owned()));
+    let mut d = final_only();
+    d.retained_sources = vec![source("old", &["r0"])];
+    assert!(details(d).contains(&"choice_inference.source_overlaps_respondents".to_owned()));
+
+    let mut d = final_only();
+    let mut s = source("old", &["old#0"]);
+    s.counts = vec![0.5, 0.5, 0.0];
+    d.retained_sources = vec![s];
+    assert!(details(d).contains(&"choice_inference.source_invalid".to_owned()));
+}
+
+#[test]
+fn aggregate_rows_are_bounded_before_ledger_materialization() {
+    let mut d = final_only();
+    d.cell.outcome = OutcomeStructure::RepeatedChoice;
+    d.respondents = (0..11)
+        .map(|i| ChoiceRespondent { id: format!("r{i}"), counts: vec![100_000, 0, 0] })
+        .collect();
+    d.looks = Some(vec![ChoiceLook { respondents: 11 }]);
+    assert!(details(d).contains(&"choice_inference.ledger_limit".to_owned()));
+}
+
+#[test]
+fn withdrawing_a_source_removes_current_inference_authority() {
+    let mut declaration = final_only();
+    declaration.retained_sources = vec![source("old", &["old#0"])];
+    let mut contract = ChoiceDesignContract::new(declaration).unwrap();
+    assert!(contract.admit_paradigm(InferenceParadigm::BayesianPosterior).is_ok());
+    contract.withdraw_retained_source("old", "source withdrawn").unwrap();
+    let refusal = contract.admit_paradigm(InferenceParadigm::BayesianPosterior).unwrap_err();
+    assert_eq!(refusal.code, "evidence_source_withdrawn");
 }

@@ -1222,7 +1222,7 @@ detail = "`CausalTypeError`; no mean claim is carried"
 producer = "choice_inference_result"
 consumer = "design_ranking"
 status = "REFUSED"
-detail = "`CausalTypeError` (not a `design.StatePrior`); a point posterior is neither a prior nor a signal for another design (the study's own ranking is `ChoiceInferenceSession.rank_studies`)"
+detail = "`CausalTypeError` (not a `design.StatePrior`); a choice posterior is not a generic design prior or signal; compatible native pooled results can be reused within the choice contract, and the study has its own ranking"
 
 [[cell]]
 producer = "choice_inference_result"

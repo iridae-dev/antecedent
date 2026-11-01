@@ -27,7 +27,8 @@ pub use accounting::{INTERIM_REUSE_STAGE, InterimEvidence};
 pub use choice::{
     CHOICE_DESIGN_VERSION, ChoiceContractError, ChoiceDesignContract, ChoiceDesignDeclaration,
     ChoiceEvidence, ChoiceLook, ChoiceRespondent, MAX_CHOICE_CONTRACT_OPTIONS,
-    MAX_CHOICE_RESPONDENTS, MAX_CHOICE_SOURCES, MAX_CHOICES_PER_RESPONDENT, RetainedChoiceSource,
+    MAX_CHOICE_RESPONDENTS, MAX_CHOICE_SOURCES, MAX_CHOICES_PER_RESPONDENT, RetainedChoiceProof,
+    RetainedChoiceSource,
 };
 pub use declaration::{
     ADAPTIVE_DESIGN_VERSION, AdaptiveContractError, AdaptiveDesignContract,

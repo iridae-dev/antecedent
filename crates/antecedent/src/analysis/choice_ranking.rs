@@ -5,5 +5,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_design::choice_evsi::{
-    ChoiceEvsiError, EvsiMethod, MAX_EXACT_COMPOSITIONS, StudyCandidate, StudyRank, rank_studies,
+    ChoiceEvsiError, EvsiMethod, MAX_EXACT_COMPOSITIONS, StudyCandidate, StudyRank,
+    rank_hierarchical_studies, rank_studies, rank_studies_with_context,
 };
