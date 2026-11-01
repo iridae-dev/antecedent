@@ -56,8 +56,8 @@ use antecedent_graph::{
 
 use crate::discovered_transport::{
     DiscoveredTransportError, EnvelopeStatus, MemberVerdict, RequestFacts, UnresolvedPair,
-    ancestral_subgraph, check_request, formulas_agree_over, mag_member, refusal, status_of,
-    verdict_of,
+    ancestral_subgraph, check_request, check_transport_context, formulas_agree_over, mag_member,
+    refusal, status_of, verdict_of,
 };
 use crate::error::IdentificationError;
 use crate::transport::TransportIdentifier;
@@ -581,14 +581,35 @@ fn window_query(
 /// bound, a query that cannot be unrolled, a class that cannot be enumerated, or a class with
 /// no member; [`DiscoveredTransportError::Identification`] when the identifier or the
 /// unrolling fails.
-#[expect(
-    clippy::too_many_lines,
-    reason = "one linear request pipeline: validate, unroll the window, enumerate the class by kind, assemble the envelope"
-)]
 pub fn transport_across_temporal_class(
     request: &TemporalTransportRequest<'_>,
     query: &TransportQuery,
 ) -> Result<TemporalTransportEnvelope, DiscoveredTransportError> {
+    transport_across_temporal_class_with_context(
+        request,
+        query,
+        &ExecutionContext::production(0, 1),
+    )
+}
+
+/// [`transport_across_temporal_class`] under the caller's execution context: its cancellation,
+/// memory pool and temporal materialization limits reach the completion samplers and the
+/// window unrolling. A resource stop is a typed error, never a scientific verdict.
+///
+/// # Errors
+///
+/// As [`transport_across_temporal_class`], including typed identification memory and
+/// cancellation errors.
+#[expect(
+    clippy::too_many_lines,
+    reason = "one linear request pipeline: validate, unroll the window, enumerate the class by kind, assemble the envelope"
+)]
+pub fn transport_across_temporal_class_with_context(
+    request: &TemporalTransportRequest<'_>,
+    query: &TransportQuery,
+    ctx: &ExecutionContext,
+) -> Result<TemporalTransportEnvelope, DiscoveredTransportError> {
+    check_transport_context(ctx)?;
     let facts = RequestFacts {
         selection_targets: request.selection_targets,
         exhausted_search_bounds: request.exhausted_search_bounds,
@@ -633,7 +654,6 @@ pub fn transport_across_temporal_class(
     let window = window_query(&facts, query, &indexer, request.horizon_steps)?;
 
     let limits = SearchLimits { operations: request.completion_operations, depth: usize::MAX };
-    let ctx = ExecutionContext::production(0, 1);
     let mut temporal_budget =
         antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
     let identifier = TransportIdentifier::new();
@@ -651,7 +671,7 @@ pub fn transport_across_temporal_class(
                 &window,
                 &identifier,
                 &mut temporal_budget,
-                &ctx,
+                ctx,
             )?);
         }
         TemporalClass::Cpdag(cpdag) => {
@@ -659,7 +679,7 @@ pub fn transport_across_temporal_class(
                 cpdag.clone(),
                 request.member_bound,
                 limits,
-                &ctx,
+                ctx,
             )
             .map_err(|error| too_large(format!("the class cannot be enumerated ({error})")))?;
             let completions: Vec<TemporalDag> =
@@ -672,7 +692,7 @@ pub fn transport_across_temporal_class(
                     &window,
                     &identifier,
                     &mut temporal_budget,
-                    &ctx,
+                    ctx,
                 )?);
             }
         }
@@ -684,7 +704,7 @@ pub fn transport_across_temporal_class(
                     &indexer,
                     limits,
                     &mut temporal_budget,
-                    &ctx,
+                    ctx,
                 )
                 .map_err(|error| match error {
                     antecedent_graph::GraphError::TemporalMaterialization(_) => graph_error(&error),
@@ -711,7 +731,7 @@ pub fn transport_across_temporal_class(
                     &window,
                     &identifier,
                     &mut temporal_budget,
-                    &ctx,
+                    ctx,
                 )?
                 else {
                     return Err(refusal(

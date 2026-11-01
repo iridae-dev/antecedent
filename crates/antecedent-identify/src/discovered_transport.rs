@@ -628,7 +628,9 @@ fn sort_members(members: &mut [EnvelopeMember]) {
     members.sort_by_key(key);
 }
 
-fn check_transport_context(ctx: &ExecutionContext) -> Result<(), DiscoveredTransportError> {
+pub(crate) fn check_transport_context(
+    ctx: &ExecutionContext,
+) -> Result<(), DiscoveredTransportError> {
     if ctx.cancellation.is_cancelled() {
         Err(DiscoveredTransportError::Identification(IdentificationError::Cancelled))
     } else {

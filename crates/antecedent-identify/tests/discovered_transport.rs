@@ -670,3 +670,33 @@ fn static_class_transport_preserves_context_and_typed_completion_stops() {
         ));
     }
 }
+
+#[test]
+fn temporal_class_transport_threads_the_callers_context() {
+    use antecedent_core::ExecutionContext;
+    use antecedent_identify::discovered_transport_temporal::transport_across_temporal_class_with_context;
+    use antecedent_identify::{IdentificationBudget, IdentificationError};
+    let template = autoregressive_template();
+    let targets = [v(2)];
+    let request = temporal_request(TemporalClass::Dag(&template), &targets, 1);
+    let ctx = ExecutionContext::for_tests(17).with_memory_limit(Some(1 << 26));
+    let before = ctx.admission().available();
+    assert_eq!(
+        transport_across_temporal_class_with_context(&request, &effect_query(1, 0), &ctx).unwrap(),
+        transport_across_temporal_class(&request, &effect_query(1, 0)).unwrap()
+    );
+    assert_eq!(ctx.admission().available(), before);
+
+    let tiny = ExecutionContext::for_tests(17).with_memory_limit(Some(1));
+    assert!(matches!(
+        transport_across_temporal_class_with_context(&request, &effect_query(1, 0), &tiny),
+        Err(DiscoveredTransportError::Identification(IdentificationError::Budget {
+            budget: IdentificationBudget::Memory
+        }))
+    ));
+    ctx.cancellation.cancel();
+    assert!(matches!(
+        transport_across_temporal_class_with_context(&request, &effect_query(1, 0), &ctx),
+        Err(DiscoveredTransportError::Identification(IdentificationError::Cancelled))
+    ));
+}

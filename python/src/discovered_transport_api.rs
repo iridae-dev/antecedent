@@ -25,7 +25,7 @@ use antecedent::analysis::discovered_transport_estimate::{
 use antecedent::analysis::discovered_transport_temporal::{
     DiscoveredTemporalTransportReport, TemporalClass, TemporalHorizon,
     estimate_discovered_temporal_transport, transport_discovered_temporal_structure,
-    transport_temporal_class,
+    transport_discovered_temporal_structure_with_context, transport_temporal_class,
 };
 use antecedent_core::{
     ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
@@ -651,12 +651,13 @@ fn discovered_temporal_transport_estimate_run(
                 "the discovery run retained no outcome",
             )));
         };
-        let transport = transport_discovered_temporal_structure(
+        let transport = transport_discovered_temporal_structure_with_context(
             &outcome,
             TemporalHorizon { horizon_steps, history },
             &ids,
             &query,
             bound,
+            &ctx,
         );
         let estimated = transport.as_ref().ok().map(|report| {
             let mut evidence = TransportEvidence::new(&source, &target);

@@ -40,7 +40,7 @@ use antecedent_discovery::selective::{DiscoveredStructure, DiscoveryOutcome, Nat
 use antecedent_identify::TemporalCompletionGraph;
 use antecedent_identify::discovered_transport_temporal::{
     TemporalEnvelopeMember, TemporalTransportRequest, TemporalWindow,
-    transport_across_temporal_class,
+    transport_across_temporal_class_with_context,
 };
 
 pub use antecedent_identify::discovered_transport_temporal::{
@@ -188,7 +188,10 @@ fn finish(
     }
 }
 
-#[allow(clippy::too_many_arguments, reason = "one request: class, bounds, horizon, targets, query")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one request: class, bounds, horizon, targets, query, context"
+)]
 fn across(
     class: TemporalClass<'_>,
     exhausted: usize,
@@ -196,8 +199,9 @@ fn across(
     horizon: TemporalHorizon,
     selection_targets: &[VariableId],
     query: &TransportQuery,
+    ctx: &ExecutionContext,
 ) -> Result<TemporalTransportEnvelope, DiscoveredTransportError> {
-    transport_across_temporal_class(
+    transport_across_temporal_class_with_context(
         &TemporalTransportRequest {
             class,
             selection_targets,
@@ -208,6 +212,7 @@ fn across(
             history: horizon.history,
         },
         query,
+        ctx,
     )
 }
 
@@ -232,6 +237,31 @@ pub fn transport_discovered_temporal_structure(
     query: &TransportQuery,
     member_bound: usize,
 ) -> Result<DiscoveredTemporalTransportReport, DiscoveredTransportError> {
+    transport_discovered_temporal_structure_with_context(
+        outcome,
+        horizon,
+        selection_targets,
+        query,
+        member_bound,
+        &ExecutionContext::production(0, 1),
+    )
+}
+
+/// [`transport_discovered_temporal_structure`] under the caller's execution context: its
+/// cancellation, memory pool and temporal limits reach the completion samplers.
+///
+/// # Errors
+///
+/// As [`transport_discovered_temporal_structure`], including typed identification memory and
+/// cancellation errors.
+pub fn transport_discovered_temporal_structure_with_context(
+    outcome: &DiscoveryOutcome,
+    horizon: TemporalHorizon,
+    selection_targets: &[VariableId],
+    query: &TransportQuery,
+    member_bound: usize,
+    ctx: &ExecutionContext,
+) -> Result<DiscoveredTemporalTransportReport, DiscoveredTransportError> {
     let exhausted = exhausted_bounds(outcome);
     let class = match &outcome.native {
         NativeResult::TemporalDag(result) => TemporalClass::Dag(&result.evidence.graph),
@@ -250,7 +280,7 @@ pub fn transport_discovered_temporal_structure(
             }));
         }
     };
-    let envelope = across(class, exhausted, member_bound, horizon, selection_targets, query)?;
+    let envelope = across(class, exhausted, member_bound, horizon, selection_targets, query, ctx)?;
     Ok(finish(
         envelope,
         outcome.structure_identity,
@@ -279,8 +309,41 @@ pub fn transport_temporal_class(
     query: &TransportQuery,
     member_bound: usize,
 ) -> Result<DiscoveredTemporalTransportReport, DiscoveredTransportError> {
-    let envelope =
-        across(class, exhausted_search_bounds, member_bound, horizon, selection_targets, query)?;
+    transport_temporal_class_with_context(
+        class,
+        exhausted_search_bounds,
+        horizon,
+        selection_targets,
+        query,
+        member_bound,
+        &ExecutionContext::production(0, 1),
+    )
+}
+
+/// [`transport_temporal_class`] under the caller's execution context.
+///
+/// # Errors
+///
+/// As [`transport_temporal_class`], including typed identification memory and cancellation
+/// errors.
+pub fn transport_temporal_class_with_context(
+    class: TemporalClass<'_>,
+    exhausted_search_bounds: usize,
+    horizon: TemporalHorizon,
+    selection_targets: &[VariableId],
+    query: &TransportQuery,
+    member_bound: usize,
+    ctx: &ExecutionContext,
+) -> Result<DiscoveredTemporalTransportReport, DiscoveredTransportError> {
+    let envelope = across(
+        class,
+        exhausted_search_bounds,
+        member_bound,
+        horizon,
+        selection_targets,
+        query,
+        ctx,
+    )?;
     let structure = match class {
         TemporalClass::Dag(graph) => DiscoveredStructure::from_temporal_dag(graph).identity(),
         TemporalClass::Cpdag(graph) => DiscoveredStructure::from_temporal_cpdag(graph).identity(),
