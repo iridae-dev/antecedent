@@ -75,7 +75,8 @@ for another, and an empty selection fails.
 The pytest modes first check the native extension identity
 (`scripts/native_build_identity.py check`). CI's coverage-floor and wheel tests
 exclude the measured-record acceptance marker. The explicit acceptance lane
-retains those tests for use after calibration.
+retains those tests for use after calibration. Plain pytest uses the same
+default; `-m requires_calibration` selects the acceptance tests explicitly.
 
 Most integration files are compiled into a few consolidated `suite_NN` targets
 per crate (`scripts/consolidate_tests.py`); the files stay where they are, are

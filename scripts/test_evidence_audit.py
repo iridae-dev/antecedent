@@ -854,6 +854,12 @@ class Classification(unittest.TestCase):
             args, ["tests/test_example.py", "-m", "(slow or integration) and not requires_calibration"]
         )
 
+    def test_pytest_defaults_to_the_software_lane(self):
+        root = Path(__file__).parents[1]
+        config = tomllib.loads((root / "python/pyproject.toml").read_text(encoding="utf-8"))
+        addopts = config["tool"]["pytest"]["ini_options"]["addopts"]
+        self.assertIn("not requires_calibration", addopts)
+
     def test_generator_presence_requires_an_explicit_retained_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
