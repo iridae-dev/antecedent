@@ -1515,16 +1515,18 @@ record = "discovery.selective_reuse"
 key = "max_portable_receipts"
 implementation = [{ path = "crates/antecedent-discovery/src/selective/store.rs", constant = "MAX_PORTABLE_RECEIPTS" }]
 documentation = [{ path = "docs/selective-discovery.md", pattern = "Portable receipts: (\\d+)" }]
-guard = { path = "crates/antecedent-discovery/src/selective/store.rs", pattern = "receipts\\.len\\(\\) > MAX_PORTABLE_RECEIPTS" }
-refusal = { path = "crates/antecedent-discovery/src/selective/store.rs", pattern = "receipts\\.len\\(\\) > MAX_PORTABLE_RECEIPTS \\{\\s+return Err\\(" }
+guard = { path = "crates/antecedent-discovery/src/selective/store.rs", pattern = 'receipts\.len\(\) > max_receipts' }
+refusal = { path = "crates/antecedent-discovery/src/selective/store.rs", pattern = 'receipts\.len\(\) > max_receipts \{\s*return Err\(' }
+
 
 [[bound]]
 record = "discovery.selective_reuse"
 key = "max_structure_items"
 implementation = [{ path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", constant = "MAX_STRUCTURE_ITEMS" }]
 documentation = [{ path = "docs/selective-discovery.md", pattern = "Structure items: (\\d+)" }]
-guard = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", pattern = "wire\\.nodes\\.len\\(\\) > MAX_STRUCTURE_ITEMS" }
-refusal = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", pattern = "wire\\.edges\\.len\\(\\) > MAX_STRUCTURE_ITEMS \\{\\s+return Err\\(Failure::LimitsExceeded" }
+guard = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", pattern = 'wire\.nodes\.len\(\) > max_items' }
+refusal = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.rs", pattern = 'wire\.nodes\.len\(\) > max_items \|\| wire\.edges\.len\(\) > max_items \{\s*return Err\(' }
+
 
 [[bound]]
 record = "adaptive_inference.procedure_law"
