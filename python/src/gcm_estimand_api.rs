@@ -292,7 +292,7 @@ impl PyFittedGcm {
     ) -> PyResult<PyPopulationDoContrast> {
         crate::require_finite([("delta", delta)])?;
         if delta == 0.0 {
-            return Err(crate::value_err("delta must be nonzero".to_string()));
+            return Err(crate::value_err("delta must be nonzero"));
         }
         let model = self.inner.clone();
         let data = Arc::clone(&self.data);

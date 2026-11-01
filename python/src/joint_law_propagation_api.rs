@@ -78,7 +78,7 @@ fn claim_parts(py: Python<'_>, claim: &PropagationClaim) -> Refused<ClaimParts> 
         Ok(bytes) => bytes,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };
-    let values: Vec<Json> = claim.values().into_iter().map(|(n, v)| json!([n, v])).collect();
+    let values: Vec<Json> = claim.values().map(|(n, v)| json!([n, v])).collect();
     let summary = json!({
         "identity": claim.identity(),
         "operation": claim.operation(),
@@ -519,7 +519,7 @@ fn joint_law_consume(
             let values: Vec<Json> =
                 consumed.values().into_iter().map(|(name, value)| json!([name, value])).collect();
             let n_rows = consumed.n_rows();
-            let verdict = consumed.verdict().map(|verdict| verdict.as_str());
+            let verdict = consumed.verdict().map(antecedent_stats::DecisionVerdict::as_str);
             (
                 Some(
                     json!({

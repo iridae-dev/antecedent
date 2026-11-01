@@ -741,6 +741,10 @@ fn invoke_python(
     })
 }
 
+#[allow(
+    clippy::type_complexity,
+    reason = "the callback type preserves its context and error contract"
+)]
 fn provider_of(
     identity_json: &str,
     invoke: Py<PyAny>,

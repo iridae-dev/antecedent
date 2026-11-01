@@ -326,6 +326,7 @@ impl<'a> ser::Serializer for &'a mut Scan {
         Ok(Compound::new(self, true))
     }
 }
+#[allow(clippy::format_collect, reason = "the path encoding preserves its existing escaping")]
 fn pointer(path: &[String]) -> String {
     path.iter().map(|s| format!("/{}", s.replace('~', "~0").replace('/', "~1"))).collect()
 }

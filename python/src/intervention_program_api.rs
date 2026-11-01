@@ -441,10 +441,10 @@ fn with_route(
 
 /// A sustained program must be active at some step of the rollout.
 fn check_schedule_window(start: i32, n_steps: usize) -> PyResult<()> {
-    if i32::try_from(n_steps).is_err() {
+    let Ok(n_steps_i32) = i32::try_from(n_steps) else {
         return Err(value_err("n_steps does not fit the schedule's step range"));
-    }
-    if i64::from(start) >= n_steps as i64 {
+    };
+    if start >= n_steps_i32 {
         return Err(value_err(format!(
             "start {start} is at or beyond the {n_steps}-step rollout; the program would never act"
         )));

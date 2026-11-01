@@ -66,6 +66,7 @@ pub(crate) struct InferenceSpec {
 }
 
 impl InferenceSpec {
+    #[allow(clippy::float_cmp, reason = "exact comparison recognizes the declared default options")]
     pub(crate) fn parse(dict: &Bound<'_, PyDict>) -> PyResult<Self> {
         let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
             Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
@@ -172,6 +173,10 @@ fn parse_draw_controls(name: &str) -> PyResult<antecedent::PosteriorDrawControls
 /// Parsed shared prepare options.
 #[derive(Default)]
 pub(crate) struct PrepareOptions {
+    #[allow(
+        clippy::option_option,
+        reason = "absent, disabled, and configured are distinct options"
+    )]
     pub data_diagnostics: Option<Option<antecedent::DataDiagnostics>>,
     pub refute: Option<RefuteSuite>,
     pub bootstrap: Option<u32>,

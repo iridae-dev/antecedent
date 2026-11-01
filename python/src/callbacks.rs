@@ -185,30 +185,6 @@ fn callback_ci_result(statistic: f64, p_value: f64) -> Result<CiResult, StatsErr
     Ok(CiResult { statistic, p_value, df: f64::NAN, ci: None })
 }
 
-#[cfg(test)]
-mod ci_callback_tests {
-    use super::callback_ci_result;
-
-    #[test]
-    fn callback_evidence_rejects_invalid_numbers_before_graph_search() {
-        for (statistic, probability) in [
-            (f64::NAN, 0.5),
-            (f64::INFINITY, 0.5),
-            (0.0, f64::NAN),
-            (0.0, f64::INFINITY),
-            (0.0, -0.01),
-            (0.0, 1.01),
-        ] {
-            assert!(callback_ci_result(statistic, probability).is_err());
-        }
-        for probability in [0.0, 0.5, 1.0] {
-            let result = callback_ci_result(-2.0, probability).expect("valid evidence");
-            assert_eq!(result.statistic, -2.0);
-            assert_eq!(result.p_value, probability);
-        }
-    }
-}
-
 /// Python mechanism wrapper: `sample_noise(n) -> array`, `evaluate(parents, noise) -> array`.
 pub struct PyDynamicMechanism {
     obj: Py<PyAny>,
@@ -761,6 +737,30 @@ pub fn stage_sink_from_py(
             }
             Ok(Some(std::sync::Arc::new(PyStageResultSink::new(cb.clone().unbind()))
                 as std::sync::Arc<dyn antecedent::StageResultSink>))
+        }
+    }
+}
+
+#[cfg(test)]
+mod ci_callback_tests {
+    use super::callback_ci_result;
+
+    #[test]
+    fn callback_evidence_rejects_invalid_numbers_before_graph_search() {
+        for (statistic, probability) in [
+            (f64::NAN, 0.5),
+            (f64::INFINITY, 0.5),
+            (0.0, f64::NAN),
+            (0.0, f64::INFINITY),
+            (0.0, -0.01),
+            (0.0, 1.01),
+        ] {
+            assert!(callback_ci_result(statistic, probability).is_err());
+        }
+        for probability in [0.0, 0.5, 1.0] {
+            let result = callback_ci_result(-2.0, probability).expect("valid evidence");
+            assert_eq!(result.statistic.to_bits(), (-2.0_f64).to_bits());
+            assert_eq!(result.p_value.to_bits(), probability.to_bits());
         }
     }
 }

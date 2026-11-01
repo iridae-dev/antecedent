@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[allow(clippy::wildcard_imports, reason = "the binding uses the shared FFI prelude")]
 use crate::*;
 
 /// Decoded posterior artifact for Python consumers.

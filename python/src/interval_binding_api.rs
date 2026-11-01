@@ -13,7 +13,7 @@ use antecedent::result::IntervalBinding;
 fn binding_json(binding: &IntervalBinding) -> serde_json::Value {
     serde_json::json!({
         "method": binding.method.as_str(),
-        "se_kind": binding.se_kind.map(|kind| kind.as_str()),
+        "se_kind": binding.se_kind.map(antecedent_estimate::AnalyticSeKind::as_str),
         "level": binding.level.is_finite().then_some(binding.level),
         "dependence": binding.dependence,
         "replicates_ok": binding.replicates_ok,
@@ -26,6 +26,7 @@ fn binding_json(binding: &IntervalBinding) -> serde_json::Value {
 ///
 /// The inference family is the facade's own post-hoc rule: a result that carries a
 /// posterior was Bayesian.
+#[allow(clippy::unnecessary_wraps, reason = "the caller exposes an optional binding field")]
 pub(crate) fn bindings_json(result: &StudyResult) -> Option<String> {
     let bindings = result.reported_interval_bindings(result.posterior.is_some());
     Some(serde_json::Value::Array(bindings.iter().map(binding_json).collect()).to_string())

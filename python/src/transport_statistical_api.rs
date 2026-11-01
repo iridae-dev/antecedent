@@ -447,7 +447,7 @@ impl PreparedStatisticalStage {
         let ready = self
             .last_prepared
             .as_ref()
-            .or_else(|| match &self.inner {
+            .or(match &self.inner {
                 StatisticalPreparation::Ready(ready) => Some(ready),
                 StatisticalPreparation::Deferred(_) => None,
             })
@@ -465,7 +465,7 @@ impl PreparedStatisticalStage {
             &self
                 .last_prepared
                 .as_ref()
-                .or_else(|| match &self.inner {
+                .or(match &self.inner {
                     StatisticalPreparation::Ready(ready) => Some(ready),
                     StatisticalPreparation::Deferred(_) => None,
                 })

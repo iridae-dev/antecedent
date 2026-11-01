@@ -168,7 +168,7 @@ fn input_admission(
         return Err(crate::CausalCancelledError::new_err("cancelled"));
     }
     ctx.acquire_admission(0, (json.len() as u64).saturating_mul(4))
-        .map_err(|e| operation_error(e, &ctx))
+        .map_err(|e| operation_error(e, ctx))
 }
 
 fn parse_request(json: &str) -> PyResult<CyclicExecutionRequest> {
@@ -664,7 +664,7 @@ impl CyclicExecutionOwner {
                     _ => Err(invalid()),
                 },
                 W::NoSolution { .. } | W::Withheld => Ok(None),
-                _ => Err(invalid()),
+                W::GaussianLaw { .. } => Err(invalid()),
             },
             A::EquilibriumActions(worlds) if draw == 0 => {
                 if coordinate.counterfactual {
@@ -750,7 +750,7 @@ fn equilibrium_values<'a>(
     match outcome {
         E::Solved(value) if field == "values" => Ok(Some(&value.values)),
         E::Failed(_) => Ok(None),
-        _ => Err(crate::value_err("unknown equilibrium numeric field")),
+        E::Solved(_) => Err(crate::value_err("unknown equilibrium numeric field")),
     }
 }
 
@@ -819,19 +819,24 @@ impl PyCyclicExecution {
         self.owner.identity()
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "the PyO3 method retains the binding's fallible return convention"
+    )]
     fn metadata_json(&self) -> PyResult<String> {
         let system = self.owner.system();
         let retained = match self.owner.family() {
             Some(report) => report.retained_admitted_bytes(),
-            None => system.map_or(0, |report| report.retained_admitted_bytes()),
+            None => system
+                .map_or(0, antecedent::analysis::CyclicExecutionReport::retained_admitted_bytes),
         };
         Ok(serde_json::json!({
             "identity":self.owner.identity(), "family":self.owner.family_name(),
-            "claim":system.map(|report|report.claim.as_str()).unwrap_or(self.owner.scope()),
-            "calibration":system.map(|report|report.calibration.as_str()).unwrap_or("unmeasured"),
+            "claim":system.map_or(self.owner.scope(), |report|report.claim.as_str()),
+            "calibration":system.map_or("unmeasured", |report|report.calibration.as_str()),
             "source_identity":self.owner.source_identity(), "scope":self.owner.scope(),
             "draw_origin":self.owner.recovered_origin().map(origin_metadata),
-            "law_meaning":self.owner.recovered_origin().and_then(|origin|origin.law_meaning()),
+            "law_meaning":self.owner.recovered_origin().and_then(antecedent::analysis::RecoveredDrawOriginWire::law_meaning),
             "world_count":self.owner.world_count(),
             "contract":self.owner.contract_summary(),
             "recovery":&self.owner.recovery_summary,

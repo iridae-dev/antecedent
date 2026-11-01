@@ -47,6 +47,7 @@ impl PyPreparedAnalysis {
     /// An immutable native owner. `penalty` selects the ridge-penalized score; otherwise a
     /// Laplace posterior under `N(0, sd^2)` priors is fitted. A nuisance, never an effect.
     #[pyo3(signature = (histories, *, penalty=None, intercept_sd=1.0, slope_sd=1.0, draws=4000, seed=0, threads=None))]
+    #[allow(clippy::float_cmp, reason = "exact comparison recognizes the declared default options")]
     fn temporal_treatment_score(
         &self,
         py: Python<'_>,

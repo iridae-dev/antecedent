@@ -255,7 +255,7 @@ impl PyPreparedAnalysis {
         let posterior = query_spec
             .get_item("posterior")?
             .filter(|value| !value.is_none())
-            .map(|value| value.cast_into::<crate::bayesian::PyGraphPosterior>())
+            .map(pyo3::Bound::cast_into::<crate::bayesian::PyGraphPosterior>)
             .transpose()?;
         let supplied = take_supplied_posterior(posterior, &req.names)?;
         let class_prior_ordered = query_spec
@@ -273,7 +273,10 @@ impl PyPreparedAnalysis {
             .filter(|value| !value.is_none())
             .map(|value| value.extract::<usize>())
             .transpose()?;
-        let dag = graph.as_ref().map(|value| value.extract::<graphs::TemporalDag>()).transpose();
+        let dag = graph
+            .as_ref()
+            .map(pyo3::types::PyAnyMethods::extract::<graphs::TemporalDag>)
+            .transpose();
         let (dag, class) = match dag {
             Ok(Some(dag)) => {
                 require_named_graph_order(&dag.names, &req.names, "TemporalDag")?;

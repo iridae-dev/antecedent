@@ -689,7 +689,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod transport_operational_error_tests {
     use super::{DiscoveredTransportError, refusal_of};
+    use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
+    use antecedent_core::execution::AdmissionError;
     use antecedent_identify::{IdentificationBudget, IdentificationError};
+    use antecedent_io::IoError;
     use pyo3::prelude::*;
 
     #[test]
@@ -709,9 +712,6 @@ mod transport_operational_error_tests {
             assert!(
                 refusal_of(&budget).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
             );
-            use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
-            use antecedent_core::execution::AdmissionError;
-            use antecedent_io::IoError;
             let cancelled = map_io(IoError::Admission(AdmissionError::Cancelled));
             let resource = map_io(IoError::Admission(AdmissionError::Overflow));
             let ambiguous = map_io(IoError::Refused {

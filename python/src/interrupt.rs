@@ -502,7 +502,7 @@ mod tests {
                 tx.send(result.is_err()).unwrap();
             });
         });
-        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), true);
+        assert!(rx.recv_timeout(Duration::from_secs(5)).unwrap());
     }
 
     #[test]

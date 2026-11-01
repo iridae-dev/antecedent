@@ -384,7 +384,11 @@ fn text_of(value: &Value, key: &str) -> PyResult<String> {
 /// The summary family a prepared study's estimator keeps.
 #[pyfunction]
 fn retained_refresh_family(study: PyRef<'_, PyPreparedAnalysis>) -> PyResult<&'static str> {
-    study.inner.retained_refresh_family().map(|family| family.as_str()).map_err(py_err)
+    study
+        .inner
+        .retained_refresh_family()
+        .map(antecedent::retained_refresh::RefreshFamily::as_str)
+        .map_err(py_err)
 }
 
 /// Replicate estimates of one bootstrap and the running summary they stand for.

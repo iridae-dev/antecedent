@@ -2,6 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[allow(clippy::wildcard_imports, reason = "exception bindings share the native PyO3 prelude")]
 use crate::*;
 
 create_exception!(antecedent._native, CausalError, PyException);

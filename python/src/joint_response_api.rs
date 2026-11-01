@@ -133,6 +133,7 @@ pub(crate) struct PyJointResponseResult {
 
 #[pymethods]
 impl PyPreparedJointResponse {
+    #[allow(clippy::unnecessary_wraps, reason = "the Python method retains its fallible interface")]
     fn inspect(&self) -> PyResult<String> {
         let program = &self.inner;
         Ok(serde_json::json!({
@@ -197,6 +198,7 @@ impl PyPreparedJointResponse {
 }
 #[pymethods]
 impl PyJointResponseResult {
+    #[allow(clippy::unnecessary_wraps, reason = "the Python method retains its fallible interface")]
     fn report(&self) -> PyResult<String> {
         let evaluation = self.inner.evaluation();
         let dim = evaluation.covariance.dim;

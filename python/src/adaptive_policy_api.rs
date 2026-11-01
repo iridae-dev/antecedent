@@ -23,7 +23,7 @@ fn bad(message: impl AsRef<str>) -> PyErr {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    antecedent_core::identity::to_hex(bytes)
 }
 
 /// Largest number of simulated rows, steps or cells a rollout may allocate.
@@ -87,7 +87,9 @@ fn bounded_size(spec: &Value, key: &str, default: usize) -> PyResult<usize> {
     let value = opt_count(spec, key)?;
     match value {
         None => Ok(default),
-        Some(n) if n <= MAX_ROLLOUT_UNITS => Ok(n as usize),
+        Some(n) if n <= MAX_ROLLOUT_UNITS => usize::try_from(n).map_err(|_| {
+            crate::CausalResourceError::new_err(format!("field {key} exceeds addressable capacity"))
+        }),
         Some(_) => Err(crate::CausalResourceError::new_err(format!(
             "field {key} exceeds the bound of {MAX_ROLLOUT_UNITS}"
         ))),
@@ -121,11 +123,15 @@ fn index(spec: &Value, key: &str) -> PyResult<usize> {
 
 fn variable_of(spec: &Value, key: &str, names: &[String]) -> PyResult<VariableId> {
     match spec.get(key) {
-        Some(Value::String(name)) => names
-            .iter()
-            .position(|n| n == name)
-            .map(|i| VariableId::from_raw(i as u32))
-            .ok_or_else(|| bad(format!("unknown variable {name:?}"))),
+        Some(Value::String(name)) => {
+            let index = names
+                .iter()
+                .position(|n| n == name)
+                .ok_or_else(|| bad(format!("unknown variable {name:?}")))?;
+            let raw = u32::try_from(index)
+                .map_err(|_| bad(format!("field {key} is not a variable index")))?;
+            Ok(VariableId::from_raw(raw))
+        }
         Some(_) => {
             let raw = u32::try_from(index(spec, key)?)
                 .map_err(|_| bad(format!("field {key} is not a variable index")))?;
@@ -434,7 +440,7 @@ fn run_config(
     };
     let objective = match opt_text(config, "objective")?.unwrap_or("expected_utility") {
         "expected_utility" => PolicyObjective::ExpectedUtility,
-        "lower_tail_mean" => PolicyObjective::LowerTailMean { alpha: num(&config, "tail_alpha")? },
+        "lower_tail_mean" => PolicyObjective::LowerTailMean { alpha: num(config, "tail_alpha")? },
         other => {
             return Err(bad(format!(
                 "unknown objective {other:?}; use expected_utility|lower_tail_mean"
@@ -573,7 +579,9 @@ impl crate::gcm_api::PyFittedGcm {
                     .ok_or_else(|| bad(format!("unknown variable {name:?}")))?;
                 let value =
                     value.as_f64().ok_or_else(|| bad("initial_state values are numbers"))?;
-                initial_state.push((VariableId::from_raw(id as u32), value));
+                let id = u32::try_from(id)
+                    .map_err(|_| bad("initial_state variable index exceeds capacity"))?;
+                initial_state.push((VariableId::from_raw(id), value));
             }
         }
         let mut observed = Vec::new();
@@ -583,7 +591,9 @@ impl crate::gcm_api::PyFittedGcm {
                 .iter()
                 .position(|n| n == name)
                 .ok_or_else(|| bad(format!("unknown variable {name:?}")))?;
-            observed.push(VariableId::from_raw(id as u32));
+            let id =
+                u32::try_from(id).map_err(|_| bad("observed variable index exceeds capacity"))?;
+            observed.push(VariableId::from_raw(id));
         }
         let design = ModelRolloutDesign {
             horizon: bounded_size(spec, "horizon", 0)?,

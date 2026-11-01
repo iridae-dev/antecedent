@@ -530,7 +530,9 @@ impl FittedEffectModel {
             .iter()
             .enumerate()
             .map(|(index, column)| {
-                column.values(&format!("prediction column {index}")).map(|v| v.into_owned())
+                column
+                    .values(&format!("prediction column {index}"))
+                    .map(std::borrow::Cow::into_owned)
             })
             .collect::<PyResult<_>>()?;
         let slices: Vec<&[f64]> = owned.iter().map(|column| &column[..]).collect();

@@ -195,7 +195,7 @@ fn regime_design(m: &Map<String, Json>) -> PyResult<JointStaticRegimeDesign> {
 
 struct ParsedEvidence {
     value: JointExperimentEvidence,
-    _owner: Option<antecedent::analysis::joint_panel::designs::NativeJointDesignResult>,
+    owner: Option<antecedent::analysis::joint_panel::designs::NativeJointDesignResult>,
 }
 impl std::ops::Deref for ParsedEvidence {
     type Target = JointExperimentEvidence;
@@ -529,7 +529,7 @@ fn evidence_with_context(
     } else {
         None
     };
-    Ok(Ok(ParsedEvidence { value, _owner: owner }))
+    Ok(Ok(ParsedEvidence { value, owner }))
 }
 
 pub(crate) fn compiled_excursion_from_json(
@@ -541,7 +541,7 @@ pub(crate) fn compiled_excursion_from_json(
     if parsed.value.design.assignment_design != "temporal_excursion" {
         return Err(crate::value_err("a retained excursion is required"));
     }
-    let source = parsed._owner.ok_or_else(|| crate::value_err("missing compiled source"))?;
+    let source = parsed.owner.ok_or_else(|| crate::value_err("missing compiled source"))?;
     evidence_from_compiled_excursion(
         source,
         &parsed.value.evidence_id,
@@ -1442,21 +1442,18 @@ fn decision_evidence_evaluate(
     let cands = candidates(map)?;
     let run = || -> Result<Json, EvidenceRefusal> {
         let mut out = Map::new();
-        match &frame {
-            Some(f) => {
-                let d = decide(&ev, &req, &q, f)?;
-                out.insert("decision".into(), decision_json(&d));
-                out.insert("stage_digests".into(), digests_json(&StageDigests::of(&ev, &q, f)));
-                if !cands.is_empty() {
-                    out.insert("plan".into(), plan_json(&plan_evidence(&ev, &req, &q, f, &cands)?));
-                }
+        if let Some(f) = &frame {
+            let d = decide(&ev, &req, &q, f)?;
+            out.insert("decision".into(), decision_json(&d));
+            out.insert("stage_digests".into(), digests_json(&StageDigests::of(&ev, &q, f)));
+            if !cands.is_empty() {
+                out.insert("plan".into(), plan_json(&plan_evidence(&ev, &req, &q, f, &cands)?));
             }
-            None => {
-                if !cands.is_empty() {
-                    return Err(invalid("planning needs a decision frame"));
-                }
-                out.insert("derived".into(), derived_json(&derive(&ev, &req, &q)?));
+        } else {
+            if !cands.is_empty() {
+                return Err(invalid("planning needs a decision frame"));
             }
+            out.insert("derived".into(), derived_json(&derive(&ev, &req, &q)?));
         }
         out.insert("estimate_identity".into(), Json::String(ev.estimate_identity()));
         Ok(Json::Object(out))

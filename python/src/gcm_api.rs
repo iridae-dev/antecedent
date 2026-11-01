@@ -2086,7 +2086,7 @@ mod fit_cache_tests {
                     },
                     true,
                     |fraction| {
-                        if fraction == 1.0 {
+                        if fraction.to_bits() == 1.0_f64.to_bits() {
                             observer_tx.send(()).unwrap();
                             observer_release_rx.recv().unwrap();
                         }
@@ -2152,7 +2152,7 @@ mod fit_cache_tests {
                     },
                     true,
                     |fraction| {
-                        if fraction == 1.0 {
+                        if fraction.to_bits() == 1.0_f64.to_bits() {
                             observer_tx.send(()).unwrap();
                         }
                     },

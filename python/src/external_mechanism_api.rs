@@ -187,8 +187,8 @@ impl TrustedMechanismResolver for PythonResolver {
         recorded: &ExternalMechanismSpec,
     ) -> Result<Option<Arc<dyn ExternalMechanismImplementation>>, String> {
         Python::attach(|py| -> PyResult<Option<Arc<dyn ExternalMechanismImplementation>>> {
-            let text = serde_json::to_string(recorded)
-                .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
+            let text =
+                serde_json::to_string(recorded).map_err(|e| crate::value_err(e.to_string()))?;
             let spec = py.import("json")?.call_method1("loads", (text,))?;
             let found = self.resolver.bind(py).call1((spec,))?;
             if found.is_none() {

@@ -62,6 +62,7 @@ impl TrialIdentificationView {
         }
         value
     }
+    #[allow(clippy::unused_self, reason = "the Python API exposes an instance method")]
     fn selection(&self, estimand: Option<usize>) -> PyResult<()> {
         if estimand.is_some_and(|index| index != 0) {
             return Err(crate::value_err(
@@ -77,10 +78,12 @@ impl TrialIdentificationView {
     fn summary_json(&self) -> PyResult<String> {
         encode(&self.summary())
     }
+    #[allow(clippy::unused_self, reason = "the Python API exposes an instance method")]
     fn child(&self, _index: usize) -> PyResult<Self> {
         Err(crate::value_err("a retained trial transport proof has no child proofs"))
     }
     #[pyo3(signature=(*,offset=0,limit=32))]
+    #[allow(clippy::unused_self, reason = "the Python API exposes an instance method")]
     fn children(&self, offset: usize, limit: usize) -> PyResult<Vec<Self>> {
         end(0, offset, limit)?;
         Ok(vec![])
@@ -268,6 +271,7 @@ impl PreparedLearnedTrial {
         encode(&page(slot.components.len(), offset, stop, items))
     }
     #[pyo3(signature=(*,offset=0,limit=32))]
+    #[allow(clippy::unused_self, reason = "the Python API exposes an instance method")]
     fn prepared_evidence_obligations_json(&self, offset: usize, limit: usize) -> PyResult<String> {
         end(0, offset, limit)?;
         // This native modality retains graphical premises and sampling declarations,
@@ -275,6 +279,7 @@ impl PreparedLearnedTrial {
         encode(&unavailable(offset, "trial_evidence_obligation_ledger_not_retained"))
     }
     #[pyo3(signature=(*,offset=0,limit=32))]
+    #[allow(clippy::unused_self, reason = "the Python API exposes an instance method")]
     fn prepared_evidence_actions_json(&self, offset: usize, limit: usize) -> PyResult<String> {
         end(0, offset, limit)?;
         encode(&unavailable(offset, "trial_evidence_action_ledger_not_retained"))

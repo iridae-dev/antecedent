@@ -49,7 +49,10 @@ fn carrier_refusal(error: &CausalError) -> Option<String> {
             .field("demanded", refusal.demanded.as_str())
             .field("realization", refusal.realization)
             .field("next_attempt", refusal.next_attempt.name())
-            .field("missing_carrier", refusal.missing_carrier().map(|c| c.as_str()))
+            .field(
+                "missing_carrier",
+                refusal.missing_carrier().map(antecedent::analysis::MissingCarrier::as_str),
+            )
             .field("port", port.unwrap_or(serde_json::Value::Null))
             .json(),
     )

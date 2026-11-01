@@ -603,7 +603,7 @@ fn transport_cohort_composition_node(
                     "support": match standing.support {
                         antecedent_contract::composition_verification::SupportStanding::Supported =>
                             "supported",
-                        _ => "unsupported",
+                        antecedent_contract::composition_verification::SupportStanding::Unsupported { .. } => "unsupported",
                     },
                     "trust": standing.trust.as_str(),
                     "calibration":

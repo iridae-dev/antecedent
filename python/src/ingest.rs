@@ -2,6 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[allow(
+    clippy::wildcard_imports,
+    reason = "the ingestion bindings share the native PyO3 prelude"
+)]
 use crate::*;
 
 /// Result of the conversion probe (same Arrow→tabular path as analyze/discover).
@@ -37,7 +41,7 @@ pub(crate) struct ColumnBatch {
 impl ColumnBatch {
     /// Rows in every column.
     pub(crate) fn num_rows(&self) -> usize {
-        self.columns.first().map_or(0, |column| column.len())
+        self.columns.first().map_or(0, antecedent_data::F64Buffer::len)
     }
 
     /// Bytes the owned columns hold.

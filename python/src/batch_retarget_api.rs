@@ -255,6 +255,10 @@ impl PyCompletedBatch {
     }
 
     /// Always `estimated`: score tables belong to this completed execution.
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "the PyO3 method retains the binding's fallible return convention"
+    )]
     fn retarget_scores_source(&self) -> PyResult<String> {
         Ok(self.current_scores().source().as_str().to_string())
     }

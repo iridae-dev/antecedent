@@ -249,12 +249,18 @@ pub(crate) use ate_api::{GraphEdge, ate_result_from_analysis};
 pub(crate) use discovery_api::{
     DiscoveredLink, PcmciDiscoveryResult, series_from_batch, tabular_from_batch,
 };
+#[allow(
+    clippy::wildcard_imports,
+    reason = "the FFI modules share the registered error surface"
+)]
 pub(crate) use errors::*;
 pub(crate) use graph_build::{
     dag_from_named_edges, parse_dummy_ci_modes, require_named_graph_order, schema_var_id,
     series_from_tabular, temporal_dag_from_lagged_edges, temporal_dag_from_schema_edges,
 };
+#[allow(clippy::wildcard_imports, reason = "the FFI modules share the ingestion surface")]
 pub(crate) use ingest::*;
+#[allow(clippy::wildcard_imports, reason = "the FFI modules share posterior bindings")]
 pub(crate) use posterior::*;
 pub(crate) use temporal_api::{
     AnalysisResult, GcmIteResult, GcmSampleResult, MediationEffectsSummary, PredictSummary,
@@ -1001,7 +1007,7 @@ impl From<&RefutationReport> for RefutationReportView {
             failure_condition: r.failure_condition.as_ref().map(std::string::ToString::to_string),
             replicates: r.replicates,
             scope_kind: kind.map(str::to_owned),
-            scope_target_identity: target.map(|target| target.identity_hex()),
+            scope_target_identity: target.map(antecedent_validate::RefutationTarget::identity_hex),
             scope_outer_atom: atom,
             scope_completion_digest: digest.map(|digest| antecedent_core::identity::to_hex(digest)),
             scope_horizon_index: horizon_index,

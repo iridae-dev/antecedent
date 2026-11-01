@@ -154,7 +154,7 @@ impl PyGraphPosterior {
             lag_bidirected_masks: post
                 .lag_bidirected_masks()
                 .and_then(|v| v.iter().map(AdjacencyMask::to_word).collect()),
-            algorithm: post.algorithm().map(|a| a.to_string()),
+            algorithm: post.algorithm().map(ToString::to_string),
             atom_kind: post.atom_kind().as_str().to_owned(),
             mark_masks: post.mark_atoms().map(|v| v.as_ref().to_vec()),
             edge_mcse: post.edge_mcse().map(|v| v.as_ref().to_vec()),
@@ -280,7 +280,10 @@ impl PyGraphPosterior {
         let d = PyDict::new(py);
         d.set_item("n_samples", self.n_graphs)?;
         d.set_item("weights", self.weights.clone())?;
-        d.set_item("graph_keys", self.adjacency.iter().map(|m| m.key()).collect::<Vec<_>>())?;
+        d.set_item(
+            "graph_keys",
+            self.adjacency.iter().map(antecedent_discovery::AdjacencyMask::key).collect::<Vec<_>>(),
+        )?;
         d.set_item("edge_marginals", self.edge_marginals.clone())?;
         d.set_item("orientation_marginals", self.orientation_marginals.clone())?;
         d.set_item("ess", self.ess)?;

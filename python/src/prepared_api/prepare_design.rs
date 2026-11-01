@@ -1037,6 +1037,11 @@ fn did_aggregation(name: &str) -> PyResult<antecedent_core::DidAggregation> {
 }
 
 /// A replicate count only describes a resampling scheme.
+#[allow(clippy::ref_option, reason = "the binding shares the parsed option by reference")]
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the binding shares the parsed option by reference"
+)]
 fn require_resampling_for_replicates(
     resampling: &Option<antecedent_core::DidResamplingScheme>,
     replicates: Option<u32>,

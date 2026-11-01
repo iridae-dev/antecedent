@@ -1078,6 +1078,10 @@ impl PyPreparedAnalysis {
         derivative_tolerance=0.1, linearity_tolerance=0.25, gathered_resamples=false,
         within_class=None, require_completed=false, seed=1, threads=None, on_stage=None))]
     #[allow(clippy::too_many_arguments)]
+    #[allow(
+        clippy::single_match_else,
+        reason = "the branch keeps the retained and computed results explicit"
+    )]
     fn refute_target_bound(
         &self,
         py: Python<'_>,
