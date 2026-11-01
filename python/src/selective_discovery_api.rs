@@ -457,12 +457,6 @@ fn evidence_json(native: &NativeResult) -> Vec<Json> {
     scored.iter().map(|s| link_json(&s.link, s.statistic, s.p_value, s.adjusted_p_value)).collect()
 }
 
-/// A serializable value as JSON; a value that does not serialize is an error, never `null`.
-pub(crate) fn serialized<T: serde::Serialize>(value: &T, what: &str) -> PyResult<Json> {
-    serde_json::to_value(value)
-        .map_err(|error| crate::serialization_err(format!("{what} did not serialize: {error}")))
-}
-
 /// The discovery report and outcome texts as one JSON value, each parsed or an error.
 pub(crate) fn discovery_value(report: &str, outcome: &str) -> PyResult<Json> {
     let parse = |text: &str, what: &str| {

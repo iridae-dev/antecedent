@@ -168,48 +168,6 @@ pub(crate) fn opt_flag(map: &Map<String, Json>, key: &str) -> PyResult<Option<bo
     }
 }
 
-/// A number that may be absent; a present value that is not a finite number is an input error.
-pub(crate) fn opt_real(map: &Map<String, Json>, key: &str) -> PyResult<Option<f64>> {
-    match map.get(key) {
-        None | Some(Json::Null) => Ok(None),
-        Some(value) => match value.as_f64() {
-            Some(number) if number.is_finite() => Ok(Some(number)),
-            _ => Err(crate::value_err(format!("field `{key}` must be a finite number or null"))),
-        },
-    }
-}
-
-/// A count that may be absent; a present value that is not a non-negative integer is an input
-/// error.
-pub(crate) fn opt_unsigned(map: &Map<String, Json>, key: &str) -> PyResult<Option<u64>> {
-    match map.get(key) {
-        None | Some(Json::Null) => Ok(None),
-        Some(value) => value.as_u64().map(Some).ok_or_else(|| {
-            crate::value_err(format!("field `{key}` must be a non-negative integer or null"))
-        }),
-    }
-}
-
-/// A 32-bit count that may be absent.
-pub(crate) fn opt_small(map: &Map<String, Json>, key: &str) -> PyResult<Option<u32>> {
-    opt_unsigned(map, key)?
-        .map(|value| {
-            u32::try_from(value)
-                .map_err(|_| crate::value_err(format!("field `{key}` does not fit in 32 bits")))
-        })
-        .transpose()
-}
-
-/// An index that may be absent.
-pub(crate) fn opt_index(map: &Map<String, Json>, key: &str) -> PyResult<Option<usize>> {
-    opt_unsigned(map, key)?
-        .map(|value| {
-            usize::try_from(value)
-                .map_err(|_| crate::value_err(format!("field `{key}` does not fit in an index")))
-        })
-        .transpose()
-}
-
 pub(crate) fn present<'a>(map: &'a Map<String, Json>, key: &str) -> Option<&'a Json> {
     match map.get(key) {
         None | Some(Json::Null) => None,

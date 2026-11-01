@@ -19049,3 +19049,33 @@ measurement_design_status = "not_a_new_statistical_coverage_target"
 truth_grid_allocation = "Hand-derived closed forms and a retained reference."
 allocated_coverage_records = []
 inherited_coverage_records = []
+
+[[record]]
+id = "choice_inference.interval_candidates"
+capability = "choice_inference.interval_candidates"
+status = "frozen"
+consumer_question = "Can a choice-share posterior interval be reported with a measured coverage claim?"
+theorem = "The pooled and hierarchical equal-tailed intervals remain closed until the matching whole-method candidate coverage record exists and attests its construction. The registered studies evaluate prior-predictive coverage and do not imply causal or behavioral outcomes."
+reference = "provenance/choice_inference.contract.toml"
+guarantee = "candidate_measurement_pending_no_interval_license"
+graph_class = "Not applicable: categorical choice is descriptive."
+population_semantics = "Respondents are exchangeable draws from the declared population; repeated choices remain grouped by respondent."
+evidence_family = "Native pooled and hierarchical choice posterior share intervals."
+provider = "antecedent::analysis::choice_inference::ChoiceInferenceSession::measured_interval"
+estimand = "First option's population choice share in the declared choice set."
+inference_claim = "none"
+coverage_records = []
+candidate_coverage_records = ["cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_dirichlet_share_options_2_l95.v2_validation_not_applicable", "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_dirichlet_share_options_3_l95.v2_validation_not_applicable", "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_dirichlet_share_options_5_l95.v2_validation_not_applicable", "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_hierarchical_share_options_3_l95.v2_validation_not_applicable"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent"]
+identity_inputs = ["choice contract, declared prior, outcome history, population and procedure cell"]
+wire_changes = ["None; candidate records are not emitted or licensed by registration."]
+compatibility = "Additive registration; interval requests remain refused without matching measured evidence."
+search = false
+bounds = { cancellation = true }
+refusals = [{ code = "cell_not_licensed", detail = "measured_interval.protocol_not_measured", when = "The requested study or protocol is outside the supported measurement cells." }]
+routes = [{ name = "antecedent.choice_inference.measured_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", refusal_assertion = "a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell" }]
+fixtures = [
+  { id = "choice_inference.interval_candidates.no_record.negative", role = "negative", intent = "An interval request is refused when no matching coverage record exists.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell" },
+  { id = "choice_inference.interval_candidates.posterior.positive", role = "positive", intent = "The pooled posterior agrees with its qualified conjugate prior and counts.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior" },
+  { id = "choice_inference.interval_candidates.replay.artifact", role = "artifact", intent = "The consumer refuses semantically altered resealed artifacts.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "resealed_semantic_edits_are_refused" },
+]

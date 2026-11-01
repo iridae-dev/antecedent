@@ -285,6 +285,10 @@ fn check_respondents(d: &ChoiceDesignDeclaration, refusals: &mut Vec<ExternalRef
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "Raw integral counts must exactly match the number of retained observations."
+)]
 fn check_sources(d: &ChoiceDesignDeclaration, refusals: &mut Vec<ExternalRefusal>) {
     if d.retained_sources.len() > MAX_CHOICE_SOURCES {
         refusals.push(invalid(
@@ -441,6 +445,10 @@ pub struct ChoiceEvidence {
     pub sources: Vec<SourceId>,
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "Structured evidence refusals preserve their binding details."
+)]
 fn account(d: &ChoiceDesignDeclaration) -> Result<ChoiceEvidence, ExternalRefusal> {
     let limit = |detail: &'static str| {
         ExternalRefusal::new(antecedent_core::reason_code!("choice_evidence_invalid"), STAGE_DECLARE, detail)
@@ -556,6 +564,10 @@ impl ChoiceDesignContract {
     ///
     /// # Errors
     /// A required source has been withdrawn or is absent.
+    #[allow(
+        clippy::result_large_err,
+        reason = "Structured evidence refusals preserve their binding details."
+    )]
     pub fn ensure_current(&self) -> Result<(), ExternalRefusal> {
         for id in std::iter::once(&self.evidence.respondents).chain(self.evidence.sources.iter()) {
             if !self.evidence.ledger.source(*id).is_some_and(|s| s.status.is_active()) {
@@ -570,6 +582,10 @@ impl ChoiceDesignContract {
     ///
     /// # Errors
     /// Unknown source or a refused ledger operation.
+    #[allow(
+        clippy::result_large_err,
+        reason = "Structured evidence refusals preserve their binding details."
+    )]
     pub fn withdraw_retained_source(
         &mut self,
         label: &str,
@@ -616,6 +632,9 @@ impl ChoiceDesignContract {
         clippy::result_large_err,
         reason = "a structured refusal preserves the requested index"
     )]
+    ///
+    /// # Panics
+    /// Panics only if the validated contract invariant requiring look declarations is violated.
     pub fn respondents_at(&self, look: usize) -> Result<&[ChoiceRespondent], ExternalRefusal> {
         let looks = self.declaration.looks.as_ref().expect("validated contract");
         let enrolled = looks

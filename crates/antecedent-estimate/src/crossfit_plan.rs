@@ -138,6 +138,7 @@ impl CrossfitPlan {
     /// # Errors
     ///
     /// The error of the lowest failing fold or of `consume`, or a cancellation.
+    #[cfg(test)]
     pub(crate) fn pipeline_folds<T: Send, E: Send>(
         &self,
         ctx: &antecedent_core::ExecutionContext,

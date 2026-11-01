@@ -12912,3 +12912,14 @@ guarantee = "exact_multinomial_resampling_covariance_or_seeded_shared_row_bootst
 limits = "Exact enumeration is selected when the count vectors fit the caller cap and the implementation's 24-row and four-million-vector limits; otherwise the seeded bootstrap runs under execution admission. Failure mass is retained and reported. No interval coverage is claimed."
 evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs"
 evidence_assertion = "selector_uses_exact_at_the_cap_and_seeded_bootstrap_below_it"
+
+[[routes]]
+route = "antecedent.choice_inference.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+graph = "not_applicable"
+evidence = "native_choice_posterior_and_pending_coverage"
+functional = "declared_population_choice_share"
+guarantee = "none_until_matching_coverage_is_measured"
+notes = "The supported candidate intervals remain closed until a matching measured record attests the procedure."
