@@ -20,6 +20,7 @@
 
 pub mod adaptive_inference;
 pub mod adaptive_measured_interval;
+pub mod choice_inference;
 pub mod adaptive_resample_waves;
 pub mod adjustment;
 pub(crate) mod admg_conditional_transport;

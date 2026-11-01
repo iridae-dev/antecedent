@@ -54,7 +54,7 @@ pub struct AdaptiveInferenceError {
 }
 
 impl AdaptiveInferenceError {
-    fn new(code: &'static str, detail: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: &'static str, detail: &'static str, message: impl Into<String>) -> Self {
         Self { code, detail, message: message.into() }
     }
 }
@@ -74,7 +74,7 @@ impl std::fmt::Display for AdaptiveInferenceError {
 
 impl std::error::Error for AdaptiveInferenceError {}
 
-fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
+pub(crate) fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
     match error {
         NumericError::Positivity { unit, arm, probability, floor } => AdaptiveInferenceError::new(
             antecedent_core::reason_code!("adaptive_assumption_violated"),
@@ -97,7 +97,7 @@ fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
     }
 }
 
-fn cancelled() -> AdaptiveInferenceError {
+pub(crate) fn cancelled() -> AdaptiveInferenceError {
     AdaptiveInferenceError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "adaptive_inference.cancelled",
@@ -105,7 +105,7 @@ fn cancelled() -> AdaptiveInferenceError {
     )
 }
 
-fn check_cancelled(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError> {
+pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError> {
     if ctx.cancellation.is_cancelled() { Err(cancelled()) } else { Ok(()) }
 }
 
@@ -121,7 +121,7 @@ pub struct WithheldGuarantee {
 }
 
 impl WithheldGuarantee {
-    fn closed(detail: &'static str) -> Self {
+    pub(crate) fn closed(detail: &'static str) -> Self {
         Self {
             code: antecedent_core::reason_code!("cell_not_licensed"),
             detail,
