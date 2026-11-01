@@ -97,7 +97,7 @@ The uncertainty slot is unavailable: omitted.
 - **Inference:** frequentist
 - **Query kind:** Unknown
 - **Rows:** 80
-- **Functional:** 
+- **Functional:** none
 
 ### Support slot
 

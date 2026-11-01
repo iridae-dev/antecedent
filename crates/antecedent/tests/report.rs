@@ -16,11 +16,11 @@ use std::sync::Arc;
 use antecedent::analysis::CausalContract;
 use antecedent::planner::PlanView;
 use antecedent::report::{ReportFormat, ReportInput, render_report};
-use antecedent::{BayesianConfig, EstimatorId, IdentifierId, InferenceMode, RefuteSuite, Study};
+use antecedent::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::{ClaimEnvelope, SlotAvailability};
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Lag, PathSpecificEffectQuery, SequentialContrastQuery,
-    TemporalEffectQuery, TemporalPolicy, VariableId,
+    CausalQuery, ChangeAttributionQuery, ExecutionContext, Lag, PopulationSelector,
+    SequentialContrastQuery, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
 use antecedent_graph::{Admg, DenseNodeId, TemporalDag, ensure_lagged};
@@ -151,9 +151,8 @@ fn unlicensed_executing_route() -> Scenario {
     executed("unlicensed_executing_route", &prepared, &result)
 }
 
-/// A path-specific effect on an explicit mixed graph under cheap validation: the
-/// query-native refuters need a Dag, so the support matrix refuses the cell, the
-/// study cannot be built and only its contract can be read.
+/// A change attribution on an explicit mixed graph under full validation is a
+/// refused support cell, so the report reads its contract without building a study.
 fn refused_cell() -> Scenario {
     let mut t = Vec::new();
     let mut m = Vec::new();
@@ -183,18 +182,17 @@ fn refused_cell() -> Scenario {
     let mut admg = Admg::with_variables(3);
     admg.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     admg.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(2)).unwrap();
-    let query = PathSpecificEffectQuery::binary(VariableId::from_raw(0), VariableId::from_raw(2))
-        .with_path_nodes([VariableId::from_raw(1)]);
+    let query = ChangeAttributionQuery::new(
+        VariableId::from_raw(2),
+        PopulationSelector::TimeRange { start: 0, end: 100 },
+        PopulationSelector::TimeRange { start: 100, end: 200 },
+    );
     let builder = Study::tabular(data)
         .graph(admg)
-        .query(CausalQuery::PathSpecific(query))
-        .identifier(IdentifierId::PathSpecificNatural)
-        .estimator(EstimatorId::FunctionalEffect)
-        .refute(RefuteSuite::Cheap)
+        .query(CausalQuery::ChangeAttribution(query))
+        .refute(RefuteSuite::Full)
         .bootstrap_replicates(0);
-    // Cheap validation of a path-specific effect is the unlicensed functional refuter state: the
-    // cell builds and its result reports the refused support status.
-    assert!(builder.clone().build().is_ok());
+    assert!(builder.clone().build().is_err());
     Scenario {
         name: "refused_cell",
         contract: builder.inspect().unwrap(),

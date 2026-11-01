@@ -1291,7 +1291,11 @@ fn support_section(input: &ReportInput<'_>) -> Section {
     fact(&mut facts, "Inference", contract.inference.to_string());
     fact(&mut facts, "Query kind", contract.query_kind.to_string());
     fact(&mut facts, "Rows", contract.row_count.to_string());
-    fact(&mut facts, "Functional", contract.functional.to_string());
+    fact(
+        &mut facts,
+        "Functional",
+        if contract.functional.is_empty() { "none" } else { &contract.functional },
+    );
     if !contract.posterior.is_empty() {
         fact(&mut facts, "Posterior construction", contract.posterior.to_string());
     }

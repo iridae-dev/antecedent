@@ -19,7 +19,7 @@
 
 ## Claim
 
-- **Claim id:** 821c0101f78255f2ab51831ea48cafed990bb5428800ca4e22863ca6b486dc5d
+- **Claim id:** db1db2aeb921ef2277e420c4b90c38dfab2979589e28fbcfe3b0e005c72745db
 - **Kind:** point
 - **Value:** 2.0322712926
 - **Outcome units:** none
