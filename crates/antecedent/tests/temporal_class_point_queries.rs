@@ -535,6 +535,47 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
     }
 }
 
+#[test]
+fn temporal_class_posterior_vector_derivatives_retain_values_and_encode() {
+    let columns = derivative_columns();
+    for (name, functional) in derivative_values()
+        .into_iter()
+        .filter(|(name, _)| matches!(*name, "jacobian" | "directional"))
+    {
+        for pag in [false, true] {
+            for bayesian in [false, true] {
+                let data = if pag { with_witness(columns.clone()) } else { series_from(&columns) };
+                let (n, adjacency, lag) =
+                    posterior_masks(4, &[(0, 2), (1, 2), (0, 3), (1, 3)], &[], pag);
+                let builder = Study::series(data)
+                    .query(CausalQuery::Response(attach(functional.clone())))
+                    .refute(RefuteSuite::None)
+                    .graph_posterior(class_posterior(n, adjacency, lag, pag));
+                let ctx = ExecutionContext::for_tests(11);
+                let prepared = bayes(builder, bayesian).build().unwrap().prepare(&ctx).unwrap();
+                let result = prepared.estimate_retained(&ctx).unwrap();
+                let structural = result.structural_response.as_ref().expect("retained atoms");
+                assert!(
+                    (structural.identified_mass - 1.0).abs() < 1e-12,
+                    "{name} pag={pag} bayesian={bayesian}: {structural:?}"
+                );
+                assert!(structural.unevaluable_mass.abs() < 1e-12);
+                assert!(structural.atoms.iter().any(|atom| matches!(
+                    atom.value.as_ref(),
+                    Some(ResponseValue::Vector(_) | ResponseValue::Jacobian { .. })
+                )));
+                assert!(structural.identified_set.is_none(), "a vector has no scalar envelope");
+                let artifact = prepared
+                    .encode_contracted_result(&result, "class-vector-derivative", &ctx)
+                    .unwrap();
+                let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                assert!(consumed.contract.is_some());
+                assert!(consumed.body.response.is_some());
+            }
+        }
+    }
+}
+
 fn cross_queries() -> Vec<(&'static str, CausalQuery)> {
     let x = VariableId::from_raw(0);
     let m = VariableId::from_raw(1);

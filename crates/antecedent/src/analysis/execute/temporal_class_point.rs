@@ -692,16 +692,16 @@ fn derivative_note() -> Diagnostic {
 }
 
 /// The weighted completion derivative responses with their recorded regressions,
-/// the finite scalar summaries by completion and the first completion's estimand.
+/// the typed values by completion and the first completion's estimand.
 struct ClassDerivatives<'a> {
     atoms: Vec<SlopeAtom<'a>>,
     responses: Vec<(f64, CausalResponse)>,
-    values: Vec<Option<f64>>,
+    values: Vec<Option<ResponseValue>>,
     estimand: IdentifiedEstimand,
 }
 
 /// The linear slope of each identified completion with its weight, the
-/// finite scalar summaries by completion, and the first completion's estimand.
+/// finite typed values by completion, and the first completion's estimand.
 fn class_derivative_responses<'a>(
     data: &'a TimeSeriesData,
     query: &ResponseQuery,
@@ -734,10 +734,14 @@ fn class_derivative_responses<'a>(
             Err(error) if !stops_the_run(&error) => continue,
             Err(error) => return Err(error),
         };
-        let scalar = super::response_path::response_scalar_summary(&response).0;
-        if scalar.is_finite() {
-            values[index] = Some(scalar);
-        }
+        values[index] = match &response.estimate {
+            ResponseIdentification::PointIdentified(value)
+                if derivative_response_finite(&response) =>
+            {
+                Some(value.clone())
+            }
+            _ => None,
+        };
         if primary_estimand.is_none() {
             primary_estimand = Some(estimand);
         }
@@ -748,6 +752,60 @@ fn class_derivative_responses<'a>(
         message: "temporal class envelope had no estimable identified completions".into(),
     })?;
     Ok(ClassDerivatives { atoms, responses, values, estimand })
+}
+
+/// Retain each completion's actual derivative shape. The class mass accounting
+/// is shared with scalar effects; its scalar marker is replaced before the
+/// mixture is published and is never used as a bound for a vector response.
+fn derivative_structural_mixture(
+    envelope: &antecedent_identify::IdentificationEnvelope<
+        antecedent_identify::TemporalCompletionGraph,
+    >,
+    values: &[Option<ResponseValue>],
+) -> crate::result::StructuralResponseMixture {
+    let scalar: Vec<Option<f64>> = values
+        .iter()
+        .map(|value| match value {
+            Some(ResponseValue::Scalar(value)) => Some(*value),
+            Some(ResponseValue::Vector(_) | ResponseValue::Jacobian { .. }) => Some(0.0),
+            _ => None,
+        })
+        .collect();
+    let mut mixture = super::temporal_path::temporal_class_structural_mixture(
+        envelope,
+        crate::result::StructuralWeightBasis::CompletionEnumeration,
+        None,
+        &scalar,
+    );
+    let vector = values
+        .iter()
+        .flatten()
+        .any(|value| matches!(value, ResponseValue::Vector(_) | ResponseValue::Jacobian { .. }));
+    for (atom, value) in mixture.atoms.iter_mut().zip(values) {
+        atom.value.clone_from(value);
+    }
+    if vector {
+        mixture.identified_set = None;
+    }
+    mixture
+}
+
+/// A graph-dependent status cannot carry a point payload. Retain each
+/// completion's value instead of attributing their weighted mean to all graphs.
+fn retain_graph_dependent_derivatives(
+    response: &mut CausalResponse,
+    structural: &crate::result::StructuralResponseMixture,
+) {
+    if response.identification_status == IdentificationStatus::GraphDependent {
+        response.estimate = ResponseIdentification::GraphDependent(
+            structural
+                .atoms
+                .iter()
+                .filter_map(|atom| atom.value.clone().map(|value| (atom.graph_key, value)))
+                .collect(),
+        );
+        response.uncertainty = ResponseUncertainty::None;
+    }
 }
 
 /// The derivative of every replicate or draw of one completion.
@@ -927,13 +985,9 @@ impl super::Study {
         let identification =
             envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
         let estimator_id = EstimatorId::temporal_response_for(&self.settings.inference);
-        let structural = super::temporal_path::temporal_class_structural_mixture(
-            envelope,
-            crate::result::StructuralWeightBasis::CompletionEnumeration,
-            None,
-            &values,
-        );
+        let structural = derivative_structural_mixture(envelope, &values);
         response.identification_status = identification.status;
+        retain_graph_dependent_derivatives(&mut response, &structural);
         let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
@@ -1344,6 +1398,9 @@ impl super::Study {
             &derivative_evaluator(&query.functional),
         )?;
         response.identification_status = result.identification.status;
+        if let Some(structural) = &result.structural_response {
+            retain_graph_dependent_derivatives(&mut response, structural);
+        }
         let mut result = result;
         result.payload = crate::result::ResultPayload::Response(response);
         result.posterior = None;
@@ -2018,12 +2075,7 @@ fn derivative_on_envelope<'a>(
     diagnostics.extend(response.support.warnings.iter().cloned());
     let identification =
         envelope_to_identification_result_for(envelope, CausalQuery::Response(query.clone()));
-    let structural = super::temporal_path::temporal_class_structural_mixture(
-        envelope,
-        crate::result::StructuralWeightBasis::CompletionEnumeration,
-        None,
-        &values,
-    );
+    let structural = derivative_structural_mixture(envelope, &values);
     Ok(ClassDerivative {
         response,
         atoms,
@@ -2039,6 +2091,112 @@ fn derivative_on_envelope<'a>(
 #[cfg(test)]
 mod posterior_mass_tests {
     use super::*;
+
+    #[test]
+    fn vector_completion_mass_and_order_preserve_unidentified_and_unevaluable_cases() {
+        use antecedent_identify::{
+            GraphIdentificationCase, ProbabilityMass, TemporalCompletionGraph,
+        };
+
+        let query = CausalQuery::TemporalEffect(TemporalEffectQuery::pulse(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            1.0,
+        ));
+        let case = |index: u32, identified: bool| {
+            let mut graph = antecedent_graph::TemporalDag::empty();
+            antecedent_graph::ensure_lagged(
+                &mut graph,
+                VariableId::from_raw(index),
+                antecedent_core::Lag::CONTEMPORANEOUS,
+            )
+            .unwrap();
+            let result = if identified {
+                IdentificationResult::identified(
+                    query.clone(),
+                    Vec::new(),
+                    antecedent_expr::CausalExprArena::new(),
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                )
+            } else {
+                IdentificationResult::not_identified(
+                    query.clone(),
+                    Default::default(),
+                    Default::default(),
+                    Default::default(),
+                )
+            };
+            GraphIdentificationCase {
+                graph: TemporalCompletionGraph::Dag(graph),
+                result,
+                weight: ProbabilityMass(0.25),
+            }
+        };
+        let mut envelope = antecedent_identify::IdentificationEnvelope::from_cases(vec![
+            case(0, true),
+            case(1, false),
+            case(2, true),
+            case(3, true),
+        ]);
+        envelope.truncated_completions = 1;
+        let first = ResponseValue::Vector(Arc::from([1.0, 2.0]));
+        let last = ResponseValue::Vector(Arc::from([3.0, 4.0]));
+        let values = [Some(first.clone()), None, None, Some(last.clone())];
+        let structural = derivative_structural_mixture(&envelope, &values);
+        assert!((structural.identified_mass - 0.5).abs() < 1e-12);
+        assert!((structural.unidentified_mass - 0.25).abs() < 1e-12);
+        assert!((structural.unevaluable_mass - 0.25).abs() < 1e-12);
+        assert!(!structural.full_mass_scope);
+        assert_eq!(structural.atoms.len(), envelope.cases.len());
+        for (index, atom) in structural.atoms.iter().enumerate() {
+            assert_eq!(atom.graph_key, envelope.cases[index].graph.fingerprint());
+            assert_eq!(atom.value, values[index]);
+        }
+        assert!(structural.identified_set.is_none());
+
+        let mut response = CausalResponse {
+            estimand: ResponseFunctional::DirectionalDerivative {
+                outcomes: Arc::from([VariableId::from_raw(1)]),
+                treatments: Arc::from([VariableId::from_raw(0)]),
+                at: Arc::from([0.0]),
+                direction: Arc::from([1.0]),
+            },
+            identification_status: IdentificationStatus::GraphDependent,
+            estimate: ResponseIdentification::PointIdentified(first.clone()),
+            uncertainty: ResponseUncertainty::PointwiseBand {
+                level: 0.95,
+                lower: Arc::from([0.0, 1.0]),
+                upper: Arc::from([2.0, 3.0]),
+                interpretation: antecedent_core::IntervalInterpretation::Confidence,
+                draws: None,
+            },
+            support: antecedent_core::SupportReport {
+                status: SupportStatus::Supported,
+                query_region: antecedent_core::SupportRegion {
+                    minima: Arc::from([0.0]),
+                    maxima: Arc::from([0.0]),
+                },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                point_status: None,
+            },
+            assumptions: Default::default(),
+            provenance_id: Arc::from("test"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        };
+        retain_graph_dependent_derivatives(&mut response, &structural);
+        assert_eq!(
+            response.estimate,
+            ResponseIdentification::GraphDependent(vec![
+                (structural.atoms[0].graph_key, first),
+                (structural.atoms[3].graph_key, last),
+            ])
+        );
+        assert!(matches!(response.uncertainty, ResponseUncertainty::None));
+    }
 
     fn mixture(
         values: &[Option<f64>],
