@@ -1751,7 +1751,20 @@ fn cell_setup(cell: antecedent::SupportCell) -> Result<CellSetup, String> {
     let query = query_for(cell);
     let n = n_vars(cell);
     let series = needs_series(cell);
-    let inference = inference_of(cell.inference.as_str());
+    let inference = if cell.inference.as_str() == "Bayesian"
+        && matches!(
+            cell.query.as_str(),
+            "AverageDerivative"
+                | "PointDerivative"
+                | "Elasticity"
+                | "SemiElasticity"
+                | "DirectionalDerivative"
+                | "ResponseJacobian"
+        ) {
+        InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(8))
+    } else {
+        inference_of(cell.inference.as_str())
+    };
     let refute = refute_of(cell.validation.as_str());
 
     let (mut builder, data) = if uses_identified_temporal_pag(cell) {
@@ -2411,13 +2424,42 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
         .map_err(|e| format!("{expected}: encode {e}"))?;
     let consumed =
         consume_analysis_result(&bytes).map_err(|e| format!("{expected}: consume {e}"))?;
+    // Compact exports do not carry the source needed to independently replay
+    // refutations. Check that limitation separately without upgrading the
+    // original consumer's acceptance or ignoring any other dependency.
+    let mut without_refutation_replay = consumed.clone();
+    let other_dependencies: Vec<_> = consumed
+        .acceptance
+        .unresolved
+        .iter()
+        .filter(|reason| {
+            !matches!(
+                reason.as_ref(),
+                "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+            )
+        })
+        .cloned()
+        .collect();
+    let has_refutation_replay = other_dependencies.len() != consumed.acceptance.unresolved.len();
+    if has_refutation_replay
+        && (consumed.body.refutations.is_empty()
+            || consumed.acceptance.accepts_as_verified_program()
+            || !consumed.acceptance.recognized
+            || !consumed.acceptance.claim_present
+            || consumed.contract.is_none())
+    {
+        return Err(format!("{expected}: inconsistent refutation replay dependency"));
+    }
+    without_refutation_replay.acceptance.unresolved = other_dependencies.into();
+    let other_dependencies_resolved = without_refutation_replay.acceptance.unresolved.is_empty();
     if !consumed.acceptance.accepts_as_verified_program()
-        && !sealed_checked_operation_dependency_only(&consumed)
-        && !functional_effect_replay_dependency_only(&consumed)
-        && !linear_replay_dependency_only(&consumed)
-        && !bayesian_distribution_replay_dependency_only(&consumed)
-        && !class_distribution_replay_dependency_only(&consumed)
-        && !graph_posterior_distribution_replay_dependency_only(&consumed)
+        && !(has_refutation_replay && other_dependencies_resolved)
+        && !sealed_checked_operation_dependency_only(&without_refutation_replay)
+        && !functional_effect_replay_dependency_only(&without_refutation_replay)
+        && !linear_replay_dependency_only(&without_refutation_replay)
+        && !bayesian_distribution_replay_dependency_only(&without_refutation_replay)
+        && !class_distribution_replay_dependency_only(&without_refutation_replay)
+        && !graph_posterior_distribution_replay_dependency_only(&without_refutation_replay)
     {
         return Err(format!(
             "{expected}: consume did not accept a verified program: {:?}",
@@ -2434,6 +2476,21 @@ fn consume_setup(setup: CellSetup) -> Result<Route, String> {
 }
 
 const ROUTES: &str = "parity/licensed_routes.toml";
+
+#[test]
+fn compiler_fixture_handles_derivatives_and_compact_refutation_replay() {
+    for coordinate in [
+        "AverageDerivative:Dag:explicit:Bayesian:none",
+        "PointDerivative:Cpdag:graph_posterior:Bayesian:none",
+        "AverageEffect:Dag:explicit:Frequentist:cheap",
+        "PulseEffect:TemporalDag:graph_posterior:Frequentist:cheap",
+    ] {
+        let cell = licensed_support_cells()
+            .find(|cell| cell_coordinate(*cell) == coordinate)
+            .expect("representative coordinate is licensed");
+        consume_setup(cell_setup(cell).unwrap()).unwrap_or_else(|error| panic!("{error}"));
+    }
+}
 
 /// `parity/licensed_routes.toml` as the executions produce it.
 fn render_routes(routes: &[Route]) -> String {
