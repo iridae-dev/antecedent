@@ -1,6 +1,4 @@
 //! Source-bound measured eleven-dimensional Bayesian lifecycle and unchanged internal candidates.
-#[cfg(feature = "calibration-internal")]
-use antecedent_core::ExecutionContext;
 use antecedent_core::reason_code;
 use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, NestedMarkovInput, Regime, RegimeCounts,
@@ -132,10 +130,10 @@ fn nested_markov_posterior_candidate(
     let options = FitOptions { max_iterations, tolerance, ..FitOptions::default() };
     let prior = declared_prior(alpha, beta)?;
     let sampler = python_sampler(seed);
+    let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
         Candidate::from_artifact(
-            Artifact::build(&input, &options, prior, sampler, &ExecutionContext::for_tests(0))
-                .map_err(error)?,
+            Artifact::build(&input, &options, prior, sampler, &ctx).map_err(error)?,
         )
     })
 }
@@ -160,15 +158,11 @@ fn consume_nested_markov_posterior_candidate(
             reason_code!("invalid_argument"),
         ));
     }
+    let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
         Candidate::from_artifact(
-            Artifact::consume(
-                bytes,
-                &Expectation::default(),
-                Limits::default(),
-                &ExecutionContext::for_tests(0),
-            )
-            .map_err(error)?,
+            Artifact::consume(bytes, &Expectation::default(), Limits::default(), &ctx)
+                .map_err(error)?,
         )
     })
 }

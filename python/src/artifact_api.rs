@@ -534,15 +534,9 @@ impl FittedEffectModel {
             })
             .collect::<PyResult<_>>()?;
         let slices: Vec<&[f64]> = owned.iter().map(|column| &column[..]).collect();
+        let ctx = crate::execution_api::context(0);
         let values = py.detach(|| {
-            self.model
-                .predict(
-                    &ids,
-                    &slices,
-                    nrows,
-                    &antecedent_core::ExecutionContext::production_default(0),
-                )
-                .map_err(serialization_error)
+            self.model.predict(&ids, &slices, nrows, &ctx).map_err(serialization_error)
         })?;
         Ok(PyArray1::from_vec(py, values))
     }

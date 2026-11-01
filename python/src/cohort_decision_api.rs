@@ -19,7 +19,6 @@ use antecedent::analysis::transported_cohort::{
     SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
     TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
 };
-use antecedent_core::ExecutionContext;
 use antecedent_design::composition_boundary::SupportPolicy;
 use antecedent_design::decision_artifact::contract_from_json_refusal;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
@@ -175,8 +174,8 @@ fn build_cohort_decision_source(
     let options = options_of(options_json)?;
     let units = outcome_units.to_owned();
     let artifact_id = artifact_id.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         let model = match kind {
             ModelKind::AnalysisResult => match &expected_model {
                 Some(claim) => FittedEffectModel::load_expecting(&model_bytes, claim),
@@ -491,8 +490,8 @@ fn transport_cohort_effect(
     let source_population = source_population.to_owned();
     let units = outcome_units.to_owned();
     let artifact_id = artifact_id.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         let transported = match transport_cohort_effect_from_result(
             &model_bytes,
             expected_claim.as_deref(),
@@ -544,8 +543,8 @@ fn transport_cohort_effect_verify(
     let shift = selection_shift_of(shift_json)?;
     let source_population = source_population.to_owned();
     let expected = expected_identity.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         match verify_cohort_transport(
             &model_bytes,
             expected_claim.as_deref(),
@@ -586,8 +585,8 @@ fn transport_cohort_composition_node(
     let shift = selection_shift_of(shift_json)?;
     let source_population = source_population.to_owned();
     let key = key.to_owned();
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         match transport_cohort_effect_from_result(
             &model_bytes,
             expected_claim.as_deref(),
@@ -777,8 +776,8 @@ fn cohort_decision_interval(
         contrast_regime: parsed.contrast_regime,
         cohort_digest: parsed.cohort_digest,
     };
+    let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let ctx = ExecutionContext::production_default(0);
         let source = match CohortDecisionSource::consume_with(&artifact, &expectation, &ctx) {
             Ok(source) => source,
             Err(error) => return Ok((None, Some(refusal_json(&error, "consume")))),

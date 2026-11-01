@@ -15,7 +15,7 @@ use antecedent::{
     BayesianConfig, CausalError, GraphSelectionPerImputation, InferenceMode, RefuteSuite, Study,
     estimate_with_graph_selection_per_imputation,
 };
-use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId, reason_code};
+use antecedent_core::{AverageEffectQuery, VariableId, reason_code};
 use antecedent_data::{ImputationDomain, ImputationModel, ImputationSpec, TabularData};
 use pyo3::prelude::*;
 use serde_json::json;
@@ -129,7 +129,7 @@ fn graph_selection_imputation_run(
         let selection =
             GraphSelectionPerImputation::new(BayesianDiscoverParams::default(), variables)
                 .with_domains(parsed_domains);
-        let ctx = ExecutionContext::production_default(seed);
+        let ctx = crate::execution_api::context(seed);
         let result = estimate_with_graph_selection_per_imputation(
             &table,
             spec,

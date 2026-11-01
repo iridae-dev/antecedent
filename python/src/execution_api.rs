@@ -50,6 +50,14 @@ pub(crate) fn enter(policy: Option<Arc<Policy>>) -> Guard {
     Guard(POLICY.with(|current| current.replace(policy)))
 }
 
+/// A production context for `seed` under the caller's explicit execution policy, if any.
+/// Build it on the calling thread, before detaching: the policy is thread-local.
+pub(crate) fn context(seed: u64) -> ExecutionContext {
+    let mut ctx = ExecutionContext::production_default(seed);
+    apply(&mut ctx);
+    ctx
+}
+
 /// Apply the exact caller policy captured at this explicit operation's boundary.
 /// The scientific request's RNG and lowered-dispatch identity remain on ctx.
 pub(crate) fn apply(ctx: &mut ExecutionContext) {

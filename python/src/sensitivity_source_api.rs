@@ -113,12 +113,10 @@ fn consume_sensitivity_source(py: Python<'_>, data: &[u8]) -> PyResult<PySensiti
         ));
     }
     let bytes = data.to_vec();
+    let ctx = crate::execution_api::context(0);
     let source = crate::detach_catch(py, move || {
-        antecedent::analysis::sensitivity_source::SourceBackedSensitivity::consume(
-            &bytes,
-            &antecedent_core::ExecutionContext::production_default(0),
-        )
-        .map_err(source_error)
+        antecedent::analysis::sensitivity_source::SourceBackedSensitivity::consume(&bytes, &ctx)
+            .map_err(source_error)
     })?;
     Ok(PySensitivityArtifact {
         artifact: source.surface().clone(),

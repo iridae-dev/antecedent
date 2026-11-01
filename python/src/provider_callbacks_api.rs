@@ -785,7 +785,7 @@ fn provider_of(
 }
 
 fn context_of(token: &CallbackToken) -> ExecutionContext {
-    let mut ctx = ExecutionContext::for_tests(0);
+    let mut ctx = crate::execution_api::context(0);
     ctx.cancellation = token.inner.clone();
     ctx
 }

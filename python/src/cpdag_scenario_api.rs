@@ -217,7 +217,7 @@ type CompletionIds = Vec<(Vec<(VariableId, VariableId)>, Arc<str>)>;
 
 /// Completion ids by their sorted edge lists, for evidence declared by edges.
 fn completion_ids(cpdag: &antecedent_graph::Cpdag) -> Result<CompletionIds, Refusal> {
-    let ctx = antecedent_core::ExecutionContext::production_default(0);
+    let ctx = crate::execution_api::context(0);
     let limits = SearchLimits { operations: 10_000_000, depth: 64 };
     let enumeration =
         enumerate_cpdag_completions(&CpdagCompletionInput::new(cpdag.clone()), limits, &ctx)

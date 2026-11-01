@@ -79,7 +79,7 @@ impl ClassicalTransportStage {
                 &query,
                 &catalog,
                 SidLimits { steps: max_steps, depth: max_depth },
-                &ExecutionContext::production_default(0),
+                &crate::execution_api::context(0),
             )
             .map_err(error)?;
         let steps = view

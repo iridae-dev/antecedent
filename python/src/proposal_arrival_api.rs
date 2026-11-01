@@ -2,7 +2,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::{detach_catch, value_err, value_err_code, with_reason_code};
 use antecedent::analysis::proposal_arrival::{ArrivalArtifact, ArrivalRequest, MAX_ARRIVAL_BYTES};
-use antecedent_core::{ExecutionContext, reason_code};
+use antecedent_core::reason_code;
 use antecedent_io::IoError;
 use pyo3::prelude::*;
 fn failure(e: IoError) -> PyErr {
@@ -207,9 +207,9 @@ fn estimate_proposal_arrival(
     request.arrived_laws = parse_laws(arrived_laws)?;
     request.repair_artifact = repair_body;
     request.ranking_artifact = ranking.to_vec();
+    let ctx = crate::execution_api::context(seed);
     detach_catch(py, move || {
-        let artifact = ArrivalArtifact::produce(request, &ExecutionContext::for_tests(seed))
-            .map_err(failure)?;
+        let artifact = ArrivalArtifact::produce(request, &ctx).map_err(failure)?;
         Ok((report(&artifact)?, artifact.to_bytes().map_err(failure)?))
     })
 }
@@ -228,10 +228,9 @@ fn consume_proposal_arrival(
     }
     let bytes = artifact.to_vec();
     let expected = expected_proposal.to_owned();
+    let ctx = crate::execution_api::context(seed);
     detach_catch(py, move || {
-        let artifact =
-            ArrivalArtifact::consume(&bytes, &expected, &ExecutionContext::for_tests(seed))
-                .map_err(failure)?;
+        let artifact = ArrivalArtifact::consume(&bytes, &expected, &ctx).map_err(failure)?;
         report(&artifact)
     })
 }

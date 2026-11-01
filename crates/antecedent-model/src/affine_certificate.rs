@@ -6,6 +6,7 @@
 use crate::equation_system::Interval;
 use crate::nonlinear_equilibrium::{EquilibriumError, MAX_DENSE_MATRIX_BYTES};
 use crate::sparse_equilibrium::{CsrMatrix, FactorError, SolverBudgetCode, SparseLu};
+use antecedent_core::ExecutionContext;
 /// Prove invertibility of I-W using an outward-rounded inverse residual.
 /// Returns false when the bounded certificate fails, including ill conditioning.
 /// This is no assertion about dynamic stability or contraction of W.
@@ -39,6 +40,68 @@ pub fn certifies_affine_bijection(weights: &[f64], order: usize) -> bool {
 #[must_use]
 pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usize) -> bool {
     certifies_sparse_affine_checked(rows, order, usize::MAX, &mut || Ok(())).unwrap_or(false)
+}
+
+/// [`certifies_affine_bijection`] under the caller's execution controls: the worst-case dense
+/// inverse, interval rows and fill are acquired from the context's admission pool before any is
+/// allocated, and cancellation is polled between rows. The context-free form is unadmitted.
+///
+/// # Errors
+///
+/// [`EquilibriumError::Resource`] when the context cancels or its pool cannot admit the
+/// worst case, or when the dense matrix limit is exceeded.
+pub fn certifies_affine_bijection_in(
+    weights: &[f64],
+    order: usize,
+    ctx: &ExecutionContext,
+) -> Result<bool, EquilibriumError> {
+    if order == 0 {
+        return Ok(weights.is_empty());
+    }
+    if order.checked_mul(order) != Some(weights.len()) || weights.iter().any(|x| !x.is_finite()) {
+        return Ok(false);
+    }
+    let rows: Vec<Vec<(usize, f64)>> = (0..order)
+        .map(|i| {
+            (0..order)
+                .filter_map(|j| {
+                    let w = weights[i * order + j];
+                    (w != 0.0).then_some((j, w))
+                })
+                .collect()
+        })
+        .collect();
+    certifies_sparse_affine_bijection_in(&rows, order, ctx)
+}
+
+/// [`certifies_sparse_affine_bijection`] under the caller's execution controls; see
+/// [`certifies_affine_bijection_in`].
+///
+/// # Errors
+///
+/// As [`certifies_affine_bijection_in`].
+pub fn certifies_sparse_affine_bijection_in(
+    rows: &[Vec<(usize, f64)>],
+    order: usize,
+    ctx: &ExecutionContext,
+) -> Result<bool, EquilibriumError> {
+    let square = order
+        .checked_mul(order)
+        .ok_or_else(|| EquilibriumError::Resource("affine certificate size overflow".into()))?;
+    // Dense inverse, interval and numeric rows, CSR, ordering and worst-case fill: the same
+    // quote the model's own certificate holds, with fill at its dense worst case.
+    let bytes = square
+        .checked_mul(192)
+        .and_then(|v| v.checked_add(square.checked_mul(48)?))
+        .and_then(|v| v.checked_add(order.checked_mul(1024)?))
+        .and_then(|v| v.checked_add(4096))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or_else(|| EquilibriumError::Resource("affine certificate size overflow".into()))?;
+    let _lease =
+        ctx.acquire_admission(0, bytes).map_err(|e| EquilibriumError::Resource(e.to_string()))?;
+    certifies_sparse_affine_checked(rows, order, square, &mut || {
+        crate::nonlinear_equilibrium::check_cancel(ctx)
+    })
 }
 
 // The caller admits worst-case dense/fill storage before constructing rows.
@@ -144,6 +207,25 @@ mod tests {
         assert!(!certifies_affine_bijection(&[f64::NAN], 1));
         assert!(certifies_affine_bijection(&[2.0], 1));
         assert!(!certifies_affine_bijection(&[1.0], 1));
+    }
+    #[test]
+    fn the_admitted_certificate_agrees_and_honours_memory_and_cancellation() {
+        let ctx = ExecutionContext::for_tests(0);
+        assert!(matches!(certifies_affine_bijection_in(&[0.0, 2.0, -2.0, 0.0], 2, &ctx), Ok(true)));
+        assert!(matches!(certifies_affine_bijection_in(&[0.0, 1.0, 1.0, 0.0], 2, &ctx), Ok(false)));
+        // A 64 x 64 order needs more than 1 KiB: a tiny pool refuses before allocating.
+        let tiny = ExecutionContext::for_tests(0).with_memory_limit(Some(1024));
+        let weights = vec![0.0; 64 * 64];
+        assert!(matches!(
+            certifies_affine_bijection_in(&weights, 64, &tiny),
+            Err(EquilibriumError::Resource(_))
+        ));
+        let cancelled = ExecutionContext::for_tests(0);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            certifies_affine_bijection_in(&[0.0, 2.0, -2.0, 0.0], 2, &cancelled),
+            Err(EquilibriumError::Resource(_))
+        ));
     }
     #[test]
     fn duplicate_diagonals_represent_one_identity_and_sum_all_weights() {

@@ -290,7 +290,7 @@ mod enabled {
     ) -> PyResult<(String, Vec<u8>)> {
         let Prepared { id, model, sources, target, options, basis_degree, .. } =
             prepare(&proof, request_json, learned)?;
-        let ctx = antecedent_core::ExecutionContext::production_default(options.seed);
+        let ctx = crate::execution_api::context(options.seed);
         crate::detach_catch(py, move || {
             if learned {
                 let model = LearnedJointModel {
@@ -386,7 +386,7 @@ mod enabled {
         check_declared_size(expectation_json, MAX_BYTES, "joint transport expectation")?;
         let expected: Expectation =
             serde_json::from_str(expectation_json).map_err(|e| invalid(&e.to_string()))?;
-        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let ctx = crate::execution_api::context(0);
         py.detach(|| {
             if learned {
                 let (wire, _) = LearnedJointArtifactWire::consume_expecting(

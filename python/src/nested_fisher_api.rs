@@ -1,6 +1,4 @@
 //! Source-bound measured Fisher lifecycle and unchanged feature-only candidate lifecycle.
-#[cfg(feature = "calibration-internal")]
-use antecedent_core::ExecutionContext;
 use antecedent_core::reason_code;
 use antecedent_estimate::nested_markov_binary::{
     AdmgDeclaration, FitOptions, NestedMarkovInput, Regime, RegimeCounts,
@@ -89,15 +87,10 @@ fn nested_markov_fisher_candidate(
 ) -> PyResult<Candidate> {
     let input = declared_input(variables, directed, bidirected, regimes);
     let options = FitOptions { max_iterations, tolerance, ..FitOptions::default() };
+    let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
         Candidate::from_artifact(
-            NestedFisherArtifact::build(
-                &input,
-                &options,
-                nominal_level,
-                &ExecutionContext::for_tests(0),
-            )
-            .map_err(error)?,
+            NestedFisherArtifact::build(&input, &options, nominal_level, &ctx).map_err(error)?,
         )
     })
 }
@@ -119,13 +112,14 @@ fn consume_nested_markov_fisher_candidate(
             reason_code!("invalid_argument"),
         ));
     }
+    let ctx = crate::execution_api::context(0);
     crate::detach_catch(py, move || {
         Candidate::from_artifact(
             NestedFisherArtifact::consume(
                 bytes,
                 &NestedMarkovExpectation::default(),
                 NestedMarkovConsumeLimits::default(),
-                &ExecutionContext::for_tests(0),
+                &ctx,
             )
             .map_err(error)?,
         )
