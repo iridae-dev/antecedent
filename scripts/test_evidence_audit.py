@@ -826,8 +826,33 @@ class Classification(unittest.TestCase):
         runner = (Path(__file__).parents[1] / "scripts/test.sh").read_text(
             encoding="utf-8"
         )
-        self.assertIn("python_tests --durations=30", runner)
+        self.assertIn("python_software_tests --durations=30", runner)
         self.assertNotIn("pytest.skip", runner)
+
+    def test_default_nextest_filter_matches_calibration_registry(self):
+        root = Path(__file__).parents[1]
+        selection = subprocess.check_output(
+            [sys.executable, str(root / "scripts/evidence_audit.py"), "rust-calibration-filter"],
+            cwd=root,
+            text=True,
+        ).strip()
+        config = tomllib.loads((root / ".config/nextest.toml").read_text(encoding="utf-8"))
+        actual = " ".join(config["profile"]["default"]["default-filter"].split())
+        self.assertEqual(actual, f"not ({selection})")
+        runner = (root / "scripts/test.sh").read_text(encoding="utf-8")
+        self.assertIn("--ignore-default-filter", runner)
+
+    def test_python_software_selection_preserves_a_caller_marker(self):
+        runner = (Path(__file__).parents[1] / "scripts/test.sh").read_text(encoding="utf-8")
+        start = runner.index("python_software_selection() {")
+        end = runner.index("python_internal_tests() {", start)
+        helpers = runner[start:end]
+        command = helpers + '\npython_tests() { printf "%s\\n" "$@"; }\n'
+        command += "python_software_tests -m 'slow or integration' tests/test_example.py\n"
+        args = subprocess.check_output(["bash", "-c", command], text=True).splitlines()
+        self.assertEqual(
+            args, ["tests/test_example.py", "-m", "(slow or integration) and not requires_calibration"]
+        )
 
     def test_generator_presence_requires_an_explicit_retained_path(self):
         with tempfile.TemporaryDirectory() as tmp:

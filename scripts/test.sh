@@ -12,7 +12,8 @@ Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|
           Supply a package/target selection; numerical package overrides remain.
   rust    Run Rust unit/integration tests with nextest (default).
           With no arguments, select the whole workspace and CI calibration features.
-          With arguments, forward the exact Cargo/nextest selection you supply.
+          The nextest default excludes registered measured-record acceptance tests.
+          With arguments, intersect the supplied selection with that default.
   docs    Run Rust doctests, with the same workspace default as rust.
   rust-software  Run ordinary workspace assertions, explicitly deselecting
           registered measured-record acceptance assertions pending calibration.
@@ -26,9 +27,10 @@ Usage: bash scripts/test.sh [dev|rust|rust-software|rust-calibration-acceptance|
   scripts Run discovered script unit tests in their isolated locked environment.
           Empty selections and unexpected skipped assertions fail.
   python  Sync the locked dev environment, rebuild the release extension, run pytest.
+          Excludes tests marked requires_calibration; preserves other marker filters.
           Set ANTECEDENT_SKIP_NATIVE_BUILD=1 to reuse an already current extension.
   python-test  Run pytest against the existing extension without sync/rebuild.
-          Use after Python/test edits, or after an explicit current native build.
+          Use after Python/test edits; measured-record acceptance is excluded.
   python-software  Run pytest without measured-record acceptance assertions.
           Requires an existing current extension. Deselections are reported.
   python-calibration-acceptance  Run measured-record acceptance assertions.
@@ -123,6 +125,32 @@ python_tests() {
   (cd "$ROOT/python" && uv run --no-sync pytest "$@")
 }
 
+python_software_selection() {
+  local args=() mark="" value
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -m|--markexpr)
+        if [[ $# -lt 2 ]]; then echo "$1 requires an expression" >&2; return 2; fi
+        value="$2"; shift 2 ;;
+      -m?*) value="${1#-m}"; shift ;;
+      --markexpr=*) value="${1#*=}"; shift ;;
+      *) args+=("$1"); shift; continue ;;
+    esac
+    mark="$value"
+  done
+  if [[ -n "$mark" ]]; then
+    mark="($mark) and not requires_calibration"
+  else
+    mark="not requires_calibration"
+  fi
+  python_software_args=("${args[@]}" -m "$mark")
+}
+python_software_tests() {
+  local python_software_args=()
+  python_software_selection "$@"
+  python_tests "${python_software_args[@]}"
+}
+
 python_internal_tests() {
   # The private candidate hooks exist only in an extension built with
   # calibration-internal. Everything lives under one directory: the cargo target,
@@ -177,13 +205,13 @@ case "$suite" in
     selection="$(python3 "$ROOT/scripts/evidence_audit.py" rust-calibration-filter)"
     mkdir -p "$report_directory"
     listing="$report_directory/calibration-acceptance-discovery.json"
-    cargo nextest list --locked "${workspace[@]}" --message-format json -E "$selection" > "$listing"
+    cargo nextest list --locked "${workspace[@]}" --ignore-default-filter --message-format json -E "$selection" > "$listing"
     python3 "$ROOT/scripts/evidence_audit.py" rust-calibration-filter --listing "$listing" > /dev/null
     if [[ "$suite" == rust-software ]]; then
       selection="not ($selection)"
       echo "Explicitly deselecting registered measured-record acceptance assertions; discovery: $listing"
     fi
-    rust_tests "${workspace[@]}" -E "$selection"
+    rust_tests "${workspace[@]}" --ignore-default-filter -E "$selection"
     ;;
   python-internal) python_internal_tests ;;
   slow)
@@ -211,11 +239,12 @@ case "$suite" in
     python3 "$ROOT/scripts/evidence_audit.py" run-scientific --python-only
     ;;
   scripts) uv run --frozen --script "$ROOT/scripts/run_script_tests.py" "$@" ;;
-  python) python_tests "$@" ;;
+  python) python_software_tests "$@" ;;
   python-test|python-software|python-calibration-acceptance)
     (cd "$ROOT/python" && uv run --no-sync python "$ROOT/scripts/native_build_identity.py" check)
-    if [[ "$suite" == python-software ]]; then
-      set -- "$@" -m 'not requires_calibration'
+    if [[ "$suite" == python-software || "$suite" == python-test ]]; then
+      python_software_selection "$@"
+      set -- "${python_software_args[@]}"
     elif [[ "$suite" == python-calibration-acceptance ]]; then
       set -- "$@" -m requires_calibration
     fi
@@ -229,6 +258,6 @@ case "$suite" in
     doctests -p antecedent-learn --features ml-full,ml-neural
     rust_tests -p antecedent-model --features gaussian-process,ml-full
     doctests -p antecedent-model --features gaussian-process,ml-full
-    python_tests --durations=30
+    python_software_tests --durations=30
     ;;
 esac

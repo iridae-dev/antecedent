@@ -107,79 +107,79 @@ reason = "Retain every future-study ranking, regime identity, withdrawal and for
 previous = "crates/antecedent-design/tests/decision_reliability.rs::every_published_route_is_licensed_inside_a_measured_coverage_record"
 replacement = "crates/antecedent-design/tests/decision_reliability.rs::measured_routes_respect_current_attestation_and_report_their_closures"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "The renamed assertion verifies that each route opens exactly when its measured coverage record currently attests the governing code and otherwise reports its closure. Retain the existing calibration-acceptance selection; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "The renamed assertion verifies that each route opens exactly when its measured coverage record currently attests the governing code and otherwise reports its closure. Retain the existing calibration-acceptance selection; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-design/tests/decision_reliability_intervals.rs::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it"
 replacement = "crates/antecedent-design/tests/decision_reliability_intervals.rs::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs::a_measured_construction_reports_an_interval_bound_to_its_coverage_record"
 replacement = "crates/antecedent-io/tests/sampled_counterfactual_transport_artifact.rs::a_measured_construction_reports_an_interval_bound_to_its_coverage_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/adaptive_inference_facade.rs::a_group_sequential_repeated_interval_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/adaptive_inference_facade.rs::a_group_sequential_repeated_interval_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/adaptive_inference_facade.rs::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/adaptive_inference_facade.rs::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/adaptive_inference_facade.rs::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records"
 replacement = "crates/antecedent/tests/adaptive_inference_facade.rs::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
 replacement = "crates/antecedent/tests/composed_uncertainty_facade.rs::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/evidence_ledger_facade.rs::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/evidence_ledger_facade.rs::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/predictive_score_interval_facade.rs::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record"
 replacement = "crates/antecedent/tests/predictive_score_interval_facade.rs::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/predictive_score_interval_facade.rs::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"
 replacement = "crates/antecedent/tests/predictive_score_interval_facade.rs::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_correction_inside_a_measured_record_is_published_bound_to_it"
 replacement = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_correction_inside_a_measured_record_is_published_bound_to_it"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it"
 replacement = "crates/antecedent/tests/scientific_bridge_interval_facade.rs::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-io/src/measured_inference/transport.rs::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit"
 replacement = "crates/antecedent-io/src/measured_inference/transport.rs::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit"
 disposition = "explicit_calibration_acceptance_selection"
-reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Default rust/all and rust-calibration-acceptance retain it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
+reason = "Preserve all outputs, budgets, tolerances and licensing assertions. This consumer requires currently attesting coverage records; rust-software explicitly deselects it pending Q08/E14. Ordinary nextest lanes exclude it; rust-calibration-acceptance retains it, and discovery checks reject a missing, ignored or misassigned assertion. No calibration or attestation is generated."
 
 [[case]]
 previous = "crates/antecedent-design/tests/artifact_compat_sequential_reliability_golden.rs::historical_closure_snapshot_is_conservative_and_cannot_change_the_report"

@@ -3,6 +3,22 @@
 # per core. The transport sweeps spawn their own workers and take the whole
 # budget so those workers do not stack on top of other tests.
 [profile.default]
+# Generated from parity/v3_test_registry.toml; the evidence-audit test checks for drift.
+default-filter = """
+not ((package(=antecedent-design) and binary(=suite_01) and test(=decision_reliability::measured_routes_respect_current_attestation_and_report_their_closures)) or
+(package(=antecedent-design) and binary(=suite_01) and test(=decision_reliability_intervals::a_derivation_is_published_inside_a_measured_record_and_refused_outside_it)) or
+(package(=antecedent-io) and binary(=sampled_counterfactual_transport_artifact) and test(=a_measured_construction_reports_an_interval_bound_to_its_coverage_record)) or
+(package(=antecedent) and binary(=suite_01) and test(=adaptive_inference_facade::a_group_sequential_repeated_interval_is_bound_to_its_record)) or
+(package(=antecedent) and binary(=suite_01) and test(=adaptive_inference_facade::a_thompson_credible_interval_inside_the_measured_range_is_bound_to_its_record)) or
+(package(=antecedent) and binary(=suite_01) and test(=adaptive_inference_facade::a_weighted_contrast_and_a_confidence_sequence_are_bound_to_their_records)) or
+(package(=antecedent) and binary(=suite_03) and test(=composed_uncertainty_facade::a_composed_interval_opens_only_with_a_measured_record_at_its_coordinate)) or
+(package(=antecedent) and binary(=suite_04) and test(=evidence_ledger_facade::a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record)) or
+(package(=antecedent) and binary(=suite_09) and test(=predictive_score_interval_facade::an_expected_score_interval_inside_a_measured_design_is_bound_to_its_record)) or
+(package(=antecedent) and binary(=suite_09) and test(=predictive_score_interval_facade::the_serial_log_score_and_difference_are_measured_but_the_serial_crps_mean_is_a_boundary)) or
+(package(=antecedent) and binary(=suite_07) and test(=scientific_bridge_interval_facade::a_correction_inside_a_measured_record_is_published_bound_to_it)) or
+(package(=antecedent) and binary(=suite_07) and test(=scientific_bridge_interval_facade::a_trial_level_prediction_interval_inside_a_measured_record_is_published_bound_to_it)) or
+(package(=antecedent-io) and kind(lib) and test(=measured_inference::transport::native_lifecycle_tests::every_measured_transport_variant_matches_original_execution_basis_bit_for_bit)))
+"""
 test-threads = "num-cpus"
 
 [[profile.default.overrides]]
@@ -46,7 +62,7 @@ test(=temporal_class_bayesian_envelope::temporal_class_bayesian_response_is_iden
 priority = 50
 
 # Keep per-test durations and failures for local profiling and CI artifacts.
-# No retries or default filters: all ordinary tests still run once.
+# No retries: all tests in the ordinary software lane still run once.
 [profile.ci]
 fail-fast = false
 

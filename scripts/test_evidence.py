@@ -522,9 +522,9 @@ def resolve_rust_test(path: Path, name: str, cwd: Path = ROOT) -> tuple[str | No
 def registered_calibration_acceptance(root: Path = ROOT) -> list[dict]:
     """Exact Rust acceptance assertions from the existing source registry.
 
-    Classification does not grant a license or verify execution. The ordinary
-    full suite retains these assertions; an explicit software selection may
-    deselect them while the branch awaits calibration.
+    Classification does not grant a license or verify execution. Ordinary
+    nextest runs exclude these assertions; the explicit calibration-acceptance
+    lane runs them after the required records exist.
     """
     registry = root / "parity/v3_test_registry.toml"
     rows = tomllib.loads(registry.read_text(encoding="utf-8")).get("test", [])

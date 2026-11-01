@@ -122,7 +122,7 @@ def problems(listings: dict[str, dict], named=NAMED) -> list[str]:
 
 
 def nextest(args: list[str]) -> dict:
-    command = ["cargo", "nextest", "list", *args, "--message-format", "json"]
+    command = ["cargo", "nextest", "list", "--ignore-default-filter", *args, "--message-format", "json"]
     print("==", " ".join(command), flush=True)
     proc = subprocess.run(command, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
