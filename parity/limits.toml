@@ -52,15 +52,6 @@ scope_fixture = { path = "crates/antecedent-io/tests/scenario_covariance_artifac
 
 
 [[bound]]
-record = "transport.shared_scenario_covariance"
-key = "max_table_columns"
-implementation = [{ path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", constant = "MAX_TABLE_COLUMNS" }]
-documentation = [{ path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", constant = "MAX_TABLE_COLUMNS" }]
-guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = "if\\ self\\.table\\.rows\\.len\\(\\)\\ >\\ MAX_TABLE_ROWS\\ \\|\\|\\ self\\.table\\.columns\\.len\\(\\)\\ >\\ MAX_TABLE_COLUMNS\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = "if\\ self\\.table\\.rows\\.len\\(\\)\\ >\\ MAX_TABLE_ROWS\\ \\|\\|\\ self\\.table\\.columns\\.len\\(\\)\\ >\\ MAX_TABLE_COLUMNS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = "\\bindependent_rows_bounds_and_arguments_refuse\\b" }
-
-[[bound]]
 record = "transport.joint_bayesian"
 key = "max_draws"
 implementation = [{ path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs", constant = "JOINT_TRANSPORT_MAX_DRAWS" }]
@@ -410,15 +401,6 @@ documentation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs
 guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{' }
 refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'if self\.scenarios\.len\(\) > MAX_SCENARIOS \{[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
 scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs", pattern = '\bscenario_invariance_a_report_for_another_set_is_refused\b' }
-
-[[bound]]
-record = "counterfactual.transported_additive"
-key = "max_covariates"
-implementation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_COVARIATES" }]
-documentation = [{ path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", constant = "MAX_COVARIATES" }]
-guard = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.model\\.covariates\\.len\\(\\)\\ >\\ MAX_COVARIATES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/transported_counterfactual_artifact.rs", pattern = "if\\ request\\.model\\.covariates\\.len\\(\\)\\ >\\ MAX_COVARIATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-counterfactual/tests/transported_path_specific.rs", pattern = "\\bx8t_selection_on_outcome_mechanism_refuses_with_a_two_model_witness\\b" }
 
 [[bound]]
 record = "counterfactual.transported_additive"

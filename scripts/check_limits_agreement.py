@@ -805,6 +805,14 @@ NONINT: tuple[NonInt, ...] = (
     NonInt("counterfactual.admg_identification", "memory_limit", exclude=_MEMORY_REASON),
     NonInt("sensitivity.joint_mechanism", "memory_limit", exclude=_MEMORY_REASON),
     NonInt(
+        "estimate.batch_retarget_covariance",
+        "max_t_draws",
+        exclude=(
+            "the minimum depends on the requested level and the maximum on the execution "
+            "context's memory budget; neither is a fixed numeric cap"
+        ),
+    ),
+    NonInt(
         "design.study_planning",
         "per_decision_operations",
         head=r"^([^:]*):",  # '4096 (Mz) / 20000 (Mixed): ...prose...'

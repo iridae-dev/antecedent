@@ -12,6 +12,11 @@ source guard, the original refusal path and an original executing fixture for th
 family. A fixture entry is not a claim that every listed cap was independently
 stress-tested.
 
+The shared-scenario covariance artifact has no fixed column-count cap; stored row
+bytes bound its table width. The transported-additive artifact has no fixed
+covariate-count cap; its byte and support-point limits still apply. These resource
+limits do not widen either route's scientific or inference claims.
+
 Some consumer limits are not global limits on the corresponding in-memory operation.
 The shared-scenario covariance artifact reader permits at most 64 scenarios and defaults
 to 2,000 bootstrap replicates; its consumer limits can lower the replicate bound or set
@@ -40,7 +45,6 @@ markers below and compares it. Prose outside those markers is not read.
 | transport.shared_scenario_covariance | max_exact_rows | 24 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_exact_compositions | 4000000 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_table_rows | 10000 | `crates/antecedent-io/src/scenario_covariance_artifact.rs` |
-| transport.shared_scenario_covariance | max_table_columns | 64 | `crates/antecedent-io/src/scenario_covariance_artifact.rs` |
 | transport.joint_bayesian | max_draws | 100000 | `crates/antecedent-estimate/src/joint_bayesian_transport.rs` |
 | transport.joint_bayesian | max_model_parameters | 256 | `crates/antecedent-estimate/src/joint_bayesian_transport.rs` |
 | identify.binary_nested_markov | max_observed | 6 | `crates/antecedent-estimate/src/nested_markov_binary.rs` |
@@ -80,7 +84,6 @@ markers below and compares it. Prose outside those markers is not read.
 | composition.bundle | max_nodes | 1024 | `crates/antecedent-design/src/composition_bundle.rs` |
 | composition.bundle | max_edges | 8192 | `crates/antecedent-design/src/composition_bundle.rs` |
 | transport.scenario_invariance | max_scenarios | 64 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
-| counterfactual.transported_additive | max_covariates | 64 | `crates/antecedent-io-core/src/transported_counterfactual_artifact.rs` |
 | counterfactual.transported_additive | max_mechanisms | 256 | `crates/antecedent-io-core/src/transported_counterfactual_artifact.rs` |
 | counterfactual.transported_additive | max_support_points | 65536 | `crates/antecedent-io-core/src/transported_counterfactual_artifact.rs` |
 | counterfactual.transported_additive | max_declarations | 256 | `crates/antecedent-io-core/src/transported_counterfactual_artifact.rs` |
