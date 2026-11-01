@@ -358,9 +358,8 @@ fn a_derivative_without_a_directed_path_is_the_exact_structural_zero() {
                     .refute(RefuteSuite::None)
                     .bootstrap_replicates(0);
                 if bayesian {
-                    builder = builder.inference(InferenceMode::Bayesian(
-                        BayesianConfig::laplace().n_draws(24),
-                    ));
+                    builder = builder
+                        .inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(24)));
                 }
                 let context = ExecutionContext::for_tests(830);
                 let study = builder.build().unwrap();
