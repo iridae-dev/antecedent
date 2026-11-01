@@ -54,7 +54,11 @@ pub struct AdaptiveInferenceError {
 }
 
 impl AdaptiveInferenceError {
-    pub(crate) fn new(code: &'static str, detail: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(
+        code: &'static str,
+        detail: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
         Self { code, detail, message: message.into() }
     }
 }
@@ -97,7 +101,7 @@ pub(crate) fn numeric_error(error: &NumericError) -> AdaptiveInferenceError {
     }
 }
 
-pub(crate) fn cancelled() -> AdaptiveInferenceError {
+fn cancelled() -> AdaptiveInferenceError {
     AdaptiveInferenceError::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "adaptive_inference.cancelled",
@@ -105,8 +109,13 @@ pub(crate) fn cancelled() -> AdaptiveInferenceError {
     )
 }
 
-pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError> {
+fn check_cancelled(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError> {
     if ctx.cancellation.is_cancelled() { Err(cancelled()) } else { Ok(()) }
+}
+
+/// The adaptive-inference cancellation refusal, for the sibling choice estimators.
+pub(crate) fn refuse_if_interrupted(ctx: &ExecutionContext) -> Result<(), AdaptiveInferenceError> {
+    check_cancelled(ctx)
 }
 
 /// A guarantee route that is closed.

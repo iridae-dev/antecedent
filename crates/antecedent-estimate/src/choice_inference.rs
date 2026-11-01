@@ -28,7 +28,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference as numerics;
 
 use crate::adaptive_inference::{
-    AdaptiveInferenceError, WithheldGuarantee, check_cancelled, numeric_error,
+    AdaptiveInferenceError, WithheldGuarantee, numeric_error, refuse_if_interrupted,
 };
 
 pub use antecedent_stats::adaptive_inference::{
@@ -52,7 +52,7 @@ pub const HIERARCHICAL_PREMISE: &str = "respondents are exchangeable draws from 
 
 /// How a conflicting source is handled.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ConflictPolicy {
+pub enum ChoiceConflictPolicy {
     /// Report the diagnostic and use the source.
     Report,
     /// Refuse a prior with a conflicting source.
@@ -111,11 +111,11 @@ fn invalid(detail: &'static str, message: impl Into<String>) -> AdaptiveInferenc
 /// The Dirichlet prior that retained sources support.
 ///
 /// # Errors
-/// Shapes or counts out of domain; a conflicting source under [`ConflictPolicy::Refuse`].
+/// Shapes or counts out of domain; a conflicting source under [`ChoiceConflictPolicy::Refuse`].
 pub fn qualify_choice_prior(
     initial: &[f64],
     sources: &[ChoiceSourceCounts<'_>],
-    policy: ConflictPolicy,
+    policy: ChoiceConflictPolicy,
 ) -> Result<QualifiedChoicePrior, AdaptiveInferenceError> {
     if initial.len() < 2 || initial.len() > MAX_CHOICE_OPTIONS {
         return Err(invalid("choice_inference.input_invalid", "a prior has two to 64 shapes"));
@@ -155,7 +155,7 @@ pub fn qualify_choice_prior(
             .map_err(|e| numeric_error(&e))?;
         let log_bf = vague - against_rest;
         let flagged = sources.len() > 1 && log_bf > CONFLICT_LOG_BAYES_FACTOR;
-        if flagged && policy == ConflictPolicy::Refuse {
+        if flagged && policy == ChoiceConflictPolicy::Refuse {
             return Err(AdaptiveInferenceError::new(
                 antecedent_core::reason_code!("choice_evidence_conflict"),
                 "choice_inference.source_conflict",
@@ -210,7 +210,7 @@ pub fn choice_posterior(
     counts: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<ChoicePosterior, AdaptiveInferenceError> {
-    check_cancelled(ctx)?;
+    refuse_if_interrupted(ctx)?;
     let cancel = || ctx.cancellation.is_cancelled();
     let posterior =
         numerics::DirichletPosterior::from_counts(prior, counts).map_err(|e| numeric_error(&e))?;
@@ -304,7 +304,7 @@ pub fn hierarchical_choice_posterior(
     respondents: &[Vec<u32>],
     ctx: &ExecutionContext,
 ) -> Result<HierarchicalChoiceResult, AdaptiveInferenceError> {
-    check_cancelled(ctx)?;
+    refuse_if_interrupted(ctx)?;
     let cancel = || ctx.cancellation.is_cancelled();
     let posterior = numerics::HierarchicalChoicePosterior::new(prior, respondents)
         .map_err(|e| numeric_error(&e))?;
@@ -387,7 +387,7 @@ mod tests {
             discount: 0.5,
             transferred: false,
         };
-        let prior = qualify_choice_prior(&[1.0; 3], &[a], ConflictPolicy::Refuse).unwrap();
+        let prior = qualify_choice_prior(&[1.0; 3], &[a], ChoiceConflictPolicy::Refuse).unwrap();
         assert_eq!(prior.alpha, vec![6.0, 3.5, 3.5]);
         assert_eq!(prior.borrowed_observations, 10.0);
         assert!(!prior.has_conflict());
@@ -408,10 +408,12 @@ mod tests {
             transferred: false,
         };
         let report =
-            qualify_choice_prior(&[1.0; 3], &[agree, oppose], ConflictPolicy::Report).unwrap();
+            qualify_choice_prior(&[1.0; 3], &[agree, oppose], ChoiceConflictPolicy::Report)
+                .unwrap();
         assert!(report.has_conflict());
         let refused =
-            qualify_choice_prior(&[1.0; 3], &[agree, oppose], ConflictPolicy::Refuse).unwrap_err();
+            qualify_choice_prior(&[1.0; 3], &[agree, oppose], ChoiceConflictPolicy::Refuse)
+                .unwrap_err();
         assert_eq!(refused.code, "choice_evidence_conflict");
     }
 

@@ -918,6 +918,8 @@ allow design crates/antecedent/src/analysis/transported_measurement.rs NodeKind
 # the repeated-measures laws and simulation; each is a number a derived-uncertainty
 # record or an adaptive-procedure emitter reads.
 core crates/antecedent-stats/src/adaptive_inference/capacity.rs
+core crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs
+core crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs
 core crates/antecedent-stats/src/adaptive_inference/group_sequential.rs
 core crates/antecedent-stats/src/adaptive_inference/historical_prior.rs
 core crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs
@@ -936,8 +938,9 @@ core crates/antecedent/src/analysis/adaptive_procedure_report.rs
 adaptive_interval crates/antecedent-estimate/src/adaptive_measured_interval.rs
 adaptive_interval crates/antecedent-io/src/measured_inference/adaptive_interval.rs
 key adaptive_interval estimator adaptive.*
-allow adaptive_interval crates/antecedent-estimate/src/lib.rs adaptive_inference adaptive_measured_interval
+allow adaptive_interval crates/antecedent-estimate/src/lib.rs adaptive_inference adaptive_measured_interval choice_inference
 allow adaptive_interval crates/antecedent-io/src/measured_inference.rs adaptive_interval
+allow adaptive_interval crates/antecedent-io/src/choice_inference_result_artifact.rs AdaptiveInferenceError ChoiceConflictPolicy ChoiceSourceCounts ChoiceStoppingRule HierarchicalChoicePrior QualifiedChoicePrior adaptive_inference choice_inference choice_posterior choice_stopping_decision hierarchical_choice_posterior hierarchical_stopping_decision qualify_choice_prior
 
 # Composed intervals: the key a sealed claim derives and its registry resolution.
 joint_law_composed crates/antecedent/src/analysis/joint_law_composed_basis.rs
@@ -1113,6 +1116,7 @@ allow registry_mirror crates/antecedent/src/analysis/composition_verification.rs
 suite.cross_world_interval_calibration crates/antecedent/tests/cross_world_interval_calibration.rs
 suite.joint_law_composed_interval_calibration crates/antecedent/tests/joint_law_composed_interval_calibration.rs
 adaptive_interval crates/antecedent-estimate/src/adaptive_inference.rs
+adaptive_interval crates/antecedent-estimate/src/choice_inference.rs
 allow adaptive_interval crates/antecedent/src/analysis/adaptive_procedure_report.rs BayesianPosterior
 allow adaptive_interval crates/antecedent/src/analysis/statistical.rs bayesian_posterior
 suite.knn_matching_calibration crates/antecedent-estimate/tests/knn_matching_calibration.rs

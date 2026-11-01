@@ -31,7 +31,7 @@ use antecedent_contract::adaptive_design::{
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::adaptive_inference::AdaptiveInferenceError;
 use antecedent_estimate::choice_inference::{
-    ChoiceSourceCounts, ChoiceStoppingRule, ConflictPolicy, HierarchicalChoicePrior,
+    ChoiceConflictPolicy, ChoiceSourceCounts, ChoiceStoppingRule, HierarchicalChoicePrior,
     choice_posterior, choice_stopping_decision, hierarchical_choice_posterior,
     hierarchical_stopping_decision, qualify_choice_prior,
 };
@@ -251,7 +251,7 @@ fn qualified_prior(
             transferred: s.population != declaration.population,
         })
         .collect();
-    Ok(qualify_choice_prior(&declaration.initial_prior, &sources, ConflictPolicy::Report)?)
+    Ok(qualify_choice_prior(&declaration.initial_prior, &sources, ChoiceConflictPolicy::Report)?)
 }
 
 fn hierarchical_inputs(
