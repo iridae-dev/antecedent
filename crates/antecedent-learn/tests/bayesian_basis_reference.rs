@@ -65,7 +65,7 @@ fn ate_row_effects_and_control_outcomes_match_the_exact_posterior() {
         assert!((fit.ate_mean - mean).abs() < 1e-12);
 
         for row in case["rows"].as_array().unwrap() {
-            let r = row["row"].as_u64().unwrap() as usize;
+            let r = usize::try_from(row["row"].as_u64().unwrap()).unwrap();
             for (target, key) in [(2, "effect"), (0, "control")] {
                 let (m, s) =
                     moments((0..DRAWS).map(|d| fit.predictions.draw_target(d, target).unwrap()[r]));

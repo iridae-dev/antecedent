@@ -172,6 +172,10 @@ pub fn aipw_scores(t: &[f64], y: &[f64], e: &[f64], mu0: &[f64], mu1: &[f64]) ->
 /// [`AipwCrossFitError::WeightsUnsupported`] when `weights` are given and a learner cannot carry
 /// them; [`AipwCrossFitError::Cancelled`] when the token of `ctx` stopped the work;
 /// [`AipwCrossFitError::Admission`] when the shared scheduler refused it.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the checked cross-fit inputs are independent parts of the operation"
+)]
 pub fn cross_fit_aipw_nuisances(
     learners: AipwLearners,
     design: ColumnMajorDesign<'_>,
@@ -466,7 +470,7 @@ mod tests {
     #[test]
     fn a_cancelled_token_returns_the_cancellation_case() {
         let (design, _, t, y) = noiseless_linear(52);
-        let ids: Vec<u16> = (0..52).map(|i| (i % 4) as u16).collect();
+        let ids: Vec<u16> = (0_u16..52).map(|i| i % 4).collect();
         let ctx = ExecutionContext::for_tests(5);
         ctx.cancellation.cancel();
         let outcome = run(&design, 2, &y, &t, 4, &ids, &ctx);

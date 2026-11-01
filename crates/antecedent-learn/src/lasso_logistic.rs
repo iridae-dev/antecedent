@@ -218,6 +218,10 @@ fn coordinate_descent(
 }
 
 #[allow(clippy::cast_precision_loss, reason = "the row count scales a rounding tolerance")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the solve keeps iteration and its KKT validation together"
+)]
 /// Solve the penalized problem; the coefficients are returned only if they satisfy the KKT
 /// conditions of the exact objective.
 fn solve(

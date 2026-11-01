@@ -83,6 +83,10 @@ impl CrossfitPlan {
     /// # Errors
     ///
     /// The first error of `poll`, an empty fold, `fit_nuisance` or `score`.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the optional callback is owned for the duration of the cross-fit"
+    )]
     pub fn run<N, E>(
         &self,
         empty: Option<impl Fn() -> E>,

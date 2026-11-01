@@ -72,7 +72,7 @@ impl LogDensityModel for GaussianMean {
 
     fn log_density(&self, parameter: &[f64], row: u64) -> Result<f64, ProviderCallError> {
         self.calls.fetch_add(1, Ordering::Relaxed);
-        let x = self.data[row as usize];
+        let x = self.data[usize::try_from(row).unwrap()];
         Ok(-0.5 * (x - parameter[0]).powi(2) - 0.5 * (2.0 * std::f64::consts::PI).ln())
     }
 }
@@ -89,7 +89,7 @@ impl PredictiveModel for GaussianMean {
     }
 
     fn predict(&self, parameter: &[f64], row: u64) -> Result<f64, ProviderCallError> {
-        Ok(parameter[0] + self.covariate[row as usize])
+        Ok(parameter[0] + self.covariate[usize::try_from(row).unwrap()])
     }
 }
 
@@ -99,11 +99,16 @@ impl EstimatingEquationModel for GaussianMean {
     }
 
     fn score(&self, parameter: &[f64], row: u64, out: &mut [f64]) -> Result<(), ProviderCallError> {
-        out[0] = self.data[row as usize] - parameter[0];
+        out[0] = self.data[usize::try_from(row).unwrap()] - parameter[0];
         Ok(())
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the test grids use finite positive integral step counts"
+)]
 fn grid(low: f64, high: f64, step: f64) -> Vec<Vec<f64>> {
     let count = ((high - low) / step).round() as usize;
     (0..=count).map(|k| vec![low + step * k as f64]).collect()
@@ -234,7 +239,7 @@ impl EstimatingEquationModel for Regression {
     }
 
     fn score(&self, parameter: &[f64], row: u64, out: &mut [f64]) -> Result<(), ProviderCallError> {
-        let i = row as usize;
+        let i = usize::try_from(row).unwrap();
         let residual = self.y[i] - parameter[0] - parameter[1] * self.x[i];
         out[0] = residual;
         out[1] = residual * self.x[i];
@@ -391,7 +396,7 @@ impl LogDensityModel for Logistic {
     }
 
     fn log_density(&self, parameter: &[f64], row: u64) -> Result<f64, ProviderCallError> {
-        let i = row as usize;
+        let i = usize::try_from(row).unwrap();
         let p = Self::probability(parameter, self.x[i]);
         Ok(self.y[i] * p.ln() + (1.0 - self.y[i]) * (1.0 - p).ln())
     }
@@ -403,7 +408,7 @@ impl EstimatingEquationModel for Logistic {
     }
 
     fn score(&self, parameter: &[f64], row: u64, out: &mut [f64]) -> Result<(), ProviderCallError> {
-        let i = row as usize;
+        let i = usize::try_from(row).unwrap();
         let sign = if self.flip_score { -1.0 } else { 1.0 };
         let residual = sign * (self.y[i] - Self::probability(parameter, self.x[i]));
         out[0] = residual;
@@ -456,7 +461,7 @@ impl RecipeProvider for Contributions {
 
 impl InfluenceModel for Contributions {
     fn contribution(&self, row: u64) -> Result<f64, ProviderCallError> {
-        Ok(self.values[row as usize])
+        Ok(self.values[usize::try_from(row).unwrap()])
     }
 }
 
@@ -509,7 +514,7 @@ impl ExactIntegrationModel for FourPoints {
     }
 
     fn probability(&self, index: u64) -> Result<f64, ProviderCallError> {
-        Ok(self.probabilities[index as usize])
+        Ok(self.probabilities[usize::try_from(index).unwrap()])
     }
 }
 

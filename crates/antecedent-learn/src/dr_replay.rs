@@ -381,15 +381,15 @@ fn admission_error(error: AdmissionError) -> DrReplayError {
 fn learn_error(error: LearnError) -> DrReplayError {
     match error {
         LearnError::Cancelled
-        | LearnError::Stats(antecedent_stats::StatsError::Cancelled)
+        | LearnError::Stats(
+            antecedent_stats::StatsError::Cancelled
+            | antecedent_stats::StatsError::Admission(AdmissionError::Cancelled),
+        )
         | LearnError::Admission(AdmissionError::Cancelled)
-        | LearnError::Stats(antecedent_stats::StatsError::Admission(AdmissionError::Cancelled))
-        | LearnError::Probability(antecedent_prob::ProbError::Admission(
-            AdmissionError::Cancelled,
-        ))
-        | LearnError::Probability(antecedent_prob::ProbError::Cancelled { .. }) => {
-            DrReplayError::Cancelled
-        }
+        | LearnError::Probability(
+            antecedent_prob::ProbError::Admission(AdmissionError::Cancelled)
+            | antecedent_prob::ProbError::Cancelled { .. },
+        ) => DrReplayError::Cancelled,
         LearnError::Admission(error)
         | LearnError::Stats(antecedent_stats::StatsError::Admission(error))
         | LearnError::Probability(antecedent_prob::ProbError::Admission(error)) => {
@@ -801,8 +801,8 @@ mod tests {
             // The unpenalized logistic MLE agrees with the training fraction to about 1e-8.
             assert!((replay.propensity[i] - e).abs() <= 1e-7, "row {i}");
         }
-        for i in 0..n {
-            assert!((replay.phi[i] - reference[i]).abs() <= 1e-6, "score row {i}");
+        for (i, expected) in reference.iter().enumerate() {
+            assert!((replay.phi[i] - expected).abs() <= 1e-6, "score row {i}");
         }
         let ate = reference.iter().sum::<f64>() / n as f64;
         assert!((replay.ate - ate).abs() <= 1e-6, "{} vs {ate}", replay.ate);
