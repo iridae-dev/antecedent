@@ -62,20 +62,20 @@ for another, and an empty selection fails.
 
 | Mode | Selects |
 | --- | --- |
-| `rust` (default), `docs`, `dev` | Workspace nextest run, doctests, or a focused forwarded selection. |
+| `rust` (default), `docs`, `dev` | Workspace nextest run, doctests, or a focused selection. Ordinary nextest runs exclude registered measured-record acceptance assertions. |
 | `rust-software` | Ordinary workspace assertions with registered measured-record acceptance assertions explicitly deselected (they await calibration). |
 | `rust-calibration-acceptance` | Only those retained acceptance assertions; no calibration is performed. |
 | `integration` | Integration targets, without library unit tests. |
 | `scientific` | Exact scientific assertions cited by the evidence registries: one workspace nextest run of the cited Rust tests (`scripts/evidence_audit.py scientific-filter`), then the cited Python ones (`run-scientific --python-only`). |
 | `scripts` | Discovered script unit tests in their locked environment; skips, empty discovery and failures fail. |
-| `python`, `python-test` | Full pytest (with or without sync and native rebuild). |
+| `python`, `python-test` | pytest without measured-record acceptance assertions (with or without sync and native rebuild). |
 | `python-software` | pytest with `-m 'not requires_calibration'`. |
 | `python-calibration-acceptance` | pytest with `-m requires_calibration`, after branch calibration. |
 
-Both pytest modes first check the native extension identity
-(`scripts/native_build_identity.py check`). CI's coverage-floor pytest step runs
-the whole suite (software and acceptance) because the calibration attestation
-runs first in the same workflow.
+The pytest modes first check the native extension identity
+(`scripts/native_build_identity.py check`). CI's coverage-floor and wheel tests
+exclude the measured-record acceptance marker. The explicit acceptance lane
+retains those tests for use after calibration.
 
 Most integration files are compiled into a few consolidated `suite_NN` targets
 per crate (`scripts/consolidate_tests.py`); the files stay where they are, are
