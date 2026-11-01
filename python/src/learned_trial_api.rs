@@ -55,16 +55,19 @@ impl PreparedLearnedTrial {
         ctx
     }
     fn estimate_payload(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
         compact: bool,
     ) -> PyResult<String> {
-        let ctx = self.ctx(cancel);
-        let inner = self.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
-        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(err))?;
+        // Borrow only to snapshot and to store: the run itself holds no borrow.
+        let (inner, ctx) = {
+            let this = slf.borrow();
+            let inner = this.inner.clone().ok_or_else(|| err("loaded claims cannot execute"))?;
+            (inner, this.ctx(cancel))
+        };
+        let result = crate::detach_catch(slf.py(), move || inner.estimate(&ctx).map_err(err))?;
         let payload = trial_payload(&result, compact)?;
-        self.last = Some(Arc::new(result));
+        slf.borrow_mut().last = Some(Arc::new(result));
         Ok(payload)
     }
     /// Native four-slot reasoning: the executed result's own view once estimated, else
@@ -82,19 +85,17 @@ impl PreparedLearnedTrial {
 impl PreparedLearnedTrial {
     #[pyo3(signature=(cancel=None))]
     fn estimate(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        self.estimate_payload(py, cancel, false)
+        Self::estimate_payload(slf, cancel, false)
     }
     #[pyo3(signature=(cancel=None))]
     fn estimate_summary(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        self.estimate_payload(py, cancel, true)
+        Self::estimate_payload(slf, cancel, true)
     }
     #[pyo3(signature=(seed=None))]
     fn fork(&self, seed: Option<u64>) -> PyResult<Self> {

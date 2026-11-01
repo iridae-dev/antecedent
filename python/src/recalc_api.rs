@@ -510,7 +510,7 @@ impl PyRecalcSession {
         memory_limit_bytes=None, cancel=None))]
     #[allow(clippy::too_many_arguments)]
     fn plan(
-        &self,
+        &mut self,
         names: Vec<String>,
         columns: Vec<NumericColumn<'_>>,
         edges: Vec<(String, String)>,
@@ -538,6 +538,8 @@ impl PyRecalcSession {
             cost,
             &ctx,
         )?;
+        // Plan under the declared capabilities that `capabilities_json` reports.
+        self.declare();
         let plan = self.inner.plan(&request, &ctx);
         serde_json::to_string(&plan_to_wire(&plan)).map_err(py_msg)
     }
@@ -583,11 +585,10 @@ impl PyRecalcSession {
         self.declare();
         let capabilities = self.capabilities();
         let previous = self.inner.identities().clone();
-        let planned = self.inner.plan(&request, &ctx);
-        // Move the session into the detached run and take it back afterwards. A panic or an
-        // interrupt loses the live study, so the next run recomputes every stage.
+        // The session is borrowed in place, so a panic or an interrupt keeps its live study.
+        let plan_ctx = bounded_context(seed, threads, memory_limit_bytes, None);
         let session = &mut self.inner;
-        let ran = detach_catch(py, move || {
+        let (ran, request) = detach_catch(py, move || {
             let ran = match execute_with_receipt(session, &request, &ctx) {
                 Ok(outcome) => Ran::Done(Box::new(outcome)),
                 Err(RecalcRunError::Refused(plan)) => Ran::Refused(plan),
@@ -599,7 +600,7 @@ impl PyRecalcSession {
                 Err(RecalcRunError::Execution(error)) => Ran::Failed(py_err(error)),
                 Err(RecalcRunError::Receipt(error)) => Ran::Failed(py_msg(error)),
             };
-            Ok(ran)
+            Ok((ran, request))
         })?;
         match ran {
             Ran::Done(outcome) => self.finish(&outcome, &previous, &capabilities),
@@ -618,7 +619,7 @@ impl PyRecalcSession {
                             .to_owned(),
                     ),
                     &format!("no live artifact to reuse for stage {stage}"),
-                    Some(&planned),
+                    Some(&self.inner.plan(&request, &plan_ctx)),
                 )),
             )),
             Ran::Cancelled => Ok((
@@ -634,7 +635,7 @@ impl PyRecalcSession {
                             .to_owned(),
                     ),
                     "the run was cancelled before any stage ran, so nothing was retained",
-                    Some(&planned),
+                    Some(&self.inner.plan(&request, &plan_ctx)),
                 )),
             )),
             Ran::Failed(error) => Err(error),

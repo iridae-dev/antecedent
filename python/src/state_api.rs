@@ -606,6 +606,11 @@ impl PyCausalState {
         obs_std: f64,
         seed: u64,
     ) -> PyResult<()> {
+        if self.inner.suff_stats.particle_filters.contains_key(key.as_str()) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "particle filter `{key}` already exists; refusing to discard its state"
+            )));
+        }
         let pf = ParticleFilterState::init(
             n_particles,
             LgssmParams { a, process_std, obs_std },

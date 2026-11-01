@@ -99,6 +99,14 @@ fn request(
     if names.len() > 64 {
         return Err(invalid("recalc.limits_exceeded", "Bayesian feature count exceeds64"));
     }
+    for (i, name) in names.iter().enumerate() {
+        if name.is_empty() || names[..i].contains(name) {
+            return Err(invalid(
+                "recalc.bayesian_invalid_data",
+                "column names must be non-empty and unique",
+            ));
+        }
+    }
     let wire: RequestWire = parse_json(specification, "Bayesian request")?;
     let locate = |name: &str| -> PyResult<VariableId> {
         let Some(i) = names.iter().position(|n| n == name) else {

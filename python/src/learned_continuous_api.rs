@@ -118,30 +118,36 @@ impl PreparedLearnedContinuousNative {
     /// certificate derived at preparation is reused.
     #[pyo3(signature=(cancel=None))]
     fn estimate(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let ctx = execution_context(self.seed, self.memory_bytes, cancel);
-        let inner = self.inner.clone();
-        let result = crate::detach_catch(py, move || inner.estimate(&ctx).map_err(error))?;
-        let payload = estimate_json(&result, &self.names);
-        self.last = Some(result);
+        // Borrow only to snapshot and to store: the run itself holds no borrow.
+        let (inner, ctx) = {
+            let this = slf.borrow();
+            (this.inner.clone(), execution_context(this.seed, this.memory_bytes, cancel))
+        };
+        let result = crate::detach_catch(slf.py(), move || inner.estimate(&ctx).map_err(error))?;
+        let mut this = slf.borrow_mut();
+        let payload = estimate_json(&result, &this.names);
+        this.last = Some(result);
         Ok(payload)
     }
 
     /// Compute the design-specific analytic influence interval.
     #[pyo3(signature=(cancel=None))]
     fn interval(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        let ctx = execution_context(self.seed, self.memory_bytes, cancel);
-        let inner = self.inner.clone();
-        let result = crate::detach_catch(py, move || inner.interval(&ctx).map_err(error))?;
-        let payload = estimate_json(&result, &self.names);
-        self.last = Some(result);
+        // Borrow only to snapshot and to store: the run itself holds no borrow.
+        let (inner, ctx) = {
+            let this = slf.borrow();
+            (this.inner.clone(), execution_context(this.seed, this.memory_bytes, cancel))
+        };
+        let result = crate::detach_catch(slf.py(), move || inner.interval(&ctx).map_err(error))?;
+        let mut this = slf.borrow_mut();
+        let payload = estimate_json(&result, &this.names);
+        this.last = Some(result);
         Ok(payload)
     }
 
