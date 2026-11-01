@@ -225,7 +225,7 @@ impl From<crate::analysis::DecisionCarrierError> for CompileCause {
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
 #[error("{message}")]
 pub struct CompileFailure {
-    message: String,
+    message: Box<str>,
     #[source]
     cause: CompileCause,
 }
@@ -246,7 +246,7 @@ impl CompileFailure {
 
 impl From<CompileCause> for CompileFailure {
     fn from(cause: CompileCause) -> Self {
-        Self { message: cause.to_string(), cause }
+        Self { message: cause.to_string().into_boxed_str(), cause }
     }
 }
 
@@ -1222,6 +1222,11 @@ const _: () = assert!(
 #[cfg(test)]
 mod tests {
     use super::{AttributionError, CausalError, DiscoveryError, ValidationError};
+
+    #[test]
+    fn facade_error_stays_below_large_error_threshold() {
+        assert!(std::mem::size_of::<CausalError>() < 128);
+    }
 
     // A cancellation token fired mid-refuter, mid-discovery, or mid-Shapley
     // computation must surface at the facade boundary as `CausalError::Cancelled`,
