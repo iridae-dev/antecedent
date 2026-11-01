@@ -2725,9 +2725,15 @@ class ParticipantProcedure:
         )
 
     def amend_borrowing(
-        self, borrowing: Sequence[ArmPrior], looks_performed: int
+        self,
+        borrowing: Sequence[ArmPrior],
+        looks_performed: int,
+        *,
+        history: ParticipantHistory | None = None,
     ) -> ParticipantProcedure:
         """Re-declare the procedure with another borrowing plan while borrowing is still open.
+
+        A retained ``history`` counts its own looks: ``looks_performed`` cannot understate it.
 
         Raises:
             AdaptiveInferenceRefusal: ``adaptive_assumption_violated`` with
@@ -2735,8 +2741,11 @@ class ParticipantProcedure:
                 the plan differs.
         """
         wire = _procedure_json([prior._wire() for prior in borrowing])
+        if history is not None and not isinstance(history, ParticipantHistory):
+            raise CausalTypeError("history must be a ParticipantHistory")
+        history_wire = None if history is None else _procedure_json(history.to_wire())
         return ParticipantProcedure(
-            _unwrap(self._handle.amend_borrowing(wire, int(looks_performed)))
+            _unwrap(self._handle.amend_borrowing(wire, int(looks_performed), history_wire))
         )
 
     def prepare_session(

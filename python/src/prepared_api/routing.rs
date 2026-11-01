@@ -138,6 +138,11 @@ pub(super) fn temporal_effect_query(
         if policy != "sustained" {
             return Err(crate::value_err("window requires policy='sustained'"));
         }
+        if treatment_lag != crate::temporal_license::DEFAULT_TREATMENT_LAG {
+            return Err(crate::value_err(
+                "treatment_lag does not apply with a window: the window states the policy's own span",
+            ));
+        }
         q = q.with_policy(antecedent_core::TemporalPolicy::sustained(from, until));
     }
     q.control = Intervention::set(t_id, Value::f64(control_level));

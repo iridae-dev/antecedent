@@ -72,20 +72,21 @@ fn external_refusal_json(refusal: &antecedent_contract::ExternalRefusal) -> Stri
     .to_string()
 }
 
+/// The snapshot the receiver last verified, when it supplied one; offline otherwise, so that
+/// applicability is unknown (`null`) rather than assumed.
+fn current_snapshot_of(text: Option<&str>) -> PyResult<Option<SemanticDigest>> {
+    text.map(|text| digest(text, "current_snapshot")).transpose()
+}
+
 fn freshness_of(
     source: &ClaimEnvelope,
     bridged: &BridgedClaim,
+    current: Option<SemanticDigest>,
     withdrawn: bool,
     superseded: bool,
 ) -> String {
-    let snapshot = source.identities.data_snapshot;
-    let standing = source.freshness(
-        Some(snapshot),
-        Some(snapshot),
-        superseded.then_some(source.claim_id),
-        withdrawn,
-        true,
-    );
+    let standing =
+        source.freshness(current, current, superseded.then_some(source.claim_id), withdrawn, true);
     let derived = bridged.freshness(&standing);
     json!({
         "historically_valid": derived.historically_valid,
@@ -770,13 +771,21 @@ impl BridgedClaimHandle {
     }
 
     /// Applicability of the derived claim given the source's standing.
-    fn freshness_json(&self, source_withdrawn: bool, source_superseded: bool) -> String {
-        freshness_of(
+    #[pyo3(signature = (source_withdrawn, source_superseded, current_snapshot=None))]
+    fn freshness_json(
+        &self,
+        source_withdrawn: bool,
+        source_superseded: bool,
+        current_snapshot: Option<&str>,
+    ) -> PyResult<String> {
+        let current = current_snapshot_of(current_snapshot)?;
+        Ok(freshness_of(
             self.inner.source_claim(),
             self.inner.bridged(),
+            current,
             source_withdrawn,
             source_superseded,
-        )
+        ))
     }
 
     /// The artifact bytes and identity, or the refusal.
@@ -840,8 +849,21 @@ impl ConsumedBridgeHandle {
     }
 
     /// Applicability of the derived claim given the source's standing.
-    fn freshness_json(&self, source_withdrawn: bool, source_superseded: bool) -> String {
-        freshness_of(&self.inner.source, &self.inner.bridged, source_withdrawn, source_superseded)
+    #[pyo3(signature = (source_withdrawn, source_superseded, current_snapshot=None))]
+    fn freshness_json(
+        &self,
+        source_withdrawn: bool,
+        source_superseded: bool,
+        current_snapshot: Option<&str>,
+    ) -> PyResult<String> {
+        let current = current_snapshot_of(current_snapshot)?;
+        Ok(freshness_of(
+            &self.inner.source,
+            &self.inner.bridged,
+            current,
+            source_withdrawn,
+            source_superseded,
+        ))
     }
 }
 
@@ -952,18 +974,13 @@ fn distribution_summary(result: &ScientificBridgeDistributionResult) -> Json {
 
 fn distribution_freshness(
     result: &ScientificBridgeDistributionResult,
+    current: Option<SemanticDigest>,
     withdrawn: bool,
     superseded: bool,
 ) -> String {
     let source = result.bridged().source_envelope();
-    let snapshot = source.identities.data_snapshot;
-    let standing = source.freshness(
-        Some(snapshot),
-        Some(snapshot),
-        superseded.then_some(source.claim_id),
-        withdrawn,
-        true,
-    );
+    let standing =
+        source.freshness(current, current, superseded.then_some(source.claim_id), withdrawn, true);
     let derived = result.freshness(&standing);
     json!({
         "historically_valid": derived.historically_valid,
@@ -1097,8 +1114,15 @@ impl BridgedDistributionHandle {
     }
 
     /// Applicability of the derived claim given the source's standing.
-    fn freshness_json(&self, source_withdrawn: bool, source_superseded: bool) -> String {
-        distribution_freshness(&self.inner, source_withdrawn, source_superseded)
+    #[pyo3(signature = (source_withdrawn, source_superseded, current_snapshot=None))]
+    fn freshness_json(
+        &self,
+        source_withdrawn: bool,
+        source_superseded: bool,
+        current_snapshot: Option<&str>,
+    ) -> PyResult<String> {
+        let current = current_snapshot_of(current_snapshot)?;
+        Ok(distribution_freshness(&self.inner, current, source_withdrawn, source_superseded))
     }
 
     /// The artifact bytes and identity, or the refusal.

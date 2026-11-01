@@ -784,6 +784,7 @@ fn joint_law_check_composed_interval(
                     "construction": licence.construction(),
                     "nominal_level": licence.nominal_level(),
                     "label": licence.label(),
+                    "declared_evidence_rows": licence.declared_evidence_rows(),
                     "lower": licence.bounds().map(|b| b.0),
                     "upper": licence.bounds().map(|b| b.1),
                 })

@@ -279,6 +279,8 @@ class ComposedInterval(ScientificResult):
     and variance (``normal_approximation``); otherwise the licence names the construction the
     caller builds from the aligned draws. The record, not this value, carries the coverage
     evidence; the interval holds at the record's ``nominal_level`` only.
+    ``declared_evidence_rows`` is the caller's declared evidence size the record was resolved at;
+    the sealed claim does not authenticate it, so the licence holds only if it is true.
     """
 
     coordinate_id: str
@@ -286,6 +288,7 @@ class ComposedInterval(ScientificResult):
     construction: str
     nominal_level: float
     label: str
+    declared_evidence_rows: int
     lower: float | None
     upper: float | None
 
@@ -470,6 +473,7 @@ class PropagationClaim(ScientificResult):
             construction=info["construction"],
             nominal_level=info["nominal_level"],
             label=info["label"],
+            declared_evidence_rows=info["declared_evidence_rows"],
             lower=info["lower"],
             upper=info["upper"],
         )

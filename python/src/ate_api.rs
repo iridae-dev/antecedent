@@ -738,6 +738,18 @@ fn analyze_ate_many(
     })
 }
 
+/// Pair lower and upper interval ends; unequal lengths are a broken result, never truncated.
+fn paired_bounds(lower: &[f64], upper: &[f64]) -> PyResult<Vec<(f64, f64)>> {
+    if lower.len() != upper.len() {
+        return Err(crate::value_err(format!(
+            "interval bounds disagree in length ({} lower, {} upper)",
+            lower.len(),
+            upper.len()
+        )));
+    }
+    Ok(lower.iter().copied().zip(upper.iter().copied()).collect())
+}
+
 pub(crate) fn ate_result_from_analysis(
     names: &[String],
     result: &antecedent::StudyResult,
@@ -979,7 +991,8 @@ pub(crate) fn ate_result_from_analysis(
         unit_effect_intervals: counterfactual_view
             .as_ref()
             .and_then(|view| view.1)
-            .map(|i| i.lower.iter().copied().zip(i.upper.iter().copied()).collect()),
+            .map(|i| paired_bounds(&i.lower, &i.upper))
+            .transpose()?,
         unit_effect_intervals_level: counterfactual_view
             .as_ref()
             .and_then(|view| view.1)
@@ -992,27 +1005,32 @@ pub(crate) fn ate_result_from_analysis(
             .as_ref()
             .and_then(|view| view.2)
             .map(|flags| flags.to_vec()),
-        counterfactual_contrasts: result.counterfactual_contrasts().map(|set| {
-            set.contrasts
-                .iter()
-                .map(|contrast| {
-                    (
-                        names
-                            .get(contrast.outcome.as_usize())
-                            .cloned()
-                            .unwrap_or_else(|| contrast.outcome.as_usize().to_string()),
-                        contrast.mean_ite,
-                        contrast.standard_error,
-                        contrast.unit_effects.to_vec(),
-                        contrast.unit_effect_intervals.as_ref().map(|i| {
-                            i.lower.iter().copied().zip(i.upper.iter().copied()).collect()
-                        }),
-                        contrast.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
-                        contrast.unit_effects_homogeneous,
-                    )
-                })
-                .collect()
-        }),
+        counterfactual_contrasts: result
+            .counterfactual_contrasts()
+            .map(|set| {
+                set.contrasts
+                    .iter()
+                    .map(|contrast| {
+                        Ok((
+                            names
+                                .get(contrast.outcome.as_usize())
+                                .cloned()
+                                .unwrap_or_else(|| contrast.outcome.as_usize().to_string()),
+                            contrast.mean_ite,
+                            contrast.standard_error,
+                            contrast.unit_effects.to_vec(),
+                            contrast
+                                .unit_effect_intervals
+                                .as_ref()
+                                .map(|i| paired_bounds(&i.lower, &i.upper))
+                                .transpose()?,
+                            contrast.unit_extrapolative.as_ref().map(|flags| flags.to_vec()),
+                            contrast.unit_effects_homogeneous,
+                        ))
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .transpose()?,
         mediation_total: result.mediation().and_then(|m| m.total),
         mediation_direct: result.mediation().and_then(|m| m.direct),
         mediation_mediated: result.mediation().and_then(|m| m.mediated),
@@ -1317,6 +1335,11 @@ fn structure_query(
             if let Some((from, until)) = window {
                 if !matches!(query.policy, TemporalPolicy::Sustained { .. }) {
                     return Err(crate::value_err("window requires a sustained policy"));
+                }
+                if treatment_lag != crate::temporal_license::DEFAULT_TREATMENT_LAG {
+                    return Err(crate::value_err(
+                        "treatment_lag does not apply with a window: the window states the policy's own span",
+                    ));
                 }
                 query.policy = TemporalPolicy::sustained(from, until);
             }

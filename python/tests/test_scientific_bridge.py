@@ -818,8 +818,13 @@ def test_a_withdrawn_or_superseded_source_makes_the_bridged_claim_inapplicable()
     claim = require_success(
         sb.prepare_scientific_bridge(surrogate_contract()).derive(surrogate_source())
     )
-    current = require_success(claim.freshness())
+    offline = require_success(claim.freshness())
+    assert offline.historically_valid and offline.currently_applicable is None
+    snapshot = claim.source()["data_snapshot"]
+    current = require_success(claim.freshness(current_snapshot=snapshot))
     assert current.historically_valid and current.currently_applicable is True
+    moved = require_success(claim.freshness(current_snapshot="0" * 64))
+    assert moved.currently_applicable is False
     for kwargs in ({"source_withdrawn": True}, {"source_superseded": True}):
         standing = require_success(claim.freshness(**kwargs))
         assert standing.currently_applicable is False

@@ -75,7 +75,7 @@ def test_a_sequential_window_reports_a_sequential_circular_block_interval():
     result = _analyze(
         data,
         graph=graph,
-        query=ant.SustainedEffect("t", "y", treatment_lag=2, horizon_steps=1, window=(-2, -1)),
+        query=ant.SustainedEffect("t", "y", horizon_steps=1, window=(-2, -1)),
     )
     assert result.estimate.se_bootstrap is not None
     _assert_block_interval(_primary(result), "sequential")

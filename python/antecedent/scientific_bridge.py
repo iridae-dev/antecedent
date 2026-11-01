@@ -1230,11 +1230,23 @@ class BridgedClaim(ScientificResult):
 
     @outcome_operation
     def freshness(
-        self, *, source_withdrawn: bool = False, source_superseded: bool = False
+        self,
+        *,
+        source_withdrawn: bool = False,
+        source_superseded: bool = False,
+        current_snapshot: str | None = None,
     ) -> Freshness:
-        """Applicability given the source's standing; history is preserved either way."""
+        """Applicability given the source's standing; history is preserved either way.
+
+        ``current_snapshot`` is the hex identity of the receiver's current data snapshot. The
+        claim is applicable when it equals the source's snapshot. Without it the receiver is
+        offline and ``currently_applicable`` is ``None`` (unknown), unless the source is
+        withdrawn or superseded, which is ``False``.
+        """
         wire = json.loads(
-            self._handle.freshness_json(bool(source_withdrawn), bool(source_superseded))
+            self._handle.freshness_json(
+                bool(source_withdrawn), bool(source_superseded), current_snapshot
+            )
         )
         return Freshness(wire["historically_valid"], wire["currently_applicable"])
 
@@ -1674,11 +1686,23 @@ class BridgedDistribution(ScientificResult):
 
     @outcome_operation
     def freshness(
-        self, *, source_withdrawn: bool = False, source_superseded: bool = False
+        self,
+        *,
+        source_withdrawn: bool = False,
+        source_superseded: bool = False,
+        current_snapshot: str | None = None,
     ) -> Freshness:
-        """Applicability given the source's standing; history is preserved either way."""
+        """Applicability given the source's standing; history is preserved either way.
+
+        ``current_snapshot`` is the hex identity of the receiver's current data snapshot. The
+        claim is applicable when it equals the source's snapshot. Without it the receiver is
+        offline and ``currently_applicable`` is ``None`` (unknown), unless the source is
+        withdrawn or superseded, which is ``False``.
+        """
         wire = json.loads(
-            self._handle.freshness_json(bool(source_withdrawn), bool(source_superseded))
+            self._handle.freshness_json(
+                bool(source_withdrawn), bool(source_superseded), current_snapshot
+            )
         )
         return Freshness(wire["historically_valid"], wire["currently_applicable"])
 

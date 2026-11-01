@@ -569,6 +569,7 @@ impl PropagationClaim {
             nominal_level: plan.nominal_level,
             label: plan.label,
             bounds,
+            declared_evidence_rows: evidence_rows,
         })
     }
 
@@ -620,9 +621,18 @@ pub struct ComposedInterval {
     nominal_level: f64,
     label: &'static str,
     bounds: Option<(f64, f64)>,
+    declared_evidence_rows: u64,
 }
 
 impl ComposedInterval {
+    /// The evidence size the record was resolved at. It is the caller's
+    /// declaration, not something the sealed claim authenticates: the licence
+    /// holds only as far as that declaration is true.
+    #[must_use]
+    pub fn declared_evidence_rows(&self) -> u64 {
+        self.declared_evidence_rows
+    }
+
     /// The composed coordinate the record was matched against.
     #[must_use]
     pub fn coordinate_id(&self) -> &str {

@@ -418,12 +418,21 @@ impl ParticipantProcedureHandle {
 
     /// Re-declare the procedure with another borrowing plan while borrowing
     /// is still open (no look performed).
+    #[pyo3(signature = (borrowing_json, looks_performed, history_json=None))]
     fn amend_borrowing(
         &self,
         borrowing_json: &str,
         looks_performed: usize,
+        history_json: Option<&str>,
     ) -> PyResult<Refused<ParticipantProcedureHandle>> {
         let plan = borrowing_of(&parse(borrowing_json, "borrowing plan")?)?;
+        // A retained history is evidence of looks the caller's count cannot understate.
+        let looks_performed = match history_json {
+            Some(text) => {
+                looks_performed.max(history_of(&parse(text, "participant history")?)?.batches.len())
+            }
+            None => looks_performed,
+        };
         Ok(match self.inner.amend_borrowing(&plan, looks_performed) {
             Ok(inner) => (Some(Self { inner }), None),
             Err(refusal) => refused(&refusal),
