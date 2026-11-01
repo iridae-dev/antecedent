@@ -934,7 +934,7 @@ pub fn estimate_trial_compatible_transport_confidence_set(
     proof
         .validate_replay_budget(evidence.limits, TrialArtifactBudget::default())
         .and_then(|_| proof.validate_with_empty(true))
-        .map_err(|e| confidence_set_invalid(e.to_string()))?;
+        .map_err(super::discovered_transport_estimate::discovered_transport_io_failure)?;
     let retained = proof.retained_members();
     let mut retained_estimate = None;
     let reason = if retained.is_empty() {
@@ -988,7 +988,7 @@ pub fn estimate_trial_compatible_transport_confidence_set(
         .as_ref()
         .map(TrialCompatibleTransportEstimate::export)
         .transpose()
-        .map_err(|e| confidence_set_invalid(e.to_string()))?;
+        .map_err(super::discovered_transport_estimate::discovered_transport_io_failure)?;
     Ok(TrialCompatibleTransportConfidenceSet {
         wire: TrialConfidenceSetWire {
             format: CONFIDENCE_SET_FORMAT.into(),

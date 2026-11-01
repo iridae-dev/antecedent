@@ -524,6 +524,27 @@ impl TransportGridResult {
     pub fn identity(&self) -> &str {
         &self.identity
     }
+    /// The variable names bound into this grid's identity, empty when it carries none.
+    #[must_use]
+    pub fn variable_names(&self) -> &[String] {
+        &self.wire.variable_names
+    }
+    /// [`Self::export`] with the variable name of every graph coordinate bound into the grid
+    /// identity, so a consumer can refuse a relabelled outer frame.
+    ///
+    /// # Errors
+    /// As [`Self::export`], and a name list that is not one unique non-empty name per node.
+    pub fn export_named(&self, variable_names: &[String]) -> Result<Vec<u8>, IoError> {
+        check_grid_variable_names(variable_names, self.wire.nodes.len())?;
+        let mut named = self.clone();
+        named.wire.variable_names = variable_names.to_vec();
+        named.identity = if variable_names.is_empty() {
+            self.identity.clone()
+        } else {
+            antecedent_io::transport_grid_wire::grid_identity(&named.wire)?
+        };
+        named.export()
+    }
     /// Explicit paired mean contrast; both coordinates must be executable.
     /// # Errors
     /// Unavailable point, invalid index/outcome, or incompatible native authority.
@@ -904,6 +925,7 @@ fn build_grid(
         directed: edges.directed,
         bidirected: edges.bidirected,
         selections: query.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+        variable_names: Vec::new(),
         proof: TransportProofWire::from_checked(query.functional.derivation())?,
         catalog: EvidenceCatalogWire::from_catalog(query.functional.catalog()),
         laws: data.laws().iter().map(ExactLawWire::from_law).collect(),
@@ -1441,6 +1463,19 @@ impl PreparedStudy<TransportGridState> {
     }
 }
 
+/// Names are all or nothing: one unique non-empty name per graph node, or none.
+fn check_grid_variable_names(names: &[String], nodes: usize) -> Result<(), IoError> {
+    if names.is_empty()
+        || (names.len() == nodes
+            && names.iter().all(|name| !name.trim().is_empty())
+            && names.iter().collect::<std::collections::BTreeSet<_>>().len() == names.len())
+    {
+        Ok(())
+    } else {
+        Err(err("invalid grid variable names"))
+    }
+}
+
 /// Reads the bounded artifact, checks its container, features, reasoning, and identity, and returns the wire with its artifact id.
 fn read_grid_wire(
     bytes: &[u8],
@@ -1482,6 +1517,7 @@ fn read_grid_wire(
     {
         return Err(err("unsupported transport grid features/version/limits"));
     }
+    check_grid_variable_names(&wire.variable_names, wire.nodes.len())?;
     // A grid written before the support summary separated missing evidence from
     // support failures carries the undifferentiated summary; both are this grid's.
     if wire.reasoning != grid_reasoning(&wire.points, wire.statistical, false)

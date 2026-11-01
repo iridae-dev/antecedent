@@ -770,6 +770,8 @@ struct ExactExecutionWire {
     directed: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
     selections: Vec<u32>,
+    /// Variable name of every graph coordinate, or empty.
+    variable_names: Vec<String>,
     proof: TransportProofWire,
     catalog: EvidenceCatalogWire,
     laws: Vec<ExactLawWire>,
@@ -789,6 +791,20 @@ impl PreparedStudy<ExactPreparedState> {
     /// # Errors
     /// Stale/substituted result, unsupported coordinates, or encoding failure.
     pub fn export(&self, result: &ExactStudyResult) -> Result<Vec<u8>, IoError> {
+        self.export_named(result, &[])
+    }
+
+    /// [`Self::export`] carrying the variable name of every graph coordinate, so a consumer
+    /// can refuse a relabelled outer frame.
+    ///
+    /// # Errors
+    /// As [`Self::export`], and a name list that is not one unique non-empty name per node.
+    pub fn export_named(
+        &self,
+        result: &ExactStudyResult,
+        variable_names: &[String],
+    ) -> Result<Vec<u8>, IoError> {
+        check_variable_names_shape(variable_names, self.state.diagram.causal_graph().node_count())?;
         if result.identities != self.state.identities {
             return Err(err("transport.stale_result"));
         }
@@ -803,11 +819,12 @@ impl PreparedStudy<ExactPreparedState> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         antecedent_io::to_cbor(&ExactExecutionWire {
-            format: "antecedent.exact_transport.v1".into(),
+            format: "antecedent.exact_transport.v2".into(),
             nodes,
             directed: edges.directed,
             bidirected: edges.bidirected,
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+            variable_names: variable_names.to_vec(),
             proof: TransportProofWire::from_checked(self.state.functional.derivation())?,
             catalog: EvidenceCatalogWire::from_catalog(self.state.functional.catalog()),
             laws: {
@@ -845,6 +862,19 @@ impl PreparedStudy<ExactPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<(Self, ExactStudyResult), IoError> {
+        Self::consume_named(bytes, limits, ctx).map(|(prepared, result, _)| (prepared, result))
+    }
+
+    /// [`Self::consume`], also returning the variable names the artifact was exported with
+    /// (empty when it carries none) for the caller to check against its own frame.
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_named(
+        bytes: &[u8],
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<(Self, ExactStudyResult, Vec<String>), IoError> {
         let budget = |message: &str| IoError::Refused {
             code: antecedent_core::reason_code!("transport_budget_cancel"),
             message: message.to_owned(),
@@ -856,9 +886,10 @@ impl PreparedStudy<ExactPreparedState> {
             return Err(budget("transport artifact memory budget exceeded"));
         }
         let wire: ExactExecutionWire = antecedent_io::from_cbor(bytes)?;
-        if wire.format != "antecedent.exact_transport.v1" {
+        if wire.format != "antecedent.exact_transport.v2" {
             return Err(err("transport artifact format"));
         }
+        check_variable_names_shape(&wire.variable_names, wire.nodes.len())?;
         if wire.operations > limits.operations {
             return Err(budget("transport artifact operation limit exceeded"));
         }
@@ -914,7 +945,20 @@ impl PreparedStudy<ExactPreparedState> {
         {
             return Err(err("transport artifact execution claim mismatch"));
         }
-        Ok((prepared, result))
+        Ok((prepared, result, wire.variable_names))
+    }
+}
+
+/// Names are all or nothing: one unique non-empty name per graph node, or none.
+pub(super) fn check_variable_names_shape(names: &[String], nodes: usize) -> Result<(), IoError> {
+    if names.is_empty()
+        || (names.len() == nodes
+            && names.iter().all(|name| !name.trim().is_empty())
+            && names.iter().collect::<std::collections::BTreeSet<_>>().len() == names.len())
+    {
+        Ok(())
+    } else {
+        Err(err("invalid transport artifact variable names"))
     }
 }
 

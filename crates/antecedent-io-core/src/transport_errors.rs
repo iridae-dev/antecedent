@@ -39,6 +39,9 @@ pub enum ZTransportArtifactError {
     /// The premises digest does not match the stored premises.
     #[error("premises digest mismatch")]
     PremisesMismatch,
+    /// The caller's variable names are not the names the artifact was built under.
+    #[error("variable names do not match the verified name mapping")]
+    NamesMismatch,
 }
 
 impl ZTransportArtifactError {
@@ -54,7 +57,8 @@ impl ZTransportArtifactError {
             | Self::LawInvalid(_)
             | Self::ProgramMismatch(_)
             | Self::PointMismatch
-            | Self::PremisesMismatch => TransportOutcomeKind::InvalidInput,
+            | Self::PremisesMismatch
+            | Self::NamesMismatch => TransportOutcomeKind::InvalidInput,
         }
     }
 }

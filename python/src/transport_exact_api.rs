@@ -365,6 +365,7 @@ fn identify_classical_transport_stage(
                 vec![],
                 &result,
                 SidLimits { steps: max_steps, depth: max_depth },
+                &named.names,
                 &ctx,
             )
             .map_err(error)?;
@@ -442,6 +443,7 @@ fn identify_meta_transport_stage(
                 sources,
                 &result,
                 SidLimits { steps: max_steps, depth: max_depth },
+                &named.names,
                 &ctx,
             )
             .map_err(error)?;
@@ -477,6 +479,7 @@ fn consume_transport_certificate(
         )
         .map_err(error)?;
         let (diagram, _, result) = certificate.check(limits, &ctx).map_err(error)?;
+        certificate.check_variable_names(&names).map_err(error)?;
         validate_artifact_names(&names, diagram.causal_graph())?;
         if names.len() != diagram.causal_graph().node_count()
             || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
@@ -912,7 +915,7 @@ impl PreparedExactStage {
     }
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| error("transport.no_execution_claim"))?;
-        let artifact = self.inner.export(result).map_err(error)?;
+        let artifact = self.inner.export_named(result, &self.graph.names).map_err(error)?;
         let bytes = antecedent_io::to_cbor(&(self.graph.names.clone(), artifact)).map_err(error)?;
         let mut framed = b"ANTECEDENT-EXACT-TRANSPORT\x01".to_vec();
         framed.extend(bytes);
@@ -953,12 +956,16 @@ fn consume_exact_transport(
         ctx.set_memory_limit(memory_bytes);
         crate::apply_cancel(&mut ctx, cancel);
         crate::execution_api::apply(&mut ctx);
-        let (inner, result) = antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume(
-            &artifact,
-            ExactEvaluationLimits { operations: max_operations, depth: max_depth },
-            &ctx,
-        )
-        .map_err(error)?;
+        let (inner, result, bound) =
+            antecedent::PreparedStudy::<antecedent::ExactPreparedState>::consume_named(
+                &artifact,
+                ExactEvaluationLimits { operations: max_operations, depth: max_depth },
+                &ctx,
+            )
+            .map_err(error)?;
+        if bound != names {
+            return Err(error("variable names do not match the artifact's name mapping"));
+        }
         if names.len() != inner.diagram().causal_graph().node_count()
             || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
         {

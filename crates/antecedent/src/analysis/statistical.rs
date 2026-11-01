@@ -1788,6 +1788,23 @@ impl PreparedStudy<StatisticalPreparedState> {
     /// # Errors
     /// Stale result or encoding failure.
     pub fn export(&self, result: &StatisticalStudyResult) -> Result<Vec<u8>, IoError> {
+        self.export_named(result, &[])
+    }
+
+    /// [`Self::export`] carrying the variable name of every graph coordinate, so a consumer
+    /// can refuse a relabelled outer frame.
+    ///
+    /// # Errors
+    /// As [`Self::export`], and a name list that is not one unique non-empty name per node.
+    pub fn export_named(
+        &self,
+        result: &StatisticalStudyResult,
+        variable_names: &[String],
+    ) -> Result<Vec<u8>, IoError> {
+        super::exact::check_variable_names_shape(
+            variable_names,
+            self.state.diagram.causal_graph().node_count(),
+        )?;
         if result.identities != self.state.identities {
             return Err(err("transport.stale_result"));
         }
@@ -1802,7 +1819,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         antecedent_io::to_cbor(&StatisticalExecutionWire {
-            format: "antecedent.statistical_transport.v2".into(),
+            format: "antecedent.statistical_transport.v3".into(),
             seed: self.state.seed,
             grid: self.state.grid.clone(),
             samples: self.state.samples.clone(),
@@ -1810,6 +1827,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             directed: edges.directed,
             bidirected: edges.bidirected,
             selections: self.state.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+            variable_names: variable_names.to_vec(),
             proof: TransportProofWire::from_checked(self.state.functional.derivation())?,
             catalog: EvidenceCatalogWire::from_catalog(self.state.functional.catalog()),
             laws: law_wires(&self.state.data)?,
@@ -1894,18 +1912,32 @@ impl PreparedStudy<StatisticalPreparedState> {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<(Self, StatisticalStudyResult), IoError> {
+        Self::consume_named(bytes, limits, ctx).map(|(prepared, result, _)| (prepared, result))
+    }
+
+    /// [`Self::consume`], also returning the variable names the artifact was exported with
+    /// (empty when it carries none) for the caller to check against its own frame.
+    ///
+    /// # Errors
+    /// As [`Self::consume`].
+    pub fn consume_named(
+        bytes: &[u8],
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<(Self, StatisticalStudyResult, Vec<String>), IoError> {
         if ctx.cancellation.is_cancelled()
             || ctx.memory_limit_bytes().is_some_and(|limit| bytes.len() as u64 > limit)
         {
             return Err(err("transport artifact budget/cancellation"));
         }
         let wire: StatisticalExecutionWire = antecedent_io::from_cbor(bytes)?;
-        if wire.format != "antecedent.statistical_transport.v2"
+        if wire.format != "antecedent.statistical_transport.v3"
             || wire.operations > limits.operations
             || wire.depth > limits.depth
         {
             return Err(err("transport artifact format/limits"));
         }
+        super::exact::check_variable_names_shape(&wire.variable_names, wire.nodes.len())?;
         let (diagram, proof) = rebuild_checked_proof(
             &GraphFields {
                 nodes: &wire.nodes,
@@ -1981,7 +2013,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             identities: wire.identities,
             bayesian_estimate,
         };
-        Ok((prepared, result))
+        Ok((prepared, result, wire.variable_names))
     }
 }
 
@@ -2300,6 +2332,8 @@ struct StatisticalExecutionWire {
     directed: Vec<(u32, u32)>,
     bidirected: Vec<(u32, u32)>,
     selections: Vec<u32>,
+    /// Variable name of every graph coordinate, or empty.
+    variable_names: Vec<String>,
     proof: TransportProofWire,
     catalog: EvidenceCatalogWire,
     laws: Vec<ExactLawWire>,

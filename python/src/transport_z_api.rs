@@ -792,7 +792,7 @@ impl PreparedZTransportStage {
 
     /// The raw io-crate artifact of the last execution.
     pub(crate) fn raw_export(&self, what: &str) -> PyResult<Vec<u8>> {
-        self.last_result(what)?.export(&self.inner).map_err(error)
+        self.last_result(what)?.export_named(&self.inner, &self.graph.names).map_err(error)
     }
 
     /// Interval JSON for one execution: availability is the presence of mean
@@ -1050,6 +1050,7 @@ fn consume_z_transport_artifact(
         let ctx = execution_context(0, memory_bytes, cancel);
         let consumed =
             ZTransportArtifactWire::consume_with_limits(&bytes, limits, &ctx).map_err(error)?;
+        consumed.wire.check_variable_names(&names).map_err(error)?;
         crate::transport_exact_api::validate_artifact_names(
             &names,
             consumed.diagram.causal_graph(),

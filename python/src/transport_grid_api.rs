@@ -215,7 +215,7 @@ impl PreparedTransportGridStage {
             .last
             .as_ref()
             .ok_or_else(|| error("transport.no_execution_claim"))?
-            .export()
+            .export_named(&self.names)
             .map_err(error)?;
         let mut framed = b"ANTECEDENT-TRANSPORT-GRID\x01".to_vec();
         framed.extend(antecedent_io::to_cbor(&(self.names.clone(), bytes)).map_err(error)?);
@@ -429,6 +429,9 @@ fn consume_transport_grid(
             &ctx,
         )
         .map_err(error)?;
+        if result.variable_names() != names {
+            return Err(error("variable names do not match the artifact's name mapping"));
+        }
         if names.len() != inner.query().diagram.causal_graph().node_count()
             || names.iter().collect::<std::collections::BTreeSet<_>>().len() != names.len()
         {

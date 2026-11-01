@@ -452,7 +452,7 @@ impl PreparedStatisticalStage {
                 StatisticalPreparation::Deferred(_) => None,
             })
             .ok_or_else(|| error("transport.no_execution_claim"))?;
-        let artifact = ready.export(result).map_err(error)?;
+        let artifact = ready.export_named(result, &self.graph.names).map_err(error)?;
         let framed = frame_named_artifact(STATISTICAL_PREFIX, &self.graph.names, artifact)?;
         Ok(pyo3::types::PyBytes::new(py, &framed).unbind())
     }
@@ -617,13 +617,16 @@ fn consume_statistical_transport(
         let (names, artifact) =
             unframe_named_artifact(STATISTICAL_PREFIX, &bytes, "statistical transport")?;
         let ctx = execution_context(seed, memory_bytes, cancel);
-        let (inner, result) =
-            antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume(
+        let (inner, result, bound) =
+            antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume_named(
                 &artifact,
                 ExactEvaluationLimits { operations: max_operations, depth: max_depth },
                 &ctx,
             )
             .map_err(error)?;
+        if bound != names {
+            return Err(error("variable names do not match the artifact's name mapping"));
+        }
         crate::transport_exact_api::validate_artifact_names(
             &names,
             inner.diagram().causal_graph(),

@@ -915,6 +915,22 @@ pub fn discovered_transport_io_failure(error: IoError) -> DiscoveredTransportErr
     })
 }
 
+/// A graph failure, keeping an exhausted search budget a resource refusal rather than an
+/// anonymous estimation message.
+pub(crate) fn graph_failure(error: &antecedent_graph::GraphError) -> DiscoveredTransportError {
+    use antecedent_identify::discovered_transport::{
+        DiscoveredTransportOperational, DiscoveredTransportOperationalKind as K,
+    };
+    if matches!(error, antecedent_graph::GraphError::SearchBudgetExhausted { .. }) {
+        return DiscoveredTransportError::Operational(DiscoveredTransportOperational {
+            kind: K::Resource,
+            code: None,
+            message: error.to_string(),
+        });
+    }
+    estimation_failure(error)
+}
+
 fn estimation_failure(error: &impl std::fmt::Display) -> DiscoveredTransportError {
     DiscoveredTransportError::Estimation(error.to_string())
 }
@@ -939,7 +955,7 @@ fn identify_member(
     settings: &Settings<'_>,
     ctx: &ExecutionContext,
 ) -> Result<Result<Identified, MemberOutcome>, DiscoveredTransportError> {
-    let invalid = |error: antecedent_graph::GraphError| estimation_failure(&error);
+    let invalid = |error: antecedent_graph::GraphError| graph_failure(&error);
     let diagram = SelectionDiagram::try_new(problem.graph.clone(), problem.selection.to_vec())
         .map_err(invalid)?;
     let query = ClassicalTransportQuery {
@@ -1123,7 +1139,7 @@ fn member_estimate(
         None
     };
     let artifact =
-        if export { result.export().map_err(|e| estimation_failure(&e))? } else { Vec::new() };
+        if export { result.export().map_err(discovered_transport_io_failure)? } else { Vec::new() };
     Ok(MemberOutcome::Estimated(MemberEstimate {
         expression,
         contrast: contrast_of(&means),
@@ -1489,7 +1505,7 @@ pub(crate) fn estimate_selected_discovered_transport(
             report.selection_targets(),
             refined_identity.is_some(),
         )
-        .map_err(|e| estimation_failure(&e))?;
+        .map_err(|e| graph_failure(&e))?;
         let selection: Arc<[VariableId]> = report
             .selection_targets()
             .iter()

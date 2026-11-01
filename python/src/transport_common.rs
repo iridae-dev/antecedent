@@ -107,7 +107,8 @@ impl TransportPyErr for antecedent_io::z_transport_artifact::ZTransportArtifactE
             | E::LawInvalid(_)
             | E::ProgramMismatch(_)
             | E::PointMismatch
-            | E::PremisesMismatch => serialization_error(self),
+            | E::PremisesMismatch
+            | E::NamesMismatch => serialization_error(self),
             // `#[non_exhaustive]`: a new consumer check is a consistency failure
             // until its class is decided.
             other => serialization_error(other),

@@ -208,6 +208,10 @@ pub struct GridWire {
     pub directed: Vec<(u32, u32)>,
     pub bidirected: Vec<(u32, u32)>,
     pub selections: Vec<u32>,
+    /// Variable name of every graph coordinate. Empty when the grid was exported without a
+    /// name mapping; when present it is covered by the grid identity.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variable_names: Vec<String>,
     pub proof: TransportProofWire,
     pub catalog: EvidenceCatalogWire,
     pub laws: Vec<ExactLawWire>,
