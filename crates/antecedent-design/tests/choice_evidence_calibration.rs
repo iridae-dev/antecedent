@@ -30,6 +30,7 @@
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
     reason = "bounded simulation sizes and small indices"
 )]
 
@@ -176,15 +177,15 @@ fn posterior_probability_best_is_calibrated() {
 }
 
 fn sequential_design(threshold: f64, cell: u64) {
-    let (options, step, ceiling) = (3, 20, 400);
+    let (options, step, ceiling) = (3, 20_u32, 400_u32);
     let prior = vec![1.0; options];
     let t = frame(options);
     let empty = qualify_prior(&t, &prior, &[], ConflictPolicy::Report).expect("prior");
     let rule = SequentialRule {
         min_probability_best: threshold,
         max_expected_loss: 1.0,
-        min_observations: step as f64,
-        max_observations: ceiling as f64,
+        min_observations: f64::from(step),
+        max_observations: f64::from(ceiling),
         allocation_floor: 0.0,
     };
     let results = map_replicates(replicates(), |replicate| {
@@ -193,7 +194,7 @@ fn sequential_design(threshold: f64, cell: u64) {
         let mut next = uniform(seed, 13);
         let mut counts = vec![0.0; options];
         loop {
-            for (c, add) in counts.iter_mut().zip(choices(&theta, step, &mut next)) {
+            for (c, add) in counts.iter_mut().zip(choices(&theta, step as usize, &mut next)) {
                 *c += add;
             }
             let inference = update(
@@ -272,9 +273,7 @@ fn study_value_design(options: usize, study: u32, cell: u64) {
 #[test]
 #[ignore = "calibration: run only at the final measurement step"]
 fn study_value_matches_realized_gain() {
-    let mut cell = 0;
-    for (options, study) in [(3, 10), (3, 50), (3, 200), (5, 200)] {
-        study_value_design(options, study, cell);
-        cell += 1;
+    for (cell, (options, study)) in [(3, 10), (3, 50), (3, 200), (5, 200)].into_iter().enumerate() {
+        study_value_design(options, study, cell as u64);
     }
 }
