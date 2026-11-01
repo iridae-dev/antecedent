@@ -145,7 +145,7 @@ Given a query the multi-source or mixed-source route cannot identify from its ca
 
 ## Path-specific edge intervention
 
-One cell on the two-world cross-world contrast: how much of the treatment effect flows along a chosen set of edges of an explicit Markovian DAG while every other edge sees the baseline value. The graph has at most {{bound:counterfactual.path_specific_edge.max_variables}} variables, a query declares at most {{bound:counterfactual.path_specific_edge.max_worlds}} worlds, and a consumer admits at most {{bound:counterfactual.path_specific_edge.max_rows}} rows; the claim is a point, never an interval. Out-of-contract shapes refuse with `cross_world.*` details (for example `cross_world.graph_outside_contract`). Latent confounding is handled by the next route.
+One cell on the two-world cross-world contrast: how much of the treatment effect flows along a chosen set of edges of an explicit Markovian DAG while every other edge sees the baseline value. The graph has at most {{bound:counterfactual.path_specific_edge.max_variables}} variables, the licensed query declares exactly {{bound:counterfactual.path_specific_edge.max_worlds}} worlds, and a consumer admits at most {{bound:counterfactual.path_specific_edge.max_rows}} rows; the claim is a point, never an interval. Out-of-contract shapes refuse with `cross_world.*` details (for example `cross_world.graph_outside_contract`). Latent confounding is handled by the next route.
 
 ## ADMG counterfactual identification
 

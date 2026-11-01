@@ -117,7 +117,7 @@ class Place:
     """A file and how to read one integer from it."""
 
     path: str
-    kind: str  # "const" or "regex"
+    kind: str  # "const", "regex", "snapshot_bound", or "reporting_scale_kinds"
     pattern: str
 
 
@@ -127,6 +127,12 @@ def C(path: str, name: str) -> Place:
 
 def L(path: str, regex: str) -> Place:
     return Place(path, "regex", regex)
+
+
+def S(record: str, key: str) -> Place:
+    return Place(
+        "parity/release_snapshots/v2.2.0.toml", "snapshot_bound", f"{record}:{key}"
+    )
 
 
 @dataclass(frozen=True)
@@ -150,7 +156,6 @@ LEARN_PY = "python/antecedent/transport/_learned_continuous.py"
 TEMP = "crates/antecedent-identify/src/sid/temporal_sequence.rs"
 TEMP_PY = "python/antecedent/transport/_temporal.py"
 XW_ID = "crates/antecedent-identify/src/cross_world.rs"
-XW_CORE = "crates/antecedent-core/src/query/cross_world.rs"
 XW_IO = "crates/antecedent-io-core/src/cross_world_artifact.rs"
 MIX = "crates/antecedent-identify/src/sid/mixed_source.rs"
 MIX_PY = "python/antecedent/transport/_mixed_source.py"
@@ -172,6 +177,7 @@ MATCHED = "crates/antecedent-estimate/src/matched_case_control.rs"
 MATCHED_PY = "python/antecedent/matched.py"
 INVERSE = "crates/antecedent/src/analysis/inverse_outcome.rs"
 PENALIZED = "crates/antecedent-estimate/src/propensity/penalized.rs"
+FOLD_PLAN = "crates/antecedent-learn/src/crossfit.rs"
 CLUSTER_DML = "crates/antecedent-estimate/src/cluster_dml_aipw.rs"
 DESCRIPTIVE = "crates/antecedent-estimate/src/descriptive_comparison.rs"
 JOINT_CELLS = "crates/antecedent-estimate/src/joint_cell_factorized.rs"
@@ -194,13 +200,25 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "estimate.penalized_propensity_aipw",
-        "max_grid",
-        rust=(C(PENALIZED, "MAX_RIDGE_GRID"),),
+        "historical_evidence_max_grid",
+        rust=(S("estimate.penalized_propensity_aipw", "max_grid"),),
+        note="prior recorded scope; the current constructor has no fixed grid cap",
     ),
     Bound(
         "estimate.penalized_propensity_aipw",
-        "max_inner_folds",
-        rust=(C(PENALIZED, "MAX_RIDGE_INNER_FOLDS"),),
+        "historical_evidence_max_inner_folds",
+        rust=(S("estimate.penalized_propensity_aipw", "max_inner_folds"),),
+        note="prior recorded scope; the fold plan enforces its row and index limits",
+    ),
+    Bound(
+        "estimate.penalized_propensity_aipw",
+        "runtime_min_inner_folds",
+        rust=(L(PENALIZED, r"if inner_folds < (\d+)"),),
+    ),
+    Bound(
+        "estimate.penalized_propensity_aipw",
+        "runtime_fold_index_capacity",
+        rust=(Place(FOLD_PLAN, "fold_plan_capacity", "assign_folds"),),
     ),
     Bound(
         "estimate.clustered_dml_aipw",
@@ -224,8 +242,9 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "estimate.descriptive_comparison",
-        "max_scales",
-        rust=(C(DESCRIPTIVE, "MAX_REPORTING_SCALES"),),
+        "reporting_scale_kinds",
+        rust=(Place(DESCRIPTIVE, "reporting_scale_kinds", "ReportingScale"),),
+        note="distinct supported kinds, not a maximum number of requested transforms",
     ),
     Bound(
         "estimate.factorized_joint_cells",
@@ -234,8 +253,19 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "estimate.factorized_joint_cells",
-        "max_folds",
-        rust=(C(JOINT_CELLS, "MAX_FOLDS"),),
+        "runtime_min_folds",
+        rust=(L(JOINT_CELLS, r"if self\.folds < (\d+)"),),
+    ),
+    Bound(
+        "estimate.factorized_joint_cells",
+        "runtime_fold_index_capacity",
+        rust=(Place(FOLD_PLAN, "fold_plan_capacity", "assign_folds"),),
+    ),
+    Bound(
+        "estimate.factorized_joint_cells",
+        "historical_evidence_max_folds",
+        rust=(S("estimate.factorized_joint_cells", "max_folds"),),
+        note="prior recorded scope; the fold plan enforces its row and index limits",
     ),
     Bound(
         "estimate.factorized_joint_cells",
@@ -320,8 +350,8 @@ MAPPING: tuple[Bound, ...] = (
     Bound(
         "counterfactual.path_specific_edge",
         "max_worlds",
-        rust=(C(XW_CORE, "MAX_CROSS_WORLDS"),),
-        note="no Python statement of the world cap",
+        rust=(L(XW_ID, r"if worlds\.len\(\) != (\d+) \|\|"),),
+        note="the licensed contrast requires exactly two worlds; the query type has a separate capacity",
     ),
     Bound(
         "counterfactual.path_specific_edge",
@@ -909,6 +939,61 @@ def read_place(
     text = rd.text(place.path)
     if text is None:
         return [], f"file {place.path} is missing"
+    if place.kind == "fold_plan_capacity":
+        function = re.search(r"pub fn assign_folds\(.*?\n\}", text, re.S)
+        if function is None:
+            return [], f"{place.path}: fold plan not found"
+        body = function.group()
+        capacity = re.findall(
+            r"if folds > usize::from\(u(8|16|32)::MAX\) \+ (\d+)", body
+        )
+        if len(capacity) != 1 or "if n_rows < folds" not in body:
+            return [], f"{place.path}: fold-plan capacity or row guard not found"
+        bits, extra = capacity[0]
+        return [(1 << int(bits)) - 1 + int(extra)], None
+    if place.kind == "snapshot_bound":
+        record, _, key = place.pattern.partition(":")
+        try:
+            records = tomllib.loads(text).get("record", [])
+        except tomllib.TOMLDecodeError as error:
+            return [], f"{place.path}: invalid snapshot: {error}"
+        matches = [item for item in records if item.get("id") == record]
+        if len(matches) != 1:
+            return [], f"{place.path}: snapshot must contain exactly one {record}"
+        value = matches[0].get("bounds", {}).get(key)
+        if not _is_int(value):
+            return [], f"{place.path}: {record} has no integer bound {key}"
+        return [value], None
+    if place.kind == "reporting_scale_kinds":
+        # Count the public enum and independently verify that its parser names
+        # exactly the same cases. Duplicates in a request are not a new kind.
+        enum = re.search(r"pub enum ReportingScale\s*\{(.*?)^\}", text, re.M | re.S)
+        parser = re.search(
+            r"pub fn parse\(name: &str\).*?\[([^\]]+)\]\s*\.into_iter\(\)",
+            text,
+            re.S,
+        )
+        if enum is None or parser is None:
+            return [], f"{place.path}: reporting-scale enum or parser not found"
+        enum_lines = [
+            line.strip()
+            for line in enum.group(1).splitlines()
+            if line.strip() and not line.strip().startswith("//")
+        ]
+        variants = []
+        for line in enum_lines:
+            variant = re.fullmatch(r"([A-Z][A-Za-z0-9_]*)\s*,", line)
+            if variant is None:
+                return [], f"{place.path}: unsupported reporting-scale enum declaration"
+            variants.append(variant.group(1))
+        parsed = re.findall(r"Self::([A-Z][A-Za-z0-9_]*)", parser.group(1))
+        if (
+            not variants
+            or len(set(variants)) != len(variants)
+            or sorted(variants) != sorted(parsed)
+        ):
+            return [], f"{place.path}: reporting-scale enum and parser disagree"
+        return [len(variants)], None
     if place.kind == "const":
         v, where = rd.find_const(place.pattern, place.path)
         if v is None:
@@ -1052,6 +1137,18 @@ def supported_bounds_errors(root: Path) -> list[str]:
     return []
 
 
+def ridge_resource_finding(source: str) -> str:
+    """Fail closed until an independently checked pre-allocation guard exists."""
+    constructor = re.search(
+        r"pub fn new\(lambdas: &\[f64\], inner_folds: usize\).*?\n    \}",
+        source,
+        re.S,
+    )
+    if constructor is None or "lambdas.to_vec()" not in constructor.group():
+        return "estimate.penalized_propensity_aipw: grid allocation resource guard is not independently mapped"
+    return "estimate.penalized_propensity_aipw: RidgeTuning::new copies the penalty grid before execution-context admission; no checked preallocation bound"
+
+
 def check(
     root: Path,
     strict: bool = False,
@@ -1067,6 +1164,8 @@ def check(
     errors: list[str] = []
     gaps: list[str] = []
     ok: list[str] = []
+    if "estimate.penalized_propensity_aipw" in cells and mapping is MAPPING:
+        errors.append(ridge_resource_finding(rd.text(PENALIZED) or ""))
     rec_text = rd.text(RECORDS)
     if rec_text is None:
         return [f"{RECORDS} is missing"], gaps, ok
@@ -1345,6 +1444,118 @@ def _syn_tree(dest: Path) -> None:
 
 def self_test() -> int:
     failures: list[str] = []
+
+    ridge_source = "pub fn new(lambdas: &[f64], inner_folds: usize) {\n        lambdas.to_vec();\n    }"
+    if "before execution-context admission" not in ridge_resource_finding(ridge_source):
+        failures.append(
+            "pre-admission grid allocation must remain an explicit resource finding"
+        )
+    if "not independently mapped" not in ridge_resource_finding(
+        ridge_source.replace("lambdas.to_vec()", "new_allocation()")
+    ):
+        failures.append("an unrecognized grid allocation must fail closed")
+
+    # The path-specific route requires exactly two worlds even though the
+    # reusable query representation permits more. Detect changes to the route
+    # check instead of reading the unrelated representation capacity.
+    cross_world = next(
+        row
+        for row in MAPPING
+        if row.record == "counterfactual.path_specific_edge" and row.key == "max_worlds"
+    )
+    route_pattern = cross_world.rust[0].pattern
+    for source, expected in (
+        ("if worlds.len() != 2 || other_condition {", "2"),
+        ("if worlds.len() != 3 || other_condition {", "3"),
+    ):
+        matched = re.search(route_pattern, source)
+        if matched is None or matched.group(1) != expected:
+            failures.append(
+                "cross-world route scope must track the actual world-count check"
+            )
+
+    # A supported scale kind and a requested transform are different quantities:
+    # repeating one kind does not create another enum/parser case.
+    with tempfile.TemporaryDirectory() as scale_root:
+        scale_dir = Path(scale_root)
+        scale_path = scale_dir / "scales.rs"
+        scale_source = (
+            "pub enum ReportingScale {\n    Mean,\n    Ratio,\n}\n"
+            "impl ReportingScale {\n"
+            "pub fn parse(name: &str) {\n"
+            "[Self::Mean, Self::Ratio].into_iter();\n}\n}\n"
+        )
+        scale_place = Place("scales.rs", "reporting_scale_kinds", "ReportingScale")
+        scale_path.write_text(scale_source, encoding="utf-8")
+        values, error = read_place(Reader(scale_dir), scale_place)
+        if error or values != [2]:
+            failures.append("reporting-scale kind count must match the enum and parser")
+        scale_path.write_text(
+            scale_source.replace("    Ratio,\n", "    Risk,\n"), encoding="utf-8"
+        )
+        _, error = read_place(Reader(scale_dir), scale_place)
+        if error is None:
+            failures.append("reporting-scale enum/parser drift must be rejected")
+        scale_path.write_text(
+            scale_source.replace("    Ratio,\n", "    Ratio(u8),\n"), encoding="utf-8"
+        )
+        _, error = read_place(Reader(scale_dir), scale_place)
+        if error is None:
+            failures.append(
+                "an unrecognized reporting-scale enum shape must be rejected"
+            )
+        scale_path.write_text(
+            scale_source.replace("    Ratio,\n", "    Ratio,\n    Risk,\n").replace(
+                "Self::Ratio]", "Self::Ratio, Self::Risk]"
+            ),
+            encoding="utf-8",
+        )
+        values, error = read_place(Reader(scale_dir), scale_place)
+        if error or values != [3]:
+            failures.append("a new reporting-scale kind must change the counted bound")
+
+        fold_path = scale_dir / "fold.rs"
+        fold_place = Place("fold.rs", "fold_plan_capacity", "assign_folds")
+        fold_source = "pub fn assign_folds() {\n    if folds > usize::from(u16::MAX) + 1 {}\n    if n_rows < folds {}\n}\n"
+        fold_path.write_text(fold_source, encoding="utf-8")
+        values, error = read_place(Reader(scale_dir), fold_place)
+        if error or values != [65536]:
+            failures.append(
+                "fold-plan index capacity must be derived from the runtime guard"
+            )
+        fold_path.write_text(
+            fold_source.replace("u16::MAX", "u8::MAX"), encoding="utf-8"
+        )
+        values, error = read_place(Reader(scale_dir), fold_place)
+        if error or values != [256]:
+            failures.append("fold-plan index mutations must change the capacity")
+        fold_path.write_text(
+            fold_source.replace("if n_rows < folds", "if n_rows == folds"),
+            encoding="utf-8",
+        )
+        _, error = read_place(Reader(scale_dir), fold_place)
+        if error is None:
+            failures.append("missing fold-plan row guard must be rejected")
+
+        snapshot_path = scale_dir / "snapshot.toml"
+        snapshot_place = Place("snapshot.toml", "snapshot_bound", "example:max_folds")
+        snapshot = '[[record]]\nid = "example"\nbounds = { max_folds = 20 }\n'
+        snapshot_path.write_text(snapshot, encoding="utf-8")
+        values, error = read_place(Reader(scale_dir), snapshot_place)
+        if error or values != [20]:
+            failures.append(
+                "historical scope must be read from the named snapshot bound"
+            )
+        snapshot_path.write_text(snapshot + snapshot, encoding="utf-8")
+        _, error = read_place(Reader(scale_dir), snapshot_place)
+        if error is None:
+            failures.append("ambiguous historical snapshot records must be refused")
+        snapshot_path.write_text(
+            snapshot.replace("max_folds", "other"), encoding="utf-8"
+        )
+        _, error = read_place(Reader(scale_dir), snapshot_place)
+        if error is None:
+            failures.append("missing historical snapshot bounds must be refused")
 
     # Intake defaults may be written as number words in the refusal text.
     # They must match the corresponding artifact bound, not merely exist.

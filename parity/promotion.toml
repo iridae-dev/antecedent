@@ -462,7 +462,7 @@ wire_changes = ["Additive: cross-world edge contrast artifact v1 (separate forma
 compatibility = "The NDE cell, its Study route and its artifacts are unchanged and their result is reproduced by the edge-set {X->Y} to 1e-12 on the exact linear SCM and 1e-9 on noisy and non-separable fixtures. The new route is additive through its own artifact version."
 coverage_records = []
 search = false
-bounds = { cancellation = true, max_variables = 8, max_worlds = 8, max_rows = 100000 }
+bounds = { cancellation = true, max_variables = 8, max_worlds = 2, max_rows = 100000 }
 surface = ["python/antecedent/cross_world.py"]
 surface_rust = ["crates/antecedent-core/src/query/cross_world.rs", "crates/antecedent-identify/src/cross_world.rs", "crates/antecedent-counterfactual/src/cross_world.rs", "crates/antecedent-io-core/src/cross_world_artifact.rs", "crates/antecedent/src/cross_world/mod.rs", "crates/antecedent/src/cross_world/artifact.rs"]
 surface_pyo3 = ["python/src/cross_world_api.rs"]
@@ -1519,10 +1519,10 @@ wire_changes = ["Additive: a non-default propensity nuisance appears in the Aipw
 compatibility = "The default Aipw (unpenalized logistic, no fallback) is bit-identical to before; only a declared penalty or fallback changes anything. A penalized table is no longer interval-withheld: it retargets with its covariance like an unpenalized one (cluster-DML and joint-cell tables stay withheld). The checked AIPW procedure names are unchanged and the nuisance configuration is carried beside them."
 coverage_records = ["cov.average_effect.dag.frequentist.analytic_se.l95.aipw_ridge_influence_ci_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l95.aipw_ridge_refit_bootstrap_ci_coverage", "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_lasso_influence_ci_coverage", "cov.average_effect.dag.frequentist.bootstrap_se.l95.aipw_lasso_refit_bootstrap_ci_coverage"]
 search = false
-bounds = { cancellation = true, max_grid = 64, max_inner_folds = 20 }
+bounds = { cancellation = true, historical_evidence_max_grid = 64, historical_evidence_max_inner_folds = 20, runtime_min_inner_folds = 2, runtime_fold_index_capacity = 65536, runtime_grid = "nonempty finite-positive grid; copied before execution-context admission", runtime_inner_folds = "the fold plan also enforces training-row and fold-index representation limits" }
 refusals = [
   { code = "route_not_supported", detail = "penalized_propensity.effect_posterior", when = "A posterior of the weighting effect is requested from propensity coefficient draws alone, without an outcome law.", remedy = "Use a Bayesian-bootstrap posterior of the cross-fitted ridge-orthogonal score or a Bayesian g-computation posterior of an outcome model." },
-  { code = "invalid_argument", detail = "penalized_propensity.invalid_penalty", when = "A penalty grid that is empty or larger than 64, a penalty that is not finite and positive, or inner folds outside 2 to 20." },
+  { code = "invalid_argument", detail = "penalized_propensity.invalid_penalty", when = "An empty penalty grid, a penalty that is not finite and positive, or fewer than two inner folds. The fold plan separately enforces training-row and fold-index representation limits." },
   { code = "invalid_argument", detail = "penalized_propensity.fallback_with_penalty", when = "A nuisance fallback is declared beside a penalized propensity: the fallback replaces a failed GLM fit, so it could never run." },
   { code = "route_not_supported", detail = "penalized_propensity.scope", when = "A ridge penalty with a non-mean functional, a target population other than AllObserved, or a trimming overlap policy." },
   { code = "selection_inference_not_licensed", detail = "penalized_propensity.selection_closed", when = "A lasso propensity outside the cross-fitted untrimmed AllObserved mean ATE (a full-sample lasso would select on the rows it scores), or a lasso declared as a joint-cell conditional." },
@@ -1716,7 +1716,7 @@ wire_changes = ["Additive: descriptive_comparison_v1 JSON artifact (DescriptiveC
 compatibility = "A new descriptive view over existing estimates: no existing route, result type, artifact or reason code changes."
 coverage_records = []
 search = false
-bounds = { cancellation = true, cancellation_check = "polled at the first row, every 4096 rows and once after the pass; a cancelled pass reports descriptive_comparison.cancelled and no contrast", work = "one linear pass over the supplied rows plus a closed-form 2 x 2 delta method; no iteration and no search, so no loop outlives the input", max_scales = 4 }
+bounds = { cancellation = true, cancellation_check = "polled at the first row, every 4096 rows and once after the pass; a cancelled pass reports descriptive_comparison.cancelled and no contrast", work = "one linear pass over the supplied rows plus a closed-form 2 x 2 delta method; no iteration and no search, so no loop outlives the input", reporting_scale_kinds = 4 }
 surface = ["python/antecedent/descriptive.py"]
 surface_rust = ["crates/antecedent-estimate/src/descriptive_comparison.rs"]
 surface_pyo3 = ["python/src/descriptive_api.rs"]
@@ -1855,9 +1855,9 @@ surface = ["python/antecedent/derived.py"]
 surface_rust = ["crates/antecedent-estimate/src/joint_cell_factorized.rs", "crates/antecedent/src/analysis/derived_treatment.rs"]
 surface_pyo3 = ["python/src/derived_treatment_api.rs"]
 surface_values = ["CellEstimate", "CellOrderingSpread", "JointCellCost", "CellRefusal", "CellStatus", "ConstituentRole", "DeclaredExclusion", "DerivedTreatmentDeclaration", "DerivedTreatmentPlan", "ExclusionRule", "FactorizedJointConfig", "FactorizedJointFit", "InterventionMeaning", "JointCellReport", "JointContrast", "NormalizationCheck", "OrderingSensitivity", "SourceColumn", "TemporalPosition", "Transformation", "ContrastValue", "DerivedTreatment", "JointCell", "JointCellsResult", "OrderingSpread"]
-bounds = { cancellation = true, max_components = 3, max_orderings = 6, max_folds = 20 }
+bounds = { cancellation = true, max_components = 3, max_orderings = 6, historical_evidence_max_folds = 20, runtime_min_folds = 2, runtime_fold_index_capacity = 65536, runtime_folds = "the fold plan also enforces row-count and fold-index representation limits" }
 refusals = [
-  { code = "invalid_argument", detail = "joint_cells.config", when = "Folds outside 2..=20, a clip outside (0, 0.5), a minimum cell ESS below 1, or a non-positive normalization tolerance or negative ordering tolerance." },
+  { code = "invalid_argument", detail = "joint_cells.config", when = "Fewer than two folds, a clip outside (0, 0.5), a minimum cell ESS below 1, or a non-positive normalization tolerance or negative ordering tolerance. The fold plan separately enforces row-count and fold-index representation limits." },
   { code = "invalid_argument", detail = "joint_cells.component_count", when = "Fewer than one or more than three binary treatment components." },
   { code = "invalid_argument", detail = "joint_cells.ordering", when = "An ordering that is not a permutation of the components, a repeated ordering, or more than six orderings." },
   { code = "invalid_argument", detail = "joint_cells.columns", when = "A repeated column among the treatments, outcome and adjustment set." },

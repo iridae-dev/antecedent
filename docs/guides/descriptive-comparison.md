@@ -93,7 +93,7 @@ published.
 
 ## Limits
 
-* A transform accepts at most {{bound:estimate.descriptive_comparison.max_scales}} reporting scales in one request.
+* A transform supports {{bound:estimate.descriptive_comparison.reporting_scale_kinds}} distinct reporting scale kinds. A request may repeat a kind; there is no fixed request-count cap.
 * Point only; no interval anywhere, no calibration run.
 * The comparison is for the difference-of-means coding on the all-observed population; a
   ratio-scale or subpopulation comparison needs its own adjusted estimate and is refused here.
