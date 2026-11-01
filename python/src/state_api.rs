@@ -599,6 +599,7 @@ impl PyCausalState {
     #[pyo3(signature = (key, n_particles, *, a=0.9, process_std=0.3, obs_std=0.5, seed=1))]
     fn particle_filter_init(
         &mut self,
+        py: Python<'_>,
         key: String,
         n_particles: usize,
         a: f64,
@@ -611,26 +612,30 @@ impl PyCausalState {
                 "particle filter `{key}` already exists; refusing to discard its state"
             )));
         }
-        let pf = ParticleFilterState::init(
-            n_particles,
-            LgssmParams { a, process_std, obs_std },
-            self.inner.data_catalog.version.raw(),
-            seed,
-        )
-        .map_err(py_err)?;
+        let version = self.inner.data_catalog.version.raw();
+        let pf = py
+            .detach(|| {
+                ParticleFilterState::init(
+                    n_particles,
+                    LgssmParams { a, process_std, obs_std },
+                    version,
+                    seed,
+                )
+            })
+            .map_err(py_err)?;
         self.inner.suff_stats.particle_filters.insert(Arc::from(key), pf);
         Ok(())
     }
 
     /// Step particle filter `key` with observation `y`.
-    fn particle_filter_step(&mut self, key: String, y: f64) -> PyResult<()> {
+    fn particle_filter_step(&mut self, py: Python<'_>, key: String, y: f64) -> PyResult<()> {
         let pf = self
             .inner
             .suff_stats
             .particle_filters
             .get_mut(key.as_str())
             .ok_or_else(|| crate::value_err(format!("unknown particle filter `{key}`")))?;
-        pf.step(y).map_err(py_err)?;
+        py.detach(|| pf.step(y)).map_err(py_err)?;
         Ok(())
     }
 

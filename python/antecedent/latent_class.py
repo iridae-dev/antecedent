@@ -431,6 +431,7 @@ def latent_class_effects(
     bootstrap_replicates: int = 200,
     initial_labels: Sequence[int] | None = None,
     data_binding: Literal["embedded", "digest"] = "embedded",
+    execution: Execution | None = None,
 ) -> LatentClassEffects:
     """Fit a ``classes``-component mixture of Gaussian linear outcome models and report effects.
 
@@ -445,6 +446,9 @@ def latent_class_effects(
     largest posterior responsibility below ``min_separation``, refuses as weak.
     ``variance_floor`` (a fraction of the outcome variance) marks a class as degenerate.
     ``bootstrap_replicates`` (0 reports no standard errors) resamples rows with label alignment.
+
+    ``execution.limits.memory_bytes`` bounds the planned working set of the fit and
+    ``execution.cancel`` stops it (``latent_class.cancelled``).
 
     ``data_binding="digest"`` exports a record that holds no rows, bound to the dataset by its
     digest; :func:`consume_latent_class_artifact` then needs the dataset passed back.
@@ -464,6 +468,7 @@ def latent_class_effects(
     """
     if not isinstance(within_class_randomization, bool):
         raise CausalTypeError("within_class_randomization must be a bool")
+    execution = resolve_execution(execution)
     names, columns = _covariate_columns(covariates)
     y = _column(outcome, "outcome")
     a = _column(treatment, "treatment")
@@ -497,6 +502,8 @@ def latent_class_effects(
         json.dumps(config, allow_nan=False),
         "latent_class_effects",
         digest_bound=data_binding == "digest",
+        memory_limit_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
     )
     if report is not None and artifact is None and refusal is not None:
         return _result(report, None, refusal)  # the export was refused; the fit stands
@@ -560,7 +567,11 @@ def consume_latent_class_artifact(
             "covariates need outcome and treatment", reason_code="invalid_argument"
         )
     report, refusal = _consume(
-        data, expected_json, memory_limit_bytes=execution.limits.memory_bytes, data=supplied
+        data,
+        expected_json,
+        memory_limit_bytes=execution.limits.memory_bytes,
+        cancel=execution.cancel,
+        data=supplied,
     )
     raise_refusal(refusal, LatentClassRefusal)
     if report is None:  # pragma: no cover - the native contract

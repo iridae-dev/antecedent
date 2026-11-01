@@ -602,7 +602,7 @@ fn prepare_statistical_transport(
 #[allow(clippy::too_many_arguments)]
 fn consume_statistical_transport(
     py: Python<'_>,
-    bytes: Vec<u8>,
+    bytes: &[u8],
     max_operations: usize,
     max_depth: usize,
     max_support_rows: usize,

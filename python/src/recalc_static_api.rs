@@ -24,7 +24,7 @@ use serde::Deserialize;
 
 use crate::graphs::Admg;
 use crate::recalc_api::{
-    RunPayload, artifact_invalid, bounded_context, context, counts_wire, invalid, parse_json,
+    RunPayload, artifact_invalid, bounded_context, counts_wire, invalid, parse_json,
     plan_refusal_json, refusal_json,
 };
 use crate::recalc_bounds::{check_columns, sequence_item, sequence_len};
@@ -537,14 +537,15 @@ impl PyStaticSession {
             Err(error) => Ok((None, None, Some(static_error(&error)))),
         }
     }
-    #[pyo3(signature=(*,seed=1,threads=None))]
+    #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
     fn export_result(
         &self,
         py: Python<'_>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
-        let ctx = context(seed, threads);
+        let ctx = bounded_context(seed, threads, None, cancel);
         detach_catch(py, || match self.inner.export_result(&ctx) {
             Ok(bytes) => Ok((Some(bytes), None)),
             Err(error) => Ok((None, Some(static_error(&error)))),
@@ -577,7 +578,8 @@ impl PyMzSession {
         serde_json::to_string(&CapabilitiesWire::from_capabilities(&caps(self.inner.boundary())))
             .map_err(py_msg)
     }
-    #[pyo3(signature=(graph,catalog,laws,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(graph,catalog,laws,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
     fn plan(
         &self,
         graph: PyRef<'_, Admg>,
@@ -586,12 +588,14 @@ impl PyMzSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         let request = transport_request(&graph, catalog, laws, specification)?;
-        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &context(seed, threads))))
-            .map_err(py_msg)
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        serde_json::to_string(&plan_to_wire(&self.inner.plan(&request, &ctx))).map_err(py_msg)
     }
-    #[pyo3(signature=(graph,catalog,laws,specification,*,seed=1,threads=None))]
+    #[pyo3(signature=(graph,catalog,laws,specification,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
     #[allow(clippy::too_many_arguments)]
     fn execute(
         &mut self,
@@ -602,13 +606,15 @@ impl PyMzSession {
         specification: &str,
         seed: u64,
         threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<RunPayload> {
         let request = transport_request(&graph, catalog, laws, specification)?;
         let names = request.variable_names.clone();
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
         let session = &mut self.inner;
-        let ctx = context(seed, threads);
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
         let ran = detach_catch(py, move || {
             let ran = execute_mz_with_receipt(session, &request, &ctx);
             Ok(ran)
@@ -621,14 +627,15 @@ impl PyMzSession {
             Err(error) => Ok((None, None, Some(static_error(&error)))),
         }
     }
-    #[pyo3(signature=(*,seed=1,threads=None))]
+    #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
     fn export_result(
         &self,
         py: Python<'_>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
-        let ctx = context(seed, threads);
+        let ctx = bounded_context(seed, threads, None, cancel);
         detach_catch(py, || match self.inner.export_result(&ctx) {
             Ok(bytes) => Ok((Some(frame_named_artifact(MZ_PREFIX, &self.names, bytes)?), None)),
             Err(error) => Ok((None, Some(static_error(&error)))),

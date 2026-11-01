@@ -1738,7 +1738,7 @@ type Measured = (Option<crate::measured_inference_api::NativeMeasuredInference>,
 #[pyo3(signature = (source, seed, *, threads=None, cancel=None))]
 fn sample_split_effect_measure(
     py: Python<'_>,
-    source: Vec<u8>,
+    source: &[u8],
     seed: u64,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
@@ -1822,7 +1822,7 @@ fn sample_split_parent_set_effect(
 #[pyo3(signature = (source, seed, *, threads=None, cancel=None))]
 fn sample_split_parent_set_effect_measure(
     py: Python<'_>,
-    source: Vec<u8>,
+    source: &[u8],
     seed: u64,
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,

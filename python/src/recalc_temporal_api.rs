@@ -393,14 +393,15 @@ impl PyTemporalSession {
             Err(cause) => Ok((None, None, Some(error(&cause)))),
         }
     }
-    #[pyo3(signature=(*,seed=1,threads=None))]
+    #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
     fn export_result(
         &self,
         py: Python<'_>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
-        let ctx = context(seed, threads);
+        let ctx = crate::recalc_api::bounded_context(seed, threads, None, cancel);
         crate::detach_catch(py, || {
             if ctx.cancellation.is_cancelled() {
                 return Ok((

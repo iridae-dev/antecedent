@@ -223,7 +223,8 @@ class _Session:
         """
         run = _execution(execution)
         artifact, error = run._call(
-            self._handle.export_result, **_native_controls(run, resources=False)
+            self._handle.export_result,
+            **native_controls(run, seed="seed", threads="threads", cancel="cancel"),
         )
         raise_refusal(error, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
@@ -327,7 +328,7 @@ class MultiSourceSession(_Session):
                     request.catalog,
                     request.laws,
                     _transport_spec(request),
-                    **_native_controls(run, resources=False),
+                    **_native_controls(run),
                 )
             )
         )
@@ -344,7 +345,7 @@ class MultiSourceSession(_Session):
                 request.catalog,
                 request.laws,
                 _transport_spec(request),
-                **_native_controls(run, resources=False),
+                **_native_controls(run),
             )
         )
 

@@ -113,13 +113,23 @@ pub struct LinearOlsSuffStats {
     invalidated: bool,
 }
 
+/// Most predictor columns one OLS sufficient-statistic block holds: its Gram matrix is
+/// quadratic in the width.
+pub const MAX_OLS_COLUMNS: usize = 4096;
+
 impl LinearOlsSuffStats {
     /// Empty stats for `ncols` predictors.
     ///
     /// # Errors
     ///
-    /// `ncols²` or `(ncols + 1)²` does not fit in `usize`.
+    /// `ncols` exceeds [`MAX_OLS_COLUMNS`] (the Gram matrix is quadratic in it), or `ncols²`
+    /// or `(ncols + 1)²` does not fit in `usize`.
     pub fn new(ncols: usize) -> Result<Self, StateError> {
+        if ncols > MAX_OLS_COLUMNS {
+            return Err(StateError::Shape(format!(
+                "ols dimension {ncols} exceeds the bound of {MAX_OLS_COLUMNS}"
+            )));
+        }
         let gram = square_len(ncols, "ols gram dimension overflow")?;
         let joint_dim = ncols
             .checked_add(1)

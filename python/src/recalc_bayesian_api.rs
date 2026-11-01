@@ -1,7 +1,7 @@
 //! Native-issued ordinary Gaussian Bayesian selective adapter.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::NumericColumn;
-use crate::recalc_api::{RunPayload, bounded_context, context, invalid, parse_json};
+use crate::recalc_api::{RunPayload, bounded_context, invalid, parse_json};
 use crate::recalc_bounds::check_columns;
 use crate::recalc_family_api::{caps, payload, resume, run_error};
 use antecedent::BayesianConfig;
@@ -237,14 +237,16 @@ impl PyBayesianSession {
         let posterior = self.inner.posterior()?;
         posterior.draws.column(posterior.effect_column()?).ok().map(<[f64]>::to_vec)
     }
-    #[pyo3(signature=(*,seed=1,threads=None))]
+    #[pyo3(signature=(*,seed=1,threads=None,cancel=None))]
     fn export_result(
         &self,
         py: Python<'_>,
         seed: u64,
         threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
-        crate::detach_catch(py, || match self.inner.export_result(&context(seed, threads)) {
+        let ctx = crate::recalc_api::bounded_context(seed, threads, None, cancel);
+        crate::detach_catch(py, || match self.inner.export_result(&ctx) {
             Ok(bytes) => Ok((Some(bytes), None)),
             Err(error) => Ok((None, Some(run_error(&error, "recalc.bayesian_fit_refused")))),
         })

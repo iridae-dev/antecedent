@@ -446,7 +446,7 @@ impl RankInputs {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn parse(
         graph_weights: Vec<f64>,
-        identified: Vec<u8>,
+        identified: &[u8],
         graph_keys: Vec<u64>,
         candidates: Option<&Bound<'_, PyList>>,
         objective: Option<Bound<'_, PyAny>>,
@@ -463,7 +463,9 @@ impl RankInputs {
     ) -> PyResult<Self> {
         let flags: Vec<GraphIdentFlag> = identified
             .into_iter()
-            .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
+            .map(
+                |v| if *v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified },
+            )
             .collect();
         let graphs = WeightedGraphSamples::new(graph_weights, flags, graph_keys).map_err(py_msg)?;
         let mut parsed = Vec::new();
@@ -656,7 +658,7 @@ pub(crate) fn decision_target_digest(
 pub(crate) fn rank_designs(
     py: Python<'_>,
     graph_weights: Vec<f64>,
-    identified: Vec<u8>,
+    identified: &[u8],
     graph_keys: Vec<u64>,
     candidates: Bound<'_, PyList>,
     objective: Option<Bound<'_, PyAny>>,
@@ -762,7 +764,7 @@ pub(crate) fn rank_designs(
 pub(crate) fn preview_design_rank(
     prepared: PyRef<'_, PyPreparedAnalysis>,
     graph_weights: Vec<f64>,
-    identified: Vec<u8>,
+    identified: &[u8],
     graph_keys: Vec<u64>,
     candidates: Bound<'_, PyList>,
     objective: Option<Bound<'_, PyAny>>,

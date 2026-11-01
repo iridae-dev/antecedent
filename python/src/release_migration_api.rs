@@ -95,7 +95,7 @@ fn declared_target_digest(level: f64) -> PyResult<Vec<u8>> {
 
 /// Adopt a previous-release artifact against the target set to `level`.
 #[pyfunction]
-fn consume_previous_release(artifact: Vec<u8>, level: f64) -> PyResult<Adopted> {
+fn consume_previous_release(artifact: &[u8], level: f64) -> PyResult<Adopted> {
     let target = declared_target(level)?;
     let adopted =
         consume_previous_release_artifact(&artifact, &target).map_err(|e| release_err(&e))?;
@@ -149,7 +149,7 @@ fn break_json(error: &RouteRecordError) -> Json {
 /// outcome (`one_to_one`, `split`, `retired`, `refusal_kept`) or a `break` that names its
 /// remedy. One break does not hide the other records.
 #[pyfunction]
-fn consume_previous_routes(artifact: Vec<u8>, methods: Vec<MethodRow>) -> PyResult<String> {
+fn consume_previous_routes(artifact: &[u8], methods: Vec<MethodRow>) -> PyResult<String> {
     let current: Vec<CurrentMethod> = methods
         .into_iter()
         .map(|(id, route, estimator, design, inference, status)| CurrentMethod {

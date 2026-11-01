@@ -158,7 +158,7 @@ fn summary(source: &CohortDecisionSource) -> serde_json::Value {
 fn build_cohort_decision_source(
     py: Python<'_>,
     model_kind: &str,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_model: Option<String>,
     cohort_json: &str,
     outcome_units: &str,
@@ -227,7 +227,7 @@ fn build_cohort_decision_source(
 #[pyfunction]
 fn consume_cohort_decision_source(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
 ) -> PyResult<ConsumePayload> {
     check_size(expectation_json, "cohort expectation")?;
@@ -294,7 +294,7 @@ fn cohort_decision_law_refusal(kind: &str) -> PyResult<String> {
 #[pyfunction]
 fn cohort_decision_forward_claim(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
 ) -> PyResult<ConsumePayload> {
     check_size(expectation_json, "cohort expectation")?;
@@ -335,7 +335,7 @@ fn cohort_decision_forward_claim(
 fn cohort_decision_evaluate(
     py: Python<'_>,
     contract_json: &str,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
     unsupported: &str,
     weakest_support: &str,
@@ -474,7 +474,7 @@ type TransportBuildPayload = (Option<String>, Option<String>, Option<Vec<u8>>, O
 )]
 fn transport_cohort_effect(
     py: Python<'_>,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_claim: Option<String>,
     source_population: &str,
     cohort_json: &str,
@@ -529,7 +529,7 @@ fn transport_cohort_effect(
 #[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, shift_json, expected_identity))]
 fn transport_cohort_effect_verify(
     py: Python<'_>,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_claim: Option<String>,
     source_population: &str,
     cohort_json: &str,
@@ -571,7 +571,7 @@ fn transport_cohort_effect_verify(
 #[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, shift_json, key))]
 fn transport_cohort_composition_node(
     py: Python<'_>,
-    model_bytes: Vec<u8>,
+    model_bytes: &[u8],
     expected_claim: Option<String>,
     source_population: &str,
     cohort_json: &str,
@@ -750,7 +750,7 @@ fn fit_native_cohort_effect(py: Python<'_>, fit_json: &str) -> PyResult<BuildPay
 #[pyo3(signature = (artifact, expectation_json, fit_json, level))]
 fn cohort_decision_interval(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: &str,
     fit_json: Option<String>,
     level: f64,

@@ -352,7 +352,7 @@ fn discovered_transport_trial_confidence_set_run(
 #[allow(clippy::too_many_arguments, reason = "replay needs the complete original request")]
 fn verify_trial_confidence_set_against_inputs(
     py: Python<'_>,
-    receipt: Vec<u8>,
+    receipt: &[u8],
     contract_json: &str,
     names: Vec<String>,
     source_columns: Vec<NumericColumn<'_>>,

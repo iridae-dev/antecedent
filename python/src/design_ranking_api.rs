@@ -197,7 +197,7 @@ fn consumed_json(done: &antecedent::analysis::design_ranking::ConsumedDesignRank
 #[pyo3(signature = (artifact, expectation_json=None))]
 fn consume_design_ranking(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expectation_json: Option<String>,
 ) -> PyResult<ConsumePayload> {
     let expectation: ConsumeExpectation = match expectation_json {

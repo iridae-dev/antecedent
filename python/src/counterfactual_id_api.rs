@@ -246,7 +246,7 @@ fn prepare_counterfactual_id_native(
 #[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
 fn consume_counterfactual_id_artifact_native(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     seed: u64,
     expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {

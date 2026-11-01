@@ -563,14 +563,16 @@ impl PyJointPanelResult {
     fn execution_facts(&self, py: Python<'_>) -> Py<crate::inspect_receipt_api::PyExecutionFacts> {
         self.facts.clone_ref(py)
     }
-    fn report(&self) -> PyResult<String> {
-        let diagnostics=match &self.inner.fit {JointPanelFit::Invariant(fit)=>serde_json::to_value(&fit.diagnostics),JointPanelFit::Varying(fit)=>Ok(serde_json::json!({"attempts":fit.attempts,"selection_counts":fit.selection_counts,"posterior_diagnostics":fit.posterior_diagnostics,"posterior_converged":fit.posterior_converged,"uncertainty":fit.uncertainty,"claim":fit.claim,"calibration":fit.calibration}))}.map_err(|error|crate::serialization_err(error.to_string()))?;
-        let point_parameters = match &self.inner.fit {
-            JointPanelFit::Invariant(fit) => serde_json::to_value(&fit.point),
-            JointPanelFit::Varying(fit) => serde_json::to_value(&fit.point),
-        }
-        .map_err(|error| crate::serialization_err(error.to_string()))?;
-        Ok(serde_json::json!({"point_parameters":point_parameters,"point":self.inner.point,"draws":self.inner.draws,"identified":self.inner.identification().is_identified_claim(),"diagnostics":diagnostics,"dependency":self.inner.dependency_identity().to_hex(),"fits_performed":self.inner.prepared().fits_performed()}).to_string())
+    fn report(&self, py: Python<'_>) -> PyResult<String> {
+        crate::detach_catch(py, || {
+            let diagnostics=match &self.inner.fit {JointPanelFit::Invariant(fit)=>serde_json::to_value(&fit.diagnostics),JointPanelFit::Varying(fit)=>Ok(serde_json::json!({"attempts":fit.attempts,"selection_counts":fit.selection_counts,"posterior_diagnostics":fit.posterior_diagnostics,"posterior_converged":fit.posterior_converged,"uncertainty":fit.uncertainty,"claim":fit.claim,"calibration":fit.calibration}))}.map_err(|error|crate::serialization_err(error.to_string()))?;
+            let point_parameters = match &self.inner.fit {
+                JointPanelFit::Invariant(fit) => serde_json::to_value(&fit.point),
+                JointPanelFit::Varying(fit) => serde_json::to_value(&fit.point),
+            }
+            .map_err(|error| crate::serialization_err(error.to_string()))?;
+            Ok(serde_json::json!({"point_parameters":point_parameters,"point":self.inner.point,"draws":self.inner.draws,"identified":self.inner.identification().is_identified_claim(),"diagnostics":diagnostics,"dependency":self.inner.dependency_identity().to_hex(),"fits_performed":self.inner.prepared().fits_performed()}).to_string())
+        })
     }
     /// The target's one assembled contrast of scheduled programs, evaluated on every shared
     /// draw so the cross-world covariance is carried by the draws.

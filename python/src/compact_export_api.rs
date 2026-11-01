@@ -129,7 +129,7 @@ fn build_compact_export(
 #[pyo3(signature = (artifact, expected_identity, max_bytes=None))]
 fn consume_compact_export(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity: String,
     max_bytes: Option<usize>,
 ) -> PyResult<ConsumePayload> {
@@ -149,7 +149,7 @@ fn consume_compact_export(
 #[pyo3(signature = (artifact, expected_identity, queries_json, max_bytes=None))]
 fn evaluate_compact_export(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity: String,
     queries_json: &str,
     max_bytes: Option<usize>,

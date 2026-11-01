@@ -53,7 +53,7 @@ pub use store::{
     PublishedLineage, QueryRecord, QueryStore, ResultStore, SuffStatStore,
 };
 pub use suff_stats::{
-    LagIndexCacheEntry, LagIndexCacheKey, LinearOlsDelta, LinearOlsSuffStats, MERGE_ABS_TOL,
-    MERGE_REL_TOL, StreamingCovariance, merge_within_tolerance,
+    LagIndexCacheEntry, LagIndexCacheKey, LinearOlsDelta, LinearOlsSuffStats, MAX_OLS_COLUMNS,
+    MERGE_ABS_TOL, MERGE_REL_TOL, StreamingCovariance, merge_within_tolerance,
 };
 pub use weighted_refresh::{WeightedLedger, WeightedOlsRefresh, WeightedRow, WeightedSnapshot};

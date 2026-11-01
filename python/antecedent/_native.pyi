@@ -7475,6 +7475,8 @@ class CellSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -7494,6 +7496,8 @@ class CellSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
 
@@ -7514,6 +7518,8 @@ class CrossfitSessionHandle:
         target_depends_on: list[str] | None = None,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
 
@@ -7820,12 +7826,15 @@ def evaluate_latent_class_effects(
     artifact_id: str,
     *,
     digest_bound: bool = False,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_latent_class_artifact(
     artifact: bytes,
     expected_identity_json: str | None = None,
     *,
     memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
     data: tuple[NDArray[np.float64], NDArray[np.float64], list[str], list[NDArray[np.float64]]]
     | None = None,
 ) -> tuple[str | None, str | None]: ...
@@ -8091,7 +8100,11 @@ class StaticResponseSessionHandle:
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class MultiSourceSessionHandle:
@@ -8110,6 +8123,8 @@ class MultiSourceSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> str: ...
     def execute(
         self,
@@ -8120,9 +8135,15 @@ class MultiSourceSessionHandle:
         *,
         seed: int = 1,
         threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class DesignSessionHandle:
@@ -8202,7 +8223,11 @@ class BayesianSessionHandle:
     def export_prior_source(self) -> tuple[bytes | None, str | None]: ...
     def effect_draws(self) -> list[float] | None: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class JointBayesianSessionHandle:
@@ -8222,7 +8247,10 @@ class JointBayesianSessionHandle:
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
     ) -> tuple[bytes | None, str | None]: ...
 
 class TemporalSessionHandle:
@@ -8260,7 +8288,11 @@ class TemporalSessionHandle:
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
     def export_result(
-        self, *, seed: int = 1, threads: int | None = None
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[bytes | None, str | None]: ...
     @staticmethod
     def consume(

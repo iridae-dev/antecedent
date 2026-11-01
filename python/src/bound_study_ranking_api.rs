@@ -67,7 +67,7 @@ fn rank_studies_bound(
     max_operations: usize,
     max_depth: usize,
     graph_weights: Vec<f64>,
-    identified: Vec<u8>,
+    identified: &[u8],
     graph_keys: Vec<u64>,
     route: Option<&str>,
     query_id: u32,

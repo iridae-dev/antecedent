@@ -71,7 +71,7 @@ fn error(e: IoError) -> PyErr {
 #[pyclass(name = "NativeNestedMarkovPosteriorCandidate", frozen)]
 struct Candidate {
     artifact: Artifact,
-    bytes: Vec<u8>,
+    bytes: &[u8],
     identity: String,
 }
 #[cfg(feature = "calibration-internal")]

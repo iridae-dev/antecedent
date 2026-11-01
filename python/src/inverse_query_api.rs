@@ -241,6 +241,7 @@ impl PyInverseQueryArtifact {
     #[staticmethod]
     #[pyo3(signature = (contract_json, query_json, point=None, interval_region=None, identified_set=None, scenarios=None))]
     fn build(
+        py: Python<'_>,
         contract_json: &str,
         query_json: &str,
         point: Option<Bound<'_, PyAny>>,
@@ -340,7 +341,10 @@ impl PyInverseQueryArtifact {
                 .transpose()?,
             scenarios: scenarios.map(|atoms| atoms_from(&atoms)).transpose()?,
         };
-        match antecedent::analysis::inverse_query::seal(wire.into_query(contract), evidence) {
+        let sealed = py.detach(|| {
+            antecedent::analysis::inverse_query::seal(wire.into_query(contract), evidence)
+        });
+        match sealed {
             Ok(artifact) => Ok((Some(Self { artifact, source_claims, external_sources }), None)),
             Err(error) => Ok((None, Some(query_refusal(&error)))),
         }
@@ -350,7 +354,11 @@ impl PyInverseQueryArtifact {
     /// the consumer retained independently of the bytes.
     #[staticmethod]
     #[pyo3(signature = (data, expected_identity_json=None))]
-    fn consume(data: &[u8], expected_identity_json: Option<&str>) -> PyResult<Built> {
+    fn consume(
+        py: Python<'_>,
+        data: &[u8],
+        expected_identity_json: Option<&str>,
+    ) -> PyResult<Built> {
         let expected: Option<InverseQueryIdentity> = match expected_identity_json {
             Some(text) => {
                 check_size(text)?;
@@ -363,7 +371,9 @@ impl PyInverseQueryArtifact {
             }
             None => None,
         };
-        match antecedent::analysis::inverse_query::consume(data, expected.as_ref()) {
+        let consumed =
+            py.detach(|| antecedent::analysis::inverse_query::consume(data, expected.as_ref()));
+        match consumed {
             Ok(artifact) => Ok((
                 Some(Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }),
                 None,
@@ -409,7 +419,9 @@ impl PyInverseQueryArtifact {
 
     /// Serialize through the bounded sectioned container.
     fn export<'py>(&self, py: Python<'py>, artifact_id: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = antecedent::analysis::inverse_query::export(&self.with_sources()?, artifact_id)
+        let artifact = self.with_sources()?;
+        let bytes = py
+            .detach(|| antecedent::analysis::inverse_query::export(&artifact, artifact_id))
             .map_err(serialization)?;
         Ok(PyBytes::new(py, &bytes))
     }

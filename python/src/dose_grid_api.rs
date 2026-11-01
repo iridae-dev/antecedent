@@ -157,7 +157,7 @@ fn evaluate_dose_grid_functional(
 #[pyo3(signature = (artifact, *, max_rows=100_000, max_grid=1_024, threads=None, max_bytes=None, cancel=None))]
 fn consume_dose_grid_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     max_rows: usize,
     max_grid: usize,
     threads: Option<u32>,
@@ -301,7 +301,7 @@ fn evaluate_dose_grid_posterior(
 #[pyo3(signature = (artifact, *, max_rows=100_000, max_grid=1_024, threads=None, max_bytes=None, cancel=None))]
 fn consume_dose_grid_posterior_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     max_rows: usize,
     max_grid: usize,
     threads: Option<u32>,

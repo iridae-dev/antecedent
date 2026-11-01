@@ -439,7 +439,21 @@ impl McmcDoSampler {
             .ok_or_else(|| ModelError::Shape {
                 message: "burn_in + n_samples * thin exceeds the supported chain length".into(),
             })?;
-        let pilot = sample_interventional(model, interventions, n_samples.max(64), rng, ws, ctx)?;
+        // Every step evaluates a KDE over the whole pilot: bound the chain by that work, not
+        // only by its length.
+        let pilot_len = n_samples.max(64);
+        if u64::try_from(iters)
+            .ok()
+            .zip(u64::try_from(pilot_len).ok())
+            .and_then(|(iters, pilot)| iters.checked_mul(pilot))
+            .is_none_or(|work| work > MAX_MCMC_KDE_EVALUATIONS)
+        {
+            return Err(ModelError::Shape {
+                message: "the chain length times the pilot size exceeds the supported KDE work"
+                    .into(),
+            });
+        }
+        let pilot = sample_interventional(model, interventions, pilot_len, rng, ws, ctx)?;
         let dense = model
             .dense_of(self.outcome)
             .ok_or_else(|| ModelError::Shape { message: "outcome not in model".into() })?;
@@ -458,7 +472,9 @@ impl McmcDoSampler {
         let mut current = pilot_col[0];
         let mut accepted = 0usize;
         let mut total = 0usize;
-        let _admitted = crate::sample::admit_cells(Some(ctx), n_samples, 1)?;
+        // The retained chain and the copy of the pilot column the KDE owns.
+        let _admitted =
+            crate::sample::admit_cells(Some(ctx), n_samples.saturating_add(pilot_len), 1)?;
         let mut out = Vec::with_capacity(n_samples);
         // Degenerate pilot (near-zero bandwidth) → independent draws from the pilot
         // empirical measure (random-walk MH cannot move).
@@ -519,6 +535,9 @@ impl McmcDoSampler {
 
 /// Longest random-walk chain (burn-in plus thinned draws) one call may run.
 pub const MAX_MCMC_ITERATIONS: usize = 1_000_000_000;
+
+/// Most KDE density evaluations (chain steps times pilot size) one call may run.
+pub const MAX_MCMC_KDE_EVALUATIONS: u64 = 10_000_000_000;
 
 /// Convenience: interventional mean of a variable from ancestral sampling.
 ///

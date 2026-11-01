@@ -60,7 +60,7 @@ type LatentClassColumns<'py> =
 /// Fit the mixture on declared columns: `(report json, artifact bytes, refusal json)`; an export
 /// over its byte budget returns the report and the refusal with no artifact.
 #[pyfunction]
-#[pyo3(signature = (outcome, treatment, covariates, covariate_names, config_json, artifact_id, *, digest_bound=false))]
+#[pyo3(signature = (outcome, treatment, covariates, covariate_names, config_json, artifact_id, *, digest_bound=false, memory_limit_bytes=None, cancel=None))]
 fn evaluate_latent_class_effects(
     py: Python<'_>,
     outcome: PyReadonlyArray1<'_, f64>,
@@ -70,6 +70,8 @@ fn evaluate_latent_class_effects(
     config_json: &str,
     artifact_id: &str,
     digest_bound: bool,
+    memory_limit_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<EvaluatePayload> {
     let config: LatentClassConfigWire = parse(config_json, "config")?;
     let request = LatentClassRequestWire {
@@ -85,7 +87,8 @@ fn evaluate_latent_class_effects(
         },
     };
     let artifact_id = artifact_id.to_owned();
-    detach_catch(py, move || match LatentClassEffects::fit(&request) {
+    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, cancel);
+    detach_catch(py, move || match LatentClassEffects::fit_with(&request, &ctx) {
         Ok(done) => {
             let report = serde_json::to_string(&done.report())
                 .map_err(|e| crate::serialization_err(e.to_string()))?;
@@ -116,12 +119,13 @@ fn evaluate_latent_class_effects(
 /// `expected_identity_json` is an identity the caller retained independently; a changed
 /// configuration, dataset or result is refused against it.
 #[pyfunction]
-#[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None, data=None))]
+#[pyo3(signature = (artifact, expected_identity_json=None, *, memory_limit_bytes=None, cancel=None, data=None))]
 fn consume_latent_class_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity_json: Option<String>,
     memory_limit_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
     data: Option<LatentClassColumns<'_>>,
 ) -> PyResult<ConsumePayload> {
     let expected: Option<LatentClassIdentity> = match expected_identity_json {
@@ -141,7 +145,7 @@ fn consume_latent_class_artifact(
             })
         })
         .transpose()?;
-    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
+    let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, cancel);
     detach_catch(py, move || {
         match LatentClassEffects::consume_with(&artifact, expected.as_ref(), data.as_ref(), &ctx) {
             Ok(done) => {

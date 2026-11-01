@@ -936,7 +936,7 @@ impl PreparedExactStage {
 #[pyo3(signature=(bytes,*,max_operations=10_000_000,max_depth=256,max_support_rows=1_000_000,memory_bytes=None,cancel=None))]
 fn consume_exact_transport(
     py: Python<'_>,
-    bytes: Vec<u8>,
+    bytes: &[u8],
     max_operations: usize,
     max_depth: usize,
     max_support_rows: usize,

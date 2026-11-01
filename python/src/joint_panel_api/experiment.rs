@@ -250,10 +250,13 @@ impl PyPanelExperiment {
         })?;
         Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
-    fn report(&self, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
-        let (prior, posterior) = self.inner.response_means(ledger.ledger()).map_err(panel_error)?;
-        let law = self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?;
-        Ok(serde_json::json!({"prior_means":prior,"posterior_means":posterior,"posterior_weights":law.metadata().weights,"scope":self.inner.scope(),"quantities":self.inner.quantities(ledger.ledger()).map_err(panel_error)?.iter().map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+    fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
+        let ledger = ledger.ledger();
+        crate::detach_catch(py, || {
+            let (prior, posterior) = self.inner.response_means(ledger).map_err(panel_error)?;
+            let law = self.inner.numerical_law_source(ledger).map_err(panel_error)?;
+            Ok(serde_json::json!({"prior_means":prior,"posterior_means":posterior,"posterior_weights":law.metadata().weights,"scope":self.inner.scope(),"quantities":self.inner.quantities(ledger).map_err(panel_error)?.iter().map(antecedent_io::quantity_wire::ScientificQuantityWire::from).collect::<Vec<_>>(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+        })
     }
     fn decide(
         &self,
@@ -534,12 +537,15 @@ impl PyDesignExperiment {
         })?;
         Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
-    fn report(&self, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
-        let law = self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?;
-        let means = (0..law.shape()[1])
-            .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+    fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
+        let ledger = ledger.ledger();
+        crate::detach_catch(py, || {
+            let law = self.inner.numerical_law_source(ledger).map_err(panel_error)?;
+            let means = (0..law.shape()[1])
+                .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+        })
     }
     fn decide(
         &self,
@@ -716,12 +722,15 @@ impl PyNativeExperiment {
         })?;
         Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
     }
-    fn report(&self, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
-        let law = self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?;
-        let means = (0..law.shape()[1])
-            .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","identification":self.inner.identification(),"local_ratio_regularization":self.inner.local_ratio_regularization(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+    fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
+        let ledger = ledger.ledger();
+        crate::detach_catch(py, || {
+            let law = self.inner.numerical_law_source(ledger).map_err(panel_error)?;
+            let means = (0..law.shape()[1])
+                .map(|i| law.mean(i).map_err(|e| crate::value_err(e.to_string())))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(serde_json::json!({"posterior_means":means,"posterior_weights":law.metadata().weights,"quantities":law.quantities(),"scope":"model_conditional_experimental_update;calibration_unmeasured","identification":self.inner.identification(),"local_ratio_regularization":self.inner.local_ratio_regularization(),"modular_policy":"frozen_joint_importance","calibration":"unmeasured"}).to_string())
+        })
     }
     fn decide(
         &self,

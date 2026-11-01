@@ -352,7 +352,7 @@ class CellSession:
                 None if target is None else _column("target weights", target.weights)
             ),
             "target_depends_on": None if target is None else [str(v) for v in target.depends_on],
-            **_native_controls(run, resources=False),
+            **_native_controls(run),
         }
         return positional, keywords
 
@@ -436,7 +436,7 @@ class CrossfitSession:
                     None if target is None else _column("target weights", target.weights)
                 ),
                 target_depends_on=(None if target is None else [str(v) for v in target.depends_on]),
-                **_native_controls(run, resources=False),
+                **_native_controls(run),
             )
         )
 

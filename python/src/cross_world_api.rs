@@ -145,7 +145,7 @@ fn evaluate_cross_world_edge_contrast(
 #[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
 fn consume_cross_world_edge_contrast_artifact(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     seed: u64,
     expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {
