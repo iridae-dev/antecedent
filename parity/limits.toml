@@ -19,8 +19,8 @@ record = "distribution.joint_alignment"
 key = "max_coordinates"
 implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
-guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates' }
+refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates \{\s*return Err\(IoError::TooLarge\)' }
 scope_fixture = { path = "crates/antecedent-io/tests/distribution_artifact.rs", pattern = "\\bresealed_axes_alignment_and_meaning_changes_are_refused\\b" }
 
 [[bound]]
@@ -226,8 +226,8 @@ record = "distribution.aligned_joint_draws"
 key = "max_coordinates"
 implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
-guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates' }
+refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates \{\s*return Err\(IoError::TooLarge\)' }
 scope_fixture = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "\\bmarginal_draws_and_wrong_semantics_refuse_before_value_evaluation\\b" }
 
 [[bound]]
@@ -253,8 +253,8 @@ record = "distribution.mapped_posterior_transfer"
 key = "max_coordinates"
 implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_COORDINATES" }]
-guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{" }
-refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
+guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates' }
+refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'self\.quantities\.len\(\) > max_coordinates \{\s*return Err\(IoError::TooLarge\)' }
 scope_fixture = { path = "crates/antecedent/tests/mapped_posterior_transfer.rs", pattern = "\\bincompatible_sources_and_mapping_refuse\\b" }
 
 [[bound]]
@@ -1783,7 +1783,6 @@ documentation = [{ path = "crates/antecedent/src/analysis/discovered_transport_e
 guard = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ joint_cells\\ >\\ MAX_JOINT_CELLS\\ \\{" }
 refusal = { path = "crates/antecedent/src/analysis/discovered_transport_estimate.rs", pattern = "if\\ joint_cells\\ >\\ MAX_JOINT_CELLS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
 scope_fixture = { path = "crates/antecedent/tests/discovered_transport_facade.rs", pattern = "\\ba_variable_with_more_levels_than_supported_is_refused\\b" }
-
 
 [[bound]]
 record = "sensitivity.missing_outcome_departure"
