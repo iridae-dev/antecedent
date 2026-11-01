@@ -27,12 +27,7 @@ fn exact_and_censored_terms_match_the_reference_including_deep_tails() {
     assert_close(one(G::Exact(1.3), 0.4, 0.8), -1.328_607_481_890_463, 1e-13, "exact");
     assert_close(one(G::Exact(-50.0), 0.0, 1.0), -1_250.918_938_533_204_7, 1e-13, "exact tail");
     assert_close(one(G::LeftCensored(0.5), 1.0, 2.0), -0.913_061_764_811_135_1, 1e-13, "left");
-    assert_close(
-        one(G::LeftCensored(-40.0), 0.0, 1.0),
-        -804.608_442_013_753_8,
-        1e-13,
-        "left tail",
-    );
+    assert_close(one(G::LeftCensored(-40.0), 0.0, 1.0), -804.608_442_013_753_8, 1e-13, "left tail");
     assert_close(
         one(G::LeftCensored(9.0), 0.0, 1.0),
         -1.128_588_405_953_840_6e-19,
