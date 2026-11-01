@@ -18,6 +18,10 @@ fn reference() -> Value {
         .expect("frozen reference")
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn report(v: &Value) -> RefutationReport {
     RefutationReport::builder(v["refuter"].as_str().unwrap())
         .original_ate(v["original"].as_f64().unwrap())
@@ -41,7 +45,11 @@ fn assert_mixed(got: &RefutationReport, want: &Value, label: &str) {
     close(got.comparison, want["comparison"].as_f64().unwrap(), &format!("{label} comparison"));
     assert_eq!(got.informative, want["informative"].as_bool().unwrap(), "{label} informative");
     assert_eq!(got.passed, want["passed"].as_bool().unwrap(), "{label} passed");
-    assert_eq!(got.replicates as u64, want["replicates"].as_u64().unwrap(), "{label} replicates");
+    assert_eq!(
+        u64::from(got.replicates),
+        want["replicates"].as_u64().unwrap(),
+        "{label} replicates"
+    );
     assert_eq!(
         got.failure_condition.as_deref(),
         want["failure"].as_str(),

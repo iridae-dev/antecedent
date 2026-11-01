@@ -152,6 +152,10 @@ fn check(report: &antecedent_validate::RefutationReport, want: &Value, label: &s
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn suite_equals_the_exact_reference() {
     let ctx = || ExecutionContext::for_tests(SEED);
     let mut verdicts = Vec::new();

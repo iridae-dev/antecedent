@@ -9,6 +9,10 @@ use super::{e_value_from_risk_ratio, smd_to_risk_ratio};
 /// With equal strengths the bound is `E^2 / (2E - 1)`, so the closed form must invert it
 /// exactly, and any weaker equal-strength confounder must leave the bound below `RR`.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn evalue_inverts_the_confounding_bound_and_is_its_smallest_equal_strength_root() {
     let bound = |e: f64| e / (2.0 - 1.0 / e);
     for &rr in &[1.0 + 1e-12, 1.000_001, 1.05, 1.5, 2.0, 3.7, 10.0, 123.456, 1e6, 1e30, 1e100] {

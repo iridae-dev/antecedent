@@ -1169,6 +1169,11 @@ pub(crate) fn noise_replace_refute(
 /// Fewer than two samples, or any non-finite sample or `hypothesized`. A replicate that
 /// is `NaN`/`±∞` means the refit itself broke; it must be neither a pass (`p = 1`) nor a
 /// refutation (`p = 0`), so the caller sees an operational failure instead of a verdict.
+#[allow(clippy::float_cmp, reason = "the check preserves exact boundary and category semantics")]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the local helper stays with the validation calculation"
+)]
 pub(crate) fn replicate_p_value(
     samples: &[f64],
     hypothesized: f64,
@@ -1871,6 +1876,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn replicate_p_value_is_invariant_to_positive_and_negative_unit_scaling() {
         let expected = replicate_p_value(&[-1.0, 1.0], 2.0).unwrap();
         for scale in [1e-14, -1e-14, 1e14, -1e14] {
@@ -1882,6 +1891,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn roundoff_degeneracy_is_relative_and_does_not_hide_real_tiny_effects() {
         let base = 2.0_f64.to_bits();
         let samples = [
@@ -1901,6 +1914,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn replicate_p_value_handles_extreme_units_and_large_offsets() {
         let reference = replicate_p_value(&[-1.0, 1.0], 2.0).unwrap();
         for scale in [1e-200, -1e-200, 1e200, -1e200] {

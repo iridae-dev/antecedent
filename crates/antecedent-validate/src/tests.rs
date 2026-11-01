@@ -1148,6 +1148,10 @@ fn neighborhood_sensitivity_one_hundred_thousand_row_acceptance() {
 /// the reported grid value is the first grid point above that number computed from the known
 /// conditional means rather than from any smoother.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn neighborhood_sensitivity_reproduces_the_tipping_value_of_the_true_residuals() {
     let n = 30_000usize;
     let (data, estimand, true_t_res, true_y_res) = nonlinear_confounded(n);

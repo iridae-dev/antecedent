@@ -71,22 +71,6 @@ impl ValidationError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::ValidationError;
-    use antecedent_core::CallbackFailure;
-    use antecedent_stats::StatsError;
-
-    #[test]
-    fn a_callback_failure_survives_the_validation_error_wrapper() {
-        let failure = CallbackFailure::new(Some(4), "Python CI callback failed: boom", None);
-        let error = ValidationError::from(StatsError::CallbackFailed(failure.clone()));
-        assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
-        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
-        assert!(CallbackFailure::in_chain(&ValidationError::Cancelled).is_none());
-    }
-}
-
 impl<E> From<antecedent_core::execution::MapExecutionError<E>> for ValidationError
 where
     Self: From<E>,
@@ -102,5 +86,21 @@ where
             }
             antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ValidationError;
+    use antecedent_core::CallbackFailure;
+    use antecedent_stats::StatsError;
+
+    #[test]
+    fn a_callback_failure_survives_the_validation_error_wrapper() {
+        let failure = CallbackFailure::new(Some(4), "Python CI callback failed: boom", None);
+        let error = ValidationError::from(StatsError::CallbackFailed(failure.clone()));
+        assert_eq!(error.to_string(), "backend error: Python CI callback failed: boom");
+        assert_eq!(CallbackFailure::in_chain(&error), Some(&failure));
+        assert!(CallbackFailure::in_chain(&ValidationError::Cancelled).is_none());
     }
 }

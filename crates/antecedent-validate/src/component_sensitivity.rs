@@ -1431,6 +1431,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn the_msm_fit_matches_replicated_rows_and_the_hand_formula() {
         // Integer weights are replicated rows: the coefficients are identical.
         let x: Vec<f64> = vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
@@ -1560,6 +1565,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn an_msm_parameter_vector_has_a_partial_r2_range_at_its_weakest_parameter() {
         // Two exposure terms of one MSM; the second is weak.
         let n = 400;

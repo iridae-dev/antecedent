@@ -265,6 +265,10 @@ mod tests {
 mod invalid_public_policy_tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn invalid_public_policy_is_rejected_before_composition_and_fails_closed_for_scalar() {
         for policy in [
             ConflictPolicy { p_min: f64::NAN, kl_scale: 1.0 },
@@ -283,6 +287,10 @@ mod invalid_public_policy_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn valid_policy_boundary_values_follow_the_documented_rule() {
         let zero = ConflictPolicy::try_new(0.0, 0.0).unwrap();
         assert_eq!(zero.shrink_alpha(0.8, Some(0.0), Some(100.0)), 0.0);

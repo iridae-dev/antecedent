@@ -49,6 +49,10 @@ fn floats(v: &Value) -> Vec<f64> {
     v.as_array().expect("array").iter().map(|x| x.as_f64().expect("f64")).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn build(case: &Value) -> (TabularData, IdentifiedEstimand) {
     let t = floats(&case["t"]);
     let y = floats(&case["y"]);
@@ -209,6 +213,10 @@ fn check(report: &antecedent_validate::RefutationReport, want: &Value, label: &s
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn replicate_refuters_equal_the_exact_reference() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let mut verdicts = Vec::new();

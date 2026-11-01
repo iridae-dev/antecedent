@@ -49,6 +49,7 @@ pub const MAX_ASSESSMENT_WORK: u64 = 4_000_000_000;
 ///
 /// # Errors
 /// Excess or duplicate pairs, overflowing work, or work above `max_work`.
+#[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
 pub fn admit_comparisons(
     cases: usize,
     predictors: &[(&str, u64)],

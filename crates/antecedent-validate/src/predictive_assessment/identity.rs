@@ -150,7 +150,7 @@ pub(crate) fn observations_digest(
     if bind_provenance && keys.iter().any(super::law::ObservationKey::is_caller_minted) {
         writer.text("caller_minted_provenance_v2").word(order.len() as u64);
         for &i in order {
-            writer.word(keys[i].is_caller_minted() as u64);
+            writer.word(u64::from(keys[i].is_caller_minted()));
         }
     }
     writer.finish_hex()
@@ -204,7 +204,7 @@ pub(crate) fn predictor_digest(
             if sorted.iter().any(super::law::ObservationKey::is_caller_minted) {
                 writer.text("caller_minted_fit_provenance_v2").word(sorted.len() as u64);
                 for key in sorted {
-                    writer.word(key.is_caller_minted() as u64);
+                    writer.word(u64::from(key.is_caller_minted()));
                 }
             }
         }

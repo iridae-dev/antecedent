@@ -618,7 +618,7 @@ mod tests {
     #[test]
     fn the_standardized_scale_converts_draws_and_bad_draws_are_refused() {
         let one = target(TargetFamily::ConditionalEffect, TargetQuadrant::STATIC_BAYESIAN, &["d"]);
-        let draws: Vec<f64> = (0..101).map(|i| 0.4 + 0.1 * (i as f64 / 100.0 - 0.5)).collect();
+        let draws: Vec<f64> = (0..101).map(|i| 0.4 + 0.1 * (f64::from(i) / 100.0 - 0.5)).collect();
         let (summary, _) = evalue_posterior_range(
             one.clone(),
             &[draws],

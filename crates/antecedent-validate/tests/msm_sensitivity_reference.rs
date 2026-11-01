@@ -81,6 +81,10 @@ fn sharp_bounds_equal_the_vertex_enumeration_at_every_lambda() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn the_grid_and_the_identified_value_are_the_same_bounds() {
     for design in designs() {
         let name = design["name"].as_str().unwrap();

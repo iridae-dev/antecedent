@@ -317,6 +317,10 @@ fn mnar_refuses_malformed_data_and_options() {
 /// (`conformance/validate/mnar_sensitivity/reference.py`) on effects, sampling standard errors
 /// and tipping points, including the selection model evaluated through its selection mechanism.
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn mnar_matches_the_independent_reference() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../conformance/validate/mnar_sensitivity/expected.json");
@@ -331,8 +335,12 @@ fn mnar_matches_the_independent_reference() {
             .iter()
             .map(|v| v.as_f64().unwrap())
             .collect();
-        let outcome: Vec<Option<f64>> =
-            case["data"]["outcome"].as_array().unwrap().iter().map(|v| v.as_f64()).collect();
+        let outcome: Vec<Option<f64>> = case["data"]["outcome"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(serde_json::Value::as_f64)
+            .collect();
         let model = match case["model"].as_str().unwrap() {
             "delta" => MnarModel::DeltaPatternMixture,
             _ => MnarModel::ExponentialTiltingSelection,

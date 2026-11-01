@@ -136,7 +136,7 @@ fn as_f64(v: &Value) -> f64 {
 
 fn assert_table(report: &DiscoveryStabilityReport, want: &Value, label: &str) {
     let rows = want["frequencies"].as_array().unwrap();
-    assert_eq!(report.replicates as u64, want["replicates"].as_u64().unwrap(), "{label} cells");
+    assert_eq!(u64::from(report.replicates), want["replicates"].as_u64().unwrap(), "{label} cells");
     assert_eq!(report.block_size as u64, want["block_size"].as_u64().unwrap(), "{label} block");
     assert_eq!(report.frequencies.len(), rows.len(), "{label} link count");
     for (got, row) in report.frequencies.iter().zip(rows) {
@@ -261,8 +261,8 @@ fn orientation_inputs(name: &str) -> Value {
                 _ => {}
             }
         }
-        directed.sort_by_key(|v| v.to_string());
-        undirected.sort_by_key(|v| v.to_string());
+        directed.sort_by_key(std::string::ToString::to_string);
+        undirected.sort_by_key(std::string::ToString::to_string);
         reps.push(json!({ "directed": directed, "undirected": undirected, "conflict": conflict }));
     }
     json!({ "replicates": stab.replicates, "block_size": stab.block_size, "reps": reps })
@@ -284,6 +284,10 @@ const REGIME_MIN_LEN: usize = 40;
 /// What a labelled-regime search is defined to return: for every regime with enough rows, PCMCI+
 /// on the lagged frame restricted to the windows lying wholly inside that regime, each regime on
 /// its own fresh workspace.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn explicit_regime_links(
     rpcmci: &Rpcmci,
     series: &TimeSeriesData,
@@ -375,6 +379,10 @@ fn null_setup() -> (u32, usize, usize, Pcmci) {
     (12, 100, 2, pcmci(1, 2, 0.3))
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn null_inputs() -> Value {
     let (n_sim, n_obs, n_vars, engine) = null_setup();
     let mut rng = ctx(7).rng.stream(crate::streams::STABILITY_NULL);
@@ -712,6 +720,10 @@ fn discovery_stability_synthetic_null_matches_reference() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn discovery_stability_environment_holdout_matches_reference() {
     let (inputs, expected) = frozen(&["env"]);
     assert_eq!(env_inputs(), inputs, "regenerated environment discoveries differ");
@@ -760,6 +772,10 @@ fn discovery_stability_parameter_grids_match_reference() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn discovery_stability_null_rate_arithmetic_matches_reference() {
     let (inputs, expected) = frozen(&["arithmetic"]);
     assert_eq!(arithmetic_inputs(), inputs);

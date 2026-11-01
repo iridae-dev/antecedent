@@ -41,6 +41,7 @@ fn default_delta_grid() -> Vec<f64> {
 
 // Scale before centering: even finite values can have an overflowing raw
 // deviation from their mean, while their final sample SD is representable.
+#[allow(clippy::float_cmp, reason = "the check preserves exact boundary and category semantics")]
 fn stable_outcome_sd(values: &[f64]) -> f64 {
     if values.len() < 2 || values.iter().any(|value| !value.is_finite()) {
         return f64::NAN;

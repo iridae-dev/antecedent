@@ -120,6 +120,10 @@ fn design_json(prep: &PreparedBayesianProblem) -> Value {
     })
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn merge(mut base: Value, extra: Value) -> Value {
     base.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
     base
@@ -154,6 +158,10 @@ fn fit(estimator: &BayesianGComputationAte, prep: &PreparedBayesianProblem) -> C
 // posterior predictive
 // ------------------------------------------------------------------------------------------
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn post_estimator(case: &Value) -> BayesianGComputationAte {
     let draws = case["fit_draws"].as_u64().unwrap() as usize;
     let seed = case["fit_seed"].as_u64().unwrap();
@@ -176,6 +184,10 @@ fn post_estimator(case: &Value) -> BayesianGComputationAte {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn post_check(case: &Value) -> PosteriorPredictiveCheck {
     PosteriorPredictiveCheck {
         n_sims: case["n_sims"].as_u64().unwrap() as u32,
@@ -186,6 +198,10 @@ fn post_check(case: &Value) -> PosteriorPredictiveCheck {
 
 /// The library draw streams a posterior predictive check consumes, regenerated in the order the
 /// definition consumes them.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn regen_post(case: &Value) -> Value {
     let prep = problem(case);
     let post = fit(&post_estimator(case), &prep);
@@ -367,6 +383,10 @@ fn temporal_predictive_residuals_use_each_likelihoods_observation_mean() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn ppc_prior_sensitivity_posterior_predictive_reads_every_option() {
     let fixture = reference();
     let case = &fixture["post"][0];
@@ -401,12 +421,16 @@ fn ppc_prior_sensitivity_posterior_predictive_reads_every_option() {
 /// The residual-variance conditional of a replicate noise draw: with the conjugate
 /// normal-inverse-gamma posterior, sigma^2 given the coefficients is inverse-gamma with shape
 /// `a + (n + p) / 2` and rate `b + (SSR + Q) / 2`, so the marginal precision `1 / sigma^2` of the
-/// joint draw is Gamma(a_n, rate b_n) with a_n = a + n / 2 and b_n the posterior rate. The sample
-/// mean of N precisions deviates from a_n / b_n by more than
+/// joint draw is `Gamma(a_n`, rate `b_n`) with `a_n` = a + n / 2 and `b_n` the posterior rate. The sample
+/// mean of N precisions deviates from `a_n` / `b_n` by more than
 /// `sqrt(2 v x / N) + x s / N` above or `sqrt(2 v x / N)` below with probability at most
 /// `exp(-x)` each (a Gamma variable is sub-gamma with variance factor v and scale s);
 /// `x = ln(2e9)`, so the failure probability is below 1e-9.
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn ppc_prior_sensitivity_replicate_noise_variance_is_the_conjugate_conditional() {
     let fixture = reference();
     let shape = &fixture["shape"];
@@ -474,6 +498,10 @@ fn prior_set(case: &Value) -> PriorSet {
     prior
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn prior_check(case: &Value) -> PriorPredictiveCheck {
     PriorPredictiveCheck {
         n_sims: case["n_sims"].as_u64().unwrap() as u32,
@@ -575,6 +603,10 @@ fn ppc_prior_sensitivity_prior_predictive_mean_follows_the_exact_law() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn ppc_prior_sensitivity_prior_predictive_reads_every_option_and_refuses_bad_inputs() {
     let fixture = reference();
     let case = &fixture["prior"][0];
@@ -646,6 +678,10 @@ fn sbc_prior(case: &Value) -> PriorSet {
     prior
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn sbc_setup(
     case: &Value,
 ) -> (BayesianGComputationAte, PreparedBayesianProblem, SimulationBasedCalibration) {
@@ -799,6 +835,10 @@ fn ppc_prior_sensitivity_simulation_based_calibration_reads_every_option() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn ppc_prior_sensitivity_rank_bins_and_verdict_thresholds() {
     let fixture = reference();
     let constants = &fixture["constants"];
@@ -848,6 +888,10 @@ fn sens_problem(spec: &Value) -> PreparedBayesianProblem {
     problem(&json!({"t": spec["t"], "z": spec["z"], "y": spec["y"]}))
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn sens_estimator(spec: &Value, prior: Option<PriorSet>) -> BayesianGComputationAte {
     BayesianGComputationAte {
         backend: BayesianBackendKind::ConjugateGaussian,

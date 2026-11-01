@@ -24,6 +24,10 @@ fn window(value: &Value) -> Vec<f64> {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn ks_distance_and_population_stability_index_equal_their_definitions() {
     let cases = reference();
     assert!(cases.len() >= 60);
@@ -51,6 +55,11 @@ fn ks_distance_and_population_stability_index_equal_their_definitions() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn swapping_the_windows_or_permuting_cases_changes_nothing_that_should_not_change() {
     for case in &reference() {
         let a = window(&case["reference"]);

@@ -209,6 +209,10 @@ fn by_id(reports: &[RefutationReport], id: &str) -> Option<RefutationReport> {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn temporal_mediation_refuter_suite_equals_the_exact_reference() {
     let ctx = || ExecutionContext::for_tests(SEED);
     let mut verdicts = Vec::new();

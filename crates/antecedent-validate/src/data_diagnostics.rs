@@ -998,6 +998,10 @@ mod tests {
     use antecedent_data::{Int64Column, ValidityBitmap};
     use std::sync::Arc;
 
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn profile(values: &[f64], policy: DataDiagnostics) -> DataDiagnosticsReport {
         let data = TabularData::from_f64_columns([("x", values)]).unwrap();
         diagnose_data(
@@ -1068,6 +1072,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn concentration_and_resolution_thresholds_are_inclusive() {
         let mut values = vec![0.; 1000];
         values[990..].fill(1.);

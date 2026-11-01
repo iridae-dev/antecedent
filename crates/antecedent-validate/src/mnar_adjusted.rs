@@ -164,6 +164,7 @@ pub(crate) fn propensity(data: &AdjData) -> Option<Vec<f64>> {
 
 /// The treated and control mean outcomes under the departure `param`, by `estimator`; `None`
 /// for a singular design or an arm with too few observed outcomes.
+#[allow(clippy::match_on_vec_items, reason = "validated row indices address the outcome vector")]
 pub(crate) fn arm_means(
     data: &AdjData,
     propensities: Option<&[f64]>,
@@ -248,7 +249,7 @@ pub(crate) fn arm_means(
     }
 }
 
-/// SplitMix64: a small deterministic stream for the bootstrap resamples.
+/// `SplitMix64`: a small deterministic stream for the bootstrap resamples.
 struct SplitMix(u64);
 
 impl SplitMix {
@@ -260,6 +261,10 @@ impl SplitMix {
         z ^ (z >> 31)
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the resampling index is bounded by the source length"
+    )]
     fn below(&mut self, n: usize) -> usize {
         (self.next() % n as u64) as usize
     }

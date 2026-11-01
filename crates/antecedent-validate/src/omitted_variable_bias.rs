@@ -462,6 +462,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn partial_r2_and_robustness_remain_bounded_at_extreme_finite_scales() {
         let moderate = LinearAdjustmentSummary::new(10.0_f64.sqrt(), 1.0, 10.0).unwrap();
         // f=1 has the independent golden-ratio reference (sqrt(5)-1)/2.

@@ -33,6 +33,10 @@ fn floats(v: &Value) -> Vec<f64> {
     v.as_array().expect("array").iter().map(|x| x.as_f64().expect("f64")).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn build(case: &Value, adjustment_len: Option<usize>) -> (TabularData, IdentifiedEstimand) {
     let t = floats(&case["t"]);
     let y = floats(&case["y"]);
@@ -156,6 +160,10 @@ fn leave_one_out_equals_the_exact_reference() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn empty_adjustment_set_has_nothing_to_drop() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let frozen = reference();

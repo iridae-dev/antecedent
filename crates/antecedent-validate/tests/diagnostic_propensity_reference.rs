@@ -38,6 +38,10 @@ fn column(r: &Value, name: &str) -> Vec<f64> {
     r[name].as_array().expect("column").iter().map(f).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn study(r: &Value) -> (TabularData, IdentifiedEstimand) {
     let names = ["t", "y", "z1", "z2", "tc"];
     let mut b = CausalSchemaBuilder::new();
@@ -157,6 +161,10 @@ fn continuous_treatment_support_counts_rows_with_both_doses_inside_the_residual_
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn riesz_tips_at_the_first_grid_delta_whose_worst_case_bias_reaches_the_estimate() {
     let r = reference();
     let (data, estimand) = study(&r);
@@ -181,15 +189,12 @@ fn riesz_tips_at_the_first_grid_delta_whose_worst_case_bias_reaches_the_estimate
             continue;
         }
         let report = result.unwrap();
-        match case["comparison"].as_f64() {
-            Some(delta) => {
-                assert_eq!(report.comparison, delta, "{case}");
-                tipped += 1;
-            }
-            None => {
-                assert!(report.comparison.is_infinite(), "{case}");
-                untipped += 1;
-            }
+        if let Some(delta) = case["comparison"].as_f64() {
+            assert_eq!(report.comparison, delta, "{case}");
+            tipped += 1;
+        } else {
+            assert!(report.comparison.is_infinite(), "{case}");
+            untipped += 1;
         }
         near(report.refuted_ate, f(&case["refuted"]), 1e-6, &format!("bound {case}"));
         assert_eq!(report.passed, case["passed"].as_bool().unwrap(), "{case}");

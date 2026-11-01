@@ -241,6 +241,10 @@ pub(crate) struct ReadTable<'a> {
 
 impl<'a> ReadTable<'a> {
     /// Read every column of `data`.
+    #[allow(
+        clippy::float_cmp,
+        reason = "the check preserves exact boundary and category semantics"
+    )]
     pub(crate) fn new(data: &'a TabularData) -> Result<Self, StalenessError> {
         let mask = data.storage().analysis_mask();
         if data.storage().weights().is_some_and(|weights| {

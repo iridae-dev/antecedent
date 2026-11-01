@@ -53,6 +53,10 @@ fn alpha_shrink_equals_the_stated_formula() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn invalid_signals_drop_the_source_instead_of_passing_it() {
     let policy = ConflictPolicy::new();
     for (p, kl) in [

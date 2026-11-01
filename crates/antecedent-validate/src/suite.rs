@@ -161,6 +161,10 @@ impl std::fmt::Display for ValidatorId {
 
 /// Outcome of one validator in a suite.
 #[derive(Clone, Debug)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the public outcome retains its existing owned representation"
+)]
 pub enum ValidationOutcome {
     /// Validator ran and produced a report.
     Report(RefutationReport),
@@ -1127,6 +1131,7 @@ fn run_custom(
 }
 
 // Operational refusals cannot be turned into scientific validator outcomes.
+#[allow(clippy::match_same_arms, reason = "the arms distinguish different typed refusal cases")]
 fn operational_failure(error: &ValidationError) -> bool {
     use antecedent_core::TemporalMaterializationError as T;
     use antecedent_estimate::EstimationError as E;
@@ -1182,6 +1187,10 @@ fn operational_failure(error: &ValidationError) -> bool {
     }
 }
 
+#[allow(
+    clippy::match_like_matches_macro,
+    reason = "the explicit match documents typed cancellation cases"
+)]
 fn propagate_operational(error: ValidationError) -> ValidationError {
     use antecedent_core::TemporalMaterializationError as T;
     use antecedent_core::execution::AdmissionError;
@@ -1437,6 +1446,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the fixture returns the exact declared effect")]
     fn full_plugin_suite_bootstraps_static_effect_refitter_and_propagates_admission() {
         use std::cell::Cell;
         #[derive(Debug)]

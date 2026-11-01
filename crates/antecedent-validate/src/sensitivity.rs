@@ -1531,7 +1531,7 @@ fn kernel_residuals(
 }
 
 /// Centered moments of the raw, unweighted kernel residuals `(t, y, u)`.
-/// This is separate from the root-weighted linear SensitivityGram path.
+/// This is separate from the root-weighted linear `SensitivityGram` path.
 struct PerturbMoments {
     n: usize,
     tt: f64,
@@ -2767,8 +2767,8 @@ mod weighted_gram_regression {
 
     #[test]
     fn weighted_gram_perturbations_match_refitting_the_same_weighted_rows() {
-        let t: Vec<f64> = (0..80).map(|i| (i % 2) as f64).collect();
-        let z: Vec<f64> = (0..80).map(|i| (i % 7) as f64 * 0.3).collect();
+        let t: Vec<f64> = (0..80).map(|i| f64::from(i % 2)).collect();
+        let z: Vec<f64> = (0..80).map(|i| f64::from(i % 7) * 0.3).collect();
         let y: Vec<f64> =
             (0..80).map(|i| 2.0 * t[i] + z[i] + ((i * 13 % 17) as f64 * 0.17).sin()).collect();
         let data = tabular(&[t, y, z]);

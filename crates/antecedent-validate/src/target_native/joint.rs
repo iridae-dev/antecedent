@@ -320,6 +320,11 @@ mod tests {
             (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
         }
 
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "the fixed reference fixture preserves its exact values and bounded setup"
+        )]
         fn index(&mut self, n: usize) -> usize {
             ((self.uniform() * n as f64) as usize).min(n - 1)
         }

@@ -39,6 +39,10 @@ fn floats(v: &Value) -> Vec<f64> {
     v.as_array().expect("array").iter().map(|x| x.as_f64().expect("f64")).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn build(case: &Value) -> (TabularData, IdentifiedEstimand, usize) {
     let t = floats(&case["t"]);
     let y = floats(&case["y"]);
@@ -98,6 +102,10 @@ fn indices(n: usize, replicates: usize) -> Vec<Vec<usize>> {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn frozen_resample_indices_are_the_library_stream() {
     for entry in reference().as_array().unwrap() {
         let n = entry["case"]["t"].as_array().unwrap().len();
@@ -158,6 +166,10 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn coverage_report_equals_the_exact_percentile_interval() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     for entry in reference().as_array().unwrap() {

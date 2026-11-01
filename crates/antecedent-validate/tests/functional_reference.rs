@@ -369,6 +369,10 @@ fn functional_window_contrast_refuters_equal_the_exact_reference() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn functional_distribution_table_refuters_equal_the_exact_reference() {
     let (mut checked, mut errors) = (0, 0);
     let mut failed = false;

@@ -467,6 +467,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn the_cross_world_range_recovers_the_slope_of_errors_correlated_at_rho() {
         // y = beta t + e_y with corr(e_t, e_y) = rho0 built exactly from orthogonal columns.
         let n = 400;

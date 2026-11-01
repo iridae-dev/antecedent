@@ -71,6 +71,10 @@ fn gaussian_scores_match_the_reference_and_the_closed_form_equals_the_integral()
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn brier_and_log_scores_of_discrete_laws_match_the_reference() {
     let reference = reference();
     for case in reference["brier"].as_array().expect("brier") {
@@ -151,6 +155,10 @@ fn finite_and_sampled_crps_match_the_energy_form_in_exact_arithmetic() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn energy_scores_match_the_reference() {
     let reference = reference();
     for case in reference["energy"].as_array().expect("energy") {
@@ -185,6 +193,10 @@ fn energy_scores_match_the_reference() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn mean_difference_variances_match_exact_rational_arithmetic() {
     let reference = reference();
     for case in reference["variance"].as_array().expect("variance") {

@@ -93,6 +93,10 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn the_tipping_strength_and_refit_estimate_match_the_explicit_perturbation() {
     for case in cases() {
         let name = case["name"].as_str().unwrap();
@@ -172,6 +176,10 @@ fn the_tipping_strength_and_refit_estimate_match_the_explicit_perturbation() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn the_realized_partial_r_squared_equals_the_grid_value_and_the_tip_matches_the_closed_form() {
     for case in cases() {
         let name = case["name"].as_str().unwrap();

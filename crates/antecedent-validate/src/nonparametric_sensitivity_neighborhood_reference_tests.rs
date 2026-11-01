@@ -4,7 +4,7 @@
 //!
 //! Compiled as a child of `sensitivity` (`#[path]` there) because the smoother is private.
 //! The reference selects, for every row, the `neighbors` nearest other covariate cells plus the
-//! row's own cell when it holds other rows, weights each by exp(-(d^2 - d_min^2)/(2 h^2)) and
+//! row's own cell when it holds other rows, weights each by exp(-(d^2 - `d_min^2)/(2` h^2)) and
 //! forms the multiplicity-weighted mean with the row itself removed. Regimes: covariate cells
 //! formed by repeated rows, a neighbour count larger than the number of cells (the exact
 //! smoother), bandwidths from 1e-3 to 25, one to three covariate dimensions, a two-row sample
@@ -27,12 +27,15 @@ fn floats(v: &Value) -> Vec<f64> {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn truncated_smoother_equals_the_brute_force_reference() {
     let ctx = ExecutionContext::for_tests(1);
     for case in reference().as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let cov: Vec<f64> =
-            case["cov"].as_array().unwrap().iter().flat_map(|row| floats(row)).collect();
+        let cov: Vec<f64> = case["cov"].as_array().unwrap().iter().flat_map(floats).collect();
         let (y1, y2) = (floats(&case["y1"]), floats(&case["y2"]));
         let dim = case["dim"].as_u64().unwrap() as usize;
         let (h, k) = (case["h"].as_f64().unwrap(), case["neighbors"].as_u64().unwrap() as usize);
@@ -61,7 +64,7 @@ fn the_neighbour_count_changes_the_answer() {
     let ctx = ExecutionContext::for_tests(1);
     let frozen = reference();
     let case = &frozen.as_array().unwrap()[1];
-    let cov: Vec<f64> = case["cov"].as_array().unwrap().iter().flat_map(|r| floats(r)).collect();
+    let cov: Vec<f64> = case["cov"].as_array().unwrap().iter().flat_map(floats).collect();
     let (y1, y2) = (floats(&case["y1"]), floats(&case["y2"]));
     let run = |k| neighborhood_loo_predict_pair(&y1, &y2, &cov, 2, 25.0, k, &ctx).unwrap().0;
     let (a, b) = (run(1), run(8));

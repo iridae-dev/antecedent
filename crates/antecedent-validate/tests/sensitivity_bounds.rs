@@ -89,6 +89,10 @@ fn ovb_range_reports_the_extreme_scenario_and_robustness_values() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn rosenbaum_range_tracks_the_upper_bound_and_gamma_star() {
     let d = [0.8, 1.1, -0.2, 0.5, 1.9, 0.3, 1.4, 0.9, -0.4, 1.2, 0.7, 2.2, 0.6, 1.0, -0.1, 1.6];
     let (analysis, range) =
@@ -170,6 +174,12 @@ fn matched_sets_with_several_controls_have_a_break_even_gamma() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn mediation_range_breaks_even_at_the_residual_correlation() {
     let mut t = Vec::new();
     let mut m = Vec::new();

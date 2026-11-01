@@ -93,6 +93,10 @@ fn check_pit(report: &PredictiveAssessmentReport, predictor: usize, want: &Value
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn check_coverage(report: &PredictiveAssessmentReport, predictor: usize, want: &Value) {
     let coverage = report.predictors[predictor].diagnostics.coverage.as_ref().expect("coverage");
     for (got, want) in coverage.iter().zip(want.as_array().unwrap()) {
@@ -109,6 +113,10 @@ fn check_coverage(report: &PredictiveAssessmentReport, predictor: usize, want: &
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn gaussian_diagnostics_equal_the_definitions() {
     let r = reference();
     let g = &r["gauss"];
@@ -135,6 +143,11 @@ fn gaussian_diagnostics_equal_the_definitions() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn bernoulli_diagnostics_include_the_rounding_boundary_of_the_central_interval() {
     let r = reference();
     let b = &r["bern"];
@@ -168,6 +181,10 @@ fn bernoulli_diagnostics_include_the_rounding_boundary_of_the_central_interval()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn a_two_point_finite_law_has_the_interval_of_the_bernoulli_law() {
     // The same forecast written two ways must have the same central interval at every level.
     let outcomes: Vec<Outcome> = (0..8).map(|i| Outcome::Real(f64::from(i % 2))).collect();
@@ -206,6 +223,10 @@ fn a_two_point_finite_law_has_the_interval_of_the_bernoulli_law() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn finite_and_ensemble_diagnostics_equal_the_definitions() {
     let r = reference();
     let f = &r["fin"];
@@ -261,6 +282,11 @@ fn finite_and_ensemble_diagnostics_equal_the_definitions() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn score_intervals_are_the_student_t_intervals_of_the_declared_dependence() {
     let r = reference();
     let g = &r["gauss"];

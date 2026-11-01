@@ -716,6 +716,7 @@ fn prepare(
     clippy::float_cmp,
     reason = "a loading of exactly zero is the declared absence of a departure"
 )]
+#[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
 fn check_spec(spec: &MnarSensitivitySpec) -> Result<MnarMechanism, MnarSensitivityError> {
     if let Some(method) = &spec.sampling_composition {
         return Err(refuse(
@@ -981,6 +982,7 @@ fn parameter_grid(spec: &MnarSensitivitySpec) -> Vec<f64> {
 /// one grid cell is still seen. The first sub-step at which the conclusion differs brackets
 /// the tipping point, which is then refined by bisection on the continuous effect function
 /// (the sampling interval, for the excludes-null conclusion) to `tolerance`.
+#[allow(clippy::float_cmp, reason = "the check preserves exact boundary and category semantics")]
 fn first_change(
     context: &Context<'_>,
     label: &impl Fn(&MnarPoint) -> i8,
@@ -1088,6 +1090,7 @@ fn tipping_of(
 /// unbounded or MAR-excluding range (`unbounded_range`, `range_excludes_mar`), a
 /// requested sampling composition (`composition_not_licensed`), malformed data, loadings,
 /// level, decisions or tolerance, or exceeded bounds.
+#[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
 pub fn mnar_sensitivity(
     data: &MnarData<'_>,
     spec: &MnarSensitivitySpec,

@@ -29,6 +29,10 @@ fn relative(got: f64, want: f64) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn joint_mahalanobis_equals_the_rational_quadratic_form_and_its_chi_square_tail() {
     let reference = reference();
     let cases = reference["joint"].as_array().expect("cases");
@@ -50,6 +54,10 @@ fn joint_mahalanobis_equals_the_rational_quadratic_form_and_its_chi_square_tail(
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn lookup(values: &Value, x: f64, point: f64, step: f64) -> f64 {
     let key = if x == point + step {
         "p"

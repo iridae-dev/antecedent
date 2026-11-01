@@ -3,9 +3,9 @@
 //!
 //! The frozen file carries each case's data, the standard-normal confounder draws the library
 //! RNG streams produce, and the expected mean refit, standardized shift and verdict computed
-//! from those draws: residual SDs of T and Y given Z from exact least squares, T' = T + a sd_t u,
-//! Y' = Y + b sd_y u, the refit with u left OUT of the adjustment set, and the floor
-//! 1e-3 sd_y/sd_t on the centre. The live test regenerates the draws from the streams and
+//! from those draws: residual SDs of T and Y given Z from exact least squares, T' = T + a `sd_t` u,
+//! Y' = Y + b `sd_y` u, the refit with u left OUT of the adjustment set, and the floor
+//! 1e-3 `sd_y/sd_t` on the centre. The live test regenerates the draws from the streams and
 //! asserts they equal the frozen ones, then runs the refuter for five (a, b, threshold, R)
 //! settings. Regimes: offsets of 1e5 and 1e6, an exactly null full-fit effect (the floor alone
 //! sets the scale), strengths of zero (no confounder: the shift is exactly zero), strength
@@ -41,6 +41,10 @@ fn floats(v: &Value) -> Vec<f64> {
     v.as_array().expect("array").iter().map(|x| x.as_f64().expect("f64")).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn build(case: &Value) -> (TabularData, IdentifiedEstimand) {
     let t = floats(&case["t"]);
     let y = floats(&case["y"]);
@@ -145,6 +149,10 @@ fn frozen_draws_are_the_library_streams() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn refuter_equals_the_sixty_digit_reference() {
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
     let mut verdicts = Vec::new();
