@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource, AssumptionStatus,
+    CanonicalEncode, CanonicalWriter, CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId,
+    ExprNode, IdentificationObligation, IdentifiedEstimand, InterventionSetId, PopulationKeyId,
+    RequiredFactor, UnresolvedObligation, VarSetId, VariableId, claim_code, count, nth_raw,
+    outcome_code,
+};
 
 pub(super) fn write_estimands(writer: &mut CanonicalWriter, estimands: &[IdentifiedEstimand]) {
     writer.word(count(estimands.len()));

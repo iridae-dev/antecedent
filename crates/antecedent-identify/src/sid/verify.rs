@@ -11,7 +11,11 @@ use antecedent_graph::{BitSet, GraphWorkspace, SelectionDiagram};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    ClassicalTransportDerivation, ClassicalTransportQuery, Engine, Rule, SHedgeCertificate,
+    SelectionForest, SidLimits, SidMeter, State, check_sid_memory, difference, graph_signature,
+    intersection, meta,
+};
 
 /// Verify recorded local premises and expression transformations without rerunning sID.
 ///

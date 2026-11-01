@@ -237,7 +237,7 @@ impl TemporalMediationIdentifier {
                 .indexer
                 .dense_id(key)
                 .map(DenseNodeId::from_raw)
-                .map_err(|e| IdentificationError::construction(e))
+                .map_err(IdentificationError::construction)
         };
         let t = dense(temporal.treatment_key)?;
         let y = dense(temporal.outcome_key)?;
@@ -333,6 +333,10 @@ impl TemporalMediationIdentifier {
         })
     }
 
+    #[allow(
+        clippy::unused_self,
+        reason = "preserves the procedure and its established call structure"
+    )]
     fn identify_backdoor(
         &self,
         temporal_identifier: &TemporalBackdoorIdentifier,
@@ -609,6 +613,10 @@ impl TemporalMediationIdentifier {
     }
 
     // The caller retains the scratch admission across this entire traversal.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
     fn adjustment_nodes_admitted(
         template: &TemporalDag,
         query: &MediationQuery,
@@ -667,7 +675,7 @@ impl TemporalMediationIdentifier {
             history = history.max(lag);
             let key = TemporalNodeKey {
                 variable: source,
-                offset: -i32::try_from(lag).map_err(|e| IdentificationError::construction(e))?,
+                offset: -i32::try_from(lag).map_err(IdentificationError::construction)?,
             };
             has_t_m |= query.mediators.contains(&target) && key == treatment;
             has_m_y |= target == query.outcome && mediator_keys.contains(&key);
@@ -681,8 +689,8 @@ impl TemporalMediationIdentifier {
             ));
         }
         let indexer = antecedent_data::TemporalIndexer::new(variable_count, history, 1)
-            .map_err(|e| IdentificationError::construction(e))?;
-        let dense = |key| indexer.dense_id(key).map_err(|e| IdentificationError::construction(e));
+            .map_err(IdentificationError::construction)?;
+        let dense = |key| indexer.dense_id(key).map_err(IdentificationError::construction);
         let t = dense(treatment)?;
         let mediator_nodes =
             mediator_keys.iter().map(|&key| dense(key)).collect::<Result<Vec<_>, _>>()?;

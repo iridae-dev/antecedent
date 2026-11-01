@@ -228,7 +228,10 @@ impl TemporalIvIdentifier {
         let window = Window::of(template, query)?;
         drop(validation);
         let candidates = u64::from(window.variable_count)
-            .checked_mul(window.span_offset as u64)
+            .checked_mul(
+                u64::try_from(window.span_offset)
+                    .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?,
+            )
             .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
         budget
             .charge_work(candidates)

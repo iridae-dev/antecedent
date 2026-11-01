@@ -559,6 +559,7 @@ fn the_effect_is_identified_by_ordinary_target_id_on_the_causal_restriction() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the test keeps one scientific scenario together")]
 fn a_tampered_record_or_arena_fails_verification() {
     let model = two_partial();
     let effect = RecoveredEffectQuery {

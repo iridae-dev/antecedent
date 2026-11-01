@@ -303,6 +303,10 @@ impl<'g> Engine<'g> {
     /// 3 insertion, rule 2 both ways, and product. The two deletion rules are
     /// checker-only (see the module docs). Each attempted application charges
     /// the budget.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
     fn expand(
         &mut self,
         search: &mut SharedSearch<'_>,

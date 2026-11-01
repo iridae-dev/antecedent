@@ -91,9 +91,13 @@ impl UnrolledPanelGraph {
         })?);
         let spec = &graph.spec;
         let d = |node: PanelNode| -> Result<DenseNodeId, IdentificationError> {
-            graph.node_index(node).map(|i| DenseNodeId::from_raw(i as u32)).ok_or_else(|| {
-                IdentificationError::unsupported("a named node lies outside the panel program")
-            })
+            graph
+                .node_index(node)
+                .and_then(|i| u32::try_from(i).ok())
+                .map(DenseNodeId::from_raw)
+                .ok_or_else(|| {
+                    IdentificationError::unsupported("a named node lies outside the panel program")
+                })
         };
         for z in 0..spec.contexts {
             for t in 0..spec.periods {
@@ -166,7 +170,7 @@ impl UnrolledPanelGraph {
     /// The variable id of a node (its dense index).
     #[must_use]
     pub fn variable(&self, node: PanelNode) -> Option<VariableId> {
-        self.node_index(node).map(|i| VariableId::from_raw(i as u32))
+        self.node_index(node).and_then(|i| u32::try_from(i).ok()).map(VariableId::from_raw)
     }
 
     /// The declared structure.

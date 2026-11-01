@@ -280,12 +280,11 @@ pub(crate) fn multi_treatment_joint_route(
     ) -> Result<IdentificationResult, IdentificationError>,
 ) -> Result<Option<IdentificationResult>, IdentificationError> {
     {
-        let (outcomes, treatments) = match &response.functional {
-            ResponseFunctional::Jacobian { outcomes, treatments, .. }
-            | ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. } => {
-                (outcomes, treatments)
-            }
-            _ => return Ok(None),
+        let (ResponseFunctional::Jacobian { outcomes, treatments, .. }
+        | ResponseFunctional::DirectionalDerivative { outcomes, treatments, .. }) =
+            &response.functional
+        else {
+            return Ok(None);
         };
         if treatments.len() < 2 {
             return Ok(None);

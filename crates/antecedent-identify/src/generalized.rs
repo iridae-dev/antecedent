@@ -414,8 +414,8 @@ impl GeneralizedAdjustmentIdentifier {
     ) -> Result<IdentificationEnvelope<antecedent_graph::Dag>, IdentificationError> {
         let mut workspace = IdentificationWorkspace::default();
         self.cpdag_envelope_with(cpdag, |dag| {
-            let admg = antecedent_graph::Admg::from_dag(dag)
-                .map_err(|error| IdentificationError::construction(error))?;
+            let admg =
+                antecedent_graph::Admg::from_dag(dag).map_err(IdentificationError::construction)?;
             crate::pag_path_specific::identify_distribution_on(&admg, query, &mut workspace)
         })
     }
@@ -534,6 +534,10 @@ pub(crate) fn validate_dag_conditional_adjustment(
 /// for Z alone does not license this conditional regression: W may be a
 /// mediator, or may open a collider path. This is a sufficient backdoor check,
 /// not a complete conditional-ID algorithm.
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 fn validate_conditional_adjustment(
     graph: &Admg,
     mutilated: &Admg,
@@ -692,6 +696,10 @@ struct Outcome {
     truncated: bool,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 fn constrained_conditional_set(
     graph: &Admg,
     cut: &Admg,
@@ -1933,8 +1941,8 @@ mod enumeration_admission_tests {
                 .with_effect_modifiers([VariableId::from_raw(2)]);
         let run = |context: Option<ExecutionContext>, max_candidates| {
             let config = crate::backdoor::AdjustmentSearchConfig {
-                context,
                 max_candidates,
+                context,
                 ..Default::default()
             };
             let mut result = not_identified(CausalQuery::AverageEffect(query.clone()), "fixture");

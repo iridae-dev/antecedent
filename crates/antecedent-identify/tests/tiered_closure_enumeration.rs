@@ -57,15 +57,15 @@ impl Layout {
             for b in 0..self.n {
                 if self.child(a, b) {
                     g.insert_directed(
-                        DenseNodeId::from_raw(a as u32),
-                        DenseNodeId::from_raw(b as u32),
+                        DenseNodeId::from_raw(u32::try_from(a).unwrap()),
+                        DenseNodeId::from_raw(u32::try_from(b).unwrap()),
                     )
                     .unwrap();
                 }
                 if a < b && self.bi(a, b) {
                     g.insert_bidirected(
-                        DenseNodeId::from_raw(a as u32),
-                        DenseNodeId::from_raw(b as u32),
+                        DenseNodeId::from_raw(u32::try_from(a).unwrap()),
+                        DenseNodeId::from_raw(u32::try_from(b).unwrap()),
                     )
                     .unwrap();
                 }
@@ -76,7 +76,7 @@ impl Layout {
     fn descendants(&self, targets: usize) -> usize {
         let mut d = targets;
         for a in 0..self.n {
-            if targets >> a & 1 == 1 {
+            if (targets >> a) & 1 == 1 {
                 for b in 0..self.n {
                     if self.child(a, b) {
                         d |= 1 << b;
@@ -89,7 +89,7 @@ impl Layout {
     fn ancestors_of(&self, set: usize) -> usize {
         let mut anc = set;
         for b in 0..self.n {
-            if set >> b & 1 == 1 {
+            if (set >> b) & 1 == 1 {
                 for a in 0..self.n {
                     if self.child(a, b) {
                         anc |= 1 << a;
@@ -109,10 +109,10 @@ impl Layout {
     }
     fn edges(&self, a: usize, b: usize, cut: usize) -> Vec<(bool, bool)> {
         let mut out = Vec::new();
-        if self.child(a, b) && cut >> a & 1 == 0 {
+        if self.child(a, b) && (cut >> a) & 1 == 0 {
             out.push((false, true));
         }
-        if self.child(b, a) && cut >> b & 1 == 0 {
+        if self.child(b, a) && (cut >> b) & 1 == 0 {
             out.push((true, false));
         }
         if self.bi(a, b) {
@@ -141,7 +141,7 @@ impl Layout {
                 if path.len() >= 2 {
                     let collider = *heads.last().unwrap() && head_last;
                     let blocked =
-                        if collider { anc >> last & 1 == 0 } else { cond >> last & 1 == 1 };
+                        if collider { (anc >> last) & 1 == 0 } else { (cond >> last) & 1 == 1 };
                     if blocked {
                         continue;
                     }
@@ -160,18 +160,18 @@ impl Layout {
     }
     /// The definition of a joint back-door set for the treatments `t` and outcome `y`.
     fn joint_backdoor(&self, t: usize, y: usize, z: usize) -> bool {
-        if z & (t | 1 << y) != 0 || z & self.descendants(t) != 0 {
+        if z & (t | (1 << y)) != 0 || z & self.descendants(t) != 0 {
             return false;
         }
-        (0..self.n).filter(|&a| t >> a & 1 == 1).all(|a| {
+        (0..self.n).filter(|&a| (t >> a) & 1 == 1).all(|a| {
             let others = t & !(1 << a);
             !self.connected(a, y, z | others, 1 << a)
         })
     }
     /// All non-treatment nodes in tiers up to the latest treatment's tier.
     fn closure(&self, t: usize) -> usize {
-        let k = (0..self.n).filter(|&a| t >> a & 1 == 1).map(|a| self.tier[a]).max().unwrap();
-        (0..self.n).filter(|&a| self.tier[a] <= k && t >> a & 1 == 0).fold(0, |m, a| m | 1 << a)
+        let k = (0..self.n).filter(|&a| (t >> a) & 1 == 1).map(|a| self.tier[a]).max().unwrap();
+        (0..self.n).filter(|&a| self.tier[a] <= k && (t >> a) & 1 == 0).fold(0, |m, a| m | (1 << a))
     }
 }
 
@@ -199,7 +199,7 @@ fn layouts(n: usize) -> Vec<Layout> {
 }
 
 fn set_of(mask: usize, n: usize) -> Vec<usize> {
-    (0..n).filter(|&i| mask >> i & 1 == 1).collect()
+    (0..n).filter(|&i| (mask >> i) & 1 == 1).collect()
 }
 
 fn id_identifies(
@@ -231,12 +231,13 @@ fn the_tier_closure_matches_the_back_door_definition_on_every_layout() {
         for layout in layouts(n) {
             let background = layout.background();
             for t in 1..1usize << n {
-                let k = (0..n).filter(|&a| t >> a & 1 == 1).map(|a| layout.tier[a]).max().unwrap();
+                let k =
+                    (0..n).filter(|&a| (t >> a) & 1 == 1).map(|a| layout.tier[a]).max().unwrap();
                 for y in (0..n).filter(|&y| layout.tier[y] > k) {
                     let context = format!("tiers={:?} T={:?} Y={y}", layout.tier, set_of(t, n));
                     let z = layout.closure(t);
                     let accepted = layout.joint_backdoor(t, y, z);
-                    if t.count_ones() == 1 {
+                    if t.is_power_of_two() {
                         // `identify_tiered` certifies the closure without a check.
                         assert!(
                             accepted,
@@ -354,8 +355,7 @@ fn an_effect_modifier_after_the_treatment_is_refused_not_dropped() {
     for w in [0, 2] {
         let query = AverageEffectQuery::binary_ate(v(0), v(2)).with_effect_modifiers([v(w)]);
         let error = identify_tiered(&layout.background(), &query)
-            .err()
-            .expect("a modifier equal to the treatment or outcome is not a query")
+            .expect_err("a modifier equal to the treatment or outcome is not a query")
             .to_string();
         assert!(error.contains("invalid average-effect query"), "w={w}: {error}");
     }

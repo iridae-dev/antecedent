@@ -298,6 +298,10 @@ impl std::ops::Deref for AdmittedTemporalAdmgIdentification {
 /// Identify a temporal contrast with cumulative work and retained window admission.
 /// # Errors
 /// Invalid query, unsupported interventions, graph, cancellation, or resource refusal.
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 pub fn identify_temporal_admg_contrast_over_within(
     template: &TemporalAdmg,
     query: &TemporalEffectQuery,

@@ -17,7 +17,10 @@ use super::super::{
     validate_mixed_source_query,
 };
 
-use super::*;
+use super::{
+    Engine, MixedMissingEvidence, MixedMissingLeaf, MixedSearchInspection, MixedSourceDecision,
+    RunEnd, check_steps,
+};
 
 const STAGE_SID: &str = "target_first_sid";
 
@@ -406,6 +409,10 @@ fn finish_found(
 /// rebuilt, up to the number of observed variables (where the bounds no longer cut anything
 /// off). Every pass charges the same shared budget, so a search that cannot finish deeper
 /// ends as a budget stop, never as a fixpoint it did not reach.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "preserves the procedure and its established call structure"
+)]
 fn run_deepening<'g>(
     graph: &'g Admg,
     variables: &[VariableId],

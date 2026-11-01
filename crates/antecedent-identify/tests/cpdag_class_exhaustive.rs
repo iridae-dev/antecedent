@@ -144,9 +144,9 @@ fn run(n: u32) -> (usize, usize, usize) {
             rest /= 4;
             let result = match state {
                 0 => Ok(()),
-                1 => graph.insert_undirected(id(a), id(b)).map(|_| ()),
-                2 => graph.insert_directed(id(a), id(b)).map(|_| ()),
-                _ => graph.insert_directed(id(b), id(a)).map(|_| ()),
+                1 => graph.insert_undirected(id(a), id(b)),
+                2 => graph.insert_directed(id(a), id(b)),
+                _ => graph.insert_directed(id(b), id(a)),
             };
             ok &= result.is_ok();
             // The essential-graph code: 3 absent, 0 undirected, 1 low -> high, 2 high -> low.

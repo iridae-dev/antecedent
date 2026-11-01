@@ -22,12 +22,16 @@ fn unit(raw: usize) -> VariableId {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the pinned fixture checks each assembled constraint together"
+)]
 fn every_assembled_row_is_satisfied_by_the_true_direct_effects() {
     let cases: Json =
         serde_json::from_str(include_str!("oracle_data/clamp_experiment_reference.json")).unwrap();
     for case in cases["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let n = case["units"].as_u64().unwrap() as usize;
+        let n = usize::try_from(case["units"].as_u64().unwrap()).unwrap();
         let direct: Vec<Vec<f64>> = case["direct"]
             .as_array()
             .unwrap()
@@ -44,7 +48,7 @@ fn every_assembled_row_is_satisfied_by_the_true_direct_effects() {
                     .unwrap()
                     .iter()
                     .map(|u| RegimeIntervention {
-                        unit: unit(u.as_u64().unwrap() as usize),
+                        unit: unit(usize::try_from(u.as_u64().unwrap()).unwrap()),
                         value: Value::Int64(0),
                     })
                     .collect(),
@@ -135,9 +139,9 @@ fn every_assembled_row_is_satisfied_by_the_true_direct_effects() {
                     .unwrap()
                     .iter()
                     .find(|w| {
-                        w["regime"].as_u64().unwrap() as usize == row.regime
+                        usize::try_from(w["regime"].as_u64().unwrap()).unwrap() == row.regime
                             && w["probe"].as_u64().unwrap() == u64::from(row.probe.raw())
-                            && w["target"].as_u64().unwrap() as usize == target
+                            && usize::try_from(w["target"].as_u64().unwrap()).unwrap() == target
                     })
                     .unwrap_or_else(|| panic!("{name}: unexpected row"));
                 matched += 1;

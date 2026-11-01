@@ -91,7 +91,7 @@ pub(crate) fn window_within(
     let window_cap = query.max_history_lag.unwrap_or(probe_cap);
     let history = depth.saturating_add(max_lag).min(window_cap).max(earliest);
     TemporalIndexer::new(variables, history, latest.saturating_add(1))
-        .map_err(|e| IdentificationError::construction(e))
+        .map_err(IdentificationError::construction)
 }
 
 pub(crate) fn query_keys(
@@ -122,6 +122,10 @@ fn root(merged: &BTreeMap<u32, u32>, mut variable: u32) -> u32 {
 ///
 /// Possible parents (circle marks) are included, so the bound holds for the shared window and
 /// for every completion's definite ancestry.
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 fn ancestry_depth(
     graph: &TemporalPag,
     seeds: &[TemporalNodeKey],
@@ -249,6 +253,10 @@ fn ancestry_depth(
 // Symbolic parent expansion checks every boundary-crossing template edge, not
 // merely parents of nodes on the deepest included slice. Possible parents give
 // a shared window; definite parents certify each completion's relevant ancestry.
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 fn closure(
     graph: &TemporalPag,
     seeds: &[TemporalNodeKey],
@@ -262,6 +270,10 @@ fn closure(
     let mut pending = VecDeque::new();
     let mut leases = Vec::new();
     let mut admitted = 0u64;
+    #[allow(
+        clippy::items_after_statements,
+        reason = "preserves the procedure and its established call structure"
+    )]
     fn insert(
         key: (u32, i64),
         reached: &mut HashSet<(u32, i64)>,
@@ -371,16 +383,15 @@ pub(crate) fn identify(
     budget: &mut antecedent_core::TemporalBudget,
 ) -> Result<IdentificationResult, IdentificationError> {
     let fallback;
-    let ctx = match context {
-        Some(ctx) => ctx,
-        None => {
-            fallback = antecedent_core::ExecutionContext::production_default(0);
-            &fallback
-        }
+    let ctx = if let Some(ctx) = context {
+        ctx
+    } else {
+        fallback = antecedent_core::ExecutionContext::production_default(0);
+        &fallback
     };
     let indexer = &unfolded.indexer;
     let keys = query_keys(query)?;
-    let id = |key| indexer.dense_id(key).map_err(|e| IdentificationError::construction(e));
+    let id = |key| indexer.dense_id(key).map_err(IdentificationError::construction);
     let treatment = id(keys[0])?;
     let outcome = id(keys[1])?;
     let failed = |detail: &str| not_identified(CausalQuery::TemporalEffect(query.clone()), detail);
@@ -425,9 +436,8 @@ pub(crate) fn identify(
     let mut conditioning = keys.clone();
     for estimand in &result.estimands {
         for variable in estimand.adjustment_set.iter() {
-            conditioning.push(
-                indexer.key_of(variable.raw()).map_err(|e| IdentificationError::construction(e))?,
-            );
+            conditioning
+                .push(indexer.key_of(variable.raw()).map_err(IdentificationError::construction)?);
         }
     }
     if !closure(graph, &conditioning, indexer.history(), false, budget, ctx)?.1 {

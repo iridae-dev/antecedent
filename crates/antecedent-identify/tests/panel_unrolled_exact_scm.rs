@@ -229,6 +229,7 @@ fn spec(periods: usize, channels: usize) -> UnrolledPanelSpec {
 }
 
 /// The directed and bidirected edges of a spec, derived here from the structural definition.
+#[allow(clippy::type_complexity, reason = "the test compares directed and bidirected edge sets")]
 fn edges(graph: &UnrolledPanelGraph) -> (Vec<(usize, usize)>, Vec<(usize, usize)>) {
     let s = graph.spec();
     let ix = |n: PanelNode| graph.node_index(n).expect("node");
@@ -452,6 +453,11 @@ fn a_bow_between_a_channel_and_its_outcome_stays_refused_with_the_hedge() {
 /// Degenerate programs, nodes outside the program and an empty outcome set are typed errors.
 #[test]
 fn a_declaration_outside_the_program_or_degenerate_is_refused() {
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::match_wild_err_arm,
+        reason = "the test consumes results and rejects every other error"
+    )]
     fn refused<T>(result: Result<T, IdentificationError>) -> &'static str {
         match result {
             Err(IdentificationError::UnsupportedQuery { message }) => message,

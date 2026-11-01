@@ -643,12 +643,12 @@ where
             let end = mid.saturating_add(width).min(n);
             let (mut a, mut b) = (start, mid);
             while a < mid && b < end {
-                if cmp(&order[a], &order[b], check)? != std::cmp::Ordering::Greater {
-                    next.push(order[a]);
-                    a += 1;
-                } else {
+                if cmp(&order[a], &order[b], check)? == std::cmp::Ordering::Greater {
                     next.push(order[b]);
                     b += 1;
+                } else {
+                    next.push(order[a]);
+                    a += 1;
                 }
             }
             for chunk in order[a..mid].chunks(512) {
@@ -1756,6 +1756,10 @@ fn lift_level(level: Level) -> CounterfactualLevel {
 
 /// Derive the probability of one conjunction from the closure, trying the direct
 /// factorization first and then the binary consistency complement.
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 fn derive_conjunction(
     ctx: &DeriveCtx<'_>,
     search: &mut Search<'_>,

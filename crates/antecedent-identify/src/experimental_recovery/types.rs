@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    CLAMP_EXPERIMENT_RECIPE, LATENT_VARIABLE_EXPANSION_ATTEMPT, NextAttempt,
+    PRIOR_REGULARIZATION_ATTEMPT, VariableId,
+};
 
 /// Direct mechanism coordinate `K[into, from]`.
 ///

@@ -9,7 +9,7 @@ use antecedent_core::{
 };
 use antecedent_graph::{NodeRef, SelectionDiagram};
 
-use super::*;
+use super::{ZExperimentFamilyError, ZTransportQuery};
 
 /// Validate the graph/query portion of the bounded z-transport contract.
 ///

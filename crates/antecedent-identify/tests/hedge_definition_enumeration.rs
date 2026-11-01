@@ -46,10 +46,10 @@ impl Graph {
         let mut child = vec![vec![false; n]; n];
         let mut bi = vec![vec![false; n]; n];
         for (k, &(a, b)) in pairs.iter().enumerate() {
-            if dir_mask >> k & 1 == 1 {
+            if (dir_mask >> k) & 1 == 1 {
                 child[a][b] = true;
             }
-            if bi_mask >> k & 1 == 1 {
+            if (bi_mask >> k) & 1 == 1 {
                 bi[a][b] = true;
                 bi[b][a] = true;
             }
@@ -79,7 +79,7 @@ impl Graph {
             let mut grew = anc;
             for a in 0..self.n {
                 for b in 0..self.n {
-                    if self.child[a][b] && anc >> b & 1 == 1 && x >> b & 1 == 0 {
+                    if self.child[a][b] && (anc >> b) & 1 == 1 && (x >> b) & 1 == 0 {
                         grew |= 1 << a;
                     }
                 }
@@ -92,12 +92,12 @@ impl Graph {
     }
 
     fn bidirected_connected(&self, set: usize) -> bool {
-        let Some(start) = (0..self.n).find(|&i| set >> i & 1 == 1) else { return false };
+        let Some(start) = (0..self.n).find(|&i| (set >> i) & 1 == 1) else { return false };
         let mut seen = 1usize << start;
         let mut stack = vec![start];
         while let Some(a) = stack.pop() {
             for b in 0..self.n {
-                if set >> b & 1 == 1 && self.bi[a][b] && seen >> b & 1 == 0 {
+                if (set >> b) & 1 == 1 && self.bi[a][b] && (seen >> b) & 1 == 0 {
                     seen |= 1 << b;
                     stack.push(b);
                 }
@@ -115,18 +115,18 @@ impl Graph {
         }
         // Each non-root node of `big` chooses exactly one child inside `big`; roots keep none.
         let nodes: Vec<usize> =
-            (0..self.n).filter(|&i| big >> i & 1 == 1 && r >> i & 1 == 0).collect();
+            (0..self.n).filter(|&i| (big >> i) & 1 == 1 && (r >> i) & 1 == 0).collect();
         self.choose(&nodes, 0, big, small)
     }
 
     fn choose(&self, nodes: &[usize], at: usize, big: usize, small: usize) -> bool {
         let Some(&node) = nodes.get(at) else { return true };
         for c in 0..self.n {
-            if !self.child[node][c] || big >> c & 1 == 0 {
+            if !self.child[node][c] || (big >> c) & 1 == 0 {
                 continue;
             }
             // A non-root node of the smaller forest needs its one child inside it.
-            if small >> node & 1 == 1 && small >> c & 1 == 0 {
+            if (small >> node) & 1 == 1 && (small >> c) & 1 == 0 {
                 continue;
             }
             if self.choose(nodes, at + 1, big, small) {
@@ -158,7 +158,7 @@ impl Graph {
 }
 
 fn members(mask: usize, n: usize) -> Vec<usize> {
-    (0..n).filter(|&i| mask >> i & 1 == 1).collect()
+    (0..n).filter(|&i| (mask >> i) & 1 == 1).collect()
 }
 
 fn query(outcomes: &[usize], treatments: &[usize]) -> CausalQuery {

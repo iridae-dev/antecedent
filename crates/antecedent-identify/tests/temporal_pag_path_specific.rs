@@ -109,6 +109,7 @@ fn chain_template(direct: bool) -> TemporalPag {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn a_window_without_lags_carries_the_effect_of_every_model_its_mag_represents() {
     // The treatment-outcome path also runs straight, so the three contrasts differ.
     let template = chain_template(true);
@@ -211,6 +212,7 @@ fn confounded_window_scm(seed: u64) -> LatentScm {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
     let template = lagged_confounder_template();
     let mut widest_gap: f64 = 0.0;
@@ -267,6 +269,7 @@ fn a_cause_before_the_window_is_a_confounder_of_its_in_window_effects() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn a_treatment_with_only_invisible_edges_is_refused_with_the_candidate_that_recants() {
     // T -> M -> Y and T -> Y with nothing pointing into T: every edge is invisible, so the
     // MAG leaves a model with M <-> Y whose district recants.

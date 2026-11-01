@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AssembledCoefficientRecovery, BTreeMap, DirectCoefficient, UnresolvedDirection,
+    UnresolvedReason, VariableId, fmt,
+};
 
 /// Why a joint coefficient-and-noise draw cannot be compiled as a mechanism.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]

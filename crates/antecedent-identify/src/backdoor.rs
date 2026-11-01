@@ -481,6 +481,10 @@ impl BackdoorIdentifier {
         )
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
     fn identify_ate(
         &self,
         prepared: &PreparedIdentificationGraph,
@@ -949,7 +953,7 @@ pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, Ide
 
 pub(crate) fn dense_to_var(id: DenseNodeId, dag: &Dag) -> Result<VariableId, IdentificationError> {
     crate::prepared::node_variable_id(dag.nodes(), id.as_usize())
-        .ok_or_else(|| IdentificationError::ExpectedStaticNode)
+        .ok_or(IdentificationError::ExpectedStaticNode)
 }
 
 #[cfg(test)]

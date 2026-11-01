@@ -42,4 +42,13 @@ mod validate;
 pub use product::*;
 pub use types::*;
 #[allow(unused_imports, reason = "sibling submodules reach these helpers through the parent")]
-use {render::*, validate::*};
+use {
+    render::{
+        write_arena, write_assembled, write_assumptions, write_derivation, write_estimands,
+        write_factors, write_obligations, write_worlds,
+    },
+    validate::{
+        check_coherence, claim_code, count, is_bounded_search, nth_raw, numerically_feasible,
+        outcome_code, same_estimands, states_identified_claim,
+    },
+};

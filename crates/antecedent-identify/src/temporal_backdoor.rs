@@ -193,6 +193,10 @@ impl TemporalBackdoorIdentifier {
     }
 
     /// Reuse a common certified history when comparing completion functionals.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
     pub(crate) fn identify_temporal_with_history(
         &self,
         template: &TemporalDag,
@@ -201,12 +205,11 @@ impl TemporalBackdoorIdentifier {
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         use crate::error::IdentificationBudget;
         let default_ctx;
-        let ctx = match self.inner.config.context.as_ref() {
-            Some(ctx) => ctx,
-            None => {
-                default_ctx = antecedent_core::ExecutionContext::production_default(0);
-                &default_ctx
-            }
+        let ctx = if let Some(ctx) = self.inner.config.context.as_ref() {
+            ctx
+        } else {
+            default_ctx = antecedent_core::ExecutionContext::production_default(0);
+            &default_ctx
         };
         let mut budget = self.temporal_budget.clone().unwrap_or_else(|| {
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
@@ -439,12 +442,11 @@ impl TemporalBackdoorIdentifier {
         query: &TemporalEffectQuery,
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         let default_ctx;
-        let ctx = match self.inner.config.context.as_ref() {
-            Some(ctx) => ctx,
-            None => {
-                default_ctx = antecedent_core::ExecutionContext::production_default(0);
-                &default_ctx
-            }
+        let ctx = if let Some(ctx) = self.inner.config.context.as_ref() {
+            ctx
+        } else {
+            default_ctx = antecedent_core::ExecutionContext::production_default(0);
+            &default_ctx
         };
         let mut budget = self.temporal_budget.clone().unwrap_or_else(|| {
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
@@ -506,7 +508,7 @@ impl TemporalBackdoorIdentifier {
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
         let indexer = TemporalIndexer::new(variable_count, history, horizon)
-            .map_err(|e| IdentificationError::construction(e))?;
+            .map_err(IdentificationError::construction)?;
         let unfolded = template.unfold_within(indexer, budget, ctx).map_err(map_graph_error)?;
         let treatment_dense = unfolded
             .indexer
@@ -530,10 +532,8 @@ impl TemporalBackdoorIdentifier {
         let reference = treatment_at.max(outcome_at);
         let mut parent_keys = Vec::with_capacity(parents.len());
         for &parent in &parents {
-            let key = unfolded
-                .indexer
-                .key_of(parent.raw())
-                .map_err(|e| IdentificationError::construction(e))?;
+            let key =
+                unfolded.indexer.key_of(parent.raw()).map_err(IdentificationError::construction)?;
             let lag = u32::try_from((i64::from(reference) - i64::from(key.offset)).max(0))
                 .map_err(|_| IdentificationError::out_of_range("temporal parent lag overflow"))?;
             if query.max_history_lag.is_some_and(|cap| lag > cap) {
@@ -683,12 +683,11 @@ impl TemporalBackdoorIdentifier {
     ) -> Result<TemporalIdentificationResult, IdentificationError> {
         use crate::error::IdentificationBudget;
         let default_ctx;
-        let ctx = match self.inner.config.context.as_ref() {
-            Some(ctx) => ctx,
-            None => {
-                default_ctx = antecedent_core::ExecutionContext::production_default(0);
-                &default_ctx
-            }
+        let ctx = if let Some(ctx) = self.inner.config.context.as_ref() {
+            ctx
+        } else {
+            default_ctx = antecedent_core::ExecutionContext::production_default(0);
+            &default_ctx
         };
         let mut budget = self.temporal_budget.clone().unwrap_or_else(|| {
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
@@ -765,6 +764,15 @@ impl TemporalBackdoorIdentifier {
 
     /// Multi-time-point interventions (sustained windows or dynamic schedules):
     /// unfold, then identify via general ID (sequential / g-formula).
+    #[allow(
+        clippy::too_many_arguments,
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
+    #[allow(
+        clippy::unused_self,
+        reason = "preserves the procedure and its established call structure"
+    )]
     fn identify_active_offsets(
         &self,
         template: &TemporalDag,

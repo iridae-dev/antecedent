@@ -57,6 +57,10 @@ impl JointProvider {
             .sum()
     }
 
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the test fixture enumerates nonnegative categorical levels"
+    )]
     fn constraints(
         vars: &[VariableId],
         assignment: &Assignment,

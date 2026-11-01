@@ -10,7 +10,7 @@ use super::super::{
     MixedStep, build_expression, invalid_derivation, invalid_query, validate_mixed_source_query,
 };
 
-use super::*;
+use super::{Checker, Set};
 
 /// Whether `a` and `b` are connected in the augmented graph of the ancestors of
 /// `{a, b} ∪ cond` once the conditioned nodes are removed: adjacent nodes, and

@@ -165,19 +165,19 @@ fn negative_witness_mutations_and_evidence_substitution_fail() {
     let mut mutated = witness.clone();
     mutated.larger.bidirected = Arc::from([]);
     assert_invalid_derivation(
-        verify_s_hedge(&diagram, &query, &mutated, &ctx).map(|_| ()),
+        verify_s_hedge(&diagram, &query, &mutated, &ctx),
         "transport.invalid_s_hedge",
     );
     let mut mutated = witness.clone();
     mutated.larger.directed = Arc::from([]);
     assert_invalid_derivation(
-        verify_s_hedge(&diagram, &query, &mutated, &ctx).map(|_| ()),
+        verify_s_hedge(&diagram, &query, &mutated, &ctx),
         "transport.invalid_s_hedge",
     );
     let mut different_evidence = query;
     different_evidence.source = Arc::from("another-source");
     assert_invalid_derivation(
-        verify_s_hedge(&diagram, &different_evidence, &witness, &ctx).map(|_| ()),
+        verify_s_hedge(&diagram, &different_evidence, &witness, &ctx),
         "transport.invalid_s_hedge",
     );
 }

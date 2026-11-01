@@ -32,9 +32,9 @@ impl Graph {
     fn from_mask(n: usize, mask: usize) -> Self {
         let mut child = vec![vec![false; n]; n];
         let mut bit = 0;
-        for a in 0..n {
-            for b in a + 1..n {
-                child[a][b] = mask >> bit & 1 == 1;
+        for (a, row) in child.iter_mut().enumerate() {
+            for cell in row.iter_mut().skip(a + 1) {
+                *cell = (mask >> bit) & 1 == 1;
                 bit += 1;
             }
         }
@@ -46,8 +46,8 @@ impl Graph {
             for b in 0..self.n {
                 if self.child[a][b] {
                     g.insert_directed(
-                        DenseNodeId::from_raw(a as u32),
-                        DenseNodeId::from_raw(b as u32),
+                        DenseNodeId::from_raw(u32::try_from(a).unwrap()),
+                        DenseNodeId::from_raw(u32::try_from(b).unwrap()),
                     )
                     .unwrap();
                 }
@@ -99,7 +99,7 @@ fn reference(paths: &[Vec<usize>], selected: impl Fn(&[usize]) -> bool) -> bool 
 
 fn subsets_of(others: &[usize]) -> Vec<Vec<usize>> {
     (1..1usize << others.len())
-        .map(|m| (0..others.len()).filter(|&i| m >> i & 1 == 1).map(|i| others[i]).collect())
+        .map(|m| (0..others.len()).filter(|&i| (m >> i) & 1 == 1).map(|i| others[i]).collect())
         .collect()
 }
 

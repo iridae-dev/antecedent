@@ -186,7 +186,7 @@ fn satisfies_definition(
 fn subsets_of(pool: &[usize]) -> Vec<Vec<usize>> {
     (1..(1usize << pool.len()))
         .map(|mask| {
-            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+            pool.iter().enumerate().filter(|(i, _)| (mask >> i) & 1 == 1).map(|(_, &v)| v).collect()
         })
         .collect()
 }
@@ -245,23 +245,23 @@ impl Scm {
                 let k = self.parents[v]
                     .iter()
                     .enumerate()
-                    .fold(0usize, |acc, (i, &p)| acc | ((state >> p & 1) << i));
+                    .fold(0usize, |acc, (i, &p)| acc | (((state >> p) & 1) << i));
                 let p1 = self.table[v][k];
-                if state >> v & 1 == 1 { p1 } else { 1.0 - p1 }
+                if (state >> v) & 1 == 1 { p1 } else { 1.0 - p1 }
             })
             .product()
     }
 
     fn observed(&self, fixed: &[(usize, usize)]) -> f64 {
         (0..(1usize << self.n))
-            .filter(|s| fixed.iter().all(|&(v, b)| s >> v & 1 == b))
+            .filter(|s| fixed.iter().all(|&(v, b)| (s >> v) & 1 == b))
             .map(|s| self.weight(s, None))
             .sum()
     }
 
     fn do_effect(&self, t: usize, y: usize, value: usize) -> f64 {
         (0..(1usize << self.n))
-            .filter(|s| s >> t & 1 == value && s >> y & 1 == 1)
+            .filter(|s| (s >> t) & 1 == value && (s >> y) & 1 == 1)
             .map(|s| self.weight(s, Some(t)))
             .sum()
     }
@@ -271,7 +271,7 @@ impl Scm {
         let mut total = 0.0;
         for assignment in 0..(1usize << z.len()) {
             let bits: Vec<(usize, usize)> =
-                z.iter().enumerate().map(|(i, &v)| (v, assignment >> i & 1)).collect();
+                z.iter().enumerate().map(|(i, &v)| (v, (assignment >> i) & 1)).collect();
             let mut with_t = bits.clone();
             with_t.push((t, value));
             let mut with_y = with_t.clone();
@@ -286,7 +286,7 @@ impl Scm {
         let mut total = 0.0;
         for assignment in 0..(1usize << m.len()) {
             let bits: Vec<(usize, usize)> =
-                m.iter().enumerate().map(|(i, &v)| (v, assignment >> i & 1)).collect();
+                m.iter().enumerate().map(|(i, &v)| (v, (assignment >> i) & 1)).collect();
             let mut given_t = bits.clone();
             given_t.push((t, value));
             let p_m_given_t = self.observed(&given_t) / self.observed(&[(t, value)]);
@@ -426,7 +426,7 @@ fn is_backdoor_adjustment(
 fn proper_subsets_of(pool: &[usize]) -> Vec<Vec<usize>> {
     (0..(1usize << pool.len()))
         .map(|mask| {
-            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+            pool.iter().enumerate().filter(|(i, _)| (mask >> i) & 1 == 1).map(|(_, &v)| v).collect()
         })
         .collect()
 }

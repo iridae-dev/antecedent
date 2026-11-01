@@ -69,7 +69,7 @@ pub struct TemporalPagMediationWindow {
     /// Offset of the outcome from the window origin.
     pub outcome_offset: i32,
     // Covers the internally produced window and its bounded component copies.
-    _lease: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
+    lease: std::sync::Arc<antecedent_core::execution::AdmissionLease>,
 }
 
 impl TemporalPagMediationWindow {
@@ -110,6 +110,10 @@ pub fn temporal_pag_mediation_window(
 }
 
 /// Construct a mediation window under the caller's shared temporal materialization budget.
+#[allow(
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 pub fn temporal_pag_mediation_window_within(
     template: &TemporalPag,
     effect: &TemporalEffectQuery,
@@ -210,13 +214,13 @@ pub fn temporal_pag_mediation_window_within(
             _ => IdentificationError::budget(crate::error::IdentificationBudget::Memory),
         })?);
     let indexer = TemporalIndexer::new(variable_count, history, horizon)
-        .map_err(|error| IdentificationError::construction(error))?;
+        .map_err(IdentificationError::construction)?;
     let coordinate =
         |variable: VariableId, offset: i32| -> Result<VariableId, IdentificationError> {
             indexer
                 .dense_id(TemporalNodeKey { variable, offset })
                 .map(VariableId::from_raw)
-                .map_err(|error| IdentificationError::construction(error))
+                .map_err(IdentificationError::construction)
         };
     let treatment = coordinate(query.treatment, treatment_offset)?;
     let outcome = coordinate(query.outcome, outcome_offset)?;
@@ -253,7 +257,7 @@ pub fn temporal_pag_mediation_window_within(
         query: std::sync::Arc::new(window),
         treatment_offset,
         outcome_offset,
-        _lease: lease,
+        lease,
     })
 }
 
@@ -426,6 +430,10 @@ impl GeneralizedAdjustmentIdentifier {
     /// # Errors
     ///
     /// A template the completion search rejects, or a window the graph crate cannot hold.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
     pub fn identify_temporal_pag_path_specific_envelope(
         &self,
         pag: &TemporalPag,
@@ -437,7 +445,7 @@ impl GeneralizedAdjustmentIdentifier {
             IdentificationError::out_of_range("temporal completion history overflow")
         })?;
         let big = TemporalIndexer::new(inner.variable_count(), history, inner.horizon())
-            .map_err(|error| IdentificationError::construction(error))?;
+            .map_err(IdentificationError::construction)?;
         let shift = depth as usize * inner.variable_count() as usize;
         let mut seeds = vec![window.query.treatment.as_usize(), window.query.outcome.as_usize()];
         seeds.extend(window.query.mediators.iter().map(|m| m.as_usize()));
@@ -499,7 +507,7 @@ impl GeneralizedAdjustmentIdentifier {
             let weight =
                 ProbabilityMass(self.config.per_completion_weight / results.len().max(1) as f64);
             for mut result in results {
-                result.retain_temporal_lease(std::sync::Arc::clone(&window._lease));
+                result.retain_temporal_lease(std::sync::Arc::clone(&window.lease));
                 cases.push(GraphIdentificationCase {
                     graph: TemporalCompletionGraph::Mag(completion.graph.clone()),
                     result,
@@ -652,7 +660,7 @@ mod tests {
         .unwrap();
         let clone = window.clone();
         assert!(std::sync::Arc::ptr_eq(&window.query, &clone.query));
-        assert!(std::sync::Arc::ptr_eq(&window._lease, &clone._lease));
+        assert!(std::sync::Arc::ptr_eq(&window.lease, &clone.lease));
         let mut cancelled = antecedent_core::ExecutionContext::for_tests(3);
         cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(0);
         let mut budget =
@@ -696,7 +704,7 @@ mod tests {
             query: std::sync::Arc::new(mediation(MediationContrast::Total)),
             treatment_offset: 0,
             outcome_offset: 0,
-            _lease: std::sync::Arc::new(
+            lease: std::sync::Arc::new(
                 antecedent_core::ExecutionContext::production_default(0)
                     .acquire_admission(0, 0)
                     .unwrap(),

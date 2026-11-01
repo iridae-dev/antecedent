@@ -211,6 +211,10 @@ struct Tally {
     sampled_refusals: usize,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive regression keeps its enumeration and checks together"
+)]
 fn run(
     edge_sets: impl Iterator<Item = Vec<Edge>>,
     mediators: &[u32],
@@ -241,7 +245,7 @@ fn run(
                     let dag = &temporal.unfolded.dag;
                     let parents: Vec<Vec<usize>> = (0..dag.node_count())
                         .map(|c| {
-                            dag.parents(DenseNodeId::from_raw(c as u32))
+                            dag.parents(DenseNodeId::from_raw(u32::try_from(c).unwrap()))
                                 .iter()
                                 .map(|p| p.as_usize())
                                 .collect()
@@ -268,7 +272,7 @@ fn run(
                         "S contains T, Y or a mediator: edges {edges:?} h={horizon}"
                     );
                     for seed in [11u64, 977, 40_001] {
-                        let sem = sem(&parents, seed ^ (index as u64) << 4);
+                        let sem = sem(&parents, seed ^ ((index as u64) << 4));
                         assert!(
                             matches_truth(&sem, t, y, &med, &s),
                             "regressions on S={s:?} miss the truth: edges {edges:?} h={horizon} seed {seed}"
@@ -294,7 +298,7 @@ fn run(
                         let n = dag.node_count();
                         let parents: Vec<Vec<usize>> = (0..n)
                             .map(|c| {
-                                dag.parents(DenseNodeId::from_raw(c as u32))
+                                dag.parents(DenseNodeId::from_raw(u32::try_from(c).unwrap()))
                                     .iter()
                                     .map(|p| p.as_usize())
                                     .collect()
@@ -319,7 +323,8 @@ fn run(
                         let mut down = vec![false; n];
                         let mut stack = sources.clone();
                         while let Some(v) = stack.pop() {
-                            for &c in dag.children(DenseNodeId::from_raw(v as u32)) {
+                            for &c in dag.children(DenseNodeId::from_raw(u32::try_from(v).unwrap()))
+                            {
                                 if !down[c.as_usize()] {
                                     down[c.as_usize()] = true;
                                     stack.push(c.as_usize());
@@ -339,7 +344,7 @@ fn run(
                         let mut found = false;
                         for mask in 0u32..(1 << candidates.len()) {
                             let s: Vec<usize> = (0..candidates.len())
-                                .filter(|i| mask >> i & 1 == 1)
+                                .filter(|i| (mask >> i) & 1 == 1)
                                 .map(|i| candidates[i])
                                 .collect();
                             if sems.iter().all(|m| matches_truth(m, t, y, &med, &s)) {
@@ -381,7 +386,7 @@ fn temporal_query(
 fn every_answered_single_mediator_template_matches_the_true_effects() {
     let sets = (0u32..1 << OPTIONAL.len()).map(|mask| {
         let mut edges = REQUIRED.to_vec();
-        edges.extend((0..OPTIONAL.len()).filter(|i| mask >> i & 1 == 1).map(|i| OPTIONAL[i]));
+        edges.extend((0..OPTIONAL.len()).filter(|i| (mask >> i) & 1 == 1).map(|i| OPTIONAL[i]));
         edges
     });
     let tally = run(sets, &[M], 12);
@@ -419,7 +424,7 @@ fn ordered_and_parallel_mediator_sets_match_the_true_effects() {
     ];
     let sets = (0u32..1 << optional.len()).map(|mask| {
         let mut edges = REQUIRED.to_vec();
-        edges.extend((0..optional.len()).filter(|i| mask >> i & 1 == 1).map(|i| optional[i]));
+        edges.extend((0..optional.len()).filter(|i| (mask >> i) & 1 == 1).map(|i| optional[i]));
         edges
     });
     let tally = run(sets, &[M, N2], 0);

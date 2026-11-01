@@ -75,7 +75,7 @@ fn identify_member(
     context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<TransportIdentification, IdentificationError> {
     let diagram = SelectionDiagram::try_new(admg.clone(), selection_targets.to_vec())
-        .map_err(|error| IdentificationError::construction(error))?;
+        .map_err(IdentificationError::construction)?;
     match context {
         Some(ctx) => TransportIdentifier::new().identify_with_context(&diagram, query, ctx),
         None => TransportIdentifier::new().identify(&diagram, query),
@@ -195,8 +195,7 @@ impl GeneralizedAdjustmentIdentifier {
     ) -> Result<ClassTransportEnvelope<Dag>, IdentificationError> {
         let mut proofs = Vec::new();
         let envelope = self.cpdag_envelope_with(cpdag, |dag| {
-            let admg =
-                Admg::from_dag(dag).map_err(|error| IdentificationError::construction(error))?;
+            let admg = Admg::from_dag(dag).map_err(IdentificationError::construction)?;
             let proof =
                 identify_member(&admg, selection_targets, query, self.config.context.as_ref())?;
             let result = case_result(query, &proof);

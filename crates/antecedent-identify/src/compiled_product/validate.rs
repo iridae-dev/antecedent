@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AssumptionSet, AssumptionStatus, CompiledProductParts, Diagnostic, IdentificationClaimClass,
+    IdentificationOutcome, IdentifiedEstimand, ProductRefusal, RdDesignParams,
+    UnresolvedObligation, check_claim_class, is_failure_outcome,
+};
 
 pub(super) fn check_coherence(
     estimands: &[IdentifiedEstimand],

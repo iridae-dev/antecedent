@@ -51,6 +51,7 @@ fn inducing_path(graph: &Admg, a: usize, b: usize) -> bool {
     let ancestor: Vec<bool> = (0..n)
         .map(|x| x != a && x != b && (graph.reaches(d(x), d(a)) || graph.reaches(d(x), d(b))))
         .collect();
+    #[allow(clippy::items_after_statements, reason = "the local helper belongs to this test setup")]
     fn extend(
         graph: &Admg,
         seen: &mut [bool],
@@ -126,7 +127,7 @@ fn mag_of(graph: &Admg) -> Pag {
     let mut mag = Pag::with_variables(n as u32);
     for a in 0..n {
         for b in (a + 1)..n {
-            match relations[a * n + b] {
+            match relations.get(a * n + b).copied().expect("relation for each node pair") {
                 1 => mag.insert_directed(d(a), d(b)).unwrap(),
                 2 => mag.insert_directed(d(b), d(a)).unwrap(),
                 3 => mag.insert_bidirected(d(a), d(b)).unwrap(),
@@ -211,6 +212,7 @@ fn effect_through_m() -> CausalQuery {
 /// Two models with one MAG and different effects: the functional that reads the MAG as the
 /// ADMG is the effect in one and is wrong in the other, so the route refuses.
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn two_models_with_one_mag_disagree_and_the_route_refuses() {
     let directed = [(0, 1), (1, 2), (0, 2)];
     let unconfounded = admg(3, &directed, &[]);
@@ -280,6 +282,7 @@ fn two_models_with_one_mag_disagree_and_the_route_refuses() {
 /// an unobserved common cause, so that effect stays unidentified. A completion with no directed
 /// path from the treatment has a structurally zero effect, which is identified.
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn an_edge_with_two_circle_marks_leaves_the_effect_unidentified() {
     let mut pag = Pag::with_variables(2);
     pag.insert_circle_circle(d(0), d(1)).unwrap();
@@ -298,6 +301,7 @@ fn an_edge_with_two_circle_marks_leaves_the_effect_unidentified() {
 /// candidates are identified; the functionals the envelope carries contain the effect of each
 /// of them.
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn identified_candidates_cover_the_effect_of_every_model_the_mag_represents() {
     let directed = [(0, 1), (1, 2), (2, 3)];
     let mut mag = Pag::with_variables(4);

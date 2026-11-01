@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, Error, IdentificationStatus, ScientificWorldId, SemanticDigest, VariableId,
+    numerically_feasible, states_identified_claim,
+};
 
 pub(super) const IDENTITY_TAG: &str = "antecedent.identify.compiled_product.v1";
 pub(super) const IDENTITY_FORMAT: u64 = 1;

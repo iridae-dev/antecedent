@@ -170,7 +170,7 @@ fn optimal_set(n: usize, arcs: &[(usize, usize)], t: usize, y: usize) -> Vec<usi
 fn subsets(pool: &[usize]) -> Vec<Vec<usize>> {
     (0..(1usize << pool.len()))
         .map(|mask| {
-            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+            pool.iter().enumerate().filter(|(i, _)| (mask >> i) & 1 == 1).map(|(_, &v)| v).collect()
         })
         .collect()
 }
@@ -224,8 +224,8 @@ impl Gaussian {
         let noise: Vec<f64> = (0..n).map(|_| 0.5 + 1.5 * uniform()).collect();
         // (I - B)^{-1} by forward substitution over a topological order (B is nilpotent).
         let mut total = vec![vec![0.0; n]; n];
-        for i in 0..n {
-            total[i][i] = 1.0;
+        for (i, row) in total.iter_mut().enumerate() {
+            row[i] = 1.0;
         }
         for _ in 0..n {
             let prev = total.clone();

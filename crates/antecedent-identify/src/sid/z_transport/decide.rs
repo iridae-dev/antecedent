@@ -10,7 +10,12 @@ use antecedent_core::{
 use antecedent_graph::{BitSet, NodeRef, SelectionDiagram};
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    ComponentFactorization, TrzTerminalFailure, TwoSourceZTransportComponent,
+    TwoSourceZTransportDecision, TwoSourceZTransportQuery, ZDerivation, ZTransportDecision,
+    ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportObstruction, ZTransportOutcome,
+    ZTransportQuery, bind_z_transport_catalog, derive_z_transport, verify_z_obstruction_metered,
+};
 
 /// Decide a bounded single-source z-transport query against the supplied catalog.
 ///

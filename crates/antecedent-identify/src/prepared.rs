@@ -80,6 +80,10 @@ impl PreparedAdmg {
     /// index has separate admission and follows this handle across clones.
     /// # Errors
     /// Graph validation, cancellation, logical limits or admission.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "identification steps and their shared state form one bounded procedure"
+    )]
     pub fn from_unrolled_within(
         window: antecedent_graph::UnrolledTemporalAdmg,
         budget: &mut antecedent_core::TemporalBudget,

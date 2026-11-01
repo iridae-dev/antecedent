@@ -10,7 +10,12 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{BitSet, DenseNodeId, NodeRef, SelectionDiagram};
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    TrzTerminalFailure, ZFormulaKind, ZTransportBudgetKind, ZTransportDerivation,
+    ZTransportLimitsReceipt, ZTransportNotCertifiedInspection, ZTransportNotCertifiedKind,
+    ZTransportObstruction, ZTransportQuery, ZTransportResult, index_u32,
+    validate_z_transport_query,
+};
 
 /// [`verify_z_transport_obstruction`] with its replay charged to `meter`.
 pub(super) fn verify_z_obstruction_metered(

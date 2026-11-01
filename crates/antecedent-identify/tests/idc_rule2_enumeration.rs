@@ -40,10 +40,10 @@ impl Graph {
         let mut child = vec![vec![false; n]; n];
         let mut bi = vec![vec![false; n]; n];
         for (k, &(a, b)) in pairs.iter().enumerate() {
-            if dir_mask >> k & 1 == 1 {
+            if (dir_mask >> k) & 1 == 1 {
                 child[a][b] = true;
             }
-            if bi_mask >> k & 1 == 1 {
+            if (bi_mask >> k) & 1 == 1 {
                 bi[a][b] = true;
                 bi[b][a] = true;
             }
@@ -71,7 +71,7 @@ impl Graph {
         let mut g = self.clone();
         for a in 0..self.n {
             for b in 0..self.n {
-                if x >> b & 1 == 1 {
+                if (x >> b) & 1 == 1 {
                     g.child[a][b] = false;
                     g.bi[a][b] = false;
                     g.bi[b][a] = false;
@@ -90,7 +90,7 @@ impl Graph {
             let mut next = anc;
             for a in 0..self.n {
                 for b in 0..self.n {
-                    if self.child[a][b] && anc >> b & 1 == 1 {
+                    if self.child[a][b] && (anc >> b) & 1 == 1 {
                         next |= 1 << a;
                     }
                 }
@@ -147,8 +147,11 @@ impl Graph {
                 if path.len() >= 2 {
                     let head_in = *heads.last().unwrap();
                     let collider = head_in && head_last;
-                    let blocked =
-                        if collider { anc_cond >> last & 1 == 0 } else { cond >> last & 1 == 1 };
+                    let blocked = if collider {
+                        (anc_cond >> last) & 1 == 0
+                    } else {
+                        (cond >> last) & 1 == 1
+                    };
                     if blocked {
                         continue;
                     }
@@ -167,12 +170,12 @@ impl Graph {
     }
 
     fn separated(&self, ys: usize, z: usize, cond: usize) -> bool {
-        (0..self.n).filter(|&y| ys >> y & 1 == 1).all(|y| !self.connected(y, z, cond))
+        (0..self.n).filter(|&y| (ys >> y) & 1 == 1).all(|y| !self.connected(y, z, cond))
     }
 }
 
 fn members(mask: usize, n: usize) -> Vec<usize> {
-    (0..n).filter(|&i| mask >> i & 1 == 1).collect()
+    (0..n).filter(|&i| (mask >> i) & 1 == 1).collect()
 }
 
 fn set_query(outcomes: &[usize], treatments: &[usize], conditioning: &[usize]) -> CausalQuery {
@@ -193,7 +196,7 @@ fn closures(g: &Graph, y: usize, x: usize, z: usize, out: &mut Vec<(usize, usize
         let cut = g.mutilated(x, Some(zi));
         if cut.separated(y, zi, x | rest) {
             moved = true;
-            closures(g, y, x | 1 << zi, rest, out);
+            closures(g, y, x | (1 << zi), rest, out);
         }
     }
     if !moved && !out.contains(&(x, z)) {

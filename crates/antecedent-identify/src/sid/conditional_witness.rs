@@ -1256,16 +1256,15 @@ pub fn search_conditional_witness_within(
                 if columns.is_empty() || columns.len() > SEARCH_MAX_BLOCK_PARAMETERS {
                     continue;
                 }
-                let gradient =
-                    jacobian(&shape, &base.cards, &tables, block, &columns, &query_cells);
+                let gradient = jacobian(&shape, &base.cards, &tables, block, &columns, query_cells);
                 // Skip a block the query does not depend on.
                 if gradient.iter().all(|row| row.iter().all(|c| *c == 0)) {
                     continue;
                 }
                 let jac = if matches!(block, Block::Target(_)) {
-                    jacobian(&shape, &base.cards, &tables, block, &columns, &target_cells)
+                    jacobian(&shape, &base.cards, &tables, block, &columns, target_cells)
                 } else {
-                    jacobian(&shape, &base.cards, &tables, block, &columns, &cells)
+                    jacobian(&shape, &base.cards, &tables, block, &columns, cells)
                 };
                 for direction in null_space(jac, columns.len()) {
                     // ... and one for every null-space direction tried (its

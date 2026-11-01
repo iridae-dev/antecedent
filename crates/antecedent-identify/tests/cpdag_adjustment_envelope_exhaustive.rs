@@ -144,7 +144,7 @@ fn valid_sets(n: usize, arcs: &[(usize, usize)], t: usize, y: usize) -> Vec<Vec<
     let pool: Vec<usize> = (0..n).filter(|&v| v != t && v != y).collect();
     (0..(1usize << pool.len()))
         .map(|mask| {
-            pool.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+            pool.iter().enumerate().filter(|(i, _)| (mask >> i) & 1 == 1).map(|(_, &v)| v).collect()
         })
         .filter(|z: &Vec<usize>| backdoor_valid(n, arcs, t, y, z))
         .collect()
@@ -170,6 +170,10 @@ fn id(i: usize) -> DenseNodeId {
     DenseNodeId::from_raw(u32::try_from(i).unwrap())
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive check keeps enumeration and assertions together"
+)]
 fn run(n: usize) -> (usize, usize, usize, usize, usize) {
     let mut classes: BTreeMap<Invariant, Vec<Arcs>> = BTreeMap::new();
     for dag in all_dags(n) {

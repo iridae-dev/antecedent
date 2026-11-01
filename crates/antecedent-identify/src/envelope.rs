@@ -338,6 +338,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
     fn bounded_search_on_identified_case_does_not_consume_unidentified_mass() {
         let mut identified = dummy_result(IdentificationStatus::NonparametricallyIdentified);
         identified.diagnostics.push(antecedent_core::Diagnostic::new(

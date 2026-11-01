@@ -33,6 +33,11 @@ pub(crate) struct GrownWindow {
 ///
 /// Indexer or unfold failures, a seed outside the window, or the history-cap refusal.
 #[must_use = "the grown window is the only unfolding of this query"]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 pub(crate) fn grow_window(
     template: &TemporalDag,
     seeds: &[TemporalNodeKey],
@@ -86,7 +91,7 @@ pub(crate) fn grow_window(
     let history = loop {
         check_cancelled(Some(ctx))?;
         let indexer = TemporalIndexer::new(variable_count, depth, horizon)
-            .map_err(|e| IdentificationError::construction(e))?;
+            .map_err(IdentificationError::construction)?;
         budget
             .charge_work(seeds.len() as u64)
             .map_err(|_| IdentificationError::budget(IdentificationBudget::Steps))?;
@@ -140,7 +145,7 @@ pub(crate) fn grow_window(
     };
 
     let indexer = TemporalIndexer::new(variable_count, history, horizon)
-        .map_err(|e| IdentificationError::construction(e))?;
+        .map_err(IdentificationError::construction)?;
     let unfolded = template.unfold_within(indexer, budget, ctx).map_err(|error| match error {
         antecedent_graph::GraphError::TemporalMaterialization(error) => {
             crate::error::temporal_materialization_error(error)
@@ -194,6 +199,10 @@ fn check_cancelled(context: Option<&ExecutionContext>) -> Result<(), Identificat
 /// `history` and `horizon` are the same window [`TemporalIndexer::new`] would build.
 /// Callers still resolve dense ids themselves so an offset outside that window
 /// keeps the indexer's error.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "identification steps and their shared state form one bounded procedure"
+)]
 pub(crate) fn reaches_in_window(
     template: &TemporalDag,
     from: TemporalNodeKey,
@@ -271,7 +280,12 @@ pub(crate) fn reaches_in_window(
         antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
         _ => IdentificationError::budget(IdentificationBudget::Memory),
     })?;
-    let edges = StationaryEdges::from_template(template, variable_count as u32, ctx)?;
+    let edges = StationaryEdges::from_template(
+        template,
+        u32::try_from(variable_count)
+            .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?,
+        ctx,
+    )?;
     let target = (to.variable.raw(), i64::from(to.offset));
     let mut seen = BTreeSet::new();
     let mut stack = vec![(from.variable.raw(), i64::from(from.offset))];
