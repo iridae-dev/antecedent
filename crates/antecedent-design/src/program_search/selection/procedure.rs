@@ -250,6 +250,9 @@ fn sample(groups: &[Vec<usize>], rng: &mut antecedent_core::execution::CausalRng
     }
     indices
 }
+/// Most bootstrap repetitions of the whole selection procedure one call may request.
+pub const MAX_SELECTION_REPETITIONS: usize = 100_000;
+
 fn selection_quote(
     training: &[Vec<usize>],
     validation: &[Vec<usize>],
@@ -294,6 +297,9 @@ pub fn execute_heldout_selection<D: Clone, P: ProgramSelectionProcedure<D>>(
     cancelled(ctx)?;
     if !tie_tolerance.is_finite() || tie_tolerance < 0.0 {
         return Err(invalid("invalid selection tie tolerance"));
+    }
+    if repetitions > MAX_SELECTION_REPETITIONS {
+        return Err(invalid("selection repetitions exceed the supported maximum"));
     }
     let partition_bytes = training
         .iter()

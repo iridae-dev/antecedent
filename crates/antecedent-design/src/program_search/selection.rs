@@ -209,11 +209,17 @@ impl ProgramHoldoutPartition {
                 }
             }
         }
+        // Group by unit so only spans of the same unit are compared.
+        let mut validation_by_unit: std::collections::BTreeMap<&str, Vec<&ObservationalSpan>> =
+            std::collections::BTreeMap::new();
+        for validation in &self.validation {
+            validation_by_unit.entry(validation.unit.as_str()).or_default().push(validation);
+        }
         for training in &self.training {
-            for validation in &self.validation {
-                if training.unit != validation.unit {
-                    continue;
-                }
+            let Some(same_unit) = validation_by_unit.get(training.unit.as_str()) else {
+                continue;
+            };
+            for validation in same_unit {
                 let gap = if training.last < validation.first {
                     i128::from(validation.first) - i128::from(training.last) - 1
                 } else if validation.last < training.first {

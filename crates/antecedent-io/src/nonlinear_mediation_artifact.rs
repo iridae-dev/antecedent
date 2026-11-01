@@ -931,6 +931,13 @@ impl NonlinearMediationArtifact {
             }
             (Some(_), _) => return Err(unsupported("data binding")),
         };
+        // A caller-supplied expectation the stored identity already contradicts is refused
+        // before any re-estimation work.
+        if let Some(expected) = expected {
+            if let Some(field) = identity_diff(expected, &meta.identity) {
+                return Err(NonlinearMediationArtifactError::IdentityMismatch { field });
+            }
+        }
         let estimate = estimate_of(&request, ctx)?;
         let rebuilt = build_meta(&request, &estimate)?;
         if let Some(field) = identity_diff(&meta.identity, &rebuilt.identity) {

@@ -628,11 +628,19 @@ impl CompositionGraph {
     /// The dependencies of `key`: `(upstream, kind)` in canonical order.
     #[must_use]
     pub fn dependencies(&self, key: &str) -> Vec<(&str, DependencyKind)> {
-        self.edges
-            .iter()
-            .filter(|edge| edge.downstream == key)
-            .map(|edge| (edge.upstream.as_str(), edge.kind))
-            .collect()
+        self.edges_of(key).map(|edge| (edge.upstream.as_str(), edge.kind)).collect()
+    }
+
+    /// The edges whose downstream is `key`, in canonical order. Edges sort by downstream
+    /// first, so this is a range read rather than a scan of every edge.
+    fn edges_of<'a>(&'a self, key: &str) -> impl Iterator<Item = &'a CompositionEdge> + 'a {
+        let start = CompositionEdge {
+            downstream: key.to_owned(),
+            upstream: String::new(),
+            kind: DependencyKind::Data,
+        };
+        let key = key.to_owned();
+        self.edges.range(start..).take_while(move |edge| edge.downstream == key)
     }
 
     /// Everything `key` depends on, directly or not (excluding `key`).
@@ -641,7 +649,7 @@ impl CompositionGraph {
         let mut seen: BTreeSet<&str> = BTreeSet::new();
         let mut stack = vec![key];
         while let Some(current) = stack.pop() {
-            for edge in self.edges.iter().filter(|edge| edge.downstream == current) {
+            for edge in self.edges_of(current) {
                 if seen.insert(edge.upstream.as_str()) {
                     stack.push(edge.upstream.as_str());
                 }
@@ -658,7 +666,7 @@ impl CompositionGraph {
             .nodes
             .keys()
             .map(|key| {
-                let count = self.edges.iter().filter(|e| e.downstream == *key).count();
+                let count = self.edges_of(key).count();
                 (key.as_str(), count)
             })
             .collect();
