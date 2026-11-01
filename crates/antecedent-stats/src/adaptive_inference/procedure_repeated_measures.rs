@@ -1016,8 +1016,7 @@ pub fn exact_fixed_contrast_law(
         let mut mass = vec![0.0_f64; n as usize - 1];
         mass[mode as usize - 1] = ln_mode.exp();
         for k in mode..n - 1 {
-            mass[k as usize] =
-                mass[k as usize - 1] * f64::from(n - k) / f64::from(k + 1) * (p / q);
+            mass[k as usize] = mass[k as usize - 1] * f64::from(n - k) / f64::from(k + 1) * (p / q);
         }
         for k in (2..=mode).rev() {
             mass[k as usize - 2] =

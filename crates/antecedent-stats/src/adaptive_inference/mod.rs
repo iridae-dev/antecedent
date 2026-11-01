@@ -59,10 +59,11 @@
 
 pub mod beta_bernoulli;
 pub mod capacity;
-pub mod confidence_sequence;
 pub mod choice_procedure;
+pub mod confidence_sequence;
 pub mod dirichlet_choice;
 pub mod group_sequential;
+pub mod hierarchical_choice;
 pub mod historical_prior;
 pub mod participant_posterior;
 pub mod participant_procedure;
@@ -80,25 +81,30 @@ pub use beta_bernoulli::{
     BetaPosterior, EXACT_BETA_TRIALS, MAX_BANDIT_ARMS, best_arm_probabilities, expected_losses,
     probability_exceeds, probability_superior, regularized_incomplete_beta,
 };
+pub use capacity::{
+    CapacityError, MAX_RETAINED_LOOKS, MAX_SIMULATION_MEMORY_BYTES, MAX_SIMULATION_WORK,
+    ResourceBudget, ResourceReceipt,
+};
 pub use choice_procedure::{
     ChoiceKernel, ChoiceLaw, ChoiceProcedureSpec, ChoiceStoppingRule, ChoiceTerminalAtom,
     MAX_CHOICE_PROCEDURE_LOOKS, MAX_CHOICE_PROCEDURE_OPTIONS, MAX_CHOICE_PROCEDURE_UNITS,
     enumerate_choice_law,
-};
-pub use dirichlet_choice::{DirichletPosterior, MAX_CHOICE_COUNT, MAX_CHOICE_OPTIONS};
-pub use capacity::{
-    CapacityError, MAX_RETAINED_LOOKS, MAX_SIMULATION_MEMORY_BYTES, MAX_SIMULATION_WORK,
-    ResourceBudget, ResourceReceipt,
 };
 pub use confidence_sequence::{
     ArmSequence, MAX_SEQUENCE_OBSERVATIONS, PLUG_IN_LAMBDA_CAP, SequenceKind, SequenceState,
     bounded_mean_confidence_sequence, contrast_bounds, mixture_hoeffding_radius,
     plug_in_confidence_sequence,
 };
+pub use dirichlet_choice::{DirichletPosterior, MAX_CHOICE_COUNT, MAX_CHOICE_OPTIONS};
 pub use group_sequential::{
     Boundaries, MAX_LOOKS, Sidedness, SpendingFunction, StagewiseInference, StagewiseLook,
     boundaries, crossing_probabilities, first_crossing, stagewise_inference,
     stagewise_upper_p_value,
+};
+pub use hierarchical_choice::{
+    HierarchicalChoicePosterior, HierarchicalChoicePrior, HierarchicalSummary,
+    MAX_DISTINCT_HISTOGRAMS, MAX_HIERARCHICAL_CHOICES, MAX_HIERARCHICAL_OPTIONS,
+    QUADRATURE_ERROR_LIMIT,
 };
 pub use historical_prior::{
     ArmPrior, BorrowingPlan, HistoricalPrior, MAX_HISTORICAL_SOURCES, MAX_HISTORICAL_TRIALS,
