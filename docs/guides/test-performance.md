@@ -77,6 +77,10 @@ The pytest modes first check the native extension identity
 exclude the measured-record acceptance marker. The explicit acceptance lane
 retains those tests for use after calibration. Plain pytest uses the same
 default; `-m requires_calibration` selects the acceptance tests explicitly.
+For Rust, the default nextest filter is the negation of
+`python3 scripts/evidence_audit.py rust-calibration-filter`, which is derived
+from `parity/v3_test_registry.toml`. Update the filter when registering another
+measured-record assertion; the evidence-audit tests check that it stays in sync.
 
 Most integration files are compiled into a few consolidated `suite_NN` targets
 per crate (`scripts/consolidate_tests.py`); the files stay where they are, are
