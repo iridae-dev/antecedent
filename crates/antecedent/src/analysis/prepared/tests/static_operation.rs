@@ -408,6 +408,7 @@ fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state
         ),
     ];
     for (original, changed) in configurations {
+        let checked_dr = matches!(&original, EstimatorSpec::DrLearner(_));
         let ctx = ExecutionContext::for_tests(47);
         let mut prepared = Study::tabular(data.clone())
             .graph(graph.clone())
@@ -476,7 +477,12 @@ fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state
         let after = prepared.contract().unwrap().identities;
         assert_eq!(before.target, after.target);
         assert_eq!(before.identification, after.identification);
-        assert_eq!(before.program, after.program, "numerical controls retain the causal program");
+        if checked_dr {
+            // The checked DR lowering binds the fold and overlap settings for replay.
+            assert_ne!(before.program, after.program);
+        } else {
+            assert_eq!(before.program, after.program);
+        }
         assert_ne!(before.inference_binding, after.inference_binding);
         assert_eq!(after, fresh.contract().unwrap().identities);
         let view = prepared.plan_view().unwrap();

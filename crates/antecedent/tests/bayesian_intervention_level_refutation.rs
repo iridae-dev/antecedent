@@ -256,7 +256,7 @@ fn derivative_refuter_state_is_licensed_and_checks_the_finite_difference() {
     for (inference, suite) in [
         (InferenceMode::Frequentist, RefuteSuite::Cheap),
         (InferenceMode::Frequentist, RefuteSuite::Full),
-        (bayesian(), RefuteSuite::Cheap),
+        (InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(256)), RefuteSuite::Cheap),
     ] {
         let label = format!("{inference:?} {suite:?}");
         let result = Study::tabular(table.clone())
@@ -284,4 +284,15 @@ fn derivative_refuter_state_is_licensed_and_checks_the_finite_difference() {
             "{label}"
         );
     }
+
+    let error = Study::tabular(table)
+        .graph(graph())
+        .query(CausalQuery::Response(derivative))
+        .inference(bayesian())
+        .refute(RefuteSuite::Cheap)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(9))
+        .unwrap_err();
+    assert!(error.to_string().contains("only the default Laplace/Gaussian settings"));
 }

@@ -401,7 +401,7 @@ fn bayesian_class_and_latent_confounded_derivatives_publish_credible_intervals()
                 structure,
                 false,
                 &functional,
-                InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64)),
+                InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64)),
             );
             let result = built.run(&ctx).unwrap_or_else(|e| panic!("{label}: {e}"));
             let got = published(&result, &label);
