@@ -1088,19 +1088,26 @@ mod tests {
         // Set the umask only in a child process; parallel tests keep their own
         // process-wide creation policy. No unsafe umask manipulation is needed.
         if std::env::var_os("ANTECEDENT_SPILL_PRIVATE_MODE_CHILD").is_none() {
+            let prefix = module_path!()
+                .split_once("::")
+                .map_or(String::new(), |(_, rest)| format!("{rest}::"));
+            let test_name = format!("{prefix}disk_spill_permissions_are_owner_only");
             let output = std::process::Command::new("sh")
                 .arg("-c")
                 .arg("umask 000; exec \"$@\"")
                 .arg("spill-permissions-test")
                 .arg(std::env::current_exe().unwrap())
-                .args([
-                    "--exact",
-                    "capacity_account::tests::disk_spill_permissions_are_owner_only",
-                    "--test-threads=1",
-                ])
+                .arg("--exact")
+                .arg(&test_name)
+                .arg("--test-threads=1")
                 .env("ANTECEDENT_SPILL_PRIVATE_MODE_CHILD", "1")
                 .output()
                 .expect("start isolated permission test");
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("running 1 test"),
+                "the child selected no test: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
             assert!(
                 output.status.success(),
                 "{}{}",
