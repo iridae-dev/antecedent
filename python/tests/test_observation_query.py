@@ -20,7 +20,6 @@ import subprocess
 import sys
 
 import numpy as np
-
 import pytest
 from antecedent import Execution
 from antecedent import measurement_models as mm

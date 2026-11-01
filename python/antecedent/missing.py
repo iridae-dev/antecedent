@@ -405,8 +405,8 @@ def multiple_imputation_with_graph_selection(
     """
     import json
 
-    from ._native import graph_selection_imputation_run as _run
     from ._data import _is_missing_scalar
+    from ._native import graph_selection_imputation_run as _run
     from ._refusal import raise_refusal
     from .execution import native_controls
 

@@ -2,7 +2,6 @@
 
 import antecedent as ant
 import numpy as np
-from antecedent.outcomes import require_success
 
 
 def _validator(calls, label):

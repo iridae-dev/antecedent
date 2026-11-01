@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent import adaptive_policy as ap
+from antecedent.errors import CausalValueError
 
 from test_adaptive_policy import TreatmentSource
 
@@ -54,7 +55,7 @@ def test_valid_configuration_runs():
     ],
 )
 def test_wrong_json_type_refused(overrides):
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError, match="field"):
         _search(_config(**overrides))
 
 
@@ -71,7 +72,7 @@ def test_wrong_json_type_refused(overrides):
 def test_feature_members_must_be_exact(feature):
     config = _config()
     config["families"][0]["features"] = [feature]
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError, match="field"):
         _search(config)
 
 

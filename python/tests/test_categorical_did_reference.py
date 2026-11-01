@@ -125,9 +125,9 @@ def test_a_binary_treated_column_still_matches_the_binary_kernel_bit_for_bit():
     keep = [g in (0, 1) for g in data["group"]]
     subset = {
         "y": data["y"][keep],
-        "id": [v for v, k in zip(data["id"], keep) if k],
-        "group": [g == 1 for g, k in zip(data["group"], keep) if k],
-        "after": [v for v, k in zip(data["after"], keep) if k],
+        "id": [v for v, k in zip(data["id"], keep, strict=False) if k],
+        "group": [g == 1 for g, k in zip(data["group"], keep, strict=False) if k],
+        "after": [v for v, k in zip(data["after"], keep, strict=False) if k],
     }
     query = DifferenceInDifferences("y", "group", "after")
     binary = estimate_did(subset, query).estimate
@@ -180,7 +180,7 @@ def test_the_categorical_contrast_refuses_what_it_cannot_read():
         "p": np.full(n, 0.5),
         "m": np.zeros(n),
     }
-    with pytest.raises(Exception) as caught:
+    with pytest.raises(CausalError) as caught:
         estimate_categorical_did(
             augmented, AugmentedPanelDiD("pre", "post", "id", "group", "p", "m", True)
         )

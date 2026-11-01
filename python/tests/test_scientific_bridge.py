@@ -1009,5 +1009,5 @@ def test_misspelled_contract_key_refused():
     wire.pop("correlaton")
     wire["assumptions"] = [wire["assumptions"][0]]
     wire["transport"] = {"id": "t", "statement": "s", "evidence": None, "extra_scope": 1}
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="extra_scope"):
         _native.scientific_bridge_contract_identity(json.dumps(wire))

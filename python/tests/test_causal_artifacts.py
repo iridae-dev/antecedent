@@ -6,11 +6,7 @@ import json
 
 import pytest
 from antecedent import artifacts, model
-from antecedent._native import (
-    CausalSerializationError,
-    decode_causal_artifact,
-    encode_causal_artifact,
-)
+from antecedent._native import decode_causal_artifact, encode_causal_artifact
 from antecedent.errors import CausalSerializationError
 from antecedent.outcomes import require_success
 

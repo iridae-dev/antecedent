@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import antecedent
 from statistics import NormalDist
 
+import antecedent
 import numpy as np
 import pytest
 from antecedent.errors import CausalUnsupportedError

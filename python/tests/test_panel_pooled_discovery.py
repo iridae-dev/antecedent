@@ -96,10 +96,11 @@ def _pooled(units):
 
 def test_panel_lengths_reject_usize_overflow_as_typed_refusal():
     import sys
+
     from antecedent import _native
 
     half = sys.maxsize + 1
-    with pytest.raises(Exception) as caught:
+    with pytest.raises(antecedent.CausalError) as caught:
         _native.discover_pcmci(["x"], [np.array([0.0, 1.0, 2.0])], unit_lengths=[half, half + 3])
     assert caught.value.reason_code == "invalid_argument"
 

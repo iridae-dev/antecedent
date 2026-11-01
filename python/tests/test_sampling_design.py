@@ -5,8 +5,8 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent.estimators import LinearAdjustment
 from antecedent.errors import CausalError, CausalValueError
+from antecedent.estimators import LinearAdjustment
 from antecedent.outcomes import require_success
 
 EDGES = [("z", "t"), ("z", "y"), ("t", "y")]

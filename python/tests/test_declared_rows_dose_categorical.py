@@ -74,7 +74,9 @@ def test_dose_grid_declared_rows_match_the_multiprecision_reference(case):
     levels = dose_call(case, "level")
     slopes = dose_call(case, "derivative")
     assert levels.n_rows == case["rows_used"]
-    for point, expected, slope in zip(levels.levels, case["points"], slopes.derivatives):
+    for point, expected, slope in zip(
+        levels.levels, case["points"], slopes.derivatives, strict=False
+    ):
         close(point.value, expected["level"], 1e-8, "level")
         close(point.standard_error, expected["level_se"], 1e-8, "level se")
         close(point.local_ess, expected["ess"], 1e-9, "ess")
@@ -182,7 +184,7 @@ def test_categorical_declared_rows_match_the_exact_reference(case):
     for a, row in enumerate(expected["covariance"]):
         for b, value in enumerate(row):
             assert abs(fit.covariance[a, b] - value) <= tol * scale, (a, b)
-    for effect, want in zip(fit.effects, expected["levels"]):
+    for effect, want in zip(fit.effects, expected["levels"], strict=False):
         assert abs(effect.estimate - want["estimate"]) <= tol * max(1.0, abs(want["estimate"]))
         close(effect.standard_error**2, want["variance"], max(tol, 1e-9), "level variance")
     close(fit.omnibus.statistic, expected["omnibus"], 1e-7, "omnibus")
@@ -254,7 +256,7 @@ def test_categorical_plain_rows_keep_their_snapshot_and_report_no_declared_rows(
     # Equal weights at any scale are the unweighted sandwich.
     weighted = ct.categorical_effects(y, labels, covariance="hc0", sampling_weights=[4.0] * 9)
     assert weighted.row_snapshot != plain.row_snapshot
-    for a, b in zip(plain.effects, weighted.effects):
+    for a, b in zip(plain.effects, weighted.effects, strict=False):
         close(b.estimate, a.estimate, 1e-12)
         close(b.standard_error, a.standard_error, 1e-12)
 
@@ -351,11 +353,11 @@ def test_smoothed_dose_declared_rows_are_read_replayed_and_bound_by_the_artifact
     # Equal weights at another scale are the unweighted point; real weights move it.
     query, data, _ = smoothed_fixture(sampling_weights=[5.0] * total)
     _, equal = estimate(query, data)
-    for p, q in zip(plain.grid, equal.grid):
+    for p, q in zip(plain.grid, equal.grid, strict=False):
         assert abs(p.estimate - q.estimate) <= 1e-9 * max(1.0, abs(p.estimate))
     query, data, _ = smoothed_fixture(sampling_weights=weights)
     _, moved = estimate(query, data)
-    assert any(p.estimate != q.estimate for p, q in zip(plain.grid, moved.grid))
+    assert any(p.estimate != q.estimate for p, q in zip(plain.grid, moved.grid, strict=False))
 
 
 def test_smoothed_dose_refuses_unreadable_declarations_and_the_gaussian_posterior():

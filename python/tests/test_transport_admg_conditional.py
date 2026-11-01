@@ -17,6 +17,7 @@ import struct
 import pytest
 from antecedent import Admg
 from antecedent.errors import (
+    CausalCancelledError,
     CausalSerializationError,
     CausalTypeError,
     CausalUnsupportedError,
@@ -212,7 +213,7 @@ def test_failed_conditional_estimate_preserves_published_seed_and_artifact():
     assert prepared.seed == 3
     token = CancellationToken()
     token.cancel()
-    with pytest.raises(Exception):
+    with pytest.raises(CausalCancelledError):
         require_success(prepared.estimate(seed=7, cancel=token))
     assert prepared.seed == 3
     assert bytes(prepared.export()) == before

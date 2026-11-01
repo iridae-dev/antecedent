@@ -34,5 +34,5 @@ def test_counterfactual_ite_refuses_a_non_finite_arm(level):
 @pytest.mark.parametrize("delta", [float("nan"), 0.0])
 def test_population_do_contrast_refuses_an_undefined_width(delta):
     *_, fitted = _model()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="delta"):
         fitted.population_do_contrast("x", "y", delta)

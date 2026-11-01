@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from antecedent import model
+from antecedent.errors import CausalValueError
 
 _NAN = float("nan")
 
@@ -38,7 +39,7 @@ _NAN = float("nan")
     ],
 )
 def test_encode_model_bundle_refuses_inconsistent_model(variables, edges, mechanisms):
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError):
         model.encode_model_bundle(variables, edges, mechanisms)
 
 

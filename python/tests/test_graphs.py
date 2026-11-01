@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import antecedent as ant
 import pytest
+from antecedent.errors import CausalValueError
 from antecedent.graph import TemporalAdmg, TemporalCpdag
 
 _NAMES = ["x", "y", "x"]
@@ -24,5 +25,5 @@ _NAMES = ["x", "y", "x"]
 )
 @pytest.mark.parametrize("names", [_NAMES, ["x", ""]])
 def test_duplicate_names_refused(build, names):
-    with pytest.raises(ValueError):
+    with pytest.raises(CausalValueError, match="node name"):
         build(names)

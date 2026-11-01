@@ -41,9 +41,9 @@ from ._artifact_protocol import (
     container_bytes,
 )
 from ._digest import canonical_digest
-from ._treatment_labels import _is_missing
 from ._native import matched_case_control_odds_ratio as _matched_case_control_odds_ratio
 from ._scientific import ScientificResult
+from ._treatment_labels import _is_missing
 from .errors import CausalResourceError, CausalSerializationError, CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
 

@@ -22,6 +22,8 @@ from antecedent.intervention_callbacks import (
     callback_records,
     recover_callback,
     required_callbacks,
+)
+from antecedent.intervention_callbacks import (
     sample_do as sample_callbacks,
 )
 from antecedent.intervention_programs import (

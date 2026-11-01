@@ -507,6 +507,7 @@ if _TYPE_CHECKING:
     from . import adaptive_inference as adaptive_inference
     from . import adaptive_policy as adaptive_policy
     from . import categorical_treatment as categorical_treatment
+    from . import choice_inference as choice_inference
     from . import cohort_decision as cohort_decision
     from . import compact_export as compact_export
     from . import composition as composition
@@ -516,7 +517,6 @@ if _TYPE_CHECKING:
     from . import cross_world as cross_world
     from . import cross_world_execution as cross_world_execution
     from . import cyclic as cyclic
-    from . import choice_inference as choice_inference
     from . import decision_evidence as decision_evidence
     from . import decision_reliability as decision_reliability
     from . import decision_robust as decision_robust

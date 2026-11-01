@@ -130,9 +130,10 @@ def test_an_adjuster_widens_the_design_and_keeps_the_standardized_means_between_
         p = 1.0 / (1.0 + np.exp(-design @ beta))
         beta += np.linalg.solve(design.T @ (design * (p * (1 - p))[:, None]), design.T @ (y - p))
     assert np.asarray(fit.coefficients) == pytest.approx(beta, abs=1e-6)
-    risk = lambda arm: float(
-        np.mean(1.0 / (1.0 + np.exp(-(beta[0] + beta[1] * arm + beta[2] * z))))
-    )  # noqa: E731
+
+    def risk(arm):
+        return float(np.mean(1.0 / (1.0 + np.exp(-(beta[0] + beta[1] * arm + beta[2] * z)))))
+
     assert fit.treated_mean == pytest.approx(risk(1.0), abs=1e-7)
     assert fit.control_mean == pytest.approx(risk(0.0), abs=1e-7)
     p_hat = 1.0 / (1.0 + np.exp(-design @ beta))
