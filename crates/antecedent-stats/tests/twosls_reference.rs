@@ -159,7 +159,7 @@ fn anderson_rubin_statistic_critical_value_and_set_match_exact_arithmetic() {
                     rel(lo, case["ar_lo"].as_f64().unwrap()),
                     rel(hi, case["ar_hi"].as_f64().unwrap()),
                 );
-                if el > 1e-9 || eh > 1e-9 || l != level {
+                if el > 1e-9 || eh > 1e-9 || l.to_bits() != level.to_bits() {
                     failures.push(format!("{name}: set endpoints {el:.2e}, {eh:.2e}"));
                 }
             }
