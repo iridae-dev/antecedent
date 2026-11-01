@@ -323,14 +323,19 @@ fn split_half(
     span: u32,
     ctx: &ExecutionContext,
 ) -> Result<RefutationReport, ValidationError> {
+    let rows = table.row_count();
+    let half = rows / 2;
+    // Check the sampling plan before asking either half to bootstrap. A single block
+    // cannot estimate a spread, but the point estimates still support an uninformative report.
+    let resamplable = [half, rows - half].iter().all(|&part| {
+        RowResampling::WindowBlocks { span }.block_length(part).is_some_and(|block| block < part)
+    });
     let estimator = FunctionalEffect::new()
-        .with_bootstrap_replicates(SPLIT_HALF_REPLICATES)
+        .with_bootstrap_replicates(if resamplable { SPLIT_HALF_REPLICATES } else { 0 })
         .with_row_resampling(
             RowResampling::WindowBlocks { span },
             antecedent_estimate::util::SamplingDeclaration::Undeclared,
         );
-    let rows = table.row_count();
-    let half = rows / 2;
     let mut halves = [(f64::NAN, f64::NAN); 2];
     for (slot, (start, end)) in [(0, half), (half, rows)].into_iter().enumerate() {
         let part = row_range(table, start, end)?;
@@ -349,9 +354,6 @@ fn split_half(
     // A half that one circular block covers has a single possible resample: its bootstrap
     // spread is exactly zero because nothing can vary, not because the contrast is precise, and
     // a z test on it would reject (or accept) stationarity on no evidence.
-    let resamplable = [half, rows - half].iter().all(|&part| {
-        RowResampling::WindowBlocks { span }.block_length(part).is_some_and(|block| block < part)
-    });
     let usable = resamplable && [first_se, second_se].iter().all(|se| se.is_finite() && *se >= 0.0);
     if !usable {
         return Ok(RefutationReport::builder("window.split_half")

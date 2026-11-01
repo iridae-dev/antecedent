@@ -5,7 +5,7 @@
 //! argument then proves invertibility independently of any numerical root.
 use crate::equation_system::Interval;
 use crate::nonlinear_equilibrium::{EquilibriumError, MAX_DENSE_MATRIX_BYTES};
-use crate::sparse_equilibrium::{CsrMatrix, FactorError, SparseLu};
+use crate::sparse_equilibrium::{CsrMatrix, FactorError, SolverBudgetCode, SparseLu};
 /// Prove invertibility of I-W using an outward-rounded inverse residual.
 /// Returns false when the bounded certificate fails, including ill conditioning.
 /// This is no assertion about dynamic stability or contraction of W.
@@ -87,9 +87,7 @@ pub(crate) fn certifies_sparse_affine_checked(
         Ok(lu) => lu,
         Err(FactorError::Singular | FactorError::NonFinite) => return Ok(false),
         Err(FactorError::FillBudget(required)) => {
-            return Err(EquilibriumError::Resource(format!(
-                "affine certificate factor fill {required} exceeds {max_fill}"
-            )));
+            return Err(SolverBudgetCode::FactorFill.refusal(required as u64, max_fill as u64));
         }
         Err(FactorError::Interrupted(error)) => return Err(error),
     };

@@ -90,9 +90,8 @@ fn fits_match_the_exact_maximum_likelihood_estimates() {
         };
         let want = floats(&case["coef"]);
         let err = coefficient_error(&fit.coefficients, &want);
-        // The deviance field: the weighted residual sum of squares for the Gaussian family,
-        // and for every other weighted fit the unweighted deviance at the weighted maximiser.
-        let want_dev = if family_name == "gaussian" && weights.is_some() {
+        // Every family reports the prior-weighted deviance when case weights are supplied.
+        let want_dev = if weights.is_some() {
             case["deviance_weighted"].as_f64().unwrap()
         } else {
             case["deviance"].as_f64().unwrap()

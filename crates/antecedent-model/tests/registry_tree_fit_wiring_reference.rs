@@ -116,7 +116,7 @@ fn fit(
 }
 
 fn series() -> (Vec<f64>, Vec<f64>) {
-    let n = 60;
+    let n = 288;
     let x: Vec<f64> = (0..n).map(|i| f64::from(i) / 8.0 + f64::from((i * 7) % 5) / 64.0).collect();
     let y: Vec<f64> = x
         .iter()
@@ -189,7 +189,7 @@ fn registry_tree_fit_wiring_reference_additive_fits_use_the_documented_settings_
             "{}: noise scale {sigma} vs {want_sigma}",
             family.id()
         );
-        assert_eq!(scored, 40, "four folds of ten rows");
+        assert_eq!(scored, 5 * n / 6, "all five supported time-ordered folds");
     }
 }
 

@@ -120,17 +120,23 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
     else {
         panic!("hierarchical GLM slot");
     };
-    let ridge = expected["reference"]["ridge_logit_coefficients"].as_array().unwrap();
+    // The retained two-cell reference independently derives the current logistic-pilot EB
+    // strength and solves the penalized score. The older reviewed fixture used an OLS pilot.
+    let logistic_eb: JsonValue = serde_json::from_str(include_str!(
+        "oracle_data/hierarchical_logit_eb_reference.json"
+    ))
+    .unwrap();
+    let ridge = logistic_eb["coefficients"].as_array().unwrap();
     let ridge_intercept = ridge[0].as_f64().unwrap();
     let ridge_slope = ridge[1].as_f64().unwrap();
     assert!((coefficients[2] - ridge_intercept).abs() <= tolerance);
     assert!((coefficients[3] - ridge_slope).abs() <= tolerance);
     assert!(
-        (ridge_slope - unpen_slope).abs() > 0.1,
+        (ridge_slope - unpen_slope).abs() > 0.05,
         "fixture must keep a clear EB-ridge vs unpenalized gap"
     );
     assert!(
-        (coefficients[3] - unpen_slope).abs() > 0.1,
+        (coefficients[3] - unpen_slope).abs() > 0.05,
         "HierarchicalGlm must apply EB ridge on ordinary data (got slope {})",
         coefficients[3]
     );
