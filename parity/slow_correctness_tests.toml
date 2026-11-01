@@ -163,3 +163,13 @@ reason = "Regenerates a frozen input of its reference script from the library's 
 path = "crates/antecedent-validate/tests/temporal_mediation_refuter_reference.rs"
 name = "emit"
 reason = "Regenerates a frozen input of its reference script from the library's own streams; run by hand when the cases change, and it asserts nothing."
+
+[[other]]
+path = "crates/antecedent/tests/practitioner_scale_calibration.rs"
+name = "practitioner_bootstrap_reuses_prepared_solver"
+reason = "Full-size bootstrap solver traffic regression reserved for an explicit practitioner-scale performance run; it does not measure coverage."
+
+[[other]]
+path = "crates/antecedent-stats/src/faer_backend/resampling.rs"
+name = "practitioner_pairs_bootstrap_matches_full_qr"
+reason = "Full-size prepared-solver versus QR performance comparison reserved for an explicit practitioner-scale run."

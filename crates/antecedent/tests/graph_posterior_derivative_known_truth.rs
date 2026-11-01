@@ -179,7 +179,7 @@ fn study(
         .refute(suite)
         .bootstrap_replicates(0);
     if bayesian {
-        builder.inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24)))
+        builder.inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(24)))
     } else {
         builder
     }

@@ -301,7 +301,7 @@ fn class_graph_posterior_derivative_routes_and_refuter_states_known_truth() {
                 for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
                     let label = format!("{structure:?} {key} bayesian={bayesian} {suite:?}");
                     let inference = if bayesian {
-                        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(99))
+                        InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(99))
                     } else {
                         InferenceMode::Frequentist
                     };
@@ -404,7 +404,7 @@ fn class_graph_posterior_derivative_planted_off_support_point_is_detected() {
                 let label = format!("{structure:?} bayesian={bayesian} {suite:?}");
                 let run = |functional: &F| {
                     let inference = if bayesian {
-                        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24))
+                        InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(24))
                     } else {
                         InferenceMode::Frequentist
                     };

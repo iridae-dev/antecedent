@@ -297,7 +297,7 @@ fn class_derivative_routes_and_refuter_states_known_truth() {
                             "{structure:?} {key} accepted={accepted} bayesian={bayesian} {suite:?}"
                         );
                         let inference = if bayesian {
-                            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24))
+                            InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(24))
                         } else {
                             InferenceMode::Frequentist
                         };
@@ -405,7 +405,7 @@ fn class_derivative_planted_off_support_point_is_detected() {
                 let label = format!("{structure:?} bayesian={bayesian} {suite:?}");
                 let run = |functional: &F| {
                     let inference = if bayesian {
-                        InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24))
+                        InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(24))
                     } else {
                         InferenceMode::Frequentist
                     };
