@@ -199,7 +199,7 @@ impl PyJointDesignResult {
         serde_json::to_string(&serde_json::json!({"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex(),"identified":self.inner.prepared().identification().is_identified_claim(),"functional":self.inner.prepared().proof().recipe.functional()})).map_err(|e|crate::value_err(e.to_string()))
     }
     fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = self.inner.export_artifact().map_err(panel_error)?;
+        let bytes = py.detach(|| self.inner.export_artifact()).map_err(panel_error)?;
         Ok(PyBytes::new(py, &bytes))
     }
     fn posterior_quantities(&self) -> PyResult<String> {
@@ -345,7 +345,7 @@ impl PyNativeJointDesignResult {
         serde_json::to_string(&serde_json::json!({"identification":self.inner.prepared().identification(),"law":self.inner.law(),"dependency":self.inner.dependency_identity().to_hex(),"source_dependency":self.inner.prepared().dependency().to_hex(),"support":self.inner.support(),"calibration":self.inner.calibration()})).map_err(|e|crate::value_err(e.to_string()))
     }
     fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = self.inner.export_artifact().map_err(panel_error)?;
+        let bytes = py.detach(|| self.inner.export_artifact()).map_err(panel_error)?;
         Ok(PyBytes::new(py, &bytes))
     }
 }

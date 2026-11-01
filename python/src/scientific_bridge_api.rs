@@ -790,7 +790,7 @@ impl BridgedClaimHandle {
 
     /// The artifact bytes and identity, or the refusal.
     fn export(&self, py: Python<'_>, artifact_id: &str) -> Exported {
-        match self.inner.export(artifact_id) {
+        match py.detach(|| self.inner.export(artifact_id)) {
             Ok(done) => (Some((PyBytes::new(py, &done.bytes).unbind(), done.identity)), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
         }
@@ -1127,7 +1127,7 @@ impl BridgedDistributionHandle {
 
     /// The artifact bytes and identity, or the refusal.
     fn export(&self, py: Python<'_>, artifact_id: &str) -> Exported {
-        match self.inner.export(artifact_id) {
+        match py.detach(|| self.inner.export(artifact_id)) {
             Ok(done) => (Some((PyBytes::new(py, &done.bytes).unbind(), done.identity)), None),
             Err(refusal) => (None, Some(refusal_json(&refusal))),
         }

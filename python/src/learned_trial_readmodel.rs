@@ -188,7 +188,7 @@ impl TrialIdentificationView {
             transport: materialize::Proof::from(self.proof()),
             children: [],
         };
-        let encoded = materialize::admitted(&payload, &context)?;
+        let encoded = crate::detach_catch(py, || materialize::admitted(&payload, &context))?;
         let text = encoded.as_str()?;
         // Explicit Python conversion is the ownership/materialization boundary.
         Ok(PyString::new(py, text).unbind())

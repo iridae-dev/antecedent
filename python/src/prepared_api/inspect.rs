@@ -114,19 +114,21 @@ impl PyPreparedAnalysis {
     /// program, the identification preparation installed, the physical plan and
     /// the sealed operation retained, with that operation's inspection record
     /// under `operation_detail`. Never identifies, fits or scans.
-    fn plan_view_json(&self) -> PyResult<String> {
-        let view = self.inner.plan_view().map_err(py_err)?;
-        let mut json = view.to_json();
-        json["names"] = serde_json::json!(self.names);
-        json["operation_detail"] = self.operation_detail();
-        serde_json::to_string(&json).map_err(|error| crate::value_err(error.to_string()))
+    fn plan_view_json(&self, py: Python<'_>) -> PyResult<String> {
+        crate::detach_catch(py, || {
+            let view = self.inner.plan_view().map_err(py_err)?;
+            let mut json = view.to_json();
+            json["names"] = serde_json::json!(self.names);
+            json["operation_detail"] = self.operation_detail();
+            serde_json::to_string(&json).map_err(|error| crate::value_err(error.to_string()))
+        })
     }
 
     /// Readable report of this handle as Markdown or HTML: the executed claim when an
     /// estimate has run, otherwise the prepared contract, with the plan view of the program.
     /// The Rust renderer reads the records only; it identifies, fits and scans nothing.
     #[pyo3(signature = (format="markdown"))]
-    fn report(&self, format: &str) -> PyResult<String> {
+    fn report(&self, py: Python<'_>, format: &str) -> PyResult<String> {
         let format = antecedent::report::ReportFormat::from_name(format).ok_or_else(|| {
             crate::value_err(format!(
                 "unknown report format {format:?}; use \"markdown\" or \"html\""
@@ -146,7 +148,7 @@ impl PyPreparedAnalysis {
         } else {
             &self.inner
         };
-        inner.report(self.last.as_deref(), &ctx, format).map_err(py_err)
+        crate::detach_catch(py, || inner.report(self.last.as_deref(), &ctx, format).map_err(py_err))
     }
 
     /// Whether the last execution carries the contract it ran under. A functional-validation
@@ -166,6 +168,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
     fn execution_record_json(
         &self,
+        py: Python<'_>,
         outcome_units: Option<&str>,
         population: &str,
         transform: &str,
@@ -188,9 +191,11 @@ impl PyPreparedAnalysis {
                 population_id: population,
                 transform_id: transform,
             });
-        let (section, body) = inner
-            .execution_record_with_quantity_labels(result, &ctx, labels.as_ref())
-            .map_err(py_err)?;
+        let (section, body) = crate::detach_catch(py, || {
+            inner
+                .execution_record_with_quantity_labels(result, &ctx, labels.as_ref())
+                .map_err(py_err)
+        })?;
         let response = body.response.as_ref().map(|response| {
             serde_json::json!({
                 "uncertainty": response.uncertainty,
@@ -224,6 +229,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (*, outcome_units=None, population="target", transform="identity"))]
     fn execution_contract(
         &self,
+        py: Python<'_>,
         outcome_units: Option<&str>,
         population: &str,
         transform: &str,
@@ -249,9 +255,11 @@ impl PyPreparedAnalysis {
                 population_id: population,
                 transform_id: transform,
             });
-        let (mut contract, claim) = inner
-            .execution_contract_with_quantity_labels(result, &ctx, labels.as_ref())
-            .map_err(py_err)?;
+        let (mut contract, claim) = crate::detach_catch(py, || {
+            inner
+                .execution_contract_with_quantity_labels(result, &ctx, labels.as_ref())
+                .map_err(py_err)
+        })?;
         contract.reasoning = claim.reasoning;
         let mut report =
             contract_to_map(&contract, inner.schema(), inner.query(), inner.population_registry());

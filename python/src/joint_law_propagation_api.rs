@@ -188,7 +188,7 @@ fn joint_law_aligned_functional(
         Err(r) => return (None, Some(refusal_json(&r))),
     };
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_aligned_functional(op, &dx, &dy, functional, &ctx))
+    finish(py, py.detach(|| propagate_aligned_functional(op, &dx, &dy, functional, &ctx)))
 }
 
 /// Mean and variance of `a X + b Y` from two aligned artifact columns.
@@ -218,7 +218,7 @@ fn joint_law_aligned_linear(
         Err(r) => return (None, Some(refusal_json(&r))),
     };
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_aligned_linear(op, (a, b), &dx, &dy, &ctx))
+    finish(py, py.detach(|| propagate_aligned_linear(op, (a, b), &dx, &dy, &ctx)))
 }
 
 /// Linear combination from means and a covariance. `dependence` is
@@ -309,11 +309,20 @@ fn linear_moments_call(
     let spread = reading == RequestedReading::Spread;
     let ctx = execution_context(0, None, cancel);
     let run = |linear: &LinearDependence| {
-        if spread {
-            propagate_linear_moments_spread(op, &inputs, &coefficients, &covariance, linear, &ctx)
-        } else {
-            propagate_linear_moments(op, &inputs, &coefficients, &covariance, linear, &ctx)
-        }
+        py.detach(|| {
+            if spread {
+                propagate_linear_moments_spread(
+                    op,
+                    &inputs,
+                    &coefficients,
+                    &covariance,
+                    linear,
+                    &ctx,
+                )
+            } else {
+                propagate_linear_moments(op, &inputs, &coefficients, &covariance, linear, &ctx)
+            }
+        })
     };
     let outcome = match dependence {
         "declared_independent" => run(&LinearDependence::DeclaredIndependent),
@@ -372,7 +381,7 @@ fn joint_law_mixture(
         });
     }
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_mixture(&components, &ctx))
+    finish(py, py.detach(|| propagate_mixture(&components, &ctx)))
 }
 
 /// A mixture whose weights are not declared: always refused by the rule (the bridge for
@@ -463,7 +472,7 @@ fn joint_law_envelope(
     let x = PropagationDraws::independent_marginal(x_id, x_evidence, x_values);
     let y = PropagationDraws::independent_marginal(y_id, y_evidence, y_values);
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_dependence_envelope(op, q, &x, &y, &ctx))
+    finish(py, py.detach(|| propagate_dependence_envelope(op, q, &x, &y, &ctx)))
 }
 
 /// Ranges over a declared correlation range.
@@ -491,15 +500,17 @@ fn joint_law_correlation_range(
     let ctx = execution_context(0, None, cancel);
     finish(
         py,
-        propagate_correlation_range(
-            op,
-            (x_id, x_evidence),
-            (y_id, y_evidence),
-            CorrelationRangeSummary { x_mean, x_sd, y_mean, y_sd, a, b },
-            rho_lo,
-            rho_hi,
-            &ctx,
-        ),
+        py.detach(|| {
+            propagate_correlation_range(
+                op,
+                (x_id, x_evidence),
+                (y_id, y_evidence),
+                CorrelationRangeSummary { x_mean, x_sd, y_mean, y_sd, a, b },
+                rho_lo,
+                rho_hi,
+                &ctx,
+            )
+        }),
     )
 }
 
@@ -507,12 +518,13 @@ fn joint_law_correlation_range(
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_identity=None, cancel=None))]
 fn joint_law_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: Option<&str>,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<String> {
     let ctx = execution_context(0, None, cancel);
-    match consume_joint_law_propagation_artifact(artifact, expected_identity, &ctx) {
+    match py.detach(|| consume_joint_law_propagation_artifact(artifact, expected_identity, &ctx)) {
         Ok(consumed) => {
             let values: Vec<Json> =
                 consumed.values().into_iter().map(|(name, value)| json!([name, value])).collect();
@@ -606,7 +618,7 @@ fn joint_law_spread(
     let functional = tri!(functional_by_name(functional));
     let (dx, dy) = tri!(two_columns(x_id, x, x_column, y_id, y, y_column));
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_spread(op, &dx, &dy, functional, &ctx))
+    finish(py, py.detach(|| propagate_spread(op, &dx, &dy, functional, &ctx)))
 }
 
 /// The spread of `a X + b Y` from two aligned artifact columns.
@@ -629,7 +641,7 @@ fn joint_law_aligned_linear_spread(
     let op = tri!(operation(operation_name));
     let (dx, dy) = tri!(two_columns(x_id, x, x_column, y_id, y, y_column));
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_aligned_linear_spread(op, (a, b), &dx, &dy, &ctx))
+    finish(py, py.detach(|| propagate_aligned_linear_spread(op, (a, b), &dx, &dy, &ctx)))
 }
 
 /// `P(g(X, Y) > threshold)` from aligned artifact columns, with its Monte Carlo band and verdict.
@@ -657,14 +669,16 @@ fn joint_law_composed_exceedance(
     let ctx = execution_context(0, None, cancel);
     finish(
         py,
-        propagate_composed_exceedance(
-            op,
-            &dx,
-            &dy,
-            functional,
-            ExceedanceQuery { threshold, cutoff, band_level },
-            &ctx,
-        ),
+        py.detach(|| {
+            propagate_composed_exceedance(
+                op,
+                &dx,
+                &dy,
+                functional,
+                ExceedanceQuery { threshold, cutoff, band_level },
+                &ctx,
+            )
+        }),
     )
 }
 
@@ -706,7 +720,7 @@ fn joint_law_mixture_exceedance(
         });
     }
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_mixture_exceedance(&components, threshold, &ctx))
+    finish(py, py.detach(|| propagate_mixture_exceedance(&components, threshold, &ctx)))
 }
 
 /// Largest JSON text this module parses, in bytes (a `Value` tree is 10-30x its text).
@@ -755,7 +769,10 @@ fn joint_law_transported_spread_aligned(
         Err(r) => return (None, Some(refusal_json(&r))),
     };
     let ctx = execution_context(0, None, cancel);
-    finish(py, propagate_transported_spread_aligned(&ds, &dt, &df, coefficients, &ctx))
+    finish(
+        py,
+        py.detach(|| propagate_transported_spread_aligned(&ds, &dt, &df, coefficients, &ctx)),
+    )
 }
 
 /// The interval reading of a sealed claim: the artifact is verified and replayed, then resolved
@@ -765,13 +782,14 @@ fn joint_law_transported_spread_aligned(
 #[pyfunction]
 #[pyo3(signature = (artifact, construction, evidence_rows, cancel=None))]
 fn joint_law_check_composed_interval(
+    py: Python<'_>,
     artifact: &[u8],
     construction: &str,
     evidence_rows: u64,
     cancel: Option<PyCancellationToken>,
 ) -> Refused<String> {
     let ctx = execution_context(0, None, cancel);
-    let claim = match claim_from_artifact(artifact, None, &ctx) {
+    let claim = match py.detach(|| claim_from_artifact(artifact, None, &ctx)) {
         Ok(claim) => claim,
         Err(refusal) => return (None, Some(refusal_json(&refusal))),
     };

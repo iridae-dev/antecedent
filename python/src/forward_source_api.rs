@@ -178,6 +178,7 @@ fn forward_source_composed(
 /// bytes under the identity the caller retained.
 #[pyfunction]
 fn forward_source_cohort(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: &str,
     accepts_transported: bool,
@@ -190,7 +191,7 @@ fn forward_source_cohort(
         contrast_regime: None,
         cohort_digest: None,
     };
-    let source = match consume_cohort_decision_source(artifact, &expectation) {
+    let source = match py.detach(|| consume_cohort_decision_source(artifact, &expectation)) {
         Ok(source) => source,
         Err(error) => {
             return (
@@ -251,6 +252,7 @@ fn query_of(
 /// Evaluate an inverse query on a source: the result table beside the source's origin.
 #[pyfunction]
 fn forward_source_evaluate(
+    py: Python<'_>,
     source: PyRef<'_, ForwardSourceHandle>,
     contract_json: &str,
     query_json: &str,
@@ -261,7 +263,8 @@ fn forward_source_evaluate(
         Err(refusal) => return Ok((None, Some(refusal))),
     };
     let demand = InverseDemand { interval_region };
-    Ok(match evaluate(&query, &source.inner, demand) {
+    let inner = &source.inner;
+    Ok(match py.detach(|| evaluate(&query, inner, demand)) {
         Ok(sourced) => {
             let result = InverseResultWire::from(&sourced.result);
             (
@@ -283,6 +286,7 @@ fn forward_source_evaluate(
 /// origin into the artifact.
 #[pyfunction]
 fn forward_source_seal(
+    py: Python<'_>,
     source: PyRef<'_, ForwardSourceHandle>,
     contract_json: &str,
     query_json: &str,
@@ -293,7 +297,8 @@ fn forward_source_seal(
         Err(refusal) => return Ok((None, Some(refusal))),
     };
     let demand = InverseDemand { interval_region };
-    Ok(match seal(query, &source.inner, demand) {
+    let inner = &source.inner;
+    Ok(match py.detach(|| seal(query, inner, demand)) {
         Ok(artifact) => (Some(PyInverseQueryArtifact::from_sealed(artifact)), None),
         Err(refusal) => (None, Some(external_refusal_json(&refusal.to_refusal()))),
     })
@@ -302,6 +307,7 @@ fn forward_source_seal(
 /// Evaluate and seal one single-action artifact per answered action.
 #[pyfunction]
 fn forward_source_seal_per_action(
+    py: Python<'_>,
     source: PyRef<'_, ForwardSourceHandle>,
     contract_json: &str,
     query_json: &str,
@@ -312,7 +318,8 @@ fn forward_source_seal_per_action(
         Err(refusal) => return Ok((None, Some(refusal))),
     };
     let demand = InverseDemand { interval_region };
-    Ok(match seal_per_action(&query, &source.inner, demand) {
+    let inner = &source.inner;
+    Ok(match py.detach(|| seal_per_action(&query, inner, demand)) {
         Ok(sealed) => (
             Some(
                 sealed
@@ -452,11 +459,13 @@ impl ObservationalScenarioHandle {
 /// Answer an observational-scenario question on an aligned observational law.
 #[pyfunction]
 fn observational_scenarios_evaluate(
+    py: Python<'_>,
     law: PyRef<'_, PyJointDistributionArtifact>,
     query_json: &str,
 ) -> PyResult<Refused<ObservationalScenarioHandle>> {
     let query = scenario_query_of(query_json)?;
-    Ok(match evaluate_observational(&query, law.inner()) {
+    let inner = law.inner();
+    Ok(match py.detach(|| evaluate_observational(&query, inner)) {
         Ok(result) => (Some(ObservationalScenarioHandle { query, result }), None),
         Err(error) => (None, Some(external_refusal_json(&error.to_refusal()))),
     })

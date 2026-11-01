@@ -259,89 +259,91 @@ impl PyPreparedAnalysis {
             .last
             .as_ref()
             .ok_or_else(|| crate::value_err("estimate before exporting an artifact"))?;
-        let bytes = if payload == "query" {
-            let query = antecedent_io::CausalPayloadWire::Query(Box::new(
-                antecedent_io::causal_query_to_wire_with_registry(
-                    self.inner.query(),
-                    self.inner.population_registry(),
-                )
-                .map_err(py_err)?,
-            ));
-            let artifact = antecedent_io::encode_causal_payload_artifact(
-                &query,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else if payload != "result" {
-            return Err(crate::value_err("payload must be 'query' or 'result'"));
-        } else if result.mediation_grid().is_some()
-            || result.structural_response.is_some()
-            || (result.posterior.is_some() && result.response().is_some())
-        {
-            let wire = result
-                .analysis_result_wire_with_context(
-                    self.inner.query(),
-                    self.inner.population_registry(),
-                    self.inner.temporal_identification().as_deref(),
+        let bytes = crate::detach_catch(py, || -> PyResult<Vec<u8>> {
+            Ok(if payload == "query" {
+                let query = antecedent_io::CausalPayloadWire::Query(Box::new(
+                    antecedent_io::causal_query_to_wire_with_registry(
+                        self.inner.query(),
+                        self.inner.population_registry(),
+                    )
+                    .map_err(py_err)?,
+                ));
+                let artifact = antecedent_io::encode_causal_payload_artifact(
+                    &query,
+                    self.names.clone(),
+                    artifact_id,
                 )
                 .map_err(py_err)?;
-            let artifact = antecedent_io::encode_analysis_result_artifact(
-                &wire,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else if let Some(post) = &result.posterior {
-            antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
-        } else if let Some(response) = result.response() {
-            let payload = antecedent_io::CausalPayloadWire::ResponseResult(Box::new(
-                antecedent_io::causal_response_to_wire(response).map_err(py_err)?,
-            ));
-            let artifact = antecedent_io::encode_causal_payload_artifact(
-                &payload,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else if result.mediation().is_some()
-            || result.counterfactual().is_some()
-            || result.counterfactual_contrasts().is_some()
-        {
-            let wire = result
-                .static_result_wire(self.inner.query(), self.inner.population_registry())
-                .map_err(|e| match e {
-                    // An incomplete payload stays the ValueError it always was.
-                    antecedent::CausalError::Compile { message } => crate::value_err(message),
-                    antecedent::CausalError::Rejected(failure) => {
-                        crate::value_err(failure.message())
-                    }
-                    other => py_err(other),
-                })?;
-            let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));
-            let artifact = antecedent_io::encode_causal_payload_artifact(
-                &payload,
-                self.names.clone(),
-                artifact_id,
-            )
-            .map_err(py_err)?;
-            let mut bytes = Vec::new();
-            artifact.write_to(&mut bytes).map_err(py_err)?;
-            bytes
-        } else {
-            return Err(crate::value_err(
-                "retained result has no posterior or response artifact payload",
-            ));
-        };
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else if payload != "result" {
+                return Err(crate::value_err("payload must be 'query' or 'result'"));
+            } else if result.mediation_grid().is_some()
+                || result.structural_response.is_some()
+                || (result.posterior.is_some() && result.response().is_some())
+            {
+                let wire = result
+                    .analysis_result_wire_with_context(
+                        self.inner.query(),
+                        self.inner.population_registry(),
+                        self.inner.temporal_identification().as_deref(),
+                    )
+                    .map_err(py_err)?;
+                let artifact = antecedent_io::encode_analysis_result_artifact(
+                    &wire,
+                    self.names.clone(),
+                    artifact_id,
+                )
+                .map_err(py_err)?;
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else if let Some(post) = &result.posterior {
+                antecedent_io::encode_causal_posterior_bytes(post, artifact_id).map_err(py_err)?
+            } else if let Some(response) = result.response() {
+                let payload = antecedent_io::CausalPayloadWire::ResponseResult(Box::new(
+                    antecedent_io::causal_response_to_wire(response).map_err(py_err)?,
+                ));
+                let artifact = antecedent_io::encode_causal_payload_artifact(
+                    &payload,
+                    self.names.clone(),
+                    artifact_id,
+                )
+                .map_err(py_err)?;
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else if result.mediation().is_some()
+                || result.counterfactual().is_some()
+                || result.counterfactual_contrasts().is_some()
+            {
+                let wire = result
+                    .static_result_wire(self.inner.query(), self.inner.population_registry())
+                    .map_err(|e| match e {
+                        // An incomplete payload stays the ValueError it always was.
+                        antecedent::CausalError::Compile { message } => crate::value_err(message),
+                        antecedent::CausalError::Rejected(failure) => {
+                            crate::value_err(failure.message())
+                        }
+                        other => py_err(other),
+                    })?;
+                let payload = antecedent_io::CausalPayloadWire::StaticResult(Box::new(wire));
+                let artifact = antecedent_io::encode_causal_payload_artifact(
+                    &payload,
+                    self.names.clone(),
+                    artifact_id,
+                )
+                .map_err(py_err)?;
+                let mut bytes = Vec::new();
+                artifact.write_to(&mut bytes).map_err(py_err)?;
+                bytes
+            } else {
+                return Err(crate::value_err(
+                    "retained result has no posterior or response artifact payload",
+                ));
+            })
+        })?;
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
@@ -412,17 +414,18 @@ impl PyPreparedAnalysis {
                 ));
             }
         }
-        let bytes = self
-            .last_study
-            .as_ref()
-            .unwrap_or(&self.inner)
-            .encode_contracted_result_with_quantity_labels(
-                result,
-                artifact_id,
-                &ctx,
-                labels.as_ref(),
-            )
-            .map_err(py_err)?;
+        let bytes = crate::detach_catch(py, || {
+            self.last_study
+                .as_ref()
+                .unwrap_or(&self.inner)
+                .encode_contracted_result_with_quantity_labels(
+                    result,
+                    artifact_id,
+                    &ctx,
+                    labels.as_ref(),
+                )
+                .map_err(py_err)
+        })?;
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 

@@ -194,11 +194,11 @@ fn consume_refusal(error: &RecalcReceiptArtifactError) -> Option<String> {
 #[pyo3(signature = (artifact, expected_identity=None))]
 fn consume_recalc_receipt(
     py: Python<'_>,
-    artifact: Vec<u8>,
+    artifact: &[u8],
     expected_identity: Option<String>,
 ) -> PyResult<ConsumePayload> {
     detach_catch(py, move || {
-        match RecalcReceiptArtifact::from_bytes(&artifact, expected_identity.as_deref()) {
+        match RecalcReceiptArtifact::from_bytes(artifact, expected_identity.as_deref()) {
             Ok(done) => Ok((Some(report_json(&done)?), None)),
             Err(error) => match consume_refusal(&error) {
                 Some(json) => Ok((None, Some(json))),

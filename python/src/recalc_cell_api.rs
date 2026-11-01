@@ -720,11 +720,11 @@ impl PyScoreResume {
     #[pyo3(signature = (artifact, expected_identity=None))]
     fn from_bytes(
         py: Python<'_>,
-        artifact: Vec<u8>,
+        artifact: &[u8],
         expected_identity: Option<String>,
     ) -> PyResult<(Option<Self>, Option<String>)> {
         let built = detach_catch(py, move || {
-            Ok(ScoreResumeSession::resume_from_score_bytes(&artifact, expected_identity.as_deref()))
+            Ok(ScoreResumeSession::resume_from_score_bytes(artifact, expected_identity.as_deref()))
         })?;
         match built {
             Ok(inner) => Ok((Some(Self { inner }), None)),

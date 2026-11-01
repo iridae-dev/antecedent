@@ -206,12 +206,13 @@ impl AdaptiveInferenceHandle {
     #[pyo3(signature = (request_json, cancel=None))]
     fn analyse(
         &self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
         let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.analyse(&request, &ctx) {
+        Ok(match py.detach(|| self.inner.analyse(&request, &ctx)) {
             Ok(outcome) => (
                 Some(
                     json!({
@@ -247,19 +248,26 @@ impl AdaptiveInferenceHandle {
     #[pyo3(signature = (request_json, cancel=None))]
     fn measured_interval(
         &self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)>
     {
         let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.measured_interval(&request, "measured-adaptive-interval", &ctx) {
-            Ok(measured) => (
-                Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
-                None,
-            ),
-            Err(refusal) => (None, Some(refusal_value(&refusal).to_string())),
-        })
+        Ok(
+            match py.detach(|| {
+                self.inner.measured_interval(&request, "measured-adaptive-interval", &ctx)
+            }) {
+                Ok(measured) => (
+                    Some(crate::measured_inference_api::NativeMeasuredInference::from_io(
+                        measured,
+                    )?),
+                    None,
+                ),
+                Err(refusal) => (None, Some(refusal_value(&refusal).to_string())),
+            },
+        )
     }
 
     /// The observations behind each look, counted once, as JSON.
@@ -363,7 +371,7 @@ impl AdaptiveInferenceHandle {
     ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
         let request = parse_request(&parse(request_json, "adaptive inference request")?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.export_result(&request, artifact_id, &ctx) {
+        Ok(match py.detach(|| self.inner.export_result(&request, artifact_id, &ctx)) {
             Ok(bytes) => {
                 // The result identity also binds the request and recomputed values;
                 // the session's contract identity is not a substitute for it.
@@ -457,12 +465,15 @@ fn adaptive_monitoring_contract_consume(
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_identity=None, cancel=None))]
 fn adaptive_inference_result_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: Option<&str>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> Refused<ConsumedAdaptiveResultHandle> {
     let ctx = execution_context(0, None, cancel);
-    match consume_adaptive_inference_result_artifact(artifact, expected_identity, &ctx) {
+    match py
+        .detach(|| consume_adaptive_inference_result_artifact(artifact, expected_identity, &ctx))
+    {
         Ok(consumed) => {
             let result = consumed.result();
             let summary = json!({

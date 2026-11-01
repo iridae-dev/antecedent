@@ -421,7 +421,7 @@ fn stop_name(stop: SearchStop) -> &'static str {
 fn run_config(
     config: &Value,
     names: &[String],
-    source: &dyn PolicyRolloutSource,
+    source: &(dyn PolicyRolloutSource + Sync),
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<String> {
     let families = config
@@ -482,7 +482,9 @@ fn run_config(
     let mut ctx = antecedent_core::ExecutionContext::production_default(options.seed);
     crate::apply_cancel(&mut ctx, cancel);
     crate::execution_api::apply(&mut ctx);
-    let result = prepared.execute(source, &ctx).map_err(translate)?;
+    // Release the GIL for the search; a Python source reattaches for each callback.
+    let result =
+        Python::attach(|py| py.detach(|| prepared.execute(source, &ctx))).map_err(translate)?;
 
     let standing = match &result.standing {
         PolicyStanding::FittedModelOptimization { note } => {
@@ -555,7 +557,6 @@ impl crate::gcm_api::PyFittedGcm {
     #[pyo3(signature = (config_json, cancel=None))]
     fn optimize_adaptive_policy(
         &self,
-        py: Python<'_>,
         config_json: &str,
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<String> {
@@ -632,7 +633,6 @@ impl crate::gcm_api::PyFittedGcm {
             ResponseStanding { identified, basis: basis.to_owned() },
         )
         .map_err(translate)?;
-        let _ = py;
         run_config(&config, &names, &source, cancel)
     }
 }

@@ -889,7 +889,7 @@ impl EvidenceLedgerHandle {
 
     /// Write the ledger and the syntheses bound to its results.
     fn export(&self, py: Python<'_>, artifact_id: &str) -> Refused<LedgerExportParts> {
-        match self.inner.export(artifact_id) {
+        match py.detach(|| self.inner.export(artifact_id)) {
             Ok(done) => (
                 Some((
                     PyBytes::new(py, &done.bytes).unbind(),

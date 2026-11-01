@@ -336,7 +336,7 @@ impl PyCompositionBundle {
         py: Python<'py>,
         artifact_id: &str,
     ) -> (Option<Bound<'py, PyBytes>>, Refusal) {
-        match export_bundle(&self.bundle, artifact_id) {
+        match py.detach(|| export_bundle(&self.bundle, artifact_id)) {
             Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
             Err(error) => (None, Some(error_refusal(&error))),
         }
@@ -349,6 +349,7 @@ impl PyCompositionBundle {
 #[pyfunction]
 #[pyo3(signature = (data, expected_identity, supplied_json=None, *, max_bundle_bytes=None, max_nodes=None, max_edges=None, max_embedded_bytes=None))]
 fn consume_composition_bundle(
+    py: Python<'_>,
     data: &[u8],
     expected_identity: &str,
     supplied_json: Option<&str>,
@@ -358,22 +359,24 @@ fn consume_composition_bundle(
     max_embedded_bytes: Option<usize>,
 ) -> PyResult<(Option<String>, Refusal)> {
     let supplied = supplied_from(supplied_json)?;
-    let consumed = if max_bundle_bytes.is_none()
-        && max_nodes.is_none()
-        && max_edges.is_none()
-        && max_embedded_bytes.is_none()
-    {
-        consume(data, expected_identity, &supplied)
-    } else {
-        let defaults = BundleLimits::default();
-        let limits = BundleLimits {
-            max_bundle_bytes: max_bundle_bytes.unwrap_or(defaults.max_bundle_bytes),
-            max_nodes: max_nodes.unwrap_or(defaults.max_nodes),
-            max_edges: max_edges.unwrap_or(defaults.max_edges),
-            max_embedded_bytes: max_embedded_bytes.unwrap_or(defaults.max_embedded_bytes),
-        };
-        consume_with_limits(data, &limits, expected_identity, &supplied)
-    };
+    let consumed = py.detach(|| {
+        if max_bundle_bytes.is_none()
+            && max_nodes.is_none()
+            && max_edges.is_none()
+            && max_embedded_bytes.is_none()
+        {
+            consume(data, expected_identity, &supplied)
+        } else {
+            let defaults = BundleLimits::default();
+            let limits = BundleLimits {
+                max_bundle_bytes: max_bundle_bytes.unwrap_or(defaults.max_bundle_bytes),
+                max_nodes: max_nodes.unwrap_or(defaults.max_nodes),
+                max_edges: max_edges.unwrap_or(defaults.max_edges),
+                max_embedded_bytes: max_embedded_bytes.unwrap_or(defaults.max_embedded_bytes),
+            };
+            consume_with_limits(data, &limits, expected_identity, &supplied)
+        }
+    });
     Ok(match consumed {
         Ok(consumed) => (Some(consumed_json(&consumed)), None),
         Err(error) => (None, Some(error_refusal(&error))),
@@ -384,12 +387,16 @@ fn consume_composition_bundle(
 /// JSON; `kind` is a node kind name or `auto`. Returns `(json, refusal)`.
 #[pyfunction]
 #[pyo3(signature = (kind, data))]
-fn composition_describe_artifact(kind: &str, data: &[u8]) -> (Option<String>, Refusal) {
+fn composition_describe_artifact(
+    py: Python<'_>,
+    kind: &str,
+    data: &[u8],
+) -> (Option<String>, Refusal) {
     let parsed = if kind == "auto" { detect_node_kind(data) } else { NodeKind::from_name(kind) };
     let Some(parsed) = parsed else {
         return (None, Some(kind_refusal(kind)));
     };
-    match describe_artifact(parsed, data) {
+    match py.detach(|| describe_artifact(parsed, data)) {
         Ok(described) => (
             Some(
                 json!({
@@ -428,7 +435,7 @@ fn composition_mean_decision<'py>(
         Ok(contract) => contract,
         Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
-    Ok(match mean_decision_bytes(&contract, claim_data, artifact_id) {
+    Ok(match py.detach(|| mean_decision_bytes(&contract, claim_data, artifact_id)) {
         Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
         Err(failure) => (
             None,

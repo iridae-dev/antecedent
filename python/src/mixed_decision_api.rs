@@ -31,7 +31,12 @@ const STAGE: &str = "mixed_decision";
 /// the stack of a thread the host created.
 const REPLAY_STACK_BYTES: usize = 16 * 1024 * 1024;
 
-fn on_big_stack<T: Send>(run: impl FnOnce() -> T + Send) -> PyResult<T> {
+/// Run `run` on that stack with the GIL released, so a caller token can be cancelled meanwhile.
+fn on_big_stack<T: Send>(py: Python<'_>, run: impl FnOnce() -> T + Send) -> PyResult<T> {
+    crate::detach_catch(py, || on_big_stack_attached(run))
+}
+
+fn on_big_stack_attached<T: Send>(run: impl FnOnce() -> T + Send) -> PyResult<T> {
     std::thread::scope(|scope| {
         let handle = std::thread::Builder::new()
             .stack_size(REPLAY_STACK_BYTES)
@@ -295,9 +300,14 @@ impl MixedDecisionWorkflowHandle {
 
     /// Consume a decision against this workflow's current source authority.
     #[pyo3(signature = (artifact, expected_identity=None))]
-    fn load(&self, artifact: &[u8], expected_identity: Option<&str>) -> PyResult<Payload<String>> {
+    fn load(
+        &self,
+        py: Python<'_>,
+        artifact: &[u8],
+        expected_identity: Option<&str>,
+    ) -> PyResult<Payload<String>> {
         let ctx = self.ctx();
-        let loaded = on_big_stack(|| {
+        let loaded = on_big_stack(py, || {
             load_decision(artifact, expected_identity, self.inner.authority(), &ctx)
         })?;
         settle(loaded.map(|l| {
@@ -311,9 +321,9 @@ impl MixedDecisionWorkflowHandle {
     }
 
     /// Recompute the decision at a new benefit and refit no route.
-    fn utility_only(&mut self, benefit: f64) -> PyResult<Payload<String>> {
+    fn utility_only(&mut self, py: Python<'_>, benefit: f64) -> PyResult<Payload<String>> {
         let ctx = self.ctx();
-        let replay = on_big_stack(|| self.inner.utility_only(benefit, &ctx))?;
+        let replay = on_big_stack(py, || self.inner.utility_only(benefit, &ctx))?;
         settle(replay.map(|r| {
             json!({
                 "temporal_factor_builds": r.temporal_factor_builds,
@@ -327,9 +337,9 @@ impl MixedDecisionWorkflowHandle {
     }
 
     /// Replace the cost prior scale and refit only the cost posterior.
-    fn prior_change(&mut self, prior_scale: f64) -> PyResult<Payload<String>> {
+    fn prior_change(&mut self, py: Python<'_>, prior_scale: f64) -> PyResult<Payload<String>> {
         let ctx = self.ctx();
-        let replay = on_big_stack(|| self.inner.prior_change(prior_scale, &ctx))?;
+        let replay = on_big_stack(py, || self.inner.prior_change(prior_scale, &ctx))?;
         settle(replay.map(|r| {
             json!({
                 "bayesian_model_fits": r.bayesian_model_fits,
@@ -342,9 +352,9 @@ impl MixedDecisionWorkflowHandle {
     }
 
     /// Replace the temporal observation period and refit only the temporal mechanisms.
-    fn period_change(&mut self, start: u64, end: u64) -> PyResult<Payload<String>> {
+    fn period_change(&mut self, py: Python<'_>, start: u64, end: u64) -> PyResult<Payload<String>> {
         let ctx = self.ctx();
-        let replay = on_big_stack(|| self.inner.period_change((start, end), &ctx))?;
+        let replay = on_big_stack(py, || self.inner.period_change((start, end), &ctx))?;
         settle(replay.map(|r| {
             json!({
                 "temporal_factor_builds": r.temporal_factor_builds,
@@ -359,7 +369,7 @@ impl MixedDecisionWorkflowHandle {
     /// Withdraw the cluster trial and classify every claim: the sealed composition verification
     /// as `(artifact bytes, identity)`, for the composition-verification consumer.
     fn withdraw_cluster(&mut self, py: Python<'_>) -> PyResult<Payload<(Py<PyBytes>, String)>> {
-        let sealed = on_big_stack(|| {
+        let sealed = on_big_stack(py, || {
             let verification = self.inner.withdraw_cluster()?;
             let identity = verification.identity().to_owned();
             let bytes = verification
@@ -403,12 +413,13 @@ fn mixed_decision_execute(
 #[pyfunction]
 #[pyo3(signature = (artifact, expected_identity=None, seed=1))]
 fn mixed_decision_replay(
+    py: Python<'_>,
     artifact: &[u8],
     expected_identity: Option<&str>,
     seed: u64,
 ) -> PyResult<Payload<(f64, f64)>> {
     let ctx = crate::recalc_api::context(seed, None);
-    let replayed = on_big_stack(|| replay_decision(artifact, expected_identity, &ctx))?;
+    let replayed = on_big_stack(py, || replay_decision(artifact, expected_identity, &ctx))?;
     settle(replayed)
 }
 

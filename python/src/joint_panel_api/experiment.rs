@@ -257,17 +257,21 @@ impl PyPanelExperiment {
     }
     fn decide(
         &self,
+        py: Python<'_>,
         contract_json: &str,
         ledger: PyRef<'_, EvidenceLedgerHandle>,
     ) -> PyResult<String> {
         let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
             .map_err(|e| crate::value_err(e.to_string()))?;
-        let result = self.inner.decide(&contract, ledger.ledger()).map_err(panel_error)?;
-        antecedent_design::decision_artifact::result_to_json(
-            &result.result,
-            self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?,
-        )
-        .map_err(|e| crate::value_err(e.to_string()))
+        let ledger = ledger.ledger().clone();
+        crate::detach_catch(py, || {
+            let result = self.inner.decide(&contract, &ledger).map_err(panel_error)?;
+            antecedent_design::decision_artifact::result_to_json(
+                &result.result,
+                self.inner.numerical_law_source(&ledger).map_err(panel_error)?,
+            )
+            .map_err(|e| crate::value_err(e.to_string()))
+        })
     }
     #[pyo3(signature=(ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn export(
@@ -539,17 +543,21 @@ impl PyDesignExperiment {
     }
     fn decide(
         &self,
+        py: Python<'_>,
         contract_json: &str,
         ledger: PyRef<'_, EvidenceLedgerHandle>,
     ) -> PyResult<String> {
         let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
             .map_err(|e| crate::value_err(e.to_string()))?;
-        let result = self.inner.decide(&contract, ledger.ledger()).map_err(panel_error)?;
-        antecedent_design::decision_artifact::result_to_json(
-            &result.result,
-            self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?,
-        )
-        .map_err(|e| crate::value_err(e.to_string()))
+        let ledger = ledger.ledger().clone();
+        crate::detach_catch(py, || {
+            let result = self.inner.decide(&contract, &ledger).map_err(panel_error)?;
+            antecedent_design::decision_artifact::result_to_json(
+                &result.result,
+                self.inner.numerical_law_source(&ledger).map_err(panel_error)?,
+            )
+            .map_err(|e| crate::value_err(e.to_string()))
+        })
     }
     #[pyo3(signature=(ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn export(
@@ -717,17 +725,21 @@ impl PyNativeExperiment {
     }
     fn decide(
         &self,
+        py: Python<'_>,
         contract_json: &str,
         ledger: PyRef<'_, EvidenceLedgerHandle>,
     ) -> PyResult<String> {
         let contract = antecedent_design::decision_artifact::contract_from_json(contract_json)
             .map_err(|e| crate::value_err(e.to_string()))?;
-        let result = self.inner.decide(&contract, ledger.ledger()).map_err(panel_error)?;
-        antecedent_design::decision_artifact::result_to_json(
-            &result.result,
-            self.inner.numerical_law_source(ledger.ledger()).map_err(panel_error)?,
-        )
-        .map_err(|e| crate::value_err(e.to_string()))
+        let ledger = ledger.ledger().clone();
+        crate::detach_catch(py, || {
+            let result = self.inner.decide(&contract, &ledger).map_err(panel_error)?;
+            antecedent_design::decision_artifact::result_to_json(
+                &result.result,
+                self.inner.numerical_law_source(&ledger).map_err(panel_error)?,
+            )
+            .map_err(|e| crate::value_err(e.to_string()))
+        })
     }
     #[pyo3(signature=(ledger,*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn export(

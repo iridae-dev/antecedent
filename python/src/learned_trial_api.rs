@@ -310,12 +310,22 @@ fn prepare_learned_trial(
         memory_bytes,
     })
 }
+/// Largest learned-trial artifact consumed; it carries per-row score tables, so the bound is
+/// generous but finite.
+const MAX_LEARNED_TRIAL_ARTIFACT_BYTES: usize = 1 << 30;
+
 #[pyfunction]
-fn consume_learned_trial(bytes: &[u8]) -> PyResult<PreparedLearnedTrial> {
+fn consume_learned_trial(py: Python<'_>, bytes: &[u8]) -> PyResult<PreparedLearnedTrial> {
+    crate::bridge::check_declared_len(
+        bytes.len(),
+        MAX_LEARNED_TRIAL_ARTIFACT_BYTES,
+        "learned trial artifact",
+    )?;
     let payload = bytes
         .strip_prefix(b"ANTECEDENT-LEARNED-TRIAL\x01")
         .ok_or_else(|| err("invalid learned trial envelope"))?;
-    let result = antecedent::LearnedTrialResult::consume(payload).map_err(err)?;
+    let result =
+        crate::detach_catch(py, || antecedent::LearnedTrialResult::consume(payload).map_err(err))?;
     Ok(PreparedLearnedTrial {
         inner: None,
         names: Arc::from([]),

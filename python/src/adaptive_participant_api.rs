@@ -310,6 +310,7 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (truth, request_json, memory_bytes=None, cancel=None))]
     fn simulate(
         &self,
+        py: Python<'_>,
         truth: Vec<f64>,
         request_json: &str,
         memory_bytes: Option<u64>,
@@ -325,7 +326,7 @@ impl ParticipantProcedureHandle {
                 .transpose()?,
         };
         let ctx = execution_context(0, memory_bytes, cancel);
-        Ok(match self.inner.simulate(&truth, &request, &ctx) {
+        Ok(match py.detach(|| self.inner.simulate(&truth, &request, &ctx)) {
             Ok(report) => {
                 let summary = &report.summary;
                 let receipt = &report.simulation.receipt;
@@ -377,13 +378,14 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (truth, seed, true_correlation=None, cancel=None))]
     fn simulate_history(
         &self,
+        py: Python<'_>,
         truth: Vec<f64>,
         seed: u64,
         true_correlation: Option<f64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> Refused<String> {
         let ctx = execution_context(0, None, cancel);
-        match self.inner.simulate_history(&truth, true_correlation, seed, &ctx) {
+        match py.detach(|| self.inner.simulate_history(&truth, true_correlation, seed, &ctx)) {
             Ok(history) => (Some(history_json(&history).to_string()), None),
             Err(refusal) => refused(&refusal),
         }
@@ -393,12 +395,13 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (history_json, cancel=None))]
     fn read_history(
         &self,
+        py: Python<'_>,
         history_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
         let history = history_of(&parse(history_json, "participant history")?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.read_history(&history, &ctx) {
+        Ok(match py.detach(|| self.inner.read_history(&history, &ctx)) {
             Ok(report) => (
                 Some(
                     json!({
@@ -443,6 +446,7 @@ impl ParticipantProcedureHandle {
     #[pyo3(signature = (label, arm_labels, history_json, cancel=None))]
     fn prepare_session(
         &self,
+        py: Python<'_>,
         label: &str,
         arm_labels: Vec<String>,
         history_json: &str,
@@ -450,7 +454,9 @@ impl ParticipantProcedureHandle {
     ) -> PyResult<Refused<AdaptiveInferenceHandle>> {
         let history = history_of(&parse(history_json, "participant history")?)?;
         let ctx = execution_context(0, None, cancel);
-        let declaration = match self.inner.retained_declaration(label, arm_labels, &history, &ctx) {
+        let declaration = match py
+            .detach(|| self.inner.retained_declaration(label, arm_labels, &history, &ctx))
+        {
             Ok(declaration) => declaration,
             Err(refusal) => return Ok(refused(&refusal)),
         };
