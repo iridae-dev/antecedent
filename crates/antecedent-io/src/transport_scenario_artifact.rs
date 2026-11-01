@@ -58,6 +58,9 @@ use antecedent_identify::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// Most graph nodes the scenarios of one artifact may declare between them.
+const MAX_SCENARIO_NODES: usize = 1_000_000;
+
 /// The artifact format this reader writes and accepts.
 pub const TRANSPORT_SCENARIO_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
@@ -832,6 +835,17 @@ impl TransportScenarioArtifactWire {
             .map(ScenarioCoordinateWire::to_coordinate)
             .collect::<Result<Vec<_>, _>>()?;
         let coordinates = Arc::<[ScenarioCoordinate]>::from(coordinates);
+        // Every graph is built before the set is checked, so bound the sum of their sizes first.
+        let total_nodes = wire
+            .scenarios
+            .iter()
+            .try_fold(0usize, |total, s| total.checked_add(s.graph.node_count as usize));
+        if total_nodes.is_none_or(|total| total > MAX_SCENARIO_NODES) {
+            return Err(IoError::Convert(format!(
+                "scenario graphs hold more than {MAX_SCENARIO_NODES} nodes in total"
+            ))
+            .into());
+        }
         let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
         let scenarios = wire
             .scenarios

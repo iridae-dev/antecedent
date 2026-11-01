@@ -163,7 +163,8 @@ impl JointEventQuantity {
         let body = body.strip_suffix(')')?;
         let (count, mut rest) = body.split_once(';').map_or((body, ""), |(c, r)| (c, r));
         let count: usize = count.parse().ok()?;
-        let mut variables = Vec::with_capacity(count);
+        // The declared count is untrusted text: never reserve more than the body can hold.
+        let mut variables = Vec::with_capacity(count.min(rest.len()));
         while !rest.is_empty() {
             let (len, tail) = rest.split_once(':')?;
             let len: usize = len.parse().ok()?;
