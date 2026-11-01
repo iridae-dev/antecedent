@@ -173,6 +173,7 @@ fn product_matches_the_noise_summing_structural_reference() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture checks exact values")]
 fn target_and_source_laws_are_not_interchangeable() {
     // the answer must move when only the target law moves (no silently ignored law)
     let case = cases().into_iter().find(|c| c["name"] == "diamond_nie").unwrap();
@@ -222,25 +223,19 @@ fn selection_on_a_mediator_returns_the_reference_witness_or_no_witness() {
         })
         .expect_err("selection on a mediator is outside the class");
         assert_eq!(err.refusal.detail, "transported_counterfactual.selection_on_mechanism");
-        match case["witness"].as_object() {
-            Some(w) => {
-                assert_eq!(err.refusal.code, "transport_proven_non_transportable", "{name}");
-                let got = err.witness.as_ref().expect("witness");
-                assert_eq!(got.selected_node, node);
-                assert_eq!(got.selected_node, w["node"].as_str().unwrap());
-                assert_eq!(got.perturbed_parent, w["parent"].as_str().unwrap());
-                assert_eq!(got.perturbed_slope_covariate.as_deref(), w["slope"].as_str());
-                assert!((got.target_contrast_a - f(&w["base"])).abs() < 1e-12, "{name}");
-                assert!((got.target_contrast_b - f(&w["moved"])).abs() < 1e-12, "{name}");
-                assert!(
-                    (got.source_contrast - f(&case["source_contrast"])).abs() < 1e-12,
-                    "{name}"
-                );
-            }
-            None => {
-                assert_eq!(err.refusal.code, "cell_not_licensed", "{name}");
-                assert!(err.witness.is_none(), "{name}");
-            }
+        if let Some(w) = case["witness"].as_object() {
+            assert_eq!(err.refusal.code, "transport_proven_non_transportable", "{name}");
+            let got = err.witness.as_ref().expect("witness");
+            assert_eq!(got.selected_node, node);
+            assert_eq!(got.selected_node, w["node"].as_str().unwrap());
+            assert_eq!(got.perturbed_parent, w["parent"].as_str().unwrap());
+            assert_eq!(got.perturbed_slope_covariate.as_deref(), w["slope"].as_str());
+            assert!((got.target_contrast_a - f(&w["base"])).abs() < 1e-12, "{name}");
+            assert!((got.target_contrast_b - f(&w["moved"])).abs() < 1e-12, "{name}");
+            assert!((got.source_contrast - f(&case["source_contrast"])).abs() < 1e-12, "{name}");
+        } else {
+            assert_eq!(err.refusal.code, "cell_not_licensed", "{name}");
+            assert!(err.witness.is_none(), "{name}");
         }
     }
 }

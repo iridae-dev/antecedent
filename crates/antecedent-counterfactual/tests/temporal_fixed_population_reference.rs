@@ -182,6 +182,7 @@ fn product_matches_exact_abduction_action_prediction() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture checks exact values")]
 fn identical_histories_have_exactly_zero_contrast() {
     let case = cases().into_iter().find(|c| c["name"] == "identical_histories").unwrap();
     let r = run(&spec(&case)).unwrap();
@@ -251,6 +252,10 @@ fn assert_refusal(s: &TemporalCounterfactualSpec, detail: &str, unit: &str, worl
 /// what the one-shot evaluator returns, on every reference case; a changed action history must
 /// reuse the retained abduction and still equal the exact reference for the new worlds.
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn staged_executor_is_bit_identical_to_the_one_shot_on_every_reference_case() {
     for case in cases() {
         let name = case["name"].as_str().unwrap();
@@ -298,6 +303,10 @@ fn staged_replay_of_a_new_action_history_equals_the_exact_reference() {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn general_spec(case: &Value) -> GeneralTemporalSpec {
     let h = case["horizon"].as_u64().unwrap() as usize;
     let units = case["units"].as_array().unwrap();
@@ -352,6 +361,7 @@ fn general_spec(case: &Value) -> GeneralTemporalSpec {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture checks exact values")]
 fn general_horizon_route_matches_the_exact_reference_and_its_staged_executor() {
     let cases: Vec<Value> = serde_json::from_str(include_str!(
         "oracle_data/temporal_fixed_population_general_reference.json"

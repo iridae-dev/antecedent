@@ -470,6 +470,7 @@ mod general_tests {
     };
     use crate::temporal_cross_world::{HistoryId, SnapshotId, UnitId};
 
+    #[allow(clippy::cast_possible_truncation, reason = "the fixture uses bounded graph dimensions")]
     fn spec(horizon: usize, worlds: &[Vec<f64>]) -> GeneralTemporalSpec {
         let ids: Vec<UnitId> = (0..4).map(|i| UnitId::new(format!("u{i}"))).collect();
         let nodes = node_count(horizon);

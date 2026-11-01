@@ -576,6 +576,10 @@ impl FiniteScmExecutor {
     /// # Errors
     /// A typed refusal ([`CrossWorldExecutionError::Refused`]) or cancellation.
     #[allow(clippy::too_many_lines, reason = "one sequential pipeline of five named stages")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete values and normalization boundaries"
+    )]
     pub fn execute(
         &mut self,
         request: &FiniteExecutionRequest,
@@ -777,6 +781,10 @@ impl FiniteScmExecutor {
     #[allow(
         clippy::too_many_arguments,
         reason = "the identities one execution has already derived"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded scientific procedure keeps its checks together"
     )]
     fn execute_eliminated(
         &mut self,

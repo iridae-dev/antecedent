@@ -1129,6 +1129,10 @@ fn nested_rows_independent(
 
 /// `Some(value)` when every entry is finite and equal to the first.
 /// Signed zeroes compare equal; empty and non-finite columns are not constants.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete values and normalization boundaries"
+)]
 fn column_is_finite_constant(col: &[f64]) -> Option<f64> {
     let &first = col.first()?;
     (first.is_finite() && col.iter().all(|&v| v == first)).then_some(first)

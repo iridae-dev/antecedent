@@ -317,7 +317,7 @@ fn repeated_world_routes_are_refused_before_planning_or_digest() {
             let req = request(
                 model.clone(),
                 vec![unit("u", &[])],
-                worlds.to_vec(),
+                worlds.clone(),
                 FiniteQuantity::Probability(atom(0, 2, 1)),
             );
             let mut exec = FiniteScmExecutor::new();
@@ -366,6 +366,7 @@ fn repeated_routes_preserve_populated_abductions_and_counters() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture checks exact values")]
 fn distinct_routes_are_order_independent_in_plan_and_identity() {
     use antecedent_counterfactual::selective::finite_scm::WorldPlan;
     let model = mediation();

@@ -230,10 +230,10 @@ fn node_value(mech: &GeneralNodeMechanism, values: &[f64]) -> f64 {
     mech.intercept + mech.parent_coefficients.iter().map(|&(p, c)| c * values[p]).sum::<f64>()
 }
 
-pub(super) fn check_fit<'a>(
+pub(super) fn check_fit(
     horizon: usize,
-    fit: &'a GeneralMechanismFit,
-) -> Result<Vec<&'a GeneralNodeMechanism>, TemporalCounterfactualError> {
+    fit: &GeneralMechanismFit,
+) -> Result<Vec<&GeneralNodeMechanism>, TemporalCounterfactualError> {
     let mismatch = |what: String| invalid("temporal_counterfactual.fit_mismatch", Some(what));
     let nodes = node_count(horizon);
     if fit.fit_id.trim().is_empty() || fit.mechanisms.len() != horizon + 1 {
@@ -245,9 +245,8 @@ pub(super) fn check_fit<'a>(
     let mut ordered = Vec::with_capacity(generating.len());
     for node in generating {
         let mut hits = fit.mechanisms.iter().filter(|m| m.node == node);
-        let mech = match (hits.next(), hits.next()) {
-            (Some(m), None) => m,
-            _ => return Err(mismatch(format!("node {node}"))),
+        let (Some(mech), None) = (hits.next(), hits.next()) else {
+            return Err(mismatch(format!("node {node}")));
         };
         let mut parents: Vec<usize> = mech.parent_coefficients.iter().map(|&(p, _)| p).collect();
         parents.sort_unstable();
@@ -621,6 +620,7 @@ mod tests {
         GeneralMechanismFit { fit_id: "fit".into(), mechanisms }
     }
 
+    #[allow(clippy::cast_possible_truncation, reason = "the fixture uses bounded graph dimensions")]
     fn general_spec(horizon: usize, n: usize, actions: &[Vec<f64>]) -> GeneralTemporalSpec {
         let ids = units(n);
         GeneralTemporalSpec {
@@ -652,6 +652,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete values and normalization boundaries"
+    )]
     fn two_slice_special_case_matches_the_fixed_route() {
         let n = 6;
         let general = general_spec(2, n, &[vec![1.0, 1.0], vec![0.0, 0.0]]);

@@ -140,6 +140,10 @@ fn every_unit_and_node_matches_the_structural_recursion_under_single_and_joint_i
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn the_empty_world_returns_the_observed_units() {
     let u = units(25);
     let engine = engine();

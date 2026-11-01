@@ -139,6 +139,11 @@ pub(crate) struct EliminationWork {
     clippy::too_many_lines,
     reason = "one pass: build the factor graph, then eliminate in a fixed greedy order"
 )]
+#[allow(clippy::match_on_vec_items, reason = "the queue only contains indices of retained labels")]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the algorithm follows the world and variable indexing"
+)]
 pub(crate) fn infer_unit(
     compiled: &CompiledScm<'_>,
     plans: &[WorldPlan],
@@ -506,7 +511,7 @@ fn combine(
     let mut cells = 0usize;
     for _ in 0..out_size {
         cells += 1;
-        if cells >= POLL_EVERY_CELLS / summed.max(1) + 1 {
+        if cells > POLL_EVERY_CELLS / summed.max(1) {
             cells = 0;
             poll(ctx)?;
         }
@@ -543,6 +548,10 @@ fn combine(
 
 /// Divide a factor by its largest entry, adding the logarithm of that entry to `log_scale`;
 /// `None` when every entry is zero.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete values and normalization boundaries"
+)]
 fn rescale(mut factor: Factor, log_scale: &mut f64) -> Option<Factor> {
     let max = factor.data.iter().copied().fold(0.0f64, f64::max);
     if !(max.is_finite() && max > 0.0) {

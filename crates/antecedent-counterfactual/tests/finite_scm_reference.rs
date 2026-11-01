@@ -24,10 +24,18 @@ fn reference() -> Value {
         .expect("frozen reference")
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn index(value: &Value) -> usize {
     value.as_u64().expect("index") as usize
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn atom(value: &Value) -> WorldAtom {
     WorldAtom {
         world: index(&value[0]),
@@ -36,6 +44,10 @@ fn atom(value: &Value) -> WorldAtom {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn scm(model: &Value) -> FiniteScm {
     FiniteScm {
         population: "population".to_owned(),
@@ -70,6 +82,10 @@ fn scm(model: &Value) -> FiniteScm {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and levels"
+)]
 fn request(case: &Value) -> FiniteExecutionRequest {
     let quantity = &case["quantity"];
     let quantity = match quantity["kind"].as_str().expect("kind") {
