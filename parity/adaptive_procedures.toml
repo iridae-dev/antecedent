@@ -639,6 +639,417 @@ reason_code = "cell_not_licensed"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
+id = "fixed_randomization/categorical_choice/final_analysis_only/no_stopping"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "licensed"
+paradigms = ["bayesian_posterior"]
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/final_analysis_only/efficacy"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/final_analysis_only/futility"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/final_analysis_only/resource"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/final_analysis_only/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/fixed_interim_looks/no_stopping"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/fixed_interim_looks/efficacy"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "licensed"
+paradigms = ["bayesian_posterior"]
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/fixed_interim_looks/futility"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "carried_forward"
+owner = "adaptive_inference/futility_boundaries"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/fixed_interim_looks/resource"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "carried_forward"
+owner = "adaptive_inference/resource_stopping"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/fixed_interim_looks/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "licensed"
+paradigms = ["bayesian_posterior", "decision_theoretic_stopping"]
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/group_sequential/no_stopping"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/group_sequential/efficacy"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_pairing"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.pairing_not_licensed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/group_sequential/futility"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "carried_forward"
+owner = "adaptive_inference/futility_boundaries"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/group_sequential/resource"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "carried_forward"
+owner = "adaptive_inference/resource_stopping"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/group_sequential/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/continuous_monitoring/no_stopping"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/continuous_monitoring/efficacy"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/continuous_monitoring/futility"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/continuous_monitoring/resource"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/categorical_choice/continuous_monitoring/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/final_analysis_only/no_stopping"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "licensed"
+paradigms = ["bayesian_posterior"]
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/final_analysis_only/efficacy"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/final_analysis_only/futility"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/final_analysis_only/resource"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/final_analysis_only/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/fixed_interim_looks/no_stopping"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/fixed_interim_looks/efficacy"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_pairing"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.pairing_not_licensed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/fixed_interim_looks/futility"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "carried_forward"
+owner = "adaptive_inference/futility_boundaries"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/fixed_interim_looks/resource"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "carried_forward"
+owner = "adaptive_inference/resource_stopping"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/fixed_interim_looks/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "licensed"
+paradigms = ["bayesian_posterior", "decision_theoretic_stopping"]
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/group_sequential/no_stopping"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/group_sequential/efficacy"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_pairing"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.pairing_not_licensed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/group_sequential/futility"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "carried_forward"
+owner = "adaptive_inference/futility_boundaries"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/group_sequential/resource"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "carried_forward"
+owner = "adaptive_inference/resource_stopping"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/group_sequential/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/continuous_monitoring/no_stopping"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/continuous_monitoring/efficacy"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/continuous_monitoring/futility"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/continuous_monitoring/resource"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "fixed_randomization/repeated_choice/continuous_monitoring/decision_theoretic"
+assignment = "fixed_randomization"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "carried_forward"
+owner = "adaptive_inference/continuous_monitoring"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
 id = "thompson_beta_bernoulli/single_outcome/final_analysis_only/no_stopping"
 assignment = "thompson_beta_bernoulli"
 outcome = "single_outcome"
@@ -1262,6 +1673,406 @@ status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
 reason_code = "cell_not_licensed"
 detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/final_analysis_only/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/final_analysis_only/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/final_analysis_only/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/final_analysis_only/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/final_analysis_only/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/fixed_interim_looks/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/fixed_interim_looks/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/fixed_interim_looks/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/fixed_interim_looks/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/fixed_interim_looks/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/group_sequential/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/group_sequential/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/group_sequential/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/group_sequential/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/group_sequential/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/continuous_monitoring/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/continuous_monitoring/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/continuous_monitoring/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/continuous_monitoring/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/categorical_choice/continuous_monitoring/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/final_analysis_only/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/final_analysis_only/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/final_analysis_only/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/final_analysis_only/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/final_analysis_only/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/fixed_interim_looks/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/fixed_interim_looks/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/fixed_interim_looks/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/fixed_interim_looks/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/fixed_interim_looks/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/group_sequential/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/group_sequential/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/group_sequential/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/group_sequential/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/group_sequential/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/continuous_monitoring/no_stopping"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/continuous_monitoring/efficacy"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/continuous_monitoring/futility"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/continuous_monitoring/resource"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "thompson_beta_bernoulli/repeated_choice/continuous_monitoring/decision_theoretic"
+assignment = "thompson_beta_bernoulli"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
 
 [[cell]]
 id = "epsilon_greedy/single_outcome/final_analysis_only/no_stopping"
@@ -1888,6 +2699,406 @@ status = "carried_forward"
 owner = "adaptive_inference/hierarchical_outcome"
 reason_code = "cell_not_licensed"
 detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/final_analysis_only/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/final_analysis_only/efficacy"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/final_analysis_only/futility"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/final_analysis_only/resource"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/final_analysis_only/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/fixed_interim_looks/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/fixed_interim_looks/efficacy"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/fixed_interim_looks/futility"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/fixed_interim_looks/resource"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/fixed_interim_looks/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/group_sequential/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/group_sequential/efficacy"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/group_sequential/futility"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/group_sequential/resource"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/group_sequential/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/continuous_monitoring/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/continuous_monitoring/efficacy"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/continuous_monitoring/futility"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/continuous_monitoring/resource"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/categorical_choice/continuous_monitoring/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/final_analysis_only/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/final_analysis_only/efficacy"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/final_analysis_only/futility"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/final_analysis_only/resource"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/final_analysis_only/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/fixed_interim_looks/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/fixed_interim_looks/efficacy"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/fixed_interim_looks/futility"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/fixed_interim_looks/resource"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/fixed_interim_looks/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/group_sequential/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/group_sequential/efficacy"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/group_sequential/futility"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/group_sequential/resource"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/group_sequential/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/continuous_monitoring/no_stopping"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/continuous_monitoring/efficacy"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/continuous_monitoring/futility"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/continuous_monitoring/resource"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "epsilon_greedy/repeated_choice/continuous_monitoring/decision_theoretic"
+assignment = "epsilon_greedy"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
 
 [[cell]]
 id = "upper_confidence_bound/single_outcome/final_analysis_only/no_stopping"
@@ -2526,6 +3737,406 @@ reason_code = "cell_not_licensed"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
+id = "upper_confidence_bound/categorical_choice/final_analysis_only/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/final_analysis_only/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/final_analysis_only/futility"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/final_analysis_only/resource"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/final_analysis_only/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/fixed_interim_looks/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/fixed_interim_looks/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/fixed_interim_looks/futility"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/fixed_interim_looks/resource"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/fixed_interim_looks/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/group_sequential/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/group_sequential/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/group_sequential/futility"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/group_sequential/resource"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/group_sequential/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/continuous_monitoring/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/continuous_monitoring/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/continuous_monitoring/futility"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/continuous_monitoring/resource"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/categorical_choice/continuous_monitoring/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/final_analysis_only/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/final_analysis_only/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/final_analysis_only/futility"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/final_analysis_only/resource"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/final_analysis_only/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/fixed_interim_looks/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/fixed_interim_looks/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/fixed_interim_looks/futility"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/fixed_interim_looks/resource"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/fixed_interim_looks/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/group_sequential/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/group_sequential/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/group_sequential/futility"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/group_sequential/resource"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/group_sequential/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/continuous_monitoring/no_stopping"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/continuous_monitoring/efficacy"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/continuous_monitoring/futility"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/continuous_monitoring/resource"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "upper_confidence_bound/repeated_choice/continuous_monitoring/decision_theoretic"
+assignment = "upper_confidence_bound"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
 id = "contextual_bandit/single_outcome/final_analysis_only/no_stopping"
 assignment = "contextual_bandit"
 outcome = "single_outcome"
@@ -3162,6 +4773,406 @@ reason_code = "cell_not_licensed"
 detail = "adaptive_inference.cell_carried_forward"
 
 [[cell]]
+id = "contextual_bandit/categorical_choice/final_analysis_only/no_stopping"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/final_analysis_only/efficacy"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/final_analysis_only/futility"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/final_analysis_only/resource"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/final_analysis_only/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/fixed_interim_looks/no_stopping"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/fixed_interim_looks/efficacy"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/fixed_interim_looks/futility"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/fixed_interim_looks/resource"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/fixed_interim_looks/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/group_sequential/no_stopping"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/group_sequential/efficacy"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/group_sequential/futility"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/group_sequential/resource"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/group_sequential/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/continuous_monitoring/no_stopping"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/continuous_monitoring/efficacy"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/continuous_monitoring/futility"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/continuous_monitoring/resource"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/categorical_choice/continuous_monitoring/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/final_analysis_only/no_stopping"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/final_analysis_only/efficacy"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/final_analysis_only/futility"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/final_analysis_only/resource"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/final_analysis_only/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/fixed_interim_looks/no_stopping"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/fixed_interim_looks/efficacy"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/fixed_interim_looks/futility"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/fixed_interim_looks/resource"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/fixed_interim_looks/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/group_sequential/no_stopping"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/group_sequential/efficacy"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/group_sequential/futility"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/group_sequential/resource"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/group_sequential/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/continuous_monitoring/no_stopping"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/continuous_monitoring/efficacy"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/continuous_monitoring/futility"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/continuous_monitoring/resource"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "contextual_bandit/repeated_choice/continuous_monitoring/decision_theoretic"
+assignment = "contextual_bandit"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
 id = "batched_adaptive/single_outcome/final_analysis_only/no_stopping"
 assignment = "batched_adaptive"
 outcome = "single_outcome"
@@ -3796,3 +5807,403 @@ status = "carried_forward"
 owner = "adaptive_inference/batched_assignment"
 reason_code = "cell_not_licensed"
 detail = "adaptive_inference.cell_carried_forward"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/final_analysis_only/no_stopping"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/final_analysis_only/efficacy"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/final_analysis_only/futility"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/final_analysis_only/resource"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/final_analysis_only/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/fixed_interim_looks/no_stopping"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/fixed_interim_looks/efficacy"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/fixed_interim_looks/futility"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/fixed_interim_looks/resource"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/fixed_interim_looks/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/group_sequential/no_stopping"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/group_sequential/efficacy"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/group_sequential/futility"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/group_sequential/resource"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/group_sequential/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/continuous_monitoring/no_stopping"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/continuous_monitoring/efficacy"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/continuous_monitoring/futility"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/continuous_monitoring/resource"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/categorical_choice/continuous_monitoring/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "categorical_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/final_analysis_only/no_stopping"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/final_analysis_only/efficacy"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/final_analysis_only/futility"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/final_analysis_only/resource"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/final_analysis_only/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "final_analysis_only"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/fixed_interim_looks/no_stopping"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/fixed_interim_looks/efficacy"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/fixed_interim_looks/futility"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/fixed_interim_looks/resource"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/fixed_interim_looks/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "fixed_interim_looks"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/group_sequential/no_stopping"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/group_sequential/efficacy"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/group_sequential/futility"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/group_sequential/resource"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/group_sequential/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "group_sequential"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/continuous_monitoring/no_stopping"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "no_stopping"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/continuous_monitoring/efficacy"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "efficacy"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/continuous_monitoring/futility"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "futility"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/continuous_monitoring/resource"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "resource"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"
+
+[[cell]]
+id = "batched_adaptive/repeated_choice/continuous_monitoring/decision_theoretic"
+assignment = "batched_adaptive"
+outcome = "repeated_choice"
+monitoring = "continuous_monitoring"
+stopping = "decision_theoretic"
+status = "closed_incoherent"
+reason_code = "cell_not_licensed"
+detail = "adaptive_inference.cell_closed"

@@ -46,7 +46,7 @@ Each paradigm is a separate route; the result names its paradigm.
 ## The procedure matrix
 
 Assignment policy x outcome structure x monitoring strategy x stopping rule
-gives 360 cells, every one listed in `parity/adaptive_procedures.toml` and
+gives 600 cells, every one listed in `parity/adaptive_procedures.toml` and
 classified by `procedure_status`:
 
 * **licensed** (7): an estimator and uncertainty method exist, per paradigm:

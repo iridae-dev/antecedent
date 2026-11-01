@@ -323,6 +323,16 @@ fn check_shapes(declaration: &AdaptiveDesignDeclaration, refusals: &mut Vec<Exte
     if bad_outcome {
         refusals.push(invalid("adaptive_inference.outcome_invalid", "outcomes must be finite"));
     }
+    if matches!(
+        declaration.cell.outcome,
+        super::matrix::OutcomeStructure::CategoricalChoice
+            | super::matrix::OutcomeStructure::RepeatedChoice
+    ) {
+        refusals.push(invalid(
+            "adaptive_inference.choice_outcome_needs_choice_contract",
+            "a choice outcome is not an assigned-arm outcome: declare it with the choice design contract",
+        ));
+    }
     let single = declaration.cell.outcome == super::matrix::OutcomeStructure::SingleOutcome;
     if single && declaration.outcomes.iter().any(|m| m.len() > 1) {
         refusals.push(invalid(
@@ -627,62 +637,7 @@ impl AdaptiveDesignContract {
         paradigm: InferenceParadigm,
     ) -> Result<RouteAuthorization, ExternalRefusal> {
         let cell = self.declaration.cell;
-        if paradigm == InferenceParadigm::FrequentistFixedSample && cell.is_adaptive() {
-            return Err(ExternalRefusal::new(
-                antecedent_core::reason_code!("adaptive_design_ignored"),
-                STAGE_BIND,
-                "adaptive_inference.fixed_sample_on_adaptive_data",
-            )
-            .with_expected("a design fixed in advance: fixed randomization, one final analysis, no stopping rule")
-            .with_supplied(cell.identifier())
-            .with_remedy(
-                "analyse the data with an adaptive-design route: a posterior, adaptively weighted scores, group-sequential boundaries or a confidence sequence",
-            ));
-        }
-        match procedure_status(&cell) {
-            CellStatus::Licensed { paradigms } => {
-                if !paradigms.contains(&paradigm) {
-                    return Err(ExternalRefusal::new(
-                        antecedent_core::reason_code!("cell_not_licensed"),
-                        STAGE_BIND,
-                        "adaptive_inference.paradigm_not_licensed_for_cell",
-                    )
-                    .with_offending(paradigm.as_str())
-                    .with_supplied(cell.identifier())
-                    .with_remedy(
-                        "use a paradigm the cell is licensed for; a guarantee for one paradigm never transfers to another",
-                    ));
-                }
-            }
-            CellStatus::ClosedIncoherent { reason } => {
-                return Err(ExternalRefusal::new(
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    STAGE_BIND,
-                    "adaptive_inference.cell_closed",
-                )
-                .with_supplied(cell.identifier())
-                .with_expected(reason));
-            }
-            CellStatus::ClosedPairing { reason } => {
-                return Err(ExternalRefusal::new(
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    STAGE_BIND,
-                    "adaptive_inference.pairing_not_licensed",
-                )
-                .with_supplied(cell.identifier())
-                .with_expected(reason));
-            }
-            CellStatus::CarriedForward { owner, reason } => {
-                return Err(ExternalRefusal::new(
-                    antecedent_core::reason_code!("cell_not_licensed"),
-                    STAGE_BIND,
-                    "adaptive_inference.cell_carried_forward",
-                )
-                .with_supplied(cell.identifier())
-                .with_offending(owner)
-                .with_expected(reason));
-            }
-        }
+        authorize_cell(&cell, paradigm)?;
         let exposure = self.declaration.exposure.as_ref().expect("validated contract");
         if exposure != &self.declaration.assigned_arm {
             return Err(declare_bind(
@@ -701,6 +656,75 @@ impl AdaptiveDesignContract {
         }
         Ok(RouteAuthorization { cell, paradigm, contract_identity: self.identity })
     }
+}
+
+/// Whether `paradigm` may be asked of data from `cell`: the matrix is the one authority, for the
+/// assigned-arm contract and the choice contract alike.
+#[allow(
+    clippy::result_large_err,
+    reason = "a refusal is the cold path of a once-per-call check; boxing the error would not pay"
+)]
+pub(super) fn authorize_cell(
+    cell: &ProcedureCell,
+    paradigm: InferenceParadigm,
+) -> Result<(), ExternalRefusal> {
+    if paradigm == InferenceParadigm::FrequentistFixedSample && cell.is_adaptive() {
+        return Err(ExternalRefusal::new(
+            antecedent_core::reason_code!("adaptive_design_ignored"),
+            STAGE_BIND,
+            "adaptive_inference.fixed_sample_on_adaptive_data",
+        )
+        .with_expected("a design fixed in advance: fixed randomization, one final analysis, no stopping rule")
+        .with_supplied(cell.identifier())
+        .with_remedy(
+            "analyse the data with an adaptive-design route: a posterior, adaptively weighted scores, group-sequential boundaries or a confidence sequence",
+        ));
+    }
+    match procedure_status(cell) {
+        CellStatus::Licensed { paradigms } => {
+            if !paradigms.contains(&paradigm) {
+                return Err(ExternalRefusal::new(
+                    antecedent_core::reason_code!("cell_not_licensed"),
+                    STAGE_BIND,
+                    "adaptive_inference.paradigm_not_licensed_for_cell",
+                )
+                .with_offending(paradigm.as_str())
+                .with_supplied(cell.identifier())
+                .with_remedy(
+                    "use a paradigm the cell is licensed for; a guarantee for one paradigm never transfers to another",
+                ));
+            }
+        }
+        CellStatus::ClosedIncoherent { reason } => {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                STAGE_BIND,
+                "adaptive_inference.cell_closed",
+            )
+            .with_supplied(cell.identifier())
+            .with_expected(reason));
+        }
+        CellStatus::ClosedPairing { reason } => {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                STAGE_BIND,
+                "adaptive_inference.pairing_not_licensed",
+            )
+            .with_supplied(cell.identifier())
+            .with_expected(reason));
+        }
+        CellStatus::CarriedForward { owner, reason } => {
+            return Err(ExternalRefusal::new(
+                antecedent_core::reason_code!("cell_not_licensed"),
+                STAGE_BIND,
+                "adaptive_inference.cell_carried_forward",
+            )
+            .with_supplied(cell.identifier())
+            .with_offending(owner)
+            .with_expected(reason));
+        }
+    }
+    Ok(())
 }
 
 fn declare_bind(code: &'static str, detail: &'static str, remedy: &'static str) -> ExternalRefusal {

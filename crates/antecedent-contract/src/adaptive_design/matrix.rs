@@ -80,6 +80,12 @@ axis_enum! {
         RepeatedMeasures => "repeated_measures",
         /// Units nested in clusters, assigned by cluster.
         HierarchicalClustered => "hierarchical_clustered",
+        /// One choice among a declared set of options per unit, pooled over units. There is
+        /// no assignment among arms: every unit faces the same declared choice set.
+        CategoricalChoice => "categorical_choice",
+        /// Repeated choices among a declared set of options by each respondent, with
+        /// respondent-level heterogeneity in the choice shares.
+        RepeatedChoice => "repeated_choice",
     }
 }
 
@@ -237,6 +243,7 @@ impl CellStatus {
 
 const BAYES_AND_SEQUENCE: &[InferenceParadigm] =
     &[InferenceParadigm::BayesianPosterior, InferenceParadigm::AnytimeValidFrequentist];
+const BAYES_ONLY: &[InferenceParadigm] = &[InferenceParadigm::BayesianPosterior];
 const BAYES_AND_DECISION: &[InferenceParadigm] =
     &[InferenceParadigm::BayesianPosterior, InferenceParadigm::DecisionTheoreticStopping];
 const BAYES_DECISION_AND_SEQUENCE: &[InferenceParadigm] = &[
@@ -275,6 +282,13 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
             reason: "alpha spending governs error-rate boundaries; a decision-theoretic rule belongs to a different monitoring strategy",
         };
     }
+    if matches!(cell.outcome, O::CategoricalChoice | O::RepeatedChoice)
+        && cell.assignment != A::FixedRandomization
+    {
+        return CellStatus::ClosedIncoherent {
+            reason: "a choice outcome has no assignment among arms: every unit faces the same declared choice set, so an assignment policy that adapts to outcomes is not defined for it",
+        };
+    }
     // Delivered cells, each with its own contract, estimator and method.
     let licensed = match (cell.assignment, cell.outcome, cell.monitoring, cell.stopping) {
         (A::ThompsonBetaBernoulli, O::SingleOutcome, M::FixedInterimLooks, S::Efficacy) => {
@@ -308,6 +322,29 @@ pub fn procedure_status(cell: &ProcedureCell) -> CellStatus {
         }
         (A::FixedRandomization, O::SingleOutcome, M::FinalAnalysisOnly, S::NoStopping) => {
             Some(FIXED_SAMPLE_ONLY)
+        }
+        // Categorical choice: a Dirichlet posterior over the option shares, read once at the
+        // end, against a posterior-probability-best rule at fixed looks, or against an
+        // expected-loss rule at fixed looks.
+        (A::FixedRandomization, O::CategoricalChoice, M::FinalAnalysisOnly, S::NoStopping) => {
+            Some(BAYES_ONLY)
+        }
+        (A::FixedRandomization, O::CategoricalChoice, M::FixedInterimLooks, S::Efficacy) => {
+            Some(BAYES_ONLY)
+        }
+        (
+            A::FixedRandomization,
+            O::CategoricalChoice,
+            M::FixedInterimLooks,
+            S::DecisionTheoretic,
+        ) => Some(BAYES_AND_DECISION),
+        // Repeated choice: respondent-level heterogeneity, a posterior over the population
+        // shares and the heterogeneity, read once or against an expected-loss rule at looks.
+        (A::FixedRandomization, O::RepeatedChoice, M::FinalAnalysisOnly, S::NoStopping) => {
+            Some(BAYES_ONLY)
+        }
+        (A::FixedRandomization, O::RepeatedChoice, M::FixedInterimLooks, S::DecisionTheoretic) => {
+            Some(BAYES_AND_DECISION)
         }
         _ => None,
     };

@@ -7,6 +7,8 @@
 mod adaptive_design;
 #[path = "callback_protocol.rs"]
 mod callback_protocol;
+#[path = "choice_design.rs"]
+mod choice_design;
 #[path = "composition_provenance.rs"]
 mod composition_provenance;
 #[path = "composition_verification.rs"]

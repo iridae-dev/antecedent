@@ -123,7 +123,7 @@ fn details(error: &antecedent_contract::adaptive_design::AdaptiveContractError) 
 #[test]
 fn the_matrix_lists_every_combination_once_and_classifies_each() {
     let cells = procedure_cells();
-    assert_eq!(cells.len(), 6 * 3 * 4 * 5);
+    assert_eq!(cells.len(), 6 * 5 * 4 * 5);
     let identifiers: BTreeSet<String> = cells.iter().map(ProcedureCell::identifier).collect();
     assert_eq!(identifiers.len(), cells.len(), "no cell is listed twice");
     let mut licensed = 0;
@@ -152,18 +152,23 @@ fn the_matrix_lists_every_combination_once_and_classifies_each() {
             _ => panic!("an unclassified cell"),
         }
     }
-    // Incoherent: stopping without looks (4 x 18), looks without a rule
-    // (3 x 18 x ... see the axis sizes) and alpha spending with a
-    // decision-theoretic rule. Counted from the axes, not from the code.
-    let per_cell_group = 6 * 3; // assignment x outcome
+    // Incoherent: stopping without looks (4 x 30), looks without a rule
+    // (3 x 30 x ... see the axis sizes), alpha spending with a
+    // decision-theoretic rule, and a choice outcome under any assignment but fixed
+    // presentation (5 x 2 groups, each of the 12 combinations of monitoring and stopping
+    // that is coherent). Counted from the axes, not from the code.
+    let per_cell_group = 6 * 5; // assignment x outcome
     let stopping_without_looks = per_cell_group * 4; // final-only with one of 4 rules
     let looks_without_rule = per_cell_group * 3; // 3 monitoring strategies with no rule
     let spending_with_decision_theory = per_cell_group; // group sequential x decision theoretic
     assert_eq!(
         incoherent,
-        stopping_without_looks + looks_without_rule + spending_with_decision_theory
+        stopping_without_looks
+            + looks_without_rule
+            + spending_with_decision_theory
+            + 5 * 2 * (4 * 5 - 8)
     );
-    assert_eq!((licensed, pairing, carried), (7, 17, 192));
+    assert_eq!((licensed, pairing, carried), (12, 20, 208));
     assert_eq!(licensed + incoherent + pairing + carried, cells.len());
 }
 
@@ -213,6 +218,36 @@ fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
             cell(A::FixedRandomization, O::SingleOutcome, M::FinalAnalysisOnly, S::NoStopping),
             vec![P::FrequentistFixedSample],
         ),
+        (
+            cell(A::FixedRandomization, O::CategoricalChoice, M::FinalAnalysisOnly, S::NoStopping),
+            vec![P::BayesianPosterior],
+        ),
+        (
+            cell(A::FixedRandomization, O::CategoricalChoice, M::FixedInterimLooks, S::Efficacy),
+            vec![P::BayesianPosterior],
+        ),
+        (
+            cell(
+                A::FixedRandomization,
+                O::CategoricalChoice,
+                M::FixedInterimLooks,
+                S::DecisionTheoretic,
+            ),
+            vec![P::BayesianPosterior, P::DecisionTheoreticStopping],
+        ),
+        (
+            cell(A::FixedRandomization, O::RepeatedChoice, M::FinalAnalysisOnly, S::NoStopping),
+            vec![P::BayesianPosterior],
+        ),
+        (
+            cell(
+                A::FixedRandomization,
+                O::RepeatedChoice,
+                M::FixedInterimLooks,
+                S::DecisionTheoretic,
+            ),
+            vec![P::BayesianPosterior, P::DecisionTheoreticStopping],
+        ),
     ];
     let routes = licensed_routes();
     assert_eq!(routes.len(), expected.len());
@@ -228,6 +263,7 @@ fn exactly_the_delivered_cells_are_licensed_with_their_own_paradigms() {
         cell(A::EpsilonGreedy, O::SingleOutcome, M::GroupSequential, S::Efficacy),
         cell(A::EpsilonGreedy, O::RepeatedMeasures, M::GroupSequential, S::Efficacy),
         cell(A::FixedRandomization, O::RepeatedMeasures, M::FixedInterimLooks, S::Efficacy),
+        cell(A::FixedRandomization, O::RepeatedChoice, M::FixedInterimLooks, S::Efficacy),
     ] {
         assert!(
             matches!(procedure_status(&pairing), CellStatus::ClosedPairing { .. }),
@@ -288,6 +324,35 @@ fn the_registry_table_and_the_executable_matrix_agree_cell_by_cell() {
             _ => panic!("an unclassified cell"),
         }
     }
+}
+
+#[test]
+fn a_choice_outcome_has_no_assignment_among_arms() {
+    for assignment in
+        AssignmentFamily::ALL.iter().copied().filter(|a| *a != AssignmentFamily::FixedRandomization)
+    {
+        let cell = cell(
+            assignment,
+            OutcomeStructure::CategoricalChoice,
+            MonitoringStrategy::FinalAnalysisOnly,
+            StoppingRuleKind::NoStopping,
+        );
+        assert!(matches!(procedure_status(&cell), CellStatus::ClosedIncoherent { .. }));
+    }
+    let mut d = declaration(cell(
+        AssignmentFamily::FixedRandomization,
+        OutcomeStructure::CategoricalChoice,
+        MonitoringStrategy::FinalAnalysisOnly,
+        StoppingRuleKind::NoStopping,
+    ));
+    d.stopping_rule.as_mut().unwrap().spec = StoppingSpec::NoStopping;
+    let error =
+        AdaptiveDesignContract::new(d).expect_err("an arm contract is not a choice contract");
+    assert!(
+        details(&error)
+            .iter()
+            .any(|d| d == "adaptive_inference.choice_outcome_needs_choice_contract")
+    );
 }
 
 // -- the futility rule ----------------------------------------------------------------------
