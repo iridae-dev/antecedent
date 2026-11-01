@@ -64,9 +64,10 @@ record = "transport.shared_scenario_covariance"
 key = "max_table_rows"
 implementation = [{ path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", constant = "MAX_TABLE_ROWS" }]
 documentation = [{ path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", constant = "MAX_TABLE_ROWS" }]
-guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = "if\\ self\\.table\\.rows\\.len\\(\\)\\ >\\ MAX_TABLE_ROWS\\ \\|\\|\\ self\\.table\\.columns\\.len\\(\\)\\ >\\ MAX_TABLE_COLUMNS\\ \\{" }
-refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = "if\\ self\\.table\\.rows\\.len\\(\\)\\ >\\ MAX_TABLE_ROWS\\ \\|\\|\\ self\\.table\\.columns\\.len\\(\\)\\ >\\ MAX_TABLE_COLUMNS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = "\\bindependent_rows_bounds_and_arguments_refuse\\b" }
+guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'self\.table\.rows\.len\(\) > limits\.max_rows' }
+refusal = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'self\.table\.rows\.len\(\) > limits\.max_rows \{\s*return Err\(' }
+scope_fixture = { path = "crates/antecedent-io/tests/scenario_covariance_artifact.rs", pattern = '\bcovariance_artifact_version_features_and_consumer_limits_refuse\b' }
+
 
 [[bound]]
 record = "transport.shared_scenario_covariance"
@@ -1246,7 +1247,7 @@ record = "measurement.model_contract"
 key = "max_artifact_bytes"
 implementation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
 documentation = [{ path = "crates/antecedent-io-core/src/measurement_model_wire.rs", constant = "MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES" }]
-guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'Self::from_bytes_within\(bytes, expected_model_identity, MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES\)' }
+guard = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'Self::from_bytes_within\(\s*bytes,\s*expected_model_identity,\s*MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES,?\s*\)' }
 refusal = { path = "crates/antecedent-io-core/src/measurement_model_wire.rs", pattern = 'if bytes\.len\(\) > max_bytes \{\s*return Err\(IoError::TooLarge\)' }
 
 [[bound]]
