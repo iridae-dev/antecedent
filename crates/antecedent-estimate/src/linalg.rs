@@ -133,6 +133,10 @@ pub(crate) fn solve_spd_with(a: &[f64], b: &[f64], n: usize, jitter: Jitter) -> 
 /// `None` when the design is empty, has fewer rows than columns, has a non-finite entry, a zero
 /// column, or is rank deficient.
 #[must_use]
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 pub(crate) fn xtx_inverse_qr(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
     let cells = nrows.checked_mul(ncols)?;
     if ncols == 0 || nrows < ncols || x_colmajor.len() < cells {

@@ -1403,6 +1403,10 @@ mod tests {
     }
 
     impl Problem {
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the fixed reference fixture preserves its exact values and bounded setup"
+        )]
         fn base() -> Self {
             Self {
                 design: (0..2 * N).map(|i| (i as f64 * 0.37).sin()).collect(),
@@ -1447,6 +1451,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::type_complexity,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn a_key_is_derived_from_the_actual_inputs_and_each_change_is_a_miss() {
         let base = Problem::base();
         let reference = base.key(ReusableProduct::OutcomeFit);
@@ -1555,6 +1563,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn fold_identity_is_compact_and_tracks_every_row_and_the_held_out_set() {
         let rows: Vec<FoldRow> =
             (0..N as u64).map(|row| FoldRow::new(row, (row % 3) as u32)).collect();

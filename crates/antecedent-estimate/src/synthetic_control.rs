@@ -180,6 +180,10 @@ fn fit_weights(target: &[f64], donors: &[Vec<f64>]) -> Result<(Vec<f64>, f64), S
     fit_weights_with_limit(target, donors, 10_000)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 fn fit_weights_with_limit(
     target: &[f64],
     donors: &[Vec<f64>],
@@ -811,9 +815,9 @@ mod tests {
             .map(|unit| {
                 (1..=4)
                     .map(|period| {
-                        unit as f64 * 0.27
-                            + period as f64 * 0.13
-                            + ((unit * 11 + period * 7) % 13) as f64 * 0.09
+                        f64::from(unit) * 0.27
+                            + f64::from(period) * 0.13
+                            + f64::from((unit * 11 + period * 7) % 13) * 0.09
                     })
                     .collect()
             })

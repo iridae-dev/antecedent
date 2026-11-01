@@ -21,7 +21,7 @@ fn a_whole_series_contiguous_block_is_refused_before_any_refit() {
             series_block: Some(length),
             declared: SamplingDeclaration::Undeclared,
         };
-        let estimate = |_: &mut (), _: &[usize]| -> Result<Option<f64>, EstimationError> {
+        let estimate = |(): &mut (), _: &[usize]| -> Result<Option<f64>, EstimationError> {
             panic!("an invalid block must be refused before refitting")
         };
         assert!(bootstrap_by_design(design, 20, &context, 1, 8, || (), estimate).is_err());

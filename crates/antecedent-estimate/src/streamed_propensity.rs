@@ -675,7 +675,7 @@ mod tests {
     /// 400 rows, `x` uniform on `[-3, 3]`, treated iff `x > 0` except eight flips next to 0:
     /// the logistic fit converges and is not separated, yet saturates far from the flips.
     fn saturated_fixture() -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
-        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (i as f64 + 0.5) / 400.0).collect();
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (f64::from(i) + 0.5) / 400.0).collect();
         let flips = [190, 193, 196, 198, 201, 203, 206, 209];
         let t: Vec<f64> = (0..400).map(|i| f64::from((x[i] > 0.0) != flips.contains(&i))).collect();
         let y: Vec<f64> =

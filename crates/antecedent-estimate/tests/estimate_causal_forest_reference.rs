@@ -1,7 +1,7 @@
 //! Honest causal forest against an exact-rational tree reference with a ported random stream.
 //!
 //! `oracle_data/estimate_causal_forest_reference.py` (frozen in the JSON beside it) ports the
-//! library's SplitMix64 stream derivation, replays each tree's subsample shuffle, split search
+//! library's `SplitMix64` stream derivation, replays each tree's subsample shuffle, split search
 //! (every candidate cut, the squared-gap score, the minimum-leaf and two-arm admissibility),
 //! honest leaf estimation with the parent fallback, and the per-row forest average and leaf
 //! dispersion, all in `Fraction` arithmetic. The test first asserts that the library's own
@@ -87,23 +87,35 @@ fn problem(case: &Value) -> Problem {
 
 fn forest_of(case: &Value) -> CausalForest {
     let mut forest = CausalForest::new()
-        .with_n_trees(case["n_trees"].as_u64().unwrap() as usize)
-        .with_min_leaf(case["min_leaf"].as_u64().unwrap() as usize)
-        .with_max_depth(case["max_depth"].as_u64().unwrap() as usize)
+        .with_n_trees(
+            usize::try_from(case["n_trees"].as_u64().unwrap()).expect("fixture value fits"),
+        )
+        .with_min_leaf(
+            usize::try_from(case["min_leaf"].as_u64().unwrap()).expect("fixture value fits"),
+        )
+        .with_max_depth(
+            usize::try_from(case["max_depth"].as_u64().unwrap()).expect("fixture value fits"),
+        )
         .with_honesty(case["honesty"].as_bool().unwrap())
-        .with_max_cuts(case["max_cuts"].as_u64().map(|c| c as usize));
+        .with_max_cuts(
+            case["max_cuts"].as_u64().map(|c| usize::try_from(c).expect("fixture value fits")),
+        );
     if !case["clusters"].is_null() {
         let labels: Vec<u32> = case["clusters"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|v| v.as_u64().unwrap() as u32)
+            .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
             .collect();
         forest = forest.with_cluster_dml(ClusterDml::new(10).unwrap()).with_cluster_ids(labels);
     }
     forest
 }
 
+#[allow(
+    clippy::match_wildcard_for_single_variants,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn portable(effect: &antecedent_estimate::EffectEstimate) -> Vec<Vec<PredictionNode>> {
     let model = effect.heterogeneity.fitted_effect.as_ref().expect("portable forest");
     match &model.predictor.model {
@@ -137,6 +149,10 @@ fn the_library_stream_equals_the_frozen_reference_draws() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn trees_effects_and_dispersion_match_the_exact_reference() {
     for case in cases() {
         let name = case["name"].as_str().unwrap();
@@ -306,7 +322,8 @@ fn settings_and_declarations_the_forest_cannot_honour_are_refused() {
         fit(base().with_cluster_dml(ClusterDml::new(10).unwrap())),
         "causal-forest clusters need both the unit labels and the cluster declaration",
     );
-    let labels: Vec<u32> = (0..pb.n as u32).map(|i| i % 12).collect();
+    let labels: Vec<u32> =
+        (0..u32::try_from(pb.n).expect("fixture value fits")).map(|i| i % 12).collect();
     assert_refused(
         fit(base()
             .with_cluster_dml(ClusterDml::new(10).unwrap())
@@ -316,7 +333,9 @@ fn settings_and_declarations_the_forest_cannot_honour_are_refused() {
     );
     // A dyadic unit has no whole-cluster subsample.
     let mut dyadic = base().with_cluster_dml(ClusterDml::new(10).unwrap());
-    dyadic.units.first = Some((0..pb.n as u32).map(|i| i % 12).collect());
-    dyadic.units.second = Some((0..pb.n as u32).map(|i| i % 11).collect());
+    dyadic.units.first =
+        Some((0..u32::try_from(pb.n).expect("fixture value fits")).map(|i| i % 12).collect());
+    dyadic.units.second =
+        Some((0..u32::try_from(pb.n).expect("fixture value fits")).map(|i| i % 11).collect());
     assert_refused(fit(dyadic), "a dyadic unit has no whole-cluster subsample");
 }

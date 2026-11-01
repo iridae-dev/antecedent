@@ -455,6 +455,10 @@ impl Propagator {
         self.starts.partition_point(|s| *s <= time).saturating_sub(1)
     }
 
+    #[allow(
+        clippy::ptr_arg,
+        reason = "the internal helper retains its existing allocation interface"
+    )]
     fn advance(
         &mut self,
         from: f64,
@@ -473,7 +477,7 @@ impl Propagator {
             let end = self.starts.get(k + 1).map_or(to, |next| next.min(to));
             let h = end - time;
             let key = (k, h.to_bits());
-            if !self.cache.contains_key(&key) {
+            if let std::collections::btree_map::Entry::Vacant(e) = self.cache.entry(key) {
                 let bytes = transition_cache_bytes(n, 0)?;
                 let lease = ctx
                     .acquire_admission(0, bytes)
@@ -485,7 +489,7 @@ impl Propagator {
                     if self.check { Some(&mut residual) } else { None },
                 )?;
                 self.residual = self.residual.max(residual);
-                self.cache.insert(key, (computed, lease));
+                e.insert((computed, lease));
             }
             let step = &self.cache[&key].0;
             let moved = matmul(&step.phi, mean, n, n, 1);
@@ -1205,6 +1209,10 @@ struct InformationSummary {
     condition: Option<f64>,
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 fn summarize_information(info: &[f64], p: usize) -> InformationSummary {
     let mut info = info.to_vec();
     symmetrize_average(&mut info, p);
@@ -1235,7 +1243,7 @@ fn summarize_information(info: &[f64], p: usize) -> InformationSummary {
         }
         None => (p, None, None),
     };
-    let positive = rank == p && min_eigenvalue.map_or(true, |v| v > INFORMATION_FLOOR);
+    let positive = rank == p && min_eigenvalue.is_none_or(|v| v > INFORMATION_FLOOR);
     let covariance = if positive { SpdFactor::new(&info, p).map(|f| f.inverse()) } else { None };
     let rank = if positive && covariance.is_none() { rank.saturating_sub(1) } else { rank };
     InformationSummary { covariance, rank, min_eigenvalue, condition }

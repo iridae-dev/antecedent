@@ -76,6 +76,10 @@ pub struct JointClusterLaw {
 /// Evaluate the existing joint Neyman estimator from the retained source.
 /// # Errors
 /// Invalid population, source, assignment, adjustments, bounds or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn joint_cluster(
     recipe: &JointClusterRecipe,
     ctx: &antecedent_core::ExecutionContext,

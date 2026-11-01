@@ -196,6 +196,6 @@ fn unsupported_policies_and_budget_overruns_are_refused() {
         variable,
         policy: StochasticPolicy::Categorical { probs: Arc::clone(&probs) },
     };
-    let error = run(vec![categorical(a1), categorical(a2)]).err().expect("budget overrun");
+    let error = run(vec![categorical(a1), categorical(a2)]).expect_err("budget overrun");
     assert!(error.to_string().contains("exact-mixture budget"), "{error}");
 }

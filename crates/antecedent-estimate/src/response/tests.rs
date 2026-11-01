@@ -1809,6 +1809,10 @@ fn plugin_derivatives_serve_more_than_two_treatments() {
 /// Every additive-GAM non-convergence refusal keeps its message and names
 /// the options that let the backfit settle.
 #[test]
+#[allow(
+    clippy::default_trait_access,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn unfinished_gam_fit_refusals_name_a_remedy() {
     let n: usize = 80;
     let x: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();

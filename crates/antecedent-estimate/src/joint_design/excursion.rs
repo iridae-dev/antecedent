@@ -76,6 +76,10 @@ pub struct JointExcursionLaw {
 ///
 /// # Errors
 /// Malformed rows, unsupported probabilities, missing internal follow-up or invalid scores.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn joint_excursion(
     recipe: &JointExcursionRecipe,
     ctx: &antecedent_core::ExecutionContext,

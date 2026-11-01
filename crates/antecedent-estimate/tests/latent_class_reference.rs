@@ -29,7 +29,7 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
 
 fn config(case: &Value) -> LatentClassConfig {
     let mut config = LatentClassConfig::new(
-        case["classes"].as_u64().unwrap() as usize,
+        usize::try_from(case["classes"].as_u64().unwrap()).expect("fixture value fits"),
         case["seed"].as_u64().unwrap(),
     )
     .declare_conditional_randomization();

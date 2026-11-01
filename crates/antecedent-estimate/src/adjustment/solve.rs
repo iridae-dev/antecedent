@@ -2,7 +2,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    DenseLinearAlgebra, EstimationError, FaerBackend, Intervention, LassoOptions,
+    LeastSquaresWorkspace, LinearFitKind, MEstimateOptions, PreparedEstimationProblem,
+    RidgeIntercept, TargetPopulation, TreatmentArm, fit_huber_m, fit_lasso_with_ones_column,
+    fit_ridge_with, predict_lasso,
+};
 
 /// Coefficients and raw residuals of one linear solve, before the variance model is attached.
 pub(super) struct SolvedLinear {

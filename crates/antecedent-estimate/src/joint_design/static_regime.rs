@@ -67,6 +67,10 @@ pub struct JointStaticRegimeLaw {
 ///
 /// # Errors
 /// Invalid premises, trajectories, probabilities, fit, or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn joint_static_regime(
     recipe: &JointStaticRegimeRecipe,
     ctx: &antecedent_core::ExecutionContext,
@@ -203,6 +207,10 @@ pub struct JointStaticRegimeBootstrap {
 ///
 /// # Errors
 /// Invalid source, fewer than 99 refits, overflow, resource or cancellation refusal.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn joint_static_regime_bootstrap(
     recipe: &JointStaticRegimeRecipe,
     replicates: usize,

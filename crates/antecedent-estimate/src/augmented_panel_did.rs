@@ -240,6 +240,11 @@ mod resample_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn an_integer_weight_is_the_same_estimate_as_repeating_the_subject() {
         let pre = [1.0, 2.0, 0.5, 3.0, 1.5, 2.5, 0.0];
         let post = [3.0, 2.5, 2.0, 3.5, 2.0, 3.5, 1.0];

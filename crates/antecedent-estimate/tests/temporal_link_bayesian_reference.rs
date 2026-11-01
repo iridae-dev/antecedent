@@ -120,6 +120,10 @@ fn laplace_posterior_mean_and_draw_standard_deviation_equal_the_gauss_hermite_mo
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn declarations_change_the_answer_or_are_refused() {
     let cases: Vec<Value> =
         serde_json::from_str(include_str!("oracle_data/temporal_link_bayesian_reference.json"))

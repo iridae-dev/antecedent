@@ -298,7 +298,7 @@ mod tests {
             }
         }
         for mean in means {
-            assert!((mean / n as f64 - 6.0).abs() < 1e-12);
+            assert!((mean / f64::from(n) - 6.0).abs() < 1e-12);
         }
         assert!(centered_fixed_cuped_totals(&y, &x, &[1, 2, 3], 0.7).is_none());
     }
@@ -337,6 +337,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn diagonal_reproduces_the_marginal_cluster_neyman_contrast() {
         let (sizes, control, treated) = population();
         let rows = sizes.iter().sum::<usize>();

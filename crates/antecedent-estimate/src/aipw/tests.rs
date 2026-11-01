@@ -524,6 +524,10 @@ fn atc_if_doubly_robust_when_both_correct() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_wrap,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn aipw_hc1_multiway_newey_west_finite_se() {
     // The rows are independent and the cluster / lag structure is unrelated to them, so every
     // robust analytic SE estimates the same sampling spread; the leave-one-out jackknife of the
@@ -725,6 +729,10 @@ fn weighted_constant_ate_has_no_spurious_normalizing_mass_variance() {
 }
 
 #[test]
+#[allow(
+    clippy::manual_let_else,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn penalized_bootstrap_replays_the_weighted_score_contrast() {
     let (data, estimand) = confounded_scm(300, 71);
     let weights: Vec<f64> = (0..300).map(|i| if i % 3 == 0 { 4.0 } else { 0.25 }).collect();

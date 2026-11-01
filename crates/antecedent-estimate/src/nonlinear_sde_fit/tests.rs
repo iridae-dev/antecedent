@@ -126,7 +126,7 @@ fn numbers(value: &serde_json::Value) -> Vec<f64> {
     value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
 }
 
-/// Retained trajectories of the independent NumPy generator, keeping every `every`-th point.
+/// Retained trajectories of the independent `NumPy` generator, keeping every `every`-th point.
 fn reference_trajectories(every: usize) -> Vec<SdeTrajectory> {
     let document = reference();
     document["quasi_likelihood"]["units"]
@@ -368,6 +368,10 @@ fn malformed_designs_are_invalid_arguments() {
     ));
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn simulated(world: SdeWorld, every: usize, seed: u64, paths: usize) -> Vec<SdeTrajectory> {
     let compiled = epidemic([0.6, 0.3, 0.25], 0).compile().unwrap();
     let simulation = SdeSimulationPolicy {

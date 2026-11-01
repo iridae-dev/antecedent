@@ -180,12 +180,12 @@ fn an_incomplete_conditioning_set_and_a_requested_band_are_refused() {
     };
     // The treatment and the adjuster must both be conditioned on.
     for conditioning in [&[0_u32][..], &[3][..]] {
-        let error = run(&estimator, conditioning).err().expect("incomplete conditioning");
+        let error = run(&estimator, conditioning).expect_err("incomplete conditioning");
         assert!(error.to_string().contains("OutcomeIndependentGiven"), "{error}");
     }
     let mut banded = estimator.clone();
     banded.options.simultaneous_replicates = Some(200);
     banded.options.bandwidth = Some(0.5);
-    let error = run(&banded, &[0, 3]).err().expect("a band was requested");
+    let error = run(&banded, &[0, 3]).expect_err("a band was requested");
     assert!(error.to_string().contains("simultaneous bands are unavailable"), "{error}");
 }

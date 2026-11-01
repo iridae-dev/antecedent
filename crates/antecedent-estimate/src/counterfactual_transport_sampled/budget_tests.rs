@@ -404,7 +404,7 @@ fn envelope_members_charge_preparation_and_keep_separate_allowances() {
             operations: preparation - 1,
             ..defaults.evaluation
         },
-        ..defaults.clone()
+        ..defaults
     };
     // Preparation is charged to the member even when the caller's shared
     // point/gradient allowance has already been consumed.

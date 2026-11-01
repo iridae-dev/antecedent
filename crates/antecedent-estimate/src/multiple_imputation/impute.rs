@@ -164,6 +164,15 @@ impl Imputer {
     /// # Errors
     /// As [`Self::new`], or duplicate/unknown domain declarations, incompatible
     /// binary observations, or an incomplete 0/1 constant without a declaration.
+    #[allow(clippy::match_same_arms, reason = "the cases retain distinct estimator semantics")]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete support or boundary semantics"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     pub fn new_with_domains(
         columns: Vec<ImputationColumn>,
         spec: ImputationSpec,
@@ -560,6 +569,10 @@ impl Imputer {
 
     /// Variables whose binary imputation uses single-class empirical-bootstrap support.
     #[must_use]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete support or boundary semantics"
+    )]
     pub fn binary_boundary_variables(&self) -> Vec<(Arc<str>, u8)> {
         (0..self.names.len())
             .filter_map(|j| {
@@ -675,6 +688,10 @@ impl Imputer {
 
     /// One chained-equation step: refit variable `j`'s conditional model on a Bayesian
     /// bootstrap of its observed rows and redraw its missing cells.
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete support or boundary semantics"
+    )]
     fn chained_step(
         &self,
         j: usize,

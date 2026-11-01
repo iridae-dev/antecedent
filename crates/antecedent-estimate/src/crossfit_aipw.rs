@@ -436,6 +436,10 @@ impl ScoreStage<'_> {
 /// Stages: validate and plan the folds, lease the shared nuisance slots, fit every fold's
 /// propensity and outcome arms into the score columns, publish fresh fits to the shared slots,
 /// and assemble the table.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 fn build_scores_pass(
     problem: &PreparedPropensityProblem,
     build: &ScoreBuild<'_>,
@@ -908,6 +912,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn every_input_a_fit_reads_is_part_of_its_key_and_a_changed_input_is_a_miss() {
         use crate::crossfit_cache::CrossfitNuisanceCache;
         use crate::sampling_weights::SamplingWeights;
@@ -1006,6 +1014,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn cache_does_not_reuse_saturation_admission_across_overlap_policies() {
         use crate::crossfit_cache::CrossfitNuisanceCache;
         let (data, estimand) = confounded(400, 71);

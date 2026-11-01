@@ -835,10 +835,19 @@ mod tests {
             .unwrap()
     }
 
+    #[allow(
+        clippy::unnecessary_wraps,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn ok() -> Result<(), EstimationError> {
         Ok(())
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn fetch(cache: &CrossfitNuisanceCache, tag: f64) -> (u64, bool) {
         let (value, reused) = cache
             .store
@@ -918,6 +927,11 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn concurrent_callers_never_charge_more_than_the_pool_admits() {
         let (pool, ctx, cost, budget) = pool_of(2);
         let cache = CrossfitNuisanceCache::charged_to(&ctx);

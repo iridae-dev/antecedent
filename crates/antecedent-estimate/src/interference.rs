@@ -77,6 +77,10 @@ pub struct BayesianInterferenceEstimate {
 /// reweight that prior and move the posterior mean, so σ² stays deferred.
 /// A full-rank observed design and empirical support for both requested exposure
 /// levels are required.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn estimate_interference_bayesian(
     query: &InterferenceQuery,
     data: &NetworkData,
@@ -797,7 +801,7 @@ mod tests {
             if mask.count_ones() as usize != treated_count {
                 continue;
             }
-            let treated = |c: u32| mask >> c & 1 == 1;
+            let treated = |c: u32| (mask >> c) & 1 == 1;
             let assignment = clusters.iter().map(|&c| treated(c)).collect::<Vec<_>>();
             let outcomes = clusters
                 .iter()

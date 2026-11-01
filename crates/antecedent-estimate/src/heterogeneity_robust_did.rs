@@ -1211,6 +1211,10 @@ type SaturatedRow = (usize, f64, Option<(i64, usize)>);
     clippy::too_many_lines,
     reason = "support screening, design assembly and the solve of one regression read in order"
 )]
+#[allow(
+    clippy::type_complexity,
+    reason = "the type preserves the estimator output and resource structure"
+)]
 fn saturated_cells(
     prepared: &PreparedRollout,
     comparison: Comparison,

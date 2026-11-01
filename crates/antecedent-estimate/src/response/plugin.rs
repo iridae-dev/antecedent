@@ -567,8 +567,8 @@ mod gradient_only_tests {
     #[test]
     fn gradient_only_matches_level_and_gradient_for_weighted_fits() {
         let n = 240;
-        let treatment: Vec<_> = (0..n).map(|i| (i as f64 * 0.37).sin()).collect();
-        let adjustment: Vec<_> = (0..n).map(|i| (i as f64 * 0.19).cos()).collect();
+        let treatment: Vec<_> = (0..n).map(|i| (f64::from(i) * 0.37).sin()).collect();
+        let adjustment: Vec<_> = (0..n).map(|i| (f64::from(i) * 0.19).cos()).collect();
         let outcome: Vec<_> =
             treatment.iter().zip(&adjustment).map(|(a, x)| a * a + 0.3 * x).collect();
         let data = TabularData::from_f64_columns([
@@ -581,7 +581,7 @@ mod gradient_only_tests {
         let sample = CompleteSample::read(&data, id(1), &[id(0)], &[id(2)]).unwrap();
         let estimator = ContinuousResponseEstimator::new([id(2)]);
         let design = estimator.outcome_target_design(&sample).unwrap();
-        let weights: Vec<_> = (0..n).map(|i| 0.5 + (i % 3) as f64 * 0.5).collect();
+        let weights: Vec<_> = (0..n).map(|i| 0.5 + f64::from(i % 3) * 0.5).collect();
         for weights in [None, Some(weights.as_slice())] {
             let fit =
                 ContinuousResponseEstimator::fit_outcome_target_weighted(&sample, &design, weights)

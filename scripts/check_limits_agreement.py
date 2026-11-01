@@ -1144,6 +1144,10 @@ def ridge_resource_finding(source: str) -> str:
         source,
         re.S,
     )
+    if (constructor is not None and "allocate_penalty_grid(lambdas.len())" in constructor.group()
+            and "grid.try_reserve_exact(count)" in source):
+        return ("estimate.penalized_propensity_aipw: fallible penalty-grid allocation is not "
+                "admitted against an execution budget or bounded before allocation")
     if constructor is None or "lambdas.to_vec()" not in constructor.group():
         return "estimate.penalized_propensity_aipw: grid allocation resource guard is not independently mapped"
     return "estimate.penalized_propensity_aipw: RidgeTuning::new copies the penalty grid before execution-context admission; no checked preallocation bound"
@@ -1454,6 +1458,10 @@ def self_test() -> int:
         ridge_source.replace("lambdas.to_vec()", "new_allocation()")
     ):
         failures.append("an unrecognized grid allocation must fail closed")
+    guarded_ridge = ridge_source.replace("lambdas.to_vec()", "allocate_penalty_grid(lambdas.len())")
+    guarded_ridge += "\nfn allocate_penalty_grid(count: usize) { grid.try_reserve_exact(count); }"
+    if "not admitted" not in ridge_resource_finding(guarded_ridge):
+        failures.append("fallible allocation alone must not be treated as budget admission")
 
     # The path-specific route requires exactly two worlds even though the
     # reusable query representation permits more. Detect changes to the route

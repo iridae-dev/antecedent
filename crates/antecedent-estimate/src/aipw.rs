@@ -114,8 +114,26 @@ pub(crate) use bootstrap::select_rows_colmajor;
 pub use checked::{CheckedAipwLowering, CheckedAipwPreparation, CheckedAipwProcedure};
 pub(crate) use nuisance::{fit_outcome_models_weighted, predict_colmajor};
 
+use bootstrap::select_values;
+#[cfg(test)]
+#[allow(
+    unused_imports,
+    clippy::wildcard_imports,
+    reason = "unit tests exercise internal bootstrap operations"
+)]
 use bootstrap::*;
+#[cfg(test)]
+#[allow(
+    unused_imports,
+    clippy::wildcard_imports,
+    reason = "unit tests exercise internal scores operations"
+)]
 use scores::*;
+use scores::{
+    AipwNuisanceFit, AllRowsPropensity, ContrastRows, aipw_psi_counted, aipw_psi_weighted,
+    center_population_psi, correct_aipw_psi_for_nuisances, embed_trimmed_influence,
+    treated_arm_overlap_report,
+};
 
 /// Doubly robust (AIPW) ATE / ATT / ATC estimator.
 ///
@@ -969,6 +987,7 @@ impl AipwAte {
 
     /// Turn the scores in `workspace.psi` into the influence function the variance reads:
     /// the ATT / ATC centred score, or the ATE score projected off the nuisance estimators.
+    #[allow(clippy::unused_self, reason = "the method retains its established interface")]
     fn adjust_influence(
         &self,
         problem: &PreparedPropensityProblem,

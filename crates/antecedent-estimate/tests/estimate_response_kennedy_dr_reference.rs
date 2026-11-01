@@ -9,7 +9,7 @@
 //! Gaussian-kernel local-quadratic level. The product uses a certified direct solve where available, otherwise a backfit; the
 //! comparison keeps its original tolerance rather than claiming rounding accuracy. The
 //! influence the product exports must equal the separately reviewed local-quadratic influence of
-//! its own pseudo-outcome plus the reference covariate term (c_i - mean c) / n.
+//! its own pseudo-outcome plus the reference covariate term (`c_i` - mean c) / n.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

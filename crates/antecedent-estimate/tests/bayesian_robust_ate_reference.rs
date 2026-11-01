@@ -91,6 +91,10 @@ fn reference() -> Vec<Value> {
 }
 
 #[test]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn each_draw_equals_the_multiprecision_weighted_cross_fitted_score() {
     for case in reference() {
         let name = case["name"].as_str().unwrap();

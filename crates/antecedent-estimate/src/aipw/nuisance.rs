@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AipwWorkspace, DenseLinearAlgebra, EstimationError, FaerBackend, select_rows_colmajor,
+    select_values, split_by_treatment,
+};
 
 /// Fit separate outcome models on the control (`T=0`) and treated (`T=1`) arms
 /// of a column-major `[1 | Z…]` design under optional sampling weights.

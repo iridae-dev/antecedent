@@ -30,6 +30,10 @@ const SCORE_TOLERANCE: f64 = 2e-6;
 
 /// Unequal cell sizes (roughly 40, 30, 20, 10 percent) and an outcome that depends on the cell
 /// nonlinearly, built from deterministic sequences.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn data() -> (TabularData, Vec<u32>) {
     let mut a = Vec::new();
     let mut d = Vec::new();
@@ -213,6 +217,10 @@ fn cell_minus_control_and_interaction_match_the_scores_and_their_standard_errors
 /// stratum. This exercises the covariate design, the validation-fold prediction and the
 /// fold alignment of the propensity table.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn scores_with_a_binary_covariate_equal_the_stratified_closed_form() {
     let (table_data, folds) = data();
     let z: Vec<f64> = table_data.float64_values(VariableId::from_raw(3)).unwrap();

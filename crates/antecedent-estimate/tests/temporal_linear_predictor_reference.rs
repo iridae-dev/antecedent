@@ -49,7 +49,7 @@ fn series(columns: Vec<(&str, Vec<f64>)>) -> TimeSeriesData {
         .map(|(index, (_, values))| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(index as u32),
+                    VariableId::from_raw(u32::try_from(index).expect("fixture value fits")),
                     Arc::from(values),
                     ValidityBitmap::all_valid(n),
                 )

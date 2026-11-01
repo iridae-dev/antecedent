@@ -66,6 +66,18 @@ pub(crate) fn invalid(message: &str) -> EstimationError {
     )
 }
 
+fn allocate_penalty_grid(count: usize) -> Result<Vec<f64>, EstimationError> {
+    let mut grid = Vec::new();
+    grid.try_reserve_exact(count).map_err(|_| {
+        refuse(
+            antecedent_core::reason_code!("execution_resource_limit"),
+            "penalized_propensity.grid_allocation",
+            "could not allocate the declared penalty grid",
+        )
+    })?;
+    Ok(grid)
+}
+
 /// Declared penalty tuning rule: a fixed grid and the inner folds that rank it.
 ///
 /// Shared by the ridge and the lasso propensity (the name is the first penalty it served).
@@ -93,7 +105,8 @@ impl RidgeTuning {
     ///
     /// A refusal with the `invalid_argument` reason code for an empty grid, a penalty that is
     /// not finite and positive, or fewer than two inner folds (the fold plan refuses more
-    /// folds than the training rows hold).
+    /// folds than the training rows hold), or an `execution_resource_limit` refusal if the
+    /// declared grid cannot be allocated.
     pub fn new(lambdas: &[f64], inner_folds: usize) -> Result<Self, EstimationError> {
         if lambdas.is_empty() {
             return Err(invalid("penalty grid must hold at least one value"));
@@ -106,8 +119,9 @@ impl RidgeTuning {
                 "penalty selection needs at least 2 inner folds, got {inner_folds}"
             )));
         }
-        let mut sorted = lambdas.to_vec();
-        sorted.sort_by(f64::total_cmp);
+        let mut sorted = allocate_penalty_grid(lambdas.len())?;
+        sorted.extend_from_slice(lambdas);
+        sorted.sort_unstable_by(f64::total_cmp);
         sorted.dedup_by(|a, b| a.total_cmp(b).is_eq());
         Ok(Self { lambdas: sorted, inner_folds })
     }
@@ -852,6 +866,15 @@ mod tests {
             let error = bad.unwrap_err();
             assert!(error.to_string().contains("invalid_argument"), "{error}");
         }
+    }
+
+    #[test]
+    fn grid_allocation_is_fallible_and_large_grids_stay_canonical() {
+        let values = (1_u32..=128).rev().map(f64::from).collect::<Vec<_>>();
+        let tuning = RidgeTuning::new(&values, 3).unwrap();
+        assert_eq!(tuning.lambdas(), &(1_u32..=128).map(f64::from).collect::<Vec<_>>());
+        let error = allocate_penalty_grid(usize::MAX).unwrap_err();
+        assert_eq!(error.reason_code(), Some("execution_resource_limit"));
     }
 
     #[test]

@@ -1309,6 +1309,10 @@ mod longer_horizon_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn the_response_of_three_steps_nests_the_covariate_laws() {
         // State 0, sequence (1, 1, 1). Four histories follow the first action; two have
         // l2 = 0 and two l2 = 1. Of the l2 = 1 pair only one takes the second action.

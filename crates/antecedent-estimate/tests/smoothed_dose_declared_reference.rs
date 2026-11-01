@@ -39,6 +39,11 @@ fn reference() -> Vec<Value> {
         .unwrap()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn input(case: &Value) -> SmoothedDoseInput {
     SmoothedDoseInput {
         features: vec![0],
@@ -218,6 +223,10 @@ fn equal_weights_at_any_scale_are_the_unweighted_score_and_plain_rows_are_unchan
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn zero_weight_rows_are_deleted_and_invalid_declarations_are_refused_by_name() {
     let case =
         reference().into_iter().find(|c| c["name"] == "weights_only_extreme_weight").unwrap();

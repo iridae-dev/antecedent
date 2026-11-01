@@ -64,9 +64,21 @@ fn cells_01_staggered_contrasts_on_ar1_panels_match_the_exact_rational_reference
                 (w["cohort"].as_i64().unwrap(), w["period"].as_i64().unwrap()),
                 "{tag}"
             );
-            assert_eq!(g.treated_subjects, w["treated"].as_u64().unwrap() as usize, "{tag}");
-            assert_eq!(g.comparison_subjects, w["comparison"].as_u64().unwrap() as usize, "{tag}");
-            assert_eq!(g.clusters, w["clusters"].as_u64().unwrap() as usize, "{tag}");
+            assert_eq!(
+                g.treated_subjects,
+                usize::try_from(w["treated"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
+            assert_eq!(
+                g.comparison_subjects,
+                usize::try_from(w["comparison"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
+            assert_eq!(
+                g.clusters,
+                usize::try_from(w["clusters"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
             close(g.effect, w["effect"].as_f64().unwrap(), &format!("{tag} effect"));
             close(g.standard_error, w["se"].as_f64().unwrap(), &format!("{tag} se"));
         }

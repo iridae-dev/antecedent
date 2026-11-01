@@ -48,12 +48,14 @@ fn build(case: &Value) -> Built {
     ];
     let mut instruments = Vec::new();
     for (i, z) in case["z"].as_array().unwrap().iter().enumerate() {
-        instruments.push(id(2 + i as u32));
+        instruments.push(id(2 + u32::try_from(i).expect("fixture value fits")));
         columns.push(("z", RoleHint::Context, floats(z)));
     }
     let mut adjustment = Vec::new();
     for (i, x) in case["x"].as_array().unwrap().iter().enumerate() {
-        adjustment.push(id(2 + instruments.len() as u32 + i as u32));
+        adjustment.push(id(2
+            + u32::try_from(instruments.len()).expect("fixture value fits")
+            + u32::try_from(i).expect("fixture value fits")));
         columns.push(("x", RoleHint::Context, floats(x)));
     }
     let mut estimand =
@@ -66,6 +68,10 @@ fn query(active: f64, control: f64) -> AverageEffectQuery {
     AverageEffectQuery::with_levels(id(0), id(1), control, active)
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn check(case: &Value, active: f64, control: f64, use_wald: bool) {
     let name = case["name"].as_str().unwrap();
     let delta = active - control;
@@ -84,8 +90,16 @@ fn check(case: &Value, active: f64, control: f64, use_wald: bool) {
     let coef = case["coef"].as_f64().unwrap();
     close(effect.ate, coef * delta, 1e-9, &format!("{name} coefficient"));
     let diag = effect.diagnostics.first_stage.as_ref().expect("first stage");
-    assert_eq!(diag.df1, case["k"].as_u64().unwrap() as usize, "{name}");
-    assert_eq!(diag.df2, case["df2"].as_u64().unwrap() as usize, "{name}");
+    assert_eq!(
+        diag.df1,
+        usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits"),
+        "{name}"
+    );
+    assert_eq!(
+        diag.df2,
+        usize::try_from(case["df2"].as_u64().unwrap()).expect("fixture value fits"),
+        "{name}"
+    );
     close(diag.f_statistic, case["f_stat"].as_f64().unwrap(), 1e-8, &format!("{name} F"));
     close(diag.partial_r2, case["partial_r2"].as_f64().unwrap(), 1e-8, &format!("{name} R2"));
     let kind = case["ar_kind"].as_str().unwrap();

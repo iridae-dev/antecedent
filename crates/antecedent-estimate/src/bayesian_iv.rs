@@ -286,6 +286,10 @@ fn centred(column: &[f64]) -> Vec<f64> {
     clippy::many_single_char_names,
     reason = "the model's own symbols: n rows, k instruments, q covariates, p parameters"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn fit_bayesian_iv_joint_fixed_loading_design(
     sample: &IvDesignSample<'_>,
     prior_sd: f64,
@@ -678,6 +682,10 @@ fn first_stage_draws(
 mod tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn first_stage_screen_is_scale_invariant_across_three_bayesian_iv_routes() {
         let z = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
         let u = [-0.2, -0.2, 0.2, 0.2, -0.2, -0.2, 0.2, 0.2];

@@ -169,7 +169,7 @@ fn run_policy(
         &DoseResponseRows { outcome: &case.outcome, dose: &case.dose, groups: &case.groups },
         &DoseRules { policy: &case.policy, reference: &case.reference },
         &DoseCurvePrior { support: case.support, coefficient_scales: &case.scales, residual },
-        &PolicyWindow { bandwidth: case.bandwidth, min_local_support: 2, draws, seed: 20261028 },
+        &PolicyWindow { bandwidth: case.bandwidth, min_local_support: 2, draws, seed: 20_261_028 },
     )
     .unwrap()
 }
@@ -188,7 +188,8 @@ fn known_variance_policy_moments_equal_the_exact_conjugate_window_integrals() {
     }
     assert_eq!(
         posterior.minimum_local_rows,
-        fx["policy"]["minimum_local_rows"].as_u64().unwrap() as usize
+        usize::try_from(fx["policy"]["minimum_local_rows"].as_u64().unwrap())
+            .expect("fixture value fits")
     );
     let total: f64 = posterior.group_fractions.iter().map(|(_, f)| f).sum();
     close(total, 1.0, 1e-14, "fractions");

@@ -32,6 +32,10 @@ fn close(a: f64, b: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::precedence,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn two_action_contrast_is_unbiased_and_its_sandwich_slack_is_the_effect_variation() {
     let y0 = [0.0, 1.0, 3.0, 2.5, 0.0, 4.0, 1.5, 2.0, 7.0, 0.5];
     let tau = [2.0, -0.5, 0.0, 3.5, -1.0, 0.5, -1.5, 2.5, 4.0, -3.0];
@@ -76,6 +80,10 @@ fn two_action_contrast_is_unbiased_and_its_sandwich_slack_is_the_effect_variatio
 }
 
 #[test]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn three_action_contrast_selects_the_right_columns_and_stays_unbiased() {
     let probs: [[f64; 3]; 7] = [
         [0.2, 0.3, 0.5],
@@ -138,6 +146,11 @@ fn three_action_contrast_selects_the_right_columns_and_stays_unbiased() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    clippy::precedence,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn wald_ratio_components_are_unbiased_and_the_variance_is_the_delta_method() {
     // Potential outcomes under encouragement 0/1 and potential receipts (one-sided
     // noncompliance: the control group never receives treatment).

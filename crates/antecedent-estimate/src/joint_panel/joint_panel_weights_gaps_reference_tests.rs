@@ -92,6 +92,10 @@ fn gapped_group(times: &[usize]) -> PanelGroup {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn build_joint_panel_gapped_marginal_equals_the_dense_submatrix_reference() {
     let reference = reference();
     for case in reference["gap_cases"].as_array().unwrap() {
@@ -185,7 +189,7 @@ fn build_joint_panel_weighted_gapped_likelihood_score_and_sandwich_match_the_den
                     .map(|k| {
                         // (inverse^-1)[row][column] solved by multiplying with the reference
                         // information: inverse * H must be the identity.
-                        inverse[row * p + k] * want_information(&information, k, column)
+                        inverse[row * p + k] * want_information(information, k, column)
                     })
                     .sum();
                 let expected = if row == column { 1.0 } else { 0.0 };
@@ -318,6 +322,10 @@ fn build_joint_panel_equal_weights_do_not_change_the_fit_and_the_sandwich_is_sca
 }
 
 #[test]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn build_joint_panel_weighted_response_is_the_weighted_group_average() {
     let reference = reference();
     let case = &reference["model_cases"][0];

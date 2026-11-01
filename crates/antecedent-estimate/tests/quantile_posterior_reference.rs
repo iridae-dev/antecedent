@@ -25,6 +25,11 @@ fn empirical(draws: &[f64], x: f64) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn arm_quantile_posteriors_match_the_exact_beta_integral() {
     let data: Value =
         serde_json::from_str(include_str!("oracle_data/quantile_posterior_reference.json"))

@@ -2,7 +2,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, AssumptionSet, AverageEffectQuery, ExprId, FactorRequirement, FunctionalProgram,
+    IdentifiedEstimand, PreparedEstimationProblem, TargetPopulation, VariableId,
+};
 
 /// Receipt for a linear adjustment preparation checked against an identification result.
 ///

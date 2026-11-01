@@ -605,6 +605,10 @@ impl PanelData {
 
     /// A channel that never varies, or that is an exact affine function of the others, has no
     /// separately identified effect; the fit would return an arbitrary point on a flat ridge.
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete support or boundary semantics"
+    )]
     fn validate_channel_design(&self) -> Result<(), PanelError> {
         let mut basis: Vec<Vec<f64>> = Vec::with_capacity(self.channels.len());
         for (index, channel) in self.channels.iter().enumerate() {

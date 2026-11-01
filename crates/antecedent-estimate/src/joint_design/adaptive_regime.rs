@@ -172,6 +172,10 @@ fn means(
 /// # Errors
 /// Invalid source, missing scientific premises, missing policy rules, no observed support,
 /// cancellation, or resource admission failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn joint_adaptive_regime(
     recipe: &JointAdaptiveRegimeRecipe,
     ctx: &antecedent_core::ExecutionContext,

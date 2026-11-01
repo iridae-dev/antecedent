@@ -99,8 +99,7 @@ fn draws_are_reproducible_and_depend_on_the_seed() {
     assert_ne!(a.draws, c.draws);
     // One draw, one cluster and no coordinates are refused, not summarised.
     let one_draw = bayesian_bootstrap(&scores, 1, &ExecutionContext::for_tests(5))
-        .err()
-        .expect("one draw is refused")
+        .expect_err("one draw is refused")
         .to_string();
     assert!(
         one_draw.contains("a posterior needs two draws, two clusters and a coordinate"),
@@ -108,8 +107,7 @@ fn draws_are_reproducible_and_depend_on_the_seed() {
     );
     let single = ClusterScores { coordinates: 1, sums: vec![1.0], counts: vec![1.0] };
     let one_cluster = bayesian_bootstrap(&single, 64, &ExecutionContext::for_tests(5))
-        .err()
-        .expect("one cluster is refused")
+        .expect_err("one cluster is refused")
         .to_string();
     assert!(
         one_cluster.contains("a posterior needs two draws, two clusters and a coordinate"),

@@ -46,7 +46,7 @@ fn multi_arm_matches_every_realization_of_the_assignment() {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|a| a.as_u64().unwrap() as usize)
+                .map(|a| usize::try_from(a.as_u64().unwrap()).expect("fixture value fits"))
                 .collect();
             mass += real["prob"].as_f64().unwrap();
             let outcomes: Vec<f64> =
@@ -118,7 +118,13 @@ fn history_means_and_covariance_match_every_realization() {
                     .unwrap()
                     .iter()
                     .map(|s| {
-                        s.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect()
+                        s.as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|v| {
+                                usize::try_from(v.as_u64().unwrap()).expect("fixture value fits")
+                            })
+                            .collect()
                     })
                     .collect()
             })
@@ -129,14 +135,20 @@ fn history_means_and_covariance_match_every_realization() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|h| h.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect())
+            .map(|h| {
+                h.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+                    .collect()
+            })
             .collect();
         for real in design["realizations"].as_array().unwrap() {
             let choice: Vec<usize> = real["choice"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|v| v.as_u64().unwrap() as usize)
+                .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
                 .collect();
             let sequences: Vec<HistoryAssignment> = choice
                 .iter()
@@ -168,7 +180,8 @@ fn history_means_and_covariance_match_every_realization() {
                             .as_array()
                             .unwrap()
                             .iter()
-                            .map(|v| v.as_u64().unwrap() as usize)
+                            .map(|v| usize::try_from(v.as_u64().unwrap())
+                                .expect("fixture value fits"))
                             .collect::<Vec<_>>()
                     );
                     assert_eq!(got.eligible_periods as u64, fit["eligible"].as_u64().unwrap());
@@ -186,15 +199,15 @@ fn independent_score_contrast_matches_every_realization() {
         let probabilities: Vec<Vec<f64>> =
             design["probabilities"].as_array().unwrap().iter().map(floats).collect();
         let (reference_arm, action) = (
-            design["reference"].as_u64().unwrap() as usize,
-            design["action"].as_u64().unwrap() as usize,
+            usize::try_from(design["reference"].as_u64().unwrap()).expect("fixture value fits"),
+            usize::try_from(design["action"].as_u64().unwrap()).expect("fixture value fits"),
         );
         for real in design["realizations"].as_array().unwrap() {
             let assignment: Vec<usize> = real["assignment"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|a| a.as_u64().unwrap() as usize)
+                .map(|a| usize::try_from(a.as_u64().unwrap()).expect("fixture value fits"))
                 .collect();
             let outcomes = floats(&real["outcomes"]);
             let got = independent_action_contrast(

@@ -244,6 +244,10 @@ impl SdeFitPolicy {
 // Small dense linear algebra (row-major, symmetric positive definite).
 // ---------------------------------------------------------------------------
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 fn cholesky(a: &[f64], n: usize) -> Option<Vec<f64>> {
     let mut l = vec![0.0; n * n];
     for i in 0..n {
@@ -372,6 +376,7 @@ struct Problem<'a> {
     m: usize,
 }
 
+#[allow(clippy::assigning_clones, reason = "the assignment preserves the existing owned value")]
 fn prepare<'a>(
     compiled: &CompiledSde,
     trajectories: &'a [SdeTrajectory],
@@ -389,6 +394,11 @@ fn prepare<'a>(
     Ok(prepared)
 }
 
+#[allow(clippy::cast_sign_loss, reason = "the value is bounded by the validated estimator input")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by the validated estimator input"
+)]
 fn checked_filter_substeps(dt: f64, step: f64) -> Result<usize, SdeFitError> {
     if step == 0.0 {
         return Ok(1);
@@ -450,6 +460,10 @@ impl Problem<'_> {
     }
 
     /// Euler Gaussian transition log density summed over one fully observed trajectory.
+    #[allow(
+        clippy::neg_cmp_op_on_partial_ord,
+        reason = "the comparison deliberately refuses unordered values"
+    )]
     fn direct_trajectory(
         &self,
         item: &Prepared<'_>,
@@ -509,6 +523,10 @@ impl Problem<'_> {
     }
 
     /// Extended-Kalman innovation log likelihood of the Euler-discretized model.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "the implementation follows the numerical indexing"
+    )]
     fn filter_trajectory(
         &self,
         item: &Prepared<'_>,
@@ -871,27 +889,24 @@ fn validate_design(
     if coordinates.iter().any(|c| *c >= p || !seen.insert(*c)) {
         return Err(bad("SDE fit parameter coordinates must be distinct declared parameters"));
     }
-    let m = match observation {
-        Some(model) => {
-            let m = model.validate(d)?;
-            let Some(prior) = prior else {
-                return Err(bad("an SDE observation model needs a filter prior"));
-            };
-            if prior.mean.len() != d
-                || prior.covariance.len() != d * d
-                || prior.mean.iter().chain(&prior.covariance).any(|v| !v.is_finite())
-                || cholesky_or_psd(&prior.covariance, d).is_none()
-            {
-                return Err(bad("SDE filter prior shape or covariance"));
-            }
-            m
+    let m = if let Some(model) = observation {
+        let m = model.validate(d)?;
+        let Some(prior) = prior else {
+            return Err(bad("an SDE observation model needs a filter prior"));
+        };
+        if prior.mean.len() != d
+            || prior.covariance.len() != d * d
+            || prior.mean.iter().chain(&prior.covariance).any(|v| !v.is_finite())
+            || cholesky_or_psd(&prior.covariance, d).is_none()
+        {
+            return Err(bad("SDE filter prior shape or covariance"));
         }
-        None => {
-            if prior.is_some() {
-                return Err(bad("an SDE filter prior needs an observation model"));
-            }
-            d
+        m
+    } else {
+        if prior.is_some() {
+            return Err(bad("an SDE filter prior needs an observation model"));
         }
+        d
     };
     if trajectories.is_empty() || trajectories.len() > MAX_TRAJECTORIES {
         return Err(bad("SDE trajectory count"));
@@ -946,6 +961,10 @@ struct InformationSummary {
     condition: Option<f64>,
 }
 
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 fn summarize_information(info: &[f64], p: usize) -> InformationSummary {
     let mut info = info.to_vec();
     for i in 0..p {

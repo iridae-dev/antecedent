@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn streamed_adjustment_respects_discrete_levels_and_dose_policy() {
-        let treatment: Vec<f64> = (0..60).map(|i| (i % 3) as f64).collect();
+        let treatment: Vec<f64> = (0..60).map(|i| f64::from(i % 3)).collect();
         let outcome: Vec<f64> =
             treatment.iter().enumerate().map(|(i, t)| 2.0 * t + noise(i)).collect();
         let data =
@@ -330,7 +330,7 @@ mod tests {
                 .estimate_streamed(&data, &estimand, &query, 16, 1 << 20)
                 .is_ok()
         );
-        let binary: Vec<f64> = (0..60).map(|i| (i % 2) as f64).collect();
+        let binary: Vec<f64> = (0..60).map(|i| f64::from(i % 2)).collect();
         let data =
             TabularData::from_f64_columns([("t", binary.as_slice()), ("y", outcome.as_slice())])
                 .unwrap();

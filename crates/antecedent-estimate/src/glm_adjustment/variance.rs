@@ -2,7 +2,11 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    EstimationError, FaerBackend, FamilyKernel, GcompContrast, GlmDesignRef, GlmFamily, GlmOptions,
+    LeastSquaresWorkspace, SeSpec, TargetPopulation, TreatmentArm, fisher_weight, fit_glm,
+    linear_predictors, mean_derivative, score_coefficient_covariance,
+};
 
 pub(super) fn average_gcomp_for_target(
     diffs: &[f64],

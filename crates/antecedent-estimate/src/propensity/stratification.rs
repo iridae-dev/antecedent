@@ -585,6 +585,10 @@ impl ArmCell {
 ///
 /// Weighted arm means are `Σ w y / Σ w`, and their variance is the linearization
 /// `Σ w²(y − m)² · n/(n−1) / (Σ w)²`, which is the unweighted `s²/n` for equal weights.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub(crate) fn stratified_ate(
     treatment: &[f64],
     outcome: &[f64],

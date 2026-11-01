@@ -1011,17 +1011,18 @@ fn checked_value_equal(
     a: &antecedent_core::Value,
     b: &antecedent_core::Value,
 ) -> Result<bool, antecedent_expr::EvalError> {
-    match (a, b) {
-        (antecedent_core::Value::Label(a), antecedent_core::Value::Label(b)) => {
-            checked_text_equal(a, b)
-        }
-        _ => {
-            check_provider_cancelled()?;
-            Ok(a == b)
-        }
+    if let (antecedent_core::Value::Label(a), antecedent_core::Value::Label(b)) = (a, b) {
+        checked_text_equal(a, b)
+    } else {
+        check_provider_cancelled()?;
+        Ok(a == b)
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub(crate) fn validate_exact_laws(
     catalog: &antecedent_core::EvidenceCatalog,
     data: &antecedent_expr::ExactTransportData,

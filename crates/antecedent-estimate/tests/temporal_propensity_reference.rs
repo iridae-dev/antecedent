@@ -78,7 +78,7 @@ fn laplace_mode_covariance_and_posterior_mean_score_match_the_gaussian_integral(
             (case["intercept_sd"].as_f64().unwrap(), case["slope_sd"].as_f64().unwrap());
         let label = format!("prior {sd0}/{sd1}");
         let posterior =
-            BayesianTemporalPropensity::new(sd0, sd1, draws, 20261028).unwrap().fit(&d).unwrap();
+            BayesianTemporalPropensity::new(sd0, sd1, draws, 20_261_028).unwrap().fit(&d).unwrap();
         for (got, want) in posterior.mode.iter().zip(texts(&case["mode"])) {
             close(*got, want, 1e-6, &label);
         }

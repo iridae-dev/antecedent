@@ -52,6 +52,10 @@ fn run(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn the_plug_in_gradient_level_and_scales_match_the_exact_fits() {
     let frozen: Value = serde_json::from_str(include_str!(
         "oracle_data/estimate_response_gam_derivative_reference.json"
@@ -204,7 +208,6 @@ fn differential_missingness_across_outcomes_is_refused() {
             scale: DerivativeScale::Identity,
         },
     )
-    .err()
-    .expect("a shared complete-case row set is required across outcomes");
+    .expect_err("a shared complete-case row set is required across outcomes");
     assert!(error.to_string().contains("shared complete-case row set"), "{error}");
 }

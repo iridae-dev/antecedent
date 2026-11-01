@@ -651,6 +651,14 @@ pub fn hierarchical_share_interval(
         .map_err(|e| numeric_error(&e))
 }
 
+impl QualifiedChoicePrior {
+    /// Whether any source is flagged as conflicting.
+    #[must_use]
+    pub fn has_conflict(&self) -> bool {
+        self.sources.iter().any(|s| s.conflicting)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -660,6 +668,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn a_discounted_source_adds_its_discounted_counts_and_a_tied_source_is_not_flagged() {
         let a = ChoiceSourceCounts {
             label: "a",
@@ -750,13 +762,5 @@ mod tests {
             min_observations: 0,
         };
         assert!(choice_stopping_decision(&p, bad).is_err());
-    }
-}
-
-impl QualifiedChoicePrior {
-    /// Whether any source is flagged as conflicting.
-    #[must_use]
-    pub fn has_conflict(&self) -> bool {
-        self.sources.iter().any(|s| s.conflicting)
     }
 }

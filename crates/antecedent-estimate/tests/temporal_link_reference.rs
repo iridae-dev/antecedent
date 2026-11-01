@@ -87,7 +87,7 @@ fn laplace_mode_contrast_and_posterior_mean_match_the_exact_gaussian_integral() 
         let sd = case["prior_sd"].as_f64().unwrap();
         let draws = 60_000;
         let posterior =
-            BayesianTemporalLink::new(sd, draws, 20261028).unwrap().fit(&d, link(name)).unwrap();
+            BayesianTemporalLink::new(sd, draws, 20_261_028).unwrap().fit(&d, link(name)).unwrap();
         close(posterior.functional_at_mode, text(&case["functional_at_mode"]), 1e-7, name);
         assert_eq!(posterior.draws.len(), draws);
         let n = draws as f64;

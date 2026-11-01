@@ -42,6 +42,11 @@ fn integer_weights(n: usize) -> Vec<f64> {
     (0..n).map(|i| [1.0, 2.0, 3.0, 1.0, 2.0][i % 5]).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn repeated(table: &Table, weights: &[f64]) -> Table {
     let mut out = Table { running: vec![], outcome: vec![], treatment: vec![] };
     for (i, &w) in weights.iter().enumerate() {
@@ -71,6 +76,10 @@ fn close(a: f64, b: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::single_element_loop,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn integer_row_weights_equal_the_table_with_every_row_repeated() {
     let table = table();
     let weights = integer_weights(table.running.len());

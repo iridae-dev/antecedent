@@ -343,6 +343,7 @@ fn charge_catalog_validation(
 
 // Guard the public, caller-constructible execution shape. This is not a replay
 // of identification or a scientific validation of the stored derivation.
+#[allow(clippy::match_on_vec_items, reason = "the retained traversal supplies valid indices")]
 fn validate_execution_shape(
     derivation: &CounterfactualTransportDerivation,
     cards: &[usize],
@@ -651,6 +652,10 @@ impl Engine<'_> {
         Ok(())
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     fn value(&mut self, item: usize, idx: usize) -> Result<f64, Failure> {
         // Fast cache hits do not allocate a continuation stack.
         self.tick()?;
@@ -1324,6 +1329,10 @@ pub(crate) fn evaluate_estimated_tables(
     clippy::too_many_lines,
     reason = "one evaluation over the closed-form policy whose per-term accumulation shares one run state"
 )]
+#[allow(
+    clippy::drop_non_drop,
+    reason = "ending the closure lifetime releases its borrows before reuse"
+)]
 fn evaluate_with_policy(
     derivation: &CounterfactualTransportDerivation,
     data: &ExactTransportData,
@@ -1796,6 +1805,10 @@ mod evidence_budget_tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn cached_cells_and_summation_steps_spend_the_evaluation_budget() {
         use antecedent_identify::{
             CounterfactualSymbol, CounterfactualSymbolId, CounterfactualVariableIndex,
@@ -1849,6 +1862,10 @@ mod evidence_budget_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn nested_complements_use_depth_and_work_without_native_recursion() {
         use antecedent_identify::CounterfactualVariableIndex;
         let ctx = ExecutionContext::for_tests(7);
@@ -1910,6 +1927,10 @@ mod evidence_budget_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn continuations_preserve_marginal_extraction_and_lazy_cells() {
         let items = [
             CounterfactualItem {
@@ -1985,6 +2006,10 @@ mod evidence_budget_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn long_acyclic_item_chain_uses_admitted_continuations() {
         let mut items = vec![CounterfactualItem {
             population: 0,
@@ -2081,6 +2106,10 @@ mod evidence_budget_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn cartesian_memo_requires_budget_and_retains_memory_admission() {
         // Two independent extra-variable axes make this memo huge even when a
         // particular supplied law has only a single cell.

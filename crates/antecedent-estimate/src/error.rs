@@ -709,6 +709,7 @@ impl EstimationError {
     /// separated, saturated or non-converged fit maps to `glm_fit_refused`; the propensity
     /// route that wants `positivity_violated` converts its fit error first.
     #[must_use]
+    #[allow(clippy::match_same_arms, reason = "the cases retain distinct estimator semantics")]
     pub fn reason_code(&self) -> Option<&'static str> {
         use antecedent_core::reason_code;
         match self {
@@ -718,15 +719,19 @@ impl EstimationError {
                 if fields.stage.as_deref() != Some("retarget") {
                     return None;
                 }
-                Some(match fields.reason.as_deref() {
-                    Some(
+                Some(
+                    if let Some(
                         "weights_depend_on_treatment_or_descendant"
                         | "weights_outside_adjustment_set"
                         | "descendant_closure_unavailable"
                         | "undeclared_nonconstant_weights",
-                    ) => reason_code!("target_weights_not_licensed"),
-                    _ => reason_code!("positivity_violated"),
-                })
+                    ) = fields.reason.as_deref()
+                    {
+                        reason_code!("target_weights_not_licensed")
+                    } else {
+                        reason_code!("positivity_violated")
+                    },
+                )
             }
             Self::Stats(StatsError::RankDeficient { .. }) => {
                 Some(reason_code!("design_rank_deficient"))
@@ -899,6 +904,20 @@ impl From<antecedent_learn::FittedEffectError> for EstimationError {
     }
 }
 
+impl<E> From<antecedent_core::execution::MapExecutionError<E>> for EstimationError
+where
+    Self: From<E>,
+{
+    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
+        match error {
+            antecedent_core::execution::MapExecutionError::Admission(error) => {
+                Self::Admission(error)
+            }
+            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{EstimationError, HistoryOperatorFault, RefusalFields, RefusalMessage};
@@ -1006,19 +1025,5 @@ mod tests {
             code(EstimationError::unsupported("sharp RD does not support effect modifiers")),
             None
         );
-    }
-}
-
-impl<E> From<antecedent_core::execution::MapExecutionError<E>> for EstimationError
-where
-    Self: From<E>,
-{
-    fn from(error: antecedent_core::execution::MapExecutionError<E>) -> Self {
-        match error {
-            antecedent_core::execution::MapExecutionError::Admission(error) => {
-                Self::Admission(error)
-            }
-            antecedent_core::execution::MapExecutionError::Work(error) => Self::from(error),
-        }
     }
 }

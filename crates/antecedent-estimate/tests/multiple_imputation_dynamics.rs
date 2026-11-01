@@ -154,6 +154,10 @@ fn a_lagged_imputation_is_deterministic_and_its_assumptions_bind_the_neighbourho
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn dynamic_imputation_refuses_what_it_cannot_identify() {
     let n = 200;
     let (x, noise) = autoregressive(n, 0.2, 5);

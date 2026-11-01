@@ -28,6 +28,11 @@ fn cases(text: &str) -> Vec<Value> {
     serde_json::from_str::<Value>(text).unwrap()["cases"].as_array().unwrap().clone()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn plan_folds(case: &Value) -> Vec<u32> {
     let treatment = floats(&case["treatment"]);
     let active = case["active"].as_f64().unwrap();
@@ -46,6 +51,10 @@ fn plan_folds(case: &Value) -> Vec<u32> {
     .to_vec()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn run(case: &Value) -> ObservationalSurvivalEstimate {
     let censoring = match case["censoring"].as_str().unwrap() {
         "independent_within_arm" => CensoringAssumption::IndependentWithinArm,
@@ -79,6 +88,10 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn arm_summaries_contrasts_and_scores_match_the_recorded_fold_reference() {
     for case in cases(include_str!("../tests/oracle_data/observational_survival_reference.json")) {
         let name = case["name"].as_str().unwrap();

@@ -285,8 +285,8 @@ pub(crate) fn require_contrast_arms_populated(
         return Ok(());
     }
     distinct.sort_by(f64::total_cmp);
-    let present: Vec<String> = distinct.iter().map(|level| level.to_string()).collect();
-    let named: Vec<String> = empty.iter().map(|level| level.to_string()).collect();
+    let present: Vec<String> = distinct.iter().map(std::string::ToString::to_string).collect();
+    let named: Vec<String> = empty.iter().map(std::string::ToString::to_string).collect();
     Err(crate::util::refuse(
         antecedent_core::reason_code!("arm_not_populated"),
         "treatment_levels.level_not_populated",
@@ -320,6 +320,10 @@ pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control
 
 /// Classification of a complete-case streamed treatment with at most ten levels.
 /// None means the resident path treats the column as a continuous dose.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
 fn streamed_level_counts(values: &[f64], mask: &[bool]) -> Option<(Vec<(f64, usize)>, usize)> {
     let mut levels: Vec<(f64, usize)> = Vec::new();
     let mut rows = 0usize;
@@ -349,6 +353,10 @@ fn streamed_levels_description(levels: &[(f64, usize)]) -> String {
 }
 
 /// Apply resident treatment-level admission without allocating a selected treatment column.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
 pub(crate) fn validate_streamed_adjustment_levels(
     values: &[f64],
     mask: &[bool],
@@ -396,6 +404,10 @@ pub(crate) fn validate_streamed_adjustment_levels(
 }
 
 /// Match the resident IV treatment-level guards on complete-case rows.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
 pub(crate) fn validate_streamed_iv_levels(
     values: &[f64],
     mask: &[bool],
@@ -862,6 +874,10 @@ mod streamed_level_tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::redundant_closure,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn only_selected_rows_contribute_and_continuous_values_remain_doses() {
         let values = [0.0, 1.0, 2.0, 0.0, 1.0];
         let mask = [true, true, false, true, true];
@@ -876,7 +892,7 @@ mod streamed_level_tests {
             .is_ok()
         );
         assert!(validate_streamed_iv_levels(&values, &mask, 1.0, 0.0).is_ok());
-        let continuous: Vec<f64> = (0..11).map(|v| v as f64).collect();
+        let continuous: Vec<f64> = (0..11).map(|v| f64::from(v)).collect();
         assert!(
             validate_streamed_adjustment_levels(
                 &continuous,

@@ -1,7 +1,7 @@
 //! Shared-row scenario covariance against exact multinomial enumeration in rationals.
 //!
 //! `oracle_data/shared_scenario_covariance_reference.py` (frozen in the JSON beside it) lists every
-//! count vector of n draws from n rows with its exact probability n!/(prod c_i!)/n^n, drops a
+//! count vector of n draws from n rows with its exact probability n!/(prod `c_i!)/n^n`, drops a
 //! vector on which any estimator is undefined for all estimators, renormalizes, and writes the exact
 //! mean, covariance and plug-in entry sampling variance. Designs cover ties, two rows, an exactly
 //! collinear pair with an extreme score, and unbalanced strata where most vectors fail. This test

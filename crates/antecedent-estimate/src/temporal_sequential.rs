@@ -1502,6 +1502,7 @@ fn append_design_columns(
     Ok(design)
 }
 
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 fn estimate_sequential(
     problem: &SequentialProblem<'_>,
     target: &SequenceTarget<'_>,
@@ -1685,6 +1686,10 @@ impl BayesianComposition<'_> {
 
     /// Fit each stationary mechanism once on its unique observed time-series rows. Overlapping
     /// unfolded windows must not multiply the likelihood or create independent copies of beta.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     fn fit_mechanisms(
         &self,
         contrast_gradient: Option<&std::collections::HashMap<VariableId, Vec<f64>>>,

@@ -76,6 +76,10 @@ impl TrialToTargetRows<'_> {
     }
 
     /// Lengths, weights, probabilities and outcomes of the rows that are read.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "the implementation follows the numerical indexing"
+    )]
     fn validate(&self, dependence: RowDependence<'_>) -> Result<Active, EstimationError> {
         let n = self.outcome.len();
         if n == 0

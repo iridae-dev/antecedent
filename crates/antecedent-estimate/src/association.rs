@@ -669,6 +669,7 @@ fn read_weights(
 }
 
 /// Distinct sorted values of a numeric column as strata levels.
+#[allow(clippy::unnecessary_wraps, reason = "the helper follows the fallible estimator interface")]
 fn numeric_levels(_name: &str, values: &[f64]) -> Result<(Vec<u32>, Vec<String>), EstimationError> {
     let mut distinct: Vec<f64> = values.to_vec();
     distinct.sort_by(f64::total_cmp);
@@ -1929,7 +1930,7 @@ mod tests {
     }
 
     fn simple_regression_data() -> (TabularData, Vec<f64>, Vec<f64>) {
-        let x: Vec<f64> = (0..60).map(|i| (i as f64) / 6.0).collect();
+        let x: Vec<f64> = (0..60).map(|i| f64::from(i) / 6.0).collect();
         let y: Vec<f64> = x.iter().enumerate().map(|(i, x)| 1.0 + 2.0 * x + noise(i)).collect();
         (table(&[("x", x.clone()), ("y", y.clone())]), x, y)
     }

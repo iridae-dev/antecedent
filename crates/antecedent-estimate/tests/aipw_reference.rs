@@ -131,8 +131,12 @@ fn untrimmed_ate_is_the_cross_fitted_score_on_the_recorded_folds() {
             OverlapPolicy::RequireDiagnostics { clip: case["clip"].as_f64(), trim: None },
         );
         let mut problem = estimator.prepare(&data, &estimand, &query).unwrap();
-        let folds: Vec<u32> =
-            case["folds"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+        let folds: Vec<u32> = case["folds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+            .collect();
         problem.fold_assignment = Some(Arc::from(folds));
         let got = estimator
             .fit(

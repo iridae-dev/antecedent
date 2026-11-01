@@ -1,7 +1,7 @@
 //! Fixed-grid multiplier band against the definition evaluated by an executing reference.
 //!
 //! `oracle_data/estimate_response_kennedy_dr_simultaneous_reference.py` (frozen in the JSON beside
-//! it) draws the sign vectors from an independent SplitMix64 implementation, forms the maximum of
+//! it) draws the sign vectors from an independent `SplitMix64` implementation, forms the maximum of
 //! the standardized signed influence sums over the grid, takes the `ceil(level (B + 1) - 1e-9)`-th
 //! smallest maximum, and is infinite when that rank exceeds the replicates, on five dyadic influence
 //! matrices (one point, a few, nearly collinear columns, a rank that does not exist, a rank equal
@@ -34,6 +34,11 @@ fn mix64(mut z: u64) -> u64 {
 }
 
 /// Standard errors and the critical value of the multiplier band, from the definition.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn reference_band(psi: &[Vec<f64>], level: f64, replicates: usize, seed: u64) -> (Vec<f64>, f64) {
     let n = psi[0].len();
     let se: Vec<f64> =

@@ -81,7 +81,7 @@ fn series(case: &Json) -> TimeSeriesData {
     .unwrap()
 }
 
-/// z_s -> x_s, z_{s-1} -> x_s, x_{s-1} -> y_s, x_{s-2} -> y_s, z_{s-1} -> y_s, z_{s-2} -> y_s.
+/// `z_s` -> `x_s`, z_{s-1} -> `x_s`, x_{s-1} -> `y_s`, x_{s-2} -> `y_s`, z_{s-1} -> `y_s`, z_{s-2} -> `y_s`.
 fn graph() -> TemporalDag {
     let mut g = TemporalDag::empty();
     let (x, y, z) = (VariableId::from_raw(X), VariableId::from_raw(Y), VariableId::from_raw(Z));
@@ -143,7 +143,7 @@ fn the_surface_and_policy_levels_match_the_exact_rational_reference() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|h| h.as_u64().unwrap() as u32)
+            .map(|h| u32::try_from(h.as_u64().unwrap()).expect("fixture value fits"))
             .collect();
         let ids: Vec<_> = horizons.iter().map(|&h| identify(&g, h)).collect();
         let pairs: Vec<_> = ids.iter().map(|(e, i)| (e, i)).collect();

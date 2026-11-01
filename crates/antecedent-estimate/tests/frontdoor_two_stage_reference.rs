@@ -59,7 +59,7 @@ fn path_sum_and_stacked_standard_errors_match_the_exact_reference() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|v| v.as_u64().unwrap() as u32)
+            .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
             .collect();
         for (kind, key) in [
             (AnalyticSeKind::Hc0, "se_hc0"),

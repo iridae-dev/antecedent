@@ -998,8 +998,7 @@ fn refuse_conditional_bootstrap() -> EstimationError {
         "the conditional effect over declared modifiers resamples the modifier mean with the \
          regression, which the iid row bootstrap of this fit does not; the one-series interval is \
          the block bootstrap of the temporal conditional effect, and this fit reports the \
-         analytic delta-method standard error only"
-            .to_owned(),
+         analytic delta-method standard error only",
     )
 }
 
@@ -1046,8 +1045,7 @@ fn checked_effect_modifiers<'q>(
         return Err(EstimationError::refused_detail(
             antecedent_core::reason_code!("route_not_supported"),
             "temporal_adjustment.effect_modifiers_invalid",
-            "an effect modifier must be named once and be neither the treatment nor the outcome"
-                .to_owned(),
+            "an effect modifier must be named once and be neither the treatment nor the outcome",
         ));
     }
     if data.storage().weights().is_some() {
@@ -1482,6 +1480,10 @@ pub fn temporal_conditional_marginal_effect(
 ///
 /// As [`temporal_conditional_marginal_effect`]. Also returns, with `allow_gaps`, which windows
 /// were intact.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn temporal_conditional_marginal_effect_with_gaps(
     data: &TimeSeriesData,
     estimand: &IdentifiedEstimand,

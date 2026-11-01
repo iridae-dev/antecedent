@@ -205,6 +205,10 @@ mod tests {
     use antecedent_core::ExecutionContext;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn selection_share_splits_the_decomposed_law_by_selected_change_point_and_smoothing() {
         let (data, draw, _) = super::super::tests::fixture();
         let programs = super::super::tests::programs(&data);
@@ -230,7 +234,7 @@ mod tests {
             let parameters = (0..24)
                 .map(|time| {
                     let mut value = draw.parameters.clone();
-                    value.intercept += shift * time as f64;
+                    value.intercept += shift * f64::from(time);
                     value
                 })
                 .collect();

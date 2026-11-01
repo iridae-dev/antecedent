@@ -45,6 +45,10 @@ fn sparse_group_ids_are_refused_before_sizing_imputation_draws() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_lossless,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn interactions_recheck_the_observed_conditional_model_width() {
     let columns = || {
         (0..4)
@@ -68,6 +72,10 @@ fn interactions_recheck_the_observed_conditional_model_width() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_lossless,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn interaction_and_dynamic_width_checks_are_independent_of_builder_order() {
     let model = || {
         let columns = (0..3)
@@ -516,6 +524,11 @@ fn unidentified_conditional_models_are_refused() {
 }
 
 #[test]
+#[allow(
+    clippy::bool_to_int_with_if,
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn constant_zero_one_requires_domain_and_binary_boundary_preserves_support() {
     use antecedent_data::ImputationDomain;
     use antecedent_estimate::multiple_imputation::VariableKind;

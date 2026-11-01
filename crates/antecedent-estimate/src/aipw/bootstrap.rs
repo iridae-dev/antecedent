@@ -2,7 +2,13 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AipwAte, AipwWorkspace, AnalyticSeKind, BootstrapOutcome, EffectEstimate, EstimationError,
+    ExecutionContext, PenalizedVarianceReport, PreparedPropensityProblem, PropensityNuisance,
+    REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, aipw_psi_counted, clamp_scores, clip_of,
+    fit_outcome_models_weighted, gather, gather_into, physical_indices, predict_colmajor,
+    retained_index_slots, trim_of, trim_retained_rows,
+};
 
 /// One penalized-bootstrap replicate after its indexes have been drawn.
 pub(super) enum PenalizedDraw {
@@ -560,6 +566,14 @@ impl AipwAte {
     /// draw), the trim and clip rules read each row's own score, the arm shares of the ATT / ATC
     /// score divide by the number of draws, and the sampling weights are renormalised to mean
     /// one over the draws. The estimate is that of the gathered resample, to rounding.
+    #[allow(
+        clippy::type_complexity,
+        reason = "the type preserves the estimator output and resource structure"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     pub(super) fn replicate_ate(
         &self,
         problem: &PreparedPropensityProblem,

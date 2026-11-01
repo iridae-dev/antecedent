@@ -105,6 +105,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn factorial_variance_bound_covers_exact_bernoulli_randomization_variance() {
         // Four independent units, every potential outcome one, pa=pb=1/2.
         // Enumerate all 4^4 equally likely allocations, including allocations

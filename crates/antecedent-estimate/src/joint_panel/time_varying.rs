@@ -1003,6 +1003,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn smooth_attempts_do_not_discard_the_best_no_change_candidate() {
         let spec = specification();
         let fit = selected_from_scores(
@@ -1202,6 +1206,11 @@ mod tests {
         assert!((path_log_prior(&spec, &smooth, &[0.0; 3]) - 1.5 * 2.0_f64.ln()).abs() < 1e-14);
     }
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        clippy::too_many_lines,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn broader_family_coordinates_vary_through_the_same_path_and_refit_a_shape_change() {
         use super::super::family::{
             PanelAdstock, PanelFamily, PanelSaturation, PanelSaturationScope,

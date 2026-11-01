@@ -784,55 +784,52 @@ fn dependent_meat(
     check_row_structure(rows, kind, n)?;
     let scores = scores_of(design, ols);
     let mut meat = vec![0.0; p * p];
-    match kind {
-        VectorCovariance::Cluster => {
-            let groups = rows.clusters.unwrap_or_default();
-            let mut order: Vec<usize> = (0..n).collect();
-            order.sort_by_key(|&i| groups[i]);
-            let mut clusters = 0usize;
-            let mut sum = vec![0.0; p];
-            let mut index = 0usize;
-            while index < n {
-                let id = groups[order[index]];
-                sum.fill(0.0);
-                while index < n && groups[order[index]] == id {
-                    let row = &scores[order[index] * p..(order[index] + 1) * p];
-                    for (acc, value) in sum.iter_mut().zip(row) {
-                        *acc += value;
-                    }
-                    index += 1;
+    if kind == VectorCovariance::Cluster {
+        let groups = rows.clusters.unwrap_or_default();
+        let mut order: Vec<usize> = (0..n).collect();
+        order.sort_by_key(|&i| groups[i]);
+        let mut clusters = 0usize;
+        let mut sum = vec![0.0; p];
+        let mut index = 0usize;
+        while index < n {
+            let id = groups[order[index]];
+            sum.fill(0.0);
+            while index < n && groups[order[index]] == id {
+                let row = &scores[order[index] * p..(order[index] + 1) * p];
+                for (acc, value) in sum.iter_mut().zip(row) {
+                    *acc += value;
                 }
-                for a in 0..p {
-                    for b in 0..p {
-                        meat[a * p + b] += sum[a] * sum[b];
-                    }
-                }
-                clusters += 1;
+                index += 1;
             }
-            let g = count(clusters);
-            let factor = g / (g - 1.0) * (count(n) - 1.0) / count(n - p);
-            for value in &mut meat {
-                *value *= factor;
+            for a in 0..p {
+                for b in 0..p {
+                    meat[a * p + b] += sum[a] * sum[b];
+                }
+            }
+            clusters += 1;
+        }
+        let g = count(clusters);
+        let factor = g / (g - 1.0) * (count(n) - 1.0) / count(n - p);
+        for value in &mut meat {
+            *value *= factor;
+        }
+    } else {
+        let lag = rows.lag.unwrap_or_default();
+        for t in 0..n {
+            for a in 0..p {
+                for b in 0..p {
+                    meat[a * p + b] += scores[t * p + a] * scores[t * p + b];
+                }
             }
         }
-        _ => {
-            let lag = rows.lag.unwrap_or_default();
-            for t in 0..n {
+        for ell in 1..=lag {
+            let weight = antecedent_stats::bartlett_weight(ell, lag);
+            for t in ell..n {
                 for a in 0..p {
                     for b in 0..p {
-                        meat[a * p + b] += scores[t * p + a] * scores[t * p + b];
-                    }
-                }
-            }
-            for ell in 1..=lag {
-                let weight = antecedent_stats::bartlett_weight(ell, lag);
-                for t in ell..n {
-                    for a in 0..p {
-                        for b in 0..p {
-                            meat[a * p + b] += weight
-                                * (scores[t * p + a] * scores[(t - ell) * p + b]
-                                    + scores[(t - ell) * p + a] * scores[t * p + b]);
-                        }
+                        meat[a * p + b] += weight
+                            * (scores[t * p + a] * scores[(t - ell) * p + b]
+                                + scores[(t - ell) * p + a] * scores[t * p + b]);
                     }
                 }
             }

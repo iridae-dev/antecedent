@@ -147,6 +147,10 @@ pub fn rollout_joint_effects(
 mod tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn regime_interactions_use_only_supported_untreated_comparisons() {
         let mut units = Vec::new();
         for (regime, effect) in [("00", 0.0), ("10", 2.0), ("01", 3.0), ("11", 9.0)] {
@@ -155,7 +159,7 @@ mod tests {
                     id: format!("{regime}/{i}"),
                     regime: regime.into(),
                     adoption: (regime != "00").then_some(2),
-                    outcomes: vec![(1, i as f64), (2, i as f64 + 5.0 + effect)],
+                    outcomes: vec![(1, f64::from(i)), (2, f64::from(i) + 5.0 + effect)],
                 });
             }
         }
@@ -282,6 +286,10 @@ fn validate_rollout_likelihood(
 /// # Errors
 /// Invalid design/support, omitted observed treated cohort-time effect, invalid proper
 /// prior/covariance, excessive dimensions or numerical posterior failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn rollout_joint_posterior(
     design: &JointRolloutDesign,
     units: &[JointRolloutUnit],

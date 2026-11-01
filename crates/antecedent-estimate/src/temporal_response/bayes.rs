@@ -128,6 +128,10 @@ impl TemporalResponseEstimator {
     /// # Errors
     /// An unsupported request, an unidentified horizon, a failed horizon fit or a posterior
     /// that cannot be summarized.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     pub fn estimate_bayesian(
         &self,
         data: &TimeSeriesData,
@@ -323,6 +327,10 @@ impl TemporalResponseEstimator {
     }
 
     /// Fit every horizon on its own identified unfolded design and summarize its dose cells.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     fn fit_horizons(
         &self,
         run: &HorizonRun<'_>,

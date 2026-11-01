@@ -892,6 +892,10 @@ pub(crate) fn law_of(
     law.map_err(|e| map_law_error(e, "the estimated table does not reconcile with its counts"))
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the helper retains its established ownership interface"
+)]
 pub(crate) fn map_law_error(e: antecedent_expr::ExactLawError, message: &str) -> EstimationError {
     if e.kind == "cancelled" {
         refused(

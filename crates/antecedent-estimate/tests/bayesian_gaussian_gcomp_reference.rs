@@ -46,7 +46,12 @@ fn problem(case: &Value) -> PreparedBayesianProblem {
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(i, name)| (VariableId::from_raw(i as u32), floats(&case[name.as_str().unwrap()])))
+        .map(|(i, name)| {
+            (
+                VariableId::from_raw(u32::try_from(i).expect("fixture value fits")),
+                floats(&case[name.as_str().unwrap()]),
+            )
+        })
         .collect();
     let covariates: Vec<(VariableId, &[f64])> =
         columns.iter().map(|(id, c)| (*id, c.as_slice())).collect();

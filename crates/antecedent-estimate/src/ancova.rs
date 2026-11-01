@@ -333,7 +333,9 @@ mod tests {
         {
             let xs: Vec<Vec<f64>> = (0..covariate_count)
                 .map(|j| {
-                    (0..n).map(|i| (0.17 * (j + 1) as f64 * i as f64 + j as f64).sin()).collect()
+                    (0..n)
+                        .map(|i| (0.17 * f64::from(j + 1) * i as f64 + f64::from(j)).sin())
+                        .collect()
                 })
                 .collect();
             let refs: Vec<&[f64]> = xs.iter().map(Vec::as_slice).collect();
@@ -357,7 +359,7 @@ mod tests {
             }
             eprintln!(
                 "Bernoulli ANCOVA HC0 n={n} covariates={covariate_count} p={probability:.3} known-truth coverage: {covered}/{scored} = {:.4}",
-                covered as f64 / scored.max(1) as f64
+                covered as f64 / f64::from(scored.max(1))
             );
         }
     }

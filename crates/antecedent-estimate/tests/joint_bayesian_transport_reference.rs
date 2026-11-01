@@ -74,6 +74,10 @@ fn near(got: f64, want: f64, scale: f64, tolerance: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn posterior_and_effect_moments_match_the_exact_reference() {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/joint_bayesian_transport_reference.json"))
@@ -82,8 +86,11 @@ fn posterior_and_effect_moments_match_the_exact_reference() {
     assert_eq!(designs.len(), 6);
     for design in designs {
         let name = design["name"].as_str().unwrap();
-        let p = design["features"].as_u64().map_or(1, |v| v as usize);
-        let features: Vec<u32> = (0..p as u32).map(|j| 7 + j).collect();
+        let p = design["features"]
+            .as_u64()
+            .map_or(1, |v| usize::try_from(v).expect("fixture value fits"));
+        let features: Vec<u32> =
+            (0..u32::try_from(p).expect("fixture value fits")).map(|j| 7 + j).collect();
         let varying = match design["varying"].as_str().unwrap() {
             "intercept" => VaryingBlock::Intercept,
             _ => VaryingBlock::InterceptAndCovariates,
@@ -154,7 +161,7 @@ fn posterior_and_effect_moments_match_the_exact_reference() {
             continue;
         }
         let fit = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
-        let d = design["dim"].as_u64().unwrap() as usize;
+        let d = usize::try_from(design["dim"].as_u64().unwrap()).expect("fixture value fits");
         assert_eq!(fit.posterior_mean.len(), d, "{name}");
         let scale_of = |i: usize| num(&design["posterior_covariance"][i][i]["value"]).sqrt();
         for i in 0..d {

@@ -171,7 +171,7 @@ mod tests {
         for rep in 0..4 {
             for z in [-1.0, 1.0] {
                 for u in [-1.0, 1.0] {
-                    let x = rep as f64 - 1.5;
+                    let x = f64::from(rep) - 1.5;
                     let dose = z + 0.25 * u;
                     units.push(JointInstrumentedUnit {
                         id: format!("{rep}/{z}/{u}"),
@@ -572,6 +572,7 @@ fn verify_features(
 /// # Errors
 /// Missing moment/rank premises, absent intercept, mismatched raw-dose feature binding
 /// or a complete-unit uncertainty realization losing rank.
+#[allow(clippy::needless_range_loop, reason = "the implementation follows the numerical indexing")]
 pub fn fit_instrumented_joint_polynomial(
     design: &JointInstrumentedDesign,
     units: &[JointInstrumentedUnit],

@@ -717,6 +717,7 @@ struct DesignRows<'a> {
     clippy::too_many_lines,
     reason = "one multinomial fit-and-predict over the shared train and validation design rows"
 )]
+#[allow(clippy::verbose_bit_mask, reason = "the mask controls a bounded periodic check")]
 fn multinomial_propensity(
     train: DesignRows<'_>,
     cells: &[usize],
@@ -1339,7 +1340,7 @@ mod tests {
     fn three_factor_interaction_recovers_the_three_way_term() {
         let n = 4_000;
         let mut rng = ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xC12);
-        let mut cols: Vec<Vec<f64>> = vec![Vec::with_capacity(n); 5];
+        let mut cols: Vec<Vec<f64>> = (0..5).map(|_| Vec::with_capacity(n)).collect();
         for _ in 0..n {
             let zi = standard_normal(&mut rng);
             let a = f64::from(rng.next_f64() < 0.5);

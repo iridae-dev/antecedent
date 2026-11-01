@@ -120,6 +120,10 @@ fn line(groups: usize, spacing: f64) -> PanelSpatial {
 }
 
 /// A panel simulated from the truth with a hand-written mean and the declared residual law.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 pub(super) fn simulate(
     family: PanelFamily,
     truth: &PanelParameters,
@@ -684,6 +688,11 @@ fn spatial_marginal_matches_the_dense_joint_covariance_and_its_conditional_momen
 }
 
 #[test]
+#[allow(
+    clippy::bool_to_int_with_if,
+    clippy::too_many_lines,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn scores_of_the_family_coordinates_match_analytic_derivatives_of_the_dense_likelihood() {
     let family = PanelFamily {
         adstock: PanelAdstock::Geometric,
@@ -1123,6 +1132,10 @@ fn compiled_expression_follows_group_classes_and_integer_hill_shapes_and_refuses
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn static_hill_and_group_classes_recover_curves_and_beat_shared_saturation() {
     let family = PanelFamily {
         saturation: PanelSaturation::Hill,
@@ -1273,6 +1286,10 @@ fn cells_06_non_finite_panel_values_are_refused_never_dropped_for_the_broader_fa
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn cells_06_a_group_weight_is_read_and_a_categorical_label_is_refused_by_the_frozen_schema() {
     let good = cells_06_panel();
     let json = serde_json::to_value(&good).unwrap();

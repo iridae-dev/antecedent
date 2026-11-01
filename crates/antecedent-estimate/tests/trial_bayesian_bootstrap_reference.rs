@@ -65,7 +65,7 @@ fn draws_follow_the_exact_dirichlet_law_free_and_blocked() {
         let (outcome, treatment, trial) =
             (floats(&case["outcome"]), flags(&case["treatment"]), flags(&case["trial"]));
         let (selection, propensity) = (floats(&case["selection"]), floats(&case["propensity"]));
-        let sampling = DrawSpec { draws, seed: 20261028 };
+        let sampling = DrawSpec { draws, seed: 20_261_028 };
         let out = match case["block"].as_u64() {
             None => trial_to_target_bayesian_bootstrap(
                 &identification(),
@@ -83,7 +83,7 @@ fn draws_follow_the_exact_dirichlet_law_free_and_blocked() {
                 &trial,
                 &selection,
                 &propensity,
-                (sampling, Some(block as usize)),
+                (sampling, Some(usize::try_from(block).expect("fixture value fits"))),
             ),
         }
         .unwrap();
@@ -126,8 +126,7 @@ fn a_single_arm_trial_and_too_few_draws_are_refused() {
         &prop,
         DrawSpec { draws: 100, seed: 1 },
     )
-    .err()
-    .expect("a single-arm trial is refused")
+    .expect_err("a single-arm trial is refused")
     .to_string();
     assert!(single_arm.contains("requires both observed treatment arms"), "{single_arm}");
     let one_draw = trial_to_target_bayesian_bootstrap(
@@ -139,8 +138,7 @@ fn a_single_arm_trial_and_too_few_draws_are_refused() {
         &prop,
         DrawSpec { draws: 1, seed: 1 },
     )
-    .err()
-    .expect("one draw is refused")
+    .expect_err("one draw is refused")
     .to_string();
     assert!(one_draw.contains("requires at least two draws"), "{one_draw}");
 }

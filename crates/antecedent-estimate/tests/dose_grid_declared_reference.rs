@@ -53,6 +53,11 @@ struct Case {
 }
 
 impl Case {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the reference fixture preserves its exact values and bounded inputs"
+    )]
     fn new(case: &Value) -> Self {
         Self {
             dose: floats(&case["dose"]),
@@ -62,7 +67,7 @@ impl Case {
             groups: case["groups"]
                 .is_array()
                 .then(|| floats(&case["groups"]).into_iter().map(|g| g as u32).collect()),
-            lag: case["lag"].as_u64().map(|l| l as usize),
+            lag: case["lag"].as_u64().map(|l| usize::try_from(l).expect("fixture value fits")),
             bandwidth: f(case, "bandwidth"),
         }
     }
@@ -95,7 +100,12 @@ impl Case {
 
 fn quantile(clusters: Option<u64>) -> f64 {
     // The t_{G-1} multiplier of a clustered interval, from the shared few-cluster ratio.
-    clusters.map_or(Z975, |g| Z975 * antecedent_stats::few_cluster_t_ratio(g as usize, 0.95))
+    clusters.map_or(Z975, |g| {
+        Z975 * antecedent_stats::few_cluster_t_ratio(
+            usize::try_from(g).expect("fixture value fits"),
+            0.95,
+        )
+    })
 }
 
 #[test]

@@ -722,6 +722,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::unreadable_literal,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn damped_newton_reaches_a_tight_score_tolerance_from_a_displaced_start() {
         let ctx = ExecutionContext::for_tests(1);
         let truth = OuMechanisms {

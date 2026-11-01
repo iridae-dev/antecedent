@@ -30,6 +30,10 @@ impl TreatmentArm {
     /// The arm of a value that must be exactly `0.0` or `1.0`; any other value (including
     /// non-finite ones) is `None`.
     #[must_use]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves discrete support or boundary semantics"
+    )]
     pub fn exact(indicator: f64) -> Option<Self> {
         if indicator == 0.0 {
             Some(Self::Control)
@@ -73,6 +77,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn indicator_round_trips_through_arm() {
         assert_eq!(TreatmentArm::of(0.0), TreatmentArm::Control);
         assert_eq!(TreatmentArm::of(1.0), TreatmentArm::Treated);

@@ -82,6 +82,10 @@ fn the_published_moments_are_the_exact_mixture_moments() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn the_envelope_does_not_depend_on_the_atom_order() {
     for case in cases() {
         let count = case["atoms"].as_array().unwrap().len();

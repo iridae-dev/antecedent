@@ -107,6 +107,10 @@ fn local_quadratic_reference(
     (beta[0], beta[1], var[0].sqrt(), var[1].sqrt(), influence)
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn invert3(m: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
         - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])

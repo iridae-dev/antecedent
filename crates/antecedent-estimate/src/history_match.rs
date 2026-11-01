@@ -407,10 +407,6 @@ impl PeriodHistoryContrast {
         let serial = serial_history_interval(&matched_periods, &differences, &pair_weights).ok();
         Ok(PeriodHistoryEstimate {
             contrast,
-            matched_periods,
-            differences,
-            pair_weights,
-            serial,
             standard_error,
             query_variances,
             donor_variances,
@@ -419,6 +415,10 @@ impl PeriodHistoryContrast {
             matched_donors,
             unmatched_treated,
             periods_matched,
+            matched_periods,
+            differences,
+            pair_weights,
+            serial,
         })
     }
 }

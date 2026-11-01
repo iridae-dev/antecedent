@@ -815,6 +815,10 @@ impl ContinuousResponseEstimator {
     /// run across the context's thread budget. Each draw yields its point coordinates
     /// (local-quadratic, bias-corrected) or its GAM vector, plus the GAM fits' effective degrees
     /// of freedom for the HC1-type spread correction (`inflate_draws_by_edf`).
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     fn derivative_draws(
         &self,
         functional: &ResponseFunctional,
@@ -1214,6 +1218,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn failed_aligned_slot_refuses_scalar_summary_even_with_two_finite_draws() {
         // The same coefficient draws and two dose worlds used by the joint
         // projection test: world 0 is [1, NaN, 3], world 1 [3, NaN, 7].

@@ -127,6 +127,10 @@ pub fn randomized_joint_means(
 mod tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn factorial_interaction_and_geo_population_use_actual_joint_cells() {
         let d = JointRandomizedDesign {
             worlds: vec!["00".into(), "10".into(), "01".into(), "11".into()],

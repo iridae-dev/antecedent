@@ -38,7 +38,7 @@ fn wald_effect_first_stage_standard_error_and_f_match_the_multiprecision_fit() {
         let name = case["name"].as_str().unwrap();
         let (z, t, y) =
             (floats(&case["instrument"]), floats(&case["treatment"]), floats(&case["outcome"]));
-        let lag = case["lag"].as_u64().unwrap() as usize;
+        let lag = usize::try_from(case["lag"].as_u64().unwrap()).expect("fixture value fits");
         let fit = fit_lagged_instrument(
             &LaggedInstrumentSample { instrument: &z, treatment: &t, outcome: &y, lag },
             0.0,
@@ -51,7 +51,11 @@ fn wald_effect_first_stage_standard_error_and_f_match_the_multiprecision_fit() {
         close(fit.reduced_form_outcome_slope, text(&case["reduced_form_slope"]), 1e-10, name);
         close(fit.homoskedastic_se, text(&case["se"]), 1e-10, name);
         close(fit.first_stage_f, text(&case["first_stage_f"]), 1e-9, name);
-        assert_eq!(fit.aligned_rows, case["aligned_rows"].as_u64().unwrap() as usize, "{name}");
+        assert_eq!(
+            fit.aligned_rows,
+            usize::try_from(case["aligned_rows"].as_u64().unwrap()).expect("fixture value fits"),
+            "{name}"
+        );
         assert_eq!(fit.lag, lag);
         close(fit.effect * fit.first_stage_slope, fit.reduced_form_outcome_slope, 1e-12, name);
     }
@@ -63,7 +67,7 @@ fn the_weak_instrument_threshold_refuses_a_finite_f_below_it_and_accepts_one_at_
         let name = case["name"].as_str().unwrap();
         let (z, t, y) =
             (floats(&case["instrument"]), floats(&case["treatment"]), floats(&case["outcome"]));
-        let lag = case["lag"].as_u64().unwrap() as usize;
+        let lag = usize::try_from(case["lag"].as_u64().unwrap()).expect("fixture value fits");
         let f = text(&case["first_stage_f"]);
         let sample = LaggedInstrumentSample { instrument: &z, treatment: &t, outcome: &y, lag };
         assert!(fit_lagged_instrument(&sample, f * (1.0 - 1e-9)).is_ok(), "{name} below F");

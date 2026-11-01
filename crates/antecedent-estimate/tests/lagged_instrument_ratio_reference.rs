@@ -49,7 +49,7 @@ fn the_wald_contrast_matches_the_exact_reference() {
             instrument: &z,
             treatment: &t,
             outcome: &y,
-            lag: case["lag"].as_u64().unwrap() as usize,
+            lag: usize::try_from(case["lag"].as_u64().unwrap()).unwrap(),
         };
         let wald = fit_lagged_instrument(&sample, 0.0).unwrap();
         assert_eq!(wald.aligned_rows as u64, case["aligned_rows"].as_u64().unwrap(), "{name}");
@@ -71,7 +71,7 @@ fn the_ratio_draws_follow_the_exact_distribution_function_of_the_gaussian_ratio(
             instrument: &z,
             treatment: &t,
             outcome: &y,
-            lag: case["lag"].as_u64().unwrap() as usize,
+            lag: usize::try_from(case["lag"].as_u64().unwrap()).unwrap(),
         };
         let fit = fit_lagged_instrument_posterior(
             &sample,

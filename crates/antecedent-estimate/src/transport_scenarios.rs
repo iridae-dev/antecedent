@@ -434,11 +434,7 @@ pub const SCENARIO_EXACT_PROVIDER: &str = "transport.exact_supplied_laws";
 fn refuse_scenario(
     refusal: antecedent_identify::sid::scenarios::ScenarioSetRefusal,
 ) -> EstimationError {
-    EstimationError::refused_detail(
-        refusal.code,
-        refusal.detail.to_string(),
-        refusal.message.to_string(),
-    )
+    EstimationError::refused_detail(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Check every sample row and intervention against the set's shared coordinate

@@ -40,7 +40,8 @@ fn natural_effects_and_mediator_fit_match_the_exact_gaussian_integral() {
             covariates: &covariates,
         };
         let config = NonlinearMediationConfig {
-            outcome_degree: case["degree"].as_u64().unwrap() as usize,
+            outcome_degree: usize::try_from(case["degree"].as_u64().unwrap())
+                .expect("fixture value fits"),
             bootstrap_replicates: 0,
             min_arm_count: 5,
             max_support_violation: 1.0,

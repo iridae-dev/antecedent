@@ -142,7 +142,7 @@ pub fn fit_categorical_history_units(
     reason = "the value is checked to be a non-negative integer below u32::MAX before the cast"
 )]
 fn outcome_code(y: f64) -> Option<u32> {
-    (y.is_finite() && y >= 0.0 && y.fract() == 0.0 && y < f64::from(u32::MAX)).then(|| y as u32)
+    (y.is_finite() && y >= 0.0 && y.fract() == 0.0 && y < f64::from(u32::MAX)).then_some(y as u32)
 }
 
 /// Coordinates of a history in axis order (the state, the first action, each later covariate
@@ -456,6 +456,10 @@ mod categorical_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn a_three_level_coordinate_indexes_the_mixed_radix_cell() {
         let u = unit(&[(2, 0, 1, 1, 1.0), (0, 1, 0, 0, 2.0)]);
         let units = [&u];

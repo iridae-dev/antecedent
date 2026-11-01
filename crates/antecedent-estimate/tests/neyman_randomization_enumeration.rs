@@ -167,6 +167,11 @@ fn blocked_randomization_matches_the_independent_block_law() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn cluster_totals_estimate_the_per_row_effect_with_the_cluster_neyman_variance() {
     // Seven clusters of unequal size; the potential outcome of a cluster is its row total.
     let rows = [3.0, 1.0, 4.0, 2.0, 6.0, 2.0, 5.0];
@@ -196,6 +201,10 @@ fn cluster_totals_estimate_the_per_row_effect_with_the_cluster_neyman_variance()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn factorial_main_effects_and_interaction_match_the_four_cell_randomization_law() {
     // Eight units, four potential outcomes each (cells 00, 10, 01, 11), two units per cell.
     let y: [[f64; 4]; 8] = [

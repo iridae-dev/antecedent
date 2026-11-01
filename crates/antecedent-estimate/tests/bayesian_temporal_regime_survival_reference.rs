@@ -90,6 +90,10 @@ fn reference_cdf(levels: &[f64], grid: &[f64], x: f64) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn bayesian_regime_survival_matches_the_independent_g_formula() {
     let reference: Value = serde_json::from_str(include_str!(
         "oracle_data/bayesian_temporal_regime_survival_reference.json"

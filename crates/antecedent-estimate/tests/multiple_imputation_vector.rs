@@ -19,6 +19,11 @@ fn close(a: f64, b: f64, tol: f64) -> bool {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    clippy::needless_range_loop,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn vector_pooling_matches_a_hand_computation_and_the_scalar_pooling_per_coordinate() {
     // m = 3, p = 2.
     let points = vec![vec![1.0, 0.5], vec![2.0, 0.1], vec![4.0, 0.3]];
@@ -211,6 +216,10 @@ fn imputer(x: &[f64], y: &[f64], z: &[f64], spec: ImputationSpec) -> Imputer {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn a_vector_run_pools_the_coordinates_jointly_and_agrees_with_the_scalar_run() {
     let ctx = ExecutionContext::for_tests(1);
     let (x, y, z) = simulate(400, 77);
@@ -248,6 +257,10 @@ fn a_vector_run_pools_the_coordinates_jointly_and_agrees_with_the_scalar_run() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn a_bayesian_vector_run_stacks_joint_draws() {
     let ctx = ExecutionContext::for_tests(1);
     let (x, y, z) = simulate(300, 8);

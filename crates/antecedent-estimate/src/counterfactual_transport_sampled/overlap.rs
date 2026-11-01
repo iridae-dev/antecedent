@@ -312,6 +312,10 @@ pub(crate) fn resolve_overlap(
     Ok(DatasetGroups { groups })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub(crate) fn resolve_overlap_checked(
     tables: &[SampledRegimeCounts],
     declaration: &OverlapDeclaration,

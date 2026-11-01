@@ -87,6 +87,7 @@ fn pooled(test: &'static str, options: usize) {
     tally.assert();
 }
 
+#[allow(clippy::cast_sign_loss, reason = "choice counts are nonnegative integers")]
 fn hierarchical(test: &'static str) {
     let n = grid_n(30);
     let hyper = HierarchicalChoicePrior {

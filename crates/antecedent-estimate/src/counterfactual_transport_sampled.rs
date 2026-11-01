@@ -476,12 +476,12 @@ fn checked_sort_tables(
                 let a = &entries[order[left]];
                 let b = &entries[order[right]];
                 let cmp = checked_key_cmp(&a.0, &b.0, work)?.then_with(|| a.1.cmp(&b.1));
-                if cmp != std::cmp::Ordering::Greater {
-                    next.push(order[left]);
-                    left += 1;
-                } else {
+                if cmp == std::cmp::Ordering::Greater {
                     next.push(order[right]);
                     right += 1;
+                } else {
+                    next.push(order[left]);
+                    left += 1;
                 }
             }
             for &i in &order[left..mid] {
@@ -706,6 +706,10 @@ pub fn estimate_sampled_counterfactual_transport(
         identities.push(identity);
         tables.push(table);
     }
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper belongs to this bounded calculation"
+    )]
     fn same_population(
         a: &str,
         b: &str,

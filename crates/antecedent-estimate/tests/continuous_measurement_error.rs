@@ -296,6 +296,10 @@ fn solve_small(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
 
 /// Maximum-likelihood logistic regression of `y` on the columns of `design` (each a row-length
 /// vector, the first the intercept) by Newton-Raphson to a gradient of 1e-13.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn logistic_mle(design: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
     let d = design.len();
     let n = y.len();
@@ -376,6 +380,10 @@ fn logistic_regression_calibration_matches_an_independent_reference_on_identical
 }
 
 #[test]
+#[allow(
+    clippy::useless_vec,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn logistic_simex_matches_an_independent_reference_on_identical_inputs() {
     let sim = simulate(4000, 13, true);
     let (sigma2, seed, replicates) = (0.25_f64, 2024_u64, 10_u32);

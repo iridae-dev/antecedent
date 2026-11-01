@@ -613,6 +613,14 @@ impl SpatialIndex {
     clippy::too_many_arguments,
     reason = "the two sides of the match, the metric, the neighbour count, the caliper, the execution state and the index choice are independent inputs"
 )]
+#[allow(
+    clippy::type_complexity,
+    reason = "the type preserves the estimator output and resource structure"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub(crate) fn match_diffs_with(
     donors: MatchSide<'_>,
     queries: MatchSide<'_>,
@@ -768,6 +776,10 @@ fn require_match_counts(n_donors: usize, matches: usize) -> Result<(), Estimatio
 /// Form bias-corrected outcome differences only after the exact neighbour pass.
 /// A single donor is read directly; a set of donors (several nearest neighbours, or donors tied
 /// at the nearest distance) is averaged with equal weight in the order of its run.
+#[allow(
+    clippy::type_complexity,
+    reason = "the type preserves the estimator output and resource structure"
+)]
 fn matched_outcome_diffs(
     donors: MatchSide<'_>,
     queries: MatchSide<'_>,
@@ -795,21 +807,18 @@ fn matched_outcome_diffs(
     // fitted means, computed once.
     let mut run_means = std::collections::HashMap::<(usize, usize), (f64, f64)>::new();
     for q in 0..n_queries {
-        let (set, span): (&[usize], (usize, usize)) = match &scalar_ties {
-            Some((tied, pool)) => {
-                let (start, len) = tied[q];
-                if len == 0 {
-                    continue;
-                }
-                (&pool[start..start + len], (start, len))
+        let (set, span): (&[usize], (usize, usize)) = if let Some((tied, pool)) = &scalar_ties {
+            let (start, len) = tied[q];
+            if len == 0 {
+                continue;
             }
-            None => {
-                let set = &donor_rows[q * matches..(q + 1) * matches];
-                if set[0] == usize::MAX {
-                    continue;
-                }
-                (set, (spans.len() * matches, matches))
+            (&pool[start..start + len], (start, len))
+        } else {
+            let set = &donor_rows[q * matches..(q + 1) * matches];
+            if set[0] == usize::MAX {
+                continue;
             }
+            (set, (spans.len() * matches, matches))
         };
         let (donor_y, donor_fit) = if scalar_ties.is_some() && set.len() > 1 {
             *run_means.entry(span).or_insert_with(|| {
@@ -1003,6 +1012,10 @@ fn match_scalar_sorted(
 #[expect(
     clippy::too_many_arguments,
     reason = "the search closure, the queries, the caliper and the output buffers are independent"
+)]
+#[allow(
+    clippy::type_complexity,
+    reason = "the type preserves the estimator output and resource structure"
 )]
 fn match_nearest_tied(
     nearest_k: &dyn Fn(&[f64], usize, &mut Vec<(usize, f64)>) -> Result<(), StatsError>,
@@ -1566,7 +1579,7 @@ pub(crate) fn matching_contrast(
 /// At constant weights `w_i = w` this is `c_i = (1 + K_i) / n` (ATE) and `c_q = 1/n`,
 /// `c_j = K_j / n` (ATT), the coefficients behind the unweighted `(1 + K_j)²` and `n + ΣK²`
 /// sums, whatever the scale of `w`.
-#[expect(
+#[allow(
     clippy::too_many_arguments,
     reason = "the coefficients need the weights, both arms' rows and the donor mapping"
 )]
@@ -1800,6 +1813,10 @@ fn abadie_imbens_se(effects: &[f64], donor_usage: &[f64], ate_form: bool, noise_
 /// collinear, and the bias term is the difference of two fitted values that nearly cancel. A
 /// design whose smallest triangular pivot is below `1e-13` of the largest is rank deficient and
 /// returns `None`, so no bias correction is made from it.
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 fn fit_linear_mean(features: &[f64], y: &[f64], dim: usize) -> Option<Vec<f64>> {
     let n = y.len();
     if n < dim + 1 || dim == 0 {
@@ -2485,6 +2502,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn caliper_dropped_queries_contribute_no_own_outcome_noise() {
         // Two exact matched pairs have effects 2 and 3 in each direction.
         // The other two rows cannot match and never donate. Their outcomes
@@ -2499,7 +2520,7 @@ mod tests {
                 &features,
                 &TargetPopulation::AllObserved,
                 Some(0.01),
-                weights.as_ref().map(|w| w.as_slice()),
+                weights.as_ref().map(<[f64; 6]>::as_slice),
             );
             let expected = if weights.is_some_and(|w| w[0] != w[1]) {
                 // Query shares .1,.2,.3,.4: effects 2,3,2,3 have mean 2.6,
@@ -2871,8 +2892,8 @@ mod tests {
         };
         let donor_x = lattice(300, 4, 3);
         let query_x = lattice(120, 6, 5);
-        let donor_y: Vec<f64> = (0..300).map(|i| (i as f64 * 0.37).sin()).collect();
-        let query_y: Vec<f64> = (0..120).map(|i| (i as f64 * 0.11).cos()).collect();
+        let donor_y: Vec<f64> = (0..300).map(|i| (f64::from(i) * 0.37).sin()).collect();
+        let query_y: Vec<f64> = (0..120).map(|i| (f64::from(i) * 0.11).cos()).collect();
         let ctx = ExecutionContext::for_tests(8);
         for matches in [1usize, 3] {
             for caliper in [None, Some(1.5)] {

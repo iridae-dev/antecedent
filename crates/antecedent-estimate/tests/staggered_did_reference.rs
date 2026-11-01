@@ -59,9 +59,21 @@ fn event_time_contrasts_match_the_exact_rational_reference() {
             assert_eq!(g.cohort, w["cohort"].as_i64().unwrap(), "{tag}");
             assert_eq!(g.period, w["period"].as_i64().unwrap(), "{tag}");
             assert_eq!(g.event_time, w["event_time"].as_i64().unwrap(), "{tag}");
-            assert_eq!(g.treated_subjects, w["treated"].as_u64().unwrap() as usize, "{tag}");
-            assert_eq!(g.comparison_subjects, w["comparison"].as_u64().unwrap() as usize, "{tag}");
-            assert_eq!(g.clusters, w["clusters"].as_u64().unwrap() as usize, "{tag}");
+            assert_eq!(
+                g.treated_subjects,
+                usize::try_from(w["treated"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
+            assert_eq!(
+                g.comparison_subjects,
+                usize::try_from(w["comparison"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
+            assert_eq!(
+                g.clusters,
+                usize::try_from(w["clusters"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
             close(g.effect, w["effect"].as_f64().unwrap(), &format!("{tag} effect"));
             close(g.standard_error, w["se"].as_f64().unwrap(), &format!("{tag} se"));
         }
@@ -86,8 +98,16 @@ fn group_time_cells_match_the_exact_rational_reference() {
                 (g.cohort, g.period),
                 (w["cohort"].as_i64().unwrap(), w["period"].as_i64().unwrap())
             );
-            assert_eq!(g.treated_subjects, w["treated"].as_u64().unwrap() as usize, "{tag}");
-            assert_eq!(g.clusters, w["clusters"].as_u64().unwrap() as usize, "{tag}");
+            assert_eq!(
+                g.treated_subjects,
+                usize::try_from(w["treated"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
+            assert_eq!(
+                g.clusters,
+                usize::try_from(w["clusters"].as_u64().unwrap()).expect("fixture value fits"),
+                "{tag}"
+            );
             close(g.effect, w["effect"].as_f64().unwrap(), &format!("{tag} effect"));
             close(g.standard_error, w["se"].as_f64().unwrap(), &format!("{tag} se"));
         }

@@ -66,14 +66,14 @@ fn randomized_means_and_sandwich_match_the_exact_reference() {
         }
         seen += 1;
         let name = case["name"].as_str().unwrap();
-        let k = case["k"].as_u64().unwrap() as usize;
+        let k = usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits");
         let units: Vec<JointRandomizedUnit> = case["units"]
             .as_array()
             .unwrap()
             .iter()
             .map(|u| JointRandomizedUnit {
                 id: u["id"].as_str().unwrap().into(),
-                arm: u["arm"].as_u64().unwrap() as usize,
+                arm: usize::try_from(u["arm"].as_u64().unwrap()).expect("fixture value fits"),
                 probabilities: floats(&u["probabilities"]),
                 outcome: u["outcome"].as_f64().unwrap(),
                 population_weight: u["population_weight"].as_f64().unwrap(),
@@ -142,15 +142,19 @@ fn unsupported_programs_and_bad_probabilities_are_refused() {
 }
 
 fn switchback_design(case: &Value) -> JointSwitchbackDesign {
-    let width = case["width"].as_u64().unwrap() as usize;
+    let width = usize::try_from(case["width"].as_u64().unwrap()).expect("fixture value fits");
     JointSwitchbackDesign {
         worlds: case["histories"]
             .as_array()
             .unwrap()
             .iter()
             .map(|h| {
-                let h: Vec<usize> =
-                    h.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect();
+                let h: Vec<usize> = h
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+                    .collect();
                 (h.iter().map(ToString::to_string).collect::<String>(), h)
             })
             .collect(),
@@ -173,11 +177,15 @@ fn sequences(case: &Value) -> Vec<HistoryAssignment> {
                 .unwrap()
                 .iter()
                 .map(|r| {
-                    r.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect()
+                    r.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+                        .collect()
                 })
                 .collect(),
             probabilities: floats(&s["probabilities"]),
-            realized: s["realized"].as_u64().unwrap() as usize,
+            realized: usize::try_from(s["realized"].as_u64().unwrap()).expect("fixture value fits"),
             outcomes: floats(&s["outcomes"]),
         })
         .collect()

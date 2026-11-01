@@ -947,6 +947,10 @@ mod tests {
     ];
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn interaction_is_shared_exactly_and_order_sensitivity_is_separate() {
         let hybrids = std::array::from_fn(|mask| {
             2.0 * (mask & 1) as f64
@@ -1102,7 +1106,7 @@ mod tests {
             let parameters = (0..24)
                 .map(|time| {
                     let mut value = draw.parameters.clone();
-                    value.intercept += shift * time as f64;
+                    value.intercept += shift * f64::from(time);
                     value
                 })
                 .collect();
@@ -1160,7 +1164,7 @@ mod tests {
             let parameters = (0..24)
                 .map(|time| {
                     let mut value = draw.parameters.clone();
-                    value.intercept += shift * time as f64;
+                    value.intercept += shift * f64::from(time);
                     value.half_saturation *= 1.0 + shift;
                     value
                 })
@@ -1208,6 +1212,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn weighted_finite_law_preserves_importance_weights_and_joint_variance() {
         let table = |exposure: f64, mechanism: f64| {
             std::array::from_fn(|mask| {

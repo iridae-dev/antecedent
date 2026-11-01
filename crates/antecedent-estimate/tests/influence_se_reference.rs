@@ -19,6 +19,10 @@ fn ints<T: TryFrom<i64>>(v: &Value) -> Vec<T> {
     v.as_array().unwrap().iter().map(|x| T::try_from(x.as_i64().unwrap()).ok().unwrap()).collect()
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn spec(kind: AnalyticSeKind, data: &Value) -> antecedent_estimate::InferenceSpec {
     let mut spec = antecedent_estimate::InferenceSpec::new(0);
     spec.se_kind = kind;
@@ -92,7 +96,7 @@ fn every_declared_dependence_matches_the_exact_variance() {
     let two = |s: &mut antecedent_estimate::InferenceSpec| {
         s.multiway_ids = Some(vec![ints(&data["clusters"]), ints(&data["dim1"])]);
     };
-    let negative = se(AnalyticSeKind::Multiway, &two).err().expect("negative variance is refused");
+    let negative = se(AnalyticSeKind::Multiway, &two).expect_err("negative variance is refused");
     assert_eq!(
         negative.to_string(),
         "non-positive variance: multiway inclusion-exclusion meat is materially negative"

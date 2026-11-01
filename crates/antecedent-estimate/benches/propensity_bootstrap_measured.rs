@@ -62,7 +62,7 @@ fn confounded_scm(n: usize) -> (TabularData, IdentifiedEstimand) {
         .map(|(id, values)| {
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(id as u32),
+                    VariableId::from_raw(u32::try_from(id).expect("fixture value fits")),
                     Arc::from(values),
                     ValidityBitmap::all_valid(n),
                 )

@@ -128,6 +128,7 @@ pub fn smoothed_dose_certified_features(
 
 /// Conservative live workspace: the first count is parent-owned scratch, the second
 /// includes nested regression and grid-draw leases that remain separately admitted.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 fn posterior_workspace_bytes(
     rows: usize,
     source: usize,
@@ -176,6 +177,10 @@ fn posterior_workspace_bytes(
 /// An uncertified identification, a malformed query, rows or basis, a grid window outside
 /// the declared dose support, fewer than `min_local_rows` source rows in a window, no target
 /// rows, or an invalid prior or draw count.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub fn smoothed_dose_posterior(
     id: &TransportIdentification,
     query: &SmoothedDoseTransportQuery,

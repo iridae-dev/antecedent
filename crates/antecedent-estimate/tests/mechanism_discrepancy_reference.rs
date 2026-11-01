@@ -59,7 +59,7 @@ fn fits_wald_holm_and_detectable_differences_equal_the_rational_reference() {
     let cases = reference();
     assert!(cases.len() >= 30);
     for (index, case) in cases.iter().enumerate() {
-        let k = case["k"].as_u64().unwrap() as usize;
+        let k = usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits");
         let source = population("source", &case["x_source"], &case["y_source"], k);
         let target = population("target", &case["x_target"], &case["y_target"], k);
         let options = DiscrepancyOptions {
@@ -80,7 +80,10 @@ fn fits_wald_holm_and_detectable_differences_equal_the_rational_reference() {
         {
             near(*got, text(want), 1e-11, &label("target beta"));
         }
-        assert_eq!(result.test.degrees_of_freedom, case["df"].as_u64().unwrap() as usize);
+        assert_eq!(
+            result.test.degrees_of_freedom,
+            usize::try_from(case["df"].as_u64().unwrap()).expect("fixture value fits")
+        );
         near(result.test.statistic, text(&case["wald"]), 1e-10, &label("wald"));
         near(result.test.p_value, text(&case["wald_p"]), 1e-8, &label("wald p"));
         near(result.detectability_factor, text(&case["factor"]), 1e-9, &label("factor"));

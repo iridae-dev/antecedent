@@ -83,6 +83,10 @@ fn run(case: &Value) -> (Vec<f64>, RidgeFoldSelection, Vec<antecedent_data::Glob
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn selected_penalty_support_and_predictions_match_the_independent_reference() {
     let reference: Value = serde_json::from_str(include_str!(
         "../../tests/oracle_data/penalized_propensity_reference.json"

@@ -165,6 +165,10 @@ mod history_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn finite_history_randomization_recovers_carryover_and_interaction() {
         let histories = vec![vec![0, 0], vec![0, 1], vec![1, 0], vec![1, 1]];
         let fit = switchback_history_means(&fixture(), &histories).unwrap();
@@ -172,7 +176,7 @@ mod history_tests {
         assert_eq!(fit.means[3] - fit.means[2] - fit.means[1] + fit.means[0], 5.0);
         assert_eq!(fit.eligible_periods, 4);
         assert_eq!(fit.observed_support, vec![1; 4]);
-        assert!(fit.covariance[1 * 4 + 2] < 0.0);
+        assert!(fit.covariance[4 + 2] < 0.0);
         for j in 0..4 {
             for k in 0..4 {
                 assert_eq!(fit.covariance[j * 4 + k], fit.covariance[k * 4 + j]);

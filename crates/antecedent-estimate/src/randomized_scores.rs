@@ -770,6 +770,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn complier_point_keeps_finite_positive_sub_epsilon_first_stage() {
         let p = [0.5, 0.5 - f64::EPSILON / 2.0, 0.5, 0.5];
         let result = complier_wald_effect(

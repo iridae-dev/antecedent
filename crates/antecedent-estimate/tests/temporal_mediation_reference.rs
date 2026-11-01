@@ -37,6 +37,10 @@ fn close(actual: f64, expected: f64, tol: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn mediation_effects_and_standard_errors_match_the_exact_reference() {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/temporal_mediation_reference.json"))
@@ -239,8 +243,7 @@ fn a_declared_target_population_is_refused_and_extra_horizons_read_the_first() {
     treated.target_population = antecedent_core::TargetPopulation::Treated;
     let refused = estimator
         .estimate(&data, &estimand_for(&treated), &treated, &ctx)
-        .err()
-        .expect("a declared target population was fitted as if it were all observed windows");
+        .expect_err("a declared target population was fitted as if it were all observed windows");
     assert!(matches!(refused, antecedent_estimate::EstimationError::TargetPopulation));
     assert_eq!(
         refused.to_string(),

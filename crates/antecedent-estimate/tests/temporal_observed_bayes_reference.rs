@@ -304,6 +304,10 @@ fn published(data: &TimeSeriesData, n_draws: usize) -> CausalPosterior {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn temporal_observed_bayes_draw_count_seed_and_fixed_chain_layout_are_read() {
     let data = table(Kind::Right, 12345.0);
     // Draws: ceil(n / 4) per chain, at least 1024; four chains after 512 warmup sweeps.

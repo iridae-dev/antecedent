@@ -713,6 +713,7 @@ fn score_standard_error(
     Ok(variance.sqrt())
 }
 
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 fn contrast_row(
     request: &DoseGridRequest<'_>,
     declared: &RowDeclaration<'_>,

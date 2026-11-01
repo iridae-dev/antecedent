@@ -35,7 +35,7 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
 
 fn learner(case: &Value) -> DrLearner {
     let mut learner = DrLearner::new();
-    learner.folds = case["k"].as_u64().unwrap() as usize;
+    learner.folds = usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits");
     learner.outcome = LearnerSpec::Linear(LinearSpec::default());
     learner.treatment = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
     learner.final_learner = LearnerSpec::Linear(LinearSpec::default());
@@ -77,8 +77,12 @@ fn effect_cate_and_hc0_standard_errors_match_the_fixed_fold_references() {
         let name = case["name"].as_str().unwrap();
         let (t, y) = (floats(&case["t"]), floats(&case["y"]));
         let x: Vec<Vec<f64>> = case["x"].as_array().unwrap().iter().map(floats).collect();
-        let folds: Vec<u32> =
-            case["folds"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+        let folds: Vec<u32> = case["folds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+            .collect();
         let data = table(&columns(&t, &y, &x));
         let (estimand, query) = setup(x[0].len());
         let estimator = learner(case);
@@ -113,8 +117,12 @@ fn an_integer_sampling_weight_equals_row_replication_for_the_point_estimates() {
     let case = &doc["cases"][0];
     let (t, y) = (floats(&case["t"]), floats(&case["y"]));
     let x: Vec<Vec<f64>> = case["x"].as_array().unwrap().iter().map(floats).collect();
-    let folds: Vec<u32> =
-        case["folds"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+    let folds: Vec<u32> = case["folds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+        .collect();
     let n = t.len();
     let mult: Vec<usize> = (0..n).map(|i| 1 + i % 3).collect();
     let (mut t2, mut y2, mut x2, mut f2) = (vec![], vec![], vec![], vec![]);
@@ -158,10 +166,19 @@ fn an_integer_sampling_weight_equals_row_replication_for_the_point_estimates() {
 }
 
 fn floats_u32(case: &Value) -> Vec<u32> {
-    case["folds"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect()
+    case["folds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+        .collect()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn exact_support_profiles_report_the_hc0_estimate_of_the_matching_row() {
     use antecedent_estimate::CateProfile;
     let doc: Value =

@@ -15,6 +15,10 @@ use antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_interna
 use serde_json::Value as Json;
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn delta_covariance_matches_high_precision_information_inverse() {
     let cases: Json =
         serde_json::from_str(include_str!("oracle_data/nested_markov_fisher_reference.json"))

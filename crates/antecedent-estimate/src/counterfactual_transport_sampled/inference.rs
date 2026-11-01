@@ -50,6 +50,10 @@ pub(crate) enum DeltaOutcome {
 ///
 /// Budget exhaustion or cancellation of an evaluation (a perturbed evaluation
 /// that is merely undefined withholds the standard error instead).
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 pub(crate) fn delta_standard_error(
     derivation: &CounterfactualTransportDerivation,
     tables: &[SampledRegimeCounts],

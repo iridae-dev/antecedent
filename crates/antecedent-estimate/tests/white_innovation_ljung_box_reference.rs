@@ -52,7 +52,7 @@ fn design(case: &Value) -> CompiledDesign {
 fn the_ljung_box_statistic_and_p_value_match_the_exact_reference() {
     for case in cases() {
         let name = case["name"].as_str().unwrap();
-        let lags = case["lags"].as_u64().unwrap() as usize;
+        let lags = usize::try_from(case["lags"].as_u64().unwrap()).unwrap();
         let report = innovation_whiteness_of(
             &design(&case),
             &InnovationWhitenessGate { max_lag: lags, level: 0.05 },
@@ -111,7 +111,10 @@ fn prepared(case: &Value) -> PreparedEstimationProblem {
 fn declaration(case: &Value, level: f64) -> WhiteInnovationDeclaration {
     WhiteInnovationDeclaration {
         horizon_steps: 1,
-        gate: InnovationWhitenessGate { max_lag: case["lags"].as_u64().unwrap() as usize, level },
+        gate: InnovationWhitenessGate {
+            max_lag: usize::try_from(case["lags"].as_u64().unwrap()).unwrap(),
+            level,
+        },
     }
 }
 

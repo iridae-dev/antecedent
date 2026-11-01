@@ -372,11 +372,7 @@ fn window(data: &ExactTransportData) -> BTreeSet<(String, u32, Vec<u32>, Vec<u32
 }
 
 fn refuse(refusal: &TemporalRefusal) -> EstimationError {
-    EstimationError::refused_detail(
-        refusal.code,
-        refusal.detail.to_string(),
-        refusal.message.to_string(),
-    )
+    EstimationError::refused_detail(refusal.code, refusal.detail, &refusal.message)
 }
 
 /// Refuse a decision that identified nothing, with the reason its outcome names.

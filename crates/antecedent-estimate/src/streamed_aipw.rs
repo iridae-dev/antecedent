@@ -300,6 +300,10 @@ impl AipwAte {
         clippy::float_cmp,
         reason = "the declared treatment levels are exact category labels, not computed values"
     )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     fn streamed_inputs<'a>(
         &self,
         data: &'a TabularData,
@@ -604,6 +608,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn the_streamed_reduction_equals_the_resident_cross_fit_estimate_standard_error_and_report() {
         let (data, estimand, query) = fixture(3_000, false);
         let estimator = AipwAte::new().with_bootstrap_replicates(0);
@@ -691,7 +699,7 @@ mod tests {
     /// 400 rows, `x` uniform on `[-3, 3]`, treated iff `x > 0` except eight flips next to 0:
     /// the logistic fit converges and is not separated, yet saturates far from the flips.
     fn saturated_fixture() -> (TabularData, IdentifiedEstimand, AverageEffectQuery) {
-        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (i as f64 + 0.5) / 400.0).collect();
+        let x: Vec<f64> = (0..400).map(|i| -3.0 + 6.0 * (f64::from(i) + 0.5) / 400.0).collect();
         let flips = [190, 193, 196, 198, 201, 203, 206, 209];
         let t: Vec<f64> = (0..400).map(|i| f64::from((x[i] > 0.0) != flips.contains(&i))).collect();
         let y: Vec<f64> =

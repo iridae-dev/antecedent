@@ -59,10 +59,12 @@ fn case(json: &Value) -> Case {
     }
     let data =
         TabularData::from_f64_columns(columns.iter().map(|(n, c)| (n.as_str(), *c))).unwrap();
-    let modifiers: Vec<VariableId> =
-        (0..w.len()).map(|k| VariableId::from_raw(2 + k as u32)).collect();
-    let adjustment: Vec<VariableId> =
-        (0..z.len()).map(|k| VariableId::from_raw((2 + w.len() + k) as u32)).collect();
+    let modifiers: Vec<VariableId> = (0..w.len())
+        .map(|k| VariableId::from_raw(2 + u32::try_from(k).expect("fixture value fits")))
+        .collect();
+    let adjustment: Vec<VariableId> = (0..z.len())
+        .map(|k| VariableId::from_raw(u32::try_from(2 + w.len() + k).expect("fixture value fits")))
+        .collect();
     let estimand = IdentifiedEstimand::backdoor(
         "backdoor.adjustment",
         Arc::from(adjustment),
@@ -97,6 +99,10 @@ fn near_vec(got: &[f64], want: &[f64], rel: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn effect_standard_error_arm_means_and_influences_equal_the_multiprecision_fit() {
     for json in reference() {
         let c = case(&json);
@@ -152,6 +158,10 @@ fn effect_standard_error_arm_means_and_influences_equal_the_multiprecision_fit()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn declared_levels_modifiers_and_population_are_used_or_refused() {
     let json = reference().into_iter().find(|c| c["name"] == "one_modifier_adjustment").unwrap();
     let c = case(&json);

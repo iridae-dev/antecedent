@@ -20,6 +20,10 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn the_overlap_report_matches_the_exact_diagnostics() {
     let cases: Vec<Value> =
         serde_json::from_str(include_str!("oracle_data/overlap_reference.json")).unwrap();

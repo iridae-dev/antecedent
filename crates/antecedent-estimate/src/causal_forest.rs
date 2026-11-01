@@ -680,6 +680,10 @@ fn subsample(
     Ok(idx)
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the helper retains its established ownership interface"
+)]
 fn grow_from(
     node: NodeRows,
     depth: usize,
@@ -785,6 +789,10 @@ fn choose_features(p: usize, rng: &mut CausalRng) -> Vec<usize> {
 
 /// Midpoints between distinct consecutive values of an ascending value list, thinned to at
 /// most about `max_cuts` candidates.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
 fn candidate_thresholds(sorted: &[f64], max_cuts: usize) -> Vec<f64> {
     if sorted.len() < 2 {
         return Vec::new();

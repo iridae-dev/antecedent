@@ -53,7 +53,18 @@ mod solve;
 pub use checked::{CheckedAdjustmentLowering, CheckedLinearAdjustmentAte};
 pub(crate) use solve::intervention_f64;
 
+#[cfg(test)]
+#[allow(
+    unused_imports,
+    clippy::wildcard_imports,
+    reason = "unit tests exercise internal solve operations"
+)]
 use solve::*;
+use solve::{
+    FitVariance, LinearFit, SolvedLinear, bootstrap_fit_failed, curvature_gram_inverse,
+    gcomp_or_coef_ate, huber_homoskedastic_se, linear_fit_from_solved, solve_linear,
+    treatment_coef_influence,
+};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]

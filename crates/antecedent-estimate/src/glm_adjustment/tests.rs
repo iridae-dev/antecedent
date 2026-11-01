@@ -723,6 +723,10 @@ fn hc1_sandwich_se_finite_without_bootstrap() {
 }
 
 /// `Φ(eta)` at 60 digits (mpmath `ncdf`), rounded once, for the `etas` of the test below.
+#[allow(
+    clippy::unreadable_literal,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 const PROBIT_MPMATH: [f64; 9] = [
     0.0,
     0.0,

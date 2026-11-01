@@ -479,6 +479,10 @@ fn prior_predictive_effect_follows_the_explicit_effect_prior_not_the_intercept()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn temporal_prepared_design_conjugate_recovers_pulse() {
     use antecedent_core::{
         CausalSchemaBuilder, Lag, MeasurementSpec, RoleHint, SmallRoleSet, TemporalEffectQuery,

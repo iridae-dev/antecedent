@@ -1181,6 +1181,10 @@ fn sampled_point_and_gradient_share_the_declared_operation_budget() {
 }
 
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn sampled_multitable_gradient_matches_independent_count_perturbations() {
     let case = case_named("joint_counterfactual_two_source_regimes");
     let data = laws_of(&case);

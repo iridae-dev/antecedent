@@ -88,6 +88,10 @@ fn known_variance_and_covariance_entries_equal_the_exact_update() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn dirichlet_means_equal_the_exact_pseudo_count_update_and_keep_structural_zeros() {
     let fx = fixture();
     for case in fx["dirichlet"].as_array().unwrap() {
@@ -125,7 +129,7 @@ fn ridge_coefficient_posterior_equals_the_exact_penalized_normal_equations() {
     for case in fixture()["ridge"].as_array().unwrap() {
         let xty = floats(&case["xty"]);
         let summary = DesignSummary {
-            n_rows: case["n_rows"].as_u64().unwrap() as usize,
+            n_rows: usize::try_from(case["n_rows"].as_u64().unwrap()).expect("fixture value fits"),
             first_treatment: 1,
             gram: floats(&case["gram"]),
             xty,

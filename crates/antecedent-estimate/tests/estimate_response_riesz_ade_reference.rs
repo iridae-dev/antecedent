@@ -25,7 +25,7 @@ use antecedent_estimate::response::ContinuousResponseEstimator;
 use serde_json::Value;
 
 fn floats(v: &Value) -> Vec<f64> {
-    v.as_array().unwrap().iter().map(|x| num(x)).collect()
+    v.as_array().unwrap().iter().map(num).collect()
 }
 
 fn num(v: &Value) -> f64 {
@@ -69,6 +69,10 @@ fn estimator_for(case: &Value) -> (ContinuousResponseEstimator, ResponseQuery, T
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn estimate_response_riesz_ade_scores_estimate_interval_and_overlap_match_exact_pipeline() {
     for case in fixture()["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();

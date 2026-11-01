@@ -56,6 +56,11 @@ struct Case {
 }
 
 impl Case {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the reference fixture preserves its exact values and bounded inputs"
+    )]
     fn new(case: &Value) -> Self {
         let adjustment = case["adjustment"]
             .as_array()
@@ -98,7 +103,7 @@ impl Case {
             groups: case["groups"]
                 .is_array()
                 .then(|| floats(&case["groups"]).into_iter().map(|g| g as u32).collect()),
-            lag: case["lag"].as_u64().map(|l| l as usize),
+            lag: case["lag"].as_u64().map(|l| usize::try_from(l).expect("fixture value fits")),
         }
     }
 
@@ -116,6 +121,11 @@ fn tolerance(name: &str) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::bind_instead_of_map,
+    clippy::needless_range_loop,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn weighted_clustered_and_serial_fits_match_the_exact_sandwich() {
     for case in reference() {
         let name = case["name"].as_str().unwrap();
@@ -294,7 +304,8 @@ fn declarations_without_their_covariance_kind_and_malformed_declarations_are_ref
     assert!(text.contains("weights_need_robust_covariance"), "{text}");
     // Clusters under a covariance that does not read them, and the cluster kind without any.
     c.spec.covariance = VectorCovariance::Hc1;
-    let groups: Vec<u32> = (0..n as u32).map(|i| i % 4).collect();
+    let groups: Vec<u32> =
+        (0..u32::try_from(n).expect("fixture value fits")).map(|i| i % 4).collect();
     let text = refuse(&c, RowStructure { clusters: Some(&groups), ..RowStructure::default() });
     assert!(text.contains("vector_treatment.cluster_unread"), "{text}");
     c.spec.covariance = VectorCovariance::Cluster;

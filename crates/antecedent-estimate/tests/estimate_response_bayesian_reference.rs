@@ -70,6 +70,12 @@ fn check(name: &str, mean: f64, sd: f64, lower: f64, upper: f64, want: &Json) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn response_levels_and_credible_intervals_match_the_exact_posterior() {
     let frozen: Json =
         serde_json::from_str(include_str!("oracle_data/estimate_response_bayesian_reference.json"))

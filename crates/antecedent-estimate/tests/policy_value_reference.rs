@@ -51,6 +51,10 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn binary_scores_standard_errors_and_point_values_match_the_exact_scores() {
     for case in cases("binary") {
         let name = case["name"].as_str().unwrap();
@@ -191,9 +195,19 @@ fn multi_action_scores_point_values_and_stratum_effects_match_the_exact_scores()
             assert_eq!(got.action, want["action"].as_str().unwrap());
             close(got.effect, want["effect"].as_f64().unwrap(), "cate effect");
             close(got.standard_error, want["se"].as_f64().unwrap(), "cate se");
-            assert_eq!(got.evaluation_rows, want["rows"].as_u64().unwrap() as usize);
-            assert_eq!(got.observed_action_rows, want["action_rows"].as_u64().unwrap() as usize);
-            assert_eq!(got.observed_control_rows, want["control_rows"].as_u64().unwrap() as usize);
+            assert_eq!(
+                got.evaluation_rows,
+                usize::try_from(want["rows"].as_u64().unwrap()).expect("fixture value fits")
+            );
+            assert_eq!(
+                got.observed_action_rows,
+                usize::try_from(want["action_rows"].as_u64().unwrap()).expect("fixture value fits")
+            );
+            assert_eq!(
+                got.observed_control_rows,
+                usize::try_from(want["control_rows"].as_u64().unwrap())
+                    .expect("fixture value fits")
+            );
             assert!(got.interval_95.is_none(), "twelve rows are below the interval floor");
         }
     }
@@ -236,7 +250,8 @@ fn finite_class_regret_interval_matches_the_exact_bonferroni_contrasts() {
         let (y, t, e) = (floats(&case["y"]), bools(&case["t"]), floats(&case["e"]));
         let candidates: Vec<Vec<bool>> =
             case["candidates"].as_array().unwrap().iter().map(bools).collect();
-        let selected = case["selected"].as_u64().unwrap() as usize;
+        let selected =
+            usize::try_from(case["selected"].as_u64().unwrap()).expect("fixture value fits");
         let got = evaluate_fixed_candidate_regret(
             &y,
             &t,

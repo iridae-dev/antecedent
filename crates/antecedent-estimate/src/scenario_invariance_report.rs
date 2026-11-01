@@ -123,7 +123,7 @@ impl ScenarioSetInvarianceReport {
 }
 
 fn refuse(error: &InvarianceReportError) -> EstimationError {
-    EstimationError::refused_detail(error.code, error.detail.to_string(), error.message.to_string())
+    EstimationError::refused_detail(error.code, error.detail, &error.message)
 }
 
 /// Build the invariance reports of a decided scenario set beside its evaluated

@@ -1,7 +1,7 @@
 //! Linear temporal mediation effects.
 //!
 //! Path-product decomposition on lagged samples: total = direct + mediated
-//! under a linear SEM, with mediated = Σ_j a_j · b_j over the mediator set
+//! under a linear SEM, with mediated = `Σ_j` `a_j` · `b_j` over the mediator set
 //! (`a_j` the treatment slope of mediator `j` given the adjustment set, `b_j` its
 //! slope in the outcome regression on the treatment, every mediator and the
 //! adjustment set). One mediator is the single path product `a · b`.

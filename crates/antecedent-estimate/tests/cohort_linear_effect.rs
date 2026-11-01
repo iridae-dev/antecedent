@@ -324,7 +324,7 @@ fn the_cohort_mean_interval_equals_the_reference_point_standard_error_and_bands(
         1e-8,
         "cohort standard error",
     );
-    assert_eq!(first.degrees_of_freedom as u64, interval["df"].as_u64().unwrap());
+    assert_eq!({ first.degrees_of_freedom }, interval["df"].as_u64().unwrap());
     for band in interval["levels"].as_array().unwrap() {
         let level = band["level"].as_f64().unwrap();
         let got = native_cohort_interval(&native, &source, level).unwrap();

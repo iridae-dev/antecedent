@@ -379,6 +379,10 @@ fn mediation_linear_g_matches_product_of_coefficients_cross_check() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let g = grid(&base_scm());
     let ignorable = NonlinearMediationPremises::sequentially_ignorable();

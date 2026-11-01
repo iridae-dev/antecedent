@@ -88,6 +88,10 @@ fn run(t: &Table) -> Result<antecedent_estimate::TransportResponseGridEstimate, 
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn the_grid_mean_and_overlap_match_the_exact_rational_reference() {
     for case in cases() {
         let name = case["name"].as_str().unwrap();

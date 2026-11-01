@@ -295,7 +295,7 @@ mod tests {
 
     #[test]
     fn streamed_iv_refuses_other_and_unobserved_discrete_levels() {
-        let treatment: Vec<f64> = (0..60).map(|i| (i % 3) as f64).collect();
+        let treatment: Vec<f64> = (0..60).map(|i| f64::from(i % 3)).collect();
         let outcome: Vec<f64> =
             treatment.iter().enumerate().map(|(i, t)| 2.0 * t + noise(i, 1)).collect();
         let instrument: Vec<f64> = (0..60).map(|i| noise(i, 2)).collect();
@@ -328,6 +328,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn the_streamed_reduction_equals_the_resident_fit_diagnostics_and_ar_set() {
         let (data, estimand, query) = fixture(4_000);
         let estimator = TwoStageLeastSquares::new().with_bootstrap_replicates(0);

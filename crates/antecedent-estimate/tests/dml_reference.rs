@@ -44,8 +44,12 @@ fn orthogonal_scores_and_standard_errors_match_the_fixed_fold_references() {
         let name = case["name"].as_str().unwrap();
         let (t, y) = (floats(&case["t"]), floats(&case["y"]));
         let x: Vec<Vec<f64>> = case["x"].as_array().unwrap().iter().map(floats).collect();
-        let folds: Vec<u32> =
-            case["folds"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect();
+        let folds: Vec<u32> = case["folds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+            .collect();
         let p = x[0].len();
         let mut columns =
             vec![("t", RoleHint::TreatmentCandidate, t), ("y", RoleHint::OutcomeCandidate, y)];
@@ -62,7 +66,8 @@ fn orthogonal_scores_and_standard_errors_match_the_fixed_fold_references() {
         let query = AverageEffectQuery::binary_ate(id(0), id(1));
         for (score, key) in [(DmlScore::Aipw, "aipw"), (DmlScore::PartiallyLinear, "plr")] {
             let mut estimator = DmlAte::new();
-            estimator.folds = case["k"].as_u64().unwrap() as usize;
+            estimator.folds =
+                usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits");
             estimator.outcome = LearnerSpec::Linear(LinearSpec::default());
             estimator.treatment = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
             estimator.score = score;

@@ -52,14 +52,19 @@ fn parse_col(v: &Value) -> Col {
         return Col::Num(array.iter().map(|x| x.as_f64().unwrap_or(f64::NAN)).collect());
     }
     Col::Cat {
-        codes: v["codes"].as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect(),
+        codes: v["codes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| u32::try_from(x.as_u64().unwrap()).expect("fixture value fits"))
+            .collect(),
         labels: v["labels"]
             .as_array()
             .unwrap()
             .iter()
             .map(|x| x.as_str().unwrap().to_owned())
             .collect(),
-        reference: v["reference"].as_u64().map(|x| x as u32),
+        reference: v["reference"].as_u64().map(|x| u32::try_from(x).expect("fixture value fits")),
     }
 }
 
@@ -152,7 +157,9 @@ fn build(case: &Value) -> Built {
     };
     let outcome = id_of(case["outcome"].as_str().unwrap());
     let functional = if case["folds"].is_u64() {
-        AssociationFunctional::Predictive { folds: case["folds"].as_u64().unwrap() as u32 }
+        AssociationFunctional::Predictive {
+            folds: u32::try_from(case["folds"].as_u64().unwrap()).expect("fixture value fits"),
+        }
     } else {
         match case["kind"].as_str().unwrap() {
             "model" => AssociationFunctional::Coefficients,
@@ -192,7 +199,8 @@ fn estimator(case: &Value) -> AssociationEstimator {
     }
     if case["bayes"].is_object() {
         estimator = estimator.with_bayesian(BayesianSettings {
-            draws: case["bayes"]["draws"].as_u64().unwrap() as usize,
+            draws: usize::try_from(case["bayes"]["draws"].as_u64().unwrap())
+                .expect("fixture value fits"),
             prior_scale: case["bayes"]["prior_scale"].as_f64().unwrap(),
         });
     }
@@ -251,7 +259,7 @@ fn regenerate(case: &Value, rows: usize, y: &[f64]) -> Value {
         return json!({"weights": weights, "block_length": length});
     }
     if let Some(folds) = case["folds"].as_u64() {
-        let folds = folds as usize;
+        let folds = usize::try_from(folds).expect("fixture value fits");
         let assignment: Vec<usize> = if series {
             (0..rows).map(|r| r * folds / rows).collect()
         } else {
@@ -331,7 +339,8 @@ fn estimates_and_analytic_errors_match_the_definition_references() {
         let prepared = estimator
             .prepare(&built.storage, &built.query)
             .unwrap_or_else(|e| panic!("{name}: {e}"));
-        let dropped = case["expect"]["rows_dropped"].as_u64().unwrap() as usize;
+        let dropped = usize::try_from(case["expect"]["rows_dropped"].as_u64().unwrap())
+            .expect("fixture value fits");
         assert_eq!(prepared.rows_dropped(), dropped, "{name}: rows dropped");
         assert_eq!(prepared.rows() + dropped, built.rows, "{name}: rows");
         let estimate = estimator
@@ -355,6 +364,11 @@ fn estimates_and_analytic_errors_match_the_definition_references() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_lossless,
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn resampling_summaries_and_posteriors_match_the_references_on_the_library_streams() {
     let reference = reference();
     for case in reference["resampling"].as_array().unwrap() {
@@ -458,7 +472,8 @@ fn resampling_summaries_and_posteriors_match_the_references_on_the_library_strea
             let record = estimate.posterior.unwrap();
             assert_eq!(record.method, method, "{name}");
             let draws = if method == "bayesian_bootstrap" {
-                case["bayes"]["draws"].as_u64().unwrap() as usize
+                usize::try_from(case["bayes"]["draws"].as_u64().unwrap())
+                    .expect("fixture value fits")
             } else {
                 0
             };
@@ -599,6 +614,10 @@ fn code<T>(result: Result<T, antecedent_estimate::EstimationError>) -> &'static 
 }
 
 #[test]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn declarations_the_estimator_cannot_honour_are_refused_with_their_reason() {
     let n = 30;
     let x: Vec<f64> = (0..n).map(|i| f64::from(i) / 4.0).collect();

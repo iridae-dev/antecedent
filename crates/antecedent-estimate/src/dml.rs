@@ -1287,6 +1287,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn learner_ate_known_truth_point_conformance() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
             "../../../conformance/estimate/learner_ate/fixture.json"

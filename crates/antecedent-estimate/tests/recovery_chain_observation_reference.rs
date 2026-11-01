@@ -91,6 +91,10 @@ fn law(case: &Value) -> ChainPatternLaw {
 }
 
 #[test]
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn recovery_equals_the_exactly_enumerated_law_including_extreme_probabilities() {
     let data = reference();
     let cases = data["cases"].as_array().unwrap();
@@ -152,6 +156,10 @@ fn the_wrong_response_order_or_tail_shape_does_not_recover_the_truth() {
 }
 
 /// Exact integer mass over `60^4` of the cells of one witness model, by own enumeration.
+#[allow(
+    clippy::precedence,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn witness_cells(
     model: &[antecedent_identify::ChainWitnessMechanism],
     axis: usize,

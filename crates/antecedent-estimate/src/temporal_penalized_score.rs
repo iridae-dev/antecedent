@@ -89,8 +89,8 @@ impl<'a> TemporalPropensityDesignRef<'a> {
         if !column_is_ones(&x_colmajor[..nrows]) {
             return Err(shape("column 0 is the intercept and must be identically one"));
         }
-        binary_outcomes(&y)?;
-        finite_column("design", &x_colmajor)?;
+        binary_outcomes(y)?;
+        finite_column("design", x_colmajor)?;
         Ok(Self { x_colmajor, y, nrows, ncols, dependence })
     }
     const fn refuse_series(&self) -> Result<(), EstimationError> {

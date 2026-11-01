@@ -34,6 +34,12 @@ fn close_scaled(got: f64, want: f64, scale: f64, rel: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the bounded reference fixture keeps its covariance checks together"
+)]
 fn categorical_fit_matches_the_exact_regression_for_every_covariance() {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/categorical_regression_reference.json"))

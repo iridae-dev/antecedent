@@ -378,6 +378,10 @@ impl TemporalSlopeDesign {
 
     /// Every modifier column's mean over `rows` (conditional layout), else empty; `NaN`s for no
     /// rows.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the helper retains its established ownership interface"
+    )]
     fn modifier_means_over(&self, rows: impl Iterator<Item = usize> + Clone) -> Vec<f64> {
         let SlopeLayout::Conditional { modifiers } = self.layout else {
             return Vec::new();
@@ -397,6 +401,10 @@ impl TemporalSlopeDesign {
 
     /// Adjustment-column means of the selected design rows (including resample multiplicities
     /// and declared sampling weights). Conditional effects handle modifier means separately.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the helper retains its established ownership interface"
+    )]
     fn adjustment_means_over(&self, rows: impl Iterator<Item = usize> + Clone) -> Vec<f64> {
         let SlopeLayout::Slopes { treatments } = self.layout else {
             return Vec::new();
@@ -1136,6 +1144,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn a_slope_fit_marginalizes_adjustment_columns_in_every_realization() {
         let n = 64;
         let sign = |row: usize, bit: usize| if (row >> bit) & 1 == 0 { -1.0 } else { 1.0 };

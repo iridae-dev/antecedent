@@ -308,15 +308,10 @@ pub fn validate_temporal_response_within(
     })?;
     let mut work =
         (temporal.horizons.len() as u64).checked_mul(4).ok_or(T::Limit { dimension: "work" })?;
-    match &query.outcome_functional {
-        antecedent_core::OutcomeFunctional::ExceedanceGrid(grid) => {
-            work = work
-                .checked_add(
-                    (grid.len() as u64).checked_mul(4).ok_or(T::Limit { dimension: "work" })?,
-                )
-                .ok_or(T::Limit { dimension: "work" })?;
-        }
-        _ => {}
+    if let antecedent_core::OutcomeFunctional::ExceedanceGrid(grid) = &query.outcome_functional {
+        work = work
+            .checked_add((grid.len() as u64).checked_mul(4).ok_or(T::Limit { dimension: "work" })?)
+            .ok_or(T::Limit { dimension: "work" })?;
     }
     match &query.functional {
         ResponseFunctional::MeanCurve { treatment, .. } => {

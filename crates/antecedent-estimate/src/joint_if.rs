@@ -541,6 +541,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::used_underscore_binding,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn max_t_owner_funds_exact_capacities_until_its_buffers_drop() {
         use antecedent_core::{ExecutionContext, numerical_admission};
         // Two 2x2 matrices, two vectors of length 2, and seven maxima.

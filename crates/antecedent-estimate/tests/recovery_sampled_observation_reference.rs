@@ -1,5 +1,5 @@
 //! Sampled observation recovery against an exactly enumerated finite structural model and an
-//! independent BCa interval.
+//! independent `BCa` interval.
 //!
 //! `oracle_data/recovery_sampled_observation_reference.py` (frozen in the JSON beside it)
 //! enumerates a binary structural model (confounder O, treatment X0, outcome X1, a response R0
@@ -9,9 +9,9 @@
 //! recovered effect of that table must be the exact backdoor effect 1/4 and its recovered law the
 //! exact joint. For a sampled table of 1500 rows the reference recomputes, from the recovery
 //! formula derived in the script, the point effect and every delete-one-row effect, and from the
-//! product's bootstrap replicate effects (a seeded stream, an input of the reference) the BCa
+//! product's bootstrap replicate effects (a seeded stream, an input of the reference) the `BCa`
 //! bias correction, acceleration, adjusted tail probabilities and type-7 interval endpoints at 50
-//! digits. This checks the recovery arithmetic and the BCa construction; the resampling stream
+//! digits. This checks the recovery arithmetic and the `BCa` construction; the resampling stream
 //! itself is checked by golden selection digests in `recovery_sampled.rs`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -117,6 +117,10 @@ fn dump_replicate_stream() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn an_exact_count_table_recovers_the_exact_backdoor_effect_and_joint() {
     let data = reference();
     let result =

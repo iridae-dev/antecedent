@@ -37,6 +37,10 @@ fn tolerance(name: &str) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn means_and_joint_covariance_match_the_exact_rational_reference() {
     let mut seen = 0;
     for case in cases() {

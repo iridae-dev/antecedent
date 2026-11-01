@@ -349,6 +349,13 @@ fn observability_and_aliasing_checks_follow_their_definitions() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::needless_range_loop,
+    clippy::too_many_lines,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn irregular_full_observation_recovers_the_parameters_and_predicts_held_out_interventions() {
     let ctx = ExecutionContext::for_tests(11);
     let trajectories = simulate_units(11, 4, 80, &truth(), &direct_measure);
@@ -430,12 +437,12 @@ fn irregular_full_observation_recovers_the_parameters_and_predicts_held_out_inte
     }
     for t in 0..times.len() {
         for c in 0..2 {
-            let mc_mean = sums[t][c] / replicates as f64;
-            let mc_var = squares[t][c] / replicates as f64 - mc_mean * mc_mean;
+            let mc_mean = sums[t][c] / f64::from(replicates);
+            let mc_var = squares[t][c] / f64::from(replicates) - mc_mean * mc_mean;
             let process_var = prediction.state_covariance[t][c * 2 + c];
             let parameter_var = parameter_blocks[t][c * 2 + c];
             assert!(parameter_var > 0.0, "propagated sampling variance must be positive");
-            let slack = 4.0 * (parameter_var + process_var / replicates as f64).sqrt() + 0.02;
+            let slack = 4.0 * (parameter_var + process_var / f64::from(replicates)).sqrt() + 0.02;
             assert!(
                 (prediction.state_mean[t][c] - mc_mean).abs() <= slack,
                 "t {t} c {c}: predicted {} simulated {mc_mean} slack {slack}",
@@ -444,7 +451,7 @@ fn irregular_full_observation_recovers_the_parameters_and_predicts_held_out_inte
             let covariance_sampling =
                 prediction.state_covariance_parameter_variance.as_ref().unwrap()[t][c * 2 + c];
             let variance_slack = 4.0
-                * (covariance_sampling.sqrt() + process_var * (2.0 / replicates as f64).sqrt())
+                * (covariance_sampling.sqrt() + process_var * (2.0 / f64::from(replicates)).sqrt())
                 + 0.01;
             assert!(
                 (process_var - mc_var).abs() <= variance_slack,

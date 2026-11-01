@@ -36,17 +36,21 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn subject_scores_weighted_by_measurement_count_match_the_definition() {
     let reference = reference();
     let ctx = ExecutionContext::for_tests(5);
     for case in reference["cases"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
-        let arms = case["arms"].as_u64().unwrap() as usize;
+        let arms = usize::try_from(case["arms"].as_u64().unwrap()).expect("fixture value fits");
         let assigned: Vec<usize> = case["assigned"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|a| a.as_u64().unwrap() as usize)
+            .map(|a| usize::try_from(a.as_u64().unwrap()).expect("fixture value fits"))
             .collect();
         let probabilities: Vec<f64> = case["probabilities"]
             .as_array()
@@ -73,11 +77,11 @@ fn subject_scores_weighted_by_measurement_count_match_the_definition() {
         };
         let e = &case["estimand"];
         let estimand = if e[0] == "arm" {
-            Estimand::ArmMean(e[1].as_u64().unwrap() as usize)
+            Estimand::ArmMean(usize::try_from(e[1].as_u64().unwrap()).expect("fixture value fits"))
         } else {
             Estimand::Contrast {
-                plus: e[1].as_u64().unwrap() as usize,
-                minus: e[2].as_u64().unwrap() as usize,
+                plus: usize::try_from(e[1].as_u64().unwrap()).expect("fixture value fits"),
+                minus: usize::try_from(e[2].as_u64().unwrap()).expect("fixture value fits"),
             }
         };
         let options = WeightedOptions {

@@ -39,11 +39,17 @@ const TOLERANCE: f64 = 1e-12;
 struct Dyadic(u64);
 impl Dyadic {
     fn next(&mut self) -> f64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 =
+            self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         let pool =
             [2f64.powi(-20), 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0 - 2f64.powi(-20)];
         pool[(self.0 >> 33) as usize % pool.len()]
     }
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "the reference fixture preserves its exact values and bounded inputs"
+    )]
     fn pmf3(&mut self) -> Vec<f64> {
         // three strictly positive dyadic masses summing to one
         let parts = [1u32, 2, 3, 4, 5, 6];

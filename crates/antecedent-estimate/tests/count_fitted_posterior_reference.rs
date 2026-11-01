@@ -19,7 +19,12 @@ fn reference() -> Value {
 }
 
 fn usizes(value: &Value) -> Vec<usize> {
-    value.as_array().expect("array").iter().map(|v| v.as_u64().expect("index") as usize).collect()
+    value
+        .as_array()
+        .expect("array")
+        .iter()
+        .map(|v| usize::try_from(v.as_u64().expect("index")).expect("fixture value fits"))
+        .collect()
 }
 
 fn model(nodes: &Value, rows: u64) -> CountFittedModel {
@@ -28,7 +33,8 @@ fn model(nodes: &Value, rows: u64) -> CountFittedModel {
         .expect("nodes")
         .iter()
         .map(|node| CountNode {
-            cardinality: node["card"].as_u64().expect("card") as usize,
+            cardinality: usize::try_from(node["card"].as_u64().expect("card"))
+                .expect("fixture value fits"),
             parents: usizes(&node["parents"]),
             table: if node["kind"] == "declared" {
                 NodeTable::Declared(
@@ -55,11 +61,16 @@ fn point_values_equal_the_exact_rational_enumeration() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|pair| (pair[0].as_u64().unwrap() as usize, pair[1].as_u64().unwrap() as usize))
+            .map(|pair| {
+                (
+                    usize::try_from(pair[0].as_u64().unwrap()).expect("fixture value fits"),
+                    usize::try_from(pair[1].as_u64().unwrap()).expect("fixture value fits"),
+                )
+            })
             .collect();
         let query = PosteriorQuery {
-            target: case["target"].as_u64().unwrap() as usize,
-            level: case["level"].as_u64().unwrap() as usize,
+            target: usize::try_from(case["target"].as_u64().unwrap()).expect("fixture value fits"),
+            level: usize::try_from(case["level"].as_u64().unwrap()).expect("fixture value fits"),
             evidence,
         };
         let got = model.point(&query, case["alpha"].as_f64().unwrap()).expect("point");
@@ -90,7 +101,8 @@ fn interval_endpoints_sit_inside_the_exact_beta_quantile_brackets() {
             CountFittedModel::new(vec![node_x, node_y], counts.iter().sum()).expect("model");
         let query = PosteriorQuery {
             target: 1,
-            level: case["target_level"].as_u64().unwrap() as usize,
+            level: usize::try_from(case["target_level"].as_u64().unwrap())
+                .expect("fixture value fits"),
             evidence: vec![(0, 1)],
         };
         let alpha = case["alpha"].as_f64().unwrap();
@@ -99,7 +111,7 @@ fn interval_endpoints_sit_inside_the_exact_beta_quantile_brackets() {
                 &query,
                 case["level"].as_f64().unwrap(),
                 alpha,
-                case["draws"].as_u64().unwrap() as u32,
+                u32::try_from(case["draws"].as_u64().unwrap()).expect("fixture value fits"),
                 17,
             )
             .expect("interval");

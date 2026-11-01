@@ -116,7 +116,7 @@ fn series_with(block: &Json, missing: &Json, weights: Option<Vec<f64>>) -> TimeS
             let valid: Vec<bool> = (0..n).map(|t| !gone.contains(&(t as u64))).collect();
             OwnedColumn::Float64(
                 Float64Column::new(
-                    VariableId::from_raw(id as u32),
+                    VariableId::from_raw(u32::try_from(id).expect("fixture value fits")),
                     Arc::from(floats(&block[*key])),
                     ValidityBitmap::from_bools(&valid),
                 )
@@ -214,6 +214,10 @@ fn identify_schedule(schedule: &[(VariableId, i32, Option<f64>)]) -> Identified 
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn overlays_of(case: &Json) -> Vec<SequentialMechanismOverlay> {
     case["overlays"]
         .as_array()
@@ -223,7 +227,9 @@ fn overlays_of(case: &Json) -> Vec<SequentialMechanismOverlay> {
             let node = o["node"].as_array().unwrap();
             SequentialMechanismOverlay {
                 node: SequentialNodeOverlay {
-                    variable: VariableId::from_raw(node[0].as_u64().unwrap() as u32),
+                    variable: VariableId::from_raw(
+                        u32::try_from(node[0].as_u64().unwrap()).expect("fixture value fits"),
+                    ),
                     offset: node[1].as_i64().unwrap() as i32,
                     level: o.get("level").and_then(Json::as_f64),
                     shift: o.get("shift").and_then(Json::as_f64).unwrap_or(0.0),
@@ -267,6 +273,10 @@ fn close(label: &str, got: f64, want: f64, tolerance: f64) {
 }
 
 /// The product estimate of a reference case: a Sustained contrast or a Sequence level.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn estimate_case(
     case: &Json,
     data: &TimeSeriesData,
@@ -307,6 +317,10 @@ fn point_case<'a>(reference: &'a Json, name: &str) -> &'a Json {
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn temporal_sequential_unfolded_structure_matches_the_hand_derived_graph() {
     let reference = reference();
     let identified = identify_contrast(&window_query(1.0, 0.0));
@@ -314,13 +328,14 @@ fn temporal_sequential_unfolded_structure_matches_the_hand_derived_graph() {
     let expected = reference["structure"].as_object().unwrap();
     assert_eq!(unfolded.dag.node_count(), expected.len());
     let label = |dense: usize| {
-        let key = identified.indexer.key_of(dense as u32).unwrap();
+        let key =
+            identified.indexer.key_of(u32::try_from(dense).expect("fixture value fits")).unwrap();
         format!("{}@{}", key.variable.raw(), key.offset)
     };
     for node in 0..unfolded.dag.node_count() {
         let mut parents: Vec<String> = unfolded
             .dag
-            .parents(DenseNodeId::from_raw(node as u32))
+            .parents(DenseNodeId::from_raw(u32::try_from(node).expect("fixture value fits")))
             .iter()
             .map(|p| label(p.as_usize()))
             .collect();
@@ -400,7 +415,7 @@ fn temporal_sequential_prepared_design_refits_every_mechanism_on_frozen_rows() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| r.as_u64().unwrap() as usize)
+        .map(|r| usize::try_from(r.as_u64().unwrap()).expect("fixture value fits"))
         .collect();
     close(
         "frozen rows",
@@ -417,7 +432,8 @@ fn temporal_sequential_prepared_design_refits_every_mechanism_on_frozen_rows() {
     );
     assert_eq!(
         design.block_length(),
-        reference["bootstrap"]["long_contrast"]["block_length"].as_u64().unwrap() as usize
+        usize::try_from(reference["bootstrap"]["long_contrast"]["block_length"].as_u64().unwrap())
+            .expect("fixture value fits")
     );
 }
 
@@ -446,6 +462,10 @@ fn bootstrap_cases() -> [(&'static str, &'static str, &'static str); 4] {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn temporal_sequential_block_bootstrap_interval_is_the_scaled_replicate_deviation() {
     let reference = reference();
     let inputs = inputs();
@@ -456,8 +476,16 @@ fn temporal_sequential_block_bootstrap_interval_is_the_scaled_replicate_deviatio
         let (effect, _) = estimate_case(case, &data, REPLICATES, None);
         let block = effect.uncertainty.block.resampling.expect("block geometry");
         // The reference derives the block length from the exact influence and scores.
-        assert_eq!(block.block_length, entry["block_length"].as_u64().unwrap() as usize, "{tag}");
-        assert_eq!(block.rows, entry["rows"].as_u64().unwrap() as usize, "{tag}");
+        assert_eq!(
+            block.block_length,
+            usize::try_from(entry["block_length"].as_u64().unwrap()).expect("fixture value fits"),
+            "{tag}"
+        );
+        assert_eq!(
+            block.rows,
+            usize::try_from(entry["rows"].as_u64().unwrap()).expect("fixture value fits"),
+            "{tag}"
+        );
         close(tag, effect.ate, entry["value"].as_f64().unwrap(), 1e-10);
         // The replicate row maps are the library stream's, and equal the frozen copy.
         let rows = regenerated_rows(block.rows, block.block_length, REPLICATES);
@@ -465,11 +493,18 @@ fn temporal_sequential_block_bootstrap_interval_is_the_scaled_replicate_deviatio
             .as_array()
             .unwrap()
             .iter()
-            .map(|m| m.as_array().unwrap().iter().map(|r| r.as_u64().unwrap() as usize).collect())
+            .map(|m| {
+                m.as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|r| usize::try_from(r.as_u64().unwrap()).expect("fixture value fits"))
+                    .collect()
+            })
             .collect();
         assert_eq!(rows, frozen, "{tag}: regenerated rows differ from the frozen copy");
         // A replicate whose resampled rows leave the normal equations singular is a soft failure.
-        let ok = entry["replicates_ok"].as_u64().unwrap() as u32;
+        let ok =
+            u32::try_from(entry["replicates_ok"].as_u64().unwrap()).expect("fixture value fits");
         assert_eq!(effect.uncertainty.bootstrap.replicates_ok, Some(ok), "{tag}");
         assert_eq!(effect.uncertainty.bootstrap.replicates_failed, Some(REPLICATES - ok), "{tag}");
         // se = raw replicate sd * fixed-b factor * the published kernel-bias factor; more than half
@@ -519,8 +554,12 @@ fn temporal_sequential_replicates_equal_exact_refits_on_the_regenerated_rows() {
         let maps = inputs["rows"][tag].as_array().unwrap();
         assert_eq!(maps.len(), replicates.len());
         for (map, want) in maps.iter().zip(&replicates) {
-            let rows: Vec<usize> =
-                map.as_array().unwrap().iter().map(|r| r.as_u64().unwrap() as usize).collect();
+            let rows: Vec<usize> = map
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|r| usize::try_from(r.as_u64().unwrap()).expect("fixture value fits"))
+                .collect();
             match want {
                 Some(want) => close(tag, design.estimate_on_rows(&rows).unwrap(), *want, 1e-9),
                 None => assert!(
@@ -548,7 +587,11 @@ fn temporal_sequential_influence_equals_the_exact_score_of_the_propagated_value(
         }
         // Without replicates the block length is the structural rule, and no SE is published.
         let block = effect.uncertainty.block.resampling.expect("rule geometry");
-        assert_eq!(block.block_length, entry["rule"].as_u64().unwrap() as usize, "{tag}");
+        assert_eq!(
+            block.block_length,
+            usize::try_from(entry["rule"].as_u64().unwrap()).expect("fixture value fits"),
+            "{tag}"
+        );
     }
 }
 
@@ -621,6 +664,10 @@ fn temporal_sequential_bayesian_tempering_factors_are_the_ones_the_reference_ass
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn temporal_sequential_bayesian_contrast_has_the_exact_composed_moments() {
     let reference = reference();
     let bayes = &reference["bayes"]["contrast"];
@@ -776,7 +823,7 @@ fn temporal_sequential_effect_modifiers_enter_as_interactions_and_are_averaged()
     let data = series(&reference["data"]);
     let modifier = &reference["modifier"];
     let query = window_query(1.0, 0.0).with_effect_modifiers(vec![VariableId::from_raw(
-        modifier["modifiers"][0].as_u64().unwrap() as u32,
+        u32::try_from(modifier["modifiers"][0].as_u64().unwrap()).expect("fixture value fits"),
     )]);
     let identified = identify_contrast(&query);
     let (effect, _) = estimate_sustained_window(
@@ -792,6 +839,10 @@ fn temporal_sequential_effect_modifiers_enter_as_interactions_and_are_averaged()
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn temporal_sequential_missing_time_points_drop_whole_windows_and_resample_the_original_axis() {
     let reference = reference();
     let gaps = &reference["gaps"];
@@ -825,18 +876,30 @@ fn temporal_sequential_missing_time_points_drop_whole_windows_and_resample_the_o
     // The resampled axis is the original windows; the block is the structural rule with no
     // kernel-bias widening, and the replicates are exact refits on the intact rows each block covers.
     let block = effect.uncertainty.block.resampling.expect("block geometry");
-    assert_eq!(block.rows, gaps["windows"].as_u64().unwrap() as usize);
-    assert_eq!(block.block_length, gaps["block_length"].as_u64().unwrap() as usize);
+    assert_eq!(
+        block.rows,
+        usize::try_from(gaps["windows"].as_u64().unwrap()).expect("fixture value fits")
+    );
+    assert_eq!(
+        block.block_length,
+        usize::try_from(gaps["block_length"].as_u64().unwrap()).expect("fixture value fits")
+    );
     assert_eq!(block.kernel_bias, 1.0);
     let positions = regenerated_rows(block.rows, block.block_length, REPLICATES);
     let frozen: Vec<Vec<usize>> = inputs()["rows"]["gapped"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|m| m.as_array().unwrap().iter().map(|r| r.as_u64().unwrap() as usize).collect())
+        .map(|m| {
+            m.as_array()
+                .unwrap()
+                .iter()
+                .map(|r| usize::try_from(r.as_u64().unwrap()).expect("fixture value fits"))
+                .collect()
+        })
         .collect();
     assert_eq!(positions, frozen, "regenerated positions differ from the frozen copy");
-    let ok = gaps["replicates_ok"].as_u64().unwrap() as u32;
+    let ok = u32::try_from(gaps["replicates_ok"].as_u64().unwrap()).expect("fixture value fits");
     assert_eq!(effect.uncertainty.bootstrap.replicates_ok, Some(ok));
     let raw = gaps["raw_sd"].as_f64().expect("enough replicates");
     close(

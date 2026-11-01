@@ -6,7 +6,11 @@
 //! mean augmentation and to the van Loan covariance block. They are carried through the
 //! Kalman recursion forward in time. The stationary initial law is differentiated through
 //! the steady-state equations `M m = -b` and `M P + P M^T = -L L^T`.
-use super::*;
+use super::{
+    BTreeMap, ExecutionContext, OuInitialLaw, OuMechanismParameter, OuMechanisms,
+    OuScheduleSegment, OuTrajectoryError, Problem, SpdFactor, Transition, bind, expm, identity,
+    matmul, numerical, symmetrize_average, transition, transition_cache_bytes, transpose,
+};
 use antecedent_kernels::gauss_jordan_solve;
 use antecedent_model::continuous_cyclic::OrnsteinUhlenbeck;
 
@@ -178,6 +182,11 @@ impl SensPropagator {
         Ok(Self { n, starts, models, dmodels, cache: BTreeMap::new() })
     }
 
+    #[allow(
+        clippy::ptr_arg,
+        reason = "the internal helper retains its existing allocation interface"
+    )]
+    #[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
     fn advance(
         &mut self,
         from: f64,
@@ -198,14 +207,14 @@ impl SensPropagator {
             let end = self.starts.get(k + 1).map_or(to, |next| next.min(to));
             let h = end - time;
             let key = (k, h.to_bits());
-            if !self.cache.contains_key(&key) {
+            if let std::collections::btree_map::Entry::Vacant(e) = self.cache.entry(key) {
                 let bytes = transition_cache_bytes(n, self.dmodels[k].len())?;
                 let lease = ctx
                     .acquire_admission(0, bytes)
                     .map_err(|error| OuTrajectoryError::Resource(error.to_string()))?;
                 let step = transition(&self.models[k], h, None)?;
                 let sens = sens_transition(&self.models[k], &self.dmodels[k], h)?;
-                self.cache.insert(key, (step, sens, lease));
+                e.insert((step, sens, lease));
             }
             let (step, sens, _) = &self.cache[&key];
             let phi_t = transpose(&step.phi, n, n);
@@ -248,6 +257,10 @@ impl SensPropagator {
 }
 
 /// Stationary law of the first segment with its derivatives in every coordinate.
+#[allow(
+    clippy::type_complexity,
+    reason = "the type preserves the estimator output and resource structure"
+)]
 fn stationary_sensitivity(
     prop: &SensPropagator,
     ctx: &ExecutionContext,
@@ -296,6 +309,10 @@ impl Problem<'_> {
     /// The information is `sum_t dv_j' S^-1 dv_k + (1/2) tr(S^-1 dS_j S^-1 dS_k)` over the
     /// innovations `v_t` with covariance `S_t`: the observed information with the terms of
     /// expectation zero removed, positive semidefinite by construction.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     pub(super) fn score_and_information(
         &self,
         theta: &[f64],

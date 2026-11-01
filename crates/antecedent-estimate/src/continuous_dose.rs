@@ -537,6 +537,10 @@ mod policy_tests {
     const TRUTH: [f64; 3] =
         [2.093_884_582_331_400_7, 2.352_416_912_832_5, -0.258_532_330_501_099_4];
 
+    #[allow(
+        clippy::type_complexity,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn policy_rules() -> ([(String, f64); 2], [(String, f64); 2]) {
         (
             [("a".to_string(), 0.7), ("b".to_string(), 0.3)],

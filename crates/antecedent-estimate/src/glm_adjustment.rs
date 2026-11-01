@@ -47,9 +47,16 @@ mod family;
 mod variance;
 
 pub(crate) use family::{FamilyKernel, fisher_weight, mean_derivative, resolve_nb_alpha};
+#[cfg(test)]
+#[allow(
+    unused_imports,
+    clippy::wildcard_imports,
+    reason = "unit tests exercise internal variance operations"
+)]
+use variance::*;
 pub(crate) use variance::{adjustment_glm_covariance, solve_adjustment_glm};
 
-use variance::*;
+use variance::{GcompTarget, average_gcomp_for_target, gcomp_delta_method_se, gcomp_sandwich_se};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -279,7 +286,7 @@ impl GlmAdjustmentAte {
             self.population_registry.as_ref(),
         )?;
         let treatment_levels = crate::prepare::restrict_to_contrast_levels(
-            &data,
+            data,
             treatment,
             &mut row_mask,
             (active, control),
@@ -387,6 +394,10 @@ impl GlmAdjustmentAte {
         Ok(point.with_bootstrap_outcome(boot))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
+    )]
     fn fit_point(
         &self,
         problem: &PreparedGlmProblem,

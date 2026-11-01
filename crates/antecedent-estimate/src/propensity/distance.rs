@@ -324,6 +324,10 @@ impl DistanceMatching {
 }
 
 /// Z-score each feature column on the current sample (row-major `n × dim`).
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 fn standardize_rowmajor_inplace(features: &mut [f64], n: usize, dim: usize) {
     if n == 0 || dim == 0 {
         return;

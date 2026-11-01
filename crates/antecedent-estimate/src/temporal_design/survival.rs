@@ -660,6 +660,10 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn censoring_positivity_and_extinguished_risk_sets_are_explicit() {
         assert_eq!(censor_survival(0.5, 0.1).unwrap(), 0.5);
         assert_eq!(
@@ -721,6 +725,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn actual_ipw_extinction_and_low_uncensoring_are_not_silently_mishandled() {
         let (unit, period, treat, mut cens, mut event, l) = trajectories(1500, 4);
         let columns = vec![l];

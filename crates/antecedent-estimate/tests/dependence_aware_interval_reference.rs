@@ -31,6 +31,12 @@ fn unit(history: &[f64], outcome: f64, treated: bool, weight: f64, period: i64) 
 }
 
 /// Newey-West standard error of the weighted mean of `d` aggregated over period labels.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn newey_west_reference(periods: &[i64], d: &[f64], w: &[f64]) -> (f64, f64, usize) {
     let total: f64 = w.iter().sum();
     let contrast: f64 = w.iter().zip(d).map(|(w, d)| w * d).sum::<f64>() / total;
@@ -111,6 +117,10 @@ fn brute_force_pairs(records: &[Record]) -> (Vec<i64>, Vec<f64>, Vec<f64>) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_wrap,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn a_three_period_hand_case_pins_the_newey_west_arithmetic() {
     // One treated and one control per period at equal scores, so each pair difference is the
     // treated outcome minus the control outcome: 1, 3, 2 with unit weights.

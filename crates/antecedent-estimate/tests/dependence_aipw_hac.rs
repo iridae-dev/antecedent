@@ -200,6 +200,10 @@ fn aipw_cluster_se_is_the_cluster_summed_sandwich_of_its_influence_values() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn a_three_level_treatment_is_refused_naming_its_levels_by_both_propensity_routes() {
     let n = 240;
     let (_, y, z) = rows(n);
@@ -225,6 +229,10 @@ fn a_three_level_treatment_is_refused_naming_its_levels_by_both_propensity_route
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn an_active_level_the_data_never_took_is_refused_naming_the_observed_levels() {
     let n = 240;
     let (t, y, z) = rows(n);

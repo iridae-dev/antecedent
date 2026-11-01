@@ -27,19 +27,21 @@ use crate::error::EstimationError;
 pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
     match err {
         antecedent_learn::LearnError::Cancelled
-        | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Cancelled)
+        | antecedent_learn::LearnError::Stats(
+            antecedent_stats::StatsError::Cancelled
+            | antecedent_stats::StatsError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            ),
+        )
         | antecedent_learn::LearnError::Admission(
             antecedent_core::execution::AdmissionError::Cancelled,
         )
-        | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Admission(
-            antecedent_core::execution::AdmissionError::Cancelled,
-        ))
-        | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Admission(
-            antecedent_core::execution::AdmissionError::Cancelled,
-        ))
-        | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Cancelled {
-            ..
-        }) => nuisance_cancelled(),
+        | antecedent_learn::LearnError::Probability(
+            antecedent_prob::ProbError::Admission(
+                antecedent_core::execution::AdmissionError::Cancelled,
+            )
+            | antecedent_prob::ProbError::Cancelled { .. },
+        ) => nuisance_cancelled(),
         antecedent_learn::LearnError::Admission(error)
         | antecedent_learn::LearnError::Stats(antecedent_stats::StatsError::Admission(error))
         | antecedent_learn::LearnError::Probability(antecedent_prob::ProbError::Admission(error)) => {
@@ -165,6 +167,7 @@ pub(crate) fn cross_fit_nuisance(
 }
 
 /// Per-arm outcome models + propensity, trained on `train ∩ arm` and scored on the valid fold.
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 pub(crate) fn cross_fit_aipw_nuisances(
     learners: AipwLearners,
     design: NuisanceDesign<'_>,

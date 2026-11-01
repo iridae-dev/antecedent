@@ -175,6 +175,10 @@ pub fn longitudinal_joint_means(
 mod tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn gformula_retains_treatment_affected_history_and_rejects_missing_joint_support() {
         let mut episodes = Vec::new();
         // P(L1=1|A0=0)=1/4, P(L1=1|A0=1)=3/4. Y=2A0+3A1+4L1+A0*A1.
@@ -427,6 +431,10 @@ pub fn longitudinal_joint_posterior(
 mod posterior_tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn finite_history_likelihood_posterior_matches_beta_expectations() {
         let design = LongitudinalJointDesign {
             worlds: vec![("base".into(), vec![0]), ("joint".into(), vec![1])],
@@ -442,8 +450,10 @@ mod posterior_tests {
                 assignments: vec![i % 2],
                 outcome: if i % 2 == 0 {
                     if i < 10 { 1.0 } else { 0.0 }
+                } else if i < 30 {
+                    1.0
                 } else {
-                    if i < 30 { 1.0 } else { 0.0 }
+                    0.0
                 },
             })
             .collect::<Vec<_>>();

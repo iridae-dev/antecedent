@@ -812,9 +812,9 @@ fn refuse_undeclared_levels(
             &[query.treatment],
             crate::prepare::FINITE_TABLE_ONLY,
         )?;
-    let mut mask = row_mask.to_vec();
+    let mut mask = row_mask.clone();
     crate::prepare::restrict_to_contrast_levels(
-        &data,
+        data,
         query.treatment,
         &mut mask,
         (active, control),

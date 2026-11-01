@@ -153,7 +153,8 @@ fn multi_unit_synthetic_control_recovers_a_staggered_effect_with_placebo_interva
     .unwrap_err();
     assert_eq!(error.reason_code(), Some("route_not_supported"));
     assert!(error.to_string().contains("intercept and ridge"));
-    for method in [SyntheticPanelMethod::Control] {
+    {
+        let method = SyntheticPanelMethod::Control;
         let serial = multi_unit_synthetic(
             &rows.panel(),
             &adoptions,

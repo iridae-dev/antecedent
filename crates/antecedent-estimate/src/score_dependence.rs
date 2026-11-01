@@ -195,9 +195,9 @@ mod tests {
     /// contrast read from the joint matrix equals the variance of the contrast's own influence.
     #[test]
     fn a_contrast_variance_from_the_joint_matrix_is_the_variance_of_the_combined_influence() {
-        let a: Vec<f64> = (0..23).map(|i| ((i * 7 % 11) as f64) - 4.5).collect();
-        let b: Vec<f64> = (0..23).map(|i| ((i * 5 % 13) as f64) * 0.5 - 1.0).collect();
-        let w: Vec<f64> = (0..23).map(|i| 1.0 + (i % 4) as f64).collect();
+        let a: Vec<f64> = (0..23).map(|i| f64::from(i * 7 % 11) - 4.5).collect();
+        let b: Vec<f64> = (0..23).map(|i| f64::from(i * 5 % 13) * 0.5 - 1.0).collect();
+        let w: Vec<f64> = (0..23).map(|i| 1.0 + f64::from(i % 4)).collect();
         let labels: Arc<[u32]> = (0..23u32).map(|i| i / 3).collect();
         for dependence in [ScoreDependence::Clusters(labels), ScoreDependence::NeweyWest { lag: 2 }]
         {
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn one_cluster_per_row_is_the_independent_row_variance_and_one_cluster_is_refused() {
-        let x: Vec<f64> = (0..9).map(|i| (i * i % 7) as f64).collect();
+        let x: Vec<f64> = (0..9).map(|i| f64::from(i * i % 7)).collect();
         let mean = x.iter().sum::<f64>() / 9.0;
         let singletons: Arc<[u32]> = (0..9u32).collect();
         let independent = crate::joint_if::joint_influence_covariance(&[&x], None).unwrap();

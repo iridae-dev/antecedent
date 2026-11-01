@@ -30,7 +30,11 @@ fn floats(v: &Value) -> Vec<f64> {
 }
 
 fn indices(v: &Value) -> Vec<usize> {
-    v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as usize).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| usize::try_from(x.as_u64().unwrap()).expect("fixture value fits"))
+        .collect()
 }
 
 fn try_run(case: &Value) -> Result<PolicyValueEstimate, antecedent_estimate::EstimationError> {
@@ -51,7 +55,7 @@ fn try_run(case: &Value) -> Result<PolicyValueEstimate, antecedent_estimate::Est
     };
     let mut request = ObservationalPolicyValue::new(support, objective, evaluation);
     if let Some(folds) = case["folds"].as_u64() {
-        request.folds = folds as usize;
+        request.folds = usize::try_from(folds).expect("fixture value fits");
     }
     request.reference = case["reference"].as_f64();
     if !case["known_propensity"].is_null() {
@@ -101,7 +105,11 @@ fn values_scores_and_comparisons_match_the_recorded_split_reference() {
         let want = &case["expected"];
         let got = run(case);
         let rel = if name.contains("offset") { 1e-5 } else { 1e-7 };
-        let order: Vec<usize> = got.row_index.iter().map(|id| id.get() as usize).collect();
+        let order: Vec<usize> = got
+            .row_index
+            .iter()
+            .map(|id| usize::try_from(id.get()).expect("fixture value fits"))
+            .collect();
         let recorded: Vec<Vec<usize>> =
             case["splits"].as_array().unwrap().iter().map(|s| indices(&s["valid"])).collect();
         assert_eq!(blocks(&order), recorded, "{name}: the product's splits are the recorded ones");
@@ -158,7 +166,11 @@ fn emit_splits() {
                 continue;
             }
         };
-        let order: Vec<usize> = estimate.row_index.iter().map(|id| id.get() as usize).collect();
+        let order: Vec<usize> = estimate
+            .row_index
+            .iter()
+            .map(|id| usize::try_from(id.get()).expect("fixture value fits"))
+            .collect();
         let splits: Vec<Value> = blocks(&order)
             .into_iter()
             .map(|valid| {

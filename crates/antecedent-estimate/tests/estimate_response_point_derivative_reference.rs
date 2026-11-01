@@ -36,6 +36,10 @@ fn close(got: f64, want: f64, rel: f64, scale: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn derivatives_intervals_and_transforms_match_the_exact_local_fits() {
     let frozen: Value = serde_json::from_str(include_str!(
         "oracle_data/estimate_response_point_derivative_reference.json"
@@ -118,12 +122,11 @@ fn derivatives_intervals_and_transforms_match_the_exact_local_fits() {
                         0.0,
                         &format!("{label} se"),
                     );
-                    let (want_low, want_up) = match fieller.filter(|f| !f.is_null()) {
-                        Some(f) => (num(&f[0]), num(&f[1])),
-                        None => {
-                            let i = &result["interval"];
-                            (num(&i[0]), num(&i[1]))
-                        }
+                    let (want_low, want_up) = if let Some(f) = fieller.filter(|f| !f.is_null()) {
+                        (num(&f[0]), num(&f[1]))
+                    } else {
+                        let i = &result["interval"];
+                        (num(&i[0]), num(&i[1]))
                     };
                     close(
                         *lower,

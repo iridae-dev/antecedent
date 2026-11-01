@@ -59,6 +59,11 @@ fn normal_cdf(z: f64) -> f64 {
     0.5 * antecedent_kernels::erfc(-z / std::f64::consts::SQRT_2)
 }
 
+#[allow(clippy::cast_sign_loss, reason = "the value is bounded by the validated estimator input")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by the validated estimator input"
+)]
 fn gaussian_atoms(mean: f64, sd: f64, knots: &[f64]) -> Vec<DiscreteAtom> {
     let (left, right) = match (knots.get(3), knots.len().checked_sub(4).and_then(|i| knots.get(i)))
     {

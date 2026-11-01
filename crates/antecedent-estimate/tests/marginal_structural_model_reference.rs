@@ -36,7 +36,8 @@ fn fit(case: &Value) -> MsmSummary {
             treatment_probability: &p,
             outcome_observed: &observed,
             censoring_probability: &c,
-            periods: case["periods"].as_u64().unwrap() as usize,
+            periods: usize::try_from(case["periods"].as_u64().unwrap())
+                .expect("fixture value fits"),
             minimum_probability: case["minimum_probability"].as_f64().unwrap(),
         },
         &floats(&case["numerator"]),

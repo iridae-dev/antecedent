@@ -1217,6 +1217,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn production_interval_bootstrap_stops_on_tolerance_and_returns_the_interval() {
         use crate::bootstrap_wave::fill_worker_replicate;
         use crate::util::bootstrap_interval_with_scratch;
@@ -1241,7 +1245,7 @@ mod tests {
         .unwrap();
         assert!(run.se.early_stopped && !run.se.cancelled);
         let attempted = run.se.replicates_ok + run.se.replicates_failed;
-        assert!(attempted >= 100 && attempted < 4000, "{attempted}");
+        assert!((100..4000).contains(&attempted), "{attempted}");
         assert_eq!(run.waves.len() as u32 * 50, attempted);
         // The successes are the leading replicates of the fixed-count bootstrap on this seed.
         let reference: Vec<f64> = (0..u64::from(attempted))

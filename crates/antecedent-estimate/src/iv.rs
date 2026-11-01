@@ -387,6 +387,10 @@ fn prepare_iv_checked(
     })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 fn prepare_iv_problem(
     data: &TabularData,
     estimand: &IdentifiedEstimand,

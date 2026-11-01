@@ -29,6 +29,11 @@ pub const SERIAL_METHOD: &str = "newey_west_ratio_normal_over_periods";
 /// The Newey-West truncation lag `floor(4 (T / 100)^(2/9))`, at least 1 and below `T`, for `T`
 /// observed periods.
 #[must_use]
+#[allow(clippy::cast_sign_loss, reason = "the value is bounded by the validated estimator input")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by the validated estimator input"
+)]
 pub fn newey_west_bandwidth(periods: usize) -> usize {
     if periods < 2 {
         return 0;

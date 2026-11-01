@@ -39,6 +39,10 @@ fn count(v: &Value) -> usize {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture preserves its exact values and bounded inputs"
+)]
 fn excursion_designs_match_the_exact_reference() {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/temporal_design_excursion_reference.json"))

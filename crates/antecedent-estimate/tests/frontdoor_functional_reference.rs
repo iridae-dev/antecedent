@@ -93,8 +93,7 @@ fn a_mediator_cell_missing_from_an_arm_is_refused_not_extrapolated() {
     let problem = estimator.prepare(&data, &estimand, &query).unwrap();
     let refused = estimator
         .fit(&problem, &ExecutionContext::for_tests(3), AssumptionSet::new())
-        .err()
-        .expect("a mediator cell missing from an arm must be refused");
+        .expect_err("a mediator cell missing from an arm must be refused");
     assert_eq!(
         refused.to_string(),
         "frontdoor.functional (saturated): a mediator value observed under a contrasted \

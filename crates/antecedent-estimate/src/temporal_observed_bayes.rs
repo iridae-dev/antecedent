@@ -285,6 +285,10 @@ fn mechanism_templates(
     mechanism_templates_inner(graph, outcome, None)
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by the validated estimator input"
+)]
 fn mechanism_templates_inner(
     graph: &TemporalDag,
     outcome: VariableId,
@@ -416,7 +420,7 @@ struct EvaluationNode {
     overlay: Option<SequentialMechanismOverlay>,
 }
 struct Evaluation {
-    _overlay_lease: Option<antecedent_core::execution::AdmissionLease>,
+    overlay_lease: Option<antecedent_core::execution::AdmissionLease>,
     _evaluation_lease: antecedent_core::execution::AdmissionLease,
     order: Vec<usize>,
     nodes: Vec<EvaluationNode>,
@@ -426,6 +430,10 @@ impl Evaluation {
     #[allow(
         clippy::cast_possible_truncation,
         reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded estimation procedure keeps its related calculations together"
     )]
     fn new(
         graph: &TemporalDag,
@@ -527,12 +535,11 @@ impl Evaluation {
                         .ok()
                         .and_then(|lag| key.offset.checked_sub(lag))
                         .and_then(|offset| positions.get(&(*variable, offset)).copied());
-                    match position {
-                        Some(position) => positions_for_parents.push(position),
-                        None => {
-                            complete = false;
-                            break;
-                        }
+                    if let Some(position) = position {
+                        positions_for_parents.push(position)
+                    } else {
+                        complete = false;
+                        break;
                     }
                 }
                 complete.then_some((*model, positions_for_parents))
@@ -582,13 +589,7 @@ impl Evaluation {
             }
         }
         order.retain(|&i| needed[i]);
-        Ok(Self {
-            _overlay_lease: None,
-            _evaluation_lease: evaluation_lease,
-            order,
-            nodes,
-            outcome,
-        })
+        Ok(Self { overlay_lease: None, _evaluation_lease: evaluation_lease, order, nodes, outcome })
     }
     fn value(&self, models: &[Mechanism], means: &BTreeMap<VariableId, f64>) -> f64 {
         crate::temporal_sequential::propagate_linear_level(
@@ -977,7 +978,7 @@ fn compile_cells(
             }
             let mut evaluation =
                 Evaluation::new(graph, indexer, outcome, horizon, overlays, budget, ctx)?;
-            evaluation._overlay_lease = Some(overlay_lease);
+            evaluation.overlay_lease = Some(overlay_lease);
             evaluations.push(evaluation);
             if doses.is_some() {
                 grid.push(dose);
@@ -1167,6 +1168,10 @@ struct ResponseContext<'a> {
 
 /// The response surface: pointwise credible band, the simultaneous band of the joint draws,
 /// the identification record per horizon and the support report.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded estimation procedure keeps its related calculations together"
+)]
 fn assemble_response(
     context: ResponseContext<'_>,
     draws: &PosteriorDraws,

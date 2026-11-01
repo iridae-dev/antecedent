@@ -253,6 +253,10 @@ fn quantile_arm_at(
     clippy::cast_sign_loss,
     reason = "rounded index is nonnegative and bounded by len-1"
 )]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves discrete support or boundary semantics"
+)]
 pub fn empirical_threshold_grid(y: &[f64], points: usize) -> Result<Vec<f64>, EstimationError> {
     let mut v: Vec<f64> = y.iter().copied().filter(|x| x.is_finite()).collect();
     if v.len() < 16 || points < 4 {

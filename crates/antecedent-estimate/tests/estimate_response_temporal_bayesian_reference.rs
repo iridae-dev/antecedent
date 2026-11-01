@@ -88,7 +88,7 @@ fn series(case: &Json) -> TimeSeriesData {
     .unwrap()
 }
 
-/// z_s -> x_s, z_{s-1} -> x_s, x_{s-1} -> y_s, x_{s-2} -> y_s, z_{s-1} -> y_s, z_{s-2} -> y_s.
+/// `z_s` -> `x_s`, z_{s-1} -> `x_s`, x_{s-1} -> `y_s`, x_{s-2} -> `y_s`, z_{s-1} -> `y_s`, z_{s-2} -> `y_s`.
 fn graph() -> TemporalDag {
     let mut g = TemporalDag::empty();
     let (x, y, z) = (VariableId::from_raw(X), VariableId::from_raw(Y), VariableId::from_raw(Z));
@@ -116,7 +116,12 @@ fn identify(
 }
 
 fn horizons_of(query: &Json) -> Vec<u32> {
-    query["horizons"].as_array().unwrap().iter().map(|h| h.as_u64().unwrap() as u32).collect()
+    query["horizons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|h| u32::try_from(h.as_u64().unwrap()).expect("fixture value fits"))
+        .collect()
 }
 
 fn mean_curve(grid: &[f64]) -> ResponseFunctional {
@@ -326,7 +331,7 @@ fn estimate_response_temporal_bayesian_reference_block_length_reads_the_declared
         let query = &main["queries"][key];
         let grid = floats(&query["grid"]);
         let response = estimate(main, query, mean_curve(&grid), history);
-        let want = query["block"].as_u64().unwrap() as usize;
+        let want = usize::try_from(query["block"].as_u64().unwrap()).expect("fixture value fits");
         assert_eq!(published_block(&response), Some(want), "{key}: dependence block length");
         assert_kappas(key, &response, query);
     }

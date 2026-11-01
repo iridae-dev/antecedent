@@ -155,8 +155,7 @@ fn checked_linear_backends_execute_equal_designs_and_refuse_unavailable_routes()
     {
         let refused = estimator
             .prepare_checked_with_backend(&data, &identification, 0, unavailable)
-            .err()
-            .expect("an unavailable physical route is refused");
+            .expect_err("an unavailable physical route is refused");
         assert!(
             refused.to_string().contains("streamed and lazy preparation are unavailable"),
             "{refused}"
@@ -196,8 +195,7 @@ fn checked_linear_adjustment_retains_selected_target_and_assumptions() {
         ("z", z.as_slice()),
     ])
     .unwrap();
-    let refused =
-        estimator.rebind_checked(&checked, &changed_schema).err().expect("renamed schema");
+    let refused = estimator.rebind_checked(&checked, &changed_schema).expect_err("renamed schema");
     assert!(refused.to_string().contains("no longer agree"), "{refused}");
 }
 
@@ -294,7 +292,7 @@ fn checked_linear_adjustment_rejects_semantic_tampering() {
     reversed.estimands[0].functional = functional;
     let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
     let mismatch = "selected functional does not match the query contrast";
-    let refused = estimator.prepare_checked(&data, &reversed, 0).err().expect("reversed arms");
+    let refused = estimator.prepare_checked(&data, &reversed, 0).expect_err("reversed arms");
     assert!(refused.to_string().contains(mismatch), "{refused}");
 
     let mut changed_arms = checked_result(query.clone(), &[VariableId::from_raw(2)]);
@@ -304,13 +302,13 @@ fn checked_linear_adjustment_rejects_semantic_tampering() {
         antecedent_core::Value::f64(2.0),
     );
     changed_arms.query = antecedent_core::CausalQuery::average_effect(different_query);
-    let refused = estimator.prepare_checked(&data, &changed_arms, 0).err().expect("changed arms");
+    let refused = estimator.prepare_checked(&data, &changed_arms, 0).expect_err("changed arms");
     assert!(refused.to_string().contains(mismatch), "{refused}");
 
     let mut changed_covariate = checked_result(query, &[VariableId::from_raw(2)]);
     changed_covariate.estimands[0].adjustment_set = Arc::from([]);
     let refused =
-        estimator.prepare_checked(&data, &changed_covariate, 0).err().expect("changed covariate");
+        estimator.prepare_checked(&data, &changed_covariate, 0).expect_err("changed covariate");
     assert!(refused.to_string().contains(mismatch), "{refused}");
 
     let mut changed_population =
@@ -318,7 +316,7 @@ fn checked_linear_adjustment_rejects_semantic_tampering() {
     changed_population.target_population = TargetPopulation::Treated;
     let changed_population = checked_result(changed_population, &[VariableId::from_raw(2)]);
     let refused =
-        estimator.prepare_checked(&data, &changed_population, 0).err().expect("treated population");
+        estimator.prepare_checked(&data, &changed_population, 0).expect_err("treated population");
     assert!(refused.to_string().contains("supports AllObserved population averaging"), "{refused}");
 }
 
@@ -529,7 +527,7 @@ fn scales_ate_by_level_delta() {
     // The 0/1 treatment never takes level 2, so the arm reading refuses the contrast instead
     // of extrapolating the slope.
     let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
-    let refused = est.prepare(&data, &estimand, &query).err().expect("level 2 has no rows");
+    let refused = est.prepare(&data, &estimand, &query).expect_err("level 2 has no rows");
     assert!(refused.to_string().starts_with("reason=arm_not_populated:"), "{refused}");
     // Read as a numeric dose, the contrast is the slope times the level distance.
     let est = LinearAdjustmentAte::new().with_bootstrap_replicates(0).with_dose_reading(true);

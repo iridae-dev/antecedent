@@ -60,12 +60,12 @@ fn level_means_and_pairwise_contrasts_match_the_fixed_fold_references() {
         let cat = floats(&case["cat"]);
         let y = floats(&case["y"]);
         let z: Vec<Vec<f64>> = case["z"].as_array().unwrap().iter().map(floats).collect();
-        let k = case["K"].as_u64().unwrap() as usize;
+        let k = usize::try_from(case["K"].as_u64().unwrap()).expect("fixture value fits");
         let data = data_for(&cat, &y, &z);
         let levels: Vec<f64> = (0..k).map(|c| c as f64).collect();
         let overlap = OverlapPolicy::RequireDiagnostics { clip: case["clip"].as_f64(), trim: None };
         let estimator = MultiLevelAipw::full_population(levels)
-            .with_folds(case["k"].as_u64().unwrap() as usize)
+            .with_folds(usize::try_from(case["k"].as_u64().unwrap()).expect("fixture value fits"))
             .with_overlap(overlap);
         let ctx = ExecutionContext::for_tests(11);
         for contrast in case["contrasts"].as_array().unwrap() {

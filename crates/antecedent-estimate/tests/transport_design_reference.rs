@@ -245,7 +245,7 @@ fn weighted_clustered_and_blocked_bayesian_bootstrap_follows_the_exact_law() {
             _ => RowDependence::Independent,
         };
         let out = rows
-            .bayesian_bootstrap(&identification(), dependence, DrawSpec { draws, seed: 20261029 })
+            .bayesian_bootstrap(&identification(), dependence, DrawSpec { draws, seed: 20_261_029 })
             .unwrap();
         let n = draws as f64;
         assert!(out.iter().all(|v| v.is_finite()));
@@ -277,6 +277,10 @@ fn unusable_weights_and_clusters_are_refused() {
 
     // A single cluster, or a trial that lives in a single cluster, carries no between-cluster
     // variation.
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the reference fixture preserves its exact values and bounded inputs"
+    )]
     fn refused<E: std::fmt::Display>(r: Result<f64, E>, needle: &str, what: &str) {
         let text = r.err().unwrap_or_else(|| panic!("{what}: accepted")).to_string();
         assert!(text.contains(needle), "{what}: {text}");

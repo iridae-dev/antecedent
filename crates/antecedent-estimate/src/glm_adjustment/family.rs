@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::GlmFamily;
 
 /// Floor on a probit probability and on a log-mean inside Fisher weights and the NB moment.
 pub(super) const FISHER_MEAN_FLOOR: f64 = 1e-12;

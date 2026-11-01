@@ -224,6 +224,10 @@ pub(crate) fn bic_autoregression(s: &[f64]) -> Autoregression {
 }
 
 /// [`bic_autoregression`] over orders up to `order_limit` (and `n - 2`).
+#[allow(
+    clippy::neg_cmp_op_on_partial_ord,
+    reason = "the comparison deliberately refuses unordered values"
+)]
 pub(crate) fn bic_autoregression_to(s: &[f64], order_limit: usize) -> Autoregression {
     let n = s.len();
     let max_order = order_limit.min(n.saturating_sub(2));

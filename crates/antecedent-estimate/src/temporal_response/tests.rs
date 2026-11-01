@@ -1165,6 +1165,10 @@ fn response_block_length_lengthens_on_persistent_scores() {
     /// `rule = max(span, ceil(sqrt(rows)))` (capped at `rows`), `testing = ceil(b_PW rows^(1/6))`
     /// with `b_PW` the largest Politis-White flat-top block length over the scores, and
     /// `length = max(rule, min(testing, rows / 3))` (at most `rows`).
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "the fixed reference fixture preserves its exact values and bounded setup"
+    )]
     fn politis_white(scores: &[f64]) -> usize {
         let n = scores.len();
         let nf = n as f64;
@@ -1485,8 +1489,8 @@ fn bayesian_response_refuses_an_ordinary_or_non_gaussian_likelihood_and_names_th
     ] {
         for backend in [crate::BayesianBackendKind::Laplace, crate::BayesianBackendKind::Hmc] {
             let estimator = crate::BayesianGComputationAte {
-                likelihood,
                 backend,
+                likelihood,
                 ..crate::BayesianGComputationAte::new()
             };
             let err = TemporalResponseEstimator::new()
@@ -1552,6 +1556,10 @@ fn intervention_surface_query(horizons: Vec<u32>) -> ResponseQuery {
 
 /// Two-horizon Bayesian intervention response on a noisy series: the cell means and, when
 /// retained, the joint draws of the two cells.
+#[allow(
+    clippy::manual_let_else,
+    reason = "the fixed reference fixture preserves its exact values and bounded setup"
+)]
 fn two_horizon_bayesian(seed: u64) -> (Vec<f64>, Option<antecedent_core::CredibleDraws>) {
     let (data, graph) = series_with_noise(260, 1.0, seed);
     let (e1, i1) = identify(&graph, 1);

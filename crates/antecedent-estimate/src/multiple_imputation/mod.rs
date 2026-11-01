@@ -192,7 +192,7 @@ impl std::error::Error for MultipleImputationError {}
 
 impl From<MultipleImputationError> for EstimationError {
     fn from(error: MultipleImputationError) -> Self {
-        Self::refused_detail(error.code, error.detail.to_string(), error.message.to_string())
+        Self::refused_detail(error.code, error.detail, &error.message)
     }
 }
 
