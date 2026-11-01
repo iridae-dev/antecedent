@@ -305,14 +305,23 @@ fn mag_as_admg(big: &Pag) -> Result<Admg, IdentificationError> {
 /// `big` (a MAG whose first `shift` dense ids precede the window), over the window's own dense
 /// ids. Window nodes that are neither a seed nor an ancestor of one stay isolated.
 ///
+/// Each candidate pair of kept nodes costs one build of its conditioning set and one
+/// m-separation test, so the pairs are the unit the work is counted in: one unit of
+/// `pairs`' work allowance per candidate, and a window with more candidate pairs than the
+/// allowance's `max_graph_edges` (the induced-pair ceiling of one unrolled graph) is refused
+/// before any pair is tested. The allowance is the caller's own, separate from the unfolding
+/// allowance, whose units are template-edge expansions and so cannot price pair tests.
+///
 /// # Errors
 ///
-/// A `big` that is not a directed/bidirected MAG, or a graph error.
+/// A `big` that is not a directed/bidirected MAG, a graph error, cancellation, or the pair
+/// allowance exhausted.
 fn window_mag(
     big: &Pag,
     window: &TemporalIndexer,
     shift: usize,
     seeds: &[usize],
+    pairs: &mut antecedent_core::TemporalBudget,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Pag, IdentificationError> {
     if ctx.cancellation.is_cancelled() {
@@ -338,12 +347,19 @@ fn window_mag(
     let mut marginal = Pag::with_variables(nodes);
     let mut workspace = DSeparationWorkspace::default();
     let kept: Vec<usize> = (0..n).filter(|&i| keep[i]).collect();
+    let candidates = (kept.len() as u64).saturating_mul((kept.len() as u64).saturating_sub(1)) / 2;
+    if candidates > pairs.limits().max_graph_edges {
+        return Err(crate::error::temporal_materialization_error(
+            antecedent_core::TemporalMaterializationError::Limit { dimension: "induced pairs" },
+        ));
+    }
     for (position, &i) in kept.iter().enumerate() {
         let (a_big, a_inner) = (DenseNodeId::from_index(i + shift), DenseNodeId::from_index(i));
         for &j in &kept[position + 1..] {
             if ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::Cancelled);
             }
+            pairs.charge_work(1).map_err(crate::error::temporal_materialization_error)?;
             let (b_big, b_inner) = (DenseNodeId::from_index(j + shift), DenseNodeId::from_index(j));
             let direct = admg.children(a_big).contains(&b_big)
                 || admg.children(b_big).contains(&a_big)
@@ -453,6 +469,13 @@ impl GeneralizedAdjustmentIdentifier {
         let mut temporal_budget = self.config.temporal_budget.clone().unwrap_or_else(|| {
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
         });
+        // The marginalization's own allowance, in candidate pairs: one unrolled graph's
+        // induced-pair ceiling for each completion the caller admits.
+        let mut pair_limits = temporal_budget.limits();
+        pair_limits.max_work = pair_limits
+            .max_graph_edges
+            .saturating_mul(u64::try_from(self.config.max_completions).unwrap_or(u64::MAX));
+        let mut pair_budget = antecedent_core::TemporalBudget::new(pair_limits);
         let mut sampler = TemporalPagCompletionSampler::for_window_with_borrowed_temporal_budget(
             pag,
             self.config.max_completions,
@@ -475,7 +498,8 @@ impl GeneralizedAdjustmentIdentifier {
                 .unfold_within(big.clone(), &mut temporal_budget, &ctx)
                 .map_err(crate::error::temporal_graph_error)?;
             let results = if antecedent_graph::completion::is_mag_completion(&finite.pag) {
-                let marginal = window_mag(&finite.pag, inner, shift, &seeds, &ctx)?;
+                let marginal =
+                    window_mag(&finite.pag, inner, shift, &seeds, &mut pair_budget, &ctx)?;
                 self.window_candidate_results(
                     &marginal,
                     &query,
@@ -678,6 +702,62 @@ mod tests {
         ));
     }
 
+    /// A pair allowance of `work` candidate pairs under the default per-graph pair ceiling.
+    fn pair_budget(work: u64) -> antecedent_core::TemporalBudget {
+        let mut limits = antecedent_core::TemporalMaterializationLimits::default();
+        limits.max_work = work;
+        antecedent_core::TemporalBudget::new(limits)
+    }
+
+    /// Independent nodes that are all seeds: every pair is a candidate and nothing links them.
+    fn isolated_window(nodes: u32) -> (Pag, TemporalIndexer, Vec<usize>) {
+        (
+            Pag::with_variables(nodes),
+            TemporalIndexer::new(nodes, 0, 1).unwrap(),
+            (0..nodes as usize).collect(),
+        )
+    }
+
+    #[test]
+    fn window_pairs_are_charged_to_their_own_allowance() {
+        let (graph, inner, seeds) = isolated_window(5);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        // 5 kept nodes: 10 candidate pairs. An allowance of 10 pays for them exactly.
+        let mut exact = pair_budget(10);
+        assert!(window_mag(&graph, &inner, 0, &seeds, &mut exact, &ctx).is_ok());
+        assert!(matches!(
+            exact.charge_work(1),
+            Err(antecedent_core::TemporalMaterializationError::Limit { .. })
+        ));
+        // One short and the loop stops with a typed budget error, never a verdict.
+        assert!(matches!(
+            window_mag(&graph, &inner, 0, &seeds, &mut pair_budget(9), &ctx),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Steps })
+        ));
+        // The allowance accumulates across windows (completions).
+        let mut shared = pair_budget(15);
+        assert!(window_mag(&graph, &inner, 0, &seeds, &mut shared, &ctx).is_ok());
+        assert!(matches!(
+            window_mag(&graph, &inner, 0, &seeds, &mut shared, &ctx),
+            Err(IdentificationError::Budget { .. })
+        ));
+    }
+
+    #[test]
+    fn a_window_over_the_induced_pair_ceiling_is_refused_before_any_pair_is_tested() {
+        let (graph, inner, seeds) = isolated_window(5);
+        let ctx = antecedent_core::ExecutionContext::for_tests(1);
+        let mut limits = antecedent_core::TemporalMaterializationLimits::default();
+        limits.max_graph_edges = 9;
+        let mut budget = antecedent_core::TemporalBudget::new(limits);
+        assert!(matches!(
+            window_mag(&graph, &inner, 0, &seeds, &mut budget, &ctx),
+            Err(IdentificationError::Budget { budget: crate::IdentificationBudget::Steps })
+        ));
+        // Nothing was charged: the whole allowance is still there.
+        assert!(budget.charge_work(limits.max_work).is_ok());
+    }
+
     #[test]
     fn marginal_window_pair_search_observes_context_cancellation() {
         let graph = Pag::with_variables(3);
@@ -685,7 +765,7 @@ mod tests {
         let mut ctx = antecedent_core::ExecutionContext::for_tests(1);
         ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);
         assert!(matches!(
-            window_mag(&graph, &inner, 0, &[0, 1, 2], &ctx),
+            window_mag(&graph, &inner, 0, &[0, 1, 2], &mut pair_budget(1000), &ctx),
             Err(IdentificationError::Cancelled)
         ));
     }
@@ -771,6 +851,7 @@ mod tests {
             &inner,
             3,
             &[a_id, b_id],
+            &mut pair_budget(1000),
             &antecedent_core::ExecutionContext::for_tests(1),
         )
         .unwrap();
@@ -796,6 +877,7 @@ mod tests {
             &inner,
             1,
             &[1],
+            &mut pair_budget(1000),
             &antecedent_core::ExecutionContext::for_tests(1),
         )
         .unwrap();
