@@ -843,8 +843,7 @@ impl TransportScenarioArtifactWire {
         if total_nodes.is_none_or(|total| total > MAX_SCENARIO_NODES) {
             return Err(IoError::Convert(format!(
                 "scenario graphs hold more than {MAX_SCENARIO_NODES} nodes in total"
-            ))
-            .into());
+            )));
         }
         let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>();
         let scenarios = wire
