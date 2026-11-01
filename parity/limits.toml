@@ -1269,6 +1269,14 @@ guard = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = '
 refusal = { path = "crates/antecedent-io-core/src/bridge_artifact.rs", pattern = 'MAX_VALIDATION_TRIALS \{\s*return Err\(ScientificBridgeArtifactError::LimitsExceeded\("validation trials"\)' }
 
 [[bound]]
+record = "scientific_bridge.distribution_bridges"
+key = "max_draws"
+implementation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_DRAWS" }]
+documentation = [{ path = "crates/antecedent-io-core/src/distribution_artifact.rs", constant = "MAX_DISTRIBUTION_DRAWS" }]
+guard = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'meta\.shape\[0\] > limits\.max_draws' }
+refusal = { path = "crates/antecedent-io-core/src/distribution_artifact.rs", pattern = 'meta\.shape\[0\] > limits\.max_draws[\s\S]{0,200}?return Err\(' }
+
+[[bound]]
 record = "sequential_evaluation.policy_evaluation"
 key = "max_states"
 implementation = [{ path = "crates/antecedent-design/src/sequential_evaluation.rs", constant = "MAX_STATES" }]
