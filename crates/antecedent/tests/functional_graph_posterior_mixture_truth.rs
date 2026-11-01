@@ -456,8 +456,19 @@ fn assert_mixed_verdicts(
             .refute(suite)
             .bootstrap_replicates(0)
             .build()
-            .and_then(|study| study.run(&ExecutionContext::for_tests(3)))
-            .unwrap_or_else(|e| panic!("{label}: atom {} alone: {e}", atom["name"]));
+            .and_then(|study| study.run(&ExecutionContext::for_tests(3)));
+        let run = match run {
+            Ok(run) => run,
+            Err(error) if atom["formula"] == "structural_zero" => {
+                let message = error.to_string();
+                assert!(
+                    message.contains("every coordinate") && message.contains("constant"),
+                    "{label}: structural-zero atom should refuse an uninformative refuter: {error}"
+                );
+                continue;
+            }
+            Err(error) => panic!("{label}: atom {} alone: {error}", atom["name"]),
+        };
         alone.push(
             run.refutations
                 .iter()

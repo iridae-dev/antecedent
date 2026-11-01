@@ -255,7 +255,7 @@ def posterior_specs() -> dict:
                 "atoms": [
                     atom("markov", "1/2", dag(*PS_MARKOV), "edge_unadjusted"),
                     atom("sibling_parent", "3/10", dag(("b", "t"), ("t", "a"), ("a", "y"), ("b", "y")), "edge_adjusted"),
-                    atom("no_path", "1/5", dag(("a", "t"), ("t", "b"), ("a", "y"), ("b", "y")), "unidentified"),
+                    atom("no_path", "1/5", dag(("a", "t"), ("t", "b"), ("a", "y"), ("b", "y")), "structural_zero"),
                 ],
             },
             "admg": {
@@ -274,10 +274,10 @@ def posterior_specs() -> dict:
                         "1/2",
                         cpdag([("a", "y"), ("b", "y")], [("t", "a"), ("t", "b")]),
                         "class",
-                        completions=["edge_unadjusted", "edge_adjusted", "unidentified"],
+                        completions=["edge_unadjusted", "edge_adjusted", "structural_zero"],
                     ),
                     atom("compelled", "3/10", cpdag(PS_MARKOV), "edge_unadjusted"),
-                    atom("no_path", "1/5", cpdag([("a", "t"), ("t", "b"), ("a", "y"), ("b", "y")]), "unidentified"),
+                    atom("no_path", "1/5", cpdag([("a", "t"), ("t", "b"), ("a", "y"), ("b", "y")]), "structural_zero"),
                 ],
             },
             "pag": {
@@ -392,6 +392,10 @@ def posterior_specs() -> dict:
 
 def atom_values(family: str, table: dict, spec: dict, formula: str):
     """The identified value(s) of one completion or atom: a float, a dict of floats, or None."""
+    if formula == "structural_zero":
+        # Without a directed path through the selected node, its active and control
+        # interventions are the same functional, so their difference is exactly zero.
+        return F(0)
     if formula in ("unidentified", "unidentified_direct"):
         return None
     if family == "path_specific":

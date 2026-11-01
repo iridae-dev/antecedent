@@ -1757,15 +1757,15 @@
                 ]
               ]
             },
-            "formula": "unidentified",
-            "value": null
+            "formula": "structural_zero",
+            "value": 0.0
           }
         ],
         "mixture": {
-          "value": 0.16796875,
-          "unidentified_mass": 0.2,
+          "value": 0.134375,
+          "unidentified_mass": 0.0,
           "set": [
-            0.15625,
+            0.0,
             0.1875
           ]
         }
@@ -1901,11 +1901,11 @@
             "completions": [
               "edge_unadjusted",
               "edge_adjusted",
-              "unidentified"
+              "structural_zero"
             ],
-            "value": 0.171875,
+            "value": 0.11458333333333333,
             "set": [
-              0.15625,
+              0.0,
               0.1875
             ]
           },
@@ -1960,15 +1960,15 @@
               ],
               "undirected": []
             },
-            "formula": "unidentified",
-            "value": null
+            "formula": "structural_zero",
+            "value": 0.0
           }
         ],
         "mixture": {
-          "value": 0.166015625,
-          "unidentified_mass": 0.2,
+          "value": 0.10416666666666667,
+          "unidentified_mass": 0.0,
           "set": [
-            0.15625,
+            0.0,
             0.1875
           ]
         }
