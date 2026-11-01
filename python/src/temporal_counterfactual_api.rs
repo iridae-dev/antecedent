@@ -117,7 +117,7 @@ fn consume_temporal_counterfactual_artifact(
     };
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, 1);
-        match TemporalCounterfactual::consume(&artifact, expected.as_ref(), &ctx) {
+        match TemporalCounterfactual::consume(artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;
@@ -213,7 +213,7 @@ fn consume_general_temporal_counterfactual_artifact(
     };
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, 1);
-        match GeneralTemporalCounterfactual::consume(&artifact, expected.as_ref(), &ctx) {
+        match GeneralTemporalCounterfactual::consume(artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

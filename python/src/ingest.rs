@@ -361,7 +361,7 @@ pub(crate) fn numeric_columns_to_batch(
         columns: owned,
         receipt: NumpyIngestReceipt {
             owned_copies: copied,
-            bytes_copied: (copied as u64)
+            bytes_copied: copied
                 .saturating_mul((n as u64).saturating_mul(std::mem::size_of::<f64>() as u64)),
             noncontiguous_columns: noncontiguous,
         },

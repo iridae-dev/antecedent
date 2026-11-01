@@ -100,7 +100,7 @@ fn staleness_from_artifact(
     let (data, _) = tabular_from_py_columns(names, columns)?;
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
-        let report = assess_artifact_staleness(&artifact, &data, &policy, &ctx).map_err(py_err)?;
+        let report = assess_artifact_staleness(artifact, &data, &policy, &ctx).map_err(py_err)?;
         Ok(staleness_report_json(&report).to_string())
     })
 }

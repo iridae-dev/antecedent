@@ -209,7 +209,7 @@ fn consume_design_ranking(
         }
         None => ConsumeExpectation::default(),
     };
-    detach_catch(py, move || match consume(&artifact, &expectation) {
+    detach_catch(py, move || match consume(artifact, &expectation) {
         Ok(done) => Ok((Some(consumed_json(&done)), None)),
         Err(error) => {
             let error = DesignRankingError::Artifact(error);

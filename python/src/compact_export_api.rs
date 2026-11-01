@@ -134,7 +134,7 @@ fn consume_compact_export(
     max_bytes: Option<usize>,
 ) -> PyResult<ConsumePayload> {
     let limits = limits_of(max_bytes);
-    detach_catch(py, move || match CompactExport::consume(&artifact, &limits, &expected_identity) {
+    detach_catch(py, move || match CompactExport::consume(artifact, &limits, &expected_identity) {
         Ok(export) => Ok((Some(body_json(&export)?), None)),
         Err(error) => Ok((None, Some(refusal_json(&error, "consume")))),
     })
@@ -173,7 +173,7 @@ fn evaluate_compact_export(
         })
         .collect();
     let limits = limits_of(max_bytes);
-    detach_catch(py, move || match CompactExport::consume(&artifact, &limits, &expected_identity) {
+    detach_catch(py, move || match CompactExport::consume(artifact, &limits, &expected_identity) {
         Ok(export) => {
             let results: Vec<serde_json::Value> = queries
                 .iter()

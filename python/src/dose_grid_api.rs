@@ -167,7 +167,7 @@ fn consume_dose_grid_artifact(
     let limits = DoseGridConsumeLimits { max_rows, max_grid };
     let ctx = dose_context(threads, max_bytes, cancel)?;
     detach_catch(py, move || {
-        match DoseGridFunctional::consume_with_context(&artifact, limits, &ctx) {
+        match DoseGridFunctional::consume_with_context(artifact, limits, &ctx) {
             Ok(done) => Ok((Some(report_json(&done)?), None)),
             Err(error) => match refusal_json(&error, "consume") {
                 Some(json) => Ok((None, Some(json))),
@@ -312,7 +312,7 @@ fn consume_dose_grid_posterior_artifact(
     let ctx = dose_context(threads, max_bytes, cancel)?;
     let (payload, facts) = detach_catch(py, move || {
         let attempt = antecedent_core::execution_attempt::observe_with_context(&ctx, || {
-            let done = BayesianPosteriorRow::consume_with_context(&artifact, limits, &ctx)?;
+            let done = BayesianPosteriorRow::consume_with_context(artifact, limits, &ctx)?;
             posterior_report_json(&done)
                 .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))
         });

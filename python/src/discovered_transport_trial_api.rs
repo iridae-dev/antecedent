@@ -385,7 +385,7 @@ fn verify_trial_confidence_set_against_inputs(
         cancel,
         move |report, query, evidence, ctx| {
             let set = verify_trial_compatible_transport_confidence_set_against(
-                &receipt, report, query, evidence, options, support, ctx,
+                receipt, report, query, evidence, options, support, ctx,
             )
             .map_err(estimation)?;
             set_reply(&set)

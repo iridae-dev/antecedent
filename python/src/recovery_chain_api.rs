@@ -292,7 +292,7 @@ fn consume_recovery_chain_artifact(
 ) -> PyResult<ConsumePayload> {
     detach_catch(py, move || {
         let ctx = execution_context(seed, memory_bytes, cancel);
-        match RecoveryChainArtifactWire::consume_typed(&artifact, &ctx) {
+        match RecoveryChainArtifactWire::consume_typed(artifact, &ctx) {
             Ok(consumed) => Ok((Some(report_of_wire(&consumed.wire)), None)),
             Err(error) => match artifact_refusal_json(&error) {
                 Some(json) => Ok((None, Some(json))),

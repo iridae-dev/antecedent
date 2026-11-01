@@ -178,8 +178,8 @@ fn build_cohort_decision_source(
     detach_catch(py, move || {
         let model = match kind {
             ModelKind::AnalysisResult => match &expected_model {
-                Some(claim) => FittedEffectModel::load_expecting(&model_bytes, claim),
-                None => FittedEffectModel::load(&model_bytes),
+                Some(claim) => FittedEffectModel::load_expecting(model_bytes, claim),
+                None => FittedEffectModel::load(model_bytes),
             },
             ModelKind::CompactExport => {
                 use antecedent::analysis::compact_export::{CompactExport, ExportLimits};
@@ -198,7 +198,7 @@ fn build_cohort_decision_source(
                         )),
                     ));
                 };
-                match CompactExport::consume(&model_bytes, &ExportLimits::default(), identity) {
+                match CompactExport::consume(model_bytes, &ExportLimits::default(), identity) {
                     Ok(export) => FittedEffectModel::from_compact_export(&export),
                     Err(error) => Err(CohortRefusal {
                         code: error.code,
@@ -243,7 +243,7 @@ fn consume_cohort_decision_source(
     };
     detach_catch(py, move || {
         match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
-            &artifact,
+            artifact,
             &expectation,
         ) {
             Ok(source) => Ok((Some(summary(&source).to_string()), None)),
@@ -310,7 +310,7 @@ fn cohort_decision_forward_claim(
     };
     detach_catch(py, move || {
         let source = match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
-            &artifact,
+            artifact,
             &expectation,
         ) {
             Ok(source) => source,
@@ -362,7 +362,7 @@ fn cohort_decision_evaluate(
     };
     detach_catch(py, move || {
         let source = match antecedent::analysis::cohort_decision::consume_cohort_decision_source(
-            &artifact,
+            artifact,
             &expectation,
         ) {
             Ok(source) => source,
@@ -493,7 +493,7 @@ fn transport_cohort_effect(
     let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
         let transported = match transport_cohort_effect_from_result(
-            &model_bytes,
+            model_bytes,
             expected_claim.as_deref(),
             &source_population,
             &cohort,
@@ -546,7 +546,7 @@ fn transport_cohort_effect_verify(
     let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
         match verify_cohort_transport(
-            &model_bytes,
+            model_bytes,
             expected_claim.as_deref(),
             &source_population,
             &cohort,
@@ -588,7 +588,7 @@ fn transport_cohort_composition_node(
     let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
         match transport_cohort_effect_from_result(
-            &model_bytes,
+            model_bytes,
             expected_claim.as_deref(),
             &source_population,
             &cohort,
@@ -778,7 +778,7 @@ fn cohort_decision_interval(
     };
     let ctx = crate::execution_api::context(0);
     detach_catch(py, move || {
-        let source = match CohortDecisionSource::consume_with(&artifact, &expectation, &ctx) {
+        let source = match CohortDecisionSource::consume_with(artifact, &expectation, &ctx) {
             Ok(source) => source,
             Err(error) => return Ok((None, Some(refusal_json(&error, "consume")))),
         };

@@ -92,7 +92,7 @@ fn consume_effect_constancy_artifact(
         }
         None => None,
     };
-    detach_catch(py, move || match EffectConstancy::consume(&artifact, expected.as_ref()) {
+    detach_catch(py, move || match EffectConstancy::consume(artifact, expected.as_ref()) {
         Ok(done) => {
             let report = serde_json::to_string(&done.report())
                 .map_err(|e| crate::serialization_err(e.to_string()))?;

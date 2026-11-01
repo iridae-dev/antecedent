@@ -190,7 +190,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             crate::measured_inference_api::check_cancelled(&ctx)?;
-            let consumed = antecedent_io::consume_analysis_result(&artifact).map_err(py_err)?;
+            let consumed = antecedent_io::consume_analysis_result(artifact).map_err(py_err)?;
             crate::measured_inference_api::check_cancelled(&ctx)?;
             let section =
                 consumed.contract.and_then(|contract| contract.target_weights).ok_or_else(

@@ -167,7 +167,7 @@ fn consume_categorical_treatment_artifact(
     };
     let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, None);
     detach_catch(py, move || {
-        match CategoricalTreatment::consume_with(&artifact, expected.as_ref(), &ctx) {
+        match CategoricalTreatment::consume_with(artifact, expected.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

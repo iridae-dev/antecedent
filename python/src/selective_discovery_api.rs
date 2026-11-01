@@ -1758,7 +1758,7 @@ fn sample_split_effect_measure(
 ) -> PyResult<Measured> {
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-    let result = crate::detach_catch(py, move || Ok(measure_source(&source, &ctx)))?;
+    let result = crate::detach_catch(py, move || Ok(measure_source(source, &ctx)))?;
     match result {
         Ok(measured) => Ok((
             Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),
@@ -1847,7 +1847,7 @@ fn sample_split_parent_set_effect_measure(
 ) -> PyResult<Measured> {
     let ctx =
         crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-    let result = crate::detach_catch(py, move || Ok(measure_parent_set_source(&source, &ctx)))?;
+    let result = crate::detach_catch(py, move || Ok(measure_parent_set_source(source, &ctx)))?;
     match result {
         Ok(measured) => Ok((
             Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?),

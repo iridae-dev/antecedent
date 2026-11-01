@@ -462,7 +462,7 @@ impl RankInputs {
         decision: Option<Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let flags: Vec<GraphIdentFlag> = identified
-            .into_iter()
+            .iter()
             .map(
                 |v| if *v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified },
             )

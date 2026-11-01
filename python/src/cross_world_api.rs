@@ -152,8 +152,8 @@ fn consume_cross_world_edge_contrast_artifact(
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, 1);
         let effect = match expected_data_digest {
-            Some(digest) => consume_cross_world_artifact_for_data(&artifact, &digest, &ctx),
-            None => consume_cross_world_artifact(&artifact, &ctx),
+            Some(digest) => consume_cross_world_artifact_for_data(artifact, &digest, &ctx),
+            None => consume_cross_world_artifact(artifact, &ctx),
         }
         .map_err(|e| crate::serialization_err(e.to_string()))?;
         payload(&effect)

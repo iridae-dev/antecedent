@@ -147,7 +147,7 @@ fn consume_latent_class_artifact(
         .transpose()?;
     let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, cancel);
     detach_catch(py, move || {
-        match LatentClassEffects::consume_with(&artifact, expected.as_ref(), data.as_ref(), &ctx) {
+        match LatentClassEffects::consume_with(artifact, expected.as_ref(), data.as_ref(), &ctx) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

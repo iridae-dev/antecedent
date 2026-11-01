@@ -615,7 +615,7 @@ fn consume_statistical_transport(
             return Err(error("artifact memory budget"));
         }
         let (names, artifact) =
-            unframe_named_artifact(STATISTICAL_PREFIX, &bytes, "statistical transport")?;
+            unframe_named_artifact(STATISTICAL_PREFIX, bytes, "statistical transport")?;
         let ctx = execution_context(seed, memory_bytes, cancel);
         let (inner, result, bound) =
             antecedent::PreparedStudy::<antecedent::StatisticalPreparedState>::consume_named(

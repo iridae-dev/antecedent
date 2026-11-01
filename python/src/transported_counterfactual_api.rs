@@ -102,7 +102,7 @@ fn consume_transported_counterfactual_artifact(
         None => None,
     };
     detach_catch(py, move || {
-        match TransportedCounterfactual::consume(&artifact, expected.as_ref()) {
+        match TransportedCounterfactual::consume(artifact, expected.as_ref()) {
             Ok(done) => {
                 let report = serde_json::to_string(&done.report())
                     .map_err(|e| crate::serialization_err(e.to_string()))?;

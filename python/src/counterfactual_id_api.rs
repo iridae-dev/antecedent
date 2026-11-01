@@ -255,9 +255,9 @@ fn consume_counterfactual_id_artifact_native(
         let limits = CounterfactualIdConsumeLimits::default();
         let effect = match &expected_data_digest {
             Some(digest) => {
-                consume_counterfactual_id_artifact_for_data(&artifact, digest, limits, &ctx)
+                consume_counterfactual_id_artifact_for_data(artifact, digest, limits, &ctx)
             }
-            None => consume_counterfactual_id_artifact(&artifact, limits, &ctx),
+            None => consume_counterfactual_id_artifact(artifact, limits, &ctx),
         }
         .map_err(|e| artifact_refused(&e))?;
         payload(&effect)
