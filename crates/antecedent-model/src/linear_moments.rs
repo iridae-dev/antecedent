@@ -6,7 +6,7 @@ use crate::nonlinear_equilibrium::{
     Activation, Clamp, EquilibriumError, EquilibriumModel, MAX_ORDER, MechanismLikelihoodScore,
     RegimeRow, cholesky, local_positions,
 };
-use crate::sparse_equilibrium::{SolverBudgetCode, SparseLu};
+use crate::sparse_equilibrium::{FactorError, SolverBudgetCode, SparseLu};
 use antecedent_core::ExecutionContext;
 use antecedent_kernels::gauss_jordan_solve;
 use std::collections::BTreeMap;
@@ -23,6 +23,21 @@ struct Group {
 /// is the admitted bound; the Jacobian log-determinant, its inverse and the `A S` products
 /// are sparse. Beyond it the refusal is `solver_model_order_budget`.
 pub const MAX_AFFINE_MOMENT_ORDER: usize = 1024;
+
+/// Most solve work one [`LinearRegimeMoments::likelihood_score`] may do, summed over every
+/// retained regime, in the units of [`regime_work`] (about one floating-point operation each).
+/// A single regime at [`MAX_AFFINE_MOMENT_ORDER`] costs about `1.3e10`, so this admits roughly
+/// fifteen of them; the per-regime order bound alone would let 4096 regimes cost `5e13`. Beyond
+/// it the refusal is `solver_iteration_budget`, raised before any regime is solved.
+pub const MAX_AFFINE_MOMENT_WORK: u64 = 200_000_000_000;
+
+/// Conservative operation count of one regime with `k` free variables in an order-`n` model:
+/// the disturbance Cholesky and precision inverse, the sparse LU with its `k` unit solves, the
+/// bijection certificate (another `k` solves and the interval residual) and the `A S` products.
+fn regime_work(k: usize, n: usize) -> u128 {
+    let (k, n) = (k as u128, n as u128);
+    8 * k * k * k + 4 * k * n * n
+}
 
 /// Checked aggregate of independent equilibrium rows with fixed known regimes.
 #[derive(Clone, Debug)]
@@ -176,6 +191,19 @@ impl LinearRegimeMoments {
         {
             return Err(invalid("affine moment model"));
         }
+        // Total solve work over every regime, charged before any is solved. Clamps are
+        // distinct and in range (checked by `from_rows`), so a regime has `n - clamps` free
+        // variables.
+        let work: u128 =
+            self.groups.iter().map(|g| regime_work(n.saturating_sub(g.clamps.len()), n)).sum();
+        if work > u128::from(MAX_AFFINE_MOMENT_WORK) {
+            return Err(SolverBudgetCode::IterationBudget
+                .refusal(u64::try_from(work).unwrap_or(u64::MAX), MAX_AFFINE_MOMENT_WORK));
+        }
+        // Worst-case scratch of one regime, held for the whole score: the covariance, its
+        // Cholesky factor, the scaled copy, the identity/inverse pair and the precision
+        // (`inverse`), the dense Jacobian inverse, the sparse LU at its dense fill bound (capped
+        // below at `k * k`), the sparse rows of `A`, `A S` and the certificate's own quote.
         let _lease = ctx
             .acquire_serial_numerical_admission(((64 * n * n + 256 * n) * 8) as u64)
             .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
@@ -213,17 +241,31 @@ impl LinearRegimeMoments {
                 .iter()
                 .flat_map(|&i| free.iter().map(move |&j| model.noise_covariance[i * n + j]))
                 .collect();
+            crate::nonlinear_equilibrium::check_cancel(ctx)?;
             let lower = cholesky(&covariance, k)?;
             let noise_logdet = 2.0 * (0..k).map(|i| lower[i * k + i].ln()).sum::<f64>();
             let precision = inverse(covariance, k)?;
+            crate::nonlinear_equilibrium::check_cancel(ctx)?;
             let reads = model.read_sets()?;
             let local = local_positions(&free);
             let jacobian = model.sparse_jacobian(&group.mean, &free, &reads, &local)?;
-            let lu = SparseLu::factor(&jacobian, usize::MAX, &mut || Ok(()))
-                .map_err(|_| EquilibriumError::Singular)?;
+            // Fill is capped at the dense `k x k` worst case the lease above covers.
+            let lu = SparseLu::factor(&jacobian, k * k, &mut || {
+                crate::nonlinear_equilibrium::check_cancel(ctx)
+            })
+            .map_err(|error| match error {
+                FactorError::FillBudget(required) => {
+                    SolverBudgetCode::FactorFill.refusal(required as u64, (k * k) as u64)
+                }
+                FactorError::Interrupted(error) => error,
+                FactorError::Singular | FactorError::NonFinite => EquilibriumError::Singular,
+            })?;
             let logdet = lu.log_abs_determinant();
             let mut jacobian_inverse = vec![0.0; k * k];
             for c in 0..k {
+                if c % 32 == 0 {
+                    crate::nonlinear_equilibrium::check_cancel(ctx)?;
+                }
                 let mut unit = vec![0.0; k];
                 unit[c] = 1.0;
                 for (r, v) in lu.solve(&unit).into_iter().enumerate() {
@@ -376,5 +418,56 @@ mod tests {
                 assert!((x - y).abs() < 1e-12);
             }
         }
+    }
+
+    fn identity_model(n: usize) -> EquilibriumModel {
+        EquilibriumModel {
+            equations: (0..n)
+                .map(|i| Equation {
+                    id: format!("x{i}"),
+                    intercept: 0.0,
+                    weights: vec![0.0; n],
+                    activation: Activation::Identity,
+                    expression: None,
+                    parameters: vec![],
+                })
+                .collect(),
+            noise_covariance: (0..n * n).map(|c| f64::from(u8::from(c / n == c % n))).collect(),
+        }
+    }
+
+    #[test]
+    fn the_score_is_refused_by_a_short_pool_or_a_cancelled_context() {
+        let model = identity_model(2);
+        let rows = vec![
+            RegimeRow { values: vec![0.2, -0.4], clamps: vec![] },
+            RegimeRow { values: vec![0.4, 0.7], clamps: vec![] },
+        ];
+        let ctx = ExecutionContext::for_tests(1);
+        let stats = LinearRegimeMoments::from_rows(&rows, 2, &ctx).unwrap();
+        assert!(stats.likelihood_score(&model, &ctx).is_ok());
+        let tiny = ExecutionContext::for_tests(1).with_memory_limit(Some(64));
+        assert!(matches!(
+            stats.likelihood_score(&model, &tiny),
+            Err(EquilibriumError::Resource(_))
+        ));
+        let cancelled = ExecutionContext::for_tests(1);
+        cancelled.cancellation.cancel();
+        assert!(matches!(
+            stats.likelihood_score(&model, &cancelled),
+            Err(EquilibriumError::Resource(_))
+        ));
+    }
+
+    #[test]
+    fn total_solve_work_across_regimes_is_bounded_before_any_regime_is_solved() {
+        let n = 300;
+        let per_regime = regime_work(n, n);
+        let regimes = usize::try_from(u128::from(MAX_AFFINE_MOMENT_WORK) / per_regime).unwrap() + 1;
+        // Aggregates are empty: the refusal precedes every use of them.
+        let group = Group { count: 1, mean: Vec::new(), scatter: Vec::new(), clamps: Vec::new() };
+        let over = LinearRegimeMoments { order: n, groups: vec![group.clone(); regimes] };
+        let error = over.likelihood_score(&identity_model(n), &ExecutionContext::for_tests(1));
+        assert_eq!(error.unwrap_err().budget_code(), Some(SolverBudgetCode::IterationBudget));
     }
 }

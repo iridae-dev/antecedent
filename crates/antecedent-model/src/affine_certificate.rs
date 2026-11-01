@@ -7,28 +7,25 @@ use crate::equation_system::Interval;
 use crate::nonlinear_equilibrium::{EquilibriumError, MAX_DENSE_MATRIX_BYTES};
 use crate::sparse_equilibrium::{CsrMatrix, FactorError, SolverBudgetCode, SparseLu};
 use antecedent_core::ExecutionContext;
+/// Bytes of admission the context-free certificates run under: the production default bound.
+/// The dense worst case of [`certifies_sparse_affine_bijection_in`] is about 240 bytes per
+/// matrix cell, so this admits orders up to about 2100; larger orders (up to the
+/// [`MAX_DENSE_MATRIX_BYTES`] limit) need a caller-supplied pool through the `_in` forms.
+pub const DEFAULT_CERTIFICATE_BYTES: u64 = 1 << 30;
+
+/// The bounded production context behind the context-free certificate forms.
+fn default_context() -> ExecutionContext {
+    ExecutionContext::production_default(0).with_memory_limit(Some(DEFAULT_CERTIFICATE_BYTES))
+}
+
 /// Prove invertibility of I-W using an outward-rounded inverse residual.
-/// Returns false when the bounded certificate fails, including ill conditioning.
+/// Returns false when the bounded certificate fails, including ill conditioning, and when the
+/// order exceeds what [`DEFAULT_CERTIFICATE_BYTES`] admits (nothing is then proved); use
+/// [`certifies_affine_bijection_in`] to tell a refusal from a failed proof or to supply a pool.
 /// This is no assertion about dynamic stability or contraction of W.
 #[must_use]
 pub fn certifies_affine_bijection(weights: &[f64], order: usize) -> bool {
-    if order == 0 {
-        return weights.is_empty();
-    }
-    if order.checked_mul(order) != Some(weights.len()) || weights.iter().any(|x| !x.is_finite()) {
-        return false;
-    }
-    let rows: Vec<Vec<(usize, f64)>> = (0..order)
-        .map(|i| {
-            (0..order)
-                .filter_map(|j| {
-                    let w = weights[i * order + j];
-                    (w != 0.0).then_some((j, w))
-                })
-                .collect()
-        })
-        .collect();
-    certifies_sparse_affine_bijection(&rows, order)
+    certifies_affine_bijection_in(weights, order, &default_context()).unwrap_or(false)
 }
 /// Sparse form of [`certifies_affine_bijection`]. `rows[i]` holds the nonzero local
 /// `(column, w_ij)` entries of `W`. A sparse LU of `A = I - W` supplies a numerical inverse
@@ -36,15 +33,18 @@ pub fn certifies_affine_bijection(weights: &[f64], order: usize) -> bool {
 /// `||I - R A||_inf` using only the nonzeros of `A`. A bound below one proves `R A`, hence `A`,
 /// invertible by a Neumann series, independently of how `R` was found. The explicit `R` is a
 /// dense `order x order` array, so the certificate is not attempted (returns false) when that
-/// array would exceed [`MAX_DENSE_MATRIX_BYTES`]; contraction certificates still apply there.
+/// array would exceed [`MAX_DENSE_MATRIX_BYTES`] or the [`DEFAULT_CERTIFICATE_BYTES`] this
+/// form is admitted under; contraction certificates still apply there. See
+/// [`certifies_sparse_affine_bijection_in`] for the form with a caller's pool.
 #[must_use]
 pub fn certifies_sparse_affine_bijection(rows: &[Vec<(usize, f64)>], order: usize) -> bool {
-    certifies_sparse_affine_checked(rows, order, usize::MAX, &mut || Ok(())).unwrap_or(false)
+    certifies_sparse_affine_bijection_in(rows, order, &default_context()).unwrap_or(false)
 }
 
 /// [`certifies_affine_bijection`] under the caller's execution controls: the worst-case dense
 /// inverse, interval rows and fill are acquired from the context's admission pool before any is
-/// allocated, and cancellation is polled between rows. The context-free form is unadmitted.
+/// allocated, and cancellation is polled between rows. The context-free form runs this under a
+/// bounded default ([`DEFAULT_CERTIFICATE_BYTES`]).
 ///
 /// # Errors
 ///
@@ -61,6 +61,16 @@ pub fn certifies_affine_bijection_in(
     if order.checked_mul(order) != Some(weights.len()) || weights.iter().any(|x| !x.is_finite()) {
         return Ok(false);
     }
+    // The sparse rows are built before the certificate's own quote is taken, so charge them first.
+    let nonzeros = weights.iter().filter(|w| **w != 0.0).count();
+    let row_bytes = nonzeros
+        .checked_mul(size_of::<(usize, f64)>())
+        .and_then(|v| v.checked_add(order.checked_mul(size_of::<Vec<(usize, f64)>>())?))
+        .and_then(|v| u64::try_from(v).ok())
+        .ok_or_else(|| EquilibriumError::Resource("affine certificate size overflow".into()))?;
+    let _rows_lease = ctx
+        .acquire_admission(0, row_bytes)
+        .map_err(|e| EquilibriumError::Resource(e.to_string()))?;
     let rows: Vec<Vec<(usize, f64)>> = (0..order)
         .map(|i| {
             (0..order)
@@ -227,6 +237,38 @@ mod tests {
             Err(EquilibriumError::Resource(_))
         ));
     }
+    #[test]
+    fn context_free_forms_delegate_under_the_bounded_default() {
+        // Within the default bound the answers are the admitted ones.
+        let ring: Vec<Vec<(usize, f64)>> = (0..50).map(|i| vec![((i + 49) % 50, 1.5)]).collect();
+        let ctx = ExecutionContext::for_tests(0);
+        assert_eq!(
+            certifies_sparse_affine_bijection(&ring, 50),
+            certifies_sparse_affine_bijection_in(&ring, 50, &ctx).unwrap()
+        );
+        // Beyond it nothing is proved, and the admitted form says why.
+        let bound = DEFAULT_CERTIFICATE_BYTES;
+        let over = ExecutionContext::for_tests(0).with_memory_limit(Some(bound));
+        let order = 2300;
+        let big: Vec<Vec<(usize, f64)>> = vec![Vec::new(); order];
+        assert!(matches!(
+            certifies_sparse_affine_bijection_in(&big, order, &over),
+            Err(EquilibriumError::Resource(_))
+        ));
+        assert!(!certifies_sparse_affine_bijection(&big, order));
+    }
+
+    #[test]
+    fn the_dense_form_charges_its_sparse_rows_before_building_them() {
+        let weights = vec![0.5; 64 * 64];
+        let tiny = ExecutionContext::for_tests(0).with_memory_limit(Some(1024));
+        assert!(matches!(
+            certifies_affine_bijection_in(&weights, 64, &tiny),
+            Err(EquilibriumError::Resource(_))
+        ));
+        assert_eq!(tiny.admission().available().bytes(), 1024);
+    }
+
     #[test]
     fn duplicate_diagonals_represent_one_identity_and_sum_all_weights() {
         assert!(!certifies_sparse_affine_bijection(&[vec![(0, 0.5), (0, 0.5)]], 1));
