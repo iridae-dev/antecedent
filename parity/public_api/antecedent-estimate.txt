@@ -13090,6 +13090,8 @@ pub const antecedent_estimate::joint_panel::restriction::MIN_DIAGNOSTIC_INNOVATI
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_CAVEAT: &str
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_INFERENCE_CLAIM: &str
 pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_MAX_CLASSES: usize
+pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_MAX_ITERATIONS: usize
+pub const antecedent_estimate::latent_class_effects::LATENT_CLASS_MAX_RESTARTS: usize
 pub const antecedent_estimate::learned_continuous::LEARNED_CONTINUOUS_FOLD_SCHEME: &str
 pub const antecedent_estimate::learned_continuous::LEARNED_CONTINUOUS_MAX_BOOTSTRAP: u32
 pub const antecedent_estimate::learned_continuous::LEARNED_CONTINUOUS_MAX_FOLDS: usize
@@ -18600,7 +18602,9 @@ pub fn <antecedent_estimate::ResponseBlockLength>::fn new(structural_span: usize
 pub fn <antecedent_estimate::RetainedSamplingWeights>::fn subset(&self, rows: &[usize]) -> Self
 pub fn <antecedent_estimate::RetargetRefusal>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::RetargetRefusal>::fn fields(self) -> antecedent_estimate::RefusalFields
+pub fn <antecedent_estimate::RidgeTuning>::const fn context_free_max_grid_len() -> u64
 pub fn <antecedent_estimate::RidgeTuning>::const fn inner_folds(&self) -> usize
+pub fn <antecedent_estimate::RidgeTuning>::fn check_context_free_grid_len(count: usize) -> core::result::Result<(), antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::RidgeTuning>::fn default_lasso() -> Self
 pub fn <antecedent_estimate::RidgeTuning>::fn lambdas(&self) -> &[f64]
 pub fn <antecedent_estimate::RidgeTuning>::fn new(lambdas: &[f64], inner_folds: usize) -> core::result::Result<Self, antecedent_estimate::EstimationError>

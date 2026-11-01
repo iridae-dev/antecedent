@@ -202,7 +202,7 @@ MAPPING: tuple[Bound, ...] = (
         "estimate.penalized_propensity_aipw",
         "historical_evidence_max_grid",
         rust=(S("estimate.penalized_propensity_aipw", "max_grid"),),
-        note="prior recorded scope; the current constructor has no fixed grid cap",
+        note="prior recorded scope; the per-declaration configuration cap is separate",
     ),
     Bound(
         "estimate.penalized_propensity_aipw",
@@ -773,6 +773,10 @@ _MEMORY_REASON = (
 
 NONINT: tuple[NonInt, ...] = (
     NonInt(
+        "estimate.penalized_propensity_aipw", "runtime_grid",
+        exclude="the 65,536-entry cap and 256 MiB per-declaration policy are checked by the dedicated constructor and Python boundary source mapping; neither is execution admission",
+    ),
+    NonInt(
         "estimate.descriptive_comparison",
         "cancellation_check",
         places=(C(DESCRIPTIVE, "POLL_EVERY_ROWS"),),
@@ -1155,20 +1159,103 @@ def supported_bounds_errors(root: Path) -> list[str]:
     return []
 
 
-def ridge_resource_finding(source: str) -> str:
-    """Fail closed until an independently checked pre-allocation guard exists."""
-    constructor = re.search(
-        r"pub fn new\(lambdas: &\[f64\], inner_folds: usize\).*?\n    \}",
-        source,
-        re.S,
-    )
-    if (constructor is not None and "allocate_penalty_grid(lambdas.len())" in constructor.group()
-            and "grid.try_reserve_exact(count)" in source):
-        return ("estimate.penalized_propensity_aipw: fallible penalty-grid allocation is not "
-                "admitted against an execution budget or bounded before allocation")
-    if constructor is None or "lambdas.to_vec()" not in constructor.group():
-        return "estimate.penalized_propensity_aipw: grid allocation resource guard is not independently mapped"
-    return "estimate.penalized_propensity_aipw: RidgeTuning::new copies the penalty grid before execution-context admission; no checked preallocation bound"
+# These are source-contract checks, not a memory admission or calibration claim.
+# The 256 MiB policy is a conservative per-declaration cap; it does not reserve
+# memory or charge later copies and concurrent declarations.
+RIDGE_RESOURCE_FILES = (
+    PENALIZED,
+    "python/src/estimator_config.rs",
+    "python/src/derived_treatment_api.rs",
+    "python/antecedent/_penalty.py",
+    "python/antecedent/estimators.py",
+    "python/antecedent/derived.py",
+    RECORDS,
+    "docs/guides/penalized-aipw.md",
+)
+
+
+def ridge_configuration_guard_errors(sources: dict[str, str]) -> list[str]:
+    """Check bounded construction and Python boundaries; missing mappings fail closed."""
+    errors: list[str] = []
+
+    def scoped(path: str, start: str, end: str, tokens: tuple[str, ...]) -> None:
+        source = sources.get(path, "")
+        begin = source.find(start)
+        finish = source.find(end, begin + len(start)) if begin >= 0 else -1
+        part = source[begin:finish] if finish >= 0 else ""
+        position = -1
+        for token in tokens:
+            position = part.find(token, position + 1)
+            if position < 0:
+                errors.append(f"{path}: missing or out-of-order penalty guard in {start}")
+                return
+
+    scoped(PENALIZED, "pub fn new(lambdas:", "    /// The default lasso tuning", (
+        "Self::check_context_free_grid_len(lambdas.len())?;", "lambdas.iter().find",
+        "allocate_penalty_grid(lambdas.len())?;", "pub const fn context_free_max_grid_len()",
+        "CONTEXT_FREE_GRID_POLICY_BYTES / CONTEXT_FREE_GRID_BYTES_PER_PENALTY",
+        "pub fn check_context_free_grid_len",
+        "checked_mul(CONTEXT_FREE_GRID_BYTES_PER_PENALTY)",
+        "bytes <= CONTEXT_FREE_GRID_POLICY_BYTES", 'reason_code!("execution_resource_limit")',
+    ))
+    scoped(PENALIZED, "const CONTEXT_FREE_GRID_POLICY_BYTES", "/// Inner cross-validation", (
+        "256 * 1024 * 1024", "CONTEXT_FREE_GRID_BYTES_PER_PENALTY: u64 = 4096",
+    ))
+    scoped(PENALIZED, "    fn key(&self, label:", "    fn write_identity", (
+        "self.lambdas.iter().enumerate()", 'write!(key, "{:016x}"',
+    ))
+    scoped(PENALIZED, "    fn label(&self, label:", "\n}", (
+        "self.lambdas.iter().enumerate()", 'write!(result, "{value}"',
+    ))
+    native = RIDGE_RESOURCE_FILES[1]
+    scoped(native, "fn bounded_penalty_values(", "\n}", (
+        "raw.len()", "PyOverflowError", '"execution_resource_limit"',
+        "check_context_free_grid_len(count)", "try_reserve_exact(count)",
+        "raw.try_iter()", "values.len() == count", "values.push(",
+    ))
+    scoped(native, "fn penalty_declaration(", "\n}", (
+        "bounded_penalty_values(&raw", "RidgeTuning::new(&lambdas",
+    ))
+    derived = RIDGE_RESOURCE_FILES[2]
+    for method in ("factorized_joint_cells_json", "joint_cell_cost_json"):
+        scoped(derived, f"fn {method}(", "\n}", (
+            "penalties: Option<Bound<'_, PyAny>>", "bounded_penalty_values(&raw", "RidgeTuning::new(&grid",
+        ))
+    scoped(derived, "fn penalty_grid_max_items()", "\n}", (
+        "RidgeTuning::context_free_max_grid_len()",
+    ))
+    scoped(derived, "pub(crate) fn register(", "\n}", (
+        "wrap_pyfunction!(penalty_grid_max_items, module)",
+    ))
+    helper = RIDGE_RESOURCE_FILES[3]
+    scoped(helper, "def bounded_penalty_list(", "\n    return result", (
+        "_native._penalty_grid_max_items()", "len(values)", "except OverflowError",
+        'reason_code="execution_resource_limit"', "declared > limit",
+        "for value in values:", "len(result) >= limit", "result.append(value)",
+    ))
+    estimators = RIDGE_RESOURCE_FILES[4]
+    scoped(estimators, "class PropensityPenalty:", "\n@dataclass", (
+        "values = bounded_penalty_list(self.lambdas)",
+        "for value in bounded_penalty_list(self.lambdas)",
+    ))
+    derived_py = RIDGE_RESOURCE_FILES[5]
+    scoped(derived_py, "def factorized_joint_cells(", "\ndef estimate_joint_cell_cost(", (
+        "for p in bounded_penalty_list(penalties)",
+    ))
+    # The final function is allowed to end at EOF.
+    source = sources.get(derived_py, "")
+    start = source.find("def estimate_joint_cell_cost(")
+    if start < 0 or "for p in bounded_penalty_list(penalties)" not in source[start:]:
+        errors.append(f"{derived_py}: missing estimate_joint_cell_cost penalty guard")
+    scoped(RECORDS, 'id = "estimate.penalized_propensity_aipw"', "\n[[record]]", (
+        "runtime_grid = ", "65,536 input entries per declaration", "256 MiB configuration policy",
+        "no shared reservation or execution-context admission",
+    ))
+    scoped(RIDGE_RESOURCE_FILES[7], "# Estimate with a penalized propensity", "\n\n`Aipw", (
+        "65,536 input penalties per declaration", "256 MiB configuration policy",
+        "not a shared reservation or an execution-context admission",
+    ))
+    return errors
 
 
 def check(
@@ -1187,7 +1274,9 @@ def check(
     gaps: list[str] = []
     ok: list[str] = []
     if "estimate.penalized_propensity_aipw" in cells and mapping is MAPPING:
-        errors.append(ridge_resource_finding(rd.text(PENALIZED) or ""))
+        errors.extend(ridge_configuration_guard_errors(
+            {path: rd.text(path) or "" for path in RIDGE_RESOURCE_FILES}
+        ))
     rec_text = rd.text(RECORDS)
     if rec_text is None:
         return [f"{RECORDS} is missing"], gaps, ok
@@ -1558,20 +1647,6 @@ pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
                 if not any("no larger than the runtime ceiling" in error for error in joint_errors()):
                     failures.append(f"historical {dimension} above the runtime ceiling must fail closed")
                 record_path.write_text(record, encoding="utf-8")
-
-    ridge_source = "pub fn new(lambdas: &[f64], inner_folds: usize) {\n        lambdas.to_vec();\n    }"
-    if "before execution-context admission" not in ridge_resource_finding(ridge_source):
-        failures.append(
-            "pre-admission grid allocation must remain an explicit resource finding"
-        )
-    if "not independently mapped" not in ridge_resource_finding(
-        ridge_source.replace("lambdas.to_vec()", "new_allocation()")
-    ):
-        failures.append("an unrecognized grid allocation must fail closed")
-    guarded_ridge = ridge_source.replace("lambdas.to_vec()", "allocate_penalty_grid(lambdas.len())")
-    guarded_ridge += "\nfn allocate_penalty_grid(count: usize) { grid.try_reserve_exact(count); }"
-    if "not admitted" not in ridge_resource_finding(guarded_ridge):
-        failures.append("fallible allocation alone must not be treated as budget admission")
 
     # The path-specific route requires exactly two worlds even though the
     # reusable query representation permits more. Detect changes to the route

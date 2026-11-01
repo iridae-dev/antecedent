@@ -17,7 +17,7 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent.errors import CausalError, CausalValueError
+from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
 from antecedent.estimators import Aipw, Overlap, PropensityPenalty
 from antecedent.outcomes import require_success
 
@@ -409,3 +409,45 @@ def test_an_invalid_penalty_is_refused_before_any_fit(penalty):
                 execution=ant.Execution(seed=1),
             )
         )
+
+
+def test_penalty_configuration_refuses_oversized_sequence_before_iteration():
+    from antecedent import _native
+
+    class Oversized:
+        def __len__(self):
+            return _native._penalty_grid_max_items() + 1
+
+        def __iter__(self):
+            raise AssertionError("oversized grid must not be iterated")
+
+    with pytest.raises(CausalUnsupportedError, match="memory policy") as refused:
+        PropensityPenalty(lambdas=Oversized())
+    assert refused.value.reason_code == "execution_resource_limit"
+    with pytest.raises(CausalUnsupportedError) as overflow:
+        PropensityPenalty(lambdas=range(10**30))
+    assert overflow.value.reason_code == "execution_resource_limit"
+
+    with pytest.raises(CausalUnsupportedError, match="penalty grid") as refused:
+        require_success(
+            ant.analyze(
+                {"t": [0.0, 1.0], "y": [0.0, 1.0]},
+                graph=[("t", "y")],
+                query=ant.AverageEffect("t", "y"),
+                estimator="aipw",
+                estimator_config={"propensity_penalty": {"lambdas": Oversized()}},
+                refute=False,
+            )
+        )
+    assert refused.value.reason_code == "execution_resource_limit"
+    with pytest.raises(CausalUnsupportedError) as overflow:
+        require_success(
+            ant.analyze(
+                {"t": [0.0, 1.0], "y": [0.0, 1.0]},
+                graph=[("t", "y")], query=ant.AverageEffect("t", "y"),
+                estimator="aipw",
+                estimator_config={"propensity_penalty": {"lambdas": range(10**30)}},
+                refute=False,
+            )
+        )
+    assert overflow.value.reason_code == "execution_resource_limit"

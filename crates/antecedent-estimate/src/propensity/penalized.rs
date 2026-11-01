@@ -38,6 +38,15 @@ use crate::learn_nuisance::{intercept_is_constant, learn_err};
 use crate::splitmix::mix64;
 use crate::util::refuse;
 
+/// Conservative per-declaration configuration cap for penalty grids.
+///
+/// The 256 MiB policy uses a planning allowance of 4096 bytes per input penalty
+/// for copies, Python conversion, and worst-case legacy identity formatting. It is
+/// not a shared reservation: downstream copies and concurrent declarations are
+/// not charged to this cap or to a later execution context.
+const CONTEXT_FREE_GRID_POLICY_BYTES: u64 = 256 * 1024 * 1024;
+const CONTEXT_FREE_GRID_BYTES_PER_PENALTY: u64 = 4096;
+
 /// Inner cross-validation folds used to choose the penalty when none is declared.
 pub(crate) const DEFAULT_RIDGE_INNER_FOLDS: usize = 5;
 
@@ -106,8 +115,10 @@ impl RidgeTuning {
     /// A refusal with the `invalid_argument` reason code for an empty grid, a penalty that is
     /// not finite and positive, or fewer than two inner folds (the fold plan refuses more
     /// folds than the training rows hold), or an `execution_resource_limit` refusal if the
-    /// declared grid cannot be allocated.
+    /// declared grid cannot be allocated or exceeds the finite per-declaration
+    /// configuration cap. This cap does not reserve a later execution budget.
     pub fn new(lambdas: &[f64], inner_folds: usize) -> Result<Self, EstimationError> {
+        Self::check_context_free_grid_len(lambdas.len())?;
         if lambdas.is_empty() {
             return Err(invalid("penalty grid must hold at least one value"));
         }
@@ -124,6 +135,31 @@ impl RidgeTuning {
         sorted.sort_unstable_by(f64::total_cmp);
         sorted.dedup_by(|a, b| a.total_cmp(b).is_eq());
         Ok(Self { lambdas: sorted, inner_folds })
+    }
+
+    /// Maximum number of input penalties in one bounded declaration.
+    #[must_use]
+    pub const fn context_free_max_grid_len() -> u64 {
+        CONTEXT_FREE_GRID_POLICY_BYTES / CONTEXT_FREE_GRID_BYTES_PER_PENALTY
+    }
+
+    /// Check the configuration cap before copying or iterating caller input.
+    ///
+    /// # Errors
+    /// Returns `execution_resource_limit` if the input exceeds the cap.
+    pub fn check_context_free_grid_len(count: usize) -> Result<(), EstimationError> {
+        let fits = u64::try_from(count)
+            .ok()
+            .and_then(|n| n.checked_mul(CONTEXT_FREE_GRID_BYTES_PER_PENALTY))
+            .is_some_and(|bytes| bytes <= CONTEXT_FREE_GRID_POLICY_BYTES);
+        if !fits {
+            return Err(refuse(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                "penalized_propensity.grid_allocation",
+                "penalty grid exceeds the per-declaration configuration cap",
+            ));
+        }
+        Ok(())
     }
 
     /// The default lasso tuning ([`DEFAULT_LASSO_GRID`], five inner folds).
@@ -145,9 +181,16 @@ impl RidgeTuning {
     }
 
     fn key(&self, label: &str) -> String {
-        let grid: Vec<String> =
-            self.lambdas.iter().map(|l| format!("{:016x}", l.to_bits())).collect();
-        format!("{label}.cv(k={},grid={})", self.inner_folds, grid.join(","))
+        use std::fmt::Write;
+        let mut key = format!("{label}.cv(k={},grid=", self.inner_folds);
+        for (index, value) in self.lambdas.iter().enumerate() {
+            if index != 0 {
+                key.push(',');
+            }
+            write!(key, "{:016x}", value.to_bits()).expect("writing to String cannot fail");
+        }
+        key.push(')');
+        key
     }
 
     fn write_identity(&self, stream: &mut CanonicalWriter) {
@@ -156,8 +199,15 @@ impl RidgeTuning {
 
     /// Human-readable grid for a calibration label (shortest round-trip spelling).
     fn label(&self, label: &str) -> String {
-        let grid: Vec<String> = self.lambdas.iter().map(ToString::to_string).collect();
-        format!("{label}:k{}:g{}", self.inner_folds, grid.join("|"))
+        use std::fmt::Write;
+        let mut result = format!("{label}:k{}:g", self.inner_folds);
+        for (index, value) in self.lambdas.iter().enumerate() {
+            if index != 0 {
+                result.push('|');
+            }
+            write!(result, "{value}").expect("writing to String cannot fail");
+        }
+        result
     }
 }
 
@@ -875,6 +925,29 @@ mod tests {
         assert_eq!(tuning.lambdas(), &(1_u32..=128).map(f64::from).collect::<Vec<_>>());
         let error = allocate_penalty_grid(usize::MAX).unwrap_err();
         assert_eq!(error.reason_code(), Some("execution_resource_limit"));
+    }
+
+    #[test]
+    fn grid_configuration_cap_precedes_input_validation_and_copying() {
+        let max = usize::try_from(RidgeTuning::context_free_max_grid_len()).unwrap();
+        assert!(RidgeTuning::check_context_free_grid_len(max).is_ok());
+        assert!(RidgeTuning::check_context_free_grid_len(max + 1).is_err());
+        let oversized = vec![f64::NAN; max + 1];
+        assert_eq!(
+            RidgeTuning::new(&oversized, 3).unwrap_err().reason_code(),
+            Some("execution_resource_limit")
+        );
+        assert!(max > 128);
+    }
+
+    #[test]
+    fn streamed_grid_text_preserves_canonical_format() {
+        let tuning = RidgeTuning::new(&[10.0, 0.1, 10.0], 3).unwrap();
+        assert_eq!(
+            tuning.key("ridge_logistic"),
+            "ridge_logistic.cv(k=3,grid=3fb999999999999a,4024000000000000)"
+        );
+        assert_eq!(tuning.label("ridge"), "ridge:k3:g0.1|10");
     }
 
     #[test]

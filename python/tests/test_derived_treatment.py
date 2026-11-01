@@ -315,3 +315,28 @@ def test_the_joint_cell_cost_refuses_what_the_fit_refuses():
     )
     with pytest.raises(CausalValueError):
         estimate_joint_cell_cost(2, nuisance="random_forest", penalties=[0.1])
+
+
+def test_joint_cost_refuses_oversized_penalty_sequence_before_iteration():
+    from antecedent import _native
+
+    class Oversized:
+        def __len__(self):
+            return _native._penalty_grid_max_items() + 1
+
+        def __iter__(self):
+            raise AssertionError("oversized grid must not be iterated")
+
+    with pytest.raises(CausalUnsupportedError, match="memory policy") as refused:
+        estimate_joint_cell_cost(2, penalties=Oversized())
+    assert refused.value.reason_code == "execution_resource_limit"
+    with pytest.raises(CausalUnsupportedError, match="penalty grid") as refused:
+        _native.joint_cell_cost_json(2, penalties=Oversized())
+    assert refused.value.reason_code == "execution_resource_limit"
+    for operation in (
+        lambda: estimate_joint_cell_cost(2, penalties=range(10**30)),
+        lambda: _native.joint_cell_cost_json(2, penalties=range(10**30)),
+    ):
+        with pytest.raises(CausalUnsupportedError) as overflow:
+            operation()
+        assert overflow.value.reason_code == "execution_resource_limit"

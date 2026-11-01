@@ -806,6 +806,43 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     Ok(Some(opts))
 }
 
+/// Materialize a penalty sequence only after checking the finite legacy policy.
+/// A sequence that changes length during iteration is refused before it can
+/// grow beyond the checked reservation.
+pub(crate) fn bounded_penalty_values(raw: &Bound<'_, PyAny>, field: &str) -> PyResult<Vec<f64>> {
+    let invalid_sequence = || invalid(format!("{field} must be a finite sequence of floats"));
+    let count = raw.len().map_err(|error| {
+        if error.is_instance_of::<pyo3::exceptions::PyOverflowError>(raw.py()) {
+            crate::refusal(
+                "execution_resource_limit",
+                "penalty grid exceeds the per-declaration configuration cap",
+            )
+        } else {
+            invalid_sequence()
+        }
+    })?;
+    antecedent_estimate::RidgeTuning::check_context_free_grid_len(count)
+        .map_err(|error| crate::py_err(antecedent::CausalError::from(error)))?;
+    let mut values = Vec::new();
+    values.try_reserve_exact(count).map_err(|_| {
+        crate::refusal("execution_resource_limit", "penalty grid allocation failed")
+    })?;
+    for item in raw.try_iter().map_err(|_| invalid_sequence())? {
+        if values.len() == count {
+            return Err(invalid(format!("{field} changed length during iteration")));
+        }
+        values.push(
+            item.map_err(|_| invalid_sequence())?
+                .extract::<f64>()
+                .map_err(|_| invalid_sequence())?,
+        );
+    }
+    if values.len() != count {
+        return Err(invalid(format!("{field} changed length during iteration")));
+    }
+    Ok(values)
+}
+
 /// Kind and tuning of one declared penalty sub-dict (`propensity_penalty`, or a
 /// `nuisance_fallback` given as a dict): `{"kind": "ridge_logistic" | "lasso", "lambdas":
 /// [float], "inner_folds": int}`. Absent `lambdas` / `inner_folds` take the kind's defaults.
@@ -837,9 +874,9 @@ fn penalty_declaration(
         }
     };
     let lambdas = match sub.get_item("lambdas")? {
-        Some(raw) => raw.extract::<Vec<f64>>().map_err(|_| {
-            invalid(format!("estimator_config['{field}']['lambdas'] must be a list of floats"))
-        })?,
+        Some(raw) => {
+            bounded_penalty_values(&raw, &format!("estimator_config['{field}']['lambdas']"))?
+        }
         None => defaults.lambdas().to_vec(),
     };
     let inner_folds =

@@ -49,6 +49,7 @@ from typing import Any
 
 from . import _native
 from ._data import ingest_columns
+from ._penalty import bounded_penalty_list
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, native_controls
 from .preflight import PreflightReport
@@ -433,7 +434,7 @@ def factorized_joint_cells(
         ordering=None if ordering is None else list(ordering),
         all_orderings=all_orderings,
         nuisance=nuisance,
-        penalties=None if penalties is None else [float(p) for p in penalties],
+        penalties=None if penalties is None else [float(p) for p in bounded_penalty_list(penalties)],
         inner_folds=inner_folds,
         folds=folds,
         clip=clip,
@@ -500,7 +501,7 @@ def estimate_joint_cell_cost(
             ordering=None if ordering is None else [int(i) for i in ordering],
             all_orderings=all_orderings,
             nuisance=nuisance,
-            penalties=None if penalties is None else [float(p) for p in penalties],
+            penalties=None if penalties is None else [float(p) for p in bounded_penalty_list(penalties)],
             inner_folds=inner_folds,
             folds=folds,
             rows=rows,

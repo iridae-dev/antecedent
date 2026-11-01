@@ -139,7 +139,7 @@ fn factorized_joint_cells_json(
     ordering: Option<Vec<String>>,
     all_orderings: bool,
     nuisance: &str,
-    penalties: Option<Vec<f64>>,
+    penalties: Option<Bound<'_, PyAny>>,
     inner_folds: usize,
     folds: usize,
     seed: u64,
@@ -161,7 +161,10 @@ fn factorized_joint_cells_json(
             refuse_joint_inference()
         }));
     }
-    let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
+    let grid = match penalties {
+        Some(raw) => crate::estimator_config::bounded_penalty_values(&raw, "penalties")?,
+        None => DEFAULT_RIDGE_GRID.to_vec(),
+    };
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
     let requested = contrasts
         .unwrap_or_default()
@@ -242,13 +245,16 @@ fn joint_cell_cost_json(
     ordering: Option<Vec<usize>>,
     all_orderings: bool,
     nuisance: &str,
-    penalties: Option<Vec<f64>>,
+    penalties: Option<Bound<'_, PyAny>>,
     inner_folds: usize,
     folds: usize,
     rows: Option<usize>,
 ) -> PyResult<String> {
     let learner = declared_joint_nuisance(nuisance).map_err(estimation_err)?;
-    let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
+    let grid = match penalties {
+        Some(raw) => crate::estimator_config::bounded_penalty_values(&raw, "penalties")?,
+        None => DEFAULT_RIDGE_GRID.to_vec(),
+    };
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
     // Ask the native validator for its existing typed refusal before a default
     // ordering can allocate from an unchecked component count.
@@ -265,7 +271,13 @@ fn joint_cell_cost_json(
     json_text(&serde_json::to_value(&estimate).map_err(|e| value_err(e.to_string()))?)
 }
 
+#[pyfunction(name = "_penalty_grid_max_items")]
+fn penalty_grid_max_items() -> u64 {
+    RidgeTuning::context_free_max_grid_len()
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(penalty_grid_max_items, module)?)?;
     module.add_function(wrap_pyfunction!(derived_treatment_check_json, module)?)?;
     module.add_function(wrap_pyfunction!(joint_cell_cost_json, module)?)?;
     module.add_function(wrap_pyfunction!(factorized_joint_cells_json, module)?)?;

@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from typing import Any, Final, Literal
 
 from ._defaults import OMITTED
+from ._penalty import bounded_penalty_list
 from .errors import CausalValueError
 from .ids import Estimator
 from .learners import LearnerSpec, _learner_wire
@@ -275,7 +276,7 @@ class PropensityPenalty:
                 f"PropensityPenalty.kind must be 'ridge_logistic' or 'lasso', got {self.kind!r}"
             )
         if self.lambdas is not None:
-            values = list(self.lambdas)
+            values = bounded_penalty_list(self.lambdas)
             if not values:
                 raise CausalValueError("PropensityPenalty.lambdas must not be empty")
             for value in values:
@@ -300,7 +301,7 @@ class PropensityPenalty:
     def _wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {"kind": self.kind}
         if self.lambdas is not None:
-            out["lambdas"] = [float(value) for value in self.lambdas]
+            out["lambdas"] = [float(value) for value in bounded_penalty_list(self.lambdas)]
         if self.inner_folds is not None:
             out["inner_folds"] = int(self.inner_folds)
         return out

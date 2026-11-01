@@ -42,6 +42,7 @@ python3 scripts/test_closure_report_rows.py
 python3 scripts/test_route_manifest_diff.py
 python3 scripts/test_scenario_matrix_pending.py
 python3 scripts/test_gate_compiler_bypass.py
+python3 scripts/test_penalty_resource_guards.py
 python3 scripts/test_check_architecture.py
 python3 scripts/test_gate_retained_routes.py
 python3 scripts/test_calibration_recipe_receipts.py
