@@ -822,7 +822,7 @@ def _choice() -> Choice:
         "chosen in the pricing task",
         "customers",
         (10.0, 5.0, 5.0),
-        ("s0", "s1"),
+        tuple(f"s{i}" for i in range(20)),
         0.5,
     )
     study = chi.ChoiceStudy(
