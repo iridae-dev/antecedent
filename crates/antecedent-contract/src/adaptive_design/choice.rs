@@ -219,6 +219,22 @@ fn check_respondents(d: &ChoiceDesignDeclaration, refusals: &mut Vec<ExternalRef
         ));
         return;
     }
+    // A pooled Dirichlet posterior counts every choice as independent; that is true only when
+    // each respondent contributes one.
+    if d.cell.outcome == OutcomeStructure::CategoricalChoice
+        && d.respondents.iter().any(|r| r.counts.iter().map(|c| u64::from(*c)).sum::<u64>() != 1)
+    {
+        refusals.push(invalid(
+            "choice_inference.categorical_one_choice",
+            "a categorical-choice outcome is one choice per respondent; respondents who choose repeatedly are a repeated-choice outcome, whose posterior carries their dependence",
+        ));
+    }
+    if d.cell.outcome == OutcomeStructure::RepeatedChoice && !d.retained_sources.is_empty() {
+        refusals.push(invalid(
+            "choice_inference.hierarchical_source_unsupported",
+            "a retained source supplies a pooled Dirichlet prior, which a respondent-level posterior does not take; declare the hierarchical prior or analyse the source as a categorical-choice outcome",
+        ));
+    }
     if d.cell.outcome == OutcomeStructure::RepeatedChoice
         && !d.respondents.iter().any(|r| r.counts.iter().map(|c| u64::from(*c)).sum::<u64>() >= 2)
     {

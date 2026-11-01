@@ -28,7 +28,14 @@ fn labels() -> Vec<String> {
 }
 
 fn respondents(n: u32) -> Vec<ChoiceRespondent> {
-    (0..n).map(|i| ChoiceRespondent { id: format!("r{i}"), counts: vec![2, 1, 1] }).collect()
+    // One choice each, as a categorical-choice outcome requires.
+    (0..n)
+        .map(|i| {
+            let mut counts = vec![0, 0, 0];
+            counts[(i % 3) as usize] = 1;
+            ChoiceRespondent { id: format!("r{i}"), counts }
+        })
+        .collect()
 }
 
 fn source(label: &str, ids: &[&str]) -> RetainedChoiceSource {
@@ -98,7 +105,7 @@ fn a_complete_declaration_is_admitted_with_a_stable_identity_that_moves_with_eve
     assert_eq!(base.identity(), ChoiceDesignContract::new(final_only()).unwrap().identity());
     assert_eq!(base.options(), 3);
     let mut changed = final_only();
-    changed.respondents[0].counts = vec![1, 2, 1];
+    changed.respondents[0].counts = vec![0, 1, 0];
     assert_ne!(base.identity(), ChoiceDesignContract::new(changed).unwrap().identity());
     let mut changed = final_only();
     changed.initial_prior = vec![1.0, 1.0, 2.0];
@@ -159,6 +166,23 @@ fn heterogeneity_is_not_identified_without_repeated_choices() {
     );
     d.respondents.iter_mut().for_each(|r| r.counts = vec![1, 0, 0]);
     assert_eq!(details(d), ["choice_inference.heterogeneity_not_identified"]);
+}
+
+#[test]
+fn repeated_choosers_are_not_pooled_and_a_pooled_source_is_not_a_hierarchical_prior() {
+    let mut d = final_only();
+    d.respondents[0].counts = vec![2, 1, 1];
+    assert_eq!(details(d), ["choice_inference.categorical_one_choice"]);
+    let mut d = final_only();
+    d.cell = cell(
+        OutcomeStructure::RepeatedChoice,
+        MonitoringStrategy::FinalAnalysisOnly,
+        StoppingRuleKind::NoStopping,
+    );
+    d.respondents[0].counts = vec![2, 1, 1];
+    assert!(ChoiceDesignContract::new(d.clone()).is_ok());
+    d.retained_sources = vec![source("old", &["old#0"])];
+    assert_eq!(details(d), ["choice_inference.hierarchical_source_unsupported"]);
 }
 
 #[test]
