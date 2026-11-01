@@ -2130,13 +2130,6 @@ suite_map_line = "suite_01: artifact_compat_inherited, artifact_compat_sequentia
 gates = ["inventory", "named"]
 
 [[test]]
-id = "choice-evidence-calibration"
-crate = "antecedent-design"
-cargo_target = "choice_evidence_calibration"
-path = "crates/antecedent-design/tests/choice_evidence_calibration.rs"
-gates = ["inventory"]
-
-[[test]]
 id = "decision-reliability-calibration"
 crate = "antecedent-design"
 cargo_target = "decision_reliability_calibration"
@@ -20808,4 +20801,69 @@ id = "audit-coverage-validation-bindings"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_coverage_validation_bindings.py"
+gates = ["inventory"]
+
+[[test]]
+id = "choice-design"
+crate = "antecedent-contract"
+cargo_target = "suite_01"
+path = "crates/antecedent-contract/tests/choice_design.rs"
+suite_map_line = "suite_01: adaptive_design, callback_protocol, choice_design, composition_provenance, composition_verification, evidence_ledger, evidence_obligation, interface_adapters, interface_contract, native_response_coordinates, program_binding, provider_transport, scientific_bridge, transport_identity_binding, transport_revalidation"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "choice-inference-result-artifact"
+crate = "antecedent-io"
+cargo_target = "suite_01"
+path = "crates/antecedent-io/tests/choice_inference_result_artifact.rs"
+suite_map_line = "suite_01: adaptive_inference_result_artifact, artifact_compat_adaptive_result, artifact_compat_inherited, artifact_compat_predictive_adaptive_golden, artifact_compat_recalc_receipt, bayesian_posterior_row_artifact, categorical_treatment_artifact, choice_inference_result_artifact, cohort_interval_artifact, compact_export, composition_cross_surface, cpdag_completion_artifact, cross_surface_external_claim, cross_surface_joint_law, distribution_artifact, distribution_meanings, dose_grid_artifact, effect_constancy_artifact, external_binding_wire, external_claim_artifact, external_column_claim_artifact, frozen_scores_artifact, joint_bayesian_source_dependence_ledger, joint_bayesian_transport_artifact, joint_bayesian_transport_model_artifact, latent_class_artifact, learned_joint_transport_artifact, mechanism_discrepancy_artifact, msm_sensitivity_adapter, native_contract_identity, nested_markov_artifact, nested_markov_bayesian_artifact, flagship_decision_artifact"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "choice-procedure-reference"
+crate = "antecedent-stats"
+cargo_target = "choice_procedure_reference"
+path = "crates/antecedent-stats/tests/choice_procedure_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "hierarchical-choice-reference"
+crate = "antecedent-stats"
+cargo_target = "hierarchical_choice_reference"
+path = "crates/antecedent-stats/tests/hierarchical_choice_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "choice-inference-calibration"
+crate = "antecedent"
+cargo_target = "choice_inference_calibration"
+path = "crates/antecedent/tests/choice_inference_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "choice-interval-calibration"
+crate = "antecedent-estimate"
+cargo_target = "choice_interval_calibration"
+path = "crates/antecedent-estimate/tests/choice_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "audit-crates-antecedent-design-src-choice-evsi-rs"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/choice_evsi.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "audit-crates-antecedent-estimate-src-choice-inference-rs"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/choice_inference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "choice-inference-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_choice_inference.py"
 gates = ["inventory"]
