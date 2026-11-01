@@ -259,6 +259,16 @@ fn dr_error_refusal(error: &RecalcRunError) -> String {
             use antecedent_estimate::EstimationError;
             use antecedent_stats::{GlmRefusalKind, StatsError};
             let (code, detail, stage) = match cause.peeled() {
+                CausalError::Cancelled { .. } => (
+                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    "recalc.cancelled",
+                    "score_artifact",
+                ),
+                CausalError::Conflict { what: "source", .. } => (
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "recalc.dr_source_mismatch",
+                    "data_snapshot",
+                ),
                 CausalError::Estimate(
                     EstimationError::Refused { code, .. }
                     | EstimationError::RefusedWithFields { code, .. },
@@ -556,6 +566,32 @@ impl PyDrSession {
         detach_catch(py, move || match self.inner.export_predictor_result(&ctx) {
             Ok(bytes) => Ok((Some(bytes), None)),
             Err(error) => Ok((None, Some(dr_error_refusal(&error)))),
+        })
+    }
+
+    #[pyo3(signature=(names,columns,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the Python bridge exposes the execution controls"
+    )]
+    fn export_predictor_with_source(
+        &self,
+        py: Python<'_>,
+        names: Vec<String>,
+        columns: Vec<NumericColumn<'_>>,
+        seed: u64,
+        threads: Option<u32>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<Vec<u8>>, Option<String>)> {
+        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+        check_columns(&columns, &ctx)?;
+        let data = crate::tabular_from_numpy(&names, &columns)?;
+        detach_catch(py, move || {
+            match self.inner.export_predictor_result_with_source(&data, &ctx) {
+                Ok(bytes) => Ok((Some(bytes), None)),
+                Err(error) => Ok((None, Some(dr_error_refusal(&error)))),
+            }
         })
     }
 }

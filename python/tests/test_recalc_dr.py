@@ -178,9 +178,17 @@ def test_dr_portable_scores_and_predictor_fresh_process(tmp_path, cate):
     session = DrSession()
     require_success(session.execute(r, execution=Execution(seed=3)))
     scores = session.export_scores()
-    model = session.export_predictor() if cate else None
+    model = session.export_predictor(source=r.data) if cate else None
     if model is not None:
         assert model.features == ("z", "w")
+        altered = {name: values.copy() for name, values in r.data.items()}
+        altered["y"][0] += 1.0
+        refusal(
+            lambda: session.export_predictor(source=altered),
+            "invalid_argument",
+            "recalc.dr_source_mismatch",
+            "data_snapshot",
+        )
     else:
         refusal(
             session.export_predictor,
@@ -414,13 +422,17 @@ def test_dr_capabilities_inspect_native_score_and_predictor_states():
     )
     for cate in [False, True]:
         session = DrSession()
-        require_success(session.execute(request(cate), execution=Execution(seed=3)))
+        current = request(cate)
+        require_success(session.execute(current, execution=Execution(seed=3)))
         assert retained_kind(session) == RetainedKind.LIVE_SCORES
         adapter = require_adapter(Family.DOUBLY_ROBUST, Operation.DATA, session)
         assert adapter.python_path == "antecedent.recalc_dr.DrSession.execute"
         assert (session._handle.prediction_columns() is not None) == cate
         if cate:
-            assert retained_kind(session.export_predictor()) == RetainedKind.PREDICTOR
+            assert (
+                retained_kind(session.export_predictor(source=current.data))
+                == RetainedKind.PREDICTOR
+            )
 
 
 def test_dr_composition_bundle_fresh_process_preserves_receipt_and_resumes_scores(tmp_path):

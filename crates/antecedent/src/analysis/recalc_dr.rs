@@ -361,6 +361,41 @@ impl DrSession {
             &live.fit_context,
         )?)
     }
+
+    /// Export the retained predictor with an explicitly supplied, snapshot-bound source table.
+    ///
+    /// The artifact includes every source row and column. The retained fit context supplies
+    /// the producing execution settings; the caller's context supplies resource admission and
+    /// cancellation. A consumer must still verify the checked operation and its source replay.
+    ///
+    /// # Errors
+    /// Missing live predictor, a mismatched source table, or a source-export refusal.
+    pub fn export_predictor_result_with_source(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<u8>, RecalcRunError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(crate::CausalError::Cancelled { stage: "recalc.dr_source_export" }.into());
+        }
+        let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
+        if self.fitted_effect().is_none() {
+            return Err(RecalcRunError::Request(RecalcRequestCode::DrPredictorUnavailable));
+        }
+        let mut replay_ctx = live.fit_context.clone();
+        replay_ctx.admission = ctx.admission.clone();
+        replay_ctx.cancellation = ctx.cancellation.clone();
+        let bytes = live.prepared.encode_contracted_result_with_source(
+            &live.result,
+            data,
+            "recalc-dr-predictor",
+            &replay_ctx,
+        )?;
+        if ctx.cancellation.is_cancelled() {
+            return Err(crate::CausalError::Cancelled { stage: "recalc.dr_source_export" }.into());
+        }
+        Ok(bytes)
+    }
 }
 fn recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))

@@ -8045,6 +8045,16 @@ class DrSessionHandle:
     def export_predictor(
         self, *, seed: int = 1, threads: int | None = None
     ) -> tuple[bytes | None, str | None]: ...
+    def export_predictor_with_source(
+        self,
+        names: list[str],
+        columns: list[Any],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
 
 class StaticResponseSessionHandle:
     def __init__(self) -> None: ...

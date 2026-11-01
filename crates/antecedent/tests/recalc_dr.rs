@@ -245,6 +245,35 @@ fn dr_cate_predictions_reuse_portable_final_model_and_validate_feature_schema() 
         "{:?}",
         consumed.acceptance.unresolved
     );
+    let source_columns = columns();
+    let source = antecedent_data::TabularData::from_f64_columns(
+        source_columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    let sourced = session.export_predictor_result_with_source(&source, &ctx()).unwrap();
+    let verified = antecedent_io::consume_analysis_result(&sourced).unwrap();
+    assert!(verified.acceptance.accepts_as_verified_program(), "{:?}", verified.acceptance);
+    assert!(verified.acceptance.verified_references);
+    let mut changed_columns = source_columns.clone();
+    changed_columns[1].1[0] += 1.0;
+    let changed = antecedent_data::TabularData::from_f64_columns(
+        changed_columns.iter().map(|(name, values)| (name.as_str(), values.as_slice())),
+    )
+    .unwrap();
+    assert!(matches!(
+        session.export_predictor_result_with_source(&changed, &ctx()),
+        Err(antecedent::analysis::recalc_receipt::RecalcRunError::Execution(
+            antecedent::CausalError::Conflict { what: "source", .. }
+        ))
+    ));
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        session.export_predictor_result_with_source(&source, &cancelled),
+        Err(antecedent::analysis::recalc_receipt::RecalcRunError::Execution(
+            antecedent::CausalError::Cancelled { .. }
+        ))
+    ));
     let model = consumed.body.fitted_effect.unwrap();
     let (replayed, actual_fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
         model.predict(&[VariableId::from_raw(2)], &[&[-1.0, 1.0]], 2, &ctx()).unwrap()

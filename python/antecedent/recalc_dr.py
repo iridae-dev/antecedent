@@ -250,12 +250,28 @@ class DrSession:
         """Verified portable marginal AIPW scores; use existing score resume consumer."""
         return _frozen(self._handle.export_scores())
 
-    def export_predictor(self, *, execution: Execution | None = None) -> FittedEffectModel:
-        """Load the retained CATE map from its existing verified parent result artifact."""
+    def export_predictor(
+        self, *, source: Mapping[str, ArrayLike] | None = None, execution: Execution | None = None
+    ) -> FittedEffectModel:
+        """Load the retained CATE map from a verified parent result artifact.
+
+        Passing the original ``source`` opts into a source witness for replay. The exported
+        model contains every source row and column, including unused ones. The source must
+        exactly match the snapshot used for the retained fit.
+        """
         run = _execution(execution)
-        artifact, refusal = run._call(
-            self._handle.export_predictor, **_native_controls(run, resources=False)
-        )
+        if source is None:
+            artifact, refusal = run._call(
+                self._handle.export_predictor, **_native_controls(run, resources=False)
+            )
+        else:
+            ctl = _native_controls(run)
+            names, columns = _columns(
+                source, memory_limit_bytes=ctl["memory_limit_bytes"], cancel=ctl["cancel"]
+            )
+            artifact, refusal = run._call(
+                self._handle.export_predictor_with_source, names, columns, **ctl
+            )
         raise_refusal(refusal, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("DR predictor export returned no artifact")
