@@ -435,7 +435,9 @@ mod tests {
         drop(owner);
         assert_eq!(ctx.admission().available().bytes(), 4096);
         let unbound = AdmittedLaplaceWorkspace::new(10, 2, 3).unwrap();
-        assert!(unbound._admission.is_none(), "direct unbound Rust allocations belong to caller");
+        #[allow(clippy::used_underscore_binding, reason = "verify the retained lease is absent")]
+        let no_lease = unbound._admission.is_none();
+        assert!(no_lease, "direct unbound Rust allocations belong to caller");
     }
 
     #[test]

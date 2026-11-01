@@ -184,11 +184,11 @@ fn ols_residual_variance(design: BayesDesignRef<'_>) -> Result<f64, ProbError> {
             continue;
         }
         let mut pred = design.offsets.map_or(0.0, |oo| oo[r]);
-        for c in 0..ncols {
+        for (c, &coefficient) in beta[..ncols].iter().enumerate() {
             if c % 4096 == 0 {
                 check_preprocess_cancelled()?;
             }
-            pred += design.x_colmajor[c * nrows + r] * beta[c];
+            pred += design.x_colmajor[c * nrows + r] * coefficient;
         }
         let resid = design.y[r] - pred;
         rss += w * resid * resid;

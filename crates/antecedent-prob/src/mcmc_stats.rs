@@ -70,7 +70,6 @@ pub fn mcmc_summary(
 ///
 /// # Errors
 /// Cancellation, admission refusal or failure to start an admitted worker.
-#[must_use]
 pub fn mcmc_summary_parallel(
     samples: &[f64],
     n_chains: usize,

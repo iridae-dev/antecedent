@@ -68,7 +68,7 @@ fn coefficient_effect_variance_and_inverse_gamma_support_matches_oracle() {
 fn frozen_distribution_normalization_context_is_consistent() {
     let fixture = fixture();
     let tolerance = fixture["tolerance"]["normalization_atol"].as_f64().unwrap();
-    assert_eq!(tolerance, 2e-8);
+    assert_eq!(tolerance.to_bits(), 2e-8_f64.to_bits());
     for case in fixture["coefficient_priors"].as_array().unwrap() {
         if let Some(integrals) = case["normal_integrals"].as_array() {
             for integral in integrals {

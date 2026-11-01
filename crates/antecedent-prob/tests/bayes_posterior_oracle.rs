@@ -116,6 +116,11 @@ fn nig_prior() -> PriorSet {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "fixture weights are small nonnegative integers"
+)]
 fn nig_integer_weights_equal_replication_and_zero_weight_equals_deletion() {
     let opts = BayesFitOptions { n_draws: 400, seed: 9, ..BayesFitOptions::default() };
     let x = colmajor(&X1);
@@ -228,6 +233,12 @@ struct Case {
 }
 
 #[test]
+#[allow(
+    clippy::unreadable_literal,
+    clippy::excessive_precision,
+    clippy::too_many_lines,
+    reason = "retain the independently generated reference values and their cases together"
+)]
 fn laplace_glm_mode_and_covariance_match_fifty_digit_reference() {
     let cases = [
         Case {
@@ -338,13 +349,13 @@ fn laplace_glm_mode_and_covariance_match_fifty_digit_reference() {
                 case.mode[i]
             );
         }
-        for k in 0..4 {
+        for (k, actual) in cov[..4].iter().enumerate() {
             assert!(
-                (cov[k] - case.cov[k]).abs() <= 1e-8 * (1.0 + case.cov[k].abs()),
+                (*actual - case.cov[k]).abs() <= 1e-8 * (1.0 + case.cov[k].abs()),
                 "{:?} weighted={} cov[{k}]: {} vs {}",
                 case.likelihood,
                 case.weighted,
-                cov[k],
+                actual,
                 case.cov[k]
             );
         }

@@ -520,6 +520,10 @@ fn admit_hmc_work(
     clippy::neg_cmp_op_on_partial_ord,
     reason = "negated comparison is deliberate: a NaN input must take the rejecting branch, which the un-negated form would let through"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the HMC execution keeps admission, adaptation and sampling in one bounded sequence"
+)]
 fn fit_hmc_resolved(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -1178,10 +1182,6 @@ struct Trajectory<'a> {
 /// Leapfrog trajectory from `ws.q` with momentum `ws.p`, given the carried gradient
 /// at the start. `Some(logp)` is the density of the last evaluated state (`lp_old`
 /// when no sweep produced one); `None` means the trajectory diverged.
-#[allow(
-    clippy::needless_range_loop,
-    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
-)]
 fn check_hmc_cancelled() -> Result<(), ProbError> {
     if antecedent_core::numerical_admission::is_cancelled() {
         return Err(ProbError::Cancelled { stage: "hmc.cancelled" });
@@ -1189,6 +1189,10 @@ fn check_hmc_cancelled() -> Result<(), ProbError> {
     Ok(())
 }
 
+#[allow(
+    clippy::needless_range_loop,
+    reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
+)]
 fn leapfrog<T: HmcTarget>(
     target: &mut T,
     dim: usize,
@@ -1703,8 +1707,8 @@ mod tests {
     #[test]
     fn transition_acceptance_denominator_does_not_saturate_at_u32_max() {
         let mut stats = TransitionStats {
-            n_transitions: u32::MAX as u128,
-            accept_prob_sum: u32::MAX as f64,
+            n_transitions: u128::from(u32::MAX),
+            accept_prob_sum: f64::from(u32::MAX),
             ..TransitionStats::default()
         };
         stats.record(
