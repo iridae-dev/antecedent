@@ -62,6 +62,7 @@ from antecedent import (
     scenario_decision,
 )
 from antecedent import adaptive_inference as ai
+from antecedent import choice_inference as chi
 from antecedent import cohort_decision as cd
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
@@ -133,6 +134,7 @@ PRODUCERS: tuple[str, ...] = (
     "decision_reliability_report",
     "adaptive_monitoring_contract",
     "adaptive_inference_result",
+    "choice_inference_result",
     "interface_contract_artifact",
     "composition_verification_result",
     "observation_query_claim",
@@ -797,6 +799,57 @@ def _adaptive() -> Adaptive:
 
 
 @dataclass(frozen=True)
+class Choice:
+    """One choice study: its session, pooled posterior, sealed result and the consumed form."""
+
+    session: chi.ChoiceInferenceSession
+    request: chi.Posterior
+    result: chi.PosteriorResult
+    result_bytes: bytes
+    consumed: chi.ConsumedChoiceResult
+
+
+def _choice() -> Choice:
+    """Twelve one-choice respondents over three options, one retained source, a final look."""
+    rows = []
+    for i in range(12):
+        counts = [0, 0, 0]
+        counts[0 if i % 4 else 1] = 1
+        rows.append(chi.Respondent(f"r{i}", counts))
+    source = chi.RetainedSource(
+        "wave0",
+        ("a", "b", "c"),
+        "chosen in the pricing task",
+        "customers",
+        (10.0, 5.0, 5.0),
+        ("s0", "s1"),
+        0.5,
+    )
+    study = chi.ChoiceStudy(
+        label="matrix_choice",
+        outcome="categorical_choice",
+        options=("a", "b", "c"),
+        meaning="chosen in the pricing task",
+        population="customers",
+        respondents=tuple(rows),
+        initial_prior=(1.0, 1.0, 1.0),
+        sources=(source,),
+        looks=(12,),
+        stopping_rule=ai.StoppingRule.no_stopping(),
+    )
+    session = chi.ChoiceInferenceSession.prepare(study)
+    request = chi.Posterior(look=0)
+    result_bytes = bytes(session.export(request))
+    return Choice(
+        session,
+        request,
+        require_success(session.analyze(request)),
+        result_bytes,
+        require_success(chi.consume_choice_inference_result_artifact(result_bytes)),
+    )
+
+
+@dataclass(frozen=True)
 class Transported:
     """The exact results and the sampled plug-ins of ``P(Y_{x=1} = 1)`` and ``P(Y_{x=0} = 1)``."""
 
@@ -874,6 +927,7 @@ class Objs:
     composition_export: mc.CompositionExport
     ledgered: Ledgered
     adaptive: Adaptive
+    choice: Choice
     transported: Transported
     cohort: cd.CohortDecisionSource
     reliability: dreliab.DecisionReliability
@@ -933,6 +987,7 @@ def _build_objects() -> Objs:
         composition_export=composition.export({"X": 1.0}, outcome="Y"),
         ledgered=_ledgered(),
         adaptive=_adaptive(),
+        choice=_choice(),
         transported=_transported(),
         cohort=_cohort_source(),
         reliability=_reliability(),
@@ -1041,6 +1096,7 @@ def _object(producer: str, o: Objs) -> object:
         "observation_query_claim": o.observation,
         "adaptive_monitoring_contract": o.adaptive.contract,
         "adaptive_inference_result": o.adaptive.result,
+        "choice_inference_result": o.choice.result,
         "predictive_assessment": _assessed(),
         "sequential_policy_evaluation": _sequential().artifact,
         "propagated_claim": _propagated(),
@@ -1071,6 +1127,7 @@ def _companions(producer: str, o: Objs) -> tuple[object, ...]:
         "composition_verification_result": (_verified().exported, _verified().consumed),
         "adaptive_monitoring_contract": (o.adaptive.session,),
         "adaptive_inference_result": (o.adaptive.consumed, o.adaptive.session),
+        "choice_inference_result": (o.choice.consumed, o.choice.session),
         "predictive_assessment": (_assessed().report, _assessed().identity),
         "sequential_policy_evaluation": (
             _sequential().evaluation,
@@ -1119,6 +1176,8 @@ def _bundle_payload(producer: str, o: Objs) -> object:
         return o.adaptive.contract_bytes
     if producer == "adaptive_inference_result":
         return o.adaptive.result_bytes
+    if producer == "choice_inference_result":
+        return o.choice.result_bytes
     if producer == "predictive_assessment":
         return bytes(_assessed().export())
     if producer == "sequential_policy_evaluation":
@@ -1804,6 +1863,7 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
         "observation_query_claim": (Stage.EVIDENCE, o.observation.identity),
         "adaptive_monitoring_contract": (Stage.EVIDENCE, o.adaptive.contract.identity),
         "adaptive_inference_result": (Stage.EVIDENCE, o.adaptive.consumed.identity),
+        "choice_inference_result": (Stage.EVIDENCE, o.choice.consumed.identity),
         "predictive_assessment": (Stage.EVIDENCE, _assessed().identity.digest),
         "sequential_policy_evaluation": (
             Stage.EVIDENCE,
@@ -3406,6 +3466,7 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "decision_reliability_report",
         "adaptive_monitoring_contract",
         "adaptive_inference_result",
+        "choice_inference_result",
         "predictive_assessment",
         "sequential_policy_evaluation",
         "interface_contract_artifact",
@@ -3443,10 +3504,10 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
-    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 272
+    assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 280
     assert cells.count("DIRECT") == 21
-    assert cells.count("ADAPTER") == 61
-    assert cells.count("REFUSED") == 190
+    assert cells.count("ADAPTER") == 62
+    assert cells.count("REFUSED") == 197
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:
@@ -3569,6 +3630,11 @@ def test_producer_consumer_matrix_adaptive_monitoring_contract_row(
 @pytest.mark.parametrize("consumer", CONSUMERS)
 def test_producer_consumer_matrix_adaptive_inference_result_row(consumer: str, objs: Objs) -> None:
     _run_cell("adaptive_inference_result", consumer, objs)
+
+
+@pytest.mark.parametrize("consumer", CONSUMERS)
+def test_producer_consumer_matrix_choice_inference_result_row(consumer: str, objs: Objs) -> None:
+    _run_cell("choice_inference_result", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
