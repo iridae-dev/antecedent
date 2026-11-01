@@ -9,6 +9,8 @@ from itertools import product
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
+from evidence_kinds import EVIDENCE_KINDS as ALL_EVIDENCE_KINDS
+from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 root = Path(".")
 fail: list[str] = []
@@ -19,8 +21,6 @@ if matrix_shard != "all":
         flush=True,
     )
 
-from evidence_kinds import EVIDENCE_KINDS as ALL_EVIDENCE_KINDS
-from evidence_kinds import KNOWN_TRUTH_KINDS, fixture_kind_problems
 
 EVIDENCE_KINDS = ALL_EVIDENCE_KINDS - {"process_attested"}
 

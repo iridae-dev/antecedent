@@ -151,7 +151,6 @@ def gram(rows):
 
 def leverages(rows):
     g = gram(rows)
-    p = len(g)
     out = []
     for r in rows:
         sol = solve([row[:] for row in g], r)
@@ -226,7 +225,7 @@ def check(document):
                     problems.append(f"{name}.{key}.{column}: the stored table differs from the stated formula")
         got, want = derived["derived"], table["derived"]
         for key, value in got.items():
-            if isinstance(value, (int, bool)) or isinstance(value, list):
+            if isinstance(value, (int, bool, list)):
                 same = (want[key] == value) if not isinstance(value, list) else all(
                     math.isclose(a, b, rel_tol=0.0, abs_tol=1e-12) for a, b in zip(want[key], value, strict=False)
                 )

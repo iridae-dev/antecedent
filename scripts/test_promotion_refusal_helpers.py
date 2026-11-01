@@ -286,16 +286,16 @@ class MetadataLiteralTests(unittest.TestCase):
             path = REPO_ROOT / "python/antecedent" / name
             with self.subTest(name=name):
                 self.assertNotIn("recalc.no_live_state", [x.value for x in python_literals(path)])
-                def changed(path_arg, *args, **kwargs):
+                def changed(path_arg, *args, _path=path, **kwargs):
                     text = original(path_arg, *args, **kwargs)
-                    if path_arg.resolve() == path.resolve():
+                    if path_arg.resolve() == _path.resolve():
                         return text.replace("return RecalcNoLiveState", "return RecalcRefusal", 1)
                     return text
                 with patch.object(Path, "read_text", changed):
                     self.assertIn("recalc.no_live_state", [x.value for x in python_literals(path)])
-                def emitted(path_arg, *args, **kwargs):
+                def emitted(path_arg, *args, _path=path, **kwargs):
                     text = original(path_arg, *args, **kwargs)
-                    if path_arg.resolve() == path.resolve():
+                    if path_arg.resolve() == _path.resolve():
                         return text + '\ndef new_refusal():\n    raise ValueError("recalc.no_live_state")\n'
                     return text
                 with patch.object(Path, "read_text", emitted):

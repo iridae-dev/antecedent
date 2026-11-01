@@ -26,7 +26,8 @@ from tigramite.lpcmci import LPCMCI
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
-from reference_compare import values_close
+# The local helper path is installed immediately above.
+from reference_compare import values_close  # noqa: E402
 
 PINS = {"tigramite": "5.2.1.30", "numpy": "1.23.5", "scipy": "1.10.1"}
 INPUT_SHA256 = "5cca650c565d9dd45cf6375d73563169940f0e880858d84b1d1c38e6993d757d"

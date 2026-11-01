@@ -176,7 +176,7 @@ def check(document: dict) -> list[str]:
             stored = document[group].get(key)
             if stored is None:
                 continue
-            if isinstance(value, list) or isinstance(value, dict):
+            if isinstance(value, (list, dict)):
                 if value != stored:
                     problems.append(f"{group}.{key}: {stored} vs {value}")
             elif key.endswith("p_value"):

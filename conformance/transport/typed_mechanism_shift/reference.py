@@ -204,7 +204,6 @@ def response(family, coeffs, scale, income_m, income_s, p):
 
 def response_se(family, fit, income, p):
     coeffs = fit["beta"]
-    extra = 0.0
     theta = list(coeffs)
     cov_blocks = [fit["cov"]]
     if family == "log_normal":

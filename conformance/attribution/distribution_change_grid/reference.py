@@ -17,6 +17,7 @@ SPDX-License-Identifier: MIT OR Apache-2.0
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import math
 import sys
@@ -30,7 +31,6 @@ def close(got, want, tol, label, problems):
         problems.append(f"{label}: derived {got!r} != fixture {want!r} (tol {tol})")
 
 
-import itertools
 
 
 def shapley(players, payoff):

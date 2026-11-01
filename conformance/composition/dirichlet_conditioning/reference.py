@@ -26,7 +26,8 @@ from scipy.special import roots_jacobi
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
-from reference_compare import values_close
+# The local helper path is installed immediately above.
+from reference_compare import values_close  # noqa: E402
 
 PATH = Path(__file__).with_name("expected.json")
 PARAMETERS = {"z": [101, 101], "s_given_z0": [41, 161], "s_given_z1": [161, 41],

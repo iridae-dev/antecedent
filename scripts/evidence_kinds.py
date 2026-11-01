@@ -207,9 +207,12 @@ def false_independence_problems(root: Path, oracle: dict, artifacts: list) -> li
             continue
         if rel.startswith("crates/") and "/tests/" not in rel:
             problems.append(f"reference_review generator is product source: {rel}")
-        elif path.suffix == ".py" and path.is_file():
-            if PRODUCT_IMPORT.search(path.read_text(encoding="utf-8", errors="ignore")):
-                problems.append(f"reference_review generator depends on product code: {rel}")
+        elif (
+            path.suffix == ".py"
+            and path.is_file()
+            and PRODUCT_IMPORT.search(path.read_text(encoding="utf-8", errors="ignore"))
+        ):
+            problems.append(f"reference_review generator depends on product code: {rel}")
     return problems
 
 

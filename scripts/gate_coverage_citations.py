@@ -79,7 +79,7 @@ def calibration_lane_tests(base: Path, module: str) -> set[str]:
                     or not any(words[i:i + 2] == ["-p", "antecedent"] for i in range(pos, target))
                     or not nondeselecting_libtest_flags(words[separator + 1:])):
                 continue
-            def arg(value):
+            def arg(value, variables=variables):
                 key = value.removeprefix("$").strip("{}")
                 return variables.get(key) if value.startswith("$") else None
             target_value, filter_value = words[target + 1:target + 3]

@@ -303,7 +303,7 @@ def mediation_functionals_from_windows(counts: dict[tuple, int]) -> dict[str, F]
     exact window law alone: the textbook mediation functionals of the last period's table (the
     treatment has the previous period's c as its only parent, so no adjustment is needed)."""
     rows = []
-    for (s0, s1), n in counts.items():
+    for (_s0, s1), n in counts.items():
         rows.append(((s1 >> 1) & 1, (s1 >> 3) & 1, (s1 >> 4) & 1, n))
 
     def prob(m: int, x: int) -> F:

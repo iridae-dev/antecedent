@@ -80,10 +80,7 @@ def arm_mean_weighted(
     n_obs = len(obs)
     pi_hat = n_obs / (n_obs + missing)
     ybar = sum(s * y for s, y in zip(weights, obs, strict=False)) / sum(weights)
-    if model == "delta":
-        g = ybar + param
-    else:
-        g = tilted_missing_mean_weighted(obs, weights, param, 0.0)
+    g = ybar + param if model == "delta" else tilted_missing_mean_weighted(obs, weights, param, 0.0)
     return pi_hat * ybar + (1.0 - pi_hat) * g
 
 

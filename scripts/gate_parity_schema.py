@@ -6,6 +6,12 @@ import tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
+from evidence_kinds import (
+    EVIDENCE_KINDS,
+    EXTERNAL_KINDS,
+    fixture_kind_problems,
+    inline_reference_problems,
+)
 
 root = Path(".")
 
@@ -22,12 +28,6 @@ BASE_REQUIRED = ("id", "status")
 # The 2026-08 audit found rows whose notes read as external-package agreement
 # while the fixture's own oracle block recorded clean-room enumeration; this
 # field makes the claim strength machine-readable so wording cannot outrun it.
-from evidence_kinds import (
-    EVIDENCE_KINDS,
-    EXTERNAL_KINDS,
-    fixture_kind_problems,
-    inline_reference_problems,
-)
 
 # An implementation_exists row that produces one of these is a statistical procedure
 # a reader would take as validated; it must say that no numerical truth backs it.

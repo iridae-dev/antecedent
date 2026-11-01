@@ -130,9 +130,10 @@ def check(document: dict, actual: dict) -> list[str]:
         verdict = "identified" if actual[name]["identified"] else "not_identified"
         if case.get("oracle_result") != verdict:
             problems.append(f"{name}: summary verdict differs from the oracle")
-        if case.get("oracle_formula") != actual[name].get("functional"):
-            if "functional" in actual[name] or "oracle_formula" in case:
-                problems.append(f"{name}: oracle_formula differs")
+        if case.get("oracle_formula") != actual[name].get("functional") and (
+            "functional" in actual[name] or "oracle_formula" in case
+        ):
+            problems.append(f"{name}: oracle_formula differs")
     return problems
 
 

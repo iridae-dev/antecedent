@@ -29,7 +29,8 @@ from statsmodels.stats.multitest import multipletests
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
-from reference_compare import values_close
+# The local helper path is installed immediately above.
+from reference_compare import values_close  # noqa: E402
 
 PINS = {"numpy": "2.1.3", "scipy": "1.14.1", "pandas": "2.2.3", "statsmodels": "0.14.4"}
 

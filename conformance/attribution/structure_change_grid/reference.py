@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import itertools
 import json
 import math
 import sys
@@ -48,7 +49,6 @@ def Phi(x):
 def sigmoid(x):
     return 1.0 / (1.0 + math.exp(-x))
 
-import itertools
 
 
 def shapley(players, payoff):

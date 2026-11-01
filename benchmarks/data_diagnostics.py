@@ -6,6 +6,7 @@ from time import perf_counter
 
 import antecedent as ant
 import numpy as np
+from antecedent._batch import prepare_many
 
 for rows, columns in [(100_000, 4), (2_000, 128)]:
     rng = np.random.default_rng(73)
@@ -18,7 +19,6 @@ for rows, columns in [(100_000, 4), (2_000, 128)]:
     assert report.sample_rows == min(rows, 4096)
 
 rows = {"t": np.arange(10_000, dtype=float) % 2, "y": np.arange(10_000, dtype=float)}
-from antecedent._batch import prepare_many
 
 start = perf_counter()
 batch = prepare_many(

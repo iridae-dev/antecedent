@@ -584,9 +584,12 @@ def check(document: dict) -> list[str]:
                     if v is None:
                         continue
                     values.append(v[comp] if isinstance(v, dict) else v)
-                if len(values) > 1 and max(values) - min(values) > 1e-6:
-                    if min(abs(mixed["value"] - v) for v in values) < 1e-4:
-                        problems.append(f"{family} {klass} {comp}: the mixture equals one atom")
+                if (
+                    len(values) > 1
+                    and max(values) - min(values) > 1e-6
+                    and min(abs(mixed["value"] - v) for v in values) < 1e-4
+                ):
+                    problems.append(f"{family} {klass} {comp}: the mixture equals one atom")
     return problems
 
 

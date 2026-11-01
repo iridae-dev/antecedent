@@ -112,7 +112,7 @@ class RecipeObligationTest(unittest.TestCase):
         ]
         for target, wrong, expected in mutations:
             with self.subTest(target=target):
-                def defective(cell, closed, applicable, licensed):
+                def defective(cell, closed, applicable, licensed, target=target, wrong=wrong):
                     if cell == target:
                         return wrong
                     return original(cell, closed, applicable, licensed)

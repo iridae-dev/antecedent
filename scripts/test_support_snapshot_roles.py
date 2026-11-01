@@ -15,9 +15,11 @@ class SupportSnapshotRoles(unittest.TestCase):
         cell = dict(query="AverageEffect", graph_class="Dag", structure="explicit",
                     inference="frequentist", validation="none", estimators=["explicit"],
                     calibration=[row["id"] for row in records])
-        with patch.object(generator, "load", return_value={"record": records}) as load:
-            with patch.object(generator.external_evidence, "routes", return_value={}):
-                snapshot = generator.support_snapshot([], [], [], [cell] * 2696)
+        with (
+            patch.object(generator, "load", return_value={"record": records}) as load,
+            patch.object(generator.external_evidence, "routes", return_value={}),
+        ):
+            snapshot = generator.support_snapshot([], [], [], [cell] * 2696)
         load.assert_called_once_with("parity/coverage_records.toml")
         self.assertEqual(len(snapshot["licensed"]), 2696)
         for result in snapshot["licensed"]:
@@ -28,9 +30,11 @@ class SupportSnapshotRoles(unittest.TestCase):
         cell = dict(query="AverageEffect", graph_class="Dag", structure="explicit",
                     inference="frequentist", validation="none", calibration=[],
                     estimators=["explicit"])
-        with patch.object(generator, "load", return_value={"record": []}) as load:
-            with patch.object(generator.external_evidence, "routes", return_value={}):
-                snapshot = generator.support_snapshot([], [], [], [cell] * 8)
+        with (
+            patch.object(generator, "load", return_value={"record": []}) as load,
+            patch.object(generator.external_evidence, "routes", return_value={}),
+        ):
+            snapshot = generator.support_snapshot([], [], [], [cell] * 8)
         load.assert_called_once()
         self.assertEqual(snapshot["licensed"][0]["estimators"], ["explicit"])
 

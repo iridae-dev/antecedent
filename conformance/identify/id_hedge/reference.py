@@ -74,7 +74,7 @@ def models(nodes, parents, latents, n_latent):
     order = topological(nodes, parents)
     inputs = {n: len(parents[n]) + len(latents[n]) + 1 for n in order}  # + private noise
     tables = {n: list(itertools.product((0, 1), repeat=2 ** inputs[n])) for n in order}
-    sources = ["L%d" % i for i in range(n_latent)] + ["N_" + n for n in order]
+    sources = [f"L{i}" for i in range(n_latent)] + ["N_" + n for n in order]
     worlds = list(itertools.product((0, 1), repeat=len(sources)))
     return order, inputs, tables, sources, worlds
 
@@ -86,7 +86,7 @@ def evaluate(order, parents, latents, tables_for, sources, world, forced=None):
         if forced and n in forced:
             out[n] = forced[n]
             continue
-        bits = [out[p] for p in parents[n]] + [value["L%d" % i] for i in latents[n]]
+        bits = [out[p] for p in parents[n]] + [value[f"L{i}"] for i in latents[n]]
         bits.append(value["N_" + n])
         index = 0
         for b in bits:

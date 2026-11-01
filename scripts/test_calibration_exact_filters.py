@@ -5,7 +5,11 @@ import unittest
 from _repo import REPO_ROOT, ensure_scripts_on_path
 
 ensure_scripts_on_path()
-from test_evidence import libtest_name, rust_items, target_files
+from test_evidence import (  # noqa: E402 -- local helper path is installed immediately above
+    libtest_name,
+    rust_items,
+    target_files,
+)
 
 
 class CalibrationExactFilters(unittest.TestCase):

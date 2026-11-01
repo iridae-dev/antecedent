@@ -75,9 +75,9 @@ def check(document):
         # front-door formula from the table only
         n = {k: F(c["count"]) for c in document["contingency_table"] for k in [(int(c["t"]), int(c["m"]), int(c["y"]))]}
         total = sum(n.values())
-        def pt_(tt): return sum(v for (a, _, _), v in n.items() if a == tt) / total
-        def pm_t(m, tt): return sum(v for (a, b, _), v in n.items() if a == tt and b == m) / sum(v for (a, _, _), v in n.items() if a == tt)
-        def py_tm(tt, m): return n[(tt, m, 1)] / (n[(tt, m, 0)] + n[(tt, m, 1)])
+        def pt_(tt, n=n, total=total): return sum(v for (a, _, _), v in n.items() if a == tt) / total
+        def pm_t(m, tt, n=n): return sum(v for (a, b, _), v in n.items() if a == tt and b == m) / sum(v for (a, _, _), v in n.items() if a == tt)
+        def py_tm(tt, m, n=n): return n[(tt, m, 1)] / (n[(tt, m, 0)] + n[(tt, m, 1)])
         fd = sum(pm_t(m, t) * sum(pt_(tt) * py_tm(tt, m) for tt in (0, 1)) for m in (0, 1))
         close(fd, want, 1e-15, f"front-door from table t={t}", problems)
     return problems

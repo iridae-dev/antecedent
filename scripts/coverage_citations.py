@@ -83,9 +83,7 @@ def noncoverage_figure(text: str, lo: int, start: int, end: int) -> bool:
     if re.search(r"(?i)\bpath\s+effect\s+0\.\d+\s*,\s*total\s*$", before):
         return True
     # A confidence-level adjective before "interval" is not an observed rate.
-    if re.search(r"(?i)\bmean\s*$", before) and re.match(r"\s*interval\b", after):
-        return True
-    return False
+    return bool(re.search(r"(?i)\bmean\s*$", before) and re.match(r"\s*interval\b", after))
 
 
 def sentences(text: str) -> list[tuple[int, int]]:
@@ -136,9 +134,7 @@ def nominal_wide_figure(text: str, lo: int, hi: int, start: int, end: int) -> bo
         return True
     if re.search(r"(?i)\basymptotic\s+probability\s+at\s+least\s*$", before):
         return True
-    if re.search(r"(?i)\bwarning\s+fires\s+on\s+at\s+least\s*$", before) and re.match(r"(?i)\s+of\s+replicates\b", after):
-        return True
-    return False
+    return bool(re.search(r"(?i)\bwarning\s+fires\s+on\s+at\s+least\s*$", before) and re.match(r"(?i)\s+of\s+replicates\b", after))
 
 
 def wide_figures(text: str, lo: int, hi: int) -> list[tuple[re.Match, float, float]]:

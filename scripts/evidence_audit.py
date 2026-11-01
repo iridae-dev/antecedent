@@ -266,9 +266,8 @@ def cited_test_text(root: Path, test: str) -> str:
     if not path or not path.is_file():
         return ""
     files = {path}
-    if path.suffix == ".rs":
-        if path.with_suffix("").is_dir():
-            files.update(path.with_suffix("").glob("**/*.rs"))
+    if path.suffix == ".rs" and path.with_suffix("").is_dir():
+        files.update(path.with_suffix("").glob("**/*.rs"))
     return "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in sorted(files))
 
 

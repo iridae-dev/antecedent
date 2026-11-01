@@ -20,6 +20,7 @@ import json
 import math
 import sys
 from fractions import Fraction
+from itertools import product
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -36,7 +37,6 @@ def same(got, want, label, problems):
     if got != want:
         problems.append(f"{label}: derived {got!r} != fixture {want!r}")
 
-from itertools import product
 
 
 def bern(p, v):

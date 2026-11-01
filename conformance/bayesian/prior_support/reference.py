@@ -29,7 +29,8 @@ from scipy.stats import invgamma, norm
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
-from reference_compare import values_close
+# The local helper path is installed immediately above.
+from reference_compare import values_close  # noqa: E402
 
 PATH = Path(__file__).with_name("expected.json")
 
@@ -81,7 +82,7 @@ def check(document):
             # y = shape * log(x / scale) avoids a vanishingly narrow peak and
             # the huge x tail for shape 0.001. This integrates the public pdf
             # in log space, without importing a density implementation.
-            def transformed(y):
+            def transformed(y, shape=shape, scale=scale, distribution=distribution):
                 log_x = math.log(scale) + y / shape
                 if -700 < log_x < 700:
                     return math.exp(float(distribution.logpdf(math.exp(log_x))) + log_x - math.log(shape))

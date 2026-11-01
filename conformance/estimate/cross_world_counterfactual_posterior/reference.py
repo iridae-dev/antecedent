@@ -45,7 +45,7 @@ def counts(document, name):
 def marginal(n, columns, spec):
     """Sum of counts over the cells matching `spec` ({column: level})."""
     index = {c: i for i, c in enumerate(columns)}
-    return sum(v for k, v in n.items() if all(k[index[c]] == l for c, l in spec.items()))
+    return sum(v for k, v in n.items() if all(k[index[c]] == level for c, level in spec.items()))
 
 
 def p(n, columns, target, given):

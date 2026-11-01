@@ -36,7 +36,7 @@ def stratified_difference(cells):
         in_stratum = [cell for cell in cells if cell["z"] == z]
         weight = Fraction(sum(cell["count"] for cell in in_stratum), total)
 
-        def mean(x):
+        def mean(x, in_stratum=in_stratum):
             arm = sum(cell["count"] for cell in in_stratum if cell["x"] == x)
             ones = sum(cell["count"] for cell in in_stratum if cell["x"] == x and cell["y"] == 1)
             return Fraction(ones, arm)

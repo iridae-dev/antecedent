@@ -27,7 +27,8 @@ from scipy.stats import rankdata
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
-from reference_compare import values_close
+# The local helper path is installed immediately above.
+from reference_compare import values_close  # noqa: E402
 
 
 def outputs(case: dict) -> dict:

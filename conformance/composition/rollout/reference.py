@@ -48,8 +48,8 @@ def compute(document: dict) -> dict:
     for outcome in itertools.product((0, 1), repeat=n):
         k = sum(outcome)
         likelihood = [s**k * (1 - s) ** (n - k) for s in states]
-        counts[k] = counts.get(k, Fraction(0)) + sum(mass * l for l in likelihood)
-        joint = [mass * l for l in likelihood]
+        counts[k] = counts.get(k, Fraction(0)) + sum(mass * value for value in likelihood)
+        joint = [mass * value for value in likelihood]
         evsi += max(sum(j * row[i] for i, j in enumerate(joint)) for row in payoffs.values())
     evsi -= prior
     table = [[float(p) for p in payoffs[a]] for a in document["terminal_actions"]]

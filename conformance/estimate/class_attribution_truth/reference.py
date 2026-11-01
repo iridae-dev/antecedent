@@ -363,7 +363,7 @@ def merge_change(case, members_out):
         per_member.append([out["phi"][out["components"].index(c)] if c in out["components"] else 0.0 for c in comps])
     mean = [sum(wi * m[c] for wi, m in zip(w, per_member, strict=False)) for c in range(len(comps))]
     tol = []
-    for c, comp in enumerate(comps):
+    for _c, comp in enumerate(comps):
         # the mean of the members' contributions carries the weighted sum of their tolerances
         bound = 0.0
         for wi, i in zip(w, ident, strict=False):

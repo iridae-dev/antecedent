@@ -111,7 +111,7 @@ def _evidence_problem(cid: str, rel: str) -> str | None:
         return None
     if p.stat().st_size == 0:
         return f"{cid} evidence file is empty: {rel}"
-    text = p.read_text(errors="ignore", encoding="utf-8")
+    p.read_text(errors="ignore", encoding="utf-8")
     if "/tests/" in p.as_posix() and p.suffix in {".rs", ".py"}:
         # Inspect actual test declarations and assertions, not textual tokens in
         # comments, docstrings, ignored tests or unrelated helper functions.

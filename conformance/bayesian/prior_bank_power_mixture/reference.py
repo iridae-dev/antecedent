@@ -19,6 +19,7 @@ import argparse
 import json
 import math
 import sys
+from fractions import Fraction as F
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -29,7 +30,6 @@ def close(got, want, tol, label, problems):
         problems.append(f"{label}: derived {got!r} != fixture {want!r} (tol {tol})")
 
 
-from fractions import Fraction as F
 
 
 def check(document):

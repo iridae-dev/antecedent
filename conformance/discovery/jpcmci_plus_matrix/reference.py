@@ -28,7 +28,8 @@ from tigramite.pcmci import PCMCI
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
-from reference_compare import values_close
+# The local helper path is installed immediately above.
+from reference_compare import values_close  # noqa: E402
 
 PINS = {"tigramite": "5.2.9.7", "numpy": "2.1.3", "scipy": "1.14.1", "joblib": "1.4.2"}
 GRIDS = {

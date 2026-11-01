@@ -8,6 +8,7 @@ import tomllib
 from pathlib import Path
 
 from _repo import ensure_scripts_on_path
+from evidence_kinds import ORACLE_KINDS, fixture_review_problems
 
 root = Path(".")
 fail = []
@@ -193,7 +194,6 @@ def command_blocks(obj):
             yield from command_blocks(value)
 
 
-from evidence_kinds import ORACLE_KINDS, fixture_review_problems
 
 for expected in sorted((root / "conformance").glob("**/expected.json")):
     try:

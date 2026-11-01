@@ -278,7 +278,7 @@ def build() -> str:
         "",
     ]
     counts: dict[str, int] = defaultdict(int)
-    for stem, record, cls, why, group, link in sorted(rows):
+    for stem, record, cls, why, _group, link in sorted(rows):
         counts[cls] += 1
         pr = priority(cls, link, stem)
         shared = sorted(
