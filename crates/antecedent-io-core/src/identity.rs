@@ -3957,6 +3957,10 @@ mod tests {
         assert_eq!(labels.get("active").map(String::as_str), Some("1"));
     }
 
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the helper retains the error or fixture callback signature"
+    )]
     fn static_posterior(weights: [f64; 3], graphs: [AdjacencyMask; 3]) -> GraphPosterior {
         let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
         GraphPosterior::from_atoms(

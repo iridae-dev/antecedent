@@ -2483,6 +2483,7 @@ const HISTORY_MATCH_UNCERTAINTY: &str =
 /// and that the contrast, the weight total, the Abadie-Imbens standard error and the Newey-West
 /// standard error and interval over the matched periods are those of the retained pairs, their
 /// periods and their within-arm variance estimates.
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
 pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
@@ -2570,6 +2571,14 @@ pub(in crate::analysis_result_artifact) fn validate_history_match_graphless(
 /// pairs aggregated by calendar period (periods enter by label, so a missing period invents no
 /// adjacency). Bartlett truncation lag `floor(4 (T / 100)^(2/9))` clamped to `[1, T - 1]`, scale
 /// `T / (T - 1) / total^2`, normal interval at the 97.5% point.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the value is bounded by its validated numerical or fixture domain"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by its validated numerical or fixture domain"
+)]
 fn validate_history_match_serial(
     fit: &HistoryMatchWire,
     total: f64,

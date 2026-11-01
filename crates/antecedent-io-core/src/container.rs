@@ -1740,6 +1740,10 @@ mod tests {
         }
 
         impl Read for GeneratedReader {
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "the value is bounded by its validated numerical or fixture domain"
+            )]
             fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
                 let n = usize::try_from(self.left).unwrap_or(usize::MAX).min(buf.len());
                 for byte in &mut buf[..n] {
@@ -1814,6 +1818,10 @@ mod tests {
         }
 
         #[test]
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the value is bounded by its validated numerical or fixture domain"
+        )]
         fn a_streamed_write_equals_the_buffered_container_and_reads_back() {
             let text: Vec<u8> = (0..300_000u32).map(|i| b'a' + ((i / 50) % 9) as u8).collect();
             let noise: Vec<u8> =

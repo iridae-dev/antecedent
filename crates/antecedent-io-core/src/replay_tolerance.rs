@@ -64,6 +64,7 @@ impl ReplayTolerance {
     /// An infinite or NaN operand never passes the arithmetic comparison: an infinite scale
     /// would otherwise accept any finite stored value against an infinite replay.
     #[must_use]
+    #[allow(clippy::match_same_arms, reason = "the cases retain distinct wire or replay semantics")]
     pub fn close(&self, stored: f64, replayed: f64) -> bool {
         match self.non_finite {
             ReplayNonFinite::Refuse => {}

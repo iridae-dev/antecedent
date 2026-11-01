@@ -426,9 +426,9 @@ pub fn pag_to_dot(pag: &Pag, names: Option<&[String]>) -> Result<String, IoError
                 push_label(&mut out, e.a, names, use_names);
                 out.push_str(" -> ");
                 push_label(&mut out, e.b, names, use_names);
-                let _ = write!(
+                let _ = writeln!(
                     out,
-                    " [mark_a={}, mark_b={}];\n",
+                    " [mark_a={}, mark_b={}];",
                     endpoint_str(at_a),
                     endpoint_str(at_b)
                 );
@@ -888,6 +888,7 @@ fn parse_gml(gml: &str) -> Result<GmlGraph, IoError> {
     Ok(g)
 }
 
+#[allow(clippy::match_same_arms, reason = "the cases retain distinct wire or replay semantics")]
 fn emit_gml(
     node_count: u32,
     names: Option<&[String]>,

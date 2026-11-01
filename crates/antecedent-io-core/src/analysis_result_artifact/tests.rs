@@ -736,6 +736,10 @@ mod source_witness_cases {
     }
 
     /// The witness written out by hand, not through `from_storage`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the value is bounded by its validated numerical or fixture domain"
+    )]
     fn witness(columns: &[Vec<f64>]) -> SourceWitnessWire {
         SourceWitnessWire {
             format: SOURCE_WITNESS_FORMAT,

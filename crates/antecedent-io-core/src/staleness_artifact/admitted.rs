@@ -4,7 +4,11 @@
 //! The first pass checks the entire schema while borrowing input. The second allocates
 //! each string/vector at its validated length. One owner holds their aggregate lease.
 
-use super::*;
+use super::{
+    IoError, JointProfileWire, LevelCountWire, MissingPatternWire, NumericProfileWire,
+    OutcomeModelWire, OverlapSummaryWire, RecordedCheckWire, STALENESS_BASELINE_MAGIC,
+    STALENESS_BASELINE_MAX_BYTES, StalenessBaselineWire, StalenessColumnWire,
+};
 use antecedent_core::ExecutionContext;
 use antecedent_core::execution::AdmissionLease;
 use std::mem::size_of;
@@ -119,8 +123,11 @@ impl Decoder<'_> {
             31 => 0,
             _ => return Err(invalid("invalid staleness CBOR header")),
         };
-        let additional =
-            if byte >> 5 == 7 && additional == 24 && value < 24 { value as u8 } else { additional };
+        let additional = if byte >> 5 == 7 && additional == 24 && value < 24 {
+            u8::try_from(value).map_err(|_| invalid("invalid staleness CBOR header"))?
+        } else {
+            additional
+        };
         Ok(Header { major: byte >> 5, additional, value })
     }
 
@@ -368,7 +375,8 @@ scalar!(f64, d, {
         (0, 0..=27) => Ok(h.value as f64),
         (1, 0..=27) => Ok(-1.0 - h.value as f64),
         (7, 25) => {
-            let bits = h.value as u16;
+            let bits =
+                u16::try_from(h.value).map_err(|_| invalid("invalid half-precision value"))?;
             let sign = if bits & 0x8000 == 0 { 1.0 } else { -1.0 };
             let exponent = (bits >> 10) & 31;
             let fraction = bits & 1023;
@@ -389,7 +397,9 @@ scalar!(f64, d, {
                     _ => f64::from(1024 + fraction) * 2f64.powi(i32::from(exponent) - 25),
                 })
         }
-        (7, 26) => Ok(f64::from(f32::from_bits(h.value as u32))),
+        (7, 26) => Ok(f64::from(f32::from_bits(
+            u32::try_from(h.value).map_err(|_| invalid("invalid single-precision value"))?,
+        ))),
         (7, 27) => Ok(f64::from_bits(h.value)),
         _ => Err(invalid("staleness field requires a real number")),
     }

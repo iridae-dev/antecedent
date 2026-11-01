@@ -152,6 +152,7 @@ pub fn encode_policy_program(interventions: &[Intervention]) -> Result<Vec<u8>, 
 
 /// Read the envelope and verify version, identity and shape. The interventions are not yet
 /// decoded.
+#[allow(clippy::items_after_statements, reason = "the local helper is scoped to the validation")]
 fn open_envelope(bytes: &[u8]) -> Result<PolicyProgramEnvelope, IoError> {
     if bytes.len() > POLICY_PROGRAM_MAX_BYTES {
         return Err(IoError::TooLarge);

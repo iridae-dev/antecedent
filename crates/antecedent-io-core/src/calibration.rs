@@ -837,6 +837,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
     fn basis_wire_carries_every_field_of_the_basis() {
         let names = ["q", "g", "fixed", "tabular", "Bayesian", "e", "m", "s", "d", "p", "f"];
         let basis = antecedent_core::CalibrationBasis::new(

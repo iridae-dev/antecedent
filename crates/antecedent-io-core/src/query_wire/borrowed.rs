@@ -1,5 +1,9 @@
 //! Borrow retained canonical declarations; overlay only native projected coordinates.
-use super::*;
+use super::{
+    CausalQuery, CausalQueryWire, Intervention, InterventionWire, InterventionalDistributionQuery,
+    MediationContrastWire, OutcomeFunctional, PathSpecificEffectQuery, PredicateExpr, Serialize,
+    StochasticPolicy, TargetPopulation, TargetPopulationWire, TemporalPolicy, Value, VariableId,
+};
 use crate::expr_wire::Sequence;
 use serde::ser::{SerializeSeq, SerializeStruct, SerializeStructVariant};
 
@@ -297,6 +301,7 @@ impl Serialize for Functional<'_> {
     }
 }
 
+#[allow(clippy::struct_field_names, reason = "the field identifies the borrowed target population")]
 pub(crate) struct Population<'a> {
     population: &'a TargetPopulation,
     source: Option<&'a TargetPopulation>,
@@ -522,6 +527,11 @@ impl Serialize for PathSpecific<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "wire parity tests exercise the parent module representations"
+    )]
+    use super::super::*;
     use super::*;
     fn compare(query: &CausalQuery, source: &CausalQuery) {
         let original = causal_query_to_wire(query).unwrap();

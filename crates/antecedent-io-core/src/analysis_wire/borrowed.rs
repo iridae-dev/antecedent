@@ -1,5 +1,8 @@
 //! Borrowed canonical identification wire for explicit native read models.
-use super::*;
+use super::{
+    CausalQueryWire, DiagnosticKind, DiagnosticSeverity, IdentificationResult, IoError,
+    RdDesignWire, Serialize, identification_status_snake,
+};
 use crate::expr_wire::{BorrowedExprArenaWire, Sequence};
 use crate::query_wire::{BorrowedRetainedQueryWire, borrowed::RawVariables};
 use crate::trace::BorrowedAssumptionsWire;

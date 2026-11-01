@@ -882,6 +882,7 @@ pub fn observation_query_identity(
 /// Structural bounds on a query. Assignment lists (observed values, interventions,
 /// background values) carry no count cap: they are data of the artifact, bounded by its
 /// byte budget, and the engine refuses names that are not variables of the premises.
+#[allow(clippy::match_same_arms, reason = "the cases retain distinct wire or replay semantics")]
 fn check_query_bounds(query: &ObservationQueryWire) -> Result<(), ObservationQueryArtifactError> {
     match query {
         ObservationQueryWire::ConditionalOutcome { .. }

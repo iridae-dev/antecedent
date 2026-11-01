@@ -386,6 +386,10 @@ fn replay_context(
     ctx
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the helper retains the error or fixture callback signature"
+)]
 fn refusal_of(error: DrReplayError) -> DrReplayRefusal {
     match error {
         DrReplayError::Cancelled => DrReplayRefusal::Cancelled,
@@ -421,6 +425,10 @@ fn refusal_of(error: DrReplayError) -> DrReplayRefusal {
 /// [`DrReplayRefusal::Binding`] and [`DrReplayRefusal::Unsupported`] for a declaration or table
 /// the replay does not take, and [`DrReplayRefusal::Mismatch`] when the replay differs from the
 /// body.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the validation keeps its related contract checks together"
+)]
 pub fn verify_checked_dr_replay(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,

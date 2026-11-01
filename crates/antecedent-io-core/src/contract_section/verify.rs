@@ -179,8 +179,8 @@ pub(in crate::contract_section) fn contract_unresolved_with_source(
                 .and_then(|binding| binding.bayesian.as_ref())
                 .is_none_or(|config| {
                     config.design_model.as_deref() != Some(source.prior_identity().as_str())
-                        || config.n_draws as usize
-                            != body.posterior_row.as_ref().map_or(0, |row| row.draws)
+                        || usize::try_from(config.n_draws).ok()
+                            != Some(body.posterior_row.as_ref().map_or(0, |row| row.draws))
                 })
         {
             unresolved.push(ContractReason::ReasoningSupport);
@@ -1386,6 +1386,10 @@ pub(in crate::contract_section) fn verify_claim_calibration(
 /// support coordinate (query, graph axis, structure, inference), the resolved
 /// estimator, the snapshot row count and modality, and the identification
 /// masses.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the validation keeps its related contract checks together"
+)]
 pub(in crate::contract_section) fn calibration_basis_matches_contract(
     contract: &AnalysisResultContractWire,
     basis: &crate::calibration::CalibrationBasisWire,

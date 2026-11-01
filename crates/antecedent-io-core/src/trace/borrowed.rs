@@ -1,5 +1,7 @@
 //! Borrowed canonical assumption records, preserving original order and scope.
-use super::*;
+use super::{
+    Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource, Serialize,
+};
 use serde::ser::{SerializeSeq, SerializeStruct};
 use std::fmt;
 
@@ -143,6 +145,11 @@ impl<'a> From<&'a Assumption> for Tag<'a> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "wire parity tests exercise the parent module representations"
+    )]
+    use super::super::*;
     use super::*;
     use std::sync::Arc;
     #[test]

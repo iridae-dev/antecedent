@@ -2331,6 +2331,10 @@ mod dr_replay {
         )
     }
 
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the fixture converts the reported reasons"
+    )]
     fn reasons(case: &Case, source: Option<&SourceWitnessWire>) -> BTreeSet<String> {
         verify_contract_against_body_with_source(
             &case.header,
@@ -2375,6 +2379,10 @@ mod dr_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the fixture converts the reported reasons"
+    )]
     fn without_a_source_a_declared_lowering_changes_nothing() {
         let case = standard();
         let mut undeclared = case.clone();
@@ -2861,6 +2869,7 @@ mod dr_replay {
     }
 
     #[test]
+    #[allow(clippy::type_complexity, reason = "the fixture enumerates typed contract mutations")]
     fn a_declaration_outside_the_supported_operation_is_not_replayed() {
         let baseline = standard();
         let mut tampered = baseline.clone();
@@ -2984,6 +2993,10 @@ mod dr_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the fixture converts the reported reasons"
+    )]
     fn the_encoder_applies_the_same_replay_to_the_source_it_embeds() {
         let case = standard();
         let encoded = |case: &Case, source: Option<&SourceWitnessWire>| -> Vec<String> {
@@ -3034,6 +3047,10 @@ mod dr_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper is scoped to the validation"
+    )]
     fn every_declared_setting_is_part_of_the_program_identity() {
         let case = standard();
         let program = case.contract.program.as_ref().unwrap();

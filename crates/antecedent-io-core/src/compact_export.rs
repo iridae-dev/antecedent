@@ -625,6 +625,10 @@ fn check_covariance(body: &CompactExportBody) -> Result<(), ExportRefusal> {
 /// largest remaining diagonal is within the tolerance of zero the rest of the Schur
 /// complement is zero to that tolerance (a PSD matrix bounds each entry by the geometric mean
 /// of its diagonals) and the elimination stops.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the calculation follows the retained matrix indexing"
+)]
 fn first_negative_pivot(matrix: &[f64], n: usize) -> Option<usize> {
     let mut a: Vec<f64> = (0..n * n)
         .map(|k| {

@@ -145,6 +145,7 @@ fn the_consumer_replays_the_stored_bytes_to_identical_results() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
 fn a_single_effective_draw_replays_as_an_unresolved_decision() {
     let mut log_weights = vec![-1000.0; ROWS];
     log_weights[0] = 0.0;

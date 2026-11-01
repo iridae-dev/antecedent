@@ -161,7 +161,7 @@ impl RandomizedIpowWire {
             return Err(fail());
         }
         if let RandomizationDesignWire::Complete { treated_units } = query.design {
-            if treated_units as usize != self.assignment.iter().filter(|arm| **arm == 1).count()
+            if treated_units != self.assignment.iter().filter(|arm| **arm == 1).count()
                 || query
                     .assignment_probabilities
                     .iter()

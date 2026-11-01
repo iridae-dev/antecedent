@@ -2555,6 +2555,10 @@ mod tests {
     use antecedent_core::{ComponentId, PopulationRegistry};
 
     #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local helper is scoped to the validation"
+    )]
     fn non_canonical_wire_forms_are_refused_or_normalised() {
         // Exact Shapley allocation has no sample count.
         let mut allocation = allocation_to_wire(&AllocationMethod::Shapley {

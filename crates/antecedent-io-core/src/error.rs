@@ -307,6 +307,7 @@ pub(crate) fn fit_u64(value: usize) -> Result<u64, IoError> {
     clippy::cast_possible_truncation,
     reason = "usize::BITS <= 64 is asserted; the cast cannot truncate on a target this crate builds for"
 )]
+#[must_use]
 pub const fn lossless_u64(value: usize) -> u64 {
     const {
         assert!(usize::BITS <= 64, "refusing to narrow a usize that does not fit in u64");

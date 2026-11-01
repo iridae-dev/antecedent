@@ -48,6 +48,10 @@ fn admit(ctx: &ExecutionContext, bytes: usize) -> Result<AdmissionLease, IoError
         other => IoError::StreamBudgetRefused { message: other.to_string() },
     })
 }
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the helper retains the error or fixture callback signature"
+)]
 fn serialization(error: serde_json::Error, ctx: &ExecutionContext) -> IoError {
     if ctx.cancellation.is_requested() {
         IoError::StreamCancelled

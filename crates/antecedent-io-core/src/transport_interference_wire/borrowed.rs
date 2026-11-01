@@ -1,5 +1,7 @@
 //! Borrowed canonical structural transport proof serialization.
-use super::*;
+use super::{
+    PopulationFactor, Serialize, TransportCertificate, TransportFormula, TransportIdentification,
+};
 use crate::expr_wire::Sequence;
 use crate::query_wire::borrowed::RawVariables;
 use serde::ser::{SerializeStruct, SerializeStructVariant};
@@ -101,7 +103,10 @@ impl Serialize for Certificate<'_> {
         let mut wire = s.serialize_struct("InterferenceTransportCertificateWire", 3)?;
         wire.serialize_field("rule", c.rule.as_ref())?;
         wire.serialize_field("selection_targets", &RawVariables(&c.selection_targets))?;
-        wire.serialize_field("premises", &Sequence(|| c.premises.iter().map(|p| p.as_ref())))?;
+        wire.serialize_field(
+            "premises",
+            &Sequence(|| c.premises.iter().map(std::convert::AsRef::as_ref)),
+        )?;
         wire.end()
     }
 }
@@ -122,6 +127,11 @@ impl Serialize for NotCertified<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "wire parity tests exercise the parent module representations"
+    )]
+    use super::super::*;
     use super::*;
     use antecedent_core::{RegimeId, VariableId};
     fn compare(result: &TransportIdentification) {

@@ -2,7 +2,20 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    AnomalyReference, AssignmentDesign, AssignmentDesignWire, AssociationFunctionalWire,
+    AssociationQueryWire, CausalQuery, CausalQueryWire, ContinuousDoseResponseQueryWire,
+    ExposureLevelWire, ExposureMapping, ExposureMappingWire, FixedCandidateRegretWire,
+    HistoryMatchQueryWire, InterferenceFunctional, InterferenceFunctionalWire, InterferenceQuery,
+    InterferenceQueryWire, InterventionWire, InterventionalDistributionQuery,
+    InterventionalDistributionQueryWire, IoError, IvBoundsQueryWire, LocalPolynomialRatioQueryWire,
+    LongitudinalRegimeQueryWire, OutcomeFunctionalWire, PanelDidQueryWire, PathSpecificEffectQuery,
+    PathSpecificEffectQueryWire, PolicyValueQueryWire, PopulationRegistry, RandomizationDesign,
+    RandomizationDesignWire, RandomizedEffectQueryWire, RandomizedEstimandWire,
+    SequentialContrastQueryWire, SurvivalQueryWire, SyntheticControlQueryWire,
+    TargetPopulationWire, TemporalPolicyWire, TransportQuery, TransportQueryWire,
+    allocation_to_wire, population_to_wire, response_query_to_wire, vars_to_raw,
+};
 
 /// Encode any [`CausalQuery`].
 ///

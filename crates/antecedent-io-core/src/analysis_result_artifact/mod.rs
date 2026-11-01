@@ -1007,6 +1007,10 @@ pub struct SequentialContrastWire {
     pub licensed: bool,
 }
 
+#[allow(
+    clippy::trivially_copy_pass_by_ref,
+    reason = "the serializer callback requires a reference"
+)]
 const fn is_zero_lag(lag: &usize) -> bool {
     *lag == 0
 }

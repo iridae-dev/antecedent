@@ -1,5 +1,8 @@
 //! Borrowed canonical response declarations for retained proof projections.
-use super::*;
+use super::{
+    ContinuousDomain, DerivativeWeighting, GridSpec, ObservationAssumption, ResponseFunctional,
+    ResponseQuery, Serialize, observation_to_wire, scale_to_wire,
+};
 use crate::expr_wire::Sequence;
 use crate::query_wire::borrowed::{BorrowedRetainedQueryWire, Functional, RawVariables, Temporal};
 use serde::ser::{SerializeStruct, SerializeStructVariant};
@@ -190,6 +193,11 @@ impl Serialize for ResponseFunction<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "wire parity tests exercise the parent module representations"
+    )]
+    use super::super::*;
     use super::*;
     use antecedent_core::{
         CausalQuery, FeedbackDeclaration, InitialLaw, Intervention, TargetPopulation,

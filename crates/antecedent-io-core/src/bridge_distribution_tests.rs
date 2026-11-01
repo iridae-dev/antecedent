@@ -82,6 +82,10 @@ fn table(
     )
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the helper retains the error or fixture callback signature"
+)]
 fn table_of(
     quantities: [ScientificQuantity; 2],
     source: &[f64],
@@ -358,6 +362,14 @@ fn trial_contract(kind: ValueKind) -> BridgeContract {
     )
 }
 
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the value is bounded by its validated numerical or fixture domain"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the value is bounded by its validated numerical or fixture domain"
+)]
 fn quantile(values: &[f64], p: f64) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);

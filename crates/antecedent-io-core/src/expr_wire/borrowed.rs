@@ -1,5 +1,8 @@
 //! Borrowed encoding of the canonical expression wire, without owned DTO tables.
-use super::*;
+use super::{
+    CausalExprArena, ContrastOp, DomainRef, ExprId, ExprListId, ExprNode, InterventionAssignment,
+    InterventionSetId, IoError, RegimeId, Serialize, Value, VarSetId,
+};
 use serde::ser::{SerializeSeq, SerializeStruct};
 
 /// A borrowed canonical expression-arena wire view.
@@ -277,6 +280,11 @@ impl<'a> BorrowedNode<'a> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "wire parity tests exercise the parent module representations"
+    )]
+    use super::super::*;
     use super::*;
 
     fn assert_same_bytes(arena: &CausalExprArena) {

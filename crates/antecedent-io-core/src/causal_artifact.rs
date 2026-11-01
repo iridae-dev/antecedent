@@ -276,6 +276,10 @@ pub(crate) fn validate_variable_names(variable_names: &[String]) -> Result<(), I
     Ok(())
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the validation keeps its related contract checks together"
+)]
 fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Result<(), IoError> {
     match payload {
         CausalPayloadWire::StaticResult(wire) => {
