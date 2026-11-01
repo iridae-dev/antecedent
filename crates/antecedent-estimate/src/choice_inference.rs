@@ -334,36 +334,93 @@ pub fn hierarchical_stopping_decision(
     )
 }
 
-/// Equal-tailed credible interval of one option's pooled share: the Beta marginal of the
-/// Dirichlet posterior, for the calibration harness only. Compiled only with
-/// `calibration-internal`.
-#[cfg(feature = "calibration-internal")]
-#[doc(hidden)]
+/// Query axis of every choice-study record.
+pub const QUERY: &str = "ChoiceExperimentShare";
+/// Estimator of the pooled Dirichlet posterior of one option's share.
+pub const DIRICHLET_ESTIMATOR: &str = "choice.dirichlet_multinomial.posterior";
+/// Estimator of the hierarchical posterior of one option's population share.
+pub const HIERARCHICAL_ESTIMATOR: &str = "choice.hierarchical_dirichlet_multinomial.posterior";
+/// The functional both estimators report: the first option's share.
+pub const FIRST_OPTION_SHARE_FUNCTIONAL: &str = "option_share:first";
+/// One choice per respondent, one final analysis.
+pub const POOLED_DEPENDENCE: &str = "one_choice_per_respondent_final_analysis";
+/// Repeated choices per respondent, one final analysis.
+pub const HIERARCHICAL_DEPENDENCE: &str = "repeated_choices_per_respondent_final_analysis";
+/// Prior of the pooled posterior's measured design.
+pub const DIRICHLET_PRIOR: &str = "dirichlet_multinomial.uniform_prior";
+/// Prior of the hierarchical posterior's measured design.
+pub const HIERARCHICAL_PRIOR: &str = "hierarchical_dirichlet_multinomial.declared_hyperprior";
+/// Nominal level of every measured choice interval.
+pub const MEASURED_LEVEL: f64 = 0.95;
+
+/// The calibration key of one measured choice interval. `rows` is the planned number of
+/// respondents. The key carries no authority: an interval is licensed only when it resolves to a
+/// currently attesting coverage record.
 #[must_use]
-pub fn dirichlet_share_interval_internal(
-    posterior: &ChoicePosterior,
+pub fn calibration_basis(
+    estimator: &str,
+    functional: &str,
+    dependence: &str,
+    prior: &str,
+    rows: u64,
+) -> antecedent_core::CalibrationBasis {
+    let a = |text: &str| std::sync::Arc::<str>::from(text);
+    antecedent_core::CalibrationBasis::new(
+        [
+            a(QUERY),
+            a("NotApplicable"),
+            a("fixed"),
+            a("choice_study_history"),
+            a("Bayesian"),
+            a(estimator),
+            a("posterior_quantile"),
+            a(""),
+            a(dependence),
+            a(prior),
+            a(functional),
+        ],
+        MEASURED_LEVEL,
+        a("point"),
+        rows,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("not_applicable")
+}
+
+/// Equal-tailed credible interval of one option's pooled share: the Beta marginal of the
+/// Dirichlet posterior.
+///
+/// # Errors
+/// An option out of range or a level outside `(0, 1)`.
+pub fn dirichlet_share_interval(
+    alpha: &[f64],
     option: usize,
     level: f64,
-) -> Option<(f64, f64)> {
-    let a = *posterior.alpha.get(option)?;
-    let rest: f64 = posterior.alpha.iter().sum::<f64>() - a;
-    crate::adaptive_measured_interval::beta_credible_interval(a, rest, level)
+) -> Result<(f64, f64), AdaptiveInferenceError> {
+    let a = *alpha
+        .get(option)
+        .ok_or_else(|| invalid("choice_inference.input_invalid", "the option is not declared"))?;
+    let rest: f64 = alpha.iter().sum::<f64>() - a;
+    crate::adaptive_measured_interval::beta_credible_interval(a, rest, level).ok_or_else(|| {
+        invalid("choice_inference.input_invalid", "the share interval is not defined")
+    })
 }
 
 /// Equal-tailed credible interval of one option's population share under the hierarchical
-/// posterior, for the calibration harness only. Compiled only with `calibration-internal`.
+/// posterior, by the quadrature's marginal distribution function.
 ///
 /// # Errors
 /// An option or level out of range, an unresolved posterior or cancellation.
-#[cfg(feature = "calibration-internal")]
-#[doc(hidden)]
-pub fn hierarchical_share_interval_internal(
+pub fn hierarchical_share_interval(
     prior: &HierarchicalChoicePrior,
     respondents: &[Vec<u32>],
     option: usize,
     level: f64,
     ctx: &ExecutionContext,
 ) -> Result<(f64, f64), AdaptiveInferenceError> {
+    refuse_if_interrupted(ctx)?;
     let posterior = numerics::HierarchicalChoicePosterior::new(prior, respondents)
         .map_err(|e| numeric_error(&e))?;
     posterior

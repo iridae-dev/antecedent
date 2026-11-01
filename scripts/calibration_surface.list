@@ -937,9 +937,10 @@ core crates/antecedent/src/analysis/adaptive_procedure_report.rs
 # and the public measured route share, so a record describes exactly what is reported.
 adaptive_interval crates/antecedent-estimate/src/adaptive_measured_interval.rs
 adaptive_interval crates/antecedent-io/src/measured_inference/adaptive_interval.rs
-key adaptive_interval estimator adaptive.*
+adaptive_interval crates/antecedent-io/src/measured_inference/choice_interval.rs
+key adaptive_interval estimator adaptive.* choice.*
 allow adaptive_interval crates/antecedent-estimate/src/lib.rs adaptive_inference adaptive_measured_interval choice_inference
-allow adaptive_interval crates/antecedent-io/src/measured_inference.rs adaptive_interval
+allow adaptive_interval crates/antecedent-io/src/measured_inference.rs adaptive_interval choice_interval
 allow adaptive_interval crates/antecedent-io/src/choice_inference_result_artifact.rs AdaptiveInferenceError ChoiceConflictPolicy ChoiceSourceCounts ChoiceStoppingRule HierarchicalChoicePrior QualifiedChoicePrior adaptive_inference choice_inference choice_posterior choice_stopping_decision hierarchical_choice_posterior hierarchical_stopping_decision qualify_choice_prior
 
 # Composed intervals: the key a sealed claim derives and its registry resolution.

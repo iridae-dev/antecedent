@@ -366,3 +366,57 @@ fn the_hierarchical_posterior_carries_the_respondents_dependence() {
             .unwrap();
     assert!(p.values[2] > h.values[1], "pooling treats repeated choices as independent");
 }
+
+fn uniform_final_only() -> ChoiceDesignDeclaration {
+    let mut d = categorical(false);
+    d.retained_sources.clear();
+    d
+}
+
+#[test]
+fn a_measured_interval_is_refused_while_no_coverage_record_attests_the_cell() {
+    let bytes = Artifact::to_bytes(
+        &contract(uniform_final_only()),
+        &ChoiceResultSpec::Posterior { look: 0 },
+        "choice-measured",
+        &ctx(),
+    )
+    .unwrap();
+    let refused = Artifact::measure_interval(&bytes, &ctx()).expect_err("no record");
+    let text = format!("{refused:?}");
+    assert!(
+        text.contains("cell_not_licensed") || text.contains("not_measured"),
+        "an unmeasured cell refuses rather than reports an interval: {text}"
+    );
+}
+
+#[test]
+fn a_study_outside_the_measured_cells_is_refused_before_any_record_is_consulted() {
+    let looked = Artifact::to_bytes(
+        &contract(categorical(true)),
+        &ChoiceResultSpec::Posterior { look: 1 },
+        "choice-looked",
+        &ctx(),
+    )
+    .unwrap();
+    let text = format!("{:?}", Artifact::measure_interval(&looked, &ctx()).unwrap_err());
+    assert!(text.contains("protocol_not_measured"), "{text}");
+    let with_source = Artifact::to_bytes(
+        &contract(categorical(false)),
+        &ChoiceResultSpec::Posterior { look: 0 },
+        "choice-source",
+        &ctx(),
+    )
+    .unwrap();
+    let text = format!("{:?}", Artifact::measure_interval(&with_source, &ctx()).unwrap_err());
+    assert!(text.contains("protocol_not_measured"), "{text}");
+    let stopping = Artifact::to_bytes(
+        &contract(categorical(true)),
+        &ChoiceResultSpec::Stopping { look: 1 },
+        "choice-stop",
+        &ctx(),
+    )
+    .unwrap();
+    let text = format!("{:?}", Artifact::measure_interval(&stopping, &ctx()).unwrap_err());
+    assert!(text.contains("protocol_not_measured"), "{text}");
+}
