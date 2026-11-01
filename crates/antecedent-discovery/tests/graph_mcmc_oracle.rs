@@ -430,6 +430,7 @@ fn time_series(columns: &[Vec<f64>]) -> TimeSeriesData {
 }
 
 #[test]
+#[allow(clippy::cast_possible_wrap, reason = "fixtures use bounded graph sizes and table indices")]
 fn dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel() {
     // Two variables, maximum lag two: 3 contemporaneous DAGs times 2^8 lag masks. Every
     // template is scored by regressing each node on its contemporaneous and lagged parents

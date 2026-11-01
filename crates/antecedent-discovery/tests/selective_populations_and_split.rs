@@ -231,6 +231,7 @@ fn changed_rows_at_unchanged_shape_move_only_that_population() {
 }
 
 #[test]
+#[allow(clippy::items_after_statements, reason = "the local helper belongs to this test setup")]
 fn failed_later_population_does_not_publish_earlier_candidate() {
     let north = collider_table(200, 41, 0.9);
     let south = collider_table(200, 42, 0.0);

@@ -355,7 +355,9 @@ pub struct StaticSelectiveDiscovery {
 
 impl std::fmt::Debug for StaticSelectiveDiscovery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StaticSelectiveDiscovery").field("has_state", &self.live.is_some()).finish()
+        f.debug_struct("StaticSelectiveDiscovery")
+            .field("has_state", &self.live.is_some())
+            .finish_non_exhaustive()
     }
 }
 
@@ -529,7 +531,7 @@ impl std::fmt::Debug for TemporalSelectiveDiscovery {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TemporalSelectiveDiscovery")
             .field("has_state", &self.live.is_some())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

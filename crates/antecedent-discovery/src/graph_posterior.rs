@@ -992,6 +992,7 @@ fn require_word_capacity(n_vars: usize, what: &str) -> Result<(), DiscoveryError
 }
 
 /// The single word of a mask built from single-word inputs on at most eight nodes.
+#[allow(clippy::needless_pass_by_value, reason = "conversion consumes the temporary mask")]
 fn into_word(mask: AdjacencyMask, what: &str) -> Result<u64, DiscoveryError> {
     mask.to_word().ok_or_else(|| {
         DiscoveryError::data_msg(format!("{what}: the adjacency set does not fit one u64"))
@@ -2239,6 +2240,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
     fn the_deviation_limit_holds_the_false_refusal_rate_over_all_comparisons() {
         // The family-wise two-sided tail of the limit is the declared rate, whatever the
         // number of comparisons, once it exceeds the floor.

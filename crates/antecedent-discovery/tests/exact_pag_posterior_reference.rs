@@ -29,6 +29,10 @@ fn key(edges: &[(usize, usize, &str, &str)]) -> String {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn classes_pags_and_weights_equal_the_brute_force_enumeration() {
     let cases: Vec<Value> =
         serde_json::from_str(include_str!("oracle_data/exact_pag_posterior_reference.json"))

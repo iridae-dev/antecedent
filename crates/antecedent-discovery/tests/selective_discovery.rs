@@ -648,8 +648,8 @@ fn resume_checks_recorded_semantics_and_retains_only_consumed_receipts() {
 #[test]
 fn resume_recomputes_untestable_queries_but_not_missing_statistics() {
     let x = [1.0; 50];
-    let y: Vec<f64> = (0..50).map(|i| i as f64).collect();
-    let z: Vec<f64> = (0..50).map(|i| (i as f64).sin()).collect();
+    let y: Vec<f64> = (0..50).map(|i| f64::from(i)).collect();
+    let z: Vec<f64> = (0..50).map(|i| f64::from(i).sin()).collect();
     let data = TabularData::from_f64_columns([
         ("a", x.as_slice()),
         ("b", y.as_slice()),

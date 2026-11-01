@@ -27,6 +27,10 @@ mod common;
 
 const N: usize = 4;
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn link(vars: &[VariableId], pair: &Value) -> LaggedLink {
     let at = |k: usize| pair[k].as_u64().unwrap() as usize;
     LaggedLink {
@@ -37,6 +41,10 @@ fn link(vars: &[VariableId], pair: &Value) -> LaggedLink {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn constraints(
     side: &Value,
     vars: &[VariableId],
@@ -45,8 +53,7 @@ fn constraints(
     let links = |key: &str| -> Arc<[LaggedLink]> {
         side.get(key)
             .and_then(Value::as_array)
-            .map(|a| a.iter().map(|p| link(vars, p)).collect())
-            .unwrap_or_else(|| Arc::from([]))
+            .map_or_else(|| Arc::from([]), |a| a.iter().map(|p| link(vars, p)).collect())
     };
     DiscoveryConstraints {
         forbidden: links("forbidden"),
@@ -56,6 +63,10 @@ fn constraints(
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn run(case: &Value, fdr: bool) -> antecedent_discovery::GraphPosterior {
     let names: Vec<String> = (0..N).map(|i| format!("v{i}")).collect();
     let columns: Vec<Vec<f64>> = case["columns"]
@@ -99,6 +110,10 @@ fn note_value<'a>(notes: &'a [Arc<str>], prefix: &str) -> Option<&'a str> {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn retained_pairs_marginals_and_floor_equal_the_restricted_enumeration() {
     let doc: Value =
         serde_json::from_str(include_str!("oracle_data/ci_screened_posterior_reference.json"))

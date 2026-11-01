@@ -1014,6 +1014,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the fixture checks an exact boundary")]
     fn declared_mci_phase_family_respects_its_search_predicate() {
         let (data, variables) = tiny_abc(10);
         let ctx = ExecutionContext::for_tests(4);

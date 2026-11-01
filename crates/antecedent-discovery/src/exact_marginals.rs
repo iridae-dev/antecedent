@@ -52,6 +52,7 @@ use crate::graph_score::{ChainTarget, ScoredTarget, tabular_score_data};
 const EXACT_MARGINAL_WORK_BUDGET: u128 = 1 << 36;
 
 /// The subset-pair visits an exact-marginal run on `n` variables costs.
+#[allow(clippy::cast_possible_truncation, reason = "callers bound n below the machine word width")]
 const fn exact_marginal_work(n: usize) -> u128 {
     3u128.pow(n as u32) * n as u128 * (n * n.saturating_sub(1) + 1) as u128
 }

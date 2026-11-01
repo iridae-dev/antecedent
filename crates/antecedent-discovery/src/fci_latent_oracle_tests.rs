@@ -141,6 +141,7 @@ impl Lcg {
 
 /// A random DAG on `n` nodes (edges only from lower to higher index, density about 0.4) with
 /// a random subset of `hidden` nodes unobserved. Returns the DAG and the observed node list.
+#[allow(clippy::needless_range_loop, reason = "the fixture mirrors its mathematical indexing")]
 fn random_case(rng: &mut Lcg, n: usize, hidden: usize) -> (Dag, Vec<usize>) {
     let mut parents = vec![Vec::new(); n];
     for v in 0..n {
@@ -165,7 +166,7 @@ fn random_case(rng: &mut Lcg, n: usize, hidden: usize) -> (Dag, Vec<usize>) {
 
 fn subsets_of(items: &[usize]) -> impl Iterator<Item = Vec<usize>> + '_ {
     (0..(1u32 << items.len())).map(move |mask| {
-        items.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+        items.iter().enumerate().filter(|(i, _)| (mask >> i) & 1 == 1).map(|(_, &v)| v).collect()
     })
 }
 
@@ -177,6 +178,11 @@ fn mark_at(pag: &antecedent_graph::Pag, a: usize, b: usize, at: usize) -> Endpoi
 }
 
 #[test]
+#[allow(clippy::needless_range_loop, reason = "the fixture mirrors its mathematical indexing")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive fixture keeps its setup and checks together"
+)]
 fn fci_under_a_dsep_oracle_recovers_the_mag_skeleton_and_colliders_with_sound_marks() {
     let mut rng = Lcg(0xF1C0_0001);
     let mut checked_edges = 0;

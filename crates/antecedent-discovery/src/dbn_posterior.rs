@@ -1635,6 +1635,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixture uses bounded graph and dataset sizes"
+    )]
     fn lag_templates_wider_than_a_word_build_graphs_and_marginals() {
         let n_vars = 3usize;
         let max_lag = 9u32;

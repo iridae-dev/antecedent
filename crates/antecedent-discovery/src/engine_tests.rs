@@ -177,6 +177,7 @@ fn pcmci_alpha_filters_unthresholded_engine() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn fdr_adjusts_full_mci_family() {
     let (data, vars) = var_series();
     let mut ws = DiscoveryWorkspace::default();

@@ -39,6 +39,10 @@ fn node(v: u64) -> StructureNode {
     StructureNode::from_node_ref(NodeRef::Static(VariableId::from_raw(u32::try_from(v).unwrap())))
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn structure(edges: &Value) -> DiscoveredStructure {
     let mut graph = Pag::empty();
     let ids: Vec<DenseNodeId> = (0..4_u32)

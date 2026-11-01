@@ -536,16 +536,12 @@ impl ConditionalIndependenceTest for SelectiveCi {
                     confidence: request.confidence,
                 };
                 self.store.attempted.fetch_add(queries.len() as u64, Ordering::SeqCst);
-                match self.inner.test_batch(prepared, &sub, workspace, ctx) {
-                    Err(error) => return Err(error),
-                    Ok(_) => {
-                        self.store.completed.fetch_add(queries.len() as u64, Ordering::SeqCst);
-                        self.store.replay_miss.store(true, Ordering::SeqCst);
-                        return Err(StatsError::Backend(
-                            "selective_discovery.replay_miss: a statistic that was not retained was requested during replay".to_owned(),
-                        ));
-                    }
-                }
+                self.inner.test_batch(prepared, &sub, workspace, ctx)?;
+                self.store.completed.fetch_add(queries.len() as u64, Ordering::SeqCst);
+                self.store.replay_miss.store(true, Ordering::SeqCst);
+                return Err(StatsError::Backend(
+                    "selective_discovery.replay_miss: a statistic that was not retained was requested during replay".to_owned(),
+                ));
             }
             let queries: Vec<CiQuery> = missing.iter().map(|&i| request.queries[i]).collect();
             let sub = CiBatchRequest {

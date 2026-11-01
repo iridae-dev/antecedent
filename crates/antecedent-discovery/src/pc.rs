@@ -1362,6 +1362,7 @@ mod tests {
 
         /// Directions every member of the Markov equivalence class of `dag` agrees on:
         /// `Some((p, c))` for a compelled edge, `None` for a reversible one.
+        #[allow(clippy::type_complexity, reason = "the helper states the oracle output shape")]
         fn class_edges(dag: &Dag) -> Vec<((usize, usize), Option<(usize, usize)>)> {
             let n = dag.parents.len();
             let edges = dag.edges();
@@ -1371,7 +1372,7 @@ mod tests {
                 let oriented: Orientation = edges
                     .iter()
                     .enumerate()
-                    .map(|(i, &(a, b))| if mask >> i & 1 == 0 { (a, b) } else { (b, a) })
+                    .map(|(i, &(a, b))| if (mask >> i) & 1 == 0 { (a, b) } else { (b, a) })
                     .collect();
                 if acyclic(n, &oriented) && unshielded_colliders(n, &oriented) == target {
                     members.push(oriented);

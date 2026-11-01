@@ -214,7 +214,7 @@ fn class_edges(n: usize, edges: &[(usize, usize)]) -> Vec<ClassEdge> {
         let oriented: Vec<(usize, usize)> = edges
             .iter()
             .enumerate()
-            .map(|(i, &(a, b))| if mask >> i & 1 == 0 { (a, b) } else { (b, a) })
+            .map(|(i, &(a, b))| if (mask >> i) & 1 == 0 { (a, b) } else { (b, a) })
             .collect();
         if acyclic(n, &oriented) && unshielded_colliders(n, &oriented) == target {
             members.push(oriented);
@@ -240,6 +240,10 @@ fn class_edges(n: usize, edges: &[(usize, usize)]) -> Vec<ClassEdge> {
         .collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn random_model(rng: &mut Lcg, n: usize, density: u64) -> Model {
     let mut order: Vec<usize> = (0..n).collect();
     for i in (1..n).rev() {
@@ -268,7 +272,7 @@ fn clearly_faithful(model: &Model, cov: &[Vec<f64>]) -> bool {
                 let z: Vec<usize> = rest
                     .iter()
                     .enumerate()
-                    .filter(|(b, _)| mask >> b & 1 == 1)
+                    .filter(|(b, _)| (mask >> b) & 1 == 1)
                     .map(|(_, &k)| k)
                     .collect();
                 let r = partial_correlation(cov, i, j, &z).abs();
@@ -285,6 +289,10 @@ fn clearly_faithful(model: &Model, cov: &[Vec<f64>]) -> bool {
     true
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn run_ges(cols: &[Vec<f64>]) -> crate::pc::StaticCpdagDiscoveryResult {
     let n = cols.len();
     let names: Vec<String> = (0..n).map(|i| format!("v{i}")).collect();
@@ -296,9 +304,14 @@ fn run_ges(cols: &[Vec<f64>]) -> crate::pc::StaticCpdagDiscoveryResult {
         .unwrap()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
+#[allow(clippy::unreadable_literal, reason = "the pinned fixture uses the recorded seed")]
 fn assert_class(model: &Model, label: &str) {
     let n = model.n;
-    let mut rng = Lcg(0xC0FFEE ^ (label.len() as u64) << 20 ^ model.edges().len() as u64);
+    let mut rng = Lcg(0xC0FFEE ^ ((label.len() as u64) << 20) ^ model.edges().len() as u64);
     let cols = model.columns(4000, &mut rng);
     let result = run_ges(&cols);
     let graph = &result.evidence.graph;

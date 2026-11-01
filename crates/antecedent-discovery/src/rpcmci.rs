@@ -651,8 +651,8 @@ fn min_cost_label_path(
     let finite = |cost: f64| if cost.is_finite() { cost } else { 0.0 };
     let mut cost = vec![0.0f64; steps * k];
     let mut back = vec![0usize; steps * k];
-    for ri in 0..k {
-        cost[ri] = finite(step_cost(0, ri));
+    for (ri, value) in cost.iter_mut().take(k).enumerate() {
+        *value = finite(step_cost(0, ri));
     }
     for s in 1..steps {
         // Best predecessor for a switch; staying is preferred on ties.
@@ -1133,6 +1133,7 @@ mod tests {
     /// With every regime equally good the path never switches, and a one-step blip that a
     /// switch would cost more than it saves is smoothed over, while a larger saving is kept.
     #[test]
+    #[allow(clippy::match_same_arms, reason = "the arms name distinct fixture cases")]
     fn label_path_stays_on_ties_and_switches_only_when_it_pays() {
         let flat = min_cost_label_path(6, 3, 0.5, |_, _| 1.0);
         assert_eq!(flat, vec![0; 6]);

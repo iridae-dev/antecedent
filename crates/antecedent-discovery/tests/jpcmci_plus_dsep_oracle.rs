@@ -179,6 +179,10 @@ impl Lcg {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn series(k: usize, n: usize, offset: usize) -> TimeSeriesData {
     let mut schema = CausalSchemaBuilder::new();
     for i in 0..k {
@@ -222,6 +226,10 @@ type Lagged = Vec<(usize, usize, usize)>;
 /// contemporaneous edges from lower to higher index and a non-empty set of dummy children.
 type Case = (Unrolled, Lagged, Vec<(usize, usize)>, Vec<usize>, Vec<usize>);
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn random_case(rng: &mut Lcg, m: usize, has_context: bool) -> Case {
     let mut lagged: Lagged = Vec::new();
     let mut contemp: Vec<(usize, usize)> = Vec::new();
@@ -308,6 +316,11 @@ fn key_of(
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
+#[allow(clippy::too_many_lines, reason = "the exhaustive fixture keeps its scenario together")]
 fn run_cases(with_context: bool, seed: u64, cases: u64, extra_per_mille: usize) {
     let mut rng = Lcg(seed);
     let (mut adjacent, mut exogenous_found, mut oriented, mut sepsets_checked, mut extra) =

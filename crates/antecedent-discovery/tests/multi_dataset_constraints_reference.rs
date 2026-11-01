@@ -48,6 +48,10 @@ fn declared() -> MultiDatasetConstraints {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn the_link_assumption_table_equals_the_written_out_rules() {
     let rows: Vec<Value> =
         serde_json::from_str(include_str!("oracle_data/multi_dataset_constraints_reference.json"))
@@ -84,6 +88,10 @@ fn the_link_assumption_table_equals_the_written_out_rules() {
     assert_eq!(both.role_of(VariableId::from_raw(5)), JpcmciNodeRole::SpaceDummy);
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn two_environments() -> MultiEnvironmentData {
     let environment = |offset: usize| {
         let mut schema = CausalSchemaBuilder::new();

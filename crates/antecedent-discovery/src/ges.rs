@@ -890,10 +890,7 @@ impl InsertPairCache {
             };
             now.insert((lo, hi), (at_lo, at_hi));
         }
-        if n != self.node_count {
-            self.entries.clear();
-            self.words = 0;
-        } else {
+        if n == self.node_count {
             let mut changed = Footprint::new(n);
             let mut any = false;
             for (&(lo, hi), marks) in &now {
@@ -914,6 +911,9 @@ impl InsertPairCache {
                 self.entries.retain(|_, entry| !entry.footprint.meets(&changed));
                 self.words = self.entries.values().map(|entry| entry.footprint.words.len()).sum();
             }
+        } else {
+            self.entries.clear();
+            self.words = 0;
         }
         self.snapshot = now;
         self.node_count = n;
@@ -1355,29 +1355,28 @@ fn best_reverse_with(
             let reusable = previous
                 .remove(&key)
                 .filter(|entry| edges_incident_to(&tmp, &entry.footprint) == entry.read_edges);
-            let entry = match reusable {
-                Some(entry) => entry,
-                None => {
-                    // Insert opposite Y → X
-                    let adj_y: HashSet<DenseNodeId> = tmp.adjacent(y).into_iter().collect();
-                    let mut footprint = Footprint::new(tmp.node_count());
-                    let (inserts, truncated) =
-                        collect_inserts(&tmp, y, x, &adj_y, &search, Some(&mut footprint));
-                    let mut ops = Vec::with_capacity(inserts.len());
-                    for op in inserts {
-                        let d_ins = cached_operator_delta(
-                            cache,
-                            deltas,
-                            search.data,
-                            x.raw(),
-                            &op.base,
-                            &op.neu,
-                        )?;
-                        ops.push((op.t, d_ins));
-                    }
-                    let read_edges = edges_incident_to(&tmp, &footprint);
-                    ReverseInsert { read_edges, footprint, ops, truncated }
+            let entry = if let Some(entry) = reusable {
+                entry
+            } else {
+                // Insert opposite Y → X
+                let adj_y: HashSet<DenseNodeId> = tmp.adjacent(y).into_iter().collect();
+                let mut footprint = Footprint::new(tmp.node_count());
+                let (inserts, truncated) =
+                    collect_inserts(&tmp, y, x, &adj_y, &search, Some(&mut footprint));
+                let mut ops = Vec::with_capacity(inserts.len());
+                for op in inserts {
+                    let d_ins = cached_operator_delta(
+                        cache,
+                        deltas,
+                        search.data,
+                        x.raw(),
+                        &op.base,
+                        &op.neu,
+                    )?;
+                    ops.push((op.t, d_ins));
                 }
+                let read_edges = edges_incident_to(&tmp, &footprint);
+                ReverseInsert { read_edges, footprint, ops, truncated }
             };
             search.note_pruned(entry.truncated);
             for (t, d_ins) in &entry.ops {

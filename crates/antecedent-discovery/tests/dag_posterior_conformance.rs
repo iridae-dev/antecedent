@@ -140,6 +140,11 @@ fn static_engines(
 }
 
 #[test]
+#[allow(clippy::items_after_statements, reason = "the local helper belongs to this test setup")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive fixture keeps its setup and checks together"
+)]
 fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     let fx = fixture();
     assert_eq!(fx["score_family"].as_str(), Some("GaussianBic"));
@@ -213,8 +218,8 @@ fn dag_posterior_engines_put_fixture_mass_on_the_true_structure() {
     // static enumeration. The design rows are t = 1..n-1 with columns (x_t, y_t, x_(t-1),
     // y_(t-1)); a node's parents are its contemporaneous parents and its lagged sources.
     use antecedent_data::TableView;
-    let series_x = data.float64_values(vars[0]).unwrap().to_vec();
-    let series_y = data.float64_values(vars[1]).unwrap().to_vec();
+    let series_x = data.float64_values(vars[0]).unwrap().clone();
+    let series_y = data.float64_values(vars[1]).unwrap().clone();
     let rows = series_x.len() - 1;
     let design: Vec<Vec<f64>> = vec![
         series_x[1..].to_vec(),
@@ -356,7 +361,7 @@ fn reference_edge_marginals(columns: &[Vec<f64>]) -> Vec<f64> {
 fn columns_of(data: &TabularData, names: &[&str]) -> Vec<Vec<f64>> {
     use antecedent_data::TableView;
     (0..names.len() as u32)
-        .map(|i| data.float64_values(VariableId::from_raw(i)).unwrap().to_vec())
+        .map(|i| data.float64_values(VariableId::from_raw(i)).unwrap().clone())
         .collect()
 }
 

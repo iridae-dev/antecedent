@@ -142,7 +142,9 @@ impl DirectLingam {
         for (i, raw) in col_owned.iter().enumerate() {
             // A column is constant when its spread is rounding noise on its own magnitude.
             let magnitude = raw.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-            if !(sd[i] > 64.0 * f64::EPSILON * magnitude) {
+            if sd[i].partial_cmp(&(64.0 * f64::EPSILON * magnitude))
+                != Some(std::cmp::Ordering::Greater)
+            {
                 return Err(DiscoveryError::data_msg(format!(
                     "DirectLiNGAM refuses constant variable {}: a constant has no causal \
                      order",
@@ -361,7 +363,7 @@ impl DirectLingam {
     }
 }
 
-/// The causal order by DirectLiNGAM's exogeneity search over the working `cols` (standardised
+/// The causal order by `DirectLiNGAM`'s exogeneity search over the working `cols` (standardised
 /// columns, consumed as they are residualized): repeatedly the variable whose residuals on
 /// every other remaining variable are least dependent on it goes first, the rest are regressed
 /// on it, and the search continues. A variable whose required parent is still unplaced is not

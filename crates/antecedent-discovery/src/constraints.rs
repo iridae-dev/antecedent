@@ -684,7 +684,7 @@ impl DiscoveryConstraints {
 
     /// Validate the significance threshold consumed by CI-based searches.
     pub(crate) fn validate_ci_options(&self) -> Result<(), DiscoveryError> {
-        if !self.alpha.is_finite() || !(0.0 < self.alpha && self.alpha < 1.0) {
+        if !(self.alpha.is_finite() && 0.0 < self.alpha && self.alpha < 1.0) {
             return Err(DiscoveryError::unsupported(
                 "discovery alpha must be finite and in (0, 1)",
             ));

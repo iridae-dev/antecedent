@@ -73,6 +73,10 @@ impl Mixed {
         self.arrow[a][b] || self.arrow[b][a] || self.bi[a][b]
     }
 
+    #[allow(
+        clippy::nonminimal_bool,
+        reason = "the expression mirrors the graph criterion under test"
+    )]
     fn ancestral(&self) -> bool {
         (0..self.n).all(|a| {
             (0..self.n).all(|b| {
@@ -87,7 +91,7 @@ impl Mixed {
     }
 
     fn msep(&self, x: usize, y: usize, z: usize) -> bool {
-        let inz: Vec<bool> = (0..self.n).map(|v| z >> v & 1 == 1).collect();
+        let inz: Vec<bool> = (0..self.n).map(|v| (z >> v) & 1 == 1).collect();
         let mut path = vec![x];
         !self.connects(&mut path, y, &inz)
     }
@@ -127,7 +131,7 @@ impl Mixed {
         let mut out = BTreeMap::new();
         for mask in 0..(1usize << self.n) {
             for (x, y) in pairs(self.n) {
-                if mask >> x & 1 == 0 && mask >> y & 1 == 0 {
+                if (mask >> x) & 1 == 0 && (mask >> y) & 1 == 0 {
                     out.insert((x, y, mask), self.msep(x, y, mask));
                 }
             }
@@ -139,7 +143,7 @@ impl Mixed {
         pairs(self.n).into_iter().all(|(x, y)| {
             self.adjacent(x, y)
                 || (0..(1usize << self.n))
-                    .any(|m| m >> x & 1 == 0 && m >> y & 1 == 0 && self.msep(x, y, m))
+                    .any(|m| (m >> x) & 1 == 0 && (m >> y) & 1 == 0 && self.msep(x, y, m))
         })
     }
 
@@ -184,6 +188,10 @@ impl ConditionalIndependenceTest for TableOracle {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn run_fci(
     n: usize,
     table: BTreeMap<(usize, usize, usize), bool>,
@@ -210,6 +218,10 @@ fn run_fci(
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn mark_in(pag: &antecedent_graph::Pag, a: usize, b: usize, at: usize) -> Endpoint {
     let edge = pag
         .edge_between(DenseNodeId::from_raw(a as u32), DenseNodeId::from_raw(b as u32))
@@ -217,6 +229,10 @@ fn mark_in(pag: &antecedent_graph::Pag, a: usize, b: usize, at: usize) -> Endpoi
     if edge.a.as_usize() == at { edge.at_a } else { edge.at_b }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn classes(n: usize) -> Vec<Vec<Code>> {
     let k = pairs(n).len();
     let mut by_signature: BTreeMap<Vec<bool>, Vec<Code>> = BTreeMap::new();
@@ -236,6 +252,10 @@ fn classes(n: usize) -> Vec<Vec<Code>> {
     by_signature.into_values().collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and dataset sizes"
+)]
 fn sweep(n: usize, expected_classes: Option<usize>, restricted: bool) -> (usize, usize) {
     let all = classes(n);
     if let Some(e) = expected_classes {

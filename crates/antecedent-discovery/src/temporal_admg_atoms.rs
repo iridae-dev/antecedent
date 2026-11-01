@@ -149,9 +149,8 @@ impl TemporalAdmgAtom {
                 Some(a)
             }
             (Some(a), Some(b)) if a < b => directed.next(),
-            (Some(_), Some(_)) => bidirected.next(),
+            (_, Some(_)) => bidirected.next(),
             (Some(_), None) => directed.next(),
-            (None, Some(_)) => bidirected.next(),
             (None, None) => None,
         } {
             if block == 0 {
@@ -165,7 +164,9 @@ impl TemporalAdmgAtom {
             let within = bit_index % block;
             let from = within / n_vars;
             let to = within % n_vars;
-            let past = node_of(&mut graph, variables[from], Lag::from_raw(lag as u32))?;
+            let lag = u32::try_from(lag)
+                .map_err(|_| DiscoveryError::unsupported("lagged edge outside the template"))?;
+            let past = node_of(&mut graph, variables[from], Lag::from_raw(lag))?;
             let now = node_of(&mut graph, variables[to], Lag::CONTEMPORANEOUS)?;
             if self.lagged_directed.bit(bit) {
                 graph.insert_directed(past, now)?;
@@ -205,6 +206,10 @@ mod tests {
     use super::*;
     use crate::adjacency_mask::set_edge;
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the fixture uses bounded graph and dataset sizes"
+    )]
     fn variables(n: usize) -> Vec<VariableId> {
         (0..n as u32).map(VariableId::from_raw).collect()
     }

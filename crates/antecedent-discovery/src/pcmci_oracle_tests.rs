@@ -170,6 +170,10 @@ impl Lcg {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn series(k: usize, n: usize) -> (TimeSeriesData, Vec<VariableId>) {
     let mut schema = CausalSchemaBuilder::new();
     for i in 0..k {
@@ -271,6 +275,10 @@ fn constraints(min_lag: Lag) -> DiscoveryConstraints {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn pcmci_under_a_dsep_oracle_returns_exactly_the_lagged_parents() {
     let mut rng = Lcg(0x70C0_0001);
     let (mut present, mut absent) = (0, 0);
@@ -316,6 +324,10 @@ fn pcmci_under_a_dsep_oracle_returns_exactly_the_lagged_parents() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn pcmci_plus_under_a_dsep_oracle_recovers_adjacencies_and_sound_orientations() {
     let mut rng = Lcg(0x70C0_0002);
     let (mut adjacent, mut oriented, mut sepsets_checked, mut undirected, mut extra_links) =

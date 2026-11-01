@@ -22,6 +22,10 @@ use serde_json::Value;
 
 mod common;
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn link(vars: &[VariableId], pair: &Value) -> LaggedLink {
     let at = |k: usize| pair[k].as_u64().unwrap() as usize;
     LaggedLink {
@@ -42,6 +46,10 @@ struct Problem {
     log_evidence: f64,
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn problems() -> Vec<Problem> {
     let doc: Value =
         serde_json::from_str(include_str!("oracle_data/exact_marginals_reference.json")).unwrap();

@@ -167,7 +167,7 @@ impl AdjacencyMask {
             }
         }
         if trim {
-            *self = Self::from_words(&self.words().to_vec());
+            *self = Self::from_words(self.words());
         }
     }
 
@@ -731,9 +731,8 @@ mod tests {
                     || matches!(at_b, Endpoint::Conflict)
                     || matches!(
                         (at_a, at_b),
-                        (Endpoint::Tail, Endpoint::Tail)
+                        (Endpoint::Tail | Endpoint::Circle, Endpoint::Tail)
                             | (Endpoint::Tail, Endpoint::Circle)
-                            | (Endpoint::Circle, Endpoint::Tail)
                     )
                 {
                     assert!(

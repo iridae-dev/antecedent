@@ -45,10 +45,12 @@ pub(crate) struct CiProbe<'a> {
 /// is answered from here instead of being run again.
 #[derive(Debug, Default)]
 pub(crate) struct CiMemo {
-    outcomes: HashMap<LaggedLink, HashMap<Box<[(VariableId, Lag)]>, Option<(f64, f64)>>>,
+    outcomes: HashMap<LaggedLink, CiMemoOutcomes>,
     /// Tests actually run (memo misses).
     pub computed: u64,
 }
+
+type CiMemoOutcomes = HashMap<Box<[(VariableId, Lag)]>, Option<(f64, f64)>>;
 
 /// `cond` in the canonical order the memo is keyed by: a conditioning set is a set, so the order
 /// a caller lists it in must not decide whether the test has been run.
@@ -64,6 +66,10 @@ fn canonical_cond(cond: &[(VariableId, Lag)]) -> std::borrow::Cow<'_, [(Variable
 
 impl CiMemo {
     /// The remembered outcome of a test; `Some(None)` is a remembered untestable query.
+    #[allow(
+        clippy::option_option,
+        reason = "outer None is a cache miss; inner None is an untestable query"
+    )]
     fn get(&self, link: LaggedLink, canonical: &[(VariableId, Lag)]) -> Option<Option<(f64, f64)>> {
         self.outcomes.get(&link)?.get(canonical).copied()
     }
@@ -1069,8 +1075,8 @@ impl PcmciEngine {
             drop(seen);
             drop(canonical);
 
-            for index in 0..chunk.len() {
-                let cond = std::mem::take(&mut chunk[index]);
+            for entry in &mut chunk {
+                let cond = std::mem::take(entry);
                 let key = canonical_cond(&cond);
                 let outcome = if let Some(hit) = memo.get(link, &key) {
                     hit

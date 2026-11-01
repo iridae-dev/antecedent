@@ -855,6 +855,10 @@ fn r9_path_budget_exhaustion_skips_the_edge() {
 /// The same for R10: nine paths from `a` to one parent exhaust a small budget, the second parent
 /// has none, and the edge is recorded instead of failing the run.
 #[test]
+#[allow(
+    clippy::field_reassign_with_default,
+    reason = "the fixture adjusts one option of a default configuration"
+)]
 fn r10_path_budget_exhaustion_skips_the_edge() {
     let id = DenseNodeId::from_raw;
     let (a, c, p1, p2) = (id(0), id(1), id(2), id(3));

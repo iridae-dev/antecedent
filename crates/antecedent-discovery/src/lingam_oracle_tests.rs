@@ -74,6 +74,10 @@ impl Model {
         cols
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "fixtures use bounded graph sizes and table indices"
+    )]
     fn random(rng: &mut Lcg, p: usize, density: u64) -> Self {
         let mut order: Vec<usize> = (0..p).collect();
         for i in (1..p).rev() {
@@ -148,6 +152,10 @@ fn distance_correlation_matches_its_definition() {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn run(cols: Vec<Vec<f64>>) -> crate::lingam::StaticDagDiscoveryResult {
     let p = cols.len();
     let names: Vec<String> = (0..p).map(|i| format!("x{i}")).collect();
@@ -159,6 +167,10 @@ fn run(cols: Vec<Vec<f64>>) -> crate::lingam::StaticDagDiscoveryResult {
         .unwrap()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn assert_recovers(model: &Model, g: usize, shapes: &[usize], label: &str) {
     let result = run(model.columns(g, shapes));
     let mut want: Vec<(u32, u32, f64)> = Vec::new();

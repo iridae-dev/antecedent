@@ -177,6 +177,10 @@ impl Lcg {
 /// Every process has a lag-one self edge; other lag-one edges, lag-two edges and
 /// contemporaneous edges (from lower to higher process index) are drawn independently.
 /// Returns the unrolled graph and the observed process indices.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn random_case(rng: &mut Lcg, m: usize) -> (Unrolled, Vec<usize>) {
     let mut lagged: Vec<(usize, usize, usize)> = Vec::new(); // (source, target, lag)
     let mut contemp: Vec<(usize, usize)> = Vec::new();
@@ -219,10 +223,14 @@ fn random_case(rng: &mut Lcg, m: usize) -> (Unrolled, Vec<usize>) {
 
 fn subsets_of(items: &[usize]) -> impl Iterator<Item = Vec<usize>> + '_ {
     (0..(1u32 << items.len())).map(move |mask| {
-        items.iter().enumerate().filter(|(i, _)| mask >> i & 1 == 1).map(|(_, &v)| v).collect()
+        items.iter().enumerate().filter(|(i, _)| (mask >> i) & 1 == 1).map(|(_, &v)| v).collect()
     })
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
 fn series(k: usize, n: usize) -> (TimeSeriesData, Vec<VariableId>) {
     let mut schema = CausalSchemaBuilder::new();
     for i in 0..k {
@@ -269,6 +277,15 @@ fn lagged_key(graph: &antecedent_graph::TemporalPag, id: DenseNodeId) -> (usize,
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "fixtures use bounded graph sizes and table indices"
+)]
+#[allow(clippy::cast_sign_loss, reason = "fixtures use bounded graph sizes and table indices")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive fixture keeps its setup and checks together"
+)]
 fn lpcmci_under_a_dsep_oracle_recovers_window_adjacencies_with_sound_marks_and_sepsets() {
     let mut rng = Lcg(0x1CC0_0002);
     let (mut edges, mut absent, mut marks, mut sepsets_checked) = (0, 0, 0, 0);
