@@ -721,7 +721,7 @@ fn a_jacobian_mixture_is_mixed_coordinate_by_coordinate() {
 fn the_bayesian_derivative_mixture_pools_the_atoms_credible_draws() {
     on_large_stack(|| {
         let inference = || {
-            InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(64).prior_scale(1_000.0))
+            InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(64))
         };
         let result = derivative_posterior_study(
             dag_posterior(&[&PLAIN_EDGES, &CONFOUNDED_EDGES], &[0.6, 0.4]),
