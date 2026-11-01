@@ -223,6 +223,10 @@ pub enum Standing {
     Unresolved,
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the calculation or fixture checks exact discrete or boundary values"
+)]
 fn check_request(
     e: &JointExperimentEvidence,
     r: &Request,
@@ -914,10 +918,7 @@ pub fn derive(
     }
     let (sampling, vertices) = if few_units {
         (None, Vec::new())
-    } else if matches!(evidence.dependence, Dependence::PointOnly) {
-        unresolved.push(UnresolvedReason::JointLawMissing);
-        (None, Vec::new())
-    } else if marginals_only_combination {
+    } else if matches!(evidence.dependence, Dependence::PointOnly) || marginals_only_combination {
         unresolved.push(UnresolvedReason::JointLawMissing);
         (None, Vec::new())
     } else if expr::has_kink(&quantity.expr) {
@@ -1144,6 +1145,152 @@ pub fn decide(
         verdict,
         statement: "a classification over declared assumptions; it is not a probability and no assumption range was turned into one",
     })
+}
+
+/// Describe the exact decision-evidence interval construction for calibration measurement.
+/// This is a candidate basis only: it does not license or attest an interval.
+/// The scope count is the number of independently randomized units, not outcome rows.
+///
+/// # Errors
+/// Returns a refusal when no sampling interval is produced, or when an assumption range
+/// would require a different calibration target.
+pub fn decision_interval_calibration_basis(
+    evidence: &JointExperimentEvidence,
+    request: &Request,
+    quantity: &DerivedQuantity,
+) -> Result<antecedent_core::CalibrationBasis, EvidenceRefusal> {
+    let result = derive(evidence, request, quantity)?;
+    if result.sampling.is_none()
+        || result.assumption_range.is_some()
+        || !matches!(
+            (&*evidence.design.assignment_design, &request.target),
+            ("cluster" | "complete" | "matched_pairs" | "switchback", Target::ExperimentalContrast)
+                | ("temporal_excursion", Target::Excursion { .. })
+                | ("temporal_regime", Target::Regime { .. })
+                | ("adaptive_regime", Target::AdaptiveRegime { .. })
+        )
+        || !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. })
+        || !matches!(
+            (evidence.design.assignment_design.as_str(), &evidence.dependence),
+            ("cluster" | "complete", Dependence::Joint { .. })
+                | (
+                    "matched_pairs"
+                        | "switchback"
+                        | "temporal_excursion"
+                        | "temporal_regime"
+                        | "adaptive_regime",
+                    Dependence::JointArms { .. }
+                )
+        )
+        || quantity.inputs.iter().any(|b| !matches!(b, InputBinding::Measured(_)))
+    {
+        return Err(EvidenceRefusal::Invalid(
+            "calibration basis requires a sampling interval without an assumption range".into(),
+        ));
+    }
+    let key = [
+        "DecisionEvidence".to_owned(),
+        if matches!(
+            evidence.design.assignment_design.as_str(),
+            "temporal_regime" | "adaptive_regime"
+        ) {
+            "Observational"
+        } else {
+            "RandomizedTrial"
+        }
+        .to_owned(),
+        "design".to_owned(),
+        "tabular".to_owned(),
+        "Frequentist".to_owned(),
+        format!("joint_{}_{}", evidence.design.assignment_design, evidence.adjustment_identity()),
+        if matches!(evidence.design.assignment_design.as_str(), "matched_pairs" | "switchback") {
+            "delta_method_student_95"
+        } else {
+            "delta_method_normal_95"
+        }
+        .to_owned(),
+        match evidence.design.assignment_design.as_str() {
+            "matched_pairs" => "matched_pair_delta",
+            "switchback" => "switchback_sequence_delta",
+            "temporal_excursion" => "temporal_cluster_ratio_delta",
+            "temporal_regime" => "temporal_regime_bootstrap_delta",
+            "adaptive_regime" => "adaptive_regime_jackknife_delta",
+            _ => "joint_neyman_delta",
+        }
+        .to_owned(),
+        if matches!(
+            evidence.design.assignment_design.as_str(),
+            "temporal_regime" | "adaptive_regime"
+        ) {
+            "independent_subjects"
+        } else {
+            "independent_assignment_units"
+        }
+        .to_owned(),
+        String::new(),
+        match &request.target {
+            Target::Excursion { lag, assignment_law_id } => {
+                let mut w = CanonicalWriter::new(
+                    "antecedent.decision_evidence.excursion_calibration_target.v1",
+                );
+                w.text(&result.quantity_identity).word(u64::from(*lag)).text(assignment_law_id);
+                format!("excursion_{}", w.finish_hex())
+            }
+            Target::AdaptiveRegime { periods, exchangeability_assumption_id } => {
+                let mut w = CanonicalWriter::new(
+                    "antecedent.decision_evidence.adaptive_regime_calibration_target.v1",
+                );
+                w.text(&result.quantity_identity)
+                    .word(u64::from(*periods))
+                    .text(exchangeability_assumption_id);
+                format!("adaptive_regime_{}", w.finish_hex())
+            }
+            Target::Regime { periods, exchangeability_assumption_id } => {
+                let Some(super::DesignDetails::TemporalRegime {
+                    method,
+                    bootstrap_replicates: Some(replicates),
+                    ..
+                }) = &evidence.design_details
+                else {
+                    return Err(EvidenceRefusal::Invalid(
+                        "regime calibration requires aligned bootstrap metadata".into(),
+                    ));
+                };
+                let mut w = CanonicalWriter::new(
+                    "antecedent.decision_evidence.regime_calibration_target.v1",
+                );
+                w.text(&result.quantity_identity)
+                    .word(u64::from(*periods))
+                    .text(exchangeability_assumption_id)
+                    .text(method)
+                    .word(*replicates as u64);
+                format!("regime_{}", w.finish_hex())
+            }
+            _ => format!("derived_{}", result.quantity_identity),
+        },
+    ]
+    .map(std::sync::Arc::<str>::from);
+    Ok(antecedent_core::CalibrationBasis::new(
+        key,
+        0.95,
+        "point".into(),
+        (if matches!(
+            evidence.design.assignment_design.as_str(),
+            "matched_pairs"
+                | "switchback"
+                | "temporal_excursion"
+                | "temporal_regime"
+                | "adaptive_regime"
+        ) {
+            evidence.design.treated_units
+        } else {
+            evidence.design.treated_units + evidence.design.control_units
+        }) as u64,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("none"))
 }
 
 #[cfg(test)]
@@ -1503,150 +1650,4 @@ pub(super) mod tests {
         let b = decide(&evidence(1.0, no_interference()), &request(), &q, &other).unwrap();
         assert_eq!(a.derived.quantity_identity, b.derived.quantity_identity);
     }
-}
-
-/// Describe the exact decision-evidence interval construction for calibration measurement.
-/// This is a candidate basis only: it does not license or attest an interval.
-/// The scope count is the number of independently randomized units, not outcome rows.
-///
-/// # Errors
-/// Returns a refusal when no sampling interval is produced, or when an assumption range
-/// would require a different calibration target.
-pub fn decision_interval_calibration_basis(
-    evidence: &JointExperimentEvidence,
-    request: &Request,
-    quantity: &DerivedQuantity,
-) -> Result<antecedent_core::CalibrationBasis, EvidenceRefusal> {
-    let result = derive(evidence, request, quantity)?;
-    if result.sampling.is_none()
-        || result.assumption_range.is_some()
-        || !matches!(
-            (&*evidence.design.assignment_design, &request.target),
-            ("cluster" | "complete" | "matched_pairs" | "switchback", Target::ExperimentalContrast)
-                | ("temporal_excursion", Target::Excursion { .. })
-                | ("temporal_regime", Target::Regime { .. })
-                | ("adaptive_regime", Target::AdaptiveRegime { .. })
-        )
-        || !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. })
-        || !matches!(
-            (evidence.design.assignment_design.as_str(), &evidence.dependence),
-            ("cluster" | "complete", Dependence::Joint { .. })
-                | (
-                    "matched_pairs"
-                        | "switchback"
-                        | "temporal_excursion"
-                        | "temporal_regime"
-                        | "adaptive_regime",
-                    Dependence::JointArms { .. }
-                )
-        )
-        || quantity.inputs.iter().any(|b| !matches!(b, InputBinding::Measured(_)))
-    {
-        return Err(EvidenceRefusal::Invalid(
-            "calibration basis requires a sampling interval without an assumption range".into(),
-        ));
-    }
-    let key = [
-        "DecisionEvidence".to_owned(),
-        if matches!(
-            evidence.design.assignment_design.as_str(),
-            "temporal_regime" | "adaptive_regime"
-        ) {
-            "Observational"
-        } else {
-            "RandomizedTrial"
-        }
-        .to_owned(),
-        "design".to_owned(),
-        "tabular".to_owned(),
-        "Frequentist".to_owned(),
-        format!("joint_{}_{}", evidence.design.assignment_design, evidence.adjustment_identity()),
-        if matches!(evidence.design.assignment_design.as_str(), "matched_pairs" | "switchback") {
-            "delta_method_student_95"
-        } else {
-            "delta_method_normal_95"
-        }
-        .to_owned(),
-        match evidence.design.assignment_design.as_str() {
-            "matched_pairs" => "matched_pair_delta",
-            "switchback" => "switchback_sequence_delta",
-            "temporal_excursion" => "temporal_cluster_ratio_delta",
-            "temporal_regime" => "temporal_regime_bootstrap_delta",
-            "adaptive_regime" => "adaptive_regime_jackknife_delta",
-            _ => "joint_neyman_delta",
-        }
-        .to_owned(),
-        if matches!(
-            evidence.design.assignment_design.as_str(),
-            "temporal_regime" | "adaptive_regime"
-        ) {
-            "independent_subjects"
-        } else {
-            "independent_assignment_units"
-        }
-        .to_owned(),
-        String::new(),
-        match &request.target {
-            Target::Excursion { lag, assignment_law_id } => {
-                let mut w = CanonicalWriter::new(
-                    "antecedent.decision_evidence.excursion_calibration_target.v1",
-                );
-                w.text(&result.quantity_identity).word(u64::from(*lag)).text(assignment_law_id);
-                format!("excursion_{}", w.finish_hex())
-            }
-            Target::AdaptiveRegime { periods, exchangeability_assumption_id } => {
-                let mut w = CanonicalWriter::new(
-                    "antecedent.decision_evidence.adaptive_regime_calibration_target.v1",
-                );
-                w.text(&result.quantity_identity)
-                    .word(u64::from(*periods))
-                    .text(exchangeability_assumption_id);
-                format!("adaptive_regime_{}", w.finish_hex())
-            }
-            Target::Regime { periods, exchangeability_assumption_id } => {
-                let Some(super::DesignDetails::TemporalRegime {
-                    method,
-                    bootstrap_replicates: Some(replicates),
-                    ..
-                }) = &evidence.design_details
-                else {
-                    return Err(EvidenceRefusal::Invalid(
-                        "regime calibration requires aligned bootstrap metadata".into(),
-                    ));
-                };
-                let mut w = CanonicalWriter::new(
-                    "antecedent.decision_evidence.regime_calibration_target.v1",
-                );
-                w.text(&result.quantity_identity)
-                    .word(u64::from(*periods))
-                    .text(exchangeability_assumption_id)
-                    .text(method)
-                    .word(*replicates as u64);
-                format!("regime_{}", w.finish_hex())
-            }
-            _ => format!("derived_{}", result.quantity_identity),
-        },
-    ]
-    .map(std::sync::Arc::<str>::from);
-    Ok(antecedent_core::CalibrationBasis::new(
-        key,
-        0.95,
-        "point".into(),
-        (if matches!(
-            evidence.design.assignment_design.as_str(),
-            "matched_pairs"
-                | "switchback"
-                | "temporal_excursion"
-                | "temporal_regime"
-                | "adaptive_regime"
-        ) {
-            evidence.design.treated_units
-        } else {
-            evidence.design.treated_units + evidence.design.control_units
-        }) as u64,
-        None,
-        None,
-        0.0,
-    )
-    .with_validation("none"))
 }

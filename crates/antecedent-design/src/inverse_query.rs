@@ -1279,6 +1279,10 @@ mod posterior_mass_roundoff_tests {
     use super::*;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn inverse_retains_explicit_unresolved_mass_and_real_unassigned_mass() {
         let atom = |id: &str, p| StructuralAtom {
             id: id.into(),

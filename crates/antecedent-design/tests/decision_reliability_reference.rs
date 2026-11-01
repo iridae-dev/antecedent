@@ -55,6 +55,10 @@ fn dependence(value: &Value) -> WithinStreamDependence {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn plan(value: &Value) -> BatchPlan {
     value.as_u64().map_or(BatchPlan::SquareRoot, |b| BatchPlan::Fixed(b as u32))
 }
@@ -190,6 +194,14 @@ fn check_interval(
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture keeps its scenario and assertions together"
+)]
 fn derived_uncertainty_matches_the_definition_level_reference() {
     let reference = reference();
     let ctx = ExecutionContext::for_tests(11);

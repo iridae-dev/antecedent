@@ -481,6 +481,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn threshold_piecewise_linear_and_tree_rules_pick_the_documented_action() {
         let t = family(PolicyRule::Threshold { feature: 0 });
         assert_eq!(t.action(&[1.0, 0.5, 2.0], 0, &[1.0, 0.0]).unwrap(), 2.0);
@@ -526,6 +530,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn the_lowered_expression_agrees_with_the_direct_action() {
         let cases = [
             (PolicyRule::Threshold { feature: 1 }, vec![0.5, 0.25, 2.0]),

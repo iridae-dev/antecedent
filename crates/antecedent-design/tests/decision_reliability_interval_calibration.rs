@@ -248,7 +248,7 @@ fn score(
             ((corrected.lower, corrected.upper), truth)
         }
     };
-    Some(Scored { construction, scope, validation, interval, truth })
+    Some(Scored { validation, construction, scope, interval, truth })
 }
 
 fn one_sided_target(route: PublishedRoute) -> &'static str {

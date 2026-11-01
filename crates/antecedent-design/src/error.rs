@@ -58,6 +58,10 @@ pub enum DesignError {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::items_after_test_module,
+    reason = "the conversion implementation remains beside the error definition"
+)]
 mod tests {
     use super::DesignError;
     use antecedent_core::CallbackFailure;

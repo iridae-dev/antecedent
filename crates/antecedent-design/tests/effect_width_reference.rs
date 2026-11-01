@@ -41,6 +41,10 @@ fn f(value: &Value) -> f64 {
     value.as_f64().expect("number")
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn context(r: &Value) -> EffectWidthContext {
     let specs: Vec<MeasureColumnSpec> = r["measure"]
         .as_object()
@@ -135,6 +139,10 @@ fn close(got: f64, want: f64, tol: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn every_candidate_kind_reduces_the_treatment_se_by_the_full_inverse_value() {
     let r = reference();
     let ew = context(&r);
@@ -164,6 +172,7 @@ fn every_candidate_kind_reduces_the_treatment_se_by_the_full_inverse_value() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn a_noisier_environment_is_a_negative_reduction_and_the_gram_wins_over_declared_rows() {
     let r = reference();
     let ew = context(&r);
@@ -174,6 +183,10 @@ fn a_noisier_environment_is_a_negative_reduction_and_the_gram_wins_over_declared
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn an_ill_conditioned_gram_keeps_the_reduction_to_the_full_inverse_value() {
     let r = reference();
     let ill = &r["ill"];

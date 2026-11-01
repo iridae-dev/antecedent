@@ -289,6 +289,14 @@ fn binomial_inversion(n: u64, q: f64, rng: &mut CausalRng) -> u64 {
 }
 
 /// Binomial draw by Hörmann's BTRS transformed rejection; valid for `n q ≥ 10`, `q ≤ 1/2`.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the numerical sampling or quantile calculation bounds this nonnegative value"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the numerical sampling or quantile calculation bounds this nonnegative value"
+)]
 fn binomial_btrs(n: u64, q: f64, rng: &mut CausalRng) -> u64 {
     let nf = n as f64;
     let spq = (nf * q * (1.0 - q)).sqrt();

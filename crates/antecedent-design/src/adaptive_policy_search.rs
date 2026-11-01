@@ -451,6 +451,14 @@ fn wilson_upper(violations: usize, n: usize) -> f64 {
 
 // Empirical lower-tail mean: a boundary atom contributes only the fraction
 // needed to fill alpha of the empirical probability mass.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the numerical sampling or quantile calculation bounds this nonnegative value"
+)]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the numerical sampling or quantile calculation bounds this nonnegative value"
+)]
 fn fractional_lower_tail_mean(values: &[f64], alpha: f64) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
@@ -577,6 +585,10 @@ impl PreparedAdaptivePolicySearch {
     /// Unobserved policy features, an unsupported standing request, a required but
     /// unavailable held-out evaluation, resource refusal, source misbehaviour with no usable
     /// proposal, or cancellation.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded decision procedure keeps its scientific checks together"
+    )]
     pub fn execute(
         &self,
         source: &dyn PolicyRolloutSource,
@@ -862,6 +874,18 @@ impl PreparedAdaptivePolicySearch {
         })
     }
 
+    #[allow(
+        clippy::cast_sign_loss,
+        reason = "the numerical sampling or quantile calculation bounds this nonnegative value"
+    )]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "the numerical sampling or quantile calculation bounds this nonnegative value"
+    )]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded decision procedure keeps its scientific checks together"
+    )]
     fn search_family(
         &self,
         source: &dyn PolicyRolloutSource,
@@ -1140,6 +1164,10 @@ mod fractional_tail_tests {
     use super::fractional_lower_tail_mean;
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn lower_tail_mean_weights_only_the_fractional_boundary() {
         let values = [30.0, 0.0, 20.0, 10.0];
         assert!((fractional_lower_tail_mean(&values, 0.375) - 10.0 / 3.0).abs() < 1e-14);

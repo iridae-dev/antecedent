@@ -43,9 +43,9 @@ impl Lcg {
 
 #[derive(Clone, Copy)]
 enum Dynamics {
-    /// z_{t+1} = rho z_t + sigma e; utility sum u_t (z_t - k); cost unit per treatment.
+    /// z_{t+1} = rho `z_t` + sigma e; utility sum `u_t` (`z_t` - k); cost unit per treatment.
     Treatment { rho: f64, sigma: f64, k: f64 },
-    /// x_{t+1} = a x_t + u_t + w; utility -(sum q x^2 + r u^2) - qf x_T^2.
+    /// x_{t+1} = a `x_t` + `u_t` + w; utility -(sum q x^2 + r u^2) - qf `x_T^2`.
     Lq { a: f64, q: f64, r: f64, qf: f64, sigma: f64, x0: f64 },
 }
 
@@ -555,6 +555,7 @@ fn lower_tail_objective_is_no_larger_than_the_mean() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks the exact boundary")]
 fn the_in_test_closed_forms_match_the_conformance_document() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../conformance/design/adaptive_policy_search/expected.json");

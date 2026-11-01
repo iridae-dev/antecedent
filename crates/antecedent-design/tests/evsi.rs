@@ -965,6 +965,7 @@ fn monte_carlo_streams_are_keyed_by_replicate_and_shared_across_candidates() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn external_values_use_origin_independent_coherence_and_centered_evsi() {
     let prior = bet_prior();
     let make_law = |shift: f64, bias: f64| {

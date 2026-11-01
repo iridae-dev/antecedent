@@ -19,6 +19,10 @@ use antecedent_design::program_search::certified::{
 };
 use serde_json::Value;
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn build(e: &Value) -> ValueExpr {
     match e["op"].as_str().expect("op") {
         "var" => ValueExpr::var(VariableId::from_raw(e["i"].as_u64().unwrap() as u32)),
@@ -43,6 +47,10 @@ fn build(e: &Value) -> ValueExpr {
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn eval(e: &Value, x: &[f64]) -> f64 {
     match e["op"].as_str().unwrap() {
         "var" => x[e["i"].as_u64().unwrap() as usize],
@@ -64,6 +72,14 @@ fn eval(e: &Value, x: &[f64]) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the reference fixture keeps its scenario and assertions together"
+)]
 fn the_certified_bound_is_sound_and_the_certificate_is_tight_against_independent_truth() {
     let cases: Vec<Value> =
         serde_json::from_str(include_str!("oracle_data/certified_program_search_reference.json"))

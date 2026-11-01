@@ -452,6 +452,8 @@ fn robust_result_round_trips_and_replays_by_recomputation() {
 }
 
 #[test]
+#[allow(clippy::match_same_arms, reason = "the arms name distinct adversarial artifact cases")]
+#[allow(clippy::too_many_lines, reason = "the fixture keeps its scenario and assertions together")]
 fn every_robust_verdict_state_round_trips() {
     type Case = (StructuralPolicy, AdmissibilityRules, Vec<StructuralAtom>, ClaimProfile);
     let invariant = StructuralPolicy::RequireInvariantBestAction;

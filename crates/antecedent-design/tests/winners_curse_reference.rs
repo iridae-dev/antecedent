@@ -31,6 +31,7 @@ fn estimates(ses: &Value) -> Vec<McEstimate> {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact boundary values")]
 fn the_exact_maximum_and_the_union_bound_equal_the_quadrature_reference() {
     let mut failures = Vec::new();
     for case in reference().as_array().unwrap() {

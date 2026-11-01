@@ -1129,10 +1129,12 @@ impl JointExperimentEvidence {
             .text(&self.scientific_identity())
             .text(&self.adjustment_identity());
         match &self.design_details {
-            Some(DesignDetails::MatchedPairs { realized_assignment, .. })
-            | Some(DesignDetails::Switchback { realized_assignment, .. })
-            | Some(DesignDetails::TemporalExcursion { realized_assignment, .. })
-            | Some(DesignDetails::TemporalRegime { realized_assignment, .. }) => {
+            Some(
+                DesignDetails::MatchedPairs { realized_assignment, .. }
+                | DesignDetails::Switchback { realized_assignment, .. }
+                | DesignDetails::TemporalExcursion { realized_assignment, .. }
+                | DesignDetails::TemporalRegime { realized_assignment, .. },
+            ) => {
                 w.word(realized_assignment.len() as u64);
                 for assignment in realized_assignment {
                     w.word(u64::from(*assignment));
@@ -1474,6 +1476,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn merging_requires_declared_independence_and_matching_premise() {
         let a = evidence(1.0, no_interference());
         let mut b = evidence(1.0, no_interference());
@@ -1497,7 +1503,7 @@ mod tests {
         let m = a.merge_independent(&b, true).unwrap();
         assert_eq!(m.components.len(), 4);
         let Dependence::Joint { treated, .. } = &m.dependence else { panic!() };
-        assert_eq!(treated[3 * 4 + 0], 0.0, "cross-experiment covariance is the declared zero");
+        assert_eq!(treated[3 * 4], 0.0, "cross-experiment covariance is the declared zero");
         let mut c = b.clone();
         c.horizon = 9;
         assert!(matches!(

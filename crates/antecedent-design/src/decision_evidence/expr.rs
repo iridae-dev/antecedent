@@ -168,6 +168,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn value_gradient_and_structure_of_a_margin() {
         let x = [2.0, 10.0, 4.0];
         assert_eq!(value(&margin(), &x), Some(12.0));

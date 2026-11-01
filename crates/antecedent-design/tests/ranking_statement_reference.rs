@@ -21,6 +21,10 @@ fn close(got: f64, want: f64, ctx: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the reference fixture uses bounded dimensions and counts"
+)]
 fn ranking_probabilities_and_errors_match_exact_enumeration() {
     let cases: Value =
         serde_json::from_str(include_str!("oracle_data/ranking_statement_reference.json"))

@@ -184,7 +184,7 @@ pub fn try_allocate(total: u64, weights: &[f64]) -> Result<Vec<u64>, PlanningRef
         }
         left -= each * weights.len() as u64;
     }
-    for &index in order.iter().take(left as usize) {
+    for &index in order.iter().take(usize::try_from(left).unwrap_or(order.len())) {
         out[index] += 1;
     }
     debug_assert_eq!(out.iter().sum::<u64>(), total);

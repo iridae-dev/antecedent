@@ -18,7 +18,7 @@ use serde_json::Value;
 struct Cutoffs(Vec<f64>);
 
 impl DecisionConstraint<usize, f64> for Cutoffs {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "theta_at_most_cutoff"
     }
 
@@ -41,6 +41,10 @@ fn close(got: f64, want: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and counts"
+)]
 fn decisions_and_binomial_evsi_match_the_exact_rational_reference() {
     let root: Value =
         serde_json::from_str(include_str!("oracle_data/decision_exact_reference.json"))
@@ -84,33 +88,26 @@ fn decisions_and_binomial_evsi_match_the_exact_rational_reference() {
         let want = &case["expect"];
         let signal = BinomialSignal;
         let weights = (!case["weights"].is_null()).then(|| floats(&case["weights"]));
-        let analysis = match &weights {
-            Some(w) => {
-                weighted += 1;
-                PreposteriorAnalysis::new_weighted(&problem, &thetas, w, &signal)
-            }
-            None => {
-                let evaluation = evaluate_decision(&problem, &thetas).expect("decision");
+        let analysis = if let Some(w) = &weights {
+            weighted += 1;
+            PreposteriorAnalysis::new_weighted(&problem, &thetas, w, &signal)
+        } else {
+            let evaluation = evaluate_decision(&problem, &thetas).expect("decision");
+            assert_eq!(
+                evaluation.chosen_action,
+                want["chosen"].as_u64().unwrap() as usize,
+                "case {index}"
+            );
+            close(evaluation.expected_utility, want["expected_utility"].as_f64().unwrap(), "eu");
+            close(evaluation.posterior_regret, want["regret"].as_f64().unwrap(), "regret");
+            if let Some(satisfaction) = want["satisfaction"].as_array() {
+                let chosen = want["chosen"].as_u64().unwrap() as usize;
                 assert_eq!(
-                    evaluation.chosen_action,
-                    want["chosen"].as_u64().unwrap() as usize,
-                    "case {index}"
+                    evaluation.chance_constraint_probs.as_ref(),
+                    &[satisfaction[chosen].as_f64().unwrap()]
                 );
-                close(
-                    evaluation.expected_utility,
-                    want["expected_utility"].as_f64().unwrap(),
-                    "eu",
-                );
-                close(evaluation.posterior_regret, want["regret"].as_f64().unwrap(), "regret");
-                if let Some(satisfaction) = want["satisfaction"].as_array() {
-                    let chosen = want["chosen"].as_u64().unwrap() as usize;
-                    assert_eq!(
-                        evaluation.chance_constraint_probs.as_ref(),
-                        &[satisfaction[chosen].as_f64().unwrap()]
-                    );
-                }
-                PreposteriorAnalysis::new(&problem, &prior, &signal)
             }
+            PreposteriorAnalysis::new(&problem, &prior, &signal)
         }
         .unwrap_or_else(|e| panic!("case {index}: {e:?}"));
         if want["admissible"].as_array().unwrap().len() < intercepts_len(case) {

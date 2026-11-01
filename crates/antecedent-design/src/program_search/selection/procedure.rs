@@ -577,8 +577,9 @@ mod tests {
             // Independent analytic truth for this randomly selected action.
             let truth = 0.3 * r.action - 0.5 * r.action.powi(2);
             let error = r.heldout.value - truth;
-            covered +=
-                usize::from(error.abs() <= 1.959963984540054 * r.heldout.standard_error + 1e-14);
+            covered += usize::from(
+                error.abs() <= 1.959_963_984_540_054 * r.heldout.standard_error + 1e-14,
+            );
             optimism += r.training_value - truth;
             holdout_error += error;
         }

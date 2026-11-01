@@ -27,7 +27,7 @@ pub(super) fn product(a: usize, b: usize) -> Result<usize, ReliabilityError> {
     a.checked_mul(b).ok_or(ReliabilityError::Admission { error: AdmissionError::Overflow })
 }
 
-/// Peak live f64 buffers in `estimate`: influence series (plus a signed CVaR
+/// Peak live f64 buffers in `estimate`: influence series (plus a signed `CVaR`
 /// copy), or sorted quantile plus batch quantiles and one sorted batch.
 pub(super) fn estimate_slots(
     n: usize,

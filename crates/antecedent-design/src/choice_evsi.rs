@@ -259,6 +259,10 @@ pub fn rank_studies(
 ///
 /// # Errors
 /// Invalid inputs, an excessive cumulative work request, cancellation or resource admission failure.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded decision procedure keeps its scientific checks together"
+)]
 pub fn rank_studies_with_context(
     alpha: &[f64],
     values: &[f64],
@@ -469,6 +473,10 @@ mod resource_tests {
 ///
 /// # Errors
 /// Invalid inputs, unsupported design, a quadrature or mass check failure, cancellation or admission.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded decision procedure keeps its scientific checks together"
+)]
 pub fn rank_hierarchical_studies(
     prior: &antecedent_stats::adaptive_inference::HierarchicalChoicePrior,
     respondents: &[Vec<u32>],
@@ -524,9 +532,9 @@ pub fn rank_hierarchical_studies(
         }
     };
     let base = HierarchicalChoicePosterior::new(prior, respondents)
-        .map_err(&convert)?
+        .map_err(convert)?
         .summary(&cancelled)
-        .map_err(&convert)?;
+        .map_err(convert)?;
     let now = values.iter().zip(&base.mean).map(|(v, p)| v * p).fold(f64::NEG_INFINITY, f64::max);
     let mut cache = std::collections::BTreeMap::new();
     for n in candidates.iter().map(|c| c.observations).collect::<std::collections::BTreeSet<_>>() {
@@ -546,9 +554,9 @@ pub fn rank_hierarchical_studies(
                 }
                 data.push(observed.clone());
                 let updated = HierarchicalChoicePosterior::new(prior, &data)
-                    .map_err(&convert)?
+                    .map_err(convert)?
                     .summary(&cancelled)
-                    .map_err(&convert)?;
+                    .map_err(convert)?;
                 data.pop();
                 quadrature_change = quadrature_change.max(updated.quadrature_error);
                 let log_mult = ln_gamma(f64::from(n) + 1.0)

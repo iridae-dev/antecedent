@@ -115,7 +115,7 @@ fn seal_and_replay(
     let consumed =
         consume(&wire.to_bytes("replay").expect("bytes"), &ConsumeExpectation::default())
             .unwrap_or_else(|e| {
-                panic!("an honest artifact replays: {e:?}; intercepts {:?}", problem_dbg)
+                panic!("an honest artifact replays: {e:?}; intercepts {problem_dbg:?}")
             });
     for entry in &consumed.candidates {
         assert_eq!(entry.replay, ReplayKind::NativeExactRecomputed, "{}", entry.semantic_id);

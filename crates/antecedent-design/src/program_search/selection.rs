@@ -234,6 +234,10 @@ impl ProgramHoldoutPartition {
 mod tests {
     use super::*;
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn joint_roots_preserve_dependence_and_selected_candidate_event() {
         let observed = CandidateEstimates {
             ids: vec!["a".into(), "b".into()],

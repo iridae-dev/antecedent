@@ -716,7 +716,7 @@ pub fn derive_uncertainty(
     };
     let selection_draws = split.as_ref().map_or(draws, |parts| &parts.selection);
     let numerical = numerical_component(&report, interval)?;
-    let confidence = confidence_set(&report, &selection_draws, request, interval.alpha(), ctx)?;
+    let confidence = confidence_set(&report, selection_draws, request, interval.alpha(), ctx)?;
     let corrected = corrected_interval(&report, interval)?;
     Ok(DerivedUncertainty {
         version: DERIVED_UNCERTAINTY_VERSION,

@@ -200,6 +200,7 @@ struct Frame {
     value: f64,
 }
 
+#[allow(clippy::large_enum_variant, reason = "the traversal keeps its active frame in place")]
 enum Entered {
     Complete(f64),
     Active(Frame),
@@ -364,6 +365,10 @@ impl Walker<'_> {
 
     // Heap-backed depth-first traversal: advance one action/branch at a time,
     // retaining the recursive operation order and post-order accounting.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the bounded decision procedure keeps its scientific checks together"
+    )]
     fn visit(&mut self, root: Node) -> SequentialResult<f64> {
         let mut stack = Vec::new();
         let mut returned = match self.enter(root)? {

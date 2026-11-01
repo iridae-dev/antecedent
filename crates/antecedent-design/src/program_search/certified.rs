@@ -550,6 +550,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "the calculation or fixture checks exact discrete or boundary values"
+    )]
     fn exactly_constant_objective_can_certify_a_zero_gap_without_subdivision() {
         let result = compile(ValueExpr::constant(5.0))
             .execute(
