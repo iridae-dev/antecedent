@@ -106,11 +106,31 @@ fn verify_linear_adjustment_coordinate(coordinate: &str, accepted: bool, validat
         )
         .unwrap();
     let consumed = consume_analysis_result(&bytes).unwrap();
-    assert!(
-        consumed.acceptance.accepts_as_verified_program(),
-        "{coordinate} artifact should replay from portable OLS moments: {:?}",
-        consumed.acceptance.unresolved
-    );
+    if consumed.body.refutations.is_empty() {
+        assert!(
+            consumed.acceptance.accepts_as_verified_program(),
+            "{coordinate} artifact should replay from portable OLS moments: {:?}",
+            consumed.acceptance.unresolved
+        );
+    } else {
+        assert!(!consumed.acceptance.accepts_as_verified_program());
+        assert!(consumed.acceptance.unresolved.iter().any(|reason| {
+            matches!(
+                reason.as_ref(),
+                "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+            )
+        }));
+        assert!(
+            consumed.acceptance.unresolved.iter().all(|reason| {
+                matches!(
+                    reason.as_ref(),
+                    "dependencies.refutation_replay" | "dependencies.scoped_refutation_replay"
+                )
+            }),
+            "{coordinate}: unexpected replay obligations: {:?}",
+            consumed.acceptance.unresolved
+        );
+    }
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()));
     let consumed_contract = consumed.contract.as_ref().expect("contracted linear artifact");
     assert_eq!(consumed_contract.estimator.as_deref(), Some("linear.adjustment.ate"));
