@@ -4,6 +4,9 @@
 #[doc(hidden)] pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn decode_unchecked(bytes: &[u8]) -> core::result::Result<antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta, antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
 #[doc(hidden)] pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn from_meta(meta: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
 #[doc(hidden)] pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn reseal_identity(meta: &mut antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta)
+#[doc(hidden)] pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn decode_unchecked(bytes: &[u8]) -> core::result::Result<antecedent_io::choice_inference_result_artifact::ChoiceResultMeta, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
+#[doc(hidden)] pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn from_meta(meta: &antecedent_io::choice_inference_result_artifact::ChoiceResultMeta, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
+#[doc(hidden)] pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn reseal_identity(meta: &mut antecedent_io::choice_inference_result_artifact::ChoiceResultMeta)
 #[doc(hidden)] pub fn <antecedent_io::recovery_artifact::RecoveryArtifactWire>::fn consume_typed(bytes: &[u8], limits: antecedent_io::recovery_artifact::RecoveryConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::recovery_artifact::ConsumedRecovery, antecedent_io::recovery_artifact::RecoveryArtifactError>
 #[doc(hidden)] pub fn antecedent_io::admg_conditional_transport_artifact::admg_conditional_identification_error(error: antecedent_identify::error::IdentificationError) -> antecedent_io_core::error::IoError
 #[doc(hidden)] pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::error::IoError>
@@ -20,6 +23,8 @@
 #[non_exhaustive] pub enum antecedent_io::array_fit_artifact::ArrayFitError
 #[non_exhaustive] pub enum antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 #[non_exhaustive] pub enum antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
+#[non_exhaustive] pub enum antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+#[non_exhaustive] pub enum antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
 #[non_exhaustive] pub enum antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 #[non_exhaustive] pub enum antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 #[non_exhaustive] pub enum antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
@@ -53,6 +58,7 @@ impl antecedent_io::BudgetedTreatmentArtifact for antecedent_io::categorical_tre
 impl antecedent_io::BudgetedTreatmentArtifact for antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
+impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::latent_class_artifact::LatentClassArtifactError
 impl antecedent_io_core::artifact_codec::ArtifactFamilyError for antecedent_io::mechanism_discrepancy_artifact::MechanismDiscrepancyArtifactError
@@ -130,6 +136,16 @@ impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::Monot
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::PairContrastWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 impl core::clone::Clone for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceResult
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceResultError
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl core::clone::Clone for antecedent_io::choice_inference_result_artifact::SourceWire
 impl core::clone::Clone for antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::clone::Clone for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
@@ -546,6 +562,12 @@ impl core::cmp::Eq for antecedent_io::categorical_treatment_artifact::Covariance
 impl core::cmp::Eq for antecedent_io::categorical_treatment_artifact::LevelCountWire
 impl core::cmp::Eq for antecedent_io::categorical_treatment_artifact::LevelScaleWire
 impl core::cmp::Eq for antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire
+impl core::cmp::Eq for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl core::cmp::Eq for antecedent_io::choice_inference_result_artifact::ChoiceResultError
+impl core::cmp::Eq for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl core::cmp::Eq for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl core::cmp::Eq for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl core::cmp::Eq for antecedent_io::choice_inference_result_artifact::SourceWire
 impl core::cmp::Eq for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::cmp::Eq for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::cmp::Eq for antecedent_io::cyclic_family_artifact::CertificateDemandWire
@@ -729,6 +751,15 @@ impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::Mon
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::PairContrastWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 impl core::cmp::PartialEq for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResult
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResultError
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl core::cmp::PartialEq for antecedent_io::choice_inference_result_artifact::SourceWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl core::cmp::PartialEq for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -1078,11 +1109,13 @@ impl core::convert::From<antecedent_core::execution::admission::AdmissionError> 
 impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError
 impl core::convert::From<antecedent_estimate::adaptive_inference::AdaptiveInferenceError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveResultError
+impl core::convert::From<antecedent_estimate::adaptive_inference::AdaptiveInferenceError> for antecedent_io::choice_inference_result_artifact::ChoiceResultError
 impl core::convert::From<antecedent_estimate::categorical_treatment::LevelScale> for antecedent_io::categorical_treatment_artifact::LevelScaleWire
 impl core::convert::From<antecedent_estimate::categorical_treatment::MonotonicityDirection> for antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
+impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl core::convert::From<antecedent_estimate::error::EstimationError> for antecedent_io::latent_class_artifact::LatentClassArtifactError
@@ -1099,6 +1132,7 @@ impl core::convert::From<antecedent_io::release_migration::MigrationError> for a
 impl core::convert::From<antecedent_io_core::adaptive_monitoring_contract_artifact::AdaptiveMonitoringContractError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
+impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::joint_panel_artifact::PanelArtifactError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_io::joint_response_artifact::JointResponseArtifactError
@@ -1154,6 +1188,8 @@ impl core::error::Error for antecedent_io::adaptive_inference_result_artifact::A
 impl core::error::Error for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::error::Error for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::error::Error for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
+impl core::error::Error for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+impl core::error::Error for antecedent_io::choice_inference_result_artifact::ChoiceResultError
 impl core::error::Error for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::error::Error for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::error::Error for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
@@ -1249,6 +1285,16 @@ impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::Monoton
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::PairContrastWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 impl core::fmt::Debug for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceResult
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceResultError
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl core::fmt::Debug for antecedent_io::choice_inference_result_artifact::SourceWire
 impl core::fmt::Debug for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport
 impl core::fmt::Debug for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 impl core::fmt::Debug for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport
@@ -1662,6 +1708,8 @@ impl core::fmt::Display for antecedent_io::adaptive_inference_result_artifact::A
 impl core::fmt::Display for antecedent_io::array_fit_artifact::ArrayFitError
 impl core::fmt::Display for antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError
 impl core::fmt::Display for antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError
+impl core::fmt::Display for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+impl core::fmt::Display for antecedent_io::choice_inference_result_artifact::ChoiceResultError
 impl core::fmt::Display for antecedent_io::cpdag_completion_artifact::CpdagArtifactError
 impl core::fmt::Display for antecedent_io::cyclic_system_artifact::CyclicArtifactError
 impl core::fmt::Display for antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError
@@ -1839,6 +1887,16 @@ impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::Mon
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
 impl core::marker::Freeze for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceResult [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceResultError [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::RespondentWire [auto]
+impl core::marker::Freeze for antecedent_io::choice_inference_result_artifact::SourceWire [auto]
 impl core::marker::Freeze for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Freeze for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Freeze for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -2328,6 +2386,16 @@ impl core::marker::Send for antecedent_io::categorical_treatment_artifact::Monot
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
 impl core::marker::Send for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceResult [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceResultError [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::RespondentWire [auto]
+impl core::marker::Send for antecedent_io::choice_inference_result_artifact::SourceWire [auto]
 impl core::marker::Send for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Send for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Send for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -2810,6 +2878,15 @@ impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::PairContrastWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 impl core::marker::StructuralPartialEq for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResult
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResultError
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl core::marker::StructuralPartialEq for antecedent_io::choice_inference_result_artifact::SourceWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl core::marker::StructuralPartialEq for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -3222,6 +3299,16 @@ impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::Monot
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
 impl core::marker::Sync for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceResult [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceResultError [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::RespondentWire [auto]
+impl core::marker::Sync for antecedent_io::choice_inference_result_artifact::SourceWire [auto]
 impl core::marker::Sync for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Sync for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Sync for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -3711,6 +3798,16 @@ impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::Mono
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
 impl core::marker::Unpin for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceResult [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceResultError [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::RespondentWire [auto]
+impl core::marker::Unpin for antecedent_io::choice_inference_result_artifact::SourceWire [auto]
 impl core::marker::Unpin for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::marker::Unpin for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::marker::Unpin for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -4199,6 +4296,16 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_trea
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResultError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::RespondentWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::choice_inference_result_artifact::SourceWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -4682,6 +4789,16 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatme
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::PairContrastWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResultError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceResultSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::RespondentWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io::choice_inference_result_artifact::SourceWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport [auto]
@@ -5145,6 +5262,11 @@ impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifac
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::PairContrastWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 impl serde_core::ser::Serialize for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+impl serde_core::ser::Serialize for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl serde_core::ser::Serialize for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl serde_core::ser::Serialize for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl serde_core::ser::Serialize for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl serde_core::ser::Serialize for antecedent_io::choice_inference_result_artifact::SourceWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl serde_core::ser::Serialize for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -5640,6 +5762,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatm
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::PairContrastWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::choice_inference_result_artifact::RespondentWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::choice_inference_result_artifact::SourceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CompletionCpdagWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CompletionEvidenceWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io::cpdag_completion_artifact::CompletionResultWire
@@ -5990,6 +6117,11 @@ pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_A
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_ARTIFACT_VERSION: u16
 pub const antecedent_io::categorical_treatment_artifact::CATEGORICAL_TREATMENT_CALIBRATION: &str
 pub const antecedent_io::categorical_treatment_artifact::MAX_CATEGORICAL_TREATMENT_ARTIFACT_BYTES: usize
+pub const antecedent_io::choice_inference_result_artifact::CHOICE_INFERENCE_CALIBRATION: &str
+pub const antecedent_io::choice_inference_result_artifact::CHOICE_INFERENCE_RESULT_ARTIFACT_FEATURE: &str
+pub const antecedent_io::choice_inference_result_artifact::CHOICE_INFERENCE_RESULT_ARTIFACT_VERSION: u16
+pub const antecedent_io::choice_inference_result_artifact::CHOICE_RESULT_REPLAY_TOLERANCE: f64
+pub const antecedent_io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES: usize
 pub const antecedent_io::cpdag_completion_artifact::CPDAG_COMPLETION_ARTIFACT_FEATURE: &str
 pub const antecedent_io::cpdag_completion_artifact::CPDAG_COMPLETION_ARTIFACT_VERSION: u32
 pub const antecedent_io::cyclic_system_artifact::MAX_CYCLIC_ARTIFACT_BYTES: usize
@@ -6687,6 +6819,51 @@ pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWi
 pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::lower_bound: f64
 pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::step_probabilities: alloc::vec::Vec<f64>
 pub field antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire::upper_bound: f64
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::assignment: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::initial_prior_bits: alloc::vec::Vec<u64>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::label: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::looks: core::option::Option<alloc::vec::Vec<u32>>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::meaning: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::monitoring: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::option_labels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::outcome: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::population: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::respondents: alloc::vec::Vec<antecedent_io::choice_inference_result_artifact::RespondentWire>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::sources: alloc::vec::Vec<antecedent_io::choice_inference_result_artifact::SourceWire>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::stopping: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire::stopping_rule: core::option::Option<antecedent_io_core::adaptive_monitoring_contract_artifact::RuleWire>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::closed_guarantee: &'static str
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::method: &'static str
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::paradigm: antecedent_contract::adaptive_design::matrix::InferenceParadigm
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResult::values: alloc::vec::Vec<f64>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultError::code: &'static str
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultError::detail: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultError::message: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::calibration: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::claim: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::closed_guarantee: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::contract_identity: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::declaration: antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::feature: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::identity: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::method: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::spec: antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::value_bits: alloc::vec::Vec<u64>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceResultMeta::version: u16
+pub field antecedent_io::choice_inference_result_artifact::ChoiceSpecWire::kind: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::ChoiceSpecWire::look: u32
+pub field antecedent_io::choice_inference_result_artifact::ChoiceSpecWire::parameter_bits: alloc::vec::Vec<u64>
+pub field antecedent_io::choice_inference_result_artifact::ChoiceSpecWire::shape_bits: alloc::vec::Vec<u64>
+pub field antecedent_io::choice_inference_result_artifact::RespondentWire::counts: alloc::vec::Vec<u32>
+pub field antecedent_io::choice_inference_result_artifact::RespondentWire::id: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::count_bits: alloc::vec::Vec<u64>
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::discount_bits: u64
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::label: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::meaning: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::observation_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::option_labels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::population: alloc::string::String
+pub field antecedent_io::choice_inference_result_artifact::SourceWire::transfer_rationale: core::option::Option<alloc::string::String>
 pub field antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport::outcome: antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome
 pub field antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport::wire: antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactWire
 pub field antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport::data: antecedent_expr::exact::ExactTransportData
@@ -8912,6 +9089,20 @@ pub fn <antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtif
 pub fn <antecedent_io::categorical_treatment_artifact::CovarianceKindWire>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io::categorical_treatment_artifact::LevelScaleWire>::const fn as_str(self) -> &'static str
 pub fn <antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire>::const fn as_str(self) -> &'static str
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::const fn contract(&self) -> &antecedent_contract::adaptive_design::choice::ChoiceDesignContract
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::const fn result(&self) -> &antecedent_io::choice_inference_result_artifact::ChoiceResult
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::const fn spec(&self) -> &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn consume_measured_interval(bytes: &[u8], expected: &antecedent_io::measured_inference::MeasuredExpectation, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn from_bytes(bytes: &[u8], expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn identity(&self) -> &str
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn measure_interval(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn seal(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, spec: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent_io::choice_inference_result_artifact::ChoiceResultMeta), antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact>::fn to_bytes(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, spec: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>::fn refusal(&self) -> core::option::Option<(&'static str, alloc::string::String, alloc::string::String)>
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>::fn refused(code: &'static str, detail: impl core::convert::Into<alloc::string::String>, explanation: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceResultSpec>::const fn look(&self) -> u32
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceResultSpec>::const fn outcome(&self) -> antecedent_contract::adaptive_design::matrix::OutcomeStructure
+pub fn <antecedent_io::choice_inference_result_artifact::ChoiceResultSpec>::const fn paradigm(&self) -> antecedent_contract::adaptive_design::matrix::InferenceParadigm
 pub fn <antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits>::const fn replay(&self) -> antecedent_io_core::artifact_codec::ConsumeLimits
 pub fn <antecedent_io::cpdag_completion_artifact::CompletionCpdagWire>::fn from_cpdag(cpdag: &antecedent_graph::cpdag::Cpdag) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_io::cpdag_completion_artifact::CompletionCpdagWire>::fn to_cpdag(&self) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_io_core::error::IoError>
@@ -9415,6 +9606,10 @@ pub fn antecedent_io::bayesian_posterior_row_artifact::survival_row(posterior: &
 pub fn antecedent_io::bridge_distribution_interval::bridged_distribution_interval(bridged: &antecedent_io_core::bridge_distribution::BridgedDistribution, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::BridgedClaimInterval, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent_io::bridge_interval::construct_bridged_claim_interval(bridged: &antecedent_contract::bridge::claim::BridgedClaim, source_standard_error: core::option::Option<f64>, level: f64) -> core::result::Result<antecedent_io::bridge_interval::ConstructedBridgeInterval, antecedent_contract::external_refusal::ExternalRefusal>
+pub fn antecedent_io::choice_inference_result_artifact::compute_choice_result(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, spec: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::choice_inference_result_artifact::ChoiceResult, antecedent_io::choice_inference_result_artifact::ChoiceResultError>
+pub fn antecedent_io::choice_inference_result_artifact::declaration_from_wire(w: &antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire) -> core::result::Result<antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
+pub fn antecedent_io::choice_inference_result_artifact::declaration_to_wire(d: &antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration) -> antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+pub fn antecedent_io::choice_inference_result_artifact::spec_from_wire(w: &antecedent_io::choice_inference_result_artifact::ChoiceSpecWire) -> core::result::Result<antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError>
 pub fn antecedent_io::consume_analysis_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
 pub fn antecedent_io::consume_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_io_core::error::IoError>
 pub fn antecedent_io::counterfactual_transport_artifact::consume_counterfactual_transport_with_limits(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport, antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportArtifactError>
@@ -9507,6 +9702,7 @@ pub mod antecedent_io::bayesian_posterior_row_artifact
 pub mod antecedent_io::bridge_distribution_interval
 pub mod antecedent_io::bridge_interval
 pub mod antecedent_io::categorical_treatment_artifact
+pub mod antecedent_io::choice_inference_result_artifact
 pub mod antecedent_io::counterfactual_transport_artifact
 pub mod antecedent_io::cpdag_completion_artifact
 pub mod antecedent_io::cyclic_family_artifact
@@ -9625,6 +9821,15 @@ pub struct antecedent_io::categorical_treatment_artifact::MonotonicityWire
 pub struct antecedent_io::categorical_treatment_artifact::PairContrastWire
 pub struct antecedent_io::categorical_treatment_artifact::PosteriorContrastWire
 pub struct antecedent_io::categorical_treatment_artifact::PosteriorMonotonicityWire
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceDeclarationWire
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact has private fields
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceResult
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceResultError
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceResultMeta
+pub struct antecedent_io::choice_inference_result_artifact::ChoiceSpecWire
+pub struct antecedent_io::choice_inference_result_artifact::RespondentWire
+pub struct antecedent_io::choice_inference_result_artifact::SourceWire
 pub struct antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransport
 pub struct antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport
 pub struct antecedent_io::counterfactual_transport_artifact::ConsumedObstructedCounterfactualTransport
@@ -10786,6 +10991,20 @@ pub variant antecedent_io::categorical_treatment_artifact::LevelScaleWire::Order
 pub variant antecedent_io::categorical_treatment_artifact::LevelScaleWire::Unordered
 pub variant antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire::NonDecreasing
 pub variant antecedent_io::categorical_treatment_artifact::MonotonicityDirectionWire::NonIncreasing
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::Container(antecedent_io_core::error::IoError)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::Decode(alloc::string::String)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::Encode(alloc::string::String)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::IdentityMismatch { field: &'static str }
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::LimitsExceeded(&'static str)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::Malformed(alloc::string::String)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::Refused { code: &'static str, detail: alloc::string::String, explanation: alloc::string::String }
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::ResultMismatch(&'static str)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::UnsupportedSemantics(&'static str)
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifactError::UnsupportedVersion { version: u16 }
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceResultSpec::Hierarchical { look: u32, shapes: alloc::vec::Vec<f64>, log_concentration_mean: f64, log_concentration_sd: f64 }
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceResultSpec::HierarchicalStopping { look: u32, shapes: alloc::vec::Vec<f64>, log_concentration_mean: f64, log_concentration_sd: f64 }
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceResultSpec::Posterior { look: u32 }
+pub variant antecedent_io::choice_inference_result_artifact::ChoiceResultSpec::Stopping { look: u32 }
 pub variant antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome::Identified(alloc::boxed::Box<antecedent_io::counterfactual_transport_artifact::ConsumedIdentifiedCounterfactualTransport>)
 pub variant antecedent_io::counterfactual_transport_artifact::ConsumedCounterfactualTransportOutcome::Obstructed(alloc::boxed::Box<antecedent_io::counterfactual_transport_artifact::ConsumedObstructedCounterfactualTransport>)
 pub variant antecedent_io::cpdag_completion_artifact::CpdagArtifactError::CancelledNotReplayable

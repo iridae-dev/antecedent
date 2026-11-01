@@ -295,6 +295,9 @@ impl core::clone::Clone for antecedent::CheckedTemporalMediationProofMass
 impl core::clone::Clone for antecedent::CheckedTemporalMediationTargetInfo
 impl core::clone::Clone for antecedent::CheckedTransportTrialInfo
 impl core::clone::Clone for antecedent::CheckedUnknownTieredAverageInfo
+impl core::clone::Clone for antecedent::ChoiceInferenceOutcome
+impl core::clone::Clone for antecedent::ChoiceInferenceRefusal
+impl core::clone::Clone for antecedent::ChoiceInferenceSession
 impl core::clone::Clone for antecedent::ClaimPoint
 impl core::clone::Clone for antecedent::ClaimReport
 impl core::clone::Clone for antecedent::ClassPrior
@@ -308,6 +311,7 @@ impl core::clone::Clone for antecedent::CompletedBatch
 impl core::clone::Clone for antecedent::ComputeBudget
 impl core::clone::Clone for antecedent::ConstituentRole
 impl core::clone::Clone for antecedent::ConsumedAdaptiveResult
+impl core::clone::Clone for antecedent::ConsumedChoiceResult
 impl core::clone::Clone for antecedent::ConsumedComposition
 impl core::clone::Clone for antecedent::ConsumedEvidenceLedger
 impl core::clone::Clone for antecedent::ConsumedMeasurement
@@ -1129,6 +1133,7 @@ impl core::cmp::Eq for antecedent::CategoricalTarget
 impl core::cmp::Eq for antecedent::CausalError
 impl core::cmp::Eq for antecedent::CellFamilyContrast
 impl core::cmp::Eq for antecedent::CellStatus
+impl core::cmp::Eq for antecedent::ChoiceInferenceRefusal
 impl core::cmp::Eq for antecedent::ColumnMissingness
 impl core::cmp::Eq for antecedent::CompileCause
 impl core::cmp::Eq for antecedent::CompileFailure
@@ -1359,6 +1364,8 @@ impl core::cmp::PartialEq for antecedent::CheckedGraphPosteriorResponseInfo
 impl core::cmp::PartialEq for antecedent::CheckedStaticClassResponseInfo
 impl core::cmp::PartialEq for antecedent::CheckedTemporalMediationProofMass
 impl core::cmp::PartialEq for antecedent::CheckedTemporalMediationTargetInfo
+impl core::cmp::PartialEq for antecedent::ChoiceInferenceOutcome
+impl core::cmp::PartialEq for antecedent::ChoiceInferenceRefusal
 impl core::cmp::PartialEq for antecedent::ClaimPoint
 impl core::cmp::PartialEq for antecedent::ClaimReport
 impl core::cmp::PartialEq for antecedent::ClassPrior
@@ -1975,6 +1982,7 @@ impl core::convert::From<antecedent_io::adaptive_inference_result_artifact::Adap
 impl core::convert::From<antecedent_io::array_fit_artifact::ArrayFitError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifactError> for antecedent::CausalError
+impl core::convert::From<antecedent_io::choice_inference_result_artifact::ChoiceResultError> for antecedent::ChoiceInferenceRefusal
 impl core::convert::From<antecedent_io::dose_grid_functional_artifact::DoseGridArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::effect_constancy_artifact::EffectConstancyArtifactError> for antecedent::CausalError
 impl core::convert::From<antecedent_io::latent_class_artifact::LatentClassArtifactError> for antecedent::CausalError
@@ -2056,6 +2064,7 @@ impl core::default::Default for antecedent::estimate::StaticEstimateWorkspaces
 impl core::error::Error for antecedent::AdaptiveInferenceRefusal
 impl core::error::Error for antecedent::BatchRetargetError
 impl core::error::Error for antecedent::CausalError
+impl core::error::Error for antecedent::ChoiceInferenceRefusal
 impl core::error::Error for antecedent::CompileCause
 impl core::error::Error for antecedent::CompileFailure
 impl core::error::Error for antecedent::CostModelError
@@ -2144,6 +2153,9 @@ impl core::fmt::Debug for antecedent::CheckedTemporalMediationProofMass
 impl core::fmt::Debug for antecedent::CheckedTemporalMediationTargetInfo
 impl core::fmt::Debug for antecedent::CheckedTransportTrialInfo
 impl core::fmt::Debug for antecedent::CheckedUnknownTieredAverageInfo
+impl core::fmt::Debug for antecedent::ChoiceInferenceOutcome
+impl core::fmt::Debug for antecedent::ChoiceInferenceRefusal
+impl core::fmt::Debug for antecedent::ChoiceInferenceSession
 impl core::fmt::Debug for antecedent::ClaimPoint
 impl core::fmt::Debug for antecedent::ClaimReport
 impl core::fmt::Debug for antecedent::ClassPrior
@@ -2157,6 +2169,7 @@ impl core::fmt::Debug for antecedent::CompletedBatch
 impl core::fmt::Debug for antecedent::ComputeBudget
 impl core::fmt::Debug for antecedent::ConstituentRole
 impl core::fmt::Debug for antecedent::ConsumedAdaptiveResult
+impl core::fmt::Debug for antecedent::ConsumedChoiceResult
 impl core::fmt::Debug for antecedent::ConsumedComposition
 impl core::fmt::Debug for antecedent::ConsumedEvidenceLedger
 impl core::fmt::Debug for antecedent::ConsumedMeasurement
@@ -2997,6 +3010,7 @@ impl core::fmt::Display for antecedent::BatchRetargetError
 impl core::fmt::Display for antecedent::BridgeInspection
 impl core::fmt::Display for antecedent::CausalError
 impl core::fmt::Display for antecedent::CellFamilyContrast
+impl core::fmt::Display for antecedent::ChoiceInferenceRefusal
 impl core::fmt::Display for antecedent::CompileCause
 impl core::fmt::Display for antecedent::CompileFailure
 impl core::fmt::Display for antecedent::CostModelError
@@ -3315,6 +3329,9 @@ impl core::marker::Freeze for antecedent::CheckedTemporalMediationProofMass [aut
 impl core::marker::Freeze for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Freeze for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Freeze for antecedent::CheckedUnknownTieredAverageInfo [auto]
+impl core::marker::Freeze for antecedent::ChoiceInferenceOutcome [auto]
+impl core::marker::Freeze for antecedent::ChoiceInferenceRefusal [auto]
+impl core::marker::Freeze for antecedent::ChoiceInferenceSession [auto]
 impl core::marker::Freeze for antecedent::ClaimPoint [auto]
 impl core::marker::Freeze for antecedent::ClaimReport [auto]
 impl core::marker::Freeze for antecedent::ClassPrior [auto]
@@ -3328,6 +3345,7 @@ impl core::marker::Freeze for antecedent::CompletedBatch [auto]
 impl core::marker::Freeze for antecedent::ComputeBudget [auto]
 impl core::marker::Freeze for antecedent::ConstituentRole [auto]
 impl core::marker::Freeze for antecedent::ConsumedAdaptiveResult [auto]
+impl core::marker::Freeze for antecedent::ConsumedChoiceResult [auto]
 impl core::marker::Freeze for antecedent::ConsumedComposition [auto]
 impl core::marker::Freeze for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Freeze for antecedent::ConsumedMeasurement [auto]
@@ -4231,6 +4249,9 @@ impl core::marker::Send for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::marker::Send for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Send for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Send for antecedent::CheckedUnknownTieredAverageInfo [auto]
+impl core::marker::Send for antecedent::ChoiceInferenceOutcome [auto]
+impl core::marker::Send for antecedent::ChoiceInferenceRefusal [auto]
+impl core::marker::Send for antecedent::ChoiceInferenceSession [auto]
 impl core::marker::Send for antecedent::ClaimPoint [auto]
 impl core::marker::Send for antecedent::ClaimReport [auto]
 impl core::marker::Send for antecedent::ClassPrior [auto]
@@ -4244,6 +4265,7 @@ impl core::marker::Send for antecedent::CompletedBatch [auto]
 impl core::marker::Send for antecedent::ComputeBudget [auto]
 impl core::marker::Send for antecedent::ConstituentRole [auto]
 impl core::marker::Send for antecedent::ConsumedAdaptiveResult [auto]
+impl core::marker::Send for antecedent::ConsumedChoiceResult [auto]
 impl core::marker::Send for antecedent::ConsumedComposition [auto]
 impl core::marker::Send for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Send for antecedent::ConsumedMeasurement [auto]
@@ -5134,6 +5156,8 @@ impl core::marker::StructuralPartialEq for antecedent::CheckedGraphPosteriorResp
 impl core::marker::StructuralPartialEq for antecedent::CheckedStaticClassResponseInfo
 impl core::marker::StructuralPartialEq for antecedent::CheckedTemporalMediationProofMass
 impl core::marker::StructuralPartialEq for antecedent::CheckedTemporalMediationTargetInfo
+impl core::marker::StructuralPartialEq for antecedent::ChoiceInferenceOutcome
+impl core::marker::StructuralPartialEq for antecedent::ChoiceInferenceRefusal
 impl core::marker::StructuralPartialEq for antecedent::ClaimPoint
 impl core::marker::StructuralPartialEq for antecedent::ClaimReport
 impl core::marker::StructuralPartialEq for antecedent::ClassPrior
@@ -5693,6 +5717,9 @@ impl core::marker::Sync for antecedent::CheckedTemporalMediationProofMass [auto]
 impl core::marker::Sync for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Sync for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Sync for antecedent::CheckedUnknownTieredAverageInfo [auto]
+impl core::marker::Sync for antecedent::ChoiceInferenceOutcome [auto]
+impl core::marker::Sync for antecedent::ChoiceInferenceRefusal [auto]
+impl core::marker::Sync for antecedent::ChoiceInferenceSession [auto]
 impl core::marker::Sync for antecedent::ClaimPoint [auto]
 impl core::marker::Sync for antecedent::ClaimReport [auto]
 impl core::marker::Sync for antecedent::ClassPrior [auto]
@@ -5706,6 +5733,7 @@ impl core::marker::Sync for antecedent::CompletedBatch [auto]
 impl core::marker::Sync for antecedent::ComputeBudget [auto]
 impl core::marker::Sync for antecedent::ConstituentRole [auto]
 impl core::marker::Sync for antecedent::ConsumedAdaptiveResult [auto]
+impl core::marker::Sync for antecedent::ConsumedChoiceResult [auto]
 impl core::marker::Sync for antecedent::ConsumedComposition [auto]
 impl core::marker::Sync for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Sync for antecedent::ConsumedMeasurement [auto]
@@ -6616,6 +6644,9 @@ impl core::marker::Unpin for antecedent::CheckedTemporalMediationProofMass [auto
 impl core::marker::Unpin for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::marker::Unpin for antecedent::CheckedTransportTrialInfo [auto]
 impl core::marker::Unpin for antecedent::CheckedUnknownTieredAverageInfo [auto]
+impl core::marker::Unpin for antecedent::ChoiceInferenceOutcome [auto]
+impl core::marker::Unpin for antecedent::ChoiceInferenceRefusal [auto]
+impl core::marker::Unpin for antecedent::ChoiceInferenceSession [auto]
 impl core::marker::Unpin for antecedent::ClaimPoint [auto]
 impl core::marker::Unpin for antecedent::ClaimReport [auto]
 impl core::marker::Unpin for antecedent::ClassPrior [auto]
@@ -6629,6 +6660,7 @@ impl core::marker::Unpin for antecedent::CompletedBatch [auto]
 impl core::marker::Unpin for antecedent::ComputeBudget [auto]
 impl core::marker::Unpin for antecedent::ConstituentRole [auto]
 impl core::marker::Unpin for antecedent::ConsumedAdaptiveResult [auto]
+impl core::marker::Unpin for antecedent::ConsumedChoiceResult [auto]
 impl core::marker::Unpin for antecedent::ConsumedComposition [auto]
 impl core::marker::Unpin for antecedent::ConsumedEvidenceLedger [auto]
 impl core::marker::Unpin for antecedent::ConsumedMeasurement [auto]
@@ -7545,6 +7577,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTemporalMedi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedTransportTrialInfo [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CheckedUnknownTieredAverageInfo [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ChoiceInferenceOutcome [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ChoiceInferenceRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ChoiceInferenceSession [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ClaimPoint [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ClaimReport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ClassPrior [auto]
@@ -7556,6 +7591,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::CompileFailure [aut
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ComputeBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConstituentRole [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedAdaptiveResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedChoiceResult [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedComposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedEvidenceLedger [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::ConsumedMeasurement [auto]
@@ -8421,6 +8457,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTemporalMediati
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTemporalMediationTargetInfo [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedTransportTrialInfo [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::CheckedUnknownTieredAverageInfo [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ChoiceInferenceOutcome [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ChoiceInferenceRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ChoiceInferenceSession [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ClaimPoint [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ClaimReport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ClassPrior [auto]
@@ -8432,6 +8471,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::CompileFailure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ComputeBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConstituentRole [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedAdaptiveResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedChoiceResult [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedComposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedEvidenceLedger [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::ConsumedMeasurement [auto]
@@ -10127,6 +10167,13 @@ pub field antecedent::CheckedUnknownTieredAverageInfo::plan_id: alloc::sync::Arc
 pub field antecedent::CheckedUnknownTieredAverageInfo::query: antecedent_core::query::average::AverageEffectQuery
 pub field antecedent::CheckedUnknownTieredAverageInfo::scenario_count: usize
 pub field antecedent::CheckedUnknownTieredAverageInfo::tier_count: usize
+pub field antecedent::ChoiceInferenceOutcome::contract_identity: alloc::string::String
+pub field antecedent::ChoiceInferenceOutcome::procedure: antecedent_contract::adaptive_design::matrix::ProcedureCell
+pub field antecedent::ChoiceInferenceOutcome::request: antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+pub field antecedent::ChoiceInferenceOutcome::result: antecedent_io::choice_inference_result_artifact::ChoiceResult
+pub field antecedent::ChoiceInferenceRefusal::code: &'static str
+pub field antecedent::ChoiceInferenceRefusal::detail: alloc::string::String
+pub field antecedent::ChoiceInferenceRefusal::message: alloc::string::String
 pub field antecedent::ClaimPoint::diagnostics: alloc::vec::Vec<alloc::string::String>
 pub field antecedent::ClaimPoint::n_eff: f64
 pub field antecedent::ClaimPoint::n_eff_by_arm: alloc::vec::Vec<f64>
@@ -13042,6 +13089,16 @@ pub fn <antecedent::CheckedStudyClaim>::fn proof_identity(&self) -> antecedent_c
 pub fn <antecedent::CheckedStudyClaim>::fn provenance(&self) -> &antecedent_contract::provenance::ProvenanceGraph
 pub fn <antecedent::CheckedStudyClaim>::fn receipt(&self) -> &antecedent_contract::claim::HandoffReceipt
 pub fn <antecedent::CheckedStudyClaim>::fn target(&self) -> &antecedent_core::scientific_target::identity::ScientificTarget
+pub fn <antecedent::ChoiceInferenceSession>::const fn contract(&self) -> &antecedent_contract::adaptive_design::choice::ChoiceDesignContract
+pub fn <antecedent::ChoiceInferenceSession>::fn analyse(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ChoiceInferenceOutcome, antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ChoiceInferenceSession>::fn cell_status(&self) -> antecedent_contract::adaptive_design::matrix::CellStatus
+pub fn <antecedent::ChoiceInferenceSession>::fn contract_identity(&self) -> alloc::string::String
+pub fn <antecedent::ChoiceInferenceSession>::fn export_result(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ChoiceInferenceSession>::fn interval(&self) -> core::result::Result<(), antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ChoiceInferenceSession>::fn measured_interval(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ChoiceInferenceSession>::fn operating_characteristics(&self, kernel: &antecedent_stats::adaptive_inference::choice_procedure::ChoiceKernel, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics, antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ChoiceInferenceSession>::fn prepare(declaration: antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration) -> core::result::Result<Self, alloc::vec::Vec<antecedent::ChoiceInferenceRefusal>>
+pub fn <antecedent::ChoiceInferenceSession>::fn rank_studies(&self, look: usize, values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ClassPrior>::fn from_ordered(masses: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn from_pairs(pairs: impl core::convert::Into<alloc::sync::Arc<[(u64, f64)]>>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn masses_for_envelope(&self, envelope: &antecedent_identify::temporal_generalized::TemporalClassEnvelope) -> core::result::Result<alloc::vec::Vec<f64>, antecedent::CausalError>
@@ -13069,6 +13126,11 @@ pub fn <antecedent::ConsumedAdaptiveResult>::const fn procedure(&self) -> antece
 pub fn <antecedent::ConsumedAdaptiveResult>::const fn result(&self) -> &antecedent_io::adaptive_inference_result_artifact::AdaptiveResult
 pub fn <antecedent::ConsumedAdaptiveResult>::fn identity(&self) -> &str
 pub fn <antecedent::ConsumedAdaptiveResult>::fn stopping_rule(&self) -> core::option::Option<antecedent_contract::adaptive_design::declaration::StoppingRuleDeclaration>
+pub fn <antecedent::ConsumedChoiceResult>::const fn contract(&self) -> &antecedent_contract::adaptive_design::choice::ChoiceDesignContract
+pub fn <antecedent::ConsumedChoiceResult>::const fn request(&self) -> &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+pub fn <antecedent::ConsumedChoiceResult>::const fn result(&self) -> &antecedent_io::choice_inference_result_artifact::ChoiceResult
+pub fn <antecedent::ConsumedChoiceResult>::fn identity(&self) -> &str
+pub fn <antecedent::ConsumedChoiceResult>::fn procedure(&self) -> antecedent_contract::adaptive_design::matrix::ProcedureCell
 pub fn <antecedent::ConsumedComposition>::fn finite_distribution(&self) -> core::option::Option<alloc::vec::Vec<(alloc::string::String, f64)>>
 pub fn <antecedent::ConsumedComposition>::fn gaussian_functional(&self) -> core::option::Option<(f64, f64, &str, &str)>
 pub fn <antecedent::ConsumedComposition>::fn gaussian_law(&self) -> core::option::Option<(f64, f64)>
@@ -15562,6 +15624,7 @@ pub fn antecedent::analysis::api::classify_inverse_outcome(query: &antecedent::I
 pub fn antecedent::analysis::api::compose_checked_study_claims(target: &antecedent_core::scientific_target::identity::ScientificTarget, parents: &[antecedent::PreparedClaimParent<'_>], operation: antecedent_contract::claim::ClaimOperation, limits: &antecedent_contract::claim::CheckedWorldPointLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CheckedStudyClaim, antecedent_contract::claim::CheckedWorldPointError>
 pub fn antecedent::analysis::api::consume_admg_conditional_obstruction_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::conditional::ConditionalNonTransportabilityProof, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_admg_conditional_transport_artifact(bytes: &[u8], limits: antecedent_io::admg_conditional_transport_artifact::AdmgConditionalConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::AdmgConditionalResult, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::consume_choice_inference_result_artifact(bytes: &[u8], retained_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ConsumedChoiceResult, antecedent::ChoiceInferenceRefusal>
 pub fn antecedent::analysis::api::consume_counterfactual_transport_artifact(bytes: &[u8], expected: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportExpectedIdentity, limits: antecedent_io::counterfactual_transport_artifact::CounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportConsumption, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_cpdag_scenarios_artifact(bytes: &[u8], limits: antecedent_io::cpdag_completion_artifact::CpdagConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::cpdag_scenarios::CpdagScenarioReport, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::api::consume_evidence_ledger_artifact(bytes: &[u8], expected_identity: core::option::Option<&str>) -> core::result::Result<antecedent::ConsumedEvidenceLedger, antecedent::EvidenceLedgerRefusal>
@@ -15885,7 +15948,6 @@ pub fn antecedent::analysis::typed_transported_mechanism::verify_typed_transport
 pub fn antecedent::analysis::validate_temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_io_core::error::IoError>
 pub fn antecedent::callback_plan::mark_python_callback_plan(record: antecedent_contract::plan::PhysicalExecutionPlanRecord, region: &str) -> (antecedent_contract::plan::PhysicalExecutionPlanRecord, antecedent_core::diagnostic::Diagnostic)
 pub fn antecedent::cell_coordinate(cell: antecedent::SupportCell) -> alloc::string::String
-pub fn antecedent::choice_evidence::evaluate_lifecycle(request: &antecedent_design::choice_evidence::LifecycleRequest, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_design::choice_evidence::LifecycleResult, antecedent_design::choice_evidence::ChoiceRefusal>
 pub fn antecedent::classify(cell: antecedent::SupportCell) -> antecedent::CellStatus
 pub fn antecedent::counterfactual_id::consume_counterfactual_id_artifact(bytes: &[u8], limits: antecedent::counterfactual_id::CounterfactualIdConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::counterfactual_id::CounterfactualIdEffect, antecedent_io_core::counterfactual_id_artifact::CounterfactualIdArtifactError>
 pub fn antecedent::counterfactual_id::consume_counterfactual_id_artifact_for_data(bytes: &[u8], expected_data_digest: &str, limits: antecedent::counterfactual_id::CounterfactualIdConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::counterfactual_id::CounterfactualIdEffect, antecedent_io_core::counterfactual_id_artifact::CounterfactualIdArtifactError>
@@ -16013,6 +16075,8 @@ pub mod antecedent::analysis::association
 pub mod antecedent::analysis::bayesian_posterior_row
 pub mod antecedent::analysis::categorical_treatment
 pub mod antecedent::analysis::checked_claim_composition
+pub mod antecedent::analysis::choice_inference
+pub mod antecedent::analysis::choice_ranking
 pub mod antecedent::analysis::closed_pilots
 pub mod antecedent::analysis::cohort_decision
 pub mod antecedent::analysis::compact_export
@@ -16117,7 +16181,6 @@ pub mod antecedent::analysis::typed_transported_mechanism
 pub mod antecedent::analysis::vector_treatment
 pub mod antecedent::bootstrap_retention
 pub mod antecedent::callback_plan
-pub mod antecedent::choice_evidence
 pub mod antecedent::class_prior
 pub mod antecedent::counterfactual_id
 pub mod antecedent::cross_world
@@ -16204,6 +16267,10 @@ pub struct antecedent::CheckedTemporalMediationProofMass
 pub struct antecedent::CheckedTemporalMediationTargetInfo
 pub struct antecedent::CheckedTransportTrialInfo
 pub struct antecedent::CheckedUnknownTieredAverageInfo
+pub struct antecedent::ChoiceInferenceOutcome
+pub struct antecedent::ChoiceInferenceRefusal
+pub struct antecedent::ChoiceInferenceSession
+pub struct antecedent::ChoiceInferenceSession has private fields
 pub struct antecedent::ClaimPoint
 pub struct antecedent::ClaimReport
 pub struct antecedent::ClassPrior
@@ -16219,6 +16286,8 @@ pub struct antecedent::CompletedBatch has private fields
 pub struct antecedent::ComputeBudget
 pub struct antecedent::ConsumedAdaptiveResult
 pub struct antecedent::ConsumedAdaptiveResult has private fields
+pub struct antecedent::ConsumedChoiceResult
+pub struct antecedent::ConsumedChoiceResult has private fields
 pub struct antecedent::ConsumedComposition
 pub struct antecedent::ConsumedEvidenceLedger
 pub struct antecedent::ConsumedEvidenceLedger has private fields
@@ -17336,6 +17405,9 @@ pub use antecedent::analysis::CheckedTemporalMediationProofMass = antecedent::Ch
 pub use antecedent::analysis::CheckedTemporalMediationTargetInfo = antecedent::CheckedTemporalMediationTargetInfo
 pub use antecedent::analysis::CheckedTransportTrialInfo = antecedent::CheckedTransportTrialInfo
 pub use antecedent::analysis::CheckedUnknownTieredAverageInfo = antecedent::CheckedUnknownTieredAverageInfo
+pub use antecedent::analysis::ChoiceInferenceOutcome = antecedent::ChoiceInferenceOutcome
+pub use antecedent::analysis::ChoiceInferenceRefusal = antecedent::ChoiceInferenceRefusal
+pub use antecedent::analysis::ChoiceInferenceSession = antecedent::ChoiceInferenceSession
 pub use antecedent::analysis::ClaimPoint = antecedent::ClaimPoint
 pub use antecedent::analysis::ClaimProbability = decision_contract_facade::ClaimProbability
 pub use antecedent::analysis::ClaimProfile = decision_contract_facade::ClaimProfile
@@ -17347,6 +17419,7 @@ pub use antecedent::analysis::CompletedBatch = antecedent::CompletedBatch
 pub use antecedent::analysis::ComputeBudget = antecedent::ComputeBudget
 pub use antecedent::analysis::ConstituentRole = antecedent::ConstituentRole
 pub use antecedent::analysis::ConsumedAdaptiveResult = antecedent::ConsumedAdaptiveResult
+pub use antecedent::analysis::ConsumedChoiceResult = antecedent::ConsumedChoiceResult
 pub use antecedent::analysis::ConsumedComposition = antecedent::ConsumedComposition
 pub use antecedent::analysis::ConsumedEvidenceLedger = antecedent::ConsumedEvidenceLedger
 pub use antecedent::analysis::ConsumedMeasurement = antecedent::ConsumedMeasurement
@@ -17689,6 +17762,9 @@ pub use antecedent::analysis::api::CheckedTemporalMediationProofMass = anteceden
 pub use antecedent::analysis::api::CheckedTemporalMediationTargetInfo = antecedent::CheckedTemporalMediationTargetInfo
 pub use antecedent::analysis::api::CheckedTransportTrialInfo = antecedent::CheckedTransportTrialInfo
 pub use antecedent::analysis::api::CheckedUnknownTieredAverageInfo = antecedent::CheckedUnknownTieredAverageInfo
+pub use antecedent::analysis::api::ChoiceInferenceOutcome = antecedent::ChoiceInferenceOutcome
+pub use antecedent::analysis::api::ChoiceInferenceRefusal = antecedent::ChoiceInferenceRefusal
+pub use antecedent::analysis::api::ChoiceInferenceSession = antecedent::ChoiceInferenceSession
 pub use antecedent::analysis::api::ClaimPoint = antecedent::ClaimPoint
 pub use antecedent::analysis::api::ClaimProbability = super::ClaimProbability
 pub use antecedent::analysis::api::ClaimProfile = super::ClaimProfile
@@ -17701,6 +17777,7 @@ pub use antecedent::analysis::api::CompletedBatch = antecedent::CompletedBatch
 pub use antecedent::analysis::api::ComputeBudget = antecedent::ComputeBudget
 pub use antecedent::analysis::api::ConstituentRole = antecedent::ConstituentRole
 pub use antecedent::analysis::api::ConsumedAdaptiveResult = antecedent::ConsumedAdaptiveResult
+pub use antecedent::analysis::api::ConsumedChoiceResult = antecedent::ConsumedChoiceResult
 pub use antecedent::analysis::api::ConsumedComposition = antecedent::ConsumedComposition
 pub use antecedent::analysis::api::ConsumedEvidenceLedger = antecedent::ConsumedEvidenceLedger
 pub use antecedent::analysis::api::ConsumedMeasurement = antecedent::ConsumedMeasurement
@@ -18018,6 +18095,30 @@ pub use antecedent::analysis::check_derived_treatment = antecedent::analysis::ap
 pub use antecedent::analysis::checked_claim_composition::CheckedStudyClaim = antecedent::CheckedStudyClaim
 pub use antecedent::analysis::checked_claim_composition::PreparedClaimParent = antecedent::PreparedClaimParent
 pub use antecedent::analysis::checked_claim_composition::compose_checked_study_claims = antecedent::analysis::api::compose_checked_study_claims
+pub use antecedent::analysis::choice_inference::ChoiceDesignContract = antecedent_contract::adaptive_design::ChoiceDesignContract
+pub use antecedent::analysis::choice_inference::ChoiceDesignDeclaration = antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+pub use antecedent::analysis::choice_inference::ChoiceInferenceOutcome = antecedent::ChoiceInferenceOutcome
+pub use antecedent::analysis::choice_inference::ChoiceInferenceRefusal = antecedent::ChoiceInferenceRefusal
+pub use antecedent::analysis::choice_inference::ChoiceInferenceSession = antecedent::ChoiceInferenceSession
+pub use antecedent::analysis::choice_inference::ChoiceKernel = antecedent_estimate::choice_inference::ChoiceKernel
+pub use antecedent::analysis::choice_inference::ChoiceLook = antecedent_contract::adaptive_design::ChoiceLook
+pub use antecedent::analysis::choice_inference::ChoiceOperatingCharacteristics = antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics
+pub use antecedent::analysis::choice_inference::ChoiceProcedureSpec = antecedent_estimate::choice_inference::ChoiceProcedureSpec
+pub use antecedent::analysis::choice_inference::ChoiceRequest = antecedent_io::choice_inference_result_artifact::ChoiceResultSpec
+pub use antecedent::analysis::choice_inference::ChoiceRespondent = antecedent_contract::adaptive_design::ChoiceRespondent
+pub use antecedent::analysis::choice_inference::ChoiceStoppingRule = antecedent_estimate::choice_inference::ChoiceStoppingRule
+pub use antecedent::analysis::choice_inference::ConsumedChoiceResult = antecedent::ConsumedChoiceResult
+pub use antecedent::analysis::choice_inference::EvsiMethod = super::choice_ranking::EvsiMethod
+pub use antecedent::analysis::choice_inference::RetainedChoiceSource = antecedent_contract::adaptive_design::RetainedChoiceSource
+pub use antecedent::analysis::choice_inference::StudyCandidate = super::choice_ranking::StudyCandidate
+pub use antecedent::analysis::choice_inference::StudyRank = super::choice_ranking::StudyRank
+pub use antecedent::analysis::choice_inference::consume_choice_inference_result_artifact = antecedent::analysis::api::consume_choice_inference_result_artifact
+pub use antecedent::analysis::choice_ranking::ChoiceEvsiError = antecedent_design::choice_evsi::ChoiceEvsiError
+pub use antecedent::analysis::choice_ranking::EvsiMethod = antecedent_design::choice_evsi::EvsiMethod
+pub use antecedent::analysis::choice_ranking::MAX_EXACT_COMPOSITIONS = antecedent_design::choice_evsi::MAX_EXACT_COMPOSITIONS
+pub use antecedent::analysis::choice_ranking::StudyCandidate = antecedent_design::choice_evsi::StudyCandidate
+pub use antecedent::analysis::choice_ranking::StudyRank = antecedent_design::choice_evsi::StudyRank
+pub use antecedent::analysis::choice_ranking::rank_studies = antecedent_design::choice_evsi::rank_studies
 pub use antecedent::analysis::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
 pub use antecedent::analysis::cohort_decision::CATE_FUNCTIONAL_ID = antecedent_io::cohort_decision::CATE_FUNCTIONAL_ID
 pub use antecedent::analysis::cohort_decision::COHORT_DECISION_ARTIFACT_KIND = antecedent_io::cohort_decision::COHORT_DECISION_ARTIFACT_KIND
@@ -18165,6 +18266,7 @@ pub use antecedent::analysis::consume_adaptive_inference_result_artifact = antec
 pub use antecedent::analysis::consume_adaptive_monitoring_contract_artifact = antecedent::analysis::adaptive_inference::consume_adaptive_monitoring_contract_artifact
 pub use antecedent::analysis::consume_admg_conditional_obstruction_artifact = antecedent::analysis::api::consume_admg_conditional_obstruction_artifact
 pub use antecedent::analysis::consume_admg_conditional_transport_artifact = antecedent::analysis::api::consume_admg_conditional_transport_artifact
+pub use antecedent::analysis::consume_choice_inference_result_artifact = antecedent::analysis::api::consume_choice_inference_result_artifact
 pub use antecedent::analysis::consume_composition_verification_artifact = antecedent::analysis::composition_verification::consume_composition_verification_artifact
 pub use antecedent::analysis::consume_counterfactual_transport_artifact = antecedent::analysis::api::consume_counterfactual_transport_artifact
 pub use antecedent::analysis::consume_cpdag_scenarios_artifact = antecedent::analysis::api::consume_cpdag_scenarios_artifact
@@ -19581,8 +19683,6 @@ pub use antecedent::analysis::vector_treatment::WaldWire = antecedent_io::vector
 pub use antecedent::analysis::verification_holds = antecedent::analysis::provider_callbacks::verification_holds
 pub use antecedent::assess_robustness = super::assess_robustness
 pub use antecedent::check_derived_treatment = antecedent::analysis::api::check_derived_treatment
-pub use antecedent::choice_evidence::DirichletPosterior = antecedent_stats::adaptive_inference::DirichletPosterior
-pub use antecedent::choice_evidence::MAX_CHOICE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS
 pub use antecedent::class_prior::ClassPrior = antecedent::ClassPrior
 pub use antecedent::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
 pub use antecedent::compose_checked_study_claims = antecedent::analysis::api::compose_checked_study_claims
@@ -19590,6 +19690,7 @@ pub use antecedent::consume_adaptive_inference_result_artifact = antecedent::ana
 pub use antecedent::consume_adaptive_monitoring_contract_artifact = antecedent::analysis::adaptive_inference::consume_adaptive_monitoring_contract_artifact
 pub use antecedent::consume_admg_conditional_obstruction_artifact = antecedent::analysis::api::consume_admg_conditional_obstruction_artifact
 pub use antecedent::consume_admg_conditional_transport_artifact = antecedent::analysis::api::consume_admg_conditional_transport_artifact
+pub use antecedent::consume_choice_inference_result_artifact = antecedent::analysis::api::consume_choice_inference_result_artifact
 pub use antecedent::consume_counterfactual_transport_artifact = antecedent::analysis::api::consume_counterfactual_transport_artifact
 pub use antecedent::consume_cpdag_scenarios_artifact = antecedent::analysis::api::consume_cpdag_scenarios_artifact
 pub use antecedent::consume_evidence_ledger_artifact = antecedent::analysis::api::consume_evidence_ledger_artifact

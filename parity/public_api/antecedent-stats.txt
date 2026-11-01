@@ -11,6 +11,7 @@
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::AnalysisEstimator
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::AssignmentRule
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::CapacityError
+#[non_exhaustive] pub enum antecedent_stats::adaptive_inference::ChoiceKernel
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::ContractGap
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::FinalSelection
 #[non_exhaustive] pub enum antecedent_stats::adaptive_inference::OutcomeKernel
@@ -202,6 +203,11 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::BorrowingPlan
 impl core::clone::Clone for antecedent_stats::adaptive_inference::Boundaries
 impl core::clone::Clone for antecedent_stats::adaptive_inference::CapacityError
 impl core::clone::Clone for antecedent_stats::adaptive_inference::CellLabel
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ChoiceKernel
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ChoiceLaw
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ChoiceStoppingRule
+impl core::clone::Clone for antecedent_stats::adaptive_inference::ChoiceTerminalAtom
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ContractGap
 impl core::clone::Clone for antecedent_stats::adaptive_inference::ContrastPosterior
@@ -222,6 +228,9 @@ impl core::clone::Clone for antecedent_stats::adaptive_inference::FrequentistCla
 impl core::clone::Clone for antecedent_stats::adaptive_inference::Functional
 impl core::clone::Clone for antecedent_stats::adaptive_inference::FutilityRule
 impl core::clone::Clone for antecedent_stats::adaptive_inference::GaussianMixtureLaw
+impl core::clone::Clone for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior
+impl core::clone::Clone for antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+impl core::clone::Clone for antecedent_stats::adaptive_inference::HierarchicalSummary
 impl core::clone::Clone for antecedent_stats::adaptive_inference::HistoricalPrior
 impl core::clone::Clone for antecedent_stats::adaptive_inference::InversionGrid
 impl core::clone::Clone for antecedent_stats::adaptive_inference::InversionInterval
@@ -485,6 +494,11 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::BorrowingPla
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::Boundaries
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CapacityError
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::CellLabel
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ChoiceKernel
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ChoiceLaw
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ChoiceStoppingRule
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ChoiceTerminalAtom
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ContractGap
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::ContrastPosterior
@@ -505,6 +519,8 @@ impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::FrequentistC
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::Functional
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::FutilityRule
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::GaussianMixtureLaw
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::HierarchicalSummary
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::HistoricalPrior
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::InversionGrid
 impl core::cmp::PartialEq for antecedent_stats::adaptive_inference::InversionInterval
@@ -810,6 +826,11 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::BorrowingPlan
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::Boundaries
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::CapacityError
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::CellLabel
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ChoiceKernel
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ChoiceLaw
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ChoiceStoppingRule
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::ChoiceTerminalAtom
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ContractGap
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::ContrastPosterior
@@ -830,6 +851,9 @@ impl core::fmt::Debug for antecedent_stats::adaptive_inference::FrequentistClaim
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::Functional
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::FutilityRule
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::GaussianMixtureLaw
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+impl core::fmt::Debug for antecedent_stats::adaptive_inference::HierarchicalSummary
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::HistoricalPrior
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::InversionGrid
 impl core::fmt::Debug for antecedent_stats::adaptive_inference::InversionInterval
@@ -1033,6 +1057,7 @@ impl core::marker::Copy for antecedent_stats::adaptive_inference::BetaPosterior
 impl core::marker::Copy for antecedent_stats::adaptive_inference::BetaPrior
 impl core::marker::Copy for antecedent_stats::adaptive_inference::CapacityError
 impl core::marker::Copy for antecedent_stats::adaptive_inference::CellLabel
+impl core::marker::Copy for antecedent_stats::adaptive_inference::ChoiceStoppingRule
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ContractGap
 impl core::marker::Copy for antecedent_stats::adaptive_inference::ContrastPosterior
@@ -1244,6 +1269,11 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::BorrowingPla
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::Boundaries [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::CapacityError [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::CellLabel [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ChoiceKernel [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ChoiceLaw [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ChoiceProcedureSpec [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ChoiceStoppingRule [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::ChoiceTerminalAtom [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ContractGap [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
@@ -1264,6 +1294,9 @@ impl core::marker::Freeze for antecedent_stats::adaptive_inference::FrequentistC
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::Functional [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::FutilityRule [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::GaussianMixtureLaw [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::HierarchicalChoicePrior [auto]
+impl core::marker::Freeze for antecedent_stats::adaptive_inference::HierarchicalSummary [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::HistoricalPrior [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::InversionGrid [auto]
 impl core::marker::Freeze for antecedent_stats::adaptive_inference::InversionInterval [auto]
@@ -1514,6 +1547,11 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::BorrowingPlan 
 impl core::marker::Send for antecedent_stats::adaptive_inference::Boundaries [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::CapacityError [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::CellLabel [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ChoiceKernel [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ChoiceLaw [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ChoiceProcedureSpec [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ChoiceStoppingRule [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::ChoiceTerminalAtom [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ContractGap [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
@@ -1534,6 +1572,9 @@ impl core::marker::Send for antecedent_stats::adaptive_inference::FrequentistCla
 impl core::marker::Send for antecedent_stats::adaptive_inference::Functional [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::FutilityRule [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::GaussianMixtureLaw [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::HierarchicalChoicePrior [auto]
+impl core::marker::Send for antecedent_stats::adaptive_inference::HierarchicalSummary [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::HistoricalPrior [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::InversionGrid [auto]
 impl core::marker::Send for antecedent_stats::adaptive_inference::InversionInterval [auto]
@@ -1742,6 +1783,11 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::Boundaries
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::CapacityError
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::CellLabel
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ChoiceKernel
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ChoiceLaw
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ChoiceStoppingRule
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ChoiceTerminalAtom
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ComparisonReading
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ContractGap
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::ContrastPosterior
@@ -1762,6 +1808,8 @@ impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference:
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::Functional
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::FutilityRule
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::GaussianMixtureLaw
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::HierarchicalSummary
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::HistoricalPrior
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::InversionGrid
 impl core::marker::StructuralPartialEq for antecedent_stats::adaptive_inference::InversionInterval
@@ -2010,6 +2058,11 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::BorrowingPlan 
 impl core::marker::Sync for antecedent_stats::adaptive_inference::Boundaries [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::CapacityError [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::CellLabel [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ChoiceKernel [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ChoiceLaw [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ChoiceProcedureSpec [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ChoiceStoppingRule [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::ChoiceTerminalAtom [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ContractGap [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
@@ -2030,6 +2083,9 @@ impl core::marker::Sync for antecedent_stats::adaptive_inference::FrequentistCla
 impl core::marker::Sync for antecedent_stats::adaptive_inference::Functional [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::FutilityRule [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::GaussianMixtureLaw [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::HierarchicalChoicePrior [auto]
+impl core::marker::Sync for antecedent_stats::adaptive_inference::HierarchicalSummary [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::HistoricalPrior [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::InversionGrid [auto]
 impl core::marker::Sync for antecedent_stats::adaptive_inference::InversionInterval [auto]
@@ -2281,6 +2337,11 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::BorrowingPlan
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::Boundaries [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::CapacityError [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::CellLabel [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ChoiceKernel [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ChoiceLaw [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ChoiceProcedureSpec [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ChoiceStoppingRule [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::ChoiceTerminalAtom [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ContractGap [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
@@ -2301,6 +2362,9 @@ impl core::marker::Unpin for antecedent_stats::adaptive_inference::FrequentistCl
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::Functional [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::FutilityRule [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::GaussianMixtureLaw [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::HierarchicalChoicePrior [auto]
+impl core::marker::Unpin for antecedent_stats::adaptive_inference::HierarchicalSummary [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::HistoricalPrior [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::InversionGrid [auto]
 impl core::marker::Unpin for antecedent_stats::adaptive_inference::InversionInterval [auto]
@@ -2553,6 +2617,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::Boundaries [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::CapacityError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::CellLabel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ChoiceKernel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ChoiceLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ChoiceProcedureSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ChoiceStoppingRule [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ChoiceTerminalAtom [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ContractGap [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
@@ -2573,6 +2642,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_infe
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::Functional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::FutilityRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::GaussianMixtureLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::HierarchicalChoicePrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::HierarchicalSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::HistoricalPrior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::InversionGrid [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::InversionInterval [auto]
@@ -2824,6 +2896,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::Boundaries [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::CapacityError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::CellLabel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ChoiceKernel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ChoiceLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ChoiceProcedureSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ChoiceStoppingRule [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ChoiceTerminalAtom [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ComparisonReading [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ContractGap [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::ContrastPosterior [auto]
@@ -2844,6 +2921,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inferen
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::Functional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::FutilityRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::GaussianMixtureLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::HierarchicalChoicePosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::HierarchicalChoicePrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::HierarchicalSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::HistoricalPrior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::InversionGrid [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::InversionInterval [auto]
@@ -3143,6 +3223,12 @@ pub const antecedent_stats::adaptive_inference::MAX_ADAPTIVE_UNITS: usize
 pub const antecedent_stats::adaptive_inference::MAX_BANDIT_ARMS: usize
 pub const antecedent_stats::adaptive_inference::MAX_CHOICE_COUNT: u64
 pub const antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS: usize
+pub const antecedent_stats::adaptive_inference::MAX_CHOICE_PROCEDURE_LOOKS: usize
+pub const antecedent_stats::adaptive_inference::MAX_CHOICE_PROCEDURE_OPTIONS: usize
+pub const antecedent_stats::adaptive_inference::MAX_CHOICE_PROCEDURE_UNITS: u32
+pub const antecedent_stats::adaptive_inference::MAX_DISTINCT_HISTOGRAMS: usize
+pub const antecedent_stats::adaptive_inference::MAX_HIERARCHICAL_CHOICES: u32
+pub const antecedent_stats::adaptive_inference::MAX_HIERARCHICAL_OPTIONS: usize
 pub const antecedent_stats::adaptive_inference::MAX_HISTORICAL_SOURCES: usize
 pub const antecedent_stats::adaptive_inference::MAX_HISTORICAL_TRIALS: u64
 pub const antecedent_stats::adaptive_inference::MAX_INVERSION_LAWS: usize
@@ -3170,6 +3256,7 @@ pub const antecedent_stats::adaptive_inference::MAX_UNIT_LAG: usize
 pub const antecedent_stats::adaptive_inference::MAX_WEIGHTED_ARMS: usize
 pub const antecedent_stats::adaptive_inference::PARTICIPANT_PROCEDURE_VERSION: u64
 pub const antecedent_stats::adaptive_inference::PLUG_IN_LAMBDA_CAP: f64
+pub const antecedent_stats::adaptive_inference::QUADRATURE_ERROR_LIMIT: f64
 pub const antecedent_stats::adaptive_inference::REPEATED_MEASURES_POSTERIOR_LIKELIHOOD: &str
 pub const antecedent_stats::adaptive_inference::REPLAY_TOLERANCE: f64
 pub const antecedent_stats::adaptive_inference::SELECTION_IGNORABILITY_PREMISE: &str
@@ -3669,6 +3756,22 @@ pub field antecedent_stats::adaptive_inference::CellLabel::monitoring: &'static 
 pub field antecedent_stats::adaptive_inference::CellLabel::outcome: &'static str
 pub field antecedent_stats::adaptive_inference::CellLabel::paradigm: &'static str
 pub field antecedent_stats::adaptive_inference::CellLabel::stopping: &'static str
+pub field antecedent_stats::adaptive_inference::ChoiceLaw::atoms: alloc::vec::Vec<antecedent_stats::adaptive_inference::ChoiceTerminalAtom>
+pub field antecedent_stats::adaptive_inference::ChoiceLaw::cumulative_enrolment: alloc::vec::Vec<u32>
+pub field antecedent_stats::adaptive_inference::ChoiceLaw::peak_states: usize
+pub field antecedent_stats::adaptive_inference::ChoiceLaw::work_units: u64
+pub field antecedent_stats::adaptive_inference::ChoiceProcedureSpec::batches: alloc::vec::Vec<u32>
+pub field antecedent_stats::adaptive_inference::ChoiceProcedureSpec::prior: alloc::vec::Vec<f64>
+pub field antecedent_stats::adaptive_inference::ChoiceProcedureSpec::rule: antecedent_stats::adaptive_inference::ChoiceStoppingRule
+pub field antecedent_stats::adaptive_inference::ChoiceStoppingRule::max_expected_loss: core::option::Option<f64>
+pub field antecedent_stats::adaptive_inference::ChoiceStoppingRule::min_observations: u32
+pub field antecedent_stats::adaptive_inference::ChoiceStoppingRule::min_probability_best: core::option::Option<f64>
+pub field antecedent_stats::adaptive_inference::ChoiceTerminalAtom::counts: alloc::vec::Vec<u16>
+pub field antecedent_stats::adaptive_inference::ChoiceTerminalAtom::decision: core::option::Option<usize>
+pub field antecedent_stats::adaptive_inference::ChoiceTerminalAtom::enrolled: u32
+pub field antecedent_stats::adaptive_inference::ChoiceTerminalAtom::look: usize
+pub field antecedent_stats::adaptive_inference::ChoiceTerminalAtom::probability: f64
+pub field antecedent_stats::adaptive_inference::ChoiceTerminalAtom::rule_stopped: bool
 pub field antecedent_stats::adaptive_inference::ComparisonReading::arm: usize
 pub field antecedent_stats::adaptive_inference::ComparisonReading::lower: f64
 pub field antecedent_stats::adaptive_inference::ComparisonReading::upper: f64
@@ -3721,6 +3824,17 @@ pub field antecedent_stats::adaptive_inference::FutilityRule::margin: f64
 pub field antecedent_stats::adaptive_inference::FutilityRule::threshold: f64
 pub field antecedent_stats::adaptive_inference::GaussianMixtureLaw::components: alloc::vec::Vec<antecedent_stats::adaptive_inference::MixtureComponent>
 pub field antecedent_stats::adaptive_inference::GaussianMixtureLaw::undefined_mass: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalChoicePrior::log_concentration_mean: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalChoicePrior::log_concentration_sd: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalChoicePrior::shapes: alloc::vec::Vec<f64>
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::correlation_mean: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::expected_loss: alloc::vec::Vec<f64>
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::log_concentration_mean: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::log_concentration_sd: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::log_marginal_likelihood: f64
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::mean: alloc::vec::Vec<f64>
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::probability_best: alloc::vec::Vec<f64>
+pub field antecedent_stats::adaptive_inference::HierarchicalSummary::quadrature_error: f64
 pub field antecedent_stats::adaptive_inference::HistoricalPrior::discount: f64
 pub field antecedent_stats::adaptive_inference::HistoricalPrior::source: alloc::string::String
 pub field antecedent_stats::adaptive_inference::HistoricalPrior::successes: u64
@@ -4274,6 +4388,12 @@ pub fn <antecedent_stats::adaptive_inference::CapacityError>::fn reason_code(sel
 pub fn <antecedent_stats::adaptive_inference::CellLabel>::fn id(&self) -> alloc::string::String
 pub fn <antecedent_stats::adaptive_inference::CellLabel>::fn transfer_to(&self, other: &Self) -> core::result::Result<(), antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::CellLabel>::fn transfer_to_named(&self, id: &str, paradigm: &str) -> core::result::Result<(), antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::ChoiceLaw>::fn expected_enrolled(&self) -> f64
+pub fn <antecedent_stats::adaptive_inference::ChoiceLaw>::fn horizon_probability(&self) -> f64
+pub fn <antecedent_stats::adaptive_inference::ChoiceLaw>::fn rule_stop_probabilities(&self) -> alloc::vec::Vec<f64>
+pub fn <antecedent_stats::adaptive_inference::ChoiceLaw>::fn selection_probabilities(&self, options: usize) -> (alloc::vec::Vec<f64>, f64)
+pub fn <antecedent_stats::adaptive_inference::ChoiceStoppingRule>::fn assess(&self, observed: f64, probability_best: &[f64], expected_loss: &[f64]) -> core::option::Option<usize>
+pub fn <antecedent_stats::adaptive_inference::ChoiceStoppingRule>::fn is_valid(&self) -> bool
 pub fn <antecedent_stats::adaptive_inference::ContractGap>::const fn detail(self) -> &'static str
 pub fn <antecedent_stats::adaptive_inference::ContractGap>::const fn remedy(self) -> &'static str
 pub fn <antecedent_stats::adaptive_inference::ContractGap>::fn reason_code(self) -> &'static str
@@ -4300,6 +4420,10 @@ pub fn <antecedent_stats::adaptive_inference::GaussianMixtureLaw>::fn cdf(&self,
 pub fn <antecedent_stats::adaptive_inference::GaussianMixtureLaw>::fn defined_mass(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::GaussianMixtureLaw>::fn mean(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::GaussianMixtureLaw>::fn variance(&self) -> f64
+pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::const fn respondents(&self) -> usize
+pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn new(prior: &antecedent_stats::adaptive_inference::HierarchicalChoicePrior, counts: &[alloc::vec::Vec<u32>]) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn share_interval(&self, option: usize, level: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<(f64, f64), antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn summary(&self, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::HierarchicalSummary, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::HistoricalPrior>::fn borrowed_trials(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::LookReading>::fn numbers(&self) -> alloc::vec::Vec<f64>
 pub fn <antecedent_stats::adaptive_inference::OutcomeObservation>::const fn delayed(lag_looks: usize) -> Self
@@ -4454,6 +4578,7 @@ pub fn antecedent_stats::adaptive_inference::beta_bernoulli::regularized_incompl
 pub fn antecedent_stats::adaptive_inference::beta_binomial_pmf(responses: u32, mean: f64, correlation: f64) -> alloc::vec::Vec<f64>
 pub fn antecedent_stats::adaptive_inference::boundaries(fractions: &[f64], alpha: f64, spending: antecedent_stats::adaptive_inference::SpendingFunction, sidedness: antecedent_stats::adaptive_inference::Sidedness, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::Boundaries, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::bounded_mean_confidence_sequence(values: &[f64], alpha: f64, tuning_samples: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::choice_procedure::enumerate_choice_law(spec: &antecedent_stats::adaptive_inference::ChoiceProcedureSpec, kernel: &antecedent_stats::adaptive_inference::ChoiceKernel, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ChoiceLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::contrast_bounds(a: &antecedent_stats::adaptive_inference::ArmSequence, b: &antecedent_stats::adaptive_inference::ArmSequence) -> (f64, f64)
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::mixture_hoeffding_radius(count: u64, alpha: f64, tuning_samples: f64) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::plug_in_confidence_sequence(values: &[f64], alpha: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
@@ -4688,9 +4813,11 @@ pub fn antecedent_stats::synthesis_transport::transported_prior_update(prior: &a
 pub mod antecedent_stats::adaptive_inference
 pub mod antecedent_stats::adaptive_inference::beta_bernoulli
 pub mod antecedent_stats::adaptive_inference::capacity
+pub mod antecedent_stats::adaptive_inference::choice_procedure
 pub mod antecedent_stats::adaptive_inference::confidence_sequence
 pub mod antecedent_stats::adaptive_inference::dirichlet_choice
 pub mod antecedent_stats::adaptive_inference::group_sequential
+pub mod antecedent_stats::adaptive_inference::hierarchical_choice
 pub mod antecedent_stats::adaptive_inference::historical_prior
 pub mod antecedent_stats::adaptive_inference::participant_posterior
 pub mod antecedent_stats::adaptive_inference::participant_procedure
@@ -4875,6 +5002,10 @@ pub struct antecedent_stats::adaptive_inference::BetaPrior
 pub struct antecedent_stats::adaptive_inference::BorrowingPlan
 pub struct antecedent_stats::adaptive_inference::Boundaries
 pub struct antecedent_stats::adaptive_inference::CellLabel
+pub struct antecedent_stats::adaptive_inference::ChoiceLaw
+pub struct antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+pub struct antecedent_stats::adaptive_inference::ChoiceStoppingRule
+pub struct antecedent_stats::adaptive_inference::ChoiceTerminalAtom
 pub struct antecedent_stats::adaptive_inference::ComparisonReading
 pub struct antecedent_stats::adaptive_inference::ContrastPosterior
 pub struct antecedent_stats::adaptive_inference::CorrelationPrior
@@ -4889,6 +5020,10 @@ pub struct antecedent_stats::adaptive_inference::FinalAnalysis
 pub struct antecedent_stats::adaptive_inference::FrequentistClaim
 pub struct antecedent_stats::adaptive_inference::FutilityRule
 pub struct antecedent_stats::adaptive_inference::GaussianMixtureLaw
+pub struct antecedent_stats::adaptive_inference::HierarchicalChoicePosterior
+pub struct antecedent_stats::adaptive_inference::HierarchicalChoicePosterior has private fields
+pub struct antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+pub struct antecedent_stats::adaptive_inference::HierarchicalSummary
 pub struct antecedent_stats::adaptive_inference::HistoricalPrior
 pub struct antecedent_stats::adaptive_inference::InversionGrid
 pub struct antecedent_stats::adaptive_inference::InversionInterval
@@ -5020,6 +5155,14 @@ pub use antecedent_stats::adaptive_inference::capacity::MAX_SIMULATION_MEMORY_BY
 pub use antecedent_stats::adaptive_inference::capacity::MAX_SIMULATION_WORK = antecedent_stats::adaptive_inference::MAX_SIMULATION_WORK
 pub use antecedent_stats::adaptive_inference::capacity::ResourceBudget = antecedent_stats::adaptive_inference::ResourceBudget
 pub use antecedent_stats::adaptive_inference::capacity::ResourceReceipt = antecedent_stats::adaptive_inference::ResourceReceipt
+pub use antecedent_stats::adaptive_inference::choice_procedure::ChoiceKernel = antecedent_stats::adaptive_inference::ChoiceKernel
+pub use antecedent_stats::adaptive_inference::choice_procedure::ChoiceLaw = antecedent_stats::adaptive_inference::ChoiceLaw
+pub use antecedent_stats::adaptive_inference::choice_procedure::ChoiceProcedureSpec = antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+pub use antecedent_stats::adaptive_inference::choice_procedure::ChoiceStoppingRule = antecedent_stats::adaptive_inference::ChoiceStoppingRule
+pub use antecedent_stats::adaptive_inference::choice_procedure::ChoiceTerminalAtom = antecedent_stats::adaptive_inference::ChoiceTerminalAtom
+pub use antecedent_stats::adaptive_inference::choice_procedure::MAX_CHOICE_PROCEDURE_LOOKS = antecedent_stats::adaptive_inference::MAX_CHOICE_PROCEDURE_LOOKS
+pub use antecedent_stats::adaptive_inference::choice_procedure::MAX_CHOICE_PROCEDURE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_PROCEDURE_OPTIONS
+pub use antecedent_stats::adaptive_inference::choice_procedure::MAX_CHOICE_PROCEDURE_UNITS = antecedent_stats::adaptive_inference::MAX_CHOICE_PROCEDURE_UNITS
 pub use antecedent_stats::adaptive_inference::confidence_sequence::ArmSequence = antecedent_stats::adaptive_inference::ArmSequence
 pub use antecedent_stats::adaptive_inference::confidence_sequence::MAX_SEQUENCE_OBSERVATIONS = antecedent_stats::adaptive_inference::MAX_SEQUENCE_OBSERVATIONS
 pub use antecedent_stats::adaptive_inference::confidence_sequence::PLUG_IN_LAMBDA_CAP = antecedent_stats::adaptive_inference::PLUG_IN_LAMBDA_CAP
@@ -5030,6 +5173,7 @@ pub use antecedent_stats::adaptive_inference::contrast_bounds = antecedent_stats
 pub use antecedent_stats::adaptive_inference::dirichlet_choice::DirichletPosterior = antecedent_stats::adaptive_inference::DirichletPosterior
 pub use antecedent_stats::adaptive_inference::dirichlet_choice::MAX_CHOICE_COUNT = antecedent_stats::adaptive_inference::MAX_CHOICE_COUNT
 pub use antecedent_stats::adaptive_inference::dirichlet_choice::MAX_CHOICE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS
+pub use antecedent_stats::adaptive_inference::enumerate_choice_law = antecedent_stats::adaptive_inference::choice_procedure::enumerate_choice_law
 pub use antecedent_stats::adaptive_inference::expected_losses = antecedent_stats::adaptive_inference::beta_bernoulli::expected_losses
 pub use antecedent_stats::adaptive_inference::group_sequential::Boundaries = antecedent_stats::adaptive_inference::Boundaries
 pub use antecedent_stats::adaptive_inference::group_sequential::MAX_LOOKS = antecedent_stats::adaptive_inference::MAX_LOOKS
@@ -5040,6 +5184,13 @@ pub use antecedent_stats::adaptive_inference::group_sequential::StagewiseLook = 
 pub use antecedent_stats::adaptive_inference::group_sequential::boundaries = antecedent_stats::adaptive_inference::boundaries
 pub use antecedent_stats::adaptive_inference::group_sequential::crossing_probabilities = antecedent_stats::adaptive_inference::crossing_probabilities
 pub use antecedent_stats::adaptive_inference::group_sequential::first_crossing = antecedent_stats::adaptive_inference::first_crossing
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePosterior = antecedent_stats::adaptive_inference::HierarchicalChoicePosterior
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePrior = antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalSummary = antecedent_stats::adaptive_inference::HierarchicalSummary
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::MAX_DISTINCT_HISTOGRAMS = antecedent_stats::adaptive_inference::MAX_DISTINCT_HISTOGRAMS
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::MAX_HIERARCHICAL_CHOICES = antecedent_stats::adaptive_inference::MAX_HIERARCHICAL_CHOICES
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::MAX_HIERARCHICAL_OPTIONS = antecedent_stats::adaptive_inference::MAX_HIERARCHICAL_OPTIONS
+pub use antecedent_stats::adaptive_inference::hierarchical_choice::QUADRATURE_ERROR_LIMIT = antecedent_stats::adaptive_inference::QUADRATURE_ERROR_LIMIT
 pub use antecedent_stats::adaptive_inference::historical_prior::ArmPrior = antecedent_stats::adaptive_inference::ArmPrior
 pub use antecedent_stats::adaptive_inference::historical_prior::BorrowingPlan = antecedent_stats::adaptive_inference::BorrowingPlan
 pub use antecedent_stats::adaptive_inference::historical_prior::HistoricalPrior = antecedent_stats::adaptive_inference::HistoricalPrior
@@ -5676,6 +5827,8 @@ pub variant antecedent_stats::adaptive_inference::CapacityError::RetainedRecord 
 pub variant antecedent_stats::adaptive_inference::CapacityError::SimulationMemory { limit: u64, requested: u64 }
 pub variant antecedent_stats::adaptive_inference::CapacityError::SimulationReplications { limit: u64, requested: u64 }
 pub variant antecedent_stats::adaptive_inference::CapacityError::SimulationWork { limit: u64, requested: u64 }
+pub variant antecedent_stats::adaptive_inference::ChoiceKernel::Fixed { theta: alloc::vec::Vec<f64> }
+pub variant antecedent_stats::adaptive_inference::ChoiceKernel::PriorPredictive { alpha: alloc::vec::Vec<f64> }
 pub variant antecedent_stats::adaptive_inference::ContractGap::AnytimeSettingsMissing
 pub variant antecedent_stats::adaptive_inference::ContractGap::AssignmentPolicyMissing
 pub variant antecedent_stats::adaptive_inference::ContractGap::BetweenUnitVarianceMissing

@@ -438,6 +438,13 @@ impl core::clone::Clone for antecedent_estimate::categorical_treatment_posterior
 impl core::clone::Clone for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior
 impl core::clone::Clone for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior
 impl core::clone::Clone for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior
+impl core::clone::Clone for antecedent_estimate::choice_inference::ChoiceConflictPolicy
+impl core::clone::Clone for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics
+impl core::clone::Clone for antecedent_estimate::choice_inference::ChoicePosterior
+impl core::clone::Clone for antecedent_estimate::choice_inference::ChoiceStoppingDecision
+impl core::clone::Clone for antecedent_estimate::choice_inference::HierarchicalChoiceResult
+impl core::clone::Clone for antecedent_estimate::choice_inference::QualifiedChoicePrior
+impl core::clone::Clone for antecedent_estimate::choice_inference::QualifiedChoiceSource
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::CohortLinearFit
 impl core::clone::Clone for antecedent_estimate::cohort_linear_effect::CohortMeanInterval
@@ -1260,6 +1267,7 @@ impl core::cmp::Eq for antecedent_estimate::bayesian_robust_ate::BayesianRobustR
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::LevelCount
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::LevelScale
 impl core::cmp::Eq for antecedent_estimate::categorical_treatment::MonotonicityDirection
+impl core::cmp::Eq for antecedent_estimate::choice_inference::ChoiceConflictPolicy
 impl core::cmp::Eq for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::cmp::Eq for antecedent_estimate::cohort_linear_effect::NativeFitSize
 impl core::cmp::Eq for antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
@@ -1702,6 +1710,13 @@ impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment_posteri
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior
 impl core::cmp::PartialEq for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::ChoiceConflictPolicy
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::ChoicePosterior
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::ChoiceStoppingDecision
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::HierarchicalChoiceResult
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::QualifiedChoicePrior
+impl core::cmp::PartialEq for antecedent_estimate::choice_inference::QualifiedChoiceSource
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::CohortLinearFit
 impl core::cmp::PartialEq for antecedent_estimate::cohort_linear_effect::CohortMeanInterval
@@ -2932,6 +2947,13 @@ impl core::fmt::Debug for antecedent_estimate::categorical_treatment_posterior::
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior
 impl core::fmt::Debug for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior
+impl core::fmt::Debug for antecedent_estimate::choice_inference::ChoiceConflictPolicy
+impl core::fmt::Debug for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics
+impl core::fmt::Debug for antecedent_estimate::choice_inference::ChoicePosterior
+impl core::fmt::Debug for antecedent_estimate::choice_inference::ChoiceStoppingDecision
+impl core::fmt::Debug for antecedent_estimate::choice_inference::HierarchicalChoiceResult
+impl core::fmt::Debug for antecedent_estimate::choice_inference::QualifiedChoicePrior
+impl core::fmt::Debug for antecedent_estimate::choice_inference::QualifiedChoiceSource
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::CohortLinearFit
 impl core::fmt::Debug for antecedent_estimate::cohort_linear_effect::CohortMeanInterval
@@ -3876,6 +3898,8 @@ impl core::marker::Copy for antecedent_estimate::categorical_treatment::Declared
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::LevelScale
 impl core::marker::Copy for antecedent_estimate::categorical_treatment::MonotonicityDirection
 impl core::marker::Copy for antecedent_estimate::categorical_treatment_posterior::CategoricalPosteriorPrior
+impl core::marker::Copy for antecedent_estimate::choice_inference::ChoiceConflictPolicy
+impl core::marker::Copy for antecedent_estimate::choice_inference::ChoiceStoppingDecision
 impl core::marker::Copy for antecedent_estimate::cohort_linear_effect::NativeFitSize
 impl core::marker::Copy for antecedent_estimate::continuous_dose::DoseWindow
 impl core::marker::Copy for antecedent_estimate::continuous_dose_posterior::PolicyWindow
@@ -4449,6 +4473,13 @@ impl core::marker::Freeze for antecedent_estimate::categorical_treatment_posteri
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::ChoiceConflictPolicy [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::ChoicePosterior [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::ChoiceStoppingDecision [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::HierarchicalChoiceResult [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::QualifiedChoicePrior [auto]
+impl core::marker::Freeze for antecedent_estimate::choice_inference::QualifiedChoiceSource [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::CohortLinearFit [auto]
 impl core::marker::Freeze for antecedent_estimate::cohort_linear_effect::CohortMeanInterval [auto]
@@ -5545,6 +5576,13 @@ impl core::marker::Send for antecedent_estimate::categorical_treatment_posterior
 impl core::marker::Send for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior [auto]
 impl core::marker::Send for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::ChoiceConflictPolicy [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::ChoicePosterior [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::ChoiceStoppingDecision [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::HierarchicalChoiceResult [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::QualifiedChoicePrior [auto]
+impl core::marker::Send for antecedent_estimate::choice_inference::QualifiedChoiceSource [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::CohortLinearFit [auto]
 impl core::marker::Send for antecedent_estimate::cohort_linear_effect::CohortMeanInterval [auto]
@@ -6535,6 +6573,13 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_trea
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::ChoiceConflictPolicy
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::ChoicePosterior
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::ChoiceStoppingDecision
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::HierarchicalChoiceResult
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::QualifiedChoicePrior
+impl core::marker::StructuralPartialEq for antecedent_estimate::choice_inference::QualifiedChoiceSource
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::CohortLinearFit
 impl core::marker::StructuralPartialEq for antecedent_estimate::cohort_linear_effect::CohortMeanInterval
@@ -7556,6 +7601,13 @@ impl core::marker::Sync for antecedent_estimate::categorical_treatment_posterior
 impl core::marker::Sync for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::ChoiceConflictPolicy [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::ChoicePosterior [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::ChoiceStoppingDecision [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::HierarchicalChoiceResult [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::QualifiedChoicePrior [auto]
+impl core::marker::Sync for antecedent_estimate::choice_inference::QualifiedChoiceSource [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::CohortLinearFit [auto]
 impl core::marker::Sync for antecedent_estimate::cohort_linear_effect::CohortMeanInterval [auto]
@@ -8655,6 +8707,13 @@ impl core::marker::Unpin for antecedent_estimate::categorical_treatment_posterio
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::ChoiceConflictPolicy [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::ChoicePosterior [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::ChoiceStoppingDecision [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::HierarchicalChoiceResult [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::QualifiedChoicePrior [auto]
+impl core::marker::Unpin for antecedent_estimate::choice_inference::QualifiedChoiceSource [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::CohortLinearFit [auto]
 impl core::marker::Unpin for antecedent_estimate::cohort_linear_effect::CohortMeanInterval [auto]
@@ -9757,6 +9816,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorica
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::ChoiceConflictPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::ChoicePosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::ChoiceStoppingDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::HierarchicalChoiceResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::QualifiedChoicePrior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::QualifiedChoiceSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::CohortLinearFit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::cohort_linear_effect::CohortMeanInterval [auto]
@@ -10855,6 +10921,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_t
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment_posterior::ContrastPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::ChoiceConflictPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::ChoicePosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::ChoiceStoppingDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::HierarchicalChoiceResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::QualifiedChoicePrior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::QualifiedChoiceSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::CohortLinearFit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::cohort_linear_effect::CohortMeanInterval [auto]
@@ -11876,6 +11949,7 @@ impl<'a> core::clone::Clone for antecedent_estimate::bayesian_local_ratio::Local
 impl<'a> core::clone::Clone for antecedent_estimate::bayesian_rd::RdSample<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a>
+impl<'a> core::clone::Clone for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRows<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::clone::Clone for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a>
@@ -11966,6 +12040,7 @@ impl<'a> core::fmt::Debug for antecedent_estimate::bayesian_local_ratio::LocalRa
 impl<'a> core::fmt::Debug for antecedent_estimate::bayesian_rd::RdSample<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a>
+impl<'a> core::fmt::Debug for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRows<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::fmt::Debug for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a>
@@ -12037,6 +12112,7 @@ impl<'a> core::marker::Copy for antecedent_estimate::bayesian_iv::IvSample<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::bayesian_local_ratio::LocalRatioSample<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::bayesian_rd::RdSample<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>
+impl<'a> core::marker::Copy for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRows<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose::DoseRules<'a>
 impl<'a> core::marker::Copy for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a>
@@ -12107,6 +12183,7 @@ impl<'a> core::marker::Freeze for antecedent_estimate::bayesian_local_ratio::Loc
 impl<'a> core::marker::Freeze for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
@@ -12182,6 +12259,7 @@ impl<'a> core::marker::Send for antecedent_estimate::bayesian_local_ratio::Local
 impl<'a> core::marker::Send for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a> [auto]
+impl<'a> core::marker::Send for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Send for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
@@ -12268,6 +12346,7 @@ impl<'a> core::marker::Sync for antecedent_estimate::bayesian_local_ratio::Local
 impl<'a> core::marker::Sync for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
@@ -12343,6 +12422,7 @@ impl<'a> core::marker::Unpin for antecedent_estimate::bayesian_local_ratio::Loca
 impl<'a> core::marker::Unpin for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
@@ -12415,6 +12495,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesi
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
@@ -12487,6 +12568,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_rd::RdSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::categorical_treatment::CategoricalTreatmentInput<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::choice_inference::ChoiceSourceCounts<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseRows<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose::DoseRules<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_estimate::continuous_dose_posterior::DoseCurvePrior<'a> [auto]
@@ -12907,6 +12989,22 @@ pub const antecedent_estimate::categorical_treatment::MONOTONICITY_NON_DECREASIN
 pub const antecedent_estimate::categorical_treatment::MONOTONICITY_NON_INCREASING_NULL: &str
 pub const antecedent_estimate::categorical_treatment_posterior::CATEGORICAL_POSTERIOR_ESTIMAND: &str
 pub const antecedent_estimate::categorical_treatment_posterior::CATEGORICAL_POSTERIOR_LIKELIHOOD: &str
+pub const antecedent_estimate::choice_inference::CHOICE_INTERVAL_METHOD: &str
+pub const antecedent_estimate::choice_inference::CHOICE_POSTERIOR_PREMISE: &str
+pub const antecedent_estimate::choice_inference::CONFLICT_LOG_BAYES_FACTOR: f64
+pub const antecedent_estimate::choice_inference::CONFLICT_STATEMENT: &str
+pub const antecedent_estimate::choice_inference::DIRICHLET_ESTIMATOR: &str
+pub const antecedent_estimate::choice_inference::DIRICHLET_PRIOR: &str
+pub const antecedent_estimate::choice_inference::FIRST_OPTION_SHARE_FUNCTIONAL: &str
+pub const antecedent_estimate::choice_inference::HIERARCHICAL_DEPENDENCE: &str
+pub const antecedent_estimate::choice_inference::HIERARCHICAL_ESTIMATOR: &str
+pub const antecedent_estimate::choice_inference::HIERARCHICAL_PREMISE: &str
+pub const antecedent_estimate::choice_inference::HIERARCHICAL_PRIOR: &str
+pub const antecedent_estimate::choice_inference::MEANING_STATEMENT: &str
+pub const antecedent_estimate::choice_inference::MEASURED_LEVEL: f64
+pub const antecedent_estimate::choice_inference::OPERATING_CHARACTERISTICS_STATEMENT: &str
+pub const antecedent_estimate::choice_inference::POOLED_DEPENDENCE: &str
+pub const antecedent_estimate::choice_inference::QUERY: &str
 pub const antecedent_estimate::cohort_linear_effect::DETAIL_LEVEL_INVALID: &str
 pub const antecedent_estimate::cohort_linear_effect::DETAIL_NOT_LICENSED: &str
 pub const antecedent_estimate::cohort_linear_effect::DETAIL_REQUIRES_NATIVE_FIT: &str
@@ -13178,6 +13276,7 @@ pub enum antecedent_estimate::adjustment_resume::PredictionRefusal
 pub enum antecedent_estimate::bayesian_local_ratio::LocalRatioKind
 pub enum antecedent_estimate::categorical_treatment::LevelScale
 pub enum antecedent_estimate::categorical_treatment::MonotonicityDirection
+pub enum antecedent_estimate::choice_inference::ChoiceConflictPolicy
 pub enum antecedent_estimate::count_fitted_posterior::NodeTable
 pub enum antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap
 pub enum antecedent_estimate::counterfactual_transport_sampled::SamplingDesign
@@ -14886,6 +14985,44 @@ pub field antecedent_estimate::categorical_treatment_posterior::MonotonicityPost
 pub field antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior::lower_bound: f64
 pub field antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior::step_probabilities: alloc::vec::Vec<f64>
 pub field antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior::upper_bound: f64
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::expected_enrolled: f64
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::horizon_probability: f64
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::rule_stop: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::selection: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::statement: &'static str
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::undecided: f64
+pub field antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics::work_units: u64
+pub field antecedent_estimate::choice_inference::ChoicePosterior::alpha: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::ChoicePosterior::expected_loss: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::ChoicePosterior::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::choice_inference::ChoicePosterior::mean: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::ChoicePosterior::observations: f64
+pub field antecedent_estimate::choice_inference::ChoicePosterior::premise: &'static str
+pub field antecedent_estimate::choice_inference::ChoicePosterior::probability_best: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::ChoiceSourceCounts::counts: &'a [f64]
+pub field antecedent_estimate::choice_inference::ChoiceSourceCounts::discount: f64
+pub field antecedent_estimate::choice_inference::ChoiceSourceCounts::label: &'a str
+pub field antecedent_estimate::choice_inference::ChoiceSourceCounts::transferred: bool
+pub field antecedent_estimate::choice_inference::ChoiceStoppingDecision::best_option: usize
+pub field antecedent_estimate::choice_inference::ChoiceStoppingDecision::expected_loss: f64
+pub field antecedent_estimate::choice_inference::ChoiceStoppingDecision::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::choice_inference::ChoiceStoppingDecision::probability_best: f64
+pub field antecedent_estimate::choice_inference::ChoiceStoppingDecision::stop: bool
+pub field antecedent_estimate::choice_inference::HierarchicalChoiceResult::guarantee: antecedent_estimate::adaptive_inference::WithheldGuarantee
+pub field antecedent_estimate::choice_inference::HierarchicalChoiceResult::observations: f64
+pub field antecedent_estimate::choice_inference::HierarchicalChoiceResult::premise: &'static str
+pub field antecedent_estimate::choice_inference::HierarchicalChoiceResult::respondents: usize
+pub field antecedent_estimate::choice_inference::HierarchicalChoiceResult::summary: antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalSummary
+pub field antecedent_estimate::choice_inference::QualifiedChoicePrior::alpha: alloc::vec::Vec<f64>
+pub field antecedent_estimate::choice_inference::QualifiedChoicePrior::borrowed_observations: f64
+pub field antecedent_estimate::choice_inference::QualifiedChoicePrior::sources: alloc::vec::Vec<antecedent_estimate::choice_inference::QualifiedChoiceSource>
+pub field antecedent_estimate::choice_inference::QualifiedChoicePrior::statements: alloc::vec::Vec<&'static str>
+pub field antecedent_estimate::choice_inference::QualifiedChoiceSource::conflict_log_bayes_factor: f64
+pub field antecedent_estimate::choice_inference::QualifiedChoiceSource::conflicting: bool
+pub field antecedent_estimate::choice_inference::QualifiedChoiceSource::discount: f64
+pub field antecedent_estimate::choice_inference::QualifiedChoiceSource::label: alloc::string::String
+pub field antecedent_estimate::choice_inference::QualifiedChoiceSource::transferred: bool
 pub field antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal::code: &'static str
 pub field antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal::detail: &'static str
 pub field antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal::remedy: &'static str
@@ -18651,6 +18788,7 @@ pub fn <antecedent_estimate::adjustment_resume::AdjustedFit>::fn prediction_refu
 pub fn <antecedent_estimate::bayesian_panel_did::DidPrior>::const fn diffuse() -> Self
 pub fn <antecedent_estimate::bayesian_synthetic_control::BayesianSyntheticControlSpec<'a>>::const fn new(treated_unit: &'a str, intervention_period: i64) -> Self
 pub fn <antecedent_estimate::categorical_treatment::DeclaredRows>::fn is_plain(&self) -> bool
+pub fn <antecedent_estimate::choice_inference::QualifiedChoicePrior>::fn has_conflict(&self) -> bool
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn export(&self) -> &antecedent_io_core::compact_export::CompactExport
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn linear_fit(&self) -> &antecedent_estimate::cohort_linear_effect::CohortLinearFit
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn rows(&self) -> &antecedent_estimate::cohort_linear_effect::NativeFitRows
@@ -19286,6 +19424,20 @@ pub fn antecedent_estimate::cell_aipw::interaction_contrast(table: &antecedent_e
 pub fn antecedent_estimate::cell_aipw::summarize_with_contrast(table: &antecedent_estimate::ScoreTable, spec: &str, weights: core::option::Option<&[f64]>) -> core::result::Result<(antecedent_estimate::ScoreSummary, antecedent_estimate::LinearContrast), antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::changes_target(weights: &[f64]) -> bool
 pub fn antecedent_estimate::check_depends_on(depends_on: &[antecedent_core::ids::VariableId], table: &antecedent_estimate::ScoreTable, graph: core::option::Option<&dyn antecedent_estimate::DirectedAncestry>) -> core::result::Result<(), antecedent_estimate::EstimationError>
+pub fn antecedent_estimate::choice_inference::calibration_basis(estimator: &str, functional: &str, dependence: &str, prior: &str, rows: u64) -> antecedent_core::calibration_basis::CalibrationBasis
+pub fn antecedent_estimate::choice_inference::choice_operating_characteristics(spec: &antecedent_stats::adaptive_inference::choice_procedure::ChoiceProcedureSpec, kernel: &antecedent_stats::adaptive_inference::choice_procedure::ChoiceKernel, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::choice_posterior(prior: &[f64], counts: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoicePosterior, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::choice_stopping_decision(posterior: &antecedent_estimate::choice_inference::ChoicePosterior, rule: antecedent_stats::adaptive_inference::choice_procedure::ChoiceStoppingRule) -> core::result::Result<antecedent_estimate::choice_inference::ChoiceStoppingDecision, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::contract_pooled_counts(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, look: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::contract_posterior(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract, look: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoicePosterior, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::contract_procedure_spec(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract) -> core::result::Result<antecedent_stats::adaptive_inference::choice_procedure::ChoiceProcedureSpec, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::contract_stopping_rule(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract) -> core::result::Result<antecedent_stats::adaptive_inference::choice_procedure::ChoiceStoppingRule, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::dirichlet_share_interval(alpha: &[f64], option: usize, level: f64) -> core::result::Result<(f64, f64), antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::hierarchical_choice_posterior(prior: &antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePrior, respondents: &[alloc::vec::Vec<u32>], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::HierarchicalChoiceResult, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::hierarchical_share_interval(prior: &antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePrior, respondents: &[alloc::vec::Vec<u32>], option: usize, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(f64, f64), antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::hierarchical_stopping_decision(result: &antecedent_estimate::choice_inference::HierarchicalChoiceResult, rule: antecedent_stats::adaptive_inference::choice_procedure::ChoiceStoppingRule) -> core::result::Result<antecedent_estimate::choice_inference::ChoiceStoppingDecision, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::qualify_choice_prior(initial: &[f64], sources: &[antecedent_estimate::choice_inference::ChoiceSourceCounts<'_>], policy: antecedent_estimate::choice_inference::ChoiceConflictPolicy) -> core::result::Result<antecedent_estimate::choice_inference::QualifiedChoicePrior, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_estimate::choice_inference::qualify_contract_prior(contract: &antecedent_contract::adaptive_design::choice::ChoiceDesignContract) -> core::result::Result<antecedent_estimate::choice_inference::QualifiedChoicePrior, antecedent_estimate::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_estimate::circular_block_positions_into(m: usize, block: usize, rng: &mut antecedent_core::execution::rng::CausalRng, out: &mut alloc::vec::Vec<usize>)
 pub fn antecedent_estimate::circular_fixed_b_scale(block_length: usize, rows: usize) -> f64
 pub fn antecedent_estimate::clear_simultaneous_band(support: &mut antecedent_core::response::SupportReport)
@@ -19834,6 +19986,7 @@ pub mod antecedent_estimate::bayesian_synthetic_control
 pub mod antecedent_estimate::categorical_treatment
 pub mod antecedent_estimate::categorical_treatment_posterior
 pub mod antecedent_estimate::cell_aipw
+pub mod antecedent_estimate::choice_inference
 pub mod antecedent_estimate::cohort_linear_effect
 pub mod antecedent_estimate::complier_posterior
 pub mod antecedent_estimate::conditional
@@ -20325,6 +20478,13 @@ pub struct antecedent_estimate::categorical_treatment_posterior::CategoricalPost
 pub struct antecedent_estimate::categorical_treatment_posterior::CategoricalTreatmentPosterior
 pub struct antecedent_estimate::categorical_treatment_posterior::ContrastPosterior
 pub struct antecedent_estimate::categorical_treatment_posterior::MonotonicityPosterior
+pub struct antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics
+pub struct antecedent_estimate::choice_inference::ChoicePosterior
+pub struct antecedent_estimate::choice_inference::ChoiceSourceCounts<'a>
+pub struct antecedent_estimate::choice_inference::ChoiceStoppingDecision
+pub struct antecedent_estimate::choice_inference::HierarchicalChoiceResult
+pub struct antecedent_estimate::choice_inference::QualifiedChoicePrior
+pub struct antecedent_estimate::choice_inference::QualifiedChoiceSource
 pub struct antecedent_estimate::cohort_linear_effect::CohortIntervalRefusal
 pub struct antecedent_estimate::cohort_linear_effect::CohortLinearFit
 pub struct antecedent_estimate::cohort_linear_effect::CohortMeanInterval
@@ -21137,6 +21297,11 @@ pub use antecedent_estimate::cell_aipw::MAX_JOINT_BINARY = antecedent_estimate::
 pub use antecedent_estimate::cell_aipw::POINT_CDE_UNLICENSED = antecedent_estimate::POINT_CDE_UNLICENSED
 pub use antecedent_estimate::cell_aipw::SharedCellInputs = antecedent_estimate::SharedCellInputs
 pub use antecedent_estimate::cell_minus_control_contrast = antecedent_estimate::cell_aipw::cell_minus_control_contrast
+pub use antecedent_estimate::choice_inference::ChoiceKernel = antecedent_stats::adaptive_inference::ChoiceKernel
+pub use antecedent_estimate::choice_inference::ChoiceProcedureSpec = antecedent_stats::adaptive_inference::ChoiceProcedureSpec
+pub use antecedent_estimate::choice_inference::ChoiceStoppingRule = antecedent_stats::adaptive_inference::ChoiceStoppingRule
+pub use antecedent_estimate::choice_inference::HierarchicalChoicePrior = antecedent_stats::adaptive_inference::HierarchicalChoicePrior
+pub use antecedent_estimate::choice_inference::MAX_CHOICE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS
 pub use antecedent_estimate::coefficient_covariance_from_draws = antecedent_estimate::bayesian::coefficient_covariance_from_draws
 pub use antecedent_estimate::conditional::ConditionalArmScores = antecedent_estimate::ConditionalArmScores
 pub use antecedent_estimate::conditional::ConditionalLinearAdjustment = antecedent_estimate::ConditionalLinearAdjustment
@@ -21691,6 +21856,8 @@ pub variant antecedent_estimate::categorical_treatment::LevelScale::Ordered
 pub variant antecedent_estimate::categorical_treatment::LevelScale::Unordered
 pub variant antecedent_estimate::categorical_treatment::MonotonicityDirection::NonDecreasing
 pub variant antecedent_estimate::categorical_treatment::MonotonicityDirection::NonIncreasing
+pub variant antecedent_estimate::choice_inference::ChoiceConflictPolicy::Refuse
+pub variant antecedent_estimate::choice_inference::ChoiceConflictPolicy::Report
 pub variant antecedent_estimate::count_fitted_posterior::NodeTable::Counts(alloc::vec::Vec<u64>)
 pub variant antecedent_estimate::count_fitted_posterior::NodeTable::Declared(alloc::vec::Vec<f64>)
 pub variant antecedent_estimate::counterfactual_transport_sampled::DatasetOverlap::Independent

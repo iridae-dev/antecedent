@@ -319,6 +319,12 @@ impl core::clone::Clone for antecedent_contract::adaptive_design::AdaptiveDesign
 impl core::clone::Clone for antecedent_contract::adaptive_design::AssignmentFamily
 impl core::clone::Clone for antecedent_contract::adaptive_design::BoundarySidedness
 impl core::clone::Clone for antecedent_contract::adaptive_design::CellStatus
+impl core::clone::Clone for antecedent_contract::adaptive_design::ChoiceContractError
+impl core::clone::Clone for antecedent_contract::adaptive_design::ChoiceDesignContract
+impl core::clone::Clone for antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+impl core::clone::Clone for antecedent_contract::adaptive_design::ChoiceEvidence
+impl core::clone::Clone for antecedent_contract::adaptive_design::ChoiceLook
+impl core::clone::Clone for antecedent_contract::adaptive_design::ChoiceRespondent
 impl core::clone::Clone for antecedent_contract::adaptive_design::DelayMechanism
 impl core::clone::Clone for antecedent_contract::adaptive_design::InferenceParadigm
 impl core::clone::Clone for antecedent_contract::adaptive_design::InterimAnalysis
@@ -328,6 +334,7 @@ impl core::clone::Clone for antecedent_contract::adaptive_design::OutcomeAvailab
 impl core::clone::Clone for antecedent_contract::adaptive_design::OutcomeStructure
 impl core::clone::Clone for antecedent_contract::adaptive_design::PolicyEpoch
 impl core::clone::Clone for antecedent_contract::adaptive_design::ProcedureCell
+impl core::clone::Clone for antecedent_contract::adaptive_design::RetainedChoiceSource
 impl core::clone::Clone for antecedent_contract::adaptive_design::RouteAuthorization
 impl core::clone::Clone for antecedent_contract::adaptive_design::SpendingKind
 impl core::clone::Clone for antecedent_contract::adaptive_design::StoppingRuleDeclaration
@@ -687,6 +694,8 @@ impl core::cmp::Eq for antecedent_contract::WorldTime
 impl core::cmp::Eq for antecedent_contract::adaptive_design::AssignmentFamily
 impl core::cmp::Eq for antecedent_contract::adaptive_design::BoundarySidedness
 impl core::cmp::Eq for antecedent_contract::adaptive_design::CellStatus
+impl core::cmp::Eq for antecedent_contract::adaptive_design::ChoiceLook
+impl core::cmp::Eq for antecedent_contract::adaptive_design::ChoiceRespondent
 impl core::cmp::Eq for antecedent_contract::adaptive_design::DelayMechanism
 impl core::cmp::Eq for antecedent_contract::adaptive_design::InferenceParadigm
 impl core::cmp::Eq for antecedent_contract::adaptive_design::MonitoringStrategy
@@ -1103,6 +1112,10 @@ impl core::cmp::PartialEq for antecedent_contract::adaptive_design::AdaptiveDesi
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::AssignmentFamily
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::BoundarySidedness
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::CellStatus
+impl core::cmp::PartialEq for antecedent_contract::adaptive_design::ChoiceContractError
+impl core::cmp::PartialEq for antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+impl core::cmp::PartialEq for antecedent_contract::adaptive_design::ChoiceLook
+impl core::cmp::PartialEq for antecedent_contract::adaptive_design::ChoiceRespondent
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::DelayMechanism
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::InferenceParadigm
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::InterimAnalysis
@@ -1111,6 +1124,7 @@ impl core::cmp::PartialEq for antecedent_contract::adaptive_design::OutcomeAvail
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::OutcomeStructure
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::PolicyEpoch
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::ProcedureCell
+impl core::cmp::PartialEq for antecedent_contract::adaptive_design::RetainedChoiceSource
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::RouteAuthorization
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::SpendingKind
 impl core::cmp::PartialEq for antecedent_contract::adaptive_design::StoppingRuleDeclaration
@@ -1405,6 +1419,7 @@ impl core::error::Error for antecedent_contract::EvidencePortError
 impl core::error::Error for antecedent_contract::JointAlignmentError
 impl core::error::Error for antecedent_contract::ProvenanceError
 impl core::error::Error for antecedent_contract::adaptive_design::AdaptiveContractError
+impl core::error::Error for antecedent_contract::adaptive_design::ChoiceContractError
 impl core::error::Error for antecedent_contract::composition_verification::GraphError
 impl core::error::Error for antecedent_contract::composition_verification::ViewError
 impl core::error::Error for antecedent_contract::evidence_ledger::LedgerError
@@ -1608,6 +1623,12 @@ impl core::fmt::Debug for antecedent_contract::adaptive_design::AdaptiveDesignDe
 impl core::fmt::Debug for antecedent_contract::adaptive_design::AssignmentFamily
 impl core::fmt::Debug for antecedent_contract::adaptive_design::BoundarySidedness
 impl core::fmt::Debug for antecedent_contract::adaptive_design::CellStatus
+impl core::fmt::Debug for antecedent_contract::adaptive_design::ChoiceContractError
+impl core::fmt::Debug for antecedent_contract::adaptive_design::ChoiceDesignContract
+impl core::fmt::Debug for antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+impl core::fmt::Debug for antecedent_contract::adaptive_design::ChoiceEvidence
+impl core::fmt::Debug for antecedent_contract::adaptive_design::ChoiceLook
+impl core::fmt::Debug for antecedent_contract::adaptive_design::ChoiceRespondent
 impl core::fmt::Debug for antecedent_contract::adaptive_design::DelayMechanism
 impl core::fmt::Debug for antecedent_contract::adaptive_design::InferenceParadigm
 impl core::fmt::Debug for antecedent_contract::adaptive_design::InterimAnalysis
@@ -1617,6 +1638,7 @@ impl core::fmt::Debug for antecedent_contract::adaptive_design::OutcomeAvailabil
 impl core::fmt::Debug for antecedent_contract::adaptive_design::OutcomeStructure
 impl core::fmt::Debug for antecedent_contract::adaptive_design::PolicyEpoch
 impl core::fmt::Debug for antecedent_contract::adaptive_design::ProcedureCell
+impl core::fmt::Debug for antecedent_contract::adaptive_design::RetainedChoiceSource
 impl core::fmt::Debug for antecedent_contract::adaptive_design::RouteAuthorization
 impl core::fmt::Debug for antecedent_contract::adaptive_design::SpendingKind
 impl core::fmt::Debug for antecedent_contract::adaptive_design::StoppingRuleDeclaration
@@ -1842,6 +1864,7 @@ impl core::fmt::Display for antecedent_contract::ProvenanceError
 impl core::fmt::Display for antecedent_contract::SharedFactor
 impl core::fmt::Display for antecedent_contract::SharedFactorId
 impl core::fmt::Display for antecedent_contract::adaptive_design::AdaptiveContractError
+impl core::fmt::Display for antecedent_contract::adaptive_design::ChoiceContractError
 impl core::fmt::Display for antecedent_contract::composition_verification::GraphError
 impl core::fmt::Display for antecedent_contract::composition_verification::ViewError
 impl core::fmt::Display for antecedent_contract::evidence_ledger::LedgerError
@@ -2063,6 +2086,7 @@ impl core::marker::Copy for antecedent_contract::VerifiedContractKind
 impl core::marker::Copy for antecedent_contract::adaptive_design::AssignmentFamily
 impl core::marker::Copy for antecedent_contract::adaptive_design::BoundarySidedness
 impl core::marker::Copy for antecedent_contract::adaptive_design::CellStatus
+impl core::marker::Copy for antecedent_contract::adaptive_design::ChoiceLook
 impl core::marker::Copy for antecedent_contract::adaptive_design::DelayMechanism
 impl core::marker::Copy for antecedent_contract::adaptive_design::InferenceParadigm
 impl core::marker::Copy for antecedent_contract::adaptive_design::InterimAnalysis
@@ -2353,6 +2377,12 @@ impl core::marker::Freeze for antecedent_contract::adaptive_design::AdaptiveDesi
 impl core::marker::Freeze for antecedent_contract::adaptive_design::AssignmentFamily [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::BoundarySidedness [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::CellStatus [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::ChoiceContractError [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::ChoiceDesignContract [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::ChoiceDesignDeclaration [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::ChoiceEvidence [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::ChoiceLook [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::ChoiceRespondent [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::DelayMechanism [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::InferenceParadigm [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::InterimAnalysis [auto]
@@ -2362,6 +2392,7 @@ impl core::marker::Freeze for antecedent_contract::adaptive_design::OutcomeAvail
 impl core::marker::Freeze for antecedent_contract::adaptive_design::OutcomeStructure [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::PolicyEpoch [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::ProcedureCell [auto]
+impl core::marker::Freeze for antecedent_contract::adaptive_design::RetainedChoiceSource [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::RouteAuthorization [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::SpendingKind [auto]
 impl core::marker::Freeze for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
@@ -2769,6 +2800,12 @@ impl core::marker::Send for antecedent_contract::adaptive_design::AdaptiveDesign
 impl core::marker::Send for antecedent_contract::adaptive_design::AssignmentFamily [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::BoundarySidedness [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::CellStatus [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::ChoiceContractError [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::ChoiceDesignContract [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::ChoiceDesignDeclaration [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::ChoiceEvidence [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::ChoiceLook [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::ChoiceRespondent [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::DelayMechanism [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::InferenceParadigm [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::InterimAnalysis [auto]
@@ -2778,6 +2815,7 @@ impl core::marker::Send for antecedent_contract::adaptive_design::OutcomeAvailab
 impl core::marker::Send for antecedent_contract::adaptive_design::OutcomeStructure [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::PolicyEpoch [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::ProcedureCell [auto]
+impl core::marker::Send for antecedent_contract::adaptive_design::RetainedChoiceSource [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::RouteAuthorization [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::SpendingKind [auto]
 impl core::marker::Send for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
@@ -3184,6 +3222,10 @@ impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design:
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::AssignmentFamily
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::BoundarySidedness
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::CellStatus
+impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::ChoiceContractError
+impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::ChoiceLook
+impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::ChoiceRespondent
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::DelayMechanism
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::InferenceParadigm
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::InterimAnalysis
@@ -3192,6 +3234,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design:
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::OutcomeStructure
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::PolicyEpoch
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::ProcedureCell
+impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::RetainedChoiceSource
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::RouteAuthorization
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::SpendingKind
 impl core::marker::StructuralPartialEq for antecedent_contract::adaptive_design::StoppingRuleDeclaration
@@ -3595,6 +3638,12 @@ impl core::marker::Sync for antecedent_contract::adaptive_design::AdaptiveDesign
 impl core::marker::Sync for antecedent_contract::adaptive_design::AssignmentFamily [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::BoundarySidedness [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::CellStatus [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::ChoiceContractError [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::ChoiceDesignContract [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::ChoiceDesignDeclaration [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::ChoiceEvidence [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::ChoiceLook [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::ChoiceRespondent [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::DelayMechanism [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::InferenceParadigm [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::InterimAnalysis [auto]
@@ -3604,6 +3653,7 @@ impl core::marker::Sync for antecedent_contract::adaptive_design::OutcomeAvailab
 impl core::marker::Sync for antecedent_contract::adaptive_design::OutcomeStructure [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::PolicyEpoch [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::ProcedureCell [auto]
+impl core::marker::Sync for antecedent_contract::adaptive_design::RetainedChoiceSource [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::RouteAuthorization [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::SpendingKind [auto]
 impl core::marker::Sync for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
@@ -4011,6 +4061,12 @@ impl core::marker::Unpin for antecedent_contract::adaptive_design::AdaptiveDesig
 impl core::marker::Unpin for antecedent_contract::adaptive_design::AssignmentFamily [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::BoundarySidedness [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::CellStatus [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::ChoiceContractError [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::ChoiceDesignContract [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::ChoiceDesignDeclaration [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::ChoiceEvidence [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::ChoiceLook [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::ChoiceRespondent [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::DelayMechanism [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::InferenceParadigm [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::InterimAnalysis [auto]
@@ -4020,6 +4076,7 @@ impl core::marker::Unpin for antecedent_contract::adaptive_design::OutcomeAvaila
 impl core::marker::Unpin for antecedent_contract::adaptive_design::OutcomeStructure [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::PolicyEpoch [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::ProcedureCell [auto]
+impl core::marker::Unpin for antecedent_contract::adaptive_design::RetainedChoiceSource [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::RouteAuthorization [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::SpendingKind [auto]
 impl core::marker::Unpin for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
@@ -4427,6 +4484,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_d
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::AssignmentFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::BoundarySidedness [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::CellStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ChoiceContractError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ChoiceDesignContract [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ChoiceDesignDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ChoiceEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ChoiceLook [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ChoiceRespondent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::DelayMechanism [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::InferenceParadigm [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::InterimAnalysis [auto]
@@ -4436,6 +4499,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_d
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::OutcomeStructure [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::PolicyEpoch [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::ProcedureCell [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::RetainedChoiceSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::RouteAuthorization [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::SpendingKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
@@ -4843,6 +4907,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_desi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::AssignmentFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::BoundarySidedness [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::CellStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ChoiceContractError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ChoiceDesignContract [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ChoiceDesignDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ChoiceEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ChoiceLook [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ChoiceRespondent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::DelayMechanism [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::InferenceParadigm [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::InterimAnalysis [auto]
@@ -4852,6 +4922,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_desi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::OutcomeStructure [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::PolicyEpoch [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::ProcedureCell [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::RetainedChoiceSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::RouteAuthorization [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::SpendingKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::adaptive_design::StoppingRuleDeclaration [auto]
@@ -5937,6 +6008,23 @@ pub field antecedent_contract::adaptive_design::AdaptiveDesignDeclaration::outco
 pub field antecedent_contract::adaptive_design::AdaptiveDesignDeclaration::policy_history: core::option::Option<alloc::vec::Vec<antecedent_contract::adaptive_design::PolicyEpoch>>
 pub field antecedent_contract::adaptive_design::AdaptiveDesignDeclaration::probability_floor: f64
 pub field antecedent_contract::adaptive_design::AdaptiveDesignDeclaration::stopping_rule: core::option::Option<antecedent_contract::adaptive_design::StoppingRuleDeclaration>
+pub field antecedent_contract::adaptive_design::ChoiceContractError::refusals: alloc::vec::Vec<antecedent_contract::ExternalRefusal>
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::cell: antecedent_contract::adaptive_design::ProcedureCell
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::initial_prior: alloc::vec::Vec<f64>
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::label: alloc::string::String
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::looks: core::option::Option<alloc::vec::Vec<antecedent_contract::adaptive_design::ChoiceLook>>
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::meaning: alloc::string::String
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::option_labels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::population: alloc::string::String
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::respondents: alloc::vec::Vec<antecedent_contract::adaptive_design::ChoiceRespondent>
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::retained_sources: alloc::vec::Vec<antecedent_contract::adaptive_design::RetainedChoiceSource>
+pub field antecedent_contract::adaptive_design::ChoiceDesignDeclaration::stopping_rule: core::option::Option<antecedent_contract::adaptive_design::StoppingRuleDeclaration>
+pub field antecedent_contract::adaptive_design::ChoiceEvidence::ledger: antecedent_contract::evidence_ledger::EvidenceLedger
+pub field antecedent_contract::adaptive_design::ChoiceEvidence::respondents: antecedent_contract::evidence_ledger::SourceId
+pub field antecedent_contract::adaptive_design::ChoiceEvidence::sources: alloc::vec::Vec<antecedent_contract::evidence_ledger::SourceId>
+pub field antecedent_contract::adaptive_design::ChoiceLook::respondents: u32
+pub field antecedent_contract::adaptive_design::ChoiceRespondent::counts: alloc::vec::Vec<u32>
+pub field antecedent_contract::adaptive_design::ChoiceRespondent::id: alloc::string::String
 pub field antecedent_contract::adaptive_design::InterimAnalysis::information_fraction: f64
 pub field antecedent_contract::adaptive_design::InterimAnalysis::units_enrolled: u32
 pub field antecedent_contract::adaptive_design::InterimEvidence::ledger: antecedent_contract::evidence_ledger::EvidenceLedger
@@ -5951,6 +6039,14 @@ pub field antecedent_contract::adaptive_design::ProcedureCell::assignment: antec
 pub field antecedent_contract::adaptive_design::ProcedureCell::monitoring: antecedent_contract::adaptive_design::MonitoringStrategy
 pub field antecedent_contract::adaptive_design::ProcedureCell::outcome: antecedent_contract::adaptive_design::OutcomeStructure
 pub field antecedent_contract::adaptive_design::ProcedureCell::stopping: antecedent_contract::adaptive_design::StoppingRuleKind
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::counts: alloc::vec::Vec<f64>
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::discount: f64
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::label: alloc::string::String
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::meaning: alloc::string::String
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::observation_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::option_labels: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::population: alloc::string::String
+pub field antecedent_contract::adaptive_design::RetainedChoiceSource::transfer_rationale: core::option::Option<alloc::string::String>
 pub field antecedent_contract::adaptive_design::RouteAuthorization::cell: antecedent_contract::adaptive_design::ProcedureCell
 pub field antecedent_contract::adaptive_design::RouteAuthorization::contract_identity: antecedent_core::identity::SemanticDigest
 pub field antecedent_contract::adaptive_design::RouteAuthorization::paradigm: antecedent_contract::adaptive_design::InferenceParadigm
@@ -6816,6 +6912,16 @@ pub fn <antecedent_contract::adaptive_design::AssignmentFamily>::fn from_name(na
 pub fn <antecedent_contract::adaptive_design::BoundarySidedness>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::adaptive_design::BoundarySidedness>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::adaptive_design::CellStatus>::const fn class(&self) -> &'static str
+pub fn <antecedent_contract::adaptive_design::ChoiceContractError>::fn details(&self) -> alloc::vec::Vec<&str>
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn cell(&self) -> antecedent_contract::adaptive_design::ProcedureCell
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn declaration(&self) -> &antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn evidence(&self) -> &antecedent_contract::adaptive_design::ChoiceEvidence
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::const fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn admit_paradigm(&self, paradigm: antecedent_contract::adaptive_design::InferenceParadigm) -> core::result::Result<antecedent_contract::adaptive_design::RouteAuthorization, antecedent_contract::ExternalRefusal>
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn looks(&self) -> usize
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn new(declaration: antecedent_contract::adaptive_design::ChoiceDesignDeclaration) -> core::result::Result<Self, antecedent_contract::adaptive_design::ChoiceContractError>
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn options(&self) -> usize
+pub fn <antecedent_contract::adaptive_design::ChoiceDesignContract>::fn respondents_at(&self, look: usize) -> core::result::Result<&[antecedent_contract::adaptive_design::ChoiceRespondent], antecedent_contract::ExternalRefusal>
 pub fn <antecedent_contract::adaptive_design::DelayMechanism>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::adaptive_design::InferenceParadigm>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::adaptive_design::InferenceParadigm>::const fn statement(self) -> &'static str
@@ -7611,11 +7717,19 @@ pub struct antecedent_contract::adaptive_design::AdaptiveContractError
 pub struct antecedent_contract::adaptive_design::AdaptiveDesignContract
 pub struct antecedent_contract::adaptive_design::AdaptiveDesignContract has private fields
 pub struct antecedent_contract::adaptive_design::AdaptiveDesignDeclaration
+pub struct antecedent_contract::adaptive_design::ChoiceContractError
+pub struct antecedent_contract::adaptive_design::ChoiceDesignContract
+pub struct antecedent_contract::adaptive_design::ChoiceDesignContract has private fields
+pub struct antecedent_contract::adaptive_design::ChoiceDesignDeclaration
+pub struct antecedent_contract::adaptive_design::ChoiceEvidence
+pub struct antecedent_contract::adaptive_design::ChoiceLook
+pub struct antecedent_contract::adaptive_design::ChoiceRespondent
 pub struct antecedent_contract::adaptive_design::InterimAnalysis
 pub struct antecedent_contract::adaptive_design::InterimEvidence
 pub struct antecedent_contract::adaptive_design::OutcomeAvailability
 pub struct antecedent_contract::adaptive_design::PolicyEpoch
 pub struct antecedent_contract::adaptive_design::ProcedureCell
+pub struct antecedent_contract::adaptive_design::RetainedChoiceSource
 pub struct antecedent_contract::adaptive_design::RouteAuthorization
 pub struct antecedent_contract::adaptive_design::StoppingRuleDeclaration
 pub struct antecedent_contract::bridge::AffineDrawLaw
@@ -8454,7 +8568,9 @@ pub variant antecedent_contract::adaptive_design::MonitoringStrategy::Continuous
 pub variant antecedent_contract::adaptive_design::MonitoringStrategy::FinalAnalysisOnly
 pub variant antecedent_contract::adaptive_design::MonitoringStrategy::FixedInterimLooks
 pub variant antecedent_contract::adaptive_design::MonitoringStrategy::GroupSequential
+pub variant antecedent_contract::adaptive_design::OutcomeStructure::CategoricalChoice
 pub variant antecedent_contract::adaptive_design::OutcomeStructure::HierarchicalClustered
+pub variant antecedent_contract::adaptive_design::OutcomeStructure::RepeatedChoice
 pub variant antecedent_contract::adaptive_design::OutcomeStructure::RepeatedMeasures
 pub variant antecedent_contract::adaptive_design::OutcomeStructure::SingleOutcome
 pub variant antecedent_contract::adaptive_design::SpendingKind::OBrienFlemingType
