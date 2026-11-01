@@ -3208,6 +3208,7 @@ def evaluate_graph(
     permutation_seed: int | None = None,
     seed: int = 0,
     threads: int | None = None,
+    memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 def attribute_intrinsic_influence(
@@ -3229,6 +3230,7 @@ def attribute_intrinsic_influence(
     max_sources: int = 64,
     seed: int = 0,
     threads: int | None = None,
+    memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 def sample_policy(
@@ -9710,7 +9712,12 @@ def discovered_transport_trial_estimate_run(
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
 def verify_trial_compatible_transport_estimate_artifact(
-    artifact: bytes, *, seed: int = 0
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def discovered_transport_trial_confidence_set_run(
     contract_json: str,
@@ -10034,7 +10041,14 @@ def discovered_transport_estimate_run(
     threads: int | None = None,
     cancel: Any = None,
 ) -> tuple[str | None, str | None, str | None, str | None, bytes | None]: ...
-def verify_discovered_transport_estimate_artifact(artifact: bytes, *, seed: int = 0) -> str: ...
+def verify_discovered_transport_estimate_artifact(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    threads: int | None = None,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def discovered_temporal_graph_transport(
     graph: Any,
     horizon_steps: int,

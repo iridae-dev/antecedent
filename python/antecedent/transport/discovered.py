@@ -646,9 +646,8 @@ def verify_discovered_transport_estimate(
             execution,
             _native.verify_discovered_transport_estimate_artifact,
             bytes(artifact),
-            cancel=None,
-            memory=None,
             seed="seed",
+            threads="threads",
         )
     )
     return VerifiedEstimate(

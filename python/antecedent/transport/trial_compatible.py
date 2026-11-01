@@ -368,9 +368,8 @@ def verify_trial_compatible_transport_estimate(
             execution,
             _native.verify_trial_compatible_transport_estimate_artifact,
             bytes(artifact),
-            cancel=None,
-            memory=None,
             seed="seed",
+            threads="threads",
         )
     )
     return VerifiedTrialEstimate(

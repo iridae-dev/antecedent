@@ -437,20 +437,25 @@ fn discovered_transport_estimate_run(
 /// Returns the recomputed answer as JSON; a malformed or forged artifact raises the shared
 /// value error.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
+#[pyo3(signature = (artifact, *, seed=0, threads=None, memory_bytes=None, cancel=None))]
 fn verify_discovered_transport_estimate_artifact(
     py: Python<'_>,
     artifact: &[u8],
     seed: u64,
+    threads: Option<u32>,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
-    let ctx = crate::py_execution_context_cancel(seed, crate::resolve_user_threads(None), None);
+    let mut ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    ctx.set_memory_limit(memory_bytes);
     let verified = crate::detach_catch(py, || {
         verify_discovered_transport_estimate(
             artifact,
             antecedent_expr::ExactEvaluationLimits::default(),
             &ctx,
         )
-        .map_err(|e| crate::value_err(e.to_string()))
+        .map_err(crate::transport_common::error)
     })?;
     Ok(json!({
         "answer": answer_json(&verified.answer),
@@ -540,6 +545,7 @@ pub(crate) fn across_temporal_outcome(
 #[pyfunction]
 #[pyo3(signature = (graph, horizon_steps, query_json, selection_targets, history=None, member_bound=None, exhausted_search_bounds=0))]
 fn discovered_temporal_graph_transport(
+    py: Python<'_>,
     graph: &Bound<'_, PyAny>,
     horizon_steps: u32,
     query_json: &str,
@@ -548,22 +554,33 @@ fn discovered_temporal_graph_transport(
     member_bound: Option<usize>,
     exhausted_search_bounds: usize,
 ) -> PyResult<Reply> {
+    enum Owned {
+        Dag(antecedent_graph::TemporalDag),
+        Cpdag(antecedent_graph::TemporalCpdag),
+        Pag(antecedent_graph::TemporalPag),
+    }
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = selection_targets.into_iter().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
     let horizon = TemporalHorizon { horizon_steps, history };
-    let run = |class: TemporalClass<'_>| {
-        transport_temporal_class(class, exhausted_search_bounds, horizon, &ids, &query, bound)
-    };
-    let report = if let Ok(dag) = graph.extract::<crate::graphs::TemporalDag>() {
-        run(TemporalClass::Dag(&dag.dag))
+    let owned = if let Ok(dag) = graph.extract::<crate::graphs::TemporalDag>() {
+        Owned::Dag(dag.dag.clone())
     } else if let Ok(cpdag) = graph.extract::<crate::graphs::TemporalCpdag>() {
-        run(TemporalClass::Cpdag(&cpdag.cpdag))
+        Owned::Cpdag(cpdag.cpdag.clone())
     } else if let Ok(pag) = graph.extract::<crate::graphs::TemporalPag>() {
-        run(TemporalClass::Pag(&pag.pag))
+        Owned::Pag(pag.pag.clone())
     } else {
         return Err(crate::value_err("graph must be a TemporalDag, TemporalCpdag or TemporalPag"));
     };
+    // Member enumeration is bounded only by the caller's `member_bound`: run it detached.
+    let report = crate::detach_catch(py, move || {
+        let class = match &owned {
+            Owned::Dag(dag) => TemporalClass::Dag(dag),
+            Owned::Cpdag(cpdag) => TemporalClass::Cpdag(cpdag),
+            Owned::Pag(pag) => TemporalClass::Pag(pag),
+        };
+        Ok(transport_temporal_class(class, exhausted_search_bounds, horizon, &ids, &query, bound))
+    })?;
     match report {
         Ok(report) => Ok((Some(temporal_envelope_json(&report).to_string()), None)),
         Err(error) => Ok((None, Some(refusal_of(&error)?))),

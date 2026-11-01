@@ -264,20 +264,25 @@ fn discovered_transport_trial_estimate_run(
 /// Replay an exported trial-compatible estimate: the exact test, every graph decision and every
 /// retained member grid. Returns the recomputed answer and the replayed proof as JSON.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0))]
+#[pyo3(signature = (artifact, *, seed=0, threads=None, memory_bytes=None, cancel=None))]
 fn verify_trial_compatible_transport_estimate_artifact(
     py: Python<'_>,
     artifact: &[u8],
     seed: u64,
+    threads: Option<u32>,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
-    let ctx = crate::py_execution_context_cancel(seed, crate::resolve_user_threads(None), None);
+    let mut ctx =
+        crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
+    ctx.set_memory_limit(memory_bytes);
     let (proof, verified) = crate::detach_catch(py, || {
         verify_trial_compatible_transport_estimate(
             artifact,
             antecedent_expr::ExactEvaluationLimits::default(),
             &ctx,
         )
-        .map_err(|e| crate::value_err(e.to_string()))
+        .map_err(crate::transport_common::error)
     })?;
     let compatibility =
         proof_json(&proof).map_err(|error| crate::serialization_err(error.to_string()))?;

@@ -31,7 +31,7 @@ use antecedent_io::{
 use crate::graphs::Admg;
 use crate::response_api::build_functional;
 use crate::transport_common::{error, serialization_error};
-use crate::{CausalIdentifyError, detach_catch, numeric_columns_to_batch, py_err};
+use crate::{detach_catch, numeric_columns_to_batch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct TransportIdentificationResult {
@@ -743,7 +743,7 @@ fn identify_transport(
         .map_err(py_err)?;
     let result = TransportIdentifier::new()
         .identify(&diagram, &query)
-        .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
+        .map_err(crate::transport_common::error)?;
     transport_result(
         result,
         &graph,

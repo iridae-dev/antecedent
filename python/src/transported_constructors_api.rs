@@ -551,6 +551,7 @@ fn adaptive_refusal(refusals: &[AdaptiveInferenceRefusal]) -> Built {
 #[pyo3(signature = (design_json, trial_population, unit_strata, stratum_labels, target_stratum_law, diagram_json, treatment_arm, control_arm, value, coordinate_json, provider_id))]
 #[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
 fn adaptive_trial_construct(
+    py: Python<'_>,
     design_json: Option<&str>,
     trial_population: &str,
     unit_strata: Vec<usize>,
@@ -563,6 +564,7 @@ fn adaptive_trial_construct(
     coordinate_json: &str,
     provider_id: &str,
 ) -> PyResult<Built> {
+    check_trial_units(&unit_strata, &stratum_labels)?;
     let value = match value {
         "treatment_mean" => AdaptiveTransportedValue::TreatmentMean,
         "control_mean" => AdaptiveTransportedValue::ControlMean,
@@ -613,7 +615,10 @@ fn adaptive_trial_construct(
         treatment_arm,
         control_arm,
     };
-    Ok(match adaptive_trial_response(&request, value, coordinate, provider_id) {
+    let outcome = crate::detach_catch(py, || {
+        Ok(adaptive_trial_response(&request, value, coordinate, provider_id))
+    })?;
+    Ok(match outcome {
         Ok(built) => {
             let e = &built.evaluation;
             let evaluation = json!({
@@ -643,6 +648,18 @@ fn adaptive_trial_construct(
         }
         Err(refusal) => refused(&refusal),
     })
+}
+
+/// The trial's unit and stratum lists are caller-sized: bound them by the adaptive-unit limit
+/// every other adaptive path enforces.
+fn check_trial_units(unit_strata: &[usize], stratum_labels: &[String]) -> PyResult<()> {
+    let limit = antecedent_stats::adaptive_inference::MAX_ADAPTIVE_UNITS;
+    if unit_strata.len() > limit || stratum_labels.len() > limit {
+        return Err(crate::value_err(format!(
+            "an adaptive trial transport takes at most {limit} units and strata"
+        )));
+    }
+    Ok(())
 }
 
 fn method_of(wire: MethodIn) -> PyResult<TransportedSynthesisMethod> {
@@ -991,6 +1008,7 @@ fn temporal_policy_verify(
 #[pyo3(signature = (design_json, trial_population, unit_strata, stratum_labels, target_stratum_law, diagram_json, treatment_arm, control_arm, stored_json))]
 #[allow(clippy::too_many_arguments)] // Mirrors the Python signature.
 fn adaptive_trial_verify(
+    py: Python<'_>,
     design_json: Option<&str>,
     trial_population: &str,
     unit_strata: Vec<usize>,
@@ -1001,6 +1019,7 @@ fn adaptive_trial_verify(
     control_arm: usize,
     stored_json: &str,
 ) -> PyResult<Option<String>> {
+    check_trial_units(&unit_strata, &stratum_labels)?;
     let session = match design_json {
         None => None,
         Some(text) => {
@@ -1041,17 +1060,25 @@ fn adaptive_trial_verify(
         treatment_arm,
         control_arm,
     };
-    let mut claimed = match transport_adaptive_trial(&request) {
-        Ok(fresh) => fresh,
-        Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
-    };
-    claimed.identity = stored_text(&stored, "identity")?;
-    claimed.treatment_mean = stored_f64(&stored, "treatment_mean")?;
-    claimed.control_mean = stored_f64(&stored, "control_mean")?;
-    claimed.contrast = stored_f64(&stored, "contrast")?;
-    Ok(verify_adaptive_transport(&claimed, &request)
-        .err()
-        .map(|error| external_refusal_json(&error.to_refusal())))
+    let (identity, treatment_mean, control_mean, contrast) = (
+        stored_text(&stored, "identity")?,
+        stored_f64(&stored, "treatment_mean")?,
+        stored_f64(&stored, "control_mean")?,
+        stored_f64(&stored, "contrast")?,
+    );
+    crate::detach_catch(py, || {
+        let mut claimed = match transport_adaptive_trial(&request) {
+            Ok(fresh) => fresh,
+            Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
+        };
+        claimed.identity = identity;
+        claimed.treatment_mean = treatment_mean;
+        claimed.control_mean = control_mean;
+        claimed.contrast = contrast;
+        Ok(verify_adaptive_transport(&claimed, &request)
+            .err()
+            .map(|error| external_refusal_json(&error.to_refusal())))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
