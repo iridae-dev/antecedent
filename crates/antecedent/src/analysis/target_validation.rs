@@ -145,14 +145,10 @@ pub fn result_target_family(result: &StudyResult) -> TargetFamily {
             | ResponseFunctional::PointDerivative { .. }
             | ResponseFunctional::DirectionalDerivative { .. }
             | ResponseFunctional::Jacobian { .. } => TargetFamily::ResponseDerivative,
-            ResponseFunctional::MeanCurve { .. } => TargetFamily::WorldValued,
-            ResponseFunctional::InterventionResponse { .. } => match &response.estimate {
-                ResponseIdentification::PointIdentified(ResponseValue::Scalar(_)) => {
-                    TargetFamily::ScalarAverageEffect
-                }
-                _ if response.horizon_identification.is_some() => TargetFamily::TemporalEffect,
-                _ => TargetFamily::WorldValued,
-            },
+            // A response level remains a world value even when it has one coordinate or
+            // is evaluated at a temporal horizon. It is not an average-effect contrast.
+            ResponseFunctional::MeanCurve { .. }
+            | ResponseFunctional::InterventionResponse { .. } => TargetFamily::WorldValued,
         };
     }
     if result.distribution().is_some() {
@@ -1589,7 +1585,7 @@ pub(super) fn refute_temporal_response_member(
     );
     let labels = (0..original.len()).map(|i| format!("{prefix}|coordinate[{i}]"));
     let target = RefutationTarget::new(
-        TargetFamily::TemporalEffect,
+        TargetFamily::WorldValued,
         result_quadrant(result),
         labels,
         *source.as_bytes(),

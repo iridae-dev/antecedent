@@ -13,7 +13,8 @@ use antecedent::analysis::target_validation::{
 };
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, DerivativeScale, ExecutionContext, ResponseFunctional, ResponseQuery, VariableId,
+    CausalQuery, DerivativeScale, ExecutionContext, Intervention, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseValue, Value, VariableId,
 };
 use antecedent_data::TabularData;
 use antecedent_estimate::ContinuousResponseOptions;
@@ -86,6 +87,69 @@ fn checked_outcome(
         ctx,
     )
     .unwrap()
+}
+
+#[test]
+fn compiled_intervention_level_is_a_world_value_not_an_average_effect() {
+    let n = 240_u32;
+    let b: Vec<f64> = (0..n).map(|i| (f64::from(i) * 1.13).cos()).collect();
+    let a: Vec<f64> =
+        (0..n).zip(&b).map(|(i, b)| 2.0 + 0.5 * b + (f64::from(i) * 0.71).sin()).collect();
+    let y: Vec<f64> = a.iter().zip(&b).map(|(a, b)| 5.0 + 2.0 * a - 0.5 * b).collect();
+    let expected = 9.0 - 0.5 * b.iter().sum::<f64>() / f64::from(n);
+    let data = TabularData::from_f64_columns([
+        ("a", a.as_slice()),
+        ("b", b.as_slice()),
+        ("y", y.as_slice()),
+    ])
+    .unwrap();
+    let mut graph = Dag::with_variables(3);
+    for (source, target) in [(1, 0), (0, 2), (1, 2)] {
+        graph
+            .insert_directed(DenseNodeId::from_raw(source), DenseNodeId::from_raw(target))
+            .unwrap();
+    }
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(2),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(2.0))]),
+    });
+    let ctx = ExecutionContext::for_tests(63);
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::Response(query))
+        .response_options(ContinuousResponseOptions { bandwidth: Some(0.35), ..Default::default() })
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Scalar(level)) =
+        &result.response().unwrap().estimate
+    else {
+        panic!("expected the compiled scalar intervention level")
+    };
+    // The penalized nuisance fit is approximate even for this linear law.
+    assert!((level - expected).abs() < 1e-3, "{level} vs {expected}");
+    let (family, labels, values) = result_target_values(&result).unwrap();
+    assert_eq!(family, TargetFamily::WorldValued);
+    assert_eq!(labels.iter().map(AsRef::as_ref).collect::<Vec<&str>>(), ["value"]);
+    assert_eq!(values[0].to_bits(), level.to_bits());
+    let target = result_refutation_target(&result).unwrap();
+    assert_eq!(target.family(), TargetFamily::WorldValued);
+    assert_eq!(target.source(), result.lowered_program_identity().unwrap().as_bytes());
+    let scalar_report = RefutationReport::new("scalar_ate", 1.0, 0.0, 0.5, true, true, None, 8);
+    assert!(matches!(
+        antecedent_validate::target_native::refuse_scalar_reports_for_target(
+            &target,
+            &[scalar_report]
+        ),
+        Err(TargetCertificationError::ScalarRefuterForOtherTarget {
+            claim_family: TargetFamily::WorldValued,
+            ..
+        })
+    ));
 }
 
 #[test]
