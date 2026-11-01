@@ -14,17 +14,17 @@ use antecedent::decision_evidence::{
     JointStaticRegimeDesign, JointSwitchbackDesign, MatchedPairDesign, OutcomeComponent, PlanValue,
     ProxyBridge, ProxyMapping, Request, SamplingInterval, StageDigests, Standing, Target,
     TemporalEffectBridge, TemporalEstimand, UnresolvedReason, UtilityExpr, Verdict,
-    compile_and_evidence_from_cluster, compile_and_evidence_from_joint_excursion,
-    compile_and_evidence_from_joint_static_regime,
+    compile_and_evidence_from_adaptive_regime, compile_and_evidence_from_cluster,
+    compile_and_evidence_from_joint_excursion, compile_and_evidence_from_joint_static_regime,
     compile_and_evidence_from_joint_static_regime_bootstrap,
     compile_and_evidence_from_joint_switchback, compile_and_evidence_from_matched_pairs,
     compile_joint_excursion, compile_joint_experiment, compile_joint_static_regime,
     compile_joint_switchback, compile_matched_pair_design, compiled_decision_refusal, decide,
-    decide_with_proxy, decide_with_temporal_bridge, derive, evidence_from_compiled_cluster,
-    evidence_from_compiled_excursion, evidence_from_compiled_experiment,
-    evidence_from_compiled_static_regime, evidence_from_joint_excursion,
-    evidence_from_joint_static_regime, evidence_from_joint_switchback, evidence_from_matched_pairs,
-    plan_evidence,
+    decide_with_proxy, decide_with_temporal_bridge, derive, evidence_from_compiled_adaptive_regime,
+    evidence_from_compiled_cluster, evidence_from_compiled_excursion,
+    evidence_from_compiled_experiment, evidence_from_compiled_static_regime,
+    evidence_from_joint_excursion, evidence_from_joint_static_regime,
+    evidence_from_joint_switchback, evidence_from_matched_pairs, plan_evidence,
 };
 use pyo3::prelude::*;
 use serde_json::{Map, Value as Json, json};
@@ -282,6 +282,20 @@ fn evidence_with_context(
                     consistency_assumption_id: d.consistency_assumption_id,
                 })
             }
+            "adaptive_regime" => Some(DesignDetails::AdaptiveRegime {
+                subject_ids: decoded(m, "subject_ids")?,
+                periods: u32::try_from(count(m, "periods")?)
+                    .map_err(|_| crate::value_err("adaptive horizon too large"))?,
+                policy_prespecification_assumption_id: text(
+                    m,
+                    "policy_prespecification_assumption_id",
+                )?,
+                positivity_assumption_id: text(m, "positivity_assumption_id")?,
+                exchangeability_assumption_id: text(m, "exchangeability_assumption_id")?,
+                consistency_assumption_id: text(m, "consistency_assumption_id")?,
+                followup_assumption_id: text(m, "followup_assumption_id")?,
+                failures: decoded(m, "failures")?,
+            }),
             "temporal_regime" => {
                 let d = regime_design(m)?;
                 let compiled = match compile_joint_static_regime(d.clone()) {
@@ -399,7 +413,12 @@ fn evidence_with_context(
     }
     let owner = if matches!(
         value.design.assignment_design.as_str(),
-        "temporal_excursion" | "temporal_regime" | "matched_pairs" | "switchback" | "cluster"
+        "temporal_excursion"
+            | "temporal_regime"
+            | "adaptive_regime"
+            | "matched_pairs"
+            | "switchback"
+            | "cluster"
     ) {
         use antecedent::analysis::joint_panel::designs::{
             DesignArtifactLimits, replay_native_joint_design_execution,
@@ -449,6 +468,11 @@ fn evidence_with_context(
                 (&value.treated_regime_id, &value.control_regime_id),
                 value.horizon,
             ) {
+                Ok(bound) => bound.numerical_evidence().clone(),
+                Err(error) => return Ok(Err(error)),
+            }
+        } else if value.design.assignment_design == "adaptive_regime" {
+            match evidence_from_compiled_adaptive_regime(source.clone(), &value.evidence_id) {
                 Ok(bound) => bound.numerical_evidence().clone(),
                 Err(error) => return Ok(Err(error)),
             }
@@ -553,6 +577,11 @@ fn request(value: &Json) -> PyResult<Request> {
             let t = object(t, "target")?;
             match text(t, "kind")?.as_str() {
                 "experimental_contrast" => Target::ExperimentalContrast,
+                "adaptive_regime" => Target::AdaptiveRegime {
+                    periods: u32::try_from(count(t, "periods")?)
+                        .map_err(|_| crate::value_err("adaptive horizon too large"))?,
+                    exchangeability_assumption_id: text(t, "exchangeability_assumption_id")?,
+                },
                 "regime" => Target::Regime {
                     periods: u32::try_from(count(t, "periods")?)
                         .map_err(|_| crate::value_err("regime horizon too large"))?,
@@ -700,6 +729,14 @@ fn candidates(map: &Map<String, Json>) -> PyResult<Vec<Candidate>> {
                         })?,
                     cost,
                 },
+                "more_independent_units" => Candidate::MoreIndependentUnits {
+                    id: text(m, "id")?,
+                    additional_units: member(m, "additional_units")?
+                        .as_u64()
+                        .ok_or_else(|| crate::value_err("`additional_units` must be an integer"))?,
+                    same_design_assumption_id: text(m, "same_design_assumption_id")?,
+                    cost,
+                },
                 "resolve_assumption" => Candidate::ResolveAssumption {
                     id: text(m, "id")?,
                     assumption_id: text(m, "assumption_id")?,
@@ -801,7 +838,7 @@ fn plan_json(p: &antecedent::decision_evidence::EvidencePlan) -> Json {
             }
             PlanValue::Refused(message) => json!({"refused": message}),
         };
-        json!({"id": r.id, "obligation": r.kind.as_str(), "value": value})
+        json!({"id": r.id, "obligation": r.kind.as_str(), "planning_assumption_id": r.planning_assumption_id, "value": value})
     };
     json!({
         "evsi_rows": p.evsi_rows.iter().map(row).collect::<Vec<_>>(),
@@ -888,6 +925,73 @@ fn decision_evidence_compiled_cluster(
             "control_units":ev.design.control_units, "outcome_rows":ev.design.outcome_rows},
         "design_contract_id":ev.design_contract_id, "compiled_source_artifact":artifact,
         "adjustments":m["adjustments"], "exposure":m["exposure"]
+    }))))
+}
+
+/// Compile a bounded adaptive policy comparison and retain its native source.
+#[pyfunction]
+#[pyo3(signature=(payload_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+fn decision_evidence_adaptive(
+    payload_json: &str,
+    seed: u64,
+    threads: u32,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<Refused> {
+    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+    let v = parse_decision(payload_json, "adaptive regime evidence")?;
+    let m = object(&v, "adaptive regime evidence")?;
+    let recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe =
+        decoded(m, "recipe")?;
+    let bound =
+        match compile_and_evidence_from_adaptive_regime(recipe, &text(m, "evidence_id")?, &ctx) {
+            Ok(v) => v,
+            Err(e) => return Ok(finish(Err(e))),
+        };
+    let artifact = match bound.source().export_artifact_with_context(
+        &ctx,
+        antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+    ) {
+        Ok(v) => v,
+        Err(e) => return Ok(finish(Err(compiled_decision_refusal(e)))),
+    };
+    let ev = bound.numerical_evidence();
+    let Some(DesignDetails::AdaptiveRegime {
+        subject_ids,
+        periods,
+        policy_prespecification_assumption_id,
+        positivity_assumption_id,
+        exchangeability_assumption_id,
+        consistency_assumption_id,
+        followup_assumption_id,
+        failures,
+    }) = &ev.design_details
+    else {
+        unreachable!()
+    };
+    let dependence = match &ev.dependence {
+        Dependence::JointArms { covariance } => {
+            json!({"kind":"joint_arms", "covariance":covariance})
+        }
+        Dependence::PointOnly => json!({"kind":"point_only"}),
+        _ => unreachable!(),
+    };
+    let components: Vec<_> = ev
+        .components
+        .iter()
+        .map(|c| json!({"name":c.name, "variable_id":c.variable_id, "units":c.units}))
+        .collect();
+    let Exposure::NoBetweenUnitInterference { assumption_id } = &ev.exposure else {
+        unreachable!()
+    };
+    Ok(finish(Ok(json!({
+        "evidence_id":ev.evidence_id, "population_id":ev.population_id,
+        "treated_regime_id":ev.treated_regime_id, "control_regime_id":ev.control_regime_id,
+        "horizon":ev.horizon, "components":components, "treated_means":ev.treated_means, "control_means":ev.control_means,
+        "dependence":dependence, "design":{"assignment_design":"adaptive_regime", "treated_units":ev.design.treated_units,"control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
+        "design_contract_id":ev.design_contract_id, "compiled_source_artifact":artifact,
+        "design_details":{"kind":"adaptive_regime", "subject_ids":subject_ids,"periods":periods,"policy_prespecification_assumption_id":policy_prespecification_assumption_id,"positivity_assumption_id":positivity_assumption_id,"exchangeability_assumption_id":exchangeability_assumption_id,"consistency_assumption_id":consistency_assumption_id,"followup_assumption_id":followup_assumption_id,"failures":failures},
+        "adjustments":[], "exposure":{"kind":"no_between_unit_interference","assumption_id":assumption_id}
     }))))
 }
 
@@ -1362,6 +1466,7 @@ fn decision_evidence_evaluate(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(decision_evidence_compile, module)?)?;
+    module.add_function(wrap_pyfunction!(decision_evidence_adaptive, module)?)?;
     module.add_function(wrap_pyfunction!(decision_evidence_compiled_cluster, module)?)?;
     module.add_function(wrap_pyfunction!(decision_evidence_excursion_quantity, module)?)?;
     module.add_function(wrap_pyfunction!(decision_evidence_experimental, module)?)?;

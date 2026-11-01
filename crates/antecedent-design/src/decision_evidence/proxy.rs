@@ -99,7 +99,10 @@ pub fn decide_with_proxy(
 ) -> Result<ProxyDecision, EvidenceRefusal> {
     if !matches!(
         request.target,
-        Target::ExperimentalContrast | Target::Excursion { .. } | Target::Regime { .. }
+        Target::ExperimentalContrast
+            | Target::Excursion { .. }
+            | Target::Regime { .. }
+            | Target::AdaptiveRegime { .. }
     ) {
         return Err(EvidenceRefusal::Invalid(
             "proxy effect mappings do not establish deployment extrapolation".into(),

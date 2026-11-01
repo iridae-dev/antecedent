@@ -990,6 +990,7 @@ impl core::clone::Clone for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::clone::Clone for antecedent::counterfactual_id::PreparedCounterfactualId
 impl core::clone::Clone for antecedent::cross_world::CrossWorldEffect
 impl core::clone::Clone for antecedent::cross_world::CrossWorldOptions
+impl core::clone::Clone for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence
 impl core::clone::Clone for antecedent::decision_evidence::CompiledClusterEvidence
 impl core::clone::Clone for antecedent::decision_evidence::CompiledExcursionEvidence
 impl core::clone::Clone for antecedent::decision_evidence::CompiledExperimentalEvidence
@@ -2862,6 +2863,7 @@ impl core::fmt::Debug for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::fmt::Debug for antecedent::counterfactual_id::PreparedCounterfactualId
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldEffect
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldOptions
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledClusterEvidence
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledExcursionEvidence
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledExperimentalEvidence
@@ -4049,6 +4051,7 @@ impl core::marker::Freeze for antecedent::counterfactual_id::CounterfactualIdOpt
 impl core::marker::Freeze for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledClusterEvidence [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
@@ -4970,6 +4973,7 @@ impl core::marker::Send for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Send for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence [auto]
 impl core::marker::Send for antecedent::decision_evidence::CompiledClusterEvidence [auto]
 impl core::marker::Send for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
 impl core::marker::Send for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
@@ -6431,6 +6435,7 @@ impl core::marker::Sync for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Sync for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence [auto]
 impl core::marker::Sync for antecedent::decision_evidence::CompiledClusterEvidence [auto]
 impl core::marker::Sync for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
 impl core::marker::Sync for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
@@ -7353,6 +7358,7 @@ impl core::marker::Unpin for antecedent::counterfactual_id::CounterfactualIdOpti
 impl core::marker::Unpin for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledClusterEvidence [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
@@ -8242,6 +8248,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledClusterEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
@@ -9116,6 +9123,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::Cou
 impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledClusterEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledExcursionEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledExperimentalEvidence [auto]
@@ -15176,6 +15184,8 @@ pub fn <antecedent::counterfactual_id::PreparedCounterfactualId>::const fn deriv
 pub fn <antecedent::counterfactual_id::PreparedCounterfactualId>::const fn query(&self) -> &antecedent_core::query::counterfactual_event::CounterfactualEventQuery
 pub fn <antecedent::counterfactual_id::PreparedCounterfactualId>::fn evaluate(&self, law: &antecedent_expr::exact::ExactDiscreteLaw, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::counterfactual_id::CounterfactualIdEffect, antecedent::CausalError>
 pub fn <antecedent::cross_world::CrossWorldEffect>::fn export_artifact(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
+pub fn <antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
+pub fn <antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence>::fn source(&self) -> &antecedent::analysis::joint_panel::designs::NativeJointDesignResult
 pub fn <antecedent::decision_evidence::CompiledClusterEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
 pub fn <antecedent::decision_evidence::CompiledClusterEvidence>::fn source(&self) -> &antecedent::analysis::joint_panel::designs::NativeJointDesignResult
 pub fn <antecedent::decision_evidence::CompiledExcursionEvidence>::fn numerical_evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
@@ -15883,6 +15893,7 @@ pub fn antecedent::cross_world::check(graph: &antecedent_graph::dag::Dag, query:
 pub fn antecedent::cross_world::consume_cross_world_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u8], expected_data_digest: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
+pub fn antecedent::decision_evidence::compile_and_evidence_from_adaptive_regime(recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe, evidence_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_and_evidence_from_cluster(recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe, evidence_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledClusterEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_excursion(design: &antecedent::decision_evidence::CompiledJointExcursion, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledExcursionEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compile_and_evidence_from_joint_static_regime(design: &antecedent::decision_evidence::CompiledJointStaticRegime, outcomes: &[&[f64]], confounders: &[alloc::vec::Vec<f64>], evidence_id: &str, population_id: &str, regimes: (&str, &str), components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::CompiledRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
@@ -15897,6 +15908,7 @@ pub fn antecedent::decision_evidence::compiled_decision_refusal(error: anteceden
 pub fn antecedent::decision_evidence::compiled_excursion_quantity(evidence: &antecedent::decision_evidence::CompiledExcursionEvidence, component: &str) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::condition_panel_on_compiled_excursion(panel: &antecedent::analysis::joint_panel::JointPanelResult, excursion: antecedent::decision_evidence::CompiledExcursionEvidence, component: &str, update: antecedent::analysis::joint_panel::PanelExperimentUpdate, likelihood_assumption_id: &str, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::ExcursionPanelUpdate, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::decision_evidence::evidence_from_cluster_contrast(contrast: &antecedent_estimate::randomized_joint::JointClusterContrast, evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, outcome_rows: usize, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_compiled_adaptive_regime(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str) -> core::result::Result<antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_compiled_cluster(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str), horizon: u32) -> core::result::Result<antecedent::decision_evidence::CompiledClusterEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_compiled_excursion(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str), horizon: u32) -> core::result::Result<antecedent::decision_evidence::CompiledExcursionEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_compiled_experiment(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str, regimes: (&str, &str), horizon: u32) -> core::result::Result<antecedent::decision_evidence::CompiledExperimentalEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
@@ -16987,6 +16999,8 @@ pub struct antecedent::counterfactual_id::PreparedCounterfactualId has private f
 pub struct antecedent::cross_world::CrossWorldEffect
 pub struct antecedent::cross_world::CrossWorldEffect has private fields
 pub struct antecedent::cross_world::CrossWorldOptions
+pub struct antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence
+pub struct antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence has private fields
 pub struct antecedent::decision_evidence::CompiledClusterEvidence
 pub struct antecedent::decision_evidence::CompiledClusterEvidence has private fields
 pub struct antecedent::decision_evidence::CompiledExcursionEvidence

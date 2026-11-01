@@ -1,0 +1,20 @@
+feature_id = "decision_evidence.independent_unit_planning"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The existing normal-normal future-study operation is applied to a derived temporal contrast only when a sampling interval and an explicit same-design and constant per-independent-unit variance assumption are present.",
+  "The proposed count is complete independent subjects, matched pairs or assignment sequences, never period rows or decisions; variance scaling is a planning assumption, not a licensed posterior or calibrated claim.",
+  "The independent threshold reference uses the closed form expectation of the positive part of a centered Gaussian and checks the variance scaling using independent units.",
+]
+
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/decision_evidence_workflow.rs (joint_lagged_excursion_reuses_existing_scores_and_keeps_estimand_scope)",
+  "python/tests/test_decision_evidence.py (test_joint_excursion_preserves_lag_and_distinguishes_regime)",
+]

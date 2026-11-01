@@ -101,3 +101,29 @@ The Python producers retain a replayable compiler artifact and check its reprodu
 `JointEvidence.from_experimental_design` accepts `bootstrap_replicates` (at least 99) and an explicit `bootstrap_seed` on a static-regime design. The Rust equivalent is `compile_and_evidence_from_joint_static_regime_bootstrap`. All outcomes use the same resampled subjects; failed refits and their reasons remain in the compiled artifact. If any refit fails, the result remains point-only. The default without those options is point-only. Neither the normal-reference interval formed from the bootstrap covariance nor a nonlinear transformation inherits an existing calibration record.
 
 For a Bayesian joint panel response, `JointEvidence.excursion_quantity` supplies the exact excursion coordinate for an explicit experiment-to-response bridge. `PanelResult.condition_excursion` consumes the retained excursion through the existing conditional panel update. The caller declares the Gaussian sampling model and its known variance as a separate assumption; the excursion's estimated covariance is not silently substituted for that variance. The update checks the source identity and current ledger, exact observed excursion mean and independent-unit count, and the full source-to-target translation. Its result remains model-conditional and uncalibrated; the bridge does not identify a sustained program from a pulse by itself.
+
+For prospective temporal studies, `more_independent_units` ranks additional complete independent
+subjects, matched pairs, or assignment sequences under the explicitly named assumption that the
+future study has the same design and per-unit variance. It uses the current joint sampling
+variance in a normal planning model; it is not a posterior or a calibrated guarantee. Additional
+periods within existing units are not additional independent units. A point-only result or an
+unresolved assumption range cannot be turned into this planning distribution.
+
+`JointEvidence.from_adaptive_regime` compares two prespecified, deterministic policies over
+finite discrete state and action histories. The action table is keyed by the complete recorded
+state and previous-action history, and the g-formula integrates later states under each policy.
+Each reachable history must have observed support. The native compiler retains the policy tables,
+independent episodes and identifying assumptions. A whole-subject jackknife supplies joint
+covariance only if every deletion remains supported; otherwise the result remains point-only.
+The interval is unlicensed and uncalibrated, and adaptive policy evidence is distinct from a
+static schedule or randomized excursion.
+
+The Python recipe names `population`, `state_variable_id`, `action_variable_id`, and `outcomes`
+(as `[component, variable, units]` triples). Each `episodes` entry contains an `id`, equally long
+`states` and `actions` arrays, and terminal `outcomes` in that coordinate order. The two ordered
+`policies` each have an `id` and `rules`; a rule's `states` includes the current pre-action state,
+`past_actions` contains the previous actions, and `action` is the prescribed discrete action.
+The recipe also requires named `policy_prespecification`, `positivity`, `exchangeability`, `consistency`,
+`followup`, and `isolation`
+assumptions. Episode counts and policy-history work are bounded, and the exact source is retained
+in the compiled artifact.

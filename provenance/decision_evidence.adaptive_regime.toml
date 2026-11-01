@@ -1,0 +1,25 @@
+feature_id = "decision_evidence.adaptive_regime"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "Finite discrete state and action histories use a prespecified complete deterministic action table; the g-formula integrates empirical full-history transitions under each adaptive policy, including treatment-affected states.",
+  "Source population, state and action identities, all policy rules, original episode data and assumptions remain in the native compiler recipe. The method requires sequential exchangeability, consistency, complete follow-up, isolation and observed support of every policy history.",
+  "A joint delete-subject jackknife retains failures and withholds covariance if any deletion loses support. Its derived normal interval is unlicensed and uncalibrated; a distinct coverage experiment is registered without attesting its results.",
+  "An independent two-period hand calculation verifies the exact policy means and shared outcome covariance; it does not establish calibrated coverage or scientific authority.",
+]
+
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/src/joint_design/adaptive_regime.rs (adaptive_full_history_gformula_and_joint_deletions)",
+  "crates/antecedent/tests/decision_evidence_workflow.rs (adaptive_regime_compiler_keeps_history_joint_covariance_and_target)",
+  "crates/antecedent/tests/randomized_interval_calibration.rs (decision_margin_adaptive_regime_jackknife_delta_interval)",
+  "python/tests/test_decision_evidence.py (test_adaptive_policy_compiler_decision_and_replay)",
+  "crates/antecedent/tests/oracle_data/adaptive_regime_reference.py",
+  "crates/antecedent/tests/oracle_data/adaptive_regime_reference.json",
+]

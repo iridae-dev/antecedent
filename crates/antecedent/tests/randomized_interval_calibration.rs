@@ -1161,3 +1161,104 @@ fn decision_margin_static_regime_bootstrap_delta_interval() {
     }
     tally.assert();
 }
+
+/// Registered, unmeasured coverage design for finite-history adaptive-policy jackknife margins.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_adaptive_regime_jackknife_delta_interval() {
+    use antecedent::decision_evidence::*;
+    use antecedent_estimate::joint_design::adaptive_regime::{
+        AdaptiveAction, AdaptiveEpisode, AdaptivePolicy, JointAdaptiveRegimeRecipe,
+    };
+    let n = grid_n(160);
+    let request = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "adaptive".into(),
+        control_regime_id: "reference".into(),
+        horizon: 2,
+        target: Target::AdaptiveRegime {
+            periods: 2,
+            exchangeability_assumption_id: "randomization".into(),
+        },
+    };
+    let quantity = DerivedQuantity {
+        name: "adaptive_margin".into(),
+        units: "u".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![InputBinding::Measured("y".into()), InputBinding::Measured("z".into())],
+    };
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "decision_margin_adaptive_regime_jackknife_delta_interval",
+            dgp: "randomized_treatment_affected_binary_state",
+            interval: "delta_method_normal_95",
+        },
+        REPORTED_LEVEL,
+    );
+    for (interval, basis) in map_replicates(n_sim(), |rep| {
+        let ctx = ExecutionContext::for_tests(grid_seed(0x8860_0000 + rep));
+        let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0x8860);
+        let mut episodes = Vec::with_capacity(n);
+        for i in 0..n {
+            let a = usize::from(rng.next_f64() < 0.5);
+            let state = usize::from(rng.next_f64() < if a == 1 { 0.75 } else { 0.25 });
+            let b = usize::from(rng.next_f64() < 0.5);
+            let noise = rng.next_f64() - 0.5;
+            let y = 2.0 + (2 * a + 3 * b + 4 * state + a * b) as f64 + noise;
+            let z = 5.0 + 0.5 * y + 0.2 * (rng.next_f64() - 0.5);
+            episodes.push(AdaptiveEpisode {
+                id: format!("u{i}"),
+                states: vec![0, state],
+                actions: vec![a, b],
+                outcomes: vec![y, z],
+            });
+        }
+        let policy = |id: &str, first: usize, adaptive: bool| AdaptivePolicy {
+            id: id.into(),
+            rules: vec![
+                AdaptiveAction { states: vec![0], past_actions: vec![], action: first },
+                AdaptiveAction { states: vec![0, 0], past_actions: vec![first], action: 0 },
+                AdaptiveAction {
+                    states: vec![0, 1],
+                    past_actions: vec![first],
+                    action: usize::from(adaptive),
+                },
+            ],
+        };
+        let recipe = JointAdaptiveRegimeRecipe {
+            population: "pop".into(),
+            state_variable_id: "state".into(),
+            action_variable_id: "action".into(),
+            outcomes: vec![
+                ("y".into(), "y".into(), "u".into()),
+                ("z".into(), "z".into(), "u".into()),
+            ],
+            policies: [policy("adaptive", 1, true), policy("reference", 0, false)],
+            episodes,
+            policy_prespecification: "fixed before evaluation".into(),
+            positivity: "positivity".into(),
+            exchangeability: "randomization".into(),
+            consistency: "consistency".into(),
+            followup: "complete".into(),
+            isolation: "independent".into(),
+        };
+        match compile_and_evidence_from_adaptive_regime(recipe, "e", &ctx) {
+            Ok(bound) => {
+                let ev = bound.numerical_evidence();
+                (
+                    derive(ev, &request, &quantity)
+                        .ok()
+                        .and_then(|r| r.sampling.map(|s| (s.lower, s.upper))),
+                    decision_interval_calibration_basis(ev, &request, &quantity).ok(),
+                )
+            }
+            Err(_) => (None, None),
+        }
+    }) {
+        if let Some(basis) = basis {
+            bind_decision_candidate(&mut tally, &basis);
+        }
+        tally.record(interval, 80.5);
+    }
+    tally.assert();
+}

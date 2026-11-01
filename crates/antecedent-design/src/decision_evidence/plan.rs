@@ -29,6 +29,18 @@ pub enum Candidate {
         /// Cost in the decision's utility units; `None` is not a zero cost.
         cost: Option<f64>,
     },
+    /// More independent complete subjects, pairs or sequences under the same design.
+    /// The caller declares that the existing per-unit variance applies to the future study.
+    MoreIndependentUnits {
+        /// Stable candidate identity.
+        id: String,
+        /// Number of additional independent subjects, pairs or sequences (not observation rows).
+        additional_units: u64,
+        /// Identity of the explicit same-design and constant per-unit variance assumption.
+        same_design_assumption_id: String,
+        /// Cost in decision utility units, if specified.
+        cost: Option<f64>,
+    },
     /// A measurement expected to narrow a declared assumed range to the given one.
     ResolveAssumption {
         /// Stable id.
@@ -45,7 +57,9 @@ pub enum Candidate {
 impl Candidate {
     fn id(&self) -> &str {
         match self {
-            Self::MoreUnits { id, .. } | Self::ResolveAssumption { id, .. } => id,
+            Self::MoreUnits { id, .. }
+            | Self::MoreIndependentUnits { id, .. }
+            | Self::ResolveAssumption { id, .. } => id,
         }
     }
 }
@@ -79,6 +93,8 @@ pub struct PlanRow {
     pub id: String,
     /// The obligation kind the candidate would discharge.
     pub kind: EvidenceObligationKind,
+    /// Explicit future-design assumption, when the candidate requires one.
+    pub planning_assumption_id: Option<String>,
     /// Its value.
     pub value: PlanValue,
 }
@@ -122,9 +138,14 @@ pub fn plan_evidence(
             Candidate::MoreUnits { additional_units_per_arm, cost, .. } => {
                 if matches!(
                     evidence.design.assignment_design.as_str(),
-                    "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
+                    "matched_pairs"
+                        | "switchback"
+                        | "temporal_excursion"
+                        | "temporal_regime"
+                        | "adaptive_regime"
                 ) {
                     evsi_rows.push(PlanRow { id: c.id().to_owned(), kind: EvidenceObligationKind::IncreaseSample,
+                        planning_assumption_id: None,
                         value: PlanValue::Refused("the more-units planning model has not been specified for matched pairs or temporal assignment sequences".into()) });
                     continue;
                 }
@@ -142,7 +163,55 @@ pub fn plan_evidence(
                 evsi_rows.push(PlanRow {
                     id: c.id().to_owned(),
                     kind: EvidenceObligationKind::IncreaseSample,
+                    planning_assumption_id: None,
                     value: value.unwrap_or_else(|e| PlanValue::Refused(e.to_string())),
+                });
+            }
+            Candidate::MoreIndependentUnits {
+                additional_units,
+                same_design_assumption_id,
+                cost,
+                ..
+            } => {
+                let value = if same_design_assumption_id.trim().is_empty() {
+                    PlanValue::Refused(
+                        "a same-design and constant per-unit variance assumption is required"
+                            .into(),
+                    )
+                } else if !matches!(
+                    evidence.design.assignment_design.as_str(),
+                    "matched_pairs"
+                        | "switchback"
+                        | "temporal_excursion"
+                        | "temporal_regime"
+                        | "adaptive_regime"
+                ) || evidence.design_details.is_none()
+                    || evidence.design.treated_units != evidence.design.control_units
+                    || evidence.design.treated_units < 2
+                {
+                    PlanValue::Refused("independent-unit planning requires a supported retained paired or temporal design with an explicit independent unit count".into())
+                } else if base.derived.assumption_range.is_some() {
+                    PlanValue::Refused("independent-unit planning cannot collapse an unresolved assumption range into a probability law".into())
+                } else if let Some(s) = base.derived.sampling.as_ref() {
+                    more_units(
+                        evidence,
+                        s.estimate,
+                        s.standard_error,
+                        frame,
+                        *additional_units,
+                        *cost,
+                    )
+                } else {
+                    PlanValue::Refused(
+                        "independent-unit planning requires a supported joint sampling interval"
+                            .into(),
+                    )
+                };
+                evsi_rows.push(PlanRow {
+                    id: c.id().to_owned(),
+                    kind: EvidenceObligationKind::IncreaseSample,
+                    planning_assumption_id: Some(same_design_assumption_id.clone()),
+                    value,
                 });
             }
             Candidate::ResolveAssumption { assumption_id, narrowed, .. } => {
@@ -181,6 +250,7 @@ pub fn plan_evidence(
                 resolution_rows.push(PlanRow {
                     id: c.id().to_owned(),
                     kind: EvidenceObligationKind::Measure,
+                    planning_assumption_id: None,
                     value,
                 });
             }
@@ -197,7 +267,7 @@ pub fn plan_evidence(
         evsi_rows,
         resolution_rows,
         model: PlanningModel {
-            statement: "EVSI uses a Normal belief centered on the current contrast with the delta-method sampling variance as its variance, and per-unit variance implied by the current number of independent units; it is a declared planning model, not a calibrated posterior. Resolution rows are best-case narrowings of a declared assumption and are not expectations.",
+            statement: "EVSI uses a Normal belief centered on the current contrast with the delta-method sampling variance as its variance, and per-unit variance implied by the current number of independent units; for independent-unit candidates the caller assumes the same design and per-unit variance for new complete independent units; it is a declared planning model, not a calibrated posterior. Resolution rows are best-case narrowings of a declared assumption and are not expectations.",
         },
     })
 }

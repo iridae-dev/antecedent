@@ -632,6 +632,11 @@ impl core::clone::Clone for antecedent_estimate::joint_bayesian_transport::Varyi
 impl core::clone::Clone for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::clone::Clone for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::clone::Clone for antecedent_estimate::joint_design::JointUncertainty
+impl core::clone::Clone for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl core::clone::Clone for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+impl core::clone::Clone for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+impl core::clone::Clone for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+impl core::clone::Clone for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 impl core::clone::Clone for antecedent_estimate::joint_design::capabilities::JointDesignCapability
 impl core::clone::Clone for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 impl core::clone::Clone for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
@@ -1300,6 +1305,8 @@ impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::SourceDepe
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::SourceSharing
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::TransportGraphClass
 impl core::cmp::Eq for antecedent_estimate::joint_bayesian_transport::VaryingBlock
+impl core::cmp::Eq for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl core::cmp::Eq for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
 impl core::cmp::Eq for antecedent_estimate::joint_design::gaussian_longitudinal::GaussianHistoryFeature
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelAdstock
 impl core::cmp::Eq for antecedent_estimate::joint_panel::PanelChannel
@@ -1871,6 +1878,11 @@ impl core::cmp::PartialEq for antecedent_estimate::joint_bayesian_transport::Var
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::JointUncertainty
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+impl core::cmp::PartialEq for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
 impl core::cmp::PartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
@@ -3115,6 +3127,11 @@ impl core::fmt::Debug for antecedent_estimate::joint_bayesian_transport::Varying
 impl core::fmt::Debug for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::fmt::Debug for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::fmt::Debug for antecedent_estimate::joint_design::JointUncertainty
+impl core::fmt::Debug for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl core::fmt::Debug for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+impl core::fmt::Debug for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+impl core::fmt::Debug for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+impl core::fmt::Debug for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 impl core::fmt::Debug for antecedent_estimate::joint_design::capabilities::JointDesignCapability
 impl core::fmt::Debug for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 impl core::fmt::Debug for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
@@ -4626,6 +4643,11 @@ impl core::marker::Freeze for antecedent_estimate::joint_bayesian_transport::Var
 impl core::marker::Freeze for antecedent_estimate::joint_design::JointDesignEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw [auto]
+impl core::marker::Freeze for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
 impl core::marker::Freeze for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
@@ -5718,6 +5740,11 @@ impl core::marker::Send for antecedent_estimate::joint_bayesian_transport::Varyi
 impl core::marker::Send for antecedent_estimate::joint_design::JointDesignEstimate [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw [auto]
+impl core::marker::Send for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
 impl core::marker::Send for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
@@ -6684,6 +6711,11 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::joint_bayesian_t
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointDesignEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointDesignPosterior
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::JointUncertainty
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
 impl core::marker::StructuralPartialEq for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
@@ -7719,6 +7751,11 @@ impl core::marker::Sync for antecedent_estimate::joint_bayesian_transport::Varyi
 impl core::marker::Sync for antecedent_estimate::joint_design::JointDesignEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw [auto]
+impl core::marker::Sync for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
 impl core::marker::Sync for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
@@ -8813,6 +8850,11 @@ impl core::marker::Unpin for antecedent_estimate::joint_bayesian_transport::Vary
 impl core::marker::Unpin for antecedent_estimate::joint_design::JointDesignEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw [auto]
+impl core::marker::Unpin for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
 impl core::marker::Unpin for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
@@ -9910,6 +9952,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_baye
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointDesignEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
@@ -11003,6 +11050,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_bayesia
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointDesignEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointDesignPosterior [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::JointUncertainty [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::capabilities::JointDesignCapability [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw [auto]
@@ -11619,6 +11671,11 @@ impl serde_core::ser::Serialize for antecedent_estimate::external_cyclic_fit::Ex
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignEstimate
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointDesignPosterior
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::JointUncertainty
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+impl serde_core::ser::Serialize for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::capabilities::JointDesignCapability
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 impl serde_core::ser::Serialize for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
@@ -12549,6 +12606,11 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::external_cyc
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignEstimate
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointDesignPosterior
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::JointUncertainty
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe
@@ -15597,6 +15659,31 @@ pub field antecedent_estimate::joint_design::JointDesignEstimate::uncertainty: a
 pub field antecedent_estimate::joint_design::JointDesignEstimate::worlds: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_estimate::joint_design::JointDesignPosterior::draws: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_estimate::joint_design::JointDesignPosterior::estimate: antecedent_estimate::joint_design::JointDesignEstimate
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction::action: usize
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction::past_actions: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction::states: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode::actions: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode::id: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode::outcomes: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode::states: alloc::vec::Vec<usize>
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy::id: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy::rules: alloc::vec::Vec<antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction>
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw::covariance: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw::failures: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw::independent_units: usize
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw::means: alloc::vec::Vec<f64>
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::action_variable_id: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::consistency: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::episodes: alloc::vec::Vec<antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode>
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::exchangeability: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::followup: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::isolation: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::outcomes: alloc::vec::Vec<(alloc::string::String, alloc::string::String, alloc::string::String)>
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::policies: [antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy; 2]
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::policy_prespecification: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::population: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::positivity: alloc::string::String
+pub field antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe::state_variable_id: alloc::string::String
 pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::bayesian_owner: core::option::Option<&'static str>
 pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::calibration: &'static str
 pub field antecedent_estimate::joint_design::capabilities::JointDesignCapability::compiled_native_port: bool
@@ -19343,6 +19430,7 @@ pub fn antecedent_estimate::is_temporal_coefficient_name(name: &str) -> bool
 pub fn antecedent_estimate::joint_bayesian_transport::fit_joint_bayesian_transport(id: &antecedent_identify::transport::TransportIdentification, model: &antecedent_estimate::joint_bayesian_transport::JointTransportModel, sources: &[antecedent_estimate::joint_bayesian_transport::SourceData], target: core::option::Option<&antecedent_estimate::joint_bayesian_transport::TargetData>, options: &antecedent_estimate::joint_bayesian_transport::JointTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_bayesian_transport::JointTransportFit, antecedent_estimate::joint_bayesian_transport::JointTransportRefusal>
 pub fn antecedent_estimate::joint_bayesian_transport::route_frozen_refusal() -> antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
 pub fn antecedent_estimate::joint_bayesian_transport::unsupported_graph_refusal() -> antecedent_estimate::joint_bayesian_transport::JointTransportRefusal
+pub fn antecedent_estimate::joint_design::adaptive_regime::joint_adaptive_regime(recipe: &antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw, alloc::string::String>
 pub fn antecedent_estimate::joint_design::cluster_decision::joint_cluster(recipe: &antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::cluster_decision::JointClusterLaw, alloc::string::String>
 pub fn antecedent_estimate::joint_design::excursion::joint_excursion(recipe: &antecedent_estimate::joint_design::excursion::JointExcursionRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::excursion::JointExcursionLaw, alloc::string::String>
 pub fn antecedent_estimate::joint_design::experiment::joint_experiment(recipe: &antecedent_estimate::joint_design::experiment::JointExperimentalRecipe, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_design::experiment::JointExperimentalLaw, alloc::string::String>
@@ -19786,6 +19874,7 @@ pub mod antecedent_estimate::iv
 pub mod antecedent_estimate::iv_bounds
 pub mod antecedent_estimate::joint_bayesian_transport
 pub mod antecedent_estimate::joint_design
+pub mod antecedent_estimate::joint_design::adaptive_regime
 pub mod antecedent_estimate::joint_design::capabilities
 pub mod antecedent_estimate::joint_design::cluster_decision
 pub mod antecedent_estimate::joint_design::compiled
@@ -20417,6 +20506,11 @@ pub struct antecedent_estimate::joint_bayesian_transport::SourceEffectSummary
 pub struct antecedent_estimate::joint_bayesian_transport::TargetData
 pub struct antecedent_estimate::joint_design::JointDesignEstimate
 pub struct antecedent_estimate::joint_design::JointDesignPosterior
+pub struct antecedent_estimate::joint_design::adaptive_regime::AdaptiveAction
+pub struct antecedent_estimate::joint_design::adaptive_regime::AdaptiveEpisode
+pub struct antecedent_estimate::joint_design::adaptive_regime::AdaptivePolicy
+pub struct antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw
+pub struct antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe
 pub struct antecedent_estimate::joint_design::capabilities::JointDesignCapability
 pub struct antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment
 pub struct antecedent_estimate::joint_design::cluster_decision::JointClusterLaw
@@ -21757,6 +21851,7 @@ pub variant antecedent_estimate::joint_design::compiled::JointDesignInference::S
 pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::Bayesian(antecedent_estimate::joint_design::JointDesignPosterior)
 pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::Frequentist(antecedent_estimate::joint_design::JointDesignEstimate)
 pub variant antecedent_estimate::joint_design::compiled::JointDesignLaw::FrequentistBootstrap { estimate: antecedent_estimate::joint_design::JointDesignEstimate, realizations: alloc::vec::Vec<core::option::Option<alloc::vec::Vec<f64>>>, failures: alloc::vec::Vec<core::option::Option<alloc::string::String>> }
+pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::AdaptiveRegime { recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DecisionCluster { recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DecisionExperiment { recipe: antecedent_estimate::joint_design::experiment::JointExperimentalRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::DifferenceInDifferences { design: antecedent_estimate::joint_design::rollout::JointRolloutDesign, units: alloc::vec::Vec<antecedent_estimate::joint_design::rollout::JointRolloutUnit> }
@@ -21769,6 +21864,7 @@ pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Rand
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::StaticRegime { recipe: antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::Switchback { design: antecedent_estimate::joint_design::switchback::JointSwitchbackDesign, sequences: alloc::vec::Vec<antecedent_estimate::switchback::HistoryAssignment> }
 pub variant antecedent_estimate::joint_design::compiled::JointDesignRecipe::SyntheticControl { design: antecedent_estimate::joint_design::synthetic::JointSyntheticDesign, observations: alloc::vec::Vec<antecedent_estimate::joint_design::synthetic::JointSyntheticObservation> }
+pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::AdaptiveRegime(antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionCluster(antecedent_estimate::joint_design::cluster_decision::JointClusterLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::DecisionExperiment(antecedent_estimate::joint_design::experiment::JointExperimentalLaw)
 pub variant antecedent_estimate::joint_design::compiled::JointNativeDesignLaw::Excursion(antecedent_estimate::joint_design::excursion::JointExcursionLaw)

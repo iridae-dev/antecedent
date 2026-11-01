@@ -41,6 +41,11 @@ use super::{
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum JointDesignRecipe {
+    /// Full-history finite-state adaptive regime values and their shared subject uncertainty.
+    AdaptiveRegime {
+        /// Exact policies, histories, outcomes and identifying premises.
+        recipe: super::adaptive_regime::JointAdaptiveRegimeRecipe,
+    },
     /// Joint complete-randomization cluster coordinates.
     DecisionCluster {
         /// Original outcomes, assignment and fixed adjustment source.
@@ -254,6 +259,9 @@ impl JointDesignRecipe {
     #[must_use]
     pub fn functional(&self) -> &'static str {
         match self {
+            Self::AdaptiveRegime { .. } => {
+                "finite-history g-formula integrated over treatment-affected state transitions under each deterministic adaptive policy"
+            }
             Self::DecisionCluster { .. } => {
                 "joint per-row arm means with conservative Neyman arm covariance under complete cluster randomization"
             }
@@ -296,6 +304,7 @@ impl JointDesignRecipe {
     #[must_use]
     pub fn method(&self) -> &'static str {
         match self {
+            Self::AdaptiveRegime { .. } => "joint_design.adaptive_full_history_gformula",
             Self::DecisionCluster { .. } => "joint_design.decision_cluster",
             Self::DecisionExperiment { .. } => "joint_design.decision_experiment",
             Self::StaticRegime { .. } => "joint_design.static_regime_point",
@@ -340,6 +349,8 @@ impl JointDesignRecipe {
 /// Native typed output: a synthetic point without uncertainty is not a zero-variance law.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum JointNativeDesignLaw {
+    /// Adaptive policy values and aligned whole-subject jackknife.
+    AdaptiveRegime(super::adaptive_regime::JointAdaptiveRegimeLaw),
     /// Whole-subject refits, retaining failed slots and optional joint covariance.
     StaticRegimeBootstrap(super::static_regime::JointStaticRegimeBootstrap),
     /// Joint cluster arm moments and per-arm conservative covariance bounds.
@@ -374,6 +385,10 @@ impl JointDesignRecipe {
             return Err("joint-design execution cancelled".into());
         }
         let result = match (self, inference) {
+            (Self::AdaptiveRegime { recipe }, JointDesignInference::Frequentist) => {
+                super::adaptive_regime::joint_adaptive_regime(recipe, ctx)
+                    .map(JointNativeDesignLaw::AdaptiveRegime)
+            }
             (
                 Self::StaticRegime { recipe },
                 JointDesignInference::StaticRegimeBootstrap { replicates, seed },
@@ -472,6 +487,7 @@ impl JointDesignRecipe {
     #[must_use]
     pub fn target_kind(&self) -> &'static str {
         match self {
+            Self::AdaptiveRegime { .. } => "adaptive_longitudinal_regime_population_mean",
             Self::DecisionCluster { .. } => "complete_cluster_randomized_arm_means",
             Self::DecisionExperiment { .. } => "joint_experimental_arm_means",
             Self::StaticRegime { .. } => "observational_static_regime_point",

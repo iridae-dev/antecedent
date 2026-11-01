@@ -336,6 +336,13 @@ pub enum Target {
         /// Identity of the declared sequential-exchangeability assumption.
         exchangeability_assumption_id: String,
     },
+    /// A history-adaptive policy contrast with an explicit identification premise.
+    AdaptiveRegime {
+        /// Number of treatment decisions.
+        periods: u32,
+        /// Declared sequential-exchangeability assumption.
+        exchangeability_assumption_id: String,
+    },
     /// A broader deployment policy, reached only through a declared structural assumption.
     Deployment {
         /// Identity of the structural bridge, when one is declared.
@@ -446,6 +453,25 @@ pub enum DesignDetails {
         consistency_assumption_id: String,
         /// Number of paired decisions actually used.
         paired_decisions: usize,
+    },
+    /// Finite-history adaptive policies evaluated on complete independent episodes.
+    AdaptiveRegime {
+        /// Independent subject identities.
+        subject_ids: Vec<String>,
+        /// Number of decisions per subject.
+        periods: u32,
+        /// Policy selection was independent of evaluation outcomes.
+        policy_prespecification_assumption_id: String,
+        /// Population positivity assumption.
+        positivity_assumption_id: String,
+        /// Sequential exchangeability assumption.
+        exchangeability_assumption_id: String,
+        /// Treatment consistency assumption.
+        consistency_assumption_id: String,
+        /// Complete follow-up assumption.
+        followup_assumption_id: String,
+        /// Failed delete-subject slots, in subject order.
+        failures: Vec<Option<String>>,
     },
     /// Point-only observational static-regime analysis and identification assumptions.
     TemporalRegime {
@@ -645,6 +671,7 @@ impl JointExperimentEvidence {
                 | "switchback"
                 | "temporal_excursion"
                 | "temporal_regime"
+                | "adaptive_regime"
         ) {
             return Err(EvidenceRefusal::UnsupportedAssignmentDesign(design.assignment_design));
         }
@@ -941,6 +968,37 @@ impl JointExperimentEvidence {
                 }
                 w.reals(treatment_probabilities);
             }
+            Some(DesignDetails::AdaptiveRegime {
+                subject_ids,
+                periods,
+                policy_prespecification_assumption_id,
+                positivity_assumption_id,
+                exchangeability_assumption_id,
+                consistency_assumption_id,
+                followup_assumption_id,
+                failures,
+            }) => {
+                w.word(5)
+                    .word(u64::from(*periods))
+                    .text(policy_prespecification_assumption_id)
+                    .text(positivity_assumption_id)
+                    .text(exchangeability_assumption_id)
+                    .text(consistency_assumption_id)
+                    .text(followup_assumption_id);
+                for id in subject_ids {
+                    w.text(id);
+                }
+                for failure in failures {
+                    match failure {
+                        Some(v) => {
+                            w.word(1).text(v);
+                        }
+                        None => {
+                            w.word(0);
+                        }
+                    }
+                }
+            }
             Some(DesignDetails::TemporalRegime {
                 unit_ids,
                 periods,
@@ -1080,7 +1138,7 @@ impl JointExperimentEvidence {
                     w.word(u64::from(*assignment));
                 }
             }
-            None => {}
+            Some(DesignDetails::AdaptiveRegime { .. }) | None => {}
         }
         if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) =
             &self.design_details

@@ -767,6 +767,47 @@ fn joint_lagged_excursion_reuses_existing_scores_and_keeps_estimand_scope() {
         ],
     };
     assert!(derive(&ev, &req, &nonlinear).unwrap().sampling.is_some());
+    // Independent normal reference at the decision threshold: the posterior-mean
+    // standard deviation is se*sqrt(m/(n+m)), and E[max(0,Z)] = sd/sqrt(2*pi).
+    let sampled = derive(&ev, &req, &q).unwrap().sampling.unwrap();
+    let plan = plan_evidence(
+        &ev,
+        &req,
+        &q,
+        &frame(sampled.estimate),
+        &[
+            Candidate::MoreIndependentUnits {
+                id: "more-geos".into(),
+                additional_units: 40,
+                same_design_assumption_id: "same-schedule-and-variance".into(),
+                cost: Some(0.0),
+            },
+            Candidate::MoreIndependentUnits {
+                id: "missing-assumption".into(),
+                additional_units: 40,
+                same_design_assumption_id: " ".into(),
+                cost: None,
+            },
+            Candidate::MoreUnits {
+                id: "wrong-unit".into(),
+                additional_units_per_arm: 40,
+                cost: None,
+            },
+        ],
+    )
+    .unwrap();
+    let row = plan.evsi_rows.iter().find(|r| r.id == "more-geos").unwrap();
+    assert_eq!(row.planning_assumption_id.as_deref(), Some("same-schedule-and-variance"));
+    let PlanValue::Evsi { gross, .. } = row.value else { panic!("expected EVSI") };
+    let expected =
+        sampled.standard_error * (40.0_f64 / 80.0).sqrt() / (2.0 * std::f64::consts::PI).sqrt();
+    assert!((gross - expected).abs() < 1e-10);
+    assert!(
+        plan.evsi_rows
+            .iter()
+            .filter(|r| r.id != "more-geos")
+            .all(|r| matches!(r.value, PlanValue::Refused(_)))
+    );
     let bridge = TemporalEffectBridge {
         source: TemporalEstimand::Excursion {
             lag: 1,
@@ -1481,4 +1522,95 @@ fn weighted_regime_refit_matches_exact_rational_reference() {
         serde_json::from_str(include_str!("oracle_data/weighted_regime_reference.json")).unwrap();
     assert!((values[1] - expected["active"].as_f64().unwrap()).abs() < 1e-10);
     assert!((values[2] - expected["reference"].as_f64().unwrap()).abs() < 1e-10);
+}
+
+#[test]
+fn adaptive_regime_compiler_keeps_history_joint_covariance_and_target() {
+    use antecedent_estimate::joint_design::adaptive_regime::{
+        AdaptiveAction, AdaptiveEpisode, AdaptivePolicy, JointAdaptiveRegimeRecipe,
+    };
+    let mut episodes = Vec::new();
+    for a in 0..2 {
+        for state in 0..2 {
+            for b in 0..2 {
+                for repeat in 0..if a == state { 6 } else { 2 } {
+                    let y = (2 * a + 3 * b + 4 * state + a * b) as f64;
+                    episodes.push(AdaptiveEpisode {
+                        id: format!("{a}/{state}/{b}/{repeat}"),
+                        states: vec![0, state],
+                        actions: vec![a, b],
+                        outcomes: vec![y, 2.0 * y],
+                    });
+                }
+            }
+        }
+    }
+    let policy = |id: &str, first: usize, adaptive: bool| AdaptivePolicy {
+        id: id.into(),
+        rules: vec![
+            AdaptiveAction { states: vec![0], past_actions: vec![], action: first },
+            AdaptiveAction { states: vec![0, 0], past_actions: vec![first], action: 0 },
+            AdaptiveAction {
+                states: vec![0, 1],
+                past_actions: vec![first],
+                action: usize::from(adaptive),
+            },
+        ],
+    };
+    let recipe = JointAdaptiveRegimeRecipe {
+        population: "pop".into(),
+        state_variable_id: "state".into(),
+        action_variable_id: "action".into(),
+        outcomes: vec![("y".into(), "y".into(), "u".into()), ("z".into(), "z".into(), "u".into())],
+        policies: [policy("adaptive", 1, true), policy("reference", 0, false)],
+        episodes,
+        policy_prespecification: "fixed before evaluation".into(),
+        positivity: "positivity".into(),
+        exchangeability: "sequential-exchangeability".into(),
+        consistency: "consistency".into(),
+        followup: "complete".into(),
+        isolation: "independent".into(),
+    };
+    let ctx = antecedent_core::ExecutionContext::for_tests(1);
+    let bound = compile_and_evidence_from_adaptive_regime(recipe, "adaptive-study", &ctx).unwrap();
+    let ev = bound.numerical_evidence();
+    assert_eq!(ev.treated_means, vec![8.0, 16.0]);
+    assert_eq!(ev.control_means, vec![1.0, 2.0]);
+    let expected: serde_json::Value =
+        serde_json::from_str(include_str!("oracle_data/adaptive_regime_reference.json")).unwrap();
+    let Dependence::JointArms { covariance } = &ev.dependence else {
+        panic!("joint covariance required")
+    };
+    for (actual, expected) in covariance.iter().zip(expected["covariance"].as_array().unwrap()) {
+        assert!((actual - expected.as_f64().unwrap()).abs() < 1e-11);
+    }
+    let req = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "adaptive".into(),
+        control_regime_id: "reference".into(),
+        horizon: 2,
+        target: Target::AdaptiveRegime {
+            periods: 2,
+            exchangeability_assumption_id: "sequential-exchangeability".into(),
+        },
+    };
+    let q = DerivedQuantity {
+        name: "y".into(),
+        units: "u".into(),
+        expr: UtilityExpr::Input(0),
+        inputs: vec![InputBinding::Measured("y".into())],
+    };
+    let result = derive(ev, &req, &q).unwrap();
+    assert_eq!(result.contrast, Some(7.0));
+    assert!(result.sampling.is_some());
+    assert_eq!(result.license, "none");
+    assert_eq!(result.calibration, "unmeasured");
+    let mut wrong = req.clone();
+    wrong.target = Target::Regime {
+        periods: 2,
+        exchangeability_assumption_id: "sequential-exchangeability".into(),
+    };
+    assert!(derive(ev, &wrong, &q).is_err());
+    let basis = decision_interval_calibration_basis(ev, &req, &q).unwrap();
+    assert_eq!(basis.row_count, ev.design.treated_units as u64);
 }

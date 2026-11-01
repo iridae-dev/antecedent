@@ -410,6 +410,23 @@ def test_joint_excursion_preserves_lag_and_distinguishes_regime():
     assert result.derived["sampling"] is not None
     assert ev.wire["design"]["treated_units"] == units
     assert ev.wire["design_details"]["paired_decisions"] == units * (periods - 1)
+    planned = de.evaluate(
+        ev,
+        DerivedQuantity("effect", "u", Expr.input(0), [Measured("frequency")]),
+        frame=DecisionFrame("on", "off", result.derived["sampling"]["estimate"]),
+        candidates=[
+            {
+                "kind": "more_independent_units",
+                "id": "more-geos",
+                "additional_units": 40,
+                "same_design_assumption_id": "same-schedule-and-variance",
+                "cost": 0.0,
+            }
+        ],
+    )
+    row = planned.plan["evsi_rows"][0]
+    assert row["planning_assumption_id"] == "same-schedule-and-variance"
+    assert row["value"]["gross_evsi"] > 0
     assert ev.wire["compiled_source_artifact"]
     source_quantity = ev.excursion_quantity("frequency")
     assert source_quantity.functional_id == "sequential_randomized_excursion_mean_contrast"
@@ -592,3 +609,102 @@ def test_compiled_evidence_obeys_execution_memory_limit():
     constrained = Execution(limits=ResourceLimits(memory_bytes=1))
     with pytest.raises(DecisionEvidenceRefusal):
         de.evaluate(evidence, _margin(Measured("cost")), execution=constrained)
+
+
+def test_adaptive_policy_compiler_decision_and_replay():
+    episodes = []
+    for a in range(2):
+        for state in range(2):
+            for b in range(2):
+                for repeat in range(6 if a == state else 2):
+                    y = 2 * a + 3 * b + 4 * state + a * b
+                    episodes.append(
+                        {
+                            "id": f"{a}/{state}/{b}/{repeat}",
+                            "states": [0, state],
+                            "actions": [a, b],
+                            "outcomes": [y, 2 * y],
+                        }
+                    )
+
+    def policy(name, first, adaptive):
+        return {
+            "id": name,
+            "rules": [
+                {"states": [0], "past_actions": [], "action": first},
+                {"states": [0, 0], "past_actions": [first], "action": 0},
+                {"states": [0, 1], "past_actions": [first], "action": int(adaptive)},
+            ],
+        }
+
+    recipe = {
+        "population": "pop",
+        "state_variable_id": "state",
+        "action_variable_id": "action",
+        "outcomes": [["y", "y", "u"], ["z", "z", "u"]],
+        "policies": [policy("adaptive", 1, True), policy("reference", 0, False)],
+        "episodes": episodes,
+        "policy_prespecification": "fixed before evaluation",
+        "positivity": "positivity",
+        "exchangeability": "exchangeability",
+        "consistency": "consistency",
+        "followup": "complete",
+        "isolation": "independent",
+    }
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.JointEvidence.from_adaptive_regime(
+            {**recipe, "policy_prespecification": ""}, evidence_id="adaptive-study"
+        )
+    ev = de.JointEvidence.from_adaptive_regime(recipe, evidence_id="adaptive-study")
+    q = DerivedQuantity("effect", "u", Expr.input(0), [Measured("y")])
+    result = de.evaluate(
+        ev,
+        q,
+        frame=DecisionFrame("adaptive", "reference", 7.0),
+        candidates=[
+            {
+                "kind": "more_independent_units",
+                "id": "more-subjects",
+                "additional_units": 32,
+                "same_design_assumption_id": "same-distribution",
+                "cost": 0.0,
+            }
+        ],
+    )
+    assert result.derived["contrast"] == pytest.approx(7.0)
+    assert result.derived["sampling"] is not None
+    assert result.plan["evsi_rows"][0]["planning_assumption_id"] == "same-distribution"
+    assert ev.wire["design"]["treated_units"] == len(episodes)
+    bridged = de.decide_with_temporal_bridge(
+        ev,
+        {
+            "source": {
+                "kind": "adaptive_regime",
+                "active_regime_id": "adaptive",
+                "reference_regime_id": "reference",
+                "horizon": 2,
+            },
+            "target": {
+                "kind": "fixed_schedule",
+                "active_schedule_id": "schedule",
+                "reference_schedule_id": "baseline",
+                "horizon": 2,
+            },
+            "source_component": "y",
+            "target_variable_id": "y",
+            "target_units": "u",
+            "mapping": {
+                "kind": "causal_effect_bounds",
+                "multiplier": [0.8, 1.2],
+                "residual": [-0.1, 0.1],
+                "assumption_id": "mapping",
+                "mapping_evidence_id": "mapping-study",
+            },
+        },
+        DecisionFrame("adaptive", "reference", 0),
+    )
+    assert bridged["evidence_ids"] == ["adaptive-study", "mapping-study"]
+    edited = dict(ev.wire)
+    edited["treated_means"] = [0, 0]
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.evaluate(de.JointEvidence(edited), q)

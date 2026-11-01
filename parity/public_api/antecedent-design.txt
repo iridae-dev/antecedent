@@ -10119,6 +10119,7 @@ pub field antecedent_design::decision_evidence::OutcomeComponent::units: alloc::
 pub field antecedent_design::decision_evidence::OutcomeComponent::variable_id: alloc::string::String
 pub field antecedent_design::decision_evidence::PlanRow::id: alloc::string::String
 pub field antecedent_design::decision_evidence::PlanRow::kind: antecedent_contract::evidence_obligation::EvidenceObligationKind
+pub field antecedent_design::decision_evidence::PlanRow::planning_assumption_id: core::option::Option<alloc::string::String>
 pub field antecedent_design::decision_evidence::PlanRow::value: antecedent_design::decision_evidence::PlanValue
 pub field antecedent_design::decision_evidence::PlanningModel::statement: &'static str
 pub field antecedent_design::decision_evidence::ProxyBridge::control_regime_id: alloc::string::String
@@ -14128,12 +14129,14 @@ pub variant antecedent_design::decision_evidence::AdjustmentKind::FixedCuped { c
 pub variant antecedent_design::decision_evidence::AdjustmentKind::None
 pub variant antecedent_design::decision_evidence::Arm::Control
 pub variant antecedent_design::decision_evidence::Arm::Treated
+pub variant antecedent_design::decision_evidence::Candidate::MoreIndependentUnits { id: alloc::string::String, additional_units: u64, same_design_assumption_id: alloc::string::String, cost: core::option::Option<f64> }
 pub variant antecedent_design::decision_evidence::Candidate::MoreUnits { id: alloc::string::String, additional_units_per_arm: u64, cost: core::option::Option<f64> }
 pub variant antecedent_design::decision_evidence::Candidate::ResolveAssumption { id: alloc::string::String, assumption_id: alloc::string::String, narrowed: (f64, f64), cost: core::option::Option<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::Joint { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::JointArms { covariance: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::MarginalsOnly { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::PointOnly
+pub variant antecedent_design::decision_evidence::DesignDetails::AdaptiveRegime { subject_ids: alloc::vec::Vec<alloc::string::String>, periods: u32, policy_prespecification_assumption_id: alloc::string::String, positivity_assumption_id: alloc::string::String, exchangeability_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String, followup_assumption_id: alloc::string::String, failures: alloc::vec::Vec<core::option::Option<alloc::string::String>> }
 pub variant antecedent_design::decision_evidence::DesignDetails::MatchedPairs { cluster_ids: alloc::vec::Vec<alloc::string::String>, pairs: alloc::vec::Vec<(usize, usize)>, matching_variables: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, cluster_sizes: alloc::vec::Vec<usize>, realized_assignment: alloc::vec::Vec<bool>, preassignment_assumption_id: alloc::string::String, independent_pairs_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::DesignDetails::Switchback { sequence_ids: alloc::vec::Vec<alloc::string::String>, period_ids: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, realized_assignment: alloc::vec::Vec<bool>, no_carryover_assumption_id: alloc::string::String, washout_rule_id: alloc::string::String, washout_periods: usize, independent_sequences_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::DesignDetails::TemporalExcursion { unit_ids: alloc::vec::Vec<alloc::string::String>, periods: alloc::vec::Vec<i64>, treatment_probabilities: alloc::vec::Vec<f64>, realized_assignment: alloc::vec::Vec<bool>, lag: u32, min_probability: f64, assignment_law_id: alloc::string::String, independent_units_assumption_id: alloc::string::String, administrative_followup_assumption_id: alloc::string::String, consistency_assumption_id: alloc::string::String, paired_decisions: usize }
@@ -14176,6 +14179,7 @@ pub variant antecedent_design::decision_evidence::StageStatus::Reused
 pub variant antecedent_design::decision_evidence::Standing::AssumptionDependent
 pub variant antecedent_design::decision_evidence::Standing::Sampled
 pub variant antecedent_design::decision_evidence::Standing::Unresolved
+pub variant antecedent_design::decision_evidence::Target::AdaptiveRegime { periods: u32, exchangeability_assumption_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::Target::Deployment { bridge_assumption_id: core::option::Option<alloc::string::String> }
 pub variant antecedent_design::decision_evidence::Target::Excursion { lag: u32, assignment_law_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::Target::ExperimentalContrast

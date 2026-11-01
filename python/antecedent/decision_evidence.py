@@ -446,6 +446,21 @@ class JointEvidence:
             )
         )
 
+    @staticmethod
+    def from_adaptive_regime(
+        recipe: Mapping[str, Any], *, evidence_id: str, execution: Execution | None = None
+    ) -> JointEvidence:
+        """Evaluate two explicitly specified finite-history policies on complete episodes.
+
+        The source records and both policy tables are compiled and retained. Every reachable
+        treatment history must have observed support; failed subject deletions withhold joint
+        covariance. No calibration or support license is implied.
+        """
+        payload = {"recipe": dict(recipe), "evidence_id": evidence_id}
+        return JointEvidence(
+            _call(run_panel(execution, _native.decision_evidence_adaptive, json.dumps(payload)))
+        )
+
     def marginals_only(self) -> JointEvidence:
         """The same evidence with the cross-component covariance withheld.
 
@@ -505,6 +520,13 @@ def _target_for_evidence(w: Mapping[str, Any]) -> dict[str, Any]:
             "lag": details["lag"],
             "assignment_law_id": details["assignment_law_id"],
         }
+    if kind == "adaptive_regime":
+        details = w["design_details"]
+        return {
+            "kind": "adaptive_regime",
+            "periods": details["periods"],
+            "exchangeability_assumption_id": details["exchangeability_assumption_id"],
+        }
     if kind == "temporal_regime":
         details = w["design_details"]
         return {
@@ -551,7 +573,7 @@ def decide_with_temporal_bridge(
     *,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
-    """Apply a declared bounded mapping from an excursion or static regime to another temporal estimand.
+    """Apply a declared bounded mapping from an excursion or regime to another temporal estimand.
 
     The bridge retains both estimand identities and mapping evidence. Its bounds are assumptions,
     and they do not license an ongoing policy, fixed schedule or response model automatically.
@@ -626,7 +648,9 @@ def evaluate(
     The request defaults to the evidence's own population, regimes and horizon; naming anything
     else is refused. ``deployment=True`` asks about a broader policy and is refused unless a
     structural ``bridge_assumption_id`` is declared. ``candidates`` are dictionaries with
-    ``kind`` of ``"more_units"`` (``additional_units_per_arm``) or ``"resolve_assumption"``
+    ``kind`` of ``"more_units"`` (``additional_units_per_arm``),
+    ``"more_independent_units"`` (``additional_units`` and ``same_design_assumption_id``),
+    or ``"resolve_assumption"``
     (``assumption_id``, ``narrowed_lower``, ``narrowed_upper``), each with an ``id`` and an
     optional ``cost``.
     """

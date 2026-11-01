@@ -6,7 +6,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod adaptive;
 mod panel_bridge;
+pub use adaptive::{
+    CompiledAdaptiveRegimeEvidence, compile_and_evidence_from_adaptive_regime,
+    evidence_from_compiled_adaptive_regime,
+};
 pub use antecedent_design::decision_evidence::*;
 pub use antecedent_estimate::randomized_joint::{
     JointClusterContrast, centered_fixed_cuped_totals, complete_cluster_joint_contrast,

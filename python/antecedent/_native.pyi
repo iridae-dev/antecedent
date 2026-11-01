@@ -11671,6 +11671,14 @@ def decision_evidence_evaluate(
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+def decision_evidence_adaptive(
+    payload_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def decision_evidence_compiled_cluster(
     payload_json: str,
     *,

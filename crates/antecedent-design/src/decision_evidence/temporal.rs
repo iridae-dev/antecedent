@@ -161,8 +161,14 @@ pub fn decide_with_temporal_bridge(
             && reference_regime_id == &request.control_regime_id
             && horizon == periods
             && exchangeability_assumption_id == assumption => {}
+        (
+            TemporalEstimand::AdaptiveRegime { active_regime_id, reference_regime_id, horizon },
+            Target::AdaptiveRegime { periods, .. },
+        ) if active_regime_id == &request.treated_regime_id
+            && reference_regime_id == &request.control_regime_id
+            && horizon == periods => {}
         _ => return Err(EvidenceRefusal::Invalid(
-            "temporal bridge source must match the observed excursion or static-regime estimand"
+            "temporal bridge source must match the observed excursion, static-regime or adaptive-regime estimand"
                 .into(),
         )),
     }

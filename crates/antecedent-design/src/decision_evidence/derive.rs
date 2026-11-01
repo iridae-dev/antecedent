@@ -406,6 +406,43 @@ fn check_request(
                 && matches!(&e.exposure, Exposure::NoBetweenUnitInterference { assumption_id } if !assumption_id.trim().is_empty())
         }
         (
+            "adaptive_regime",
+            Some(super::DesignDetails::AdaptiveRegime {
+                subject_ids,
+                periods,
+                policy_prespecification_assumption_id,
+                positivity_assumption_id,
+                exchangeability_assumption_id,
+                consistency_assumption_id,
+                followup_assumption_id,
+                failures,
+            }),
+            Dependence::PointOnly | Dependence::JointArms { .. },
+        ) => {
+            subject_ids.len() >= 3
+                && subject_ids.iter().all(|s| !s.trim().is_empty())
+                && subject_ids.iter().collect::<std::collections::BTreeSet<_>>().len()
+                    == subject_ids.len()
+                && *periods == e.horizon
+                && *periods > 0
+                && e.design.treated_units == subject_ids.len()
+                && e.design.control_units == subject_ids.len()
+                && e.design.outcome_rows == subject_ids.len()
+                && failures.len() == subject_ids.len()
+                && (!matches!(e.dependence, Dependence::JointArms { .. })
+                    || failures.iter().all(Option::is_none))
+                && [
+                    policy_prespecification_assumption_id,
+                    positivity_assumption_id,
+                    exchangeability_assumption_id,
+                    consistency_assumption_id,
+                    followup_assumption_id,
+                ]
+                .iter()
+                .all(|s| !s.trim().is_empty())
+                && matches!(&e.exposure, Exposure::NoBetweenUnitInterference { assumption_id } if !assumption_id.trim().is_empty())
+        }
+        (
             "temporal_regime",
             Some(super::DesignDetails::TemporalRegime {
                 unit_ids,
@@ -481,13 +518,21 @@ fn check_request(
                 && e.design.control_units == by_unit.len()
                 && matches!(&e.exposure, Exposure::NoBetweenUnitInterference { assumption_id } if !assumption_id.trim().is_empty())
         }
-        ("matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime", ..) => false,
+        (
+            "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
+            | "adaptive_regime",
+            ..,
+        ) => false,
         _ => true,
     };
     if !valid_compiled_design
         || (matches!(
             e.design.assignment_design.as_str(),
-            "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
+            "matched_pairs"
+                | "switchback"
+                | "temporal_excursion"
+                | "temporal_regime"
+                | "adaptive_regime"
         ) && e.design_contract_id.as_deref().is_none_or(|id| id.trim().is_empty()))
     {
         return Err(EvidenceRefusal::Invalid("experimental evidence must retain a consistent compiled design and joint arm dependence".into()));
@@ -515,6 +560,8 @@ fn check_request(
         return Err(EvidenceRefusal::InterferenceUnspecified);
     }
     match (&e.design_details, &r.target) {
+        (Some(super::DesignDetails::AdaptiveRegime { periods, exchangeability_assumption_id, .. }), Target::AdaptiveRegime { periods: requested_periods, exchangeability_assumption_id: requested }) if periods == requested_periods && exchangeability_assumption_id == requested => Ok(None),
+        (Some(super::DesignDetails::AdaptiveRegime { .. }), _) | (_, Target::AdaptiveRegime { .. }) => Err(EvidenceRefusal::Invalid("adaptive regime evidence requires the same policy horizon and identification assumption".into())),
         (Some(super::DesignDetails::TemporalExcursion { lag, assignment_law_id, .. }), Target::Excursion { lag: requested_lag, assignment_law_id: requested_law }) if lag == requested_lag && assignment_law_id == requested_law => Ok(None),
         (Some(super::DesignDetails::TemporalRegime {active_path,exchangeability_assumption_id,..}), Target::Regime {periods,exchangeability_assumption_id:requested}) if active_path.len()==*periods as usize && exchangeability_assumption_id==requested => Ok(None),
         (Some(super::DesignDetails::TemporalRegime { .. }), _) | (_, Target::Regime { .. }) => Err(EvidenceRefusal::Invalid("whole-regime evidence requires the same regime horizon and identification assumption".into())),
@@ -720,6 +767,9 @@ pub fn derive(
                 }
                 "temporal_regime" => {
                     "first-order delta method through aligned whole-subject bootstrap covariance with a normal reference; calibration is unmeasured and no component license is inherited"
+                }
+                "adaptive_regime" => {
+                    "first-order delta method through aligned delete-subject jackknife covariance with a normal reference; calibration is unmeasured and no component license is inherited"
                 }
                 _ => DELTA_METHOD_STATEMENT,
             },
@@ -1475,13 +1525,18 @@ pub fn decision_interval_calibration_basis(
             ("cluster" | "complete" | "matched_pairs" | "switchback", Target::ExperimentalContrast)
                 | ("temporal_excursion", Target::Excursion { .. })
                 | ("temporal_regime", Target::Regime { .. })
+                | ("adaptive_regime", Target::AdaptiveRegime { .. })
         )
         || !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. })
         || !matches!(
             (evidence.design.assignment_design.as_str(), &evidence.dependence),
             ("cluster" | "complete", Dependence::Joint { .. })
                 | (
-                    "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime",
+                    "matched_pairs"
+                        | "switchback"
+                        | "temporal_excursion"
+                        | "temporal_regime"
+                        | "adaptive_regime",
                     Dependence::JointArms { .. }
                 )
         )
@@ -1493,7 +1548,10 @@ pub fn decision_interval_calibration_basis(
     }
     let key = [
         "DecisionEvidence".to_owned(),
-        if evidence.design.assignment_design == "temporal_regime" {
+        if matches!(
+            evidence.design.assignment_design.as_str(),
+            "temporal_regime" | "adaptive_regime"
+        ) {
             "Observational"
         } else {
             "RandomizedTrial"
@@ -1514,10 +1572,14 @@ pub fn decision_interval_calibration_basis(
             "switchback" => "switchback_sequence_delta",
             "temporal_excursion" => "temporal_cluster_ratio_delta",
             "temporal_regime" => "temporal_regime_bootstrap_delta",
+            "adaptive_regime" => "adaptive_regime_jackknife_delta",
             _ => "joint_neyman_delta",
         }
         .to_owned(),
-        if evidence.design.assignment_design == "temporal_regime" {
+        if matches!(
+            evidence.design.assignment_design.as_str(),
+            "temporal_regime" | "adaptive_regime"
+        ) {
             "independent_subjects"
         } else {
             "independent_assignment_units"
@@ -1531,6 +1593,15 @@ pub fn decision_interval_calibration_basis(
                 );
                 w.text(&result.quantity_identity).word(u64::from(*lag)).text(assignment_law_id);
                 format!("excursion_{}", w.finish_hex())
+            }
+            Target::AdaptiveRegime { periods, exchangeability_assumption_id } => {
+                let mut w = CanonicalWriter::new(
+                    "antecedent.decision_evidence.adaptive_regime_calibration_target.v1",
+                );
+                w.text(&result.quantity_identity)
+                    .word(u64::from(*periods))
+                    .text(exchangeability_assumption_id);
+                format!("adaptive_regime_{}", w.finish_hex())
             }
             Target::Regime { periods, exchangeability_assumption_id } => {
                 let Some(super::DesignDetails::TemporalRegime {
@@ -1563,7 +1634,11 @@ pub fn decision_interval_calibration_basis(
         "point".into(),
         (if matches!(
             evidence.design.assignment_design.as_str(),
-            "matched_pairs" | "switchback" | "temporal_excursion" | "temporal_regime"
+            "matched_pairs"
+                | "switchback"
+                | "temporal_excursion"
+                | "temporal_regime"
+                | "adaptive_regime"
         ) {
             evidence.design.treated_units
         } else {
