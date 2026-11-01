@@ -39,7 +39,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/staged_static_kinds/reference.py",
-          "sha256": "70812cb879d70acd7eb7a6fee690f94562bdf98af0d59d1697aa62b510f12043"
+          "sha256": "4df3bbe0ec8e3cd4f575f5ee1b51e101d1fc6f90b166f7e360697c812d0d35b6"
         },
         {
           "role": "environment_lock",

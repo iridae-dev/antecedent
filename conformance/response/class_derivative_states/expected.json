@@ -39,7 +39,7 @@
         {
           "role": "generator",
           "path": "conformance/response/class_derivative_states/reference.py",
-          "sha256": "2f422d01820c8b680473534ed98340963ffc00e2efd1301bbe601989964ef213"
+          "sha256": "08d5ce22242c9be7a503fe9716b0b31e390412e5d4fb6eaac89335f75d5d78fa"
         },
         {
           "role": "environment_lock",
@@ -49,7 +49,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_derivative_known_truth.rs",
-          "sha256": "b3544a90ed4d0c0ebd1a8892e67e0c71a94071eed55d2baa4a05d714f5ed057c"
+          "sha256": "199c35e5db70b5e11dc07d3593edd9f417897bf27821544790efafdb68c420ea"
         }
       ],
       "fixture_payload_sha256": "554cbebe073c84964f9ec480ece4c5f74704c93137cd798f1e21a062662c2c59"

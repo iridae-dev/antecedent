@@ -49,7 +49,7 @@ record_sha256 = "fc833d13952652ab65345aa7483174d6b0cd545200184e73d5b178a73778283
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/participant_posterior.rs"
-sha256 = "e8dfb036c52d12e5a8bd8f562c41e8ea8edd7a550241fee4e176a780aa5cff47"
+sha256 = "47e8cd9f5393d7954172da7b971a644aea22c3cd0332778bfa5038e5b750e4a9"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -59,22 +59,22 @@ sha256 = "a95dbeedbe9d9ada10f1c4e5088b9ceec444f8f5980b3b9999fb49516d8f2a28"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/participant_procedure.rs"
-sha256 = "7bd64d4bcf31e9bd752f34b0264a92dbfd544951d898f897ba540597abb1761c"
+sha256 = "593236a8b27e43fbba3370f2d3232808b68231c0689df109df070056f1c2aa24"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
-sha256 = "e44c1f2313fccea86ffedc1eafe86f9f889afc5866e9801ecd3dd105b7c13cd4"
+sha256 = "2e4350fdd15fe8a97c7a0dd7329e3d65c3a3c068c371c060f60d0a9a411a3a75"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_participant_exact_reference.rs"
-sha256 = "075c399b46adfd127dfc1b122e0c2dce9c09db30c7a79ad3abadb7331050b1fc"
+sha256 = "7bdeb019df65f6e1c5f9d50de7405ba72cfabb0e2cc1648c1151308045a527a2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
 
 [[method_review.artifacts]]
 role = "reference"

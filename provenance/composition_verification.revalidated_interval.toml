@@ -27,9 +27,9 @@ record_sha256 = "6daf63e3b6a903c360dc5eb3cb4fe565d4f3c87a9aa8ea526fde3a8bb54fe91
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
-sha256 = "1c362909789e331233bac463bbb65644412bd7985916273fe482f830bf1dc80f"
+sha256 = "ef48b8ade129e3b1ab5c9421a782dddb86095f4e95013d08524561b8c5d13d9d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/composition_verification.rs"
-sha256 = "9c5689458a8776adae2135d34f894caf3382a57ce92fd0cd0c81aefa3f71e94c"
+sha256 = "1e940f08df0529a2795fd62c120ddb6ab289d0cba2a02fb568231489bc63bb8c"

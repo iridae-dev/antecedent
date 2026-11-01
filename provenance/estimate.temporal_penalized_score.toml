@@ -40,12 +40,12 @@ record_sha256 = "90cb935103300686274124f8047e848bef71333000a55ccaa459c0d935906e8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_penalized_score.rs"
-sha256 = "ac510f1266627c878bd3464fa65bbcadd66cb20200373b221f3bf345f0687d60"
+sha256 = "1dd523bb2249aeac2fecfb5076a39b6994c82d97a94bab32266eba833a9e12d9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_propensity_reference.rs"
-sha256 = "6862a497c2122f9b8b0228dc6f2acd3be36a39a190019f14949770e4deced2f6"
+sha256 = "bcf3e6f47648305b4a7136f6e1ca1ce3512e2f88c5708a27fa66ed5e03487a8a"
 
 [[method_review.artifacts]]
 role = "reference"

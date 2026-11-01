@@ -33,7 +33,7 @@
         {
           "role": "generator",
           "path": "conformance/discovery/bayesian_ci/reference.py",
-          "sha256": "8496f8c72b1bc722473562d9915450dce2c1e3e346d786964cd32fcff68d3d0f"
+          "sha256": "8c5b85685f30aeb20d41f99a1834ed236ffcf9b2c4ca3aae65b370cff2cdc683"
         },
         {
           "role": "environment_lock",

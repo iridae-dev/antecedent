@@ -31,4 +31,4 @@ record_sha256 = "c5729eef2eecfcbd7b9b9f2afa50722420d00598f414b8afa4c31d3ff75e24e
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/envelope.rs"
-sha256 = "ddbe5caec0ccda0f9086bf77ab35ce9049c99b018c0fc7429f5966da870d50ed"
+sha256 = "d266a984997c5b4c32e94be24e6c2d2182337fa920bb1c5a14800f1eed691f8d"

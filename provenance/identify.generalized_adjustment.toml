@@ -39,12 +39,12 @@ record_sha256 = "ce26e8221e1360a9b51fc211efb4a4cb6e3d8a4d261a31b62fd40c95257b3f6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/generalized.rs"
-sha256 = "47211adb4aa4dfbe65ae5a0ec075ec8a4e12d6cade327754f9ff54cf7b33f283"
+sha256 = "96d31071a3adcaabd2d55caa5f99eedef22b8eee5be88985780e29c138636b67"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/envelope.rs"
-sha256 = "ddbe5caec0ccda0f9086bf77ab35ce9049c99b018c0fc7429f5966da870d50ed"
+sha256 = "d266a984997c5b4c32e94be24e6c2d2182337fa920bb1c5a14800f1eed691f8d"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -54,4 +54,4 @@ sha256 = "1f4c0132f8a5f2d85bfa5eb59a42c1db0b0569e8e6fc3af90990b7a836a4a48d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/cpdag_adjustment_envelope_exhaustive.rs"
-sha256 = "2ff45a6ba9a36a0cde09017d63a6e31c00dc2d03ae534ed83c96ec4f2961e4fd"
+sha256 = "9f9f31d0fe3a346f43d0975fd587b5421d9f505a8f5e94a64557c35592d5fd16"

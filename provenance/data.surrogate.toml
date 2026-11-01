@@ -31,9 +31,9 @@ record_sha256 = "ceb0538a366c7072d59c87d99003633773d1afce51e3cd13cbf35b800b6964d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/surrogate.rs"
-sha256 = "f634c33f7c148629bf891e144736bbebad5ee488d9d77cb0ab7c523c7aba4d46"
+sha256 = "d501274d129d0c1b76988b76a68f6d49e8dbbd5c688c15093e12958470478564"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/surrogate_reference.rs"
-sha256 = "0f052eef8ca5ab1d920e8752c45126aebd5a70e49a4f8fa4eec9fb92885886cd"
+sha256 = "266c748d9aa33d7606ba5be1d0b9d90dad9aacb0a233a269c4f8c3ce07fdf526"

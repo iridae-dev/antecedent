@@ -33,12 +33,12 @@ record_sha256 = "d38a826067beef5fb1a62bb6a58d5b40e7c4cadb82eed77aa241e7003ab62b6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_observed_bayes.rs"
-sha256 = "8594c0d754f0e21ae0bccf19bee318040b17cfe0ccc69463de3042ea86932e4d"
+sha256 = "8882ec5adc9ec22716419ed2bba64849e94cb5f0277f25a76aa63b0c5ba5906c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_observed_bayes_reference.rs"
-sha256 = "092fabf5bc79499554f8f0fb3e4c16eae8cce0aa612a76d3f921774a6f5ccbc6"
+sha256 = "e9125a26f0069b29a40f6a20570e55ccd812599bf16fb15bd054f699d6ad23cb"
 
 [[method_review.artifacts]]
 role = "assertion"

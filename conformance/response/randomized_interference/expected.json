@@ -79,7 +79,7 @@
         {
           "role": "generator",
           "path": "conformance/response/randomized_interference/reference.py",
-          "sha256": "bf8e9496e732e86d08f1ac580f849d6d60f2c94eda199b63da43b9f89e12614f"
+          "sha256": "c73489117e273235c748a00d15b6495f7949dbd93661b7b76cdb257512657b21"
         },
         {
           "role": "environment_lock",
@@ -89,7 +89,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/interference.rs",
-          "sha256": "830bfadc1899a020788b60c993fa6f813ce8f65d69a242885caddf3b61c761a4"
+          "sha256": "8ad2bde13cd8ff2000cf6b880bc1c0e085ccca95b4a5820b07132d133594eb3a"
         }
       ],
       "sources": [],

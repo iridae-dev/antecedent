@@ -27,9 +27,9 @@ record_sha256 = "768a89c3ba68611de53c9f5f238c21033b67b4b464da9d07131bbf5d6ffdd0b
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_reliability/interval.rs"
-sha256 = "33b17cd375d0c1329f42cbd9b5fa353d12913f0499106795f57f2737e6d7e2b1"
+sha256 = "1a62a592ffcea5ef33f0c159160bd1da2b95c3ce57cd4df9a7c6cf64ea5e3efc"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability.rs"
-sha256 = "eadf3cfab1e952b0c0a7dcdbf7b4e1bf0934ce54dbd1d6d265282cb6b55ad6cc"
+sha256 = "1c65bbc48a1db60a044ae480defa1e2f1055070e4ba27606ec0d259c65e06c5f"

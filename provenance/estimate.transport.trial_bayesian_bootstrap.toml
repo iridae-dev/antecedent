@@ -55,12 +55,12 @@ record_sha256 = "1aed0c95558fc227dbf62a5742c5eb36f24780ffcbd871320f8c4f3920f2e0b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/transport.rs"
-sha256 = "20498b0939de03ba181934dbf94853423be8726e921b2596306193248dd3280b"
+sha256 = "23044e46b1f77ac46a9e42eac14311b9bf34a4c59237232e1103ebbdd7f1f67f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/trial_bayesian_bootstrap_reference.rs"
-sha256 = "573825c4580a4f639ab55342f0fe387995b3fee854cf52ce7926189bad4304ce"
+sha256 = "5668f59ab87f7b0e200bfa42a25a6bd0f4f1afd98e054f179c913de7536c9411"
 
 [[method_review.artifacts]]
 role = "reference"

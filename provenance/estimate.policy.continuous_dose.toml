@@ -37,7 +37,7 @@ record_sha256 = "0b536a7117f707ce814ff1bdab84b0c3082dbf2aed25a75a777641daf481daa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/continuous_dose.rs"
-sha256 = "b52c5e28ad65c0ffc80d7676aec36b6a49c42bf037e9142e7c44828789912746"
+sha256 = "4374d6384a98e2670ee0bec5670e44faecdc9d8792e69082053cf973ca8f7876"
 
 [[method_review.artifacts]]
 role = "assertion"

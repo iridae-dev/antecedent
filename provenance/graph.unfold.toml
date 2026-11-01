@@ -33,4 +33,4 @@ record_sha256 = "b2fbe69ad733e0ee9805cfdebd1d4193f60216e84b64bd5da03e60c7ed84699
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/unfold.rs"
-sha256 = "23d26faa61df7efa3dbab96facf30d78d0ce0ba5e56a38064baaec754f98d9dc"
+sha256 = "998d100db498b70a4e977892b766e667403f7a74c548649bf4e492178f8b630d"

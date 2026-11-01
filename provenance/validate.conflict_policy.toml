@@ -37,7 +37,7 @@ record_sha256 = "5b387af4fd846f6fb58bfad5222ed1db8df9420b0dd41f13007c4779465170e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/conflict.rs"
-sha256 = "59d91872f78ed4b67937ec23c6ebe6d800fa4a712c5980b931a217fa4ac2082e"
+sha256 = "0b37731107ab303b6a6809428389ede9e6cd930d6980b93ccf607509a490e027"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -47,7 +47,7 @@ sha256 = "be11ced6140340247662351d504432e6674464ed05aecbb236033ba94eb76be3"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/conflict_policy_reference.rs"
-sha256 = "a80a4ad62c6b06be8b7ebbe18c9a2261a1efac9dd8002034d61b2a3e3e2516e6"
+sha256 = "46486f2da60d79ca9fa06a874c0a5f2082b78fc460b09a20fd55f260856b1012"
 
 [[method_review.artifacts]]
 role = "reference"

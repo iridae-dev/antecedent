@@ -65,7 +65,7 @@
         {
           "role": "generator",
           "path": "conformance/response/temporal_observation/reference.py",
-          "sha256": "2c1c56aa9da68c54c5eade08334422de1d3679f517d19627fa6f8e56e7a10722"
+          "sha256": "6a875e574e0b63ad026de2bbadc00e0e1f2d028b13dacff94e7d8d7d6854e992"
         },
         {
           "role": "environment_lock",
@@ -75,7 +75,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_observation.rs",
-          "sha256": "59e6d9e8ecf1ddb4dc28078adfe7487724bf587ea919da5dc942fd98f922c825"
+          "sha256": "a57f21434bb63d69d71c7c1620a2f55679301ad3858b1aa742cf0a6cbed58ce9"
         }
       ],
       "fixture_payload_sha256": "b6e36541fc6267d2ce996e43e78d4d861f456a36319e967d67d4baedc8be3a02"

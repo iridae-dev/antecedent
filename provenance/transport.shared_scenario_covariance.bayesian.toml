@@ -40,9 +40,9 @@ sha256 = "c76181124902882858c2e54fa70f14f13f0390c5e13b6828895fc438fc2ce83e"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/scenario_covariance.rs"
-sha256 = "6dca987e9ea4a4428d5625f8032b3f8b280f5d0c2d65109626f968fed41e437b"
+sha256 = "cd4a89c91c0648eaf8c4edfe7e03d43eb2ced98a91a8eb444368ce37b81c01cd"

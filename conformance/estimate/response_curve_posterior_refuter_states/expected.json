@@ -112,7 +112,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_curve_posterior_validation_truth.rs",
-          "sha256": "0f81fdb01ae2ed80b9f7c64250fd59b75574473ffa2badf0edc978a25b6df742"
+          "sha256": "aac09e2aeb2cdcd11790ab4b0dc094f88ffc1b4a8f898276b358d92ef4df26aa"
         }
       ],
       "fixture_payload_sha256": "943dcd0b253ead959224436338ad30d8618c602fc29e835414b60884baa67771"

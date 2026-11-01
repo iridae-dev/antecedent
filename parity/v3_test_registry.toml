@@ -10578,6 +10578,13 @@ path = "python/tests/test_z_transport_repair.py"
 gates = ["inventory"]
 
 [[test]]
+id = "bind-review-digests-script"
+crate = "scripts"
+cargo_target = "script"
+path = "scripts/test_bind_review_digests.py"
+gates = ["inventory"]
+
+[[test]]
 id = "penalty-resource-guards-script"
 crate = "scripts"
 cargo_target = "script"

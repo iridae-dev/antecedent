@@ -42,17 +42,17 @@ record_sha256 = "0eef605b48c40c9b4c5378e621d0a73b923a13632bde0e4a84b8f37b92194f5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/hedge.rs"
-sha256 = "cb7acd4018e438beedf643424287d661b5c494117ab0cb88b0da8f855348b5cd"
+sha256 = "c5ecbcc52378ada503edf7e53cefb4c1099ee0607ff9afc46d8e9b7ae4a4d08f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/id.rs"
-sha256 = "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+sha256 = "ac45030283ae1304899b277c235cfeaf1600955b5c6e36a0bb90504e3c2ed986"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/hedge_definition_enumeration.rs"
-sha256 = "8a2fb8d8664e894dbfc8640f1e2ec4c4d632e1828a41c4702488eba6ad25539d"
+sha256 = "4d9698532e5c13f9c2061b0ca5410d5388744df0d765c9688e6fb5beace1747a"
 
 [[method_review.artifacts]]
 role = "assertion"

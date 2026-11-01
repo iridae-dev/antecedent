@@ -43,22 +43,22 @@ record_sha256 = "3ebae7c4ab0991fd3f63c88a2953f7aa02612222cf5077c586cb69939fd92e1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-sha256 = "0c49a05d567d8277692a6135f535560e652371f628a3c28d005584b9889061be"
+sha256 = "88fedc34bddf96041cc964019a9a8cebe8377cd3c6cac88df9b8efb1f40d7dbb"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/propensity_matching_reference.rs"
-sha256 = "9f824bbfb85f83f3a0f67048b199a3f00d1cb2ef56815905b486fe1b9b4a31bd"
+sha256 = "da22b0263f341abcda43157762eb5bf3ee840d60779920273295ff17c6755ec7"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/propensity_matching_reference.py"
-sha256 = "d4ca19e4f5bb8a233f67c964902be756ae5cd1b6c4ee403eb5e286fa9838b440"
+sha256 = "f07d875199d84eded014a399a396d3b922c6140b4d983be04786771bd74a98e4"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-estimate/tests/oracle_data/propensity_matching_reference.json"
-sha256 = "44475819e506cf0210394d71de82203c0f82d5041727152c4c22e0f89ddfce7c"
+sha256 = "f90032319fcdac1064672418bf07c3e4e69d9b3445359cc2de39d3f0cca142b7"
 
 [[method_review.artifacts]]
 role = "fixture"

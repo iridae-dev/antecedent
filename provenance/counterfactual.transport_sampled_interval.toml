@@ -32,17 +32,17 @@ record_sha256 = "d9fc2909a9e712c9f7f9b3bbffb753f99130a85405fd52045dd61f61f6a417d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs"
-sha256 = "f162e02639693c3c426a59e1c288d38ac1e61629ee4cec1ff60fea64a00e6a74"
+sha256 = "b95c778af4ea985dd495cb16e2a516a908a6e4b25bc9cd6bb427f0b21635af32"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/interval.rs"
-sha256 = "f270176bf6714e8bcfa364d2dae4734db2bc30c1e7893e10aa38cbae118a7a1b"
+sha256 = "bdc224763a490dec62e3753700980c0b419dc6ec29ffa25d8a124847be99a02d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/counterfactual_transport_sampled.rs"
-sha256 = "f31c3ab3c45e199253371a296a9444fce8678513f0e28ce3ea1b88d06650fd60"
+sha256 = "ff4bd6fa9b2759ecac54398ca214b88d5d6552fad60f45e8919d8b7fd3a5a2cb"
 
 [[method_review.artifacts]]
 role = "reference"

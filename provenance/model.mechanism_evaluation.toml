@@ -41,4 +41,4 @@ sha256 = "c562f4943a57442bcb65eef2f8d43398238e7f4b3f71447aff1a1ec3cc2b5466"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/linear_gaussian_evaluation_reference.rs"
-sha256 = "c3a306356e169ab92b4ac1b81a95d0f3ee1c9325a4892b60462460f78d50764e"
+sha256 = "78d1d8240f7eff9a91bbf75171117cf961075aa8a2f196ad8f003c09f4eb63b4"

@@ -349,7 +349,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/cross_world_counterfactual_posterior/reference.py",
-          "sha256": "d9b615d014b4210ee31a698111d3d5a741dbf1ebe5c7abffdac5364c7ab7a22b"
+          "sha256": "203263ea89ca8236425d3f038620109cf18db81b3d45285bee5c7a9e8014b37d"
         },
         {
           "role": "environment_lock",
@@ -359,7 +359,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_counterfactual_posterior_truth.rs",
-          "sha256": "ab057fdb03f1c47c815dab70252acd3fdd8cfbf37aa75f960950bbda135d5c05"
+          "sha256": "20748881442d00c5f816628c1cf4232341c81ad8eed65e65935b0d0ed6b2cbba"
         }
       ],
       "fixture_payload_sha256": "56a086db8f05edaf02cbafc8ac65a3ad5cf7317c9e52d4f9f17a420fd5c91797"

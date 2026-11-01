@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/bayesian_iv/reference.py",
-          "sha256": "a1bf09c038cf0e0517f31f5a3be6cd1c704a3bc495753d01f4b34f0c72bf1d04"
+          "sha256": "907d751faae83659a68aa9ec479a06e4d163b409c5751e1438e2dbac666bcc1d"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian_iv_rd_staged.rs",
-          "sha256": "e8122280f3595d6db6e848d22a45f8ad8b569451d9edf1df67679004cbc53c4d"
+          "sha256": "9a3cc516ab1a796c8f7615f17a0cf3777dd9f30b599f46c2c4eed0c32524ab2c"
         }
       ],
       "fixture_payload_sha256": "b59765d1ec38a9e9d13c9457d2e19dc4be34fc5f9c4245f6aa12251eb3add3b1"

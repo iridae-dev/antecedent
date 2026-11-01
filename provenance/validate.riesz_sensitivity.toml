@@ -36,12 +36,12 @@ record_sha256 = "03593a001162ea3522ebb3bc53509a5df020d762efdface7ad26e94bcdd78aa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/riesz.rs"
-sha256 = "8f749ec047e1ae7327040e4f6841a52ca7d34351f30e82d506a7941f085ea327"
+sha256 = "ccc051da54df936f647a2f0616ca1cdf879166f8c9ec814daf0856fc574c030b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
-sha256 = "3fc90718129f6b664c8de77fcebd2abce2dd06e5b3b8e048f279b613fa4d5bae"
+sha256 = "58df861de4d261e789cfe6afcab90d5f5389349aee7adba82cc246f62f4b17a5"
 
 [[method_review.artifacts]]
 role = "reference"

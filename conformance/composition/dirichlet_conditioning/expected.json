@@ -63,7 +63,7 @@
         {
           "role": "generator",
           "path": "conformance/composition/dirichlet_conditioning/reference.py",
-          "sha256": "02372a0ac0cd4ca0b5489776a4863d73e0d270b1862916d9577b0c84cb2dbd57"
+          "sha256": "25a76066a61f5f0df2d6f6ab81a81d503a1faff4c74d40e5640312e5a29a0a29"
         },
         {
           "role": "environment_lock",
@@ -78,7 +78,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/observation_query_facade.rs",
-          "sha256": "2dc383511e32b6f6ea2a09c2de1ddb25e29541a7ba75b612ce5daa1161b3c90d"
+          "sha256": "c202e2bcaade37bd7d982dc117eae73aa20d5737d02d6e2afe0d20442f8066ad"
         }
       ],
       "fixture_payload_sha256": "9812a84fc0899c2709dad3fbbecc41e25fbd8ca058dac7c6b3429afe49a80603"

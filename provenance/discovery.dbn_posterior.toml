@@ -37,19 +37,19 @@ record_sha256 = "13ec69e9557cee642e85f0e8198df32008682a1aead73fb93194182162b827c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/dbn_posterior.rs"
-sha256 = "8b89f179163481881b508bf8802225c83b8cf4a111c29ef5857f92ea9eb71971"
+sha256 = "a668db1b653fdc7a3945937d4b1c92d18a1c789fd5764720164923acc480b5a9"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "aa44d7e1dad1c91356386a7ad05169d6ffdebb216db0ec3e5bdb6b27b861d9c4"
+sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
-sha256 = "df87dced0027e69b01f44ec103bdbed1607c1b2858563a61ed9ecc8e95878631"
+sha256 = "c6f1ae6f48151a43228dc942b68adb445d7691a69380a703455558dea358472d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "42ca047d3dceee1dc9014d89e8bfda6f033a08291888ba6ca953c107fef99fc6"
+sha256 = "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"

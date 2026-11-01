@@ -39,12 +39,12 @@ record_sha256 = "f413603e4b0407551577533a7535371bc25449f7282f93be13d77a4de0f55c0
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_posterior.rs"
-sha256 = "f210b9f0447e237b4e9c0bcbe057cbf5104b638c9840e920063a25650e790ef0"
+sha256 = "c5009f58005c9cec6fd453138cf31708196d80f1259ff10e519a58ee0ff50333"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/posterior_lattice.rs"
-sha256 = "6d3fe6afacdd69eef1b42c683ccbba5d6f5030a01c594a5625f8c671984c3a8a"
+sha256 = "ad23c7ae472a9132b0238e6e8c5c19bd8520201ccdadeeae7746535933209749"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -37,7 +37,7 @@ sha256 = "6e7f0589f92a60c8cf8e0767f070f7457f34fd1382e9ae4e1e266671ce898031"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/predictive_assessment_reference.rs"
-sha256 = "6eadb4f2a23b0fec7cd5b8da5c089d54ff0cd695fa5b0bbdf4b5ef3b2fbc742f"
+sha256 = "c3f781df4436a2a1e5051a3aa4dfa4dc8e1e5481f623f2f71e9a77fdda8b74e2"
 
 [[method_review.artifacts]]
 role = "reference"

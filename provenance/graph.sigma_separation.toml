@@ -53,4 +53,4 @@ sha256 = "ac94c64e9b2b25b37e12874df90e50e7b7a4811c9b31987c98e50696b6ebed8b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/sigma_separation_walk_reference.rs"
-sha256 = "904d95aabc1be2d8955db71baaef0086bed27539587656b17a01dbfa3c3fe3ff"
+sha256 = "d40ce738ed82e10970e9d0375412083100b25fe39fc522f1e2e39e7465656c19"

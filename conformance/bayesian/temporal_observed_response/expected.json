@@ -72,7 +72,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_observed_bayesian.rs",
-          "sha256": "5a2b0046e6edd2de394e0b7d5f26cf49135f4164426466e7aa510c312d4be0fc"
+          "sha256": "5d46588ad0090ff231e020a22550ab899f93d79a2e18a2be065f67cba0f0c4bd"
         }
       ],
       "fixture_payload_sha256": "17cffae63add29a4b9879fa28efdd706df490dee00190961604fcdcd6d9ac66f"

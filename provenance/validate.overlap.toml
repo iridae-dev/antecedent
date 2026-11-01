@@ -51,7 +51,7 @@ sha256 = "6ecb4a7103f6d9b4a7dc84d74835cbca276fb537bfbee363dca9fa4bbefe0956"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/diagnostic_propensity_reference.rs"
-sha256 = "3fc90718129f6b664c8de77fcebd2abce2dd06e5b3b8e048f279b613fa4d5bae"
+sha256 = "58df861de4d261e789cfe6afcab90d5f5389349aee7adba82cc246f62f4b17a5"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -23,9 +23,9 @@ record_sha256 = "798426e2dd6e6af0ba94dd096a608cf09120b962c16faebd944559c867f64df
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/measured_inference.rs"
-sha256 = "743682c5b99cce54483dccf99b2a73afb3e7e3640f8970f3efa7c459de41adab"
+sha256 = "d9b191c9361f42eca10bb361d3a88c648a5fd84da7924f189b5057a4eeba057e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "python/tests/test_measured_inference.py"
-sha256 = "d99f369b23760657454852e0b7e5b218def68d15babdfcec93c29bd250e00d55"
+sha256 = "4eb52f35bb6897982631330da44ff0bbff9111a30181140d15a291d6170d9ae8"

@@ -44,12 +44,12 @@ sha256 = "c632f25a5fc584e5b1e63361e9025df8dd9d62ad8dd2bc872fd1721a2ac7734a"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/interference.rs"
-sha256 = "3142567fdaff9e807a0b757929bc112d43b5ea33c034091fa9ededa85dab8f3c"
+sha256 = "4240db11575330dc4b893512252056c678eb2a638ad7e83344fe224263c556a9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/saturation_interference_route.rs"
-sha256 = "98fea7a1b62ded9dbb8644d7f13c61561e7046b0ae1b13f633ae2b0d55359d67"
+sha256 = "4d826db66de3a7636cb3a74d57fe9e1b14bb8df1058f32f6d421d22a1f55fca2"
 
 [[method_review.artifacts]]
 role = "assertion"

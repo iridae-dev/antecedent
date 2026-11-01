@@ -43,7 +43,7 @@ sha256 = "90558c5900c1e8ab98e1e4ee94017fbd30a02fe67e8c1b709fc906628e116c09"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/simulated_unobserved_confounder_reference.rs"
-sha256 = "a38dedbed66cceb21c7a4f6bd758c7aa5f631b3594735927efb06e78f01d49f8"
+sha256 = "ae60c181cfdae41189d1e5bcd4a75ab98e059d0b2345833c3da4cd22d0e3f26e"
 
 [[method_review.artifacts]]
 role = "reference"

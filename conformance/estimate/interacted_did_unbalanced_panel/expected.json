@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/interacted_did_unbalanced_panel/reference.py",
-          "sha256": "323f4a0b9c9524fc0db519e75ba8549f9a215caec8e8825fe2d1e760f13b2090"
+          "sha256": "1f765d4b0093680a15180ab2446316cfe8fe57912cb48e5557d1510100970a34"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/heterogeneity_robust_did/tests.rs",
-          "sha256": "03068fa9224a7958a2e3d388a14802f5edcbf59ed0ab02faf396c02269f64bc4"
+          "sha256": "0e837fa7314330eaecded2eeca1ec09f8dce534af0a7da05efb8da6104dd5ad3"
         }
       ],
       "fixture_payload_sha256": "b942d67fed936f19bc4c17e18ceb6901336a91cc58b05f3e3fa09075d668324a"

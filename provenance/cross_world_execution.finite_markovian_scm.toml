@@ -41,22 +41,22 @@ record_sha256 = "50f3f1ed33a274d060880cd8628e159c97f9d9106c4ee97a63ac47bb1eb8357
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_scm.rs"
-sha256 = "3a13d6de49e3c758ce56d715f545a28506e7d009466bc29ac3eb98c35ddba755"
+sha256 = "abcb47d4b7f73cf71f2635f7b1e4c562075f5ffe1f35618418960b3f52898738"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "4ae9cf9abe3dcdcd289b8a222dbcdf601d9aaf06340415a9ee4f3e0295fc6441"
+sha256 = "856a07f32cb4cb69d8c3738b32104af998b4829587ccaf27feed6f333f3687ab"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/factorized.rs"
-sha256 = "3bc4058a3a737082b6ddfd356fe3ebf8d592643db8d92e86a16dc3e9a5bce325"
+sha256 = "d8c585ea46710179a19aeeca7e9ae3561143810f201bbbfdd375d1aad9163375"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/finite_scm_reference.rs"
-sha256 = "d3f4b8d44d688b6edbbb2e58a12c9b949ec7d51ff7946c8c8ffc931c669092a7"
+sha256 = "d3773575742c5ba906880b57871b299115b3ed8e5932620988707d9dfe6b34ae"
 
 [[method_review.artifacts]]
 role = "reference"

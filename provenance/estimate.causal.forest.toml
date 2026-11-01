@@ -40,12 +40,12 @@ record_sha256 = "b3abf9dd36eb49ff1dc601521b4869ea0aed7d989a26452b93e1b6f7e76b776
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/causal_forest.rs"
-sha256 = "c53eb2047c1201c35006489b0129d989d9cda63bb59ea4e841adc7a55347f354"
+sha256 = "baf7cc214c67b394542733ba7b75095c6661f39c57aec87f51ddb89b3f73c8e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_causal_forest_reference.rs"
-sha256 = "af7ce980dd8550ede16deb852841e1ad585984625ed2261d2d24e65a9431e563"
+sha256 = "f76d2a0b70b8872d5dc5a5fcca0b002bbdfd7e64f2494656348f9a442b7d50d0"
 
 [[method_review.artifacts]]
 role = "reference"

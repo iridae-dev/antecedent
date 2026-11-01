@@ -41,27 +41,27 @@ record_sha256 = "b8efcca98666c1ca016e6372ebb8f86b8ad88a1232965f4db0882f0be0a0330
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/distance.rs"
-sha256 = "735ad21b6993d77d75a54964d0051e72e90e88fa2edf86c5315efe8a488289f9"
+sha256 = "d00239f60e60d64476d21b055cb71feb7eab0c1e842f10249a6f6fbb377f5868"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/matching.rs"
-sha256 = "0c49a05d567d8277692a6135f535560e652371f628a3c28d005584b9889061be"
+sha256 = "88fedc34bddf96041cc964019a9a8cebe8377cd3c6cac88df9b8efb1f40d7dbb"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/distance_matching_reference.rs"
-sha256 = "43d93cb9dd8b29a28ec663965f316f237e2964a1cda173e800085b6f6352e8c7"
+sha256 = "fb70ce16e959bf5e373f88f258dac038bbf7b91ebcb4a4912bf3a200d201f182"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/distance_matching_reference.py"
-sha256 = "101173d83c355e48c4f071aa997b0ba787d0bb77b58643a6f5c21ec11730a133"
+sha256 = "4fd24178c8b2f24fc31c34b125439e444f82a8259afdd3c24550fad2ab2f2303"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-estimate/tests/oracle_data/distance_matching_reference.json"
-sha256 = "7d34f9ca337c8e08ddd0d3092cf219a2e28d593f3bcfc06a6e8e4ead0bf2f8d1"
+sha256 = "3a7a8b3d3ca6292ba68f8265c033832d107c211f0b9588f0eb65fc3bbe802d11"
 
 [[method_review.artifacts]]
 role = "fixture"

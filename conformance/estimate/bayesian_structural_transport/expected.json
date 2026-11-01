@@ -33,7 +33,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/bayesian_structural_transport/reference.py",
-          "sha256": "8f0fbb2b451320ea3d7d94aa15816ba06879430b50326eb20522668f5c5d26ba"
+          "sha256": "edb42fc6de7f83c47049e0ce6b1f30ee080f01fe925c7dec16225c431321e6e9"
         },
         {
           "role": "environment_lock",
@@ -43,7 +43,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/src/analysis/statistical.rs",
-          "sha256": "c311dab78a655d0daf96cb6682fae4c7fed6545de0eb4174a040202dc217da72"
+          "sha256": "1fb9500763f2bd2219d5d0fa7616f8f32cc061ed664823d7b801f3e3fbefa397"
         }
       ],
       "fixture_payload_sha256": "749908d22929d7e5e05c7b660391ed5cf1bf0977b30fe4798662cf5cc7c31ce9"

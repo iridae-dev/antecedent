@@ -40,7 +40,7 @@ record_sha256 = "c36453704a7bc2f1f9cf6d7be30f91bde2d4a63723c5082d0a08f37e0dfe181
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/pc.rs"
-sha256 = "7aee97fbb9a41987fe83419f8eda6aaeb343745151d977b5fbfc3aa91d5624f7"
+sha256 = "c3ed87ec9701d0903f7273202dc6e01a522758b9f8e9eea25ba34c3506521c07"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -60,4 +60,4 @@ sha256 = "6ad77382c73879b173d20b5a5f7aa024afb49f40159bde2c1942c3f6a6a8ab3d"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/orientation_tests.rs"
-sha256 = "51c1ad59533c9d6813c83e545ce6514f3f64cc2ac87eb01c7c0ded94f6699a49"
+sha256 = "12d09bbe18a8964dfcbabd4fae69f301f9f2237a0812158fc2f119b87543dbf4"

@@ -45,12 +45,12 @@ sha256 = "ba9993956dd5542f88a9a4d554c52d4fa9b32b8483a5e7a7ef0e94806390feb2"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_ordered_p_value_reference.rs"
-sha256 = "eec77bf3b3fb40ae35d569a5e46ae730f5507ac264aa6dad0c9d270ab6f26c34"
+sha256 = "97e44ea6aded397b87e2eaf4e78f4cb325e5fdf329df339275fdbd75767b218c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
 
 [[method_review.artifacts]]
 role = "reference"

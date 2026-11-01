@@ -47,7 +47,7 @@ sha256 = "befc3e7f55ae272f38bd02c3b6c227857bc10e8f4144892e8e86fee66646f5b4"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/group_sequential_reference.rs"
-sha256 = "d2f4299e5a325b28b1915dc690ee0ca4b53fc41eeadce298f5bb2d35db4c8d4e"
+sha256 = "de5c29628e8fb2e743e1c48fabb8ecc99a5de7ad6f1708a91d3c1c5c3f55796b"
 
 [[method_review.artifacts]]
 role = "reference"

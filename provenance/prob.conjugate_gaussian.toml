@@ -44,7 +44,7 @@ record_sha256 = "9e9e295cc6dd44c8d3867bb6b3f551dfd843b83652f52b88f20ad1720efdba2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -54,7 +54,7 @@ sha256 = "cf40870bbb70f8cfd41e234b19a7bb919f2f1bb20ceb28f04a3f387783b587be"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/likelihood_terms.rs"
-sha256 = "364572075e0edddb2e8e85f1b21e7f51d96b5786867b15b7e8a3f29f529c3d98"
+sha256 = "c976cb3ac67c674b45428ea5477401d205c3df23cb463a5b8b1af329aeb603ef"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -64,7 +64,7 @@ sha256 = "ddf9f81f578d407dbc7c9b0ad96472771adb2ef17a60697be008403c8794f0cd"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
-sha256 = "a94aaaabef273e54da0ac5fd5a0c9f88785cd2f4a148afc210a5f8300c48b401"
+sha256 = "fe2d46007fcb611b55a683c5cfd495926a7594a84575b94c291c8e400647a157"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -74,4 +74,4 @@ sha256 = "9b2b818912ae6756f79d0d8349f53afe12c336a396137a7b92261510deffc77d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/bayesian/conjugate_gaussian/expected.json"
-sha256 = "3c7428a7fbab262e0b98d9e42a5999156df45eaf0d7fc45ff6e89a210058d324"
+sha256 = "273155ee8b3b93faddacdf7bc008a218b2536e9da64150eecdd92f8723735288"

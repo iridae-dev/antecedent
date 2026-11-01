@@ -52,12 +52,12 @@ record_sha256 = "d0c563c536110b8b890cc9107afc893a30ea5f425fcb7ac92bca2180b89e98b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/anomaly.rs"
-sha256 = "d2e10b97f5eac252350b3e503da7187d00799ed010a654538aea12283d2444f7"
+sha256 = "11a5b73176a0c1d6750e83b1931f3e50cd381a40578b11f812704e6b28dbe3ee"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/anomaly_arrow_reference.rs"
-sha256 = "f65308e7e3690847c25e0f6da31f9de9dd61051040c935ce061b023af941c60f"
+sha256 = "e6d80cd9b03f78aa4790aeb59f4ca6bdce2f63ae6c3d1fcffd2f1bb6c743a2fb"
 
 [[method_review.artifacts]]
 role = "reference"

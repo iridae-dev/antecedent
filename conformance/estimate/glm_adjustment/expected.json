@@ -58,7 +58,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/glm_adjustment/reference.py",
-          "sha256": "89b8d679b9228e70dd65dd614005cd15de5e32eaf44a994f5f24e41d6396e01f"
+          "sha256": "ffc5cfecba44e85fbaa322cdf06568b3392b646142031fbecf2cb5e3e1850ef8"
         },
         {
           "role": "environment_lock",

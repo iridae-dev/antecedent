@@ -49,4 +49,4 @@ sha256 = "9d3930bb942b18a635f5101a1930cf4ef723e7763d935f43d50ff68097a19752"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/cpdag_mec_exhaustive.rs"
-sha256 = "fd1130611c792416cac2f5210299c2b7ee4ce15be5f4638a278865c32c77fd9b"
+sha256 = "b21a88548eb932eaf39c72a90a816e0ba0355c03b5999fb5f3a99723e401d558"

@@ -45,7 +45,7 @@ sha256 = "abbe11048697e1e408ee9650cbf2022e65682bf32585c869d738bf1e7262fa89"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/randomized_ipow_wire.rs"
-sha256 = "dc972a11b2aca4e44ce73fad4bc159208833422c9b82fed1aafe55b733911d7c"
+sha256 = "5c527a89666506aae84d33df26fbb1d36035c4453afc6daccb9019639bd518ac"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -55,9 +55,9 @@ sha256 = "1db6abf84a0cb44a58e17348c888f1eb1a63b8f75298195cf62e1418292d70ab"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
-sha256 = "300e030d4ee193c68f1d58adaf995e3082ca5f68e05eff29a5f932b6cefed157"
+sha256 = "949b767dd3c5b00b85563e2819b03929ad14542c4d8733c581deea4e24dbeee0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/bayesian_randomized_routes.rs"
-sha256 = "31fce63cb3793f68085f7c8b17fa4f40d17e616da52fb70f48cef50f478f981d"
+sha256 = "9d0ec7d44ae9086586a93c38f95fba0541b4a0814335f5510cc176a12a41dfe5"

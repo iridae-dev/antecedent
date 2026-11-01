@@ -28,19 +28,19 @@ record_sha256 = "1dd407d9af8044d0c4400cf294425213eaf8ebdad6e8bcf89d85f558ff5f9b6
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
-sha256 = "c608f3e68f10c9322de44874bc385638a9919e54b3135b14d0908df72a65dabc"
+sha256 = "9bd000095fdb53127e18580ad029132d62bf29d9352aaa06446b6a9ecf8b0215"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/connection.rs"
-sha256 = "bd6b0988aec334a2fad08b2c6578de3425cff5ab647378b864303e1b15bd4f5c"
+sha256 = "6bd8d54538db7e15bd6ca9dbf625fc77cc1fba65e1803636991b02da0b8292b0"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_adapters.rs"
-sha256 = "f82e5151d0a2f4e93b83454067434742ce8fb86a5404117bf1fcc6ba876081ff"
+sha256 = "88b7d987a66ba93f6b39eaa9ac3b2e852884371c0326aee5a3d15e742a0c632d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_contract.rs"
-sha256 = "14bc53e5e9e6416c09822c161afe059ab5e96f36e0c7a777151bbcd2e7b991ea"
+sha256 = "ae134c95560270c8c079c2a95071d7e5abab4b782e8712fa0cdbaa00574e1986"

@@ -50,7 +50,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/dml.rs",
-          "sha256": "1010b2b3dd2c3fc3ec317bd1e823afdc74f5d1f2a7b34106beac752c85b26d62"
+          "sha256": "be966f996ec65efc2e848a67f3d0159eb4185886d28ba77df0ff6b8d8939fd33"
         }
       ],
       "fixture_payload_sha256": "fbb555c43ac37e88957d3c68cd0fec40d40e23285929253aae59d2557b2eeb43"

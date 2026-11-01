@@ -42,12 +42,12 @@ sha256 = "6c21de57862b55c2808b9286cbff40573ecb3d012aca34e47a5a68b483efb1d8"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/dcor.rs"
-sha256 = "650735446c256fac63d9d67203920836962316517c18356efd33edb1c982591c"
+sha256 = "79448e02c2f1a2c711cb8b4944f2ce0430964b8095167ed58f64e145f6307d17"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
-sha256 = "2a53bd157d0fd8adf3d26dd767bbc4a8971fb909248e8c7c0e7dcf9513f895b9"
+sha256 = "b4e575a6e8d2ba2ead2997b2192fe7ff87cd7952f4beebab8885191df494ff8f"
 
 [[method_review.artifacts]]
 role = "reference"

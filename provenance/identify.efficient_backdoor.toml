@@ -38,9 +38,9 @@ record_sha256 = "92bfe9849f63ec5c2f16f13b13d9f7ce121297a3254a3c2558dd4cd1e4df944
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/efficient.rs"
-sha256 = "b6f60c874abea1fc9bd53f1630d58f1105e92df33750d3d10adf0bff11e6347e"
+sha256 = "88e471d46abbfe4684ae5e024fd7cb76b671ee020055fa3a3f98f9558d3268fe"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/efficient_backdoor_optimality.rs"
-sha256 = "3109d550801fc90cedb9c9d48629b9cc61c1ffa76034ddf237dea385ff4baa00"
+sha256 = "c04de88b572b55b05f001ad943ac90356d1ea14315a3ad744428261862022982"

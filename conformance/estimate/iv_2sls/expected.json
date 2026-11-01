@@ -57,7 +57,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/iv_2sls/reference.py",
-          "sha256": "3aec08472be67f704a555c87e597220a1c8732c2e09d3504da51b90cdc3244ca"
+          "sha256": "5cf5948a1a2e876eb53f558c5d91842a2f4482223e3c4782b42beab3a99f46c1"
         },
         {
           "role": "environment_lock",

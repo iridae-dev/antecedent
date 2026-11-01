@@ -52,14 +52,14 @@ record_sha256 = "c82a51597b07202f91267f4e75ec0835f51fcf871fd7925ce6f059036ff7219
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/class_transport.rs"
-sha256 = "ae6f6a78c6d1e5511684994b875cb41b47daba1ce7f1ee4f3ef91ddf966d8470"
+sha256 = "1ad3a83e1e1b42435f051ae10e93555fb565afac94d3bf186a33209807948d4c"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/discovered_transport.rs"
-sha256 = "f8a950437ff443df9e5bfdad702133e23b4f9026abf33f286d614911f3bc74b7"
+sha256 = "5be465d42f3d3c59e2bbc53bad48811ac40c573c9744679e9740a309e807a3ce"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/discovered_transport.rs"
-sha256 = "fc6a83132749823004a61eb7b5814a7fe77f754f0493787efe50cd510965d4ca"
+sha256 = "1cac329ec4f2a45817136ba41ecd556ac515110eb264bfe65f1ba8c3b6ecfc1a"

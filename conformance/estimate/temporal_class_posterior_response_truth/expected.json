@@ -34,7 +34,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_class_posterior_response_truth/reference.py",
-          "sha256": "08f90bcf3bce22c00e83240670496fdd34921ddd59cce35206f82b5ad7bbd249"
+          "sha256": "ecb9e86660f970e166720bf29d042742e3f048a9873ee8247319aaef6dba03bc"
         },
         {
           "role": "environment_lock",
@@ -44,7 +44,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "54bab9110d48b69bb8e0ef97941bcabaffa2cbd3802eb6b4208f97ec9aaedb41"
+          "sha256": "6513e6004f747315a4b38c212f13670bff0670526d220fb7a1dcbe4c0b162aa6"
         },
         {
           "role": "assertion_source",

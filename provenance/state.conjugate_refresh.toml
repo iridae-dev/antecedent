@@ -38,14 +38,14 @@ record_sha256 = "03fcbf5ee12c18c62029a8e27f789e61ccf2950dfb084384f9461e5383489be
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/conjugate_refresh.rs"
-sha256 = "d93094f94b318b9a6dc7ed2285fc27686dc71e870bc00d96f19760977fe9bbcf"
+sha256 = "a8df44d048705ef8b8413c4659877997655fb68db08a74860e24b9b5d9f56f01"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/suff_stats.rs"
-sha256 = "731e62d2ec6fba76cdffe78cc5f16bd9e378cb38167c42f64aea60a27b5d7cc0"
+sha256 = "c36be002d88c6e0b2a3cf822898e9fd7af3fbabafc1ddcb76c0f495785dd00a5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/conjugate_offset_reference.rs"
-sha256 = "1f30cd18b1f4c8083fc5771ca91dd788f00cfac948aea646141bcc6ba3ca8c27"
+sha256 = "bf9cf84019a606247b8f1df50047361df6678b1f122269790fcd87906889657d"

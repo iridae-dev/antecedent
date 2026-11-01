@@ -42,9 +42,9 @@ record_sha256 = "7201e3fc7d502e55dbb9cb1ffcfc7f8896cbf5485fe1e67a06d12cc1d102512
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/completion.rs"
-sha256 = "a671bd1d7706aece6d6f209f943a041d4ad630fc6f94efe93797287279f178a0"
+sha256 = "8a99ba8036bac0fa04f823869c8411491795b15fadb392178c16eece74f02f0c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-graph/tests/pag_completion_exhaustive.rs"
-sha256 = "349141672a5c57b6ec2fedb1483961041f09dd98edc14257f7294f2edbe4d321"
+sha256 = "fe85d68d07c154a9d7f38f7287ae411aa7b6c3e71d0edb94acda3c92b4b6da8d"

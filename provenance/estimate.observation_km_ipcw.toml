@@ -41,12 +41,12 @@ record_sha256 = "9ea6113956c955ce04709a7e7a32164092b2d312cd7d79150d867b9df65db9b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/observation.rs"
-sha256 = "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+sha256 = "7784fdd67924fd1f2cce59a2e096806299f487bc75d429aa25a21b48ee6b9af5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/observation_ipcw_reference.rs"
-sha256 = "ef5152f79666d49b34f5e2f86e3c62519c71eb9c36846ab6b3f6a7265d33deb5"
+sha256 = "ee962c0fbdf203c1961ad72856177e3a4f421b890d75eaa06b393c08c0d29b8c"
 
 [[method_review.artifacts]]
 role = "reference"

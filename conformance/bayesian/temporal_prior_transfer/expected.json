@@ -76,7 +76,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/temporal_prior_transfer/reference.py",
-          "sha256": "3ed4ab718beb1acc97501bfb8a1a509c1ba1b077e8dfad8578531893e3ab77b6"
+          "sha256": "41365c44f4ab626c95ce51ca224466ea623e5d2ea3b8d82d35382022ac57aeef"
         },
         {
           "role": "environment_lock",

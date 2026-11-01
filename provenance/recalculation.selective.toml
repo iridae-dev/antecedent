@@ -47,7 +47,7 @@ record_sha256 = "1aa001ce6f041a4632e52039dc848975579fac2d66cd005cac814e3955c196f
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/recalc.rs"
-sha256 = "74a6adc8984f9199aa4f37394ef9deb7e70346da7b655bef7fdf906c0372e9c9"
+sha256 = "ba408449adcf0775cc735741f54ceb0e3a2055570aa440d937b10d8fa72da9e6"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -57,14 +57,14 @@ sha256 = "f396709c20ae224dcfede2b555b030e14d3c9111c8ea0eb813e5f26f330c48c5"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_receipt.rs"
-sha256 = "01bd7ce3926d930862e3c54b5aeb655c60f47a2c762c6cdc407188df6dfdca49"
+sha256 = "8b93f260828e9bb709d86114ec05bd72c138464592d4c1aeaab490964157c4c6"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-core/tests/recalc_plan.rs"
-sha256 = "435ef5fe4db57fc77b7bf47e4d01bf807c47aed8de7f7d1dc57e908ff0368ac5"
+sha256 = "b0e1c87c23969d9bb8f56e58b25f585f2eb3c3751944082a63c157e9b3d30816"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/recalc_receipt.rs"
-sha256 = "5778f72359ae29f1d0bd5407ee1d2ff84929c18d94f5c1478a746cbb26dc89ef"
+sha256 = "c349b1f2dcd57db5d3d473c156db7d96bf5507c68408e4c76cb57a126baec2ff"

@@ -58,7 +58,7 @@ sha256 = "9f4bdd2b680b9f3b3a0b733b098e74a05b229684305d5da7a8d33819f909b4a9"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/graph_entropy_channel_reference.rs"
-sha256 = "5a76c657fdbeeb1b295f52c20309f8af7677561eeb5cf8526a0368ada1722243"
+sha256 = "c6d5cffca9cc325ca63069cd36996c046d16163cacb9e1d54fefa799c157fa7b"
 
 [[method_review.artifacts]]
 role = "reference"

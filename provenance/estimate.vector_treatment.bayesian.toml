@@ -35,7 +35,7 @@ sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/vector_treatment.rs"
-sha256 = "7b28e6192c23e24495b6e7d12e0c22bdbaaa5488d56f6fc733c4d7c81a62708b"
+sha256 = "e1a4c389bd34f5adf822ca6ada553810ccf7b97c363e10f1b9eb48ca78fd5ec6"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

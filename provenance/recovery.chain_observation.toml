@@ -61,7 +61,7 @@ sha256 = "dbc719a3e317174ab9852cbd5b8203c83ca15fe0ef789a7bfb57b3ef39b06f0f"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/recovery_chain_observation_reference.rs"
-sha256 = "a01029820ff0ffb92c6f0ba28d008c6d40c99d735dd792e02f6628aeb97589a2"
+sha256 = "0d4af33b04a0ed9ac3a354062187ed4eac4d9ba48e502aec9b9c17241e69ab6f"
 
 [[method_review.artifacts]]
 role = "reference"

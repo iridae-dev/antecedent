@@ -50,7 +50,7 @@ sha256 = "49abbb5e641ca4e86c4409a5c83fb00b19fd42479b9ddf4104a8c2e6b86d55f0"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/continuous_null_reference.rs"
-sha256 = "2a53bd157d0fd8adf3d26dd767bbc4a8971fb909248e8c7c0e7dcf9513f895b9"
+sha256 = "b4e575a6e8d2ba2ead2997b2192fe7ff87cd7952f4beebab8885191df494ff8f"
 
 [[method_review.artifacts]]
 role = "reference"

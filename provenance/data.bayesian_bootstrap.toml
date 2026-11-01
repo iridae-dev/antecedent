@@ -33,7 +33,7 @@ record_sha256 = "9de7a1a91ce67dfcc2c76063dae7a7db0e1d517a2cd15af10ff52e40e26a15b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/resample/replicates.rs"
-sha256 = "bacb6121bd531b577363771d8bbf05b3cfba64553adb8ef0a7761166539f16c7"
+sha256 = "cbfe5304ac171df34f6a2882004a22ea11618937c30d0a902f372aa2c239cc49"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -43,4 +43,4 @@ sha256 = "ddf9f81f578d407dbc7c9b0ad96472771adb2ef17a60697be008403c8794f0cd"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/resample_law_reference.rs"
-sha256 = "02f37b85d275822fae74ca8c4b4a100e8ce3fa35177eeb1f97dea9f93e1ae4bc"
+sha256 = "4305af94e7f4d9345662a51aa8565f1036a66af33c3c5f3f536aa104b2a17016"

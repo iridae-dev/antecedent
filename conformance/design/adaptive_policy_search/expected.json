@@ -47,7 +47,7 @@
         {
           "path": "crates/antecedent-design/tests/adaptive_policy_search.rs",
           "role": "assertion_source",
-          "sha256": "5e87c508d00b5ece747bc2fde138b8feaff6c75131639f1c873bfb093b1c88f6"
+          "sha256": "baa2a59b7b9c370a42a804ec4f0cd35d670b7b4ba319ea6d8c8f6dbcb34b38e9"
         }
       ],
       "fixture_payload_sha256": "a9e4b89dbc36d9ca3f4df6272545883c3b139fd19fb0cd2e79e659d3cbf3b6dc",

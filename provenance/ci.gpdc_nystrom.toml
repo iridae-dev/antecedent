@@ -53,7 +53,7 @@ sha256 = "6c21de57862b55c2808b9286cbff40573ecb3d012aca34e47a5a68b483efb1d8"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/src/ci/advanced/nystrom_reference_tests.rs"
-sha256 = "90c102d9f7337049e1c9d4e65cc03c90db1ac998535e74c0e51e898f3be661e1"
+sha256 = "d6bddcfaa10e54c8149c55638dbac32acd724f1fdefdde4a8781662986d714ee"
 
 [[method_review.artifacts]]
 role = "reference"

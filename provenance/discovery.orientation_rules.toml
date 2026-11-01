@@ -41,7 +41,7 @@ record_sha256 = "ebb17a57ab64bedd5cf692a08047a61d45b8c6d4b145fcb37af3d569a48eda6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rule_scheduling.rs"
-sha256 = "18be632f5f304e307e7fbbb2d0e03308a21577a0b7568bd82224ba1cde7bfc66"
+sha256 = "4aa329557ce27c2307327899ca8507a3e8ef14a1cec2e9dc835c102eda544bd1"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -51,4 +51,4 @@ sha256 = "26fd1db120c8784000d9cb2008c0f4fb8bce671be9067daa5327b27ed9578c2b"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/fci_pag_class_exhaustive.rs"
-sha256 = "03412043a49f6c194b0d2abfbeb13574d3b2c69c74160e9c14d365f6c492574f"
+sha256 = "87cac5e883bd35978014d93b1add0e8ffd14433d0109fc4037620baad077b0bd"

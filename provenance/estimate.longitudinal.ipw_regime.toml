@@ -43,7 +43,7 @@ sha256 = "de3915dd1fa8c2edee56056b2ca3ef1b5a94715ea79d9980df0cc606c86e9a33"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/longitudinal_regime_reference.rs"
-sha256 = "318566acebbcbd7f450ac1f3a99df91161533cd1472a784059fa473936158e6c"
+sha256 = "caad40abcc9918306d545cbd13759726964ad6e32fafba251536c3b84b2d6b3c"
 
 [[method_review.artifacts]]
 role = "reference"

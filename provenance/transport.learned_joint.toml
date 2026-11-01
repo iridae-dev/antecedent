@@ -58,12 +58,12 @@ record_sha256 = "8c797a4e48df1849a429a4a031446f7e942af5e9b68feb5b4efa5e1e462c2d8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/learned_joint_transport.rs"
-sha256 = "b3c2af388f5352587ddec9973ff30b3fe7007b4db84ad786a102ec9f8c56a2a4"
+sha256 = "5bb18981b0eca7e22c60045c4af3cd862baad213b7de07aaed06c33d2ba8ebc8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/learned_joint_transport_reference.rs"
-sha256 = "b9f8d039a57846c0eb37da41eef33f47cfd547233c4135cc89a12df59cdb3ec2"
+sha256 = "4bd9319bbebe88c710053457feef935a13eb905da5c9faedd8ab0ebff71ced70"
 
 [[method_review.artifacts]]
 role = "reference"

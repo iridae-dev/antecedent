@@ -30,7 +30,7 @@
         {
           "role": "generator",
           "path": "conformance/attribution/anomaly_root_cause/reference.py",
-          "sha256": "f99ccf74156f1ee4c244238760af13274f1c1c7b74d598f5da22f0a1053b9c28"
+          "sha256": "6e36897e78c50f54df36a07e2a98d705a9dc278ac1239c3b047dcccde1ce2442"
         },
         {
           "role": "environment_lock",

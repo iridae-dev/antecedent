@@ -48,12 +48,12 @@ sha256 = "529c9ec8de69287f34caae14418c81a34f4fc9959e5c3319d56c2e744dd28806"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/mod.rs"
-sha256 = "2392379ef56a7c77b1b9ad93e6af3c5901be61402840112cbe2ab4f55443bdb0"
+sha256 = "1dd13dac12b1583e3b1a6ed1839e9766b8d2627329d8873fff7ea1f1fd16351c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_design_excursion_reference.rs"
-sha256 = "88a67b1fe9586a5bb7cbcb6fb336f9fbf27c680c7f32c38e43892e68d3a74404"
+sha256 = "b86f799f1e76d1a2d1b86104fcaae4bf24f5812fa4d9168e2e1fd3d70267bc90"
 
 [[method_review.artifacts]]
 role = "reference"

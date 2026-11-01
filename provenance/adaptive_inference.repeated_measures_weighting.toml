@@ -35,7 +35,7 @@ record_sha256 = "20066c829ecb109ef9208c4749c7340f96079559406e3840a4e1f153001b283
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/adaptive_inference.rs"
-sha256 = "6a6d5d8f0395eec7eeb167dc57fec8e674fb4f34942dc807597aca946e7a3fa3"
+sha256 = "5c97dc9593ba52a2072f2af0c0688a5c2c0a4c04130815d6d18e569f244ed78a"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -45,7 +45,7 @@ sha256 = "fcd7c7ebd9252996df191f61b6e28a50409e1db90c40256ae2342c6a61afb482"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/adaptive_repeated_measures_weighting_reference.rs"
-sha256 = "70e1413f85c049673c838080e6f5f96ba3d72290ab46d3968b9a3ec5a6cf8094"
+sha256 = "3b293d632b5ebb07ebf29810f85795b4d9752123b1a39421e55dae92874a2502"
 
 [[method_review.artifacts]]
 role = "reference"

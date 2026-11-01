@@ -19,7 +19,7 @@ record_sha256 = "5f8bc44cd41b9ed071ad68127c21164bb3dd6721a39ff6b6fdfd1b66941ead4
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-core/src/execution_attempt.rs"
-sha256 = "aa216473749f1c16d1a0ea88e3d6b253d09dd5ecacc60228e67d360de6b0e7f7"
+sha256 = "5b49c676ca677a5ff3440c9f5470255cbf9e4ef136b879255d65934c38198dd0"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

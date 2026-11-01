@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/composition/release_boundary/reference.py",
-          "sha256": "f7d6f48e38c8e39150d4018dee86fd67a6ba969da2a741e6302f45edcee40ad6"
+          "sha256": "a0156efaa917c12723007582ecf0ef15579a2528a82d6a46595b336e0dd7c40c"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/composition_release_fixture.rs",
-          "sha256": "95028592dede0f8ee27ee35df48914a1cbc1a944b5c4936b20428490af85d57c"
+          "sha256": "8af7341a8e39d349806c42299380286e26d6c7ef920dad854788e0ce1e314dd4"
         }
       ],
       "fixture_payload_sha256": "846c3d92933177ef90f9c9a9476fff2ea80b15b5babfca7abb52674e63cfdc06"

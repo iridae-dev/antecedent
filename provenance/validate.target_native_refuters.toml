@@ -37,7 +37,7 @@ record_sha256 = "ece87533165b4133afa174367b0f2bd17b6669391010adfb41accd251e40cb5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/target_native/joint.rs"
-sha256 = "4d6de82e1e1dd43754d705f23d1fd15ec55fdc764bb02c8ac7b773b87cfd519d"
+sha256 = "3cbcfcb9654bb1cfa90714b7a7d70bfdfda06b7e686bce8472ff984c1292d772"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -47,7 +47,7 @@ sha256 = "197a811dd597ef893a40da0ac8fdc0ca22ddf29b76cb60d695c60a2b90252014"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/target_native_numerics_reference.rs"
-sha256 = "0ff3ae3577b658c0e8ca7273edaf77a69e86c5544eb9f6c6eb1c907cf6f2d445"
+sha256 = "6831a1c9c50cd64cf12e9a7c01cd16f965622f0fc555db39aa519a68308f0274"
 
 [[method_review.artifacts]]
 role = "reference"

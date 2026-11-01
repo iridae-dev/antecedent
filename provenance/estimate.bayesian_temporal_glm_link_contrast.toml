@@ -46,7 +46,7 @@ sha256 = "4fe573917864e4d053f14b87b238d2cba5e07c19137906747eb409e00d22b8b9"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_link_bayesian_reference.rs"
-sha256 = "8eacf8f84fc3a739fba57c5db819dc2e07482ade4cf89c26eec90433ad75620b"
+sha256 = "a9df4b2bbfa86bd8d562a20d21186ea5e8c58a5f907bf2609cb9b81ebbe34854"
 
 [[method_review.artifacts]]
 role = "reference"

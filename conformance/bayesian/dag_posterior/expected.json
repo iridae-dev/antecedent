@@ -81,7 +81,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/dag_posterior/reference.py",
-          "sha256": "0e5334ec6fa44ea5e2f3064c674ac3fc08b75ce830f218b6839026be0ecc9bc7"
+          "sha256": "1ab527757e1d249185d3fe03df12261d90637db9264f503b26f8d24f02ca349c"
         },
         {
           "role": "environment_lock",
@@ -91,7 +91,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/dag_posterior_conformance.rs",
-          "sha256": "9c8c95a5a844c66335ae187423184b5c4f1a24c5acfdb7ab462fd485bc50fd16"
+          "sha256": "e6d82b181078d84471e86aa90f8dd0371a1693966fcef21d3da66f33c21c989b"
         }
       ],
       "fixture_payload_sha256": "d82cd880e84610f9776d13a6aadc748d65403c55c4de85ea6fc61c4226445420"

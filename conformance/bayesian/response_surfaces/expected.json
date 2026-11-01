@@ -44,7 +44,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/response_surfaces/reference.py",
-          "sha256": "7f3e9e708ddff5df8e1e36ea090005fda42bb4f59322220e37e32d4794c793d0"
+          "sha256": "bbbe89a5137267bb600d0971df012f81696ae9726bd2a020a5865d1dad06adf5"
         },
         {
           "role": "environment_lock",
@@ -54,22 +54,22 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "ecc91e2da426c9d7b17eebd46f62c0e346dd77cb27ee05a3315e89293c5f2939"
+          "sha256": "f4bc57970033838b15a1caf20244b462d4741984916e5eb667e8714a66a22773"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "d89ebe2ba520607cd65c2ebeb995a8210ca452a7f20d2188e967093c1366364d"
+          "sha256": "3673b0a028927117567c0257c1574b6212cdfb53fc34d8a57f6280405db8c5fa"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/two_point_curve_average_effect/expected.json",
-          "sha256": "a22a973a87c0f48b4db6aaeb2b377de5310d6e16b60b8d96732b3236425f17c0"
+          "sha256": "7adb3f0555d4bf224ff0a4c07e91b88f01bcd8cb76add9cf3dbe9aa8c820d236"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/temporal_dose_horizon/expected.json",
-          "sha256": "31e96fa1fd3565dea4c55b966c29fedc7dcb89a547319a7970348311e9a2e29f"
+          "sha256": "a9cb0db09cc33f3d307078f5f5b360a15a5f34fe12c5781680dcd95bdc01d486"
         }
       ],
       "fixture_payload_sha256": "ae3e0167465bd27441c5cfb3acc76c05fe22d477a2fefe773018b2b10e77b828"

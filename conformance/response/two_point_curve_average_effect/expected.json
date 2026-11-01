@@ -69,7 +69,7 @@
         {
           "role": "generator",
           "path": "conformance/response/two_point_curve_average_effect/reference.py",
-          "sha256": "cb95aa12f2d09d5c6edf014b746bf0433847ff1138e7ce8f012ed671e933e8f4"
+          "sha256": "937e49dd62bcbd6da34d74ddc0cc1e8131d1b7f9679583179d03c5350adfca97"
         },
         {
           "role": "environment_lock",
@@ -79,7 +79,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "d89ebe2ba520607cd65c2ebeb995a8210ca452a7f20d2188e967093c1366364d"
+          "sha256": "3673b0a028927117567c0257c1574b6212cdfb53fc34d8a57f6280405db8c5fa"
         }
       ],
       "fixture_payload_sha256": "07fada19dfcabe6a144a0f9edc4586c4a51e176b0d704e0ceac646dc2fcb1834"

@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/recalculation/bayesian_retention/reference.py",
-          "sha256": "2ea5d2531732c030a7430b3f0d20a17ea727179efc65a883c1ed8cbf98890d59"
+          "sha256": "7851b348f7b9a1a92474c0059af20fbbbced282498de4e299b3a99cf5a243901"
         },
         {
           "role": "environment_lock",
@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_bayesian.rs",
-          "sha256": "096d0803eab92446edaf333ccb140170b224061f0fce4667c4e5f52c59f4bf51"
+          "sha256": "9df16b4b13946f35c2152912b68be07180a91e5b2510ad6f6991f0790d83fdbd"
         },
         {
           "role": "assertion_source",

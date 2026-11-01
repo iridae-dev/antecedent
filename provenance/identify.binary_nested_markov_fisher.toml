@@ -39,12 +39,12 @@ record_sha256 = "442ca87969a187dd2658c094c0e5f6449398bd5970f438db0f02b110cd838ed
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/nested_markov_uncertainty.rs"
-sha256 = "7241767ca48f317daba8c03ab12fd8aa039b3b5a4785e777e4a240899582bb9a"
+sha256 = "8b4f818b17675d74a5a0fcf99555b2ebe44e3af2d1435530aada45eb1a049303"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/nested_markov_fisher_reference.rs"
-sha256 = "7a14f5dc43a687276aff9e443adfa1cce19ef61ed99a400c65c00790e8a98b0c"
+sha256 = "f653719e3e82058639a096ceeea29a38265c78d74a3afdd1e0df4242435ea95c"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -47,12 +47,12 @@ sha256 = "952f446d347e8897daf53ebb049e2166e4fc3094ec637540e994544d883a3f47"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/special.rs"
-sha256 = "b663d754fa1eb1fc6c23100572fe66d32554597596d739324253f7ce1ef18c39"
+sha256 = "f74f5f296f1b3e2c87723a0772ced07801a5e8f35f1f1bb5d5c16b5d55399696"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/ci_exact_reference.rs"
-sha256 = "31a298b03d6737def78a2423ef7f0ad24263e4495b2a53e50c8315b4dbb1b84a"
+sha256 = "232c3b95a3140f671c6e22f4d5a45e90fbfeb052a3f2b82a3cca0adcfd9504e7"
 
 [[method_review.artifacts]]
 role = "reference"

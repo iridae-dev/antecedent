@@ -40,12 +40,12 @@ record_sha256 = "441744184bce0d31eb0d406b4981921a74bae1fa262a41cfffcbc19c2849fa2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/propensity/stratification.rs"
-sha256 = "1585552de14ab7f02e5236dd6e0837c5302bbca3b32a49c6a205e950269b992e"
+sha256 = "00d92f0432726d49588606182866ed14b6db9adca7dd05e76c2062866f4409e2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/stratification_reference.rs"
-sha256 = "4bb2ec4dc41e40eb09f8fcaf6eb77b250ad431ce032c484d13db31da91e230bd"
+sha256 = "a999b76bd6532b0fe69ee84045d0eac96ddab8a281899b37ace36b6b2cfa3306"
 
 [[method_review.artifacts]]
 role = "reference"

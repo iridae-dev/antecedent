@@ -33,12 +33,12 @@ record_sha256 = "d87164cb130d82f80c6733a6eb96f9d4e5e73b54eec144caecb4060604cd55c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/cohort_linear_effect.rs"
-sha256 = "de2d5408a47d75e1722c2e5b05ae8e8585b6ab1c4c5c2254abe400868c528ee1"
+sha256 = "527a4497cf080baa5bf77ca48c5d75e018a50671d906b229d44f4ebaadf4baa7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/cohort_linear_effect.rs"
-sha256 = "17bb8ade4f05b967ac27e5043cff3050034fc5043db0e85c959bc1530be2805e"
+sha256 = "fcdd8cee64c5ac74454d3dcf98436498a423aa0b496e3fcd35fcbd00e4ab049b"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -40,17 +40,17 @@ record_sha256 = "3758a4a4fd0ad4a28060ad3f57f5619138d00624c95ba7f650d989160941bd9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/ci_screened_posterior.rs"
-sha256 = "1b0a1e79cdf256973ce67da9405b59ebd2c5482f258cec2aa7054dec288fb6f9"
+sha256 = "87ab28af59eade8393f85fefddf5fa834b5c7218b9aae0ed887527088605ba7f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/ci_screened_posterior_reference.rs"
-sha256 = "708cdc8e8aaab80c362a9f1ac83993b2ea633e123f94c850745043e7d90cb2bd"
+sha256 = "b45cddeeceb2d36b0dc9908b248c456eef80bf107a7bd6768010ced1a91ab062"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-discovery/tests/oracle_data/ci_screened_posterior_reference.py"
-sha256 = "a01fe05ebdf3d260e25f8b353fb2bce78979efbadf324ef2f6356122450c1a6c"
+sha256 = "9e4c825c7c27a302a187ea2a3beafa38fb73d8275b66f42e4959665016c3d437"
 
 [[method_review.artifacts]]
 role = "fixture"

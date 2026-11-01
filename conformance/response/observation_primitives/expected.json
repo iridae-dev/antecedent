@@ -119,7 +119,7 @@
         {
           "role": "generator",
           "path": "conformance/response/observation_primitives/reference.py",
-          "sha256": "4663e8622302efd56380682f0f60ed02600e1e291dbab97e5c2f30ae64bc67c5"
+          "sha256": "96620ca0fcc10894cfaa3c721b99065610d03163b7ff6be58c28e86a557aa2ab"
         },
         {
           "role": "environment_lock",
@@ -129,7 +129,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/src/observation.rs",
-          "sha256": "201a0a18f916ba476a17ec73ee8957243c2a012edfa8d5c7363497ee41c582af"
+          "sha256": "7784fdd67924fd1f2cce59a2e096806299f487bc75d429aa25a21b48ee6b9af5"
         }
       ],
       "fixture_payload_sha256": "ac37d83b47e82a185bb981346ca75c74f2e9034480052edddede3a9677d08e94"

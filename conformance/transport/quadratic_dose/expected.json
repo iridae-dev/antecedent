@@ -27,7 +27,7 @@
         {
           "role": "generator",
           "path": "conformance/transport/quadratic_dose/reference.py",
-          "sha256": "c7d49bfe46fbf84ea70c9fb964b3acf0b08213618a59e6d25af9435f2cc8b9ff"
+          "sha256": "f28c552db32cceff60570c05f4e70ef305277caad7c0c103779b0b95671c00fa"
         },
         {
           "role": "environment_lock",
@@ -37,7 +37,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/tests/dose_grid_functional.rs",
-          "sha256": "9d040b4c01dde6c545adc854a608f472add4608b1735db8b4a0b21e1c9fd7008"
+          "sha256": "f8c498270a22114b1c72c45cc23eb32796f25ea89f8a196cbf5efb4f30fc1e10"
         }
       ],
       "fixture_payload_sha256": "755a3c530f78da2330f5b81f6cece40ee2b7dedf5e8d521a18fac028d717d4e1"

@@ -61,7 +61,7 @@ sha256 = "4a5443b85b648163f58d754b364563e9e5be4c57ff48909788f060374a76e6a9"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/design_ranking_replay_reference.rs"
-sha256 = "e9b6dac276101baccc040a352a7b088e3fe58098778ee16fc167c03551dc0fe7"
+sha256 = "3a8f24f1f841f5740d7417fab9b7121158b854876caa3fa27937caed5a5ed790"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -38,7 +38,7 @@ record_sha256 = "1c484f81df753b313af6b877137a9168da928a8f0df087e9263f1d61bbc36b4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/mechanism_change.rs"
-sha256 = "27585bf28718b3834d6afb64c57b18388879bf3ed1f4013663961829d73b4fb9"
+sha256 = "5aadfc1a68c49a48f71e12e240ad81061f4df07691b2ee73c5c70e358415a11a"
 
 [[method_review.artifacts]]
 role = "assertion"

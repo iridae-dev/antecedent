@@ -50,17 +50,17 @@ record_sha256 = "4ed3b7811714c8587a16f176a6b9c8908e6691608f5eaf9264c727b130c815e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/evsi.rs"
-sha256 = "9b58bac40b2989c5fe86f7460266212d0f714ffb0dd8004f0f544eae6ef36be2"
+sha256 = "06832dec33bc0ecfabe03855e6559b92c916f17d9212908594153d0337773aea"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/preposterior.rs"
-sha256 = "581d045978b048ef2df00330e850cb3af74dd10bbb36ec2d2ec84920722ef725"
+sha256 = "1e2d78331322c847ec419b4a69e487ca518657b232f4b6956f7804e993d3be1a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/evsi_conjugate_reference.rs"
-sha256 = "94728d8283efe8ff5c504aec1fb7e182f1dd1354e57806ef2f709f69a17a762f"
+sha256 = "6dc59e8129bbe7fe67186af3b309ed595d77665ae3557ffde5fadb7b86bccdcf"
 
 [[method_review.artifacts]]
 role = "reference"

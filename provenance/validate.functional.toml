@@ -36,17 +36,17 @@ record_sha256 = "5f17b1472c5ce08dd0cfc73597ce779e3e16d0fb55cd396b3740ba1e8f33724
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/functional.rs"
-sha256 = "f326841e7c936b850fcfe2195f41bb1753f863eebb470973130bf5305b81a3ee"
+sha256 = "7437ad67413ed4c4987596ec3d337fbffa3ee67a926719b83078d02327499dc4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "c17c31cf99db30bee310b9d91b101c7fc1b7eb9e469b8798eb626d5b4bd27090"
+sha256 = "769e627628db990293b5e1eb95a2ab8ab9d7d31f2b459827ff884f94d2495eb6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/functional_reference.rs"
-sha256 = "e2efbffaaea9e1aa26684abee8d192a2e6073862b658035739d23d6a5e8beef9"
+sha256 = "e35ce2fef18c4049300cce6022f05658a19181b53e68544982ba4b6d5b0e61ab"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -56,4 +56,4 @@ sha256 = "18322038c2588b62ddeed93cadbb1dbd2490ac259f3d7487f50fec50888cd113"
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-validate/tests/oracle_data/functional_reference.json"
-sha256 = "a9134edd34fd03baef9b80244b2f41bfafd97715af9d0eede822058b430bfe83"
+sha256 = "787dbc134956a222335fd4360ebbd7e999e5fb3eab85b8811202b08344c3e8cf"

@@ -108,7 +108,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_dag_validation_truth.rs",
-          "sha256": "139c73a1d77e7465c68f811437aec2d7884e8dea868d3be6b65f8af677f19c68"
+          "sha256": "4b3c7b2e94caba80e1df49d35a699e8c6b9f5faaca3803c2af1ca346064b155b"
         }
       ],
       "fixture_payload_sha256": "bdecc80305a7711f09a694d84be09dfccd037c605f07e0b2bbfb443d538f854b"

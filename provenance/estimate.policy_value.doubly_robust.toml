@@ -37,17 +37,17 @@ record_sha256 = "e6035069c10ccfe7c0cd18048d55b5230c3ade0ef92e3723116b28e784214db
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/policy_value.rs"
-sha256 = "30c30b8431e8ffdb18c11aea063d05df3a6be3821345a5650c2efda77d4728be"
+sha256 = "687875c34156bca53ad14d617ae5993d4fcd95d7d1621676a3069a238f64104d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/policy_value_reference.rs"
-sha256 = "e471fe06c0f39479d37d4b274477b1cbd4f6223678f2c233056b1da008c09bbb"
+sha256 = "ee61f00b9accfe825b33e72e5aff48e8c64a23d043a08b9ada8f1bb81d5474aa"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-estimate/tests/oracle_data/policy_value_reference.py"
-sha256 = "13a71fa5583500dbddc851da8697c8c683dca9f1275b1eedf5bff2134002ccd8"
+sha256 = "88b32fe3d761a6b83dd0a10c14c24901a06d7c6384b7b26b2ad7e9e43cec2337"
 
 [[method_review.artifacts]]
 role = "fixture"

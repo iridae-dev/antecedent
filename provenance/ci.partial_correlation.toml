@@ -50,12 +50,12 @@ sha256 = "cf981d8c4b0fd0d18c6548c3a3ec39adeb8524a8c37bd7fcb5900b1dd4eb57ce"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/parcorr.rs"
-sha256 = "f8770beb3fc804e2d4363febb70539619893fe01e02f4b74f75f55914e6918df"
+sha256 = "cdd4a635454d154def99661523e5b92462f6b0cc2da52abb8599e4d4f3a7e61f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/ci_exact_reference.rs"
-sha256 = "31a298b03d6737def78a2423ef7f0ad24263e4495b2a53e50c8315b4dbb1b84a"
+sha256 = "232c3b95a3140f671c6e22f4d5a45e90fbfeb052a3f2b82a3cca0adcfd9504e7"
 
 [[method_review.artifacts]]
 role = "reference"

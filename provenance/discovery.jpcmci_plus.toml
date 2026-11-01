@@ -45,22 +45,22 @@ record_sha256 = "edb3c5210212ab485ade3ceb3d7f5e5dfcfec9f467ae22bee490610a599928c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/jpcmci_plus.rs"
-sha256 = "309b5c571ec51c90813ee87c38c1e90662e5de26814471c4238fee6aebb7ff28"
+sha256 = "fa5b218ec04f05ff27d67a3eb79678c6c521071e04d3c301df248438ffbed7ff"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-data/src/pooled_frame.rs"
-sha256 = "0b4beb33cbc5d0fd9352d5b07112d91d00b1730efeeed4a9675c9fcbaa129d07"
+sha256 = "2e4dd7007d27e25b514ef8b3e26149c50cbfa75735a38e3852c895a3a2343010"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/jpcmci_plus_dsep_oracle.rs"
-sha256 = "4fc5b28e2a1bda9a943e5474dfa8f2fbbc1f122292f77450600d965a246bb871"
+sha256 = "d5f4d9f6c1604cb33a280fb8157ef222732155e27faf317520c6678ba44ad1db"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-data/tests/jpcmci_plus_pooled_frame_reference.rs"
-sha256 = "da373a8bb0f47c878274afed87608a4ec2f5280dfcdb7c8c1054880e79550d82"
+sha256 = "a6598a9f1c4950725f164681332a9af0f5a25fd89234ba67fbf6716efdb7081f"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -50,17 +50,17 @@ record_sha256 = "4d6c48e80f97e65f5a4108ec969fe52ef26ff71d6e6cb29af8468948b1ad827
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled.rs"
-sha256 = "4e98b9551b5dee46668d6e44d2e96a6e1c588736711e114fdeb7c56b560247f6"
+sha256 = "d38bd1f397c74ceb499168ea2a18699e588cb46590669306028928d82f1c12ec"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/inference.rs"
-sha256 = "f162e02639693c3c426a59e1c288d38ac1e61629ee4cec1ff60fea64a00e6a74"
+sha256 = "b95c778af4ea985dd495cb16e2a516a908a6e4b25bc9cd6bb427f0b21635af32"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/counterfactual_transport_sampled/counts.rs"
-sha256 = "cbfb2ebdfb320db763c580c104e3b0fd3ee2c5c3ed231b1281131b58a173b048"
+sha256 = "0d360c7ca068490d98dc1854a4ca88bcf7dad9e705ebacaebf3558d47e72b364"
 
 [[method_review.artifacts]]
 role = "assertion"

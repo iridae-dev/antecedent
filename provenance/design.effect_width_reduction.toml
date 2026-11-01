@@ -45,7 +45,7 @@ sha256 = "9f4bdd2b680b9f3b3a0b733b098e74a05b229684305d5da7a8d33819f909b4a9"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/effect_width_reference.rs"
-sha256 = "024b0c0b969358830ea06c091adfd11573c004f9985aeceb0677afdb8420aa45"
+sha256 = "68d1ff586a78290b2c98bc4b621977f1c4340d9e820a2197371da4608baba68d"
 
 [[method_review.artifacts]]
 role = "reference"

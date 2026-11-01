@@ -42,9 +42,9 @@ record_sha256 = "b560d1962941a50ff8fa5bb9a23ea8bf0195916b7131be2857584b4f9154468
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/result.rs"
-sha256 = "f320e551f6d2a7d1d1f11416c0db2863306eea97f3a969bb4d9bd1512cb9b129"
+sha256 = "3bfe65361a7e18f9059cbb8eb1d5f7ddf1a18b5d68527f79e9a5fa3adaa1863c"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/estimate_uncertainty_reference.rs"
-sha256 = "46cb6ac451f83d535f6f9600b119dc1a6cd68f82f341106309e1b68807fde2d7"
+sha256 = "b5f53b12811e92c709e3e33fd9739b04414e294f5db854ba4a996c2801b27eaa"

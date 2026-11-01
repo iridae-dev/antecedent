@@ -30,9 +30,9 @@ record_sha256 = "04edb1863fad491e275bb0bf4027e4c4562116382bcf86d994547c0dda51d63
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/decision_structural.rs"
-sha256 = "4efa152b0c66774f3bd817bbb9d109d1d310edaac381f15eed30fa61a7d2d191"
+sha256 = "cf4cabf528ad55045417f151a64658b947e9f2025944470d32640a396997ada6"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_structural.rs"
-sha256 = "630d42aecad962ba4518652752601d69b08985ca32f47c7d72d027b9ac1e1834"
+sha256 = "5768f1460266533e3bcec4568ee1300c15abc384c4b6109ecc10dce9c0413abd"

@@ -40,9 +40,9 @@ record_sha256 = "0ea9eeec36e625be614db3b3ba54c593e4070590911efaccb8d9ee64d7c0f3b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/path_specific.rs"
-sha256 = "e855b312851b6f18ac1725641de65d3a4230f08453130dca6ebaacf8a15f5984"
+sha256 = "9ddeb9c34f4f253c8ceb6021d664cc4726873d386512cd8e744f22428db533fd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/path_specific_enumeration.rs"
-sha256 = "980543d8c63432f4673a416de8099c286b95eb5193a5833e3754522542daaa25"
+sha256 = "7fb788667ddf0b44f0929e964a944066398ca96ab47cd13d7a65e22f0c157a7a"

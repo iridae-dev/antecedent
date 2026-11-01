@@ -48,7 +48,7 @@ sha256 = "6b06e29d658e5de771030cbd1d86f770e88a94e47560eb03002618f6be77d016"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/frontdoor_two_stage_reference.rs"
-sha256 = "5643bda6f6ae6a40429498567bd82a33cdbb79a3665200b17551898dc89d9cec"
+sha256 = "eabb54fc29d32bf7cd3af4bad2e5ded5ba547173b23fe6e39cf1ca2a9a04fb2b"
 
 [[method_review.artifacts]]
 role = "reference"

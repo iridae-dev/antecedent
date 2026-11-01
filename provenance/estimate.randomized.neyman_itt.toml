@@ -37,9 +37,9 @@ record_sha256 = "9915f965ba20aeb8afdbafc4c962dd498fc39ec44a42fff60b6ce4dc7744f25
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_neyman.rs"
-sha256 = "237d085fe6252879eed5a01fc63e9154eb6f7a6b312dc61fc5c786492fb6839a"
+sha256 = "6d42c6629abc022e9981a72177114109416dd9a430da84e87c2cc74e74ed45c8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/neyman_randomization_enumeration.rs"
-sha256 = "2a0f0a5e9b0cc46f7f2841b3d6b5ae0f21f951e59170b12f73508df48a8b3c05"
+sha256 = "aeb2f37c3932d56ca630b6ef071985c22bb9bec7e0fb8766e4a86e2aac0c48dd"

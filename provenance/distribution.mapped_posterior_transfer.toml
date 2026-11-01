@@ -33,7 +33,7 @@ record_sha256 = "81f37b7da62aad936df0b73178c2db9dda74d59d79bb29d952e8bb49ddc0deb
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/inference.rs"
-sha256 = "a8a9afd21ab9f24375d03bc6586b16d2a6185be6f23c01cb70c41d679e9cc870"
+sha256 = "3d573733ea621876cdc9ad01695c9ca9ea5cc766f6f8a9a067e4a8707dfe3784"
 
 [[method_review.artifacts]]
 role = "implementation"

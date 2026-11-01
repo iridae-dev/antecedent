@@ -906,7 +906,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/cross_world_class_truth/reference.py",
-          "sha256": "1f78e0a9819f850e7a47bbc20d2e5ec830963e96dc459c7259475a0db1cc00b7"
+          "sha256": "2f6b36c7eec7a7da07e22c884548d481c2473d9f0e1aedf202022449085cd4b5"
         },
         {
           "role": "environment_lock",
@@ -916,12 +916,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_class_truth.rs",
-          "sha256": "8959f852290b86874ed0e61e6ef12a3647b231b94f1ccece76d4b79290a89cbe"
+          "sha256": "44bee37afd9c6d36d87409d4343a5deda83987dccfee06dc93c7154ea5c586a7"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_posterior_truth.rs",
-          "sha256": "2102d617b4445d17f4a707bc74ea0780c81294ed2bd8b6d14cded68c7b121153"
+          "sha256": "0a11bfe6e68d34c5d82b5e9e2465701cabc0fe2804a2714f8fcf892e990e41b9"
         }
       ],
       "fixture_payload_sha256": "26d5ee8dbbb3d74eae56438b5dfba36779307f0032990070c3515fc07d40af9f"

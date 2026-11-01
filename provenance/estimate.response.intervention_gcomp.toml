@@ -51,17 +51,17 @@ sha256 = "5fa78688d2f823851d49bff4d82cf3aa001508792536cd80802c0ede83370b26"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/policy.rs"
-sha256 = "846c46976799fe6d1ae3c70fa4d655926998064982d8cc585a00e56e72adec9b"
+sha256 = "68b8e2f0e1eeef4039d149894d63a29e89bee6363c48295f1a3cf95c4716b98e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/plugin.rs"
-sha256 = "1f1c2c170c609d6f0bf0110a54c10a74897a115d36abd4a0c44cec8161474d09"
+sha256 = "2b5588eaa2bec08e02ac9837aaa991d38b2e9f9f932c740f42476e3ef23f10ff"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_intervention_gcomp_reference.rs"
-sha256 = "62fcf96dadc9f13daf0410b35488de7f88aaca6d275e4ff9f7252a9fb09fffa9"
+sha256 = "99b4dd5996b0e9c659a7bc5f2355a9abf2f5ef59db5d80d17d8b570e4b77a4e9"
 
 [[method_review.artifacts]]
 role = "reference"

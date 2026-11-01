@@ -36,4 +36,4 @@ sha256 = "041f211fff477a663616a00a780ad9baf39389405e6a570b0a08cc1869026e5e"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/transport_sensitivity.rs"
-sha256 = "f7ada79914cc858165590a8445c07efff282eda6bac1fd5f93bfc99efd764d72"
+sha256 = "2abbe99d185779b32b16b07ba855be04b16c4b89430cc39aa64a55e20772d8b4"

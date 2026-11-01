@@ -124,7 +124,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/lag_zero_average_effect_truth.rs",
-          "sha256": "7aa5d6915577350fe7087d368455ebcbf62ee9668783bdd4f6f86496165efac5"
+          "sha256": "003020aceffbe2a855129149b7019fde3b733ee79996b3d2000e3e261bc529a4"
         }
       ],
       "fixture_payload_sha256": "d29755e882019a29f2e68a2d3cfe7dc259fd65d5d2145f99620b030b2196d698"

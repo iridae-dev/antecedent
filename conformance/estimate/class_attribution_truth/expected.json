@@ -25541,7 +25541,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/class_attribution_truth/reference.py",
-          "sha256": "688df568dfc0bf87d18cd0f079c0215e76d61760cf2beee9dcc2fd5955ba068d"
+          "sha256": "f7a513f46413f6671366b695ab4a0217882ca380b2e8b21b933f99d3b199a55e"
         },
         {
           "role": "environment_lock",
@@ -25551,7 +25551,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_attribution_known_truth.rs",
-          "sha256": "8e45b826955609eada5b4c95ed79be060c843f744799fe0674b4be7e37d4317a"
+          "sha256": "82ee319bec0e211c6300d2c761641c197fca46afb4499fe39598746509b20d11"
         }
       ],
       "fixture_payload_sha256": "0e1d7696b1a370f02233a0624485e53558321c2b3f40c4c32e4c3a3a73b2bf13"

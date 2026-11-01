@@ -28,7 +28,7 @@
         {
           "role": "generator",
           "path": "conformance/attribution/path_allocation/reference.py",
-          "sha256": "5f56f78590b42c0949cbe9d13017323404681cbdcaa34019e050213034b311a9"
+          "sha256": "4770f36cc55cc0dda4cfb6bf42fc882e4ef0923d09348596b5a91c22b53a69ac"
         },
         {
           "role": "environment_lock",

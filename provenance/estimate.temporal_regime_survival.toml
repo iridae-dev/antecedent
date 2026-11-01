@@ -36,12 +36,12 @@ record_sha256 = "3b3309226dbc6793be124c67f2dd62837de3c782b0bcffe4caf7c02194e9b3e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
-sha256 = "7c41faa544c667cc750b25b0df620f2ac57bf9851b7da4418dcbc0b50429c086"
+sha256 = "7c15e0afc20715299b66570e166f856487d596205e9049247bd667b435209c78"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
-sha256 = "9dba06a1c63c7344a3d77d1c4d420696e2d94f9381dc83380bc52d9168770484"
+sha256 = "45c728b8a80412e36794c6ed10071969b3e64a565cc09b7807f80f90f4fe3c85"
 
 [[method_review.artifacts]]
 role = "assertion"

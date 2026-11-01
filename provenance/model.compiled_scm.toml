@@ -42,17 +42,17 @@ sha256 = "4c7620035a3314347cd42a80f8880b0422fea2e4defbed32f8ce9670e5a2d8c2"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/overlay.rs"
-sha256 = "632ff44df9be3864f46eac596b6a48959f1482aac73284fac49b70a11650472f"
+sha256 = "0873e12e8a86bf6990f9dc204e5d400d07543e716cbb919bf91a95f53fbf30c6"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/sample.rs"
-sha256 = "3c9bd1783a5b758fbf63da2ab9c929d0f781335a600f4436916f516a58b6b753"
+sha256 = "16fda6b2a7b1ab99b31e897bc84044c7aaf7c95253d1bcf9acad86c7bbcbb553"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/scm_replay_reference.rs"
-sha256 = "2d43446a3780b43fa7a02287b0dc779337296f91a8e79e1c3c9aa8d687dd74dd"
+sha256 = "44dda2df0353575eae867be3b3b91694dca0a4f59841f98b6f88d419342e09b1"
 
 [[method_review.artifacts]]
 role = "reference"

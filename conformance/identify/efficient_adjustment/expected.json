@@ -37,7 +37,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs",
-          "sha256": "78b079439a7e5e62efdb6718a86c1470902fc560dc0f98e872ffb6dc27b98a82"
+          "sha256": "7ead8122e5322676fc33a8683c77bd1021bc49f8c327d870e43ecf9fb40989b4"
         }
       ],
       "fixture_payload_sha256": "b3fd2385e2572f63fbf82d4948b1ed05ab03802c0ce26d1f2462f2b675c058d5"

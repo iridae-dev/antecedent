@@ -35,12 +35,12 @@ record_sha256 = "53ef64f106a9453260c8be924f8658350d72a226ea98415b5b542f232c96a8e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/discretized_scm.rs"
-sha256 = "f7742ff3329f872d84e7de70524472912da2f2283c635fe331de61ac8ea28bbf"
+sha256 = "fe037c38b6211175848c53b3e60311b82a7f41574277d697ce929dc4942a8216"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/discretized_scm_reference.rs"
-sha256 = "4b62773ad32fc315dd9d137c00655fab5d38188cef6a651a171769f2c11b6e17"
+sha256 = "47767d4c578fc4fd08828d90a767085ba6c38c40ee6a36de6c0231baf04e4e38"
 
 [[method_review.artifacts]]
 role = "reference"

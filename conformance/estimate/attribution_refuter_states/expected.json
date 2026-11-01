@@ -48,7 +48,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/attribution_refuter_states/reference.py",
-          "sha256": "e90cd991adfccb58fad84db8ff1efaead468323cacccde7266a5a2fb1c6b7d18"
+          "sha256": "dd9b1582f96ba715903687b99101c11dc1b8656746a7784cb81705defaf45e56"
         },
         {
           "role": "environment_lock",
@@ -58,7 +58,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/attribution_refuter_known_truth.rs",
-          "sha256": "34086e23213cf8cf7487061b2437224f04741913d45459e592b07622a124bee5"
+          "sha256": "f9e205b351513e7731b44c3b80c5a8908f3228033cbcb1a90b1e379360a6b83e"
         }
       ],
       "fixture_payload_sha256": "e62d4b628bc4bb1c9f32540b78193366629e47235ac3569329d3c3b45b32e58a"

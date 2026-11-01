@@ -117,7 +117,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_class_envelope/reference.py",
-          "sha256": "f868dbc6b7ba7d5001ad6d6c7d8f0b89e61aa3b89c2290bb1d931333a1be2fae"
+          "sha256": "d7555e9d0cd1c1868a178dbabf0e15b7710d2439f76b6e401385f9b34241e095"
         },
         {
           "role": "environment_lock",

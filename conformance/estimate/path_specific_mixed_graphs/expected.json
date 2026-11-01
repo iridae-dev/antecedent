@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/path_specific_mixed_graph_route_evidence.rs",
-          "sha256": "03fd4a8fd3b3d48bf3eebbbe32aa0577be9f26c5d1a0795abf3839a5b311cc69"
+          "sha256": "8445f85bb795eb667b9be0d9fec90dff31477a000072cc4aceda1845a7075444"
         }
       ],
       "fixture_payload_sha256": "c2a20431fa5791272b7ab643c4f2735f41c752300ef182da4b22a05c2cdb947a"

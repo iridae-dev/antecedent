@@ -36,7 +36,7 @@ record_sha256 = "dffd0ffa247a6bc8525a244c7ad350a9a3f43bf1b2734bd609052a898e43bae
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/evidence_ledger.rs"
-sha256 = "ad0449d8411fc116039e7af84ded05bb3eeb1bf65d049ed8785c446495ebd9bb"
+sha256 = "20204d158303426fd644163ccec2d6fcbe046cdeb8df54e85ab65bd7e3018669"
 
 [[method_review.artifacts]]
 role = "implementation"

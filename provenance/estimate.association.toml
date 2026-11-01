@@ -51,12 +51,12 @@ record_sha256 = "3e206af46d251b64fdd42820cf66d1a0c5f3e43bbede30c67ba3ea1dc147bb2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/association.rs"
-sha256 = "30382df54088fb58f9c90ba724a9c53f03eb7818c001c4fd5aec7d4e2b5fb505"
+sha256 = "ee5199060c74672b18012fc9c2e0f27a4e1db69d4501c5bc3b6c22fcb5436071"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_association_reference.rs"
-sha256 = "2334f8d927073bf71a9793459faf04d7055c4d1eea5d39e2c331ce067be1ecba"
+sha256 = "98056069a6d2f90f70f9793bd1f6b87ec6b611679572b31c02f9a5944b18106e"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -66,4 +66,4 @@ sha256 = "6129083116b5736357480fdb74916acbaea3b7b220707e29302efcbb7de85604"
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-estimate/tests/oracle_data/estimate_association_reference.json"
-sha256 = "3781944ed059497bbd21d10cd90269b3febc26716f54e200bbe8d19be9d6f59f"
+sha256 = "2f577d46b2ac9afdf8682cba452092b1ae94d2bac992cd2bf60c5a903ee397ef"

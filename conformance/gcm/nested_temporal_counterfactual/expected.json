@@ -34,7 +34,7 @@
         {
           "role": "generator",
           "path": "conformance/gcm/nested_temporal_counterfactual/reference.py",
-          "sha256": "54f4edf1218661972e56561ff8ac6064e53525700c9ef3037b2d9c0fa8bd5821"
+          "sha256": "1e6f508413f1b573fd2dcc3c1f1d219d052f8bd5e788f0090e87acc1ef186dd0"
         },
         {
           "role": "environment_lock",
@@ -44,7 +44,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-counterfactual/src/engine.rs",
-          "sha256": "920cdab1496c1aedd7a0adb6950e0353b63f2f36dba564b1f7545c5d958e1c62"
+          "sha256": "0b72a8ee8cd0ca3480fc44c7a92252599de90cd2fd140801a4a18c67fc65ae24"
         }
       ],
       "fixture_payload_sha256": "12a149e5a317291f4aa24c10c1552f057ee386b66d0b844db7c223a789532bb5"

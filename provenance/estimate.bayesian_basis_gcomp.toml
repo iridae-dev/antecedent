@@ -62,12 +62,12 @@ sha256 = "ff5876040f381e0e4a3fb2dea363ecd55305bd5dec2aa717a52113196d15cac5"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-learn/tests/bayesian_basis_reference.rs"
-sha256 = "06358c1823e61f268de167d683759d233a7c60ad80202fe011ad1143197a9032"
+sha256 = "5b54311af06fddf5594a4a4fdd273ba05cb2f65be4a6bff3d145124a78f1f24d"
 
 [[method_review.artifacts]]
 role = "reference"

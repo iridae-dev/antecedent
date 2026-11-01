@@ -42,7 +42,7 @@ sha256 = "3e3cb91fa7725d097aa190c98cd13439c43e9be329507cf683375c94291a33fe"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/posterior_mean_reference.rs"
-sha256 = "d3094cdc5169502b9fe681c8177005de6ac93c83609af8c9f35c0bba7d738765"
+sha256 = "5ab3582208bf29ea72af6e0e033866205d446bc030e9b4cb275488773670f5af"
 
 [[method_review.artifacts]]
 role = "reference"

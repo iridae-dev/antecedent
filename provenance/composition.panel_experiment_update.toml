@@ -55,7 +55,7 @@ sha256 = "46d54f6b4ab0583b4bc86d481a1bb2896ee90baffa44b0d1cac13360070ff59c"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/finite_belief_reference.rs"
-sha256 = "60b67bddca5288f50d5a4e64a6f3da555fb759bb8702a8a3746552ba564f7f23"
+sha256 = "088b9fc53793b85c57e6c91b466886e069a137a125054b0ca0fcdeff0c67e742"
 
 [[method_review.artifacts]]
 role = "reference"

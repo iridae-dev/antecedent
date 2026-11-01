@@ -46,7 +46,7 @@ record_sha256 = "84a7610489837fb602c9de01906d58ac04db94acaa1b33032017d6982a608ea
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_boundary.rs"
-sha256 = "4c30cb09146ca94cb5c8c18ab0ce5eeb2941751572f920ac8bd9deefd9112b25"
+sha256 = "0be794707e9c17f5e1e010f0597e77597f9b5025462ad15231931bf843258221"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

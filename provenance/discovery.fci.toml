@@ -45,7 +45,7 @@ record_sha256 = "195f576d6a14245a1c408e98ac2007ff703fc3d6f57d90e45ed288395f5456b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/fci.rs"
-sha256 = "34137a55ccdafbda89cab458c51184b8ad3a926fd09e0e282c1021514d435a85"
+sha256 = "eabb72d28197b8c6b4714ab203c75e5e38e24e8f12f13efef1d3e17a0c94b39f"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -55,4 +55,4 @@ sha256 = "f81fd648526f76344682e8379031dcc1390a991e56d89c57573c776f0083dc1f"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/fci_latent_oracle_tests.rs"
-sha256 = "4cbbbef2b7fae81d9f2bbcd234c49d98cb50345ef1e40e228c59394264eac545"
+sha256 = "82285a1d5ad036fd73eef6fc386a36ab65880e099860f0b3fc675b86162ece67"

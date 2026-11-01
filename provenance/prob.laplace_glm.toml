@@ -45,7 +45,7 @@ sha256 = "32eb9e61f5484cd1025650db64f4d571bbe9926a99db9d552ebd6f0f2339accf"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/likelihood_terms.rs"
-sha256 = "364572075e0edddb2e8e85f1b21e7f51d96b5786867b15b7e8a3f29f529c3d98"
+sha256 = "c976cb3ac67c674b45428ea5477401d205c3df23cb463a5b8b1af329aeb603ef"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -60,7 +60,7 @@ sha256 = "36efdcafee671dbaeaf55961be51d4b38ec87e17aaded9756644b5129b55a685"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/bayes_posterior_oracle.rs"
-sha256 = "a94aaaabef273e54da0ac5fd5a0c9f88785cd2f4a148afc210a5f8300c48b401"
+sha256 = "fe2d46007fcb611b55a683c5cfd495926a7594a84575b94c291c8e400647a157"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -70,4 +70,4 @@ sha256 = "7887eb3d5124fee4717a055558eb07b800dbcd1fe9970aaec3aa3390db17902d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/bayesian/laplace_glm/expected.json"
-sha256 = "aab9bd7ea25ccd53977ba99b8e3c2233b184e0990298032df1c769cdd1339ad4"
+sha256 = "6c63b396ead6e08c83bcd5da890751dc719d104a4ff790c1677a10598c5da75b"

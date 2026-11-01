@@ -41,12 +41,12 @@ record_sha256 = "0fd2c30359904dce8bd5cc7996c658598ab2f5f0b5629a20766b1836ec48fda
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-attribution/src/shapley.rs"
-sha256 = "948d679b34865e7189e10b06968c21be12613e69aaa5bb86effd2c1118750287"
+sha256 = "339fe81ca86aab2b0c2814cca3e3e8b5f3ab98340d3bd8148f0987b3d7fd13e4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/shapley_reference.rs"
-sha256 = "ff7da14eb04b2418e744f452103deafc56fad8d485844ee522c6f94c21c4a898"
+sha256 = "4183c946ff18c5ed7db341524aa33f2b93a8b9e37ed2b0ab0102210fc4e60700"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -142,22 +142,22 @@ record_sha256 = "2b1170bc2147c4c2ea2088fc946151c60c9c29c179530915d4544fcc37f7824
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/continuous_cyclic.rs"
-sha256 = "cb1638530b7132edd73e53437a5fd2157cd1a2c56091941e2515b571cc08eec5"
+sha256 = "c7da734be5c11c56ceec43cb2eec075a81fbaa76a2cb1e57a14046ca579f7762"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/nonlinear_sde.rs"
-sha256 = "bfb23be78d56b12f66d1f109ae93f3f709ca7de6f5f2b1fd5b2ea65b776c9872"
+sha256 = "a1c33bdacb946e85ca4c0119a35350078aad36f55ccda6ed8be9dbddf184c9b2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/equation_system.rs"
-sha256 = "948d84eb7ff7104264a8e1bb1fd0f8b8a36b2ed135218276eed326a18209789f"
+sha256 = "bc7ce2f9ca1d8916482bd0f8f144a12dad6cfd9a0c72d3b6af21e794232c1513"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/nonlinear_sde_fit.rs"
-sha256 = "65c44d54529c1c3b666d1c6968899f7414a43d1476db11e921016b1df2c7d585"
+sha256 = "0f93a7982a4a90f9f532dc284835f39cbfde380534479845593c054dba99f23b"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -167,7 +167,7 @@ sha256 = "a5827c1acb34f510821b56a8378fb3438df5827f5cc09c25552eeef3f04eeb2e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/cyclic_general_systems_reference.rs"
-sha256 = "f1b420833f2da7bdfa8c9baa1777785a0be4be86d71801eccef581db1d27a677"
+sha256 = "4555526d9ec975971140f4998fe73da43414ebdb011a2a927abcf60c4bee098f"
 
 [[method_review.artifacts]]
 role = "reference"

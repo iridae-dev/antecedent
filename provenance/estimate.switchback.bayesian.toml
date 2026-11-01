@@ -40,17 +40,17 @@ record_sha256 = "806f2367ddd76c8bb5d022abeb7f304c03204e293a62c0873bcd63501a5cffa
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/switchback_posterior.rs"
-sha256 = "ca79df60af727045e0b987b7806024d7e49c12c7aa81339d40f69e880eecb2c2"
+sha256 = "e1a2a9a6f85bd138aecca4d7d6d48875b162e04abb186f66352a292642bbff4a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/gaussian_linear_posterior.rs"
-sha256 = "437abd1f4a166833dfc95c370dbb6fd54b27562e446f3883f4f54a80a27a18b6"
+sha256 = "8449b10fb0d8e07845ed4777a5d6ad4b289a93728e8b35d9e96f90e4ca581034"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/switchback_posterior_reference.rs"
-sha256 = "299295de2e5e5bf02a40ccbb617125a95f100bf422ccb4224c802c148df0e9b2"
+sha256 = "b273e141ea033e9701ee8cfdd689f77116a6a61ea2b373b95902d5e9345ff54c"
 
 [[method_review.artifacts]]
 role = "reference"

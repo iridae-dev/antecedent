@@ -40,9 +40,9 @@ record_sha256 = "2ceddfc0f0a4907126ff61b8c1260bc41916d748be8a4161dc7fc29c09eaffe
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/engine.rs"
-sha256 = "920cdab1496c1aedd7a0adb6950e0353b63f2f36dba564b1f7545c5d958e1c62"
+sha256 = "0b72a8ee8cd0ca3480fc44c7a92252599de90cd2fd140801a4a18c67fc65ae24"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-counterfactual/tests/abduction_action_prediction_reference.rs"
-sha256 = "6d538bb15671c314a0574aeb7d5815e29151979d8f098f96b90862d4e91e0e28"
+sha256 = "cbe5fe879348d67c9e0b3a7db1deb126433d1369e970a1b6790342674a96ef3f"

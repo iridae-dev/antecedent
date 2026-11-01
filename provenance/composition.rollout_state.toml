@@ -25,4 +25,4 @@ sha256 = "18c4c40a90a60753a9d4648cfd800a5493138c09848230bbbfdace56c3de7cc5"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/rollout_artifact.rs"
-sha256 = "1355aff7f961f9a1f942a543bfb3bcf92c5834324c62cfd6d6b0840a89cc7af2"
+sha256 = "de56ab5715360f7f5ffa175c5867239fe24f2841f71a9cfd1f0f7e618125e6ff"

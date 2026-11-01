@@ -46,7 +46,7 @@ record_sha256 = "552526bcbc638d14bdd6a3c7e9be44b1259a871fa697713ec45007889bf4b35
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/joint_design/randomized.rs"
-sha256 = "c9e7d28bbe6932b530752153f14f2cbc0fbefece007353de51a4dfd3f1e7294d"
+sha256 = "6fa2493ff79fb1ae4ecd1bf4e1e1aa86935cf669a26d14821cff12c38097c035"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -56,12 +56,12 @@ sha256 = "d82416cc55a5e96958be336b5dfaa776f7c03a0724181b0088a6e63d2f31d4ca"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/switchback.rs"
-sha256 = "3907c68c225c728d9c77b640580809891f2153c5e29c677124b3fb61729f86bb"
+sha256 = "4172d52a219d069693aa0802ad46c907a3d9fbf08360d7672732bae3f0ef7f44"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/joint_design_reference.rs"
-sha256 = "a2a0ca1cdbc3b78067d1f482d1d0451b89e2e4eae6824ff4989e5e3fa99f0fc5"
+sha256 = "21654c012f81eada3e3e35e838f1951b55cc4f963ca22734739567fcd0960d94"
 
 [[method_review.artifacts]]
 role = "reference"

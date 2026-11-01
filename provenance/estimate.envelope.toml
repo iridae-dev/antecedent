@@ -83,7 +83,7 @@ sha256 = "6641dba757acd8ff9b22c76fd262b163e04e363d1fd635dbda2415d676e67461"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/envelope_reference.rs"
-sha256 = "ff6e90d818bc2446d5752231331e149b8b49fedc16ff4c6b8ff5ddf5e841f693"
+sha256 = "21e288e449e9e9156dd3aa00a6f0008cc06fe5d0aa8285541001aca60c002f5f"
 
 [[method_review.artifacts]]
 role = "reference"

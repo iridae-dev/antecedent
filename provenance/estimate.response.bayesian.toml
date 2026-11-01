@@ -24,7 +24,7 @@ record_sha256 = "df08f4a43f631c4650f02e4b040102b52ebd262fd2e3c39320cee0b008bee6c
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/bayes.rs"
-sha256 = "7df280c2734a2fec6e4d916e084ac856d29a262e03669b15bcfec8820ea590bd"
+sha256 = "16cddc317c6c0d690627b397be99ff26b09dc3841f960f9eeaef703dbd80d819"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -34,7 +34,7 @@ sha256 = "11f6085b295de299949b873f30d2a1ab5a0a0865ad06b30863db72459092aa40"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_bayesian_reference.rs"
-sha256 = "220129a0e8e5d7cd05769f20df402a23a05d47d253f33d7cff8f428b1e4d165b"
+sha256 = "9873182446018bda76cff3bc51c103712e1e57e781a241f6ec28f03830027624"
 
 [[method_review.artifacts]]
 role = "reference"

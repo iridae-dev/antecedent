@@ -53,7 +53,7 @@ sha256 = "a50a5a18fc19971bb1b1b158301d61da22fb79bb99539488f01d773688dbc6ef"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-learn/tests/nested_markov_bayesian_reference.rs"
-sha256 = "0225a985a09390b0bb74f8d090659464c0c10ed600f62f0007b56e46891cb6cb"
+sha256 = "9161fa8043f30c1b9498de30369d060f1694e4b940b3b1e8b2e3c72fd7ca226a"
 
 [[method_review.artifacts]]
 role = "reference"

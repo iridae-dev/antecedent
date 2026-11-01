@@ -51,7 +51,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/src/id.rs",
-          "sha256": "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+          "sha256": "ac45030283ae1304899b277c235cfeaf1600955b5c6e36a0bb90504e3c2ed986"
         },
         {
           "role": "assertion_source",

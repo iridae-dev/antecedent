@@ -43,7 +43,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/temporal_pulse/reference.py",
-          "sha256": "ebad356163d806f891d457125e4df4a9f0f6d52267a2014e8f67e84fa435fad4"
+          "sha256": "90d4f91cb0c2783b3f3c3086b94c3cb1c79c0327cfb52328649c2b8cf970fd98"
         },
         {
           "role": "environment_lock",
@@ -53,7 +53,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "5d4cb6dec2b06a1a5aa334403144f1c9acaadb4eb7ed12ae10129bae04c2a654"
+          "sha256": "ea6b23e5b672f85471bc01871cbf286dc5a51cffc6209b607cc750d04a6f8892"
         }
       ],
       "fixture_payload_sha256": "4b3717e5f7819cea6b4d8ae8fab6cf13b190d27a5eaa25254bd0d14af761c616"

@@ -42,7 +42,7 @@ record_sha256 = "10e37454db869f7847695bb4f676d69f83158f9ad9ce20f57e1689435fba195
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/lpcmci_phases.rs"
-sha256 = "f9152db9a03c440872b1b43283cc9c7724c04fe541037fa872c0e29ff950c9bf"
+sha256 = "c6c14984877cafdf3c7741db7df58810c7f90fcdf346e41543cd048b4decb6f8"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -52,9 +52,9 @@ sha256 = "c3a05c1e2e7976893adfcdf20b27a903360fb1fba55b0e334c798446550fc28e"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/weakly_minimal.rs"
-sha256 = "ca24e2625fb5a00744b19000bd2a1e76f69f71e6dd68bdab2b10aa9a535126ff"
+sha256 = "dae44b5565fbd354e78f96c1f858f2ddf95d96e1b5db81f6d2a4de4d4752034c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/lpcmci_oracle_tests.rs"
-sha256 = "146a1c6ef528a28973d60649067b61635c95798aae2882f48e4662240917cb7a"
+sha256 = "30bd10222cafce5e855edddfa04f98f1498758fb6ed98d0430f0ab31877ffc73"

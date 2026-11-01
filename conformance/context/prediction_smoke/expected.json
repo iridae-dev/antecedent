@@ -30,7 +30,7 @@
         {
           "role": "generator",
           "path": "conformance/context/prediction_smoke/reference.py",
-          "sha256": "36b57712c664c650bd01061efe11b9f4910d81bf8ac6b3b2e1d4b24f9f40140c"
+          "sha256": "613e4c91eae5fa46303a81673f6fdfe51b2736721355ca4efd66ee5164b4419b"
         },
         {
           "role": "environment_lock",

@@ -44,4 +44,4 @@ sha256 = "74d3103c487537e682694447d8a280d5b468346b38f94c1659355ccdbb301538"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
-sha256 = "864b2703a88c241cebdf1c942e8f545f8562a39058529a463d441fe5f6a226d3"
+sha256 = "39acacb6aaa06f87e04bda16000d06e16673bff0ec559890c9bcade7aca819fc"

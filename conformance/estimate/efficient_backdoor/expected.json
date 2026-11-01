@@ -57,7 +57,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/efficient_backdoor/reference.py",
-          "sha256": "23b01b05aae32ed84e55dd36fd92f1133275e51868c064b2e4688862bc5bb6e3"
+          "sha256": "16b4ef5389d6d5fad0642ea11ecf8f4cb83e268e1a49eb5a560d5708215ce54a"
         },
         {
           "role": "environment_lock",

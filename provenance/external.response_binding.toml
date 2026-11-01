@@ -47,4 +47,4 @@ sha256 = "de64baf04674edd74bca90f5e5de0e861d688f332c809f73e5a5854475f2f52f"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/external_binding_wire.rs"
-sha256 = "5fe7f0c2923fa3effb70119d3aafaf1cba373320cc74e4a7e706389ea8e35b04"
+sha256 = "d5ecb527d12997747deeda03b8ac9bbf3ee6153675210412eb11757f674f6605"

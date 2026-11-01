@@ -47,12 +47,12 @@ sha256 = "8ee2d97b92007b867b90338745851a2849b064b839fa71dfab523681bd8b6ebf"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/cluster.rs"
-sha256 = "9607cb41faa47dd68e68101cc508121aeabcced372990b2c31946e62f4e977e2"
+sha256 = "fe7585203f64da92574b3fd977f5c65bfd281117e5e985b8853b7635dfa752c4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/influence_se_reference.rs"
-sha256 = "0e36ced1b84c69272f1f0dc1c7049c93b65aa47d1bd22e1342c0605ee8797319"
+sha256 = "c3a831852a60c1d5d695c9f370a27c10942a526f1254ab6b50e2c2fed6aebe40"
 
 [[method_review.artifacts]]
 role = "reference"

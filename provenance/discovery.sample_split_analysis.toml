@@ -51,7 +51,7 @@ sha256 = "69bcc96b78d6b253500c2747782639a7ab2aed6ff5e735159e421f20109e2977"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/sample_split_analysis_reference.rs"
-sha256 = "72b288c46926f8301c23cc990bc028ed8aa3a3e41634e9e086ceaff483d60d12"
+sha256 = "8f69bda16a9a33500b04283b8b55c895d9e7c75ff31dd0612c80309358d80ed8"
 
 [[method_review.artifacts]]
 role = "reference"

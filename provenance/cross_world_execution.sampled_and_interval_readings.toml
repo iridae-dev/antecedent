@@ -38,7 +38,7 @@ record_sha256 = "1ff97121ab59b859614dd45eee7926a0b72fe7136532908d676299e86ef61fc
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-counterfactual/src/selective/finite_executor.rs"
-sha256 = "4ae9cf9abe3dcdcd289b8a222dbcdf601d9aaf06340415a9ee4f3e0295fc6441"
+sha256 = "856a07f32cb4cb69d8c3738b32104af998b4829587ccaf27feed6f333f3687ab"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

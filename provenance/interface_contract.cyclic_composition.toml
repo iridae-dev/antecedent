@@ -40,12 +40,12 @@ record_sha256 = "1bedb0b4839bdcf80294b85271eac3cd9600b6ede7bb9d42b6d7e133b8ba396
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/composition.rs"
-sha256 = "c2c17cea08bc54045c754b7f7fa363b78cdf6b7287de98922e481f9f2cbebd07"
+sha256 = "dc3a4eafa86956d41d4584ec19414a804e5d5ff0d8f235f441714f40fb015425"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/interface_cyclic_composition_reference.rs"
-sha256 = "15425bed8239938a29bbfb9f69f58f4bd557433a63f4c479e9ce51ac26a7fed6"
+sha256 = "0c31cb4e097401346b9b3faa812c921764a8d4d4c48f86e8f024bffa8b0b58c1"
 
 [[method_review.artifacts]]
 role = "reference"

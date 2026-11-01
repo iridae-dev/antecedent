@@ -37,7 +37,7 @@
         {
           "role": "assertion_source",
           "path": "python/tests/test_external_cyclic_mechanisms.py",
-          "sha256": "c21abd157ef7e68e6a9a50127109fe737218ac67a85d408620af9e9e4aaf3b4c"
+          "sha256": "9a40e2626fd2b974063423d2eb3b60f819796c5b0a2791c0e303dbe06f9ea4a7"
         }
       ],
       "fixture_payload_sha256": "b97b1bee916023786d10cafcd3b1128556424e9ba4bd70ebbc0250450e2300a5"

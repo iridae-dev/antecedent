@@ -47,4 +47,4 @@ sha256 = "119952ebca0880abf2e329fbb07fc34cc798bce1ac2f76bbeacd58073de0555a"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/root_cause_ranking.rs"
-sha256 = "212ddc155086b12815175f704343ebc81123e4539cf52d549cd2acfba0b693f9"
+sha256 = "a47cf6608c729fddae436302f96845881725807ed27c67d383be5d924815d6c0"

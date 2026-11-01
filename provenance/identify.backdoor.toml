@@ -41,7 +41,7 @@ record_sha256 = "d03c676212f82041baad72dbc848157d46ae1f10d32d79f65e2af5cde262469
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/backdoor.rs"
-sha256 = "46031a290c8c1e1aaef573fc068f01bfe86459027d5e6f670c5b46c0124970b2"
+sha256 = "0826af864daae96696f0b87f8a5945189a9a4580455262c07feb28e810566647"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -51,4 +51,4 @@ sha256 = "354cadc168387afa5e95cebc2b842af31cac5b1ccae069363d523e115ea970a0"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/adjustment_enumeration_tests.rs"
-sha256 = "2cbff9c09f8b50051bb4edd89525177bc03ca2c2074320764e5aaa770dcc5c9e"
+sha256 = "b9b99eb200e5f0958f791f8426b8a229e085a76390c78c6aa3531d481ee3692f"

@@ -27,7 +27,7 @@
         {
           "role": "generator",
           "path": "conformance/graph/cpdag_operations/reference.py",
-          "sha256": "e605d0b1efbf4783ddea4dd9074f4d03bf7a53922b04720896d85f223c79dbbe"
+          "sha256": "af14285ca0507bdd9aca2f15dd7a9b1373645bca6cf58ef83e834b3dfcd3ea8b"
         },
         {
           "role": "environment_lock",
@@ -37,7 +37,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-graph/tests/oracle_closure.rs",
-          "sha256": "733adab7e0a3c83b207803aa4092ede4ffc7960020295b9dae439a252667e9e0"
+          "sha256": "f38bd0cad0b6d0d4dd7ecd532217e59692828a8aa3059c7261a52d6ba119b100"
         }
       ],
       "fixture_payload_sha256": "91cfeb981a4fc408dbb954cea517f0f1f6967775f2ef64952cd7474135565d87"

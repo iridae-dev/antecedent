@@ -51,7 +51,7 @@ record_sha256 = "35e8ace7e6a28687de075157f8c6b417e3b3e9172d645574e19ced3cdd9bae4
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/mcmc_stats.rs"
-sha256 = "f4ee1585868deec4e2670b5aaaa84063183a71e85ff8391cd354a4613e2065a5"
+sha256 = "3414579c1e737fdc0284624d4a9df9f3e9f4a611f055c919bce9f3ba40603095"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -76,7 +76,7 @@ sha256 = "81d05ea53fbecbfdf3bb5cce6d15cbee0e02947b65dab8ce0cedfbd7b5be80e7"
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/validate/bayesian_checks/reference.py"
-sha256 = "718cd9c0bf94ea4a8e9ba3c5a0c64b6d242938c4d7152ea6dcb6b95f9ebccd9b"
+sha256 = "0e145767c46b57ec45f76f786a461222c952737125ffc79d45396b0b263be584"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -91,9 +91,9 @@ sha256 = "23a3114c84b925ae79875d049c8f71aa90b13d5eb12a383313bad7b48ab99e2d"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/validate/bayesian_checks/diagnostics_oracle.json"
-sha256 = "5337875507429b0bebb399f492fdf7b86a15dcfc12b9c43d1cbc924675a69c1a"
+sha256 = "aaa42fd0015ba3346824999f2fd876e33d08692de2da7a80a7a67ad41c2433ac"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/validate/bayesian_checks/independent_ips.json"
-sha256 = "001a42ab1d83351f8d2557feab74ca9490be8341304b6381831b795c2c3390d6"
+sha256 = "cfe30dbd6b80d723d1ec05f4ac020f722f409e9d1b310bc53f93ee915b26e438"

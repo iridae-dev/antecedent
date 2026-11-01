@@ -23,7 +23,7 @@ record_sha256 = "1f9c4c36e31996a3de1449670678fa42c4bccf2fbc85b3087b115edc96ce040
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_sequential.rs"
-sha256 = "3111f3b5edd20234b89269d36f151c12a4a2508ce6c357f04edf4c159512aeca"
+sha256 = "6c35c10f4dfe0ade9919e759ca2b3958acaf5d7679f8c206dc62a84db304d048"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -33,22 +33,22 @@ sha256 = "3222a823c1a808cd53c2b150b5b6a06b0e3244bd1bed8b05a0b9984523ea8392"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/ar_kernel.rs"
-sha256 = "17ab03b29c2d93eec5c7905d3bb4cc5645b3723149b6a6d80a97f2045555b45e"
+sha256 = "381a1302fab997dd660a7b1bc765dcffaf5735b655db181b6b0e75f95b4db30d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/serial_dependence.rs"
-sha256 = "045c753bf7a4a0b8a13bf3bd2ffd9395321d3c21d39552c78798e43786814639"
+sha256 = "e850fdc3a51c51e1f4249736e986f336589f6afd9ba641c224ea66efa69adb5f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_sequential_reference.rs"
-sha256 = "b448d108ce082f2044c42f8269c7f9d76e36e210c5e1a2103f453d6ca1aabd9a"
+sha256 = "0e8aa0153d96045871ca1b4ccee9ff8f3f21cf18b2f5caa4f944c8f748ec7d6f"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -49,12 +49,12 @@ record_sha256 = "0da75d54bd85276dc11b7ac54756dfcee6543c3e131112fcdfebe2598b026e2
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/program_search/certified.rs"
-sha256 = "7dd8f8c2e71f09c230fa6e6e95ce12c1e296c31a9bb83b8712cc31d4e70a06f0"
+sha256 = "a512a7dcec4f4951879c4fd1a9b506bd2bfeacb31475f76de6bd5d60c0082838"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/certified_program_search_reference.rs"
-sha256 = "87cf3d6ecdb6a56a675fc687e7569b72ee7de8f9cab457298989b6fcf02f2d5f"
+sha256 = "c79c1b76ffdeebdb2b7625a522255b0ffc6b929f7941808837fee940486ba3e1"
 
 [[method_review.artifacts]]
 role = "reference"

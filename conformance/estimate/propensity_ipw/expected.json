@@ -57,7 +57,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/propensity_ipw/reference.py",
-          "sha256": "d9cd350387653b9c12a40f3865d0075d7f9c2d89dee08eac8b8cec683272a745"
+          "sha256": "59b60679f36b2c8c8b60cf21ec042328bac079e203dec6826f043ee00dff8b8e"
         },
         {
           "role": "environment_lock",

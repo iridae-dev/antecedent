@@ -33,7 +33,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_class_response_truth/reference.py",
-          "sha256": "38da9091e1e684d60eae3114dec4feee2d687a8f74ccd918aa862d780478999e"
+          "sha256": "9635ef526660d5dae5d9c135160148b60439fee89742467129da226dea6b9c31"
         },
         {
           "role": "environment_lock",
@@ -43,7 +43,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_bayesian_envelope.rs",
-          "sha256": "ecf28cda958af8dab792f796e335276cec7668a3df43bce142a404b79782ed10"
+          "sha256": "f1277311922a802a38f87d45f1c7f6058d7eae54bb1f04dcdde9101fc7b89aa1"
         },
         {
           "role": "assertion_source",

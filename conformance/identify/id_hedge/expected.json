@@ -28,7 +28,7 @@
         {
           "role": "generator",
           "path": "conformance/identify/id_hedge/reference.py",
-          "sha256": "fa64cdb50d486e87987d79190a699a0f146e933a15fb4bf60635554fe3005a23"
+          "sha256": "d04273d1d5a630192335037acb98aa81244b601692c197c687e79b8c3f1e215b"
         },
         {
           "role": "environment_lock",
@@ -38,7 +38,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/identify_fixture_cases_fixtures_01.rs",
-          "sha256": "78b079439a7e5e62efdb6718a86c1470902fc560dc0f98e872ffb6dc27b98a82"
+          "sha256": "7ead8122e5322676fc33a8683c77bd1021bc49f8c327d870e43ecf9fb40989b4"
         }
       ],
       "fixture_payload_sha256": "a0f5a652d809a2019efef78b28884cf83cd85a7a2882ded5ff5d0bc26e27585c"

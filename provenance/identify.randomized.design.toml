@@ -39,9 +39,9 @@ record_sha256 = "b3cfbe62502a512c030711b5c68b8f20af3a438dfd4e99c50b432c8f28be388
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
-sha256 = "8d9863c7c2758f71345dfbfd561cb00765a2a07972a63e5bed21a49362c42eef"
+sha256 = "aa6f203956fe8384013d5b0902f66c1b0f9dbc0b1ef61c626b244d1c4f02addd"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/randomized_trial_route.rs"
-sha256 = "30fb62771ce5cdb18c42d16683ee26f444c1c9404299aa39a250e3f2399af08b"
+sha256 = "759cc6023002263073b5a50efaf52807e45dfe63ba51c3a8f85b88ceefe3c72d"

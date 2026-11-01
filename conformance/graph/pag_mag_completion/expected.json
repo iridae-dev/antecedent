@@ -22,7 +22,7 @@
         {
           "role": "generator",
           "path": "conformance/graph/pag_mag_completion/reference.py",
-          "sha256": "1c167dfc4af1c122d982ce907ada527edd4726c86807a510151a8b13c63e563b"
+          "sha256": "d7e75cbe9279b0152a822fbd2dccd153769e88ea4ff9a8f7c924ff3c7aca63b9"
         },
         {
           "role": "environment_lock",
@@ -32,7 +32,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-graph/tests/oracle_closure.rs",
-          "sha256": "733adab7e0a3c83b207803aa4092ede4ffc7960020295b9dae439a252667e9e0"
+          "sha256": "f38bd0cad0b6d0d4dd7ecd532217e59692828a8aa3059c7261a52d6ba119b100"
         }
       ],
       "sources": [],

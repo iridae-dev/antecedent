@@ -28,7 +28,7 @@
         {
           "role": "generator",
           "path": "conformance/recalculation/checked_static_design/reference.py",
-          "sha256": "aafbd4bd5cb930673bae42bbc9041aaedaaef5da504219c4bd720680fc9ac08a"
+          "sha256": "a27455bedff034c369c7e13b7889e365bc9c6604241da319ed414e77fee0f3aa"
         },
         {
           "role": "environment_lock",
@@ -38,7 +38,7 @@
         {
           "role": "input_fixture",
           "path": "conformance/estimate/admg_frontdoor_functional/expected.json",
-          "sha256": "0bd900dd787bf8f71f60db0ca8d3317edabac80bb9e4f59880d3a69b96cad6d2"
+          "sha256": "53e702cdb45da242ad20c3da1d31940bd6d65bbc00da9f2238b5b6ffa3ad3087"
         },
         {
           "role": "assertion_source",

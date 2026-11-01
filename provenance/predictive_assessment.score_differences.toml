@@ -41,7 +41,7 @@ sha256 = "22159c6a0d4c236719f30fb36c9a9b3499f41f1bd75faa415c35a398f2a93469"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/proper_scores_reference.rs"
-sha256 = "5c65be42c531415db6e1d54f7b1bab75f5fc6d02460aa374be9cdeb45c094fa8"
+sha256 = "c749a7db18042b6bf2683da8674f53264d18e7b37723e6a3b0d159d634cba5e5"
 
 [[method_review.artifacts]]
 role = "reference"

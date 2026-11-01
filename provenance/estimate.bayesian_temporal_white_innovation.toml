@@ -46,12 +46,12 @@ sha256 = "6ab6bd8aee899fdb9e98f189ab1dcba1a676735d43ac64700d271186d7c2ade3"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
+sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/white_innovation_ljung_box_reference.rs"
-sha256 = "d2d4f7dde8ba6fa2e86b8fbabaeee1064e3cb3321ce26ee7ca20ba2ea1d79420"
+sha256 = "2380ff89af0290714c687ec2e85ba453dc0de351e857b0e2af536a37bd2fdb1a"
 
 [[method_review.artifacts]]
 role = "reference"

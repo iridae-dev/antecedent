@@ -45,7 +45,7 @@
         {
           "role": "generator",
           "path": "conformance/response/staged_derivatives/reference.py",
-          "sha256": "5c4e0f59c763a32c5d9be89614093bee21be862091c43c824edc8810fdb53a19"
+          "sha256": "c210c0a4c8894cc6f22f8bfde79f4fdc9e9a96822a15ebcfd1c686c32630cd51"
         },
         {
           "role": "environment_lock",

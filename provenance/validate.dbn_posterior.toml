@@ -23,7 +23,7 @@ record_sha256 = "ce354444105986188cb7a99e2eddc54a55659fb846c23043c1688d87a93feb5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/common.rs"
-sha256 = "c17c31cf99db30bee310b9d91b101c7fc1b7eb9e469b8798eb626d5b4bd27090"
+sha256 = "769e627628db990293b5e1eb95a2ab8ab9d7d31f2b459827ff884f94d2495eb6"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -33,7 +33,7 @@ sha256 = "4ec522c0dc71fb50f94fad16478f790201ad049096b446c5e383ce1548745d69"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/src/dbn_posterior_reference_tests.rs"
-sha256 = "dc14871c399026bda6f8be2f8ff3ecdab8eff405200839826914288825704268"
+sha256 = "1a5889b29e738076623f355346a63608cb86f3b28df802f4696ad0c70ec1f2ec"
 
 [[method_review.artifacts]]
 role = "reference"

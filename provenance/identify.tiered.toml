@@ -40,7 +40,7 @@ record_sha256 = "ad2a8eafa7507b0e62cd868e233706915cf63669fe18fadcdcbec2b1f29472b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/tiered.rs"
-sha256 = "b280a86519d0d579dc9f33d549e93e35bc66325152cae94e6c75e15fc0c6e4a0"
+sha256 = "2cc05f197462a960cd3233ca5b3b38999c5b4ad3fcaa238cc2e62225b09214a6"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -50,9 +50,9 @@ sha256 = "7a7fd684a7c1ad9aed447c06644e21d49ea17559e149964efdef2a9db0f6173b"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/joint_response.rs"
-sha256 = "7bfb1884cfeae63d2a052278394f7f5b713780ee6d7971c8b9c2482d43f15ebb"
+sha256 = "7d6f651e39bf76bd1b855e2cc7a231a6d8b385369ba799ee4048f0b623984314"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/tiered_closure_enumeration.rs"
-sha256 = "3d9e18f81cff557c2575e8339571bac6db3a6a5da1b8748d6bb442967b869ca9"
+sha256 = "9d59d35cb42f2310cbe3224d0994f23f87038515a0e8f367da17783ee5ada57c"

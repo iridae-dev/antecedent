@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/gcm/lgssm/reference.py",
-          "sha256": "7877095773db6275b06a72ab6d272c89fc4287a3fee05fbc24e923a39221c1a6"
+          "sha256": "d6d20c8db55290980637ad76245b410b3a35e28fe477ed7356a0ed445d7616fc"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/scm_oracle.rs",
-          "sha256": "0536a9b92ec10c7b7aba0d4f79ff00eb0f54a73879eedc9407cca1e5e2519ba1"
+          "sha256": "3885ff9133184e08a56e35fdd0b7552bfb24b4bc3ceaa5794bdb1f20ac9d8658"
         }
       ],
       "sources": [],

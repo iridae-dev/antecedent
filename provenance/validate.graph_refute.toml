@@ -41,7 +41,7 @@ sha256 = "4617669540a1db9df2f66d7bf9a87a9bfccf376e67610372bf67eb388045dc27"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/graph_refute_reference.rs"
-sha256 = "0933aeff233c29d668e80af9c8c4144bcfb26899f4c84c11b6441803dd8be4dc"
+sha256 = "b9165c357ae9143abfc550e4437c5edf67d27a63662e907807d621b3d69a09d9"
 
 [[method_review.artifacts]]
 role = "reference"

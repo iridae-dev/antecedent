@@ -43,7 +43,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_derivative/reference.py",
-          "sha256": "efdeebfbc2a5b9f9566c0ead0abf28446d94a2ac729e2794083ab629083ca86b"
+          "sha256": "23574fbeafabdde507520212cc1766cda4ff9075c0815caf70cbc2569fca8983"
         },
         {
           "role": "environment_lock",
@@ -53,7 +53,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_derivative_effect.rs",
-          "sha256": "8af9562f0bc5123c2280eeb87a0429e24b84bb5c8e41caa264d1325c783fed23"
+          "sha256": "8cf331a778e15630216e95b8a6e94e7c650f694676a8bb6d504257425d3fc4b2"
         }
       ],
       "fixture_payload_sha256": "80b8857c182ec5f2edb8402e8743125c27f653755533418ce3a72cad694473ed"

@@ -39,12 +39,12 @@ record_sha256 = "80ad24fa034898c26b1e34f9a4e48337f670ebc36521efdb48b47503da688a9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/period_refresh.rs"
-sha256 = "3f5894911387875a062ef06469122a0b29b2df75c9ebc9203da37f661aa6ac17"
+sha256 = "3161065a4a8fa26c84c16d04ca144c22b376d7fb0d6441c79322c0cb5a5135c9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/period_refresh_reference.rs"
-sha256 = "d11ea67d76f17d7bbeb9ad84bf71ac0fb55bdd0371a0ffac80c1609e2942f5f3"
+sha256 = "c624e985bc67446fd1a840dbaac2cf3dfc529b017d015c442318e782828e30c6"
 
 [[method_review.artifacts]]
 role = "reference"

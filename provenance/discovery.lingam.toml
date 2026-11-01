@@ -40,9 +40,9 @@ record_sha256 = "0b29c9c508ee5595d918a340e8c4e39dae22dd7e81d292c440b67e8586a5714
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/lingam.rs"
-sha256 = "6bdfdbde7783561aca77094ec2e30d84a861d007fafde81265f242e7547d45fc"
+sha256 = "397ef97fe0463a161d6f02d40f7690d0248670ec0bb6b343ce8ec284ed9cf344"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/src/lingam_oracle_tests.rs"
-sha256 = "66754535c86fbfc2e12caaa37a32b239a6f908c680ea00d2997968001efea6e3"
+sha256 = "b5130708584d9c16490dde5da14bd5eb5a49f4cf912dbc42c6988e9370b8d0cb"

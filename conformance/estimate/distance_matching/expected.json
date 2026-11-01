@@ -57,7 +57,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/distance_matching/reference.py",
-          "sha256": "003c0eeb0330f27ddeb642bef4f0b666cb9347c6d02534919b2933781c6035e3"
+          "sha256": "3322858484c35f1a3050b8d03f094defe98bbfd86efedccd8de47ca5b65cb8f4"
         },
         {
           "role": "environment_lock",

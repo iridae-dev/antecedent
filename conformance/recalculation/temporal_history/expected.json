@@ -28,7 +28,7 @@
         {
           "role": "generator",
           "path": "conformance/recalculation/temporal_history/reference.py",
-          "sha256": "41c595a03163fdf5aedbb5b26845c09ab9842b7ecf6bb8b3d57b4e8ecc9eb3bb"
+          "sha256": "8b9283146551e0554457d7409486782c8cd09cc9c2538c4d6304627c4d8d7e34"
         },
         {
           "role": "environment_lock",
@@ -38,12 +38,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/recalc_temporal.rs",
-          "sha256": "28aee9bb8617877afa4fb19c2ee5fe1b8637ebb02fd9f9e24fe960ef276eb698"
+          "sha256": "8ca164fb0bcd35339c9ed7fb76dc6d9c808e529bb033c65c8053d16039ca8d57"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/temporal_history_fit.rs",
-          "sha256": "ad84e7ecda8c50c97f2aebb6f64d189484973b8316e53daa9e367690a96b2ed6"
+          "sha256": "c5430da7c596a270d5adc31569592d4149060f95f47d4422cbb0dabe3b4ba987"
         }
       ],
       "fixture_payload_sha256": "5cb250f33597c7c4ef405392ef7c6fd2e94fe72cabac03ec796b535cf4384b1e"

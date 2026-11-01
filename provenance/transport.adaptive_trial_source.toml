@@ -37,7 +37,7 @@ record_sha256 = "37a9af8e6c0331dfd236e741de87a6cd70db4c85c8f42d3b01de8368d826838
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/adaptive_trial_transport.rs"
-sha256 = "a63a99fc7e07eb6e80cbc46e64b37170bdb1b15f2cf3a6606ba8de0e3e8744d9"
+sha256 = "c8817ed3bbd694efb1b72f5f7a05df2ecf8c95993a1cf8de7ef84e82b97b41a6"
 
 [[method_review.artifacts]]
 role = "assertion"

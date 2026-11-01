@@ -35,7 +35,7 @@
         {
           "role": "generator",
           "path": "conformance/attribution/arrow_strength/reference.py",
-          "sha256": "31becffc7aa90ea789ee0711e6e461184bd8979b7a7d819b342502717959214c"
+          "sha256": "e4cda8434e55a15be6aaa47fe56d80f0b4f6cf95aee8dc35d86c7c0460c0476f"
         },
         {
           "role": "environment_lock",
@@ -45,7 +45,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/anomaly.rs",
-          "sha256": "d2e10b97f5eac252350b3e503da7187d00799ed010a654538aea12283d2444f7"
+          "sha256": "11a5b73176a0c1d6750e83b1931f3e50cd381a40578b11f812704e6b28dbe3ee"
         }
       ],
       "fixture_payload_sha256": "5464cf8e6c08bdd81b40e7154f93208323485b956a9333bacaa710b4f64eabd5"

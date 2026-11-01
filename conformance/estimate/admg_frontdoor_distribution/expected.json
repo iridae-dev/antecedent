@@ -147,7 +147,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/admg_frontdoor_distribution/reference.py",
-          "sha256": "d95594aa70e41b933c40f0b16824180273ba28ab7d13e88d1bd2fa13abb521ab"
+          "sha256": "ae1fff3eb983c1d9fbe8fa265e14343909854bbc53b2aae8c862643005c8429b"
         },
         {
           "role": "environment_lock",
@@ -157,7 +157,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_admg_route_evidence.rs",
-          "sha256": "9fbb1c458b8ad7be51fdbde54ddac87353b5858d09d5ab377ddb69f216b43d18"
+          "sha256": "79a85f14ffcfc2a777218d2314115a69f3f188f42b507e81a390ffa9889f89ce"
         }
       ],
       "fixture_payload_sha256": "8c97ed07a071aec5f78e9b9445031e77b34e1879902bc82248e6ad6efc7b3dbb"

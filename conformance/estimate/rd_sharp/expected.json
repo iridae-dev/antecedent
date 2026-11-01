@@ -163,7 +163,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/rd_sharp/reference.py",
-          "sha256": "fcde2033cead506fd68a3da173aa25c87badab08cbd7ec49ec3cdc7bd14f8ac4"
+          "sha256": "bd30fa78c672d927914b5b98188c2272cdc817e0ff0e5b178233dcf710c8a224"
         },
         {
           "role": "environment_lock",

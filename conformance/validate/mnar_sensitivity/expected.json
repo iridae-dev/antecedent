@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/validate/mnar_sensitivity/reference.py",
-          "sha256": "6aa99f3b677c16bdd59387f713b4bfd0a5898f9fec5f1a85b4f1c0d12a6feeea"
+          "sha256": "a4cafc870c4192f6b549d046b8b48a2e42f475e0fad2020e5cce8546698e4fc8"
         },
         {
           "role": "environment_lock",
@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-validate/tests/mnar_sensitivity.rs",
-          "sha256": "a98281efbbfaf349f73b6c1f0598063d88f618c5d081f20dcf843d166e904c17"
+          "sha256": "c107d98c4454fe1f2dd7ab781239dfdb742864a119e1654a9b7cf221f6d81c24"
         }
       ],
       "sources": [],

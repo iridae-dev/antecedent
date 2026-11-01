@@ -62,7 +62,7 @@ sha256 = "6966211856296e8e2bfe367298cf6d08aab4ad705c26690046e0449dc32e6bbc"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/msm_sensitivity_reference.rs"
-sha256 = "611a31fffbfab213e1e6a91c4c2d54e5b8ec75b80f7c3c93a11feb11cd64b20f"
+sha256 = "5ac1ad173511b32c532107998956141c68f8b770d1074766624432383c086b65"
 
 [[method_review.artifacts]]
 role = "reference"

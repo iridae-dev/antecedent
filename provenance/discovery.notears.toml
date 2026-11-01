@@ -43,7 +43,7 @@ sha256 = "201f82c363590cdc4d7c648b282855c98b14c12425ffbaf691f8a7e0d55a3a99"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/notears/solver.rs"
-sha256 = "cd10c61e9a2ba8879e4f23a5d9e67b50a2665af2fdff8288fdec8cb4c5820cbd"
+sha256 = "48e69d931870038e503c5f786439bb69f7df494aa476aa8c6a4a4187cfb43af8"
 
 [[method_review.artifacts]]
 role = "implementation"

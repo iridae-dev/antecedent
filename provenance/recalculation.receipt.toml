@@ -44,9 +44,9 @@ record_sha256 = "5ff730995bd2249b4d2c61860992c8de0a6fe8839409cef0030e3e32339c5f1
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/recalc_receipt_artifact.rs"
-sha256 = "fa89e232037aea2e143f28fe039e5ab7c3c7bd84f4c47e32ad15ba407b97db9d"
+sha256 = "c7713b7c1e227f57ff2704a724a78b4b800c85fc4b61d04f1c404c7208074e36"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io/tests/recalc_receipt_artifact.rs"
-sha256 = "cc92466c8f4370e9cb089c67bcad33e385092d6610b764a37ab0466f4c85a5ff"
+sha256 = "5757fa1438dddfacc7b1211f3c1a3ee7ca6776889aaf1755f0be918dfd19c3fa"

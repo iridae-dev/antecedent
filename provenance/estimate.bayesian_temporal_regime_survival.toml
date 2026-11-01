@@ -38,17 +38,17 @@ record_sha256 = "1f70a3e763d097ab47efc9f68244b3445fd4ad97220bfc63f101089fd8b127d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/survival.rs"
-sha256 = "7c41faa544c667cc750b25b0df620f2ac57bf9851b7da4418dcbc0b50429c086"
+sha256 = "7c15e0afc20715299b66570e166f856487d596205e9049247bd667b435209c78"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_design/linalg.rs"
-sha256 = "9dba06a1c63c7344a3d77d1c4d420696e2d94f9381dc83380bc52d9168770484"
+sha256 = "45c728b8a80412e36794c6ed10071969b3e64a565cc09b7807f80f90f4fe3c85"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_temporal_regime_survival_reference.rs"
-sha256 = "8f16792eccb0fe1ef61e1f0529686658a0aec860095fc6fa0777287d1e88ee96"
+sha256 = "0165d4a371862cedc908d96818ab44f179ef28d1e8c616eeb7a21b6f3d25bf49"
 
 [[method_review.artifacts]]
 role = "reference"

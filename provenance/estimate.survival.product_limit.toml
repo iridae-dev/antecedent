@@ -38,12 +38,12 @@ record_sha256 = "98779fb6f9837f81596e8d20d6a78a39d7f277596adb00109df1d5a21640812
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/survival.rs"
-sha256 = "4a7b82bc1c7dd37d62a3599a3e876a2e9d1503dd6b371c6c6dc32b8b13ddb15c"
+sha256 = "678d5cd460b602976f7721d17075b8a0e511b5604d38470adfda08c77f3ec199"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/product_limit_reference.rs"
-sha256 = "a211a4fcf6169dcd3d704b139aa617e0b6dc8c9c0ca4a7221b89099990433610"
+sha256 = "1e3c047d8fd768bd611388227bc34bc4af0b20ed40d458b520f8dcefcd7ebb02"
 
 [[method_review.artifacts]]
 role = "reference"

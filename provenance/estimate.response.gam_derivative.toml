@@ -47,7 +47,7 @@ record_sha256 = "7ba135c7bf6666839e2b24526cf159bf3986b47dfc065c7e4714ff23feec86f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/plugin.rs"
-sha256 = "14ee0c15ee5c9cddf18621fb8ec0b4701862d48999b39c9bf8ade318918f1bf0"
+sha256 = "2b5588eaa2bec08e02ac9837aaa991d38b2e9f9f932c740f42476e3ef23f10ff"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -62,7 +62,7 @@ sha256 = "251565bc32f124e1010e3aa63917a4f0d41eeaf04ab9c4890b9573ad44a8e268"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_gam_derivative_reference.rs"
-sha256 = "ec4c313f08cc64b1378bc3c0b4fd554ea71a32390491ca0adb13544aa931bc7b"
+sha256 = "1c7bd8b5f4e27af364d68bdd70ebe915b25ad91d4dd1a7f8cfb87824efaac28d"
 
 [[method_review.artifacts]]
 role = "reference"

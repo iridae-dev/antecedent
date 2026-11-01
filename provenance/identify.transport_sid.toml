@@ -42,14 +42,14 @@ record_sha256 = "adfc094d26e00dd21047dfd9b9271f5303745f09f2e3bcfe936d4c0a651df6a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid.rs"
-sha256 = "a6a9c73462506d41c2aa63b4b844b3947ec0c71061689efb2d465b5dc3fb1488"
+sha256 = "4ad824696e7f3b944d08b05e6341d67ccd6167fceb192cfe5fa9909ec2663667"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/transport.rs"
-sha256 = "38c6c14cdd70ff4006c4212490de24c3128700d9a9f39a1961dabaae5f3099be"
+sha256 = "ee9e073de50a29ee4aefa3ca5dfe28f8b5a25a7019a1ec9a9983e759d166a15c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/transport_exact_scm.rs"
-sha256 = "dc64a36f27a0dfaa34c5012d481f1e4212d15c8eb4865131d69545cdc799b9c1"
+sha256 = "26b802e7ec4ee120d53a77a982fb1975288426497345d756bc4d65311a125c0d"

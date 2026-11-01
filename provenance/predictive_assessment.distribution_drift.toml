@@ -34,7 +34,7 @@ sha256 = "6e7f0589f92a60c8cf8e0767f070f7457f34fd1382e9ae4e1e266671ce898031"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/distribution_drift_reference.rs"
-sha256 = "5bd69dc22d6e675c23823113278fed75c83856d3fb4715b0d3dce612e4be9207"
+sha256 = "97b913f372e55d7d9db9964f135883c77f2e8fd420c17455974dea018a65860c"
 
 [[method_review.artifacts]]
 role = "reference"

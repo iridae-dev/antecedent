@@ -46,12 +46,12 @@ record_sha256 = "eb176e5495f6c60694fda98751b998eff050b569503c32c6dc0b675d103df3d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/confidence_sequence.rs"
-sha256 = "5d37c2069983401cb310573b6bb4a437d5908504e5461fb2a6640cb5effa0e88"
+sha256 = "91574d9dd341bb6ba427777b13591c42bccd7798d5e70853d8aa248c75aa2463"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/confidence_sequence_reference.rs"
-sha256 = "4d1e3cee51edef51f7e53c96c41be66de6c9994291df63a868611ebe091800e4"
+sha256 = "f82eed495532820086c69bae60b69971cc5f24447db0793af191e5df774e1b1b"
 
 [[method_review.artifacts]]
 role = "reference"

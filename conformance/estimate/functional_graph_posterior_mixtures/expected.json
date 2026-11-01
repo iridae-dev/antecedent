@@ -25,7 +25,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/functional_graph_posterior_mixtures/reference.py",
-          "sha256": "6983c5a994a524c986bc96bf5cf1c531f0b994f25424bab2f25e8ad276eea40b"
+          "sha256": "bb1155985076a96aa3eaac2871d714711c8224d9c701f5c40b4ef1df7c00e53a"
         },
         {
           "role": "environment_lock",
@@ -35,10 +35,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/functional_graph_posterior_mixture_truth.rs",
-          "sha256": "2718a99ddfd4ae64b857f55fa7274d056febcc1a5ef3c2ce5569042d3d5cd0df"
+          "sha256": "c256afe6df36568b96725a2af14aea53bdbda56e37dc04585e92df9352ab7602"
         }
       ],
-      "fixture_payload_sha256": "38683fee82f3afd6a0af3e4572901386073d3497c2ec49504812362226260dde"
+      "fixture_payload_sha256": "b94a22ba146fb971c9d08d2375f95397f396c042567fc44049fd6dc673cdcaf8"
     }
   },
   "schema_version": 1,

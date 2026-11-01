@@ -213,7 +213,7 @@
         {
           "role": "generator",
           "path": "conformance/response/temporal_dose_horizon/reference.py",
-          "sha256": "91b04c6c495fd412584613d1d1ae47af4d7a328ae2d3f536c49d3babbc85ee33"
+          "sha256": "6a0d63b367263a236200e0ddce9523a6bcb2ee2fd03222e39c6e0de3f8039236"
         },
         {
           "role": "environment_lock",
@@ -223,7 +223,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_response_facade.rs",
-          "sha256": "ecc91e2da426c9d7b17eebd46f62c0e346dd77cb27ee05a3315e89293c5f2939"
+          "sha256": "f4bc57970033838b15a1caf20244b462d4741984916e5eb667e8714a66a22773"
         }
       ],
       "fixture_payload_sha256": "9d977b64cea2adb659141de02bb86655e434e6a14c0f5d99118e01835bd15957"

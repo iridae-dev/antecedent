@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_cross_world/reference.py",
-          "sha256": "9d88d49be119ec08afbcdf32f16b7f4e982c630450f59420d7761853f66497c7"
+          "sha256": "0b32f5a49cfa2619fe24fde2a96901d5f163e44bfee845daafe135630495edf9"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_cross_world_effect.rs",
-          "sha256": "9664c6389609620723687e6cb290fe96e8d45a724e63b9eacb853868ea14c5b4"
+          "sha256": "c1aec69f6e0f590575920d0d876a90259e1eeea01ac8da5c49010fd198e6c07a"
         }
       ],
       "fixture_payload_sha256": "2acfcb33e057c0ab03e89001d89d854f871b54906f57465c316d47dd7122356d"

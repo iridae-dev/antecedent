@@ -41,12 +41,12 @@ record_sha256 = "78e9d54cda875d51a1a5874e22232b42d1fdc8083d2bd485f95a3c81f526bec
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/glm_adjustment.rs"
-sha256 = "5482091fc4745531d379b1fda1328aec16b9f4799c23501c1c39ff3a077a5c57"
+sha256 = "18a1313f49f25838f3b49dff2e8874e0e528a2260aa41d858b7867d44c6df676"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/glm_adjustment/variance.rs"
-sha256 = "219fc144d5da0677977a03fa77048a5cc2a06d4d5ab84472c7155e38be6f5561"
+sha256 = "03ebc09317a5d4a8dc2b45e1d4c943f3724a27cffbcd4d6edcfa782dcfdfffd4"
 
 [[method_review.artifacts]]
 role = "assertion"

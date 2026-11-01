@@ -44,12 +44,12 @@ record_sha256 = "f60831815ee34f9d3a70f889d0f865957064b59bb48a130c997e8eec8d22c38
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/sensitivity.rs"
-sha256 = "4b59a1fa0f659e70323875f89424018847491122a14a03308b6ed3cfb50906ee"
+sha256 = "8058b018b72cd500ba5766ce6ccc84b93269a82d15f9ca7c8603b4200dd4aff0"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/linear_sensitivity_reference.rs"
-sha256 = "ce5e6f97eabd6940f7ebd0e183a6b6933a98aca9ba0811a41e67f459166c93e2"
+sha256 = "ae0c85b8e2683d22d7df068ca654aa0a9db569d1eb6d79cf6d5c6b242188514c"
 
 [[method_review.artifacts]]
 role = "reference"

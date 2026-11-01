@@ -38,12 +38,12 @@ record_sha256 = "436039856b77591342b8e050fac191d322a88b932b38cdac45a119602af3306
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/lagged_instrument.rs"
-sha256 = "e596533a474b38e546ac4a6b4dcd8144b5d3d40e8f8a4d64fe5dc5ae164ad609"
+sha256 = "2bdebdcb0d6952408593fa7119ce2518b406dc2632c718a68ba2aedbab9cbb43"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/lagged_instrument_wald_reference.rs"
-sha256 = "f778ef96583c5b8e7d6ad30785a68a77a0c1a000ab8afabf7e065809d5f6b5e6"
+sha256 = "db91c1305f19da017cdeb523c4cfc8ca1e1e991c8ed3734beb969aac3785c2a3"
 
 [[method_review.artifacts]]
 role = "reference"

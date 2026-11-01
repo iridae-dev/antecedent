@@ -41,7 +41,7 @@ record_sha256 = "f06ebeb1da022b93adcda17be8b7e91007f5bf8b62d22352a3225bf9a35c566
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/cell_aipw.rs"
-sha256 = "460913587a69cef6508c6885bcef0ff2f082385783aab976faf5329fb8208ff6"
+sha256 = "5c203680cc02d37cdd1dbd51cc7a7529a59d9f314fc4aa13debdcb9e43c0afb2"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -51,4 +51,4 @@ sha256 = "3f49a2dd51d60f020c87550208ee8c8803467224ce26750e54fa8cf18d0893c6"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/src/cell_aipw_oracle_tests.rs"
-sha256 = "86c321eb691efbd395d2f249dc4afdbebd525f2714b2531e11310eb59aba3da6"
+sha256 = "9e1b52a0d9657a9a5869a8a999a8a1ab12b6327e8b6fa69eab7848875b2d1db1"

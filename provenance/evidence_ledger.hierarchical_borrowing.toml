@@ -41,7 +41,7 @@ sha256 = "68041846370d0dc9960c5f44675a3c1dca583f8c985e9a983df05d63b94d6852"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/evidence_synthesis_reference.rs"
-sha256 = "939686ab0ea58a3b4609d08bf77510254e03c031e3432acdc1969cef319d71ae"
+sha256 = "07865a9bac9e7d176a9cf9ef1eaac68bd3338df7bf845e7390d5a2c3b777b3af"
 
 [[method_review.artifacts]]
 role = "reference"

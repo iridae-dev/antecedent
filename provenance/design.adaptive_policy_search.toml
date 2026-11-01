@@ -41,17 +41,17 @@ record_sha256 = "6fce0a3d88174f9437e9dc41d2512eb88227a569b403eef49590c077e2e09f8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/adaptive_policy.rs"
-sha256 = "065e5d504e565fb8af47f078fc3b2e934ee7f42a285e10a4cfe9c2a497e96666"
+sha256 = "05f8bd7731ed5c37b91b89240511bcdd6a57d778e4ec8635807f63bd1fe2c22e"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/adaptive_policy_search.rs"
-sha256 = "b6ed545b87d9fed1d017e3d034db37e7d5314b934a0e3ddc92e9bee7d7856bef"
+sha256 = "1cfe36499b355837cd982c86702d3d1c26f7d46757d8fc1821ff0a9060efb170"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/adaptive_policy_search.rs"
-sha256 = "5e87c508d00b5ece747bc2fde138b8feaff6c75131639f1c873bfb093b1c88f6"
+sha256 = "baa2a59b7b9c370a42a804ec4f0cd35d670b7b4ba319ea6d8c8f6dbcb34b38e9"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -61,4 +61,4 @@ sha256 = "04a5457d3b0bc542be1329b588146e5ac43879e2d77ba5c0c8fb80c8e3f07811"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/design/adaptive_policy_search/expected.json"
-sha256 = "c0af35d18012fcf66082faf447191815a9a2093b6414a8aeded33818df87985c"
+sha256 = "963d349e31ed65a5892e3373c7838e0cc4462aad18a148601e9ff4be9748b37b"

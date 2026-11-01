@@ -40,7 +40,7 @@ record_sha256 = "82476cf06fd803a7b8413e5a42c8d7b60af72ae6d5be97d1b660382617ec9a5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "aa44d7e1dad1c91356386a7ad05169d6ffdebb216db0ec3e5bdb6b27b861d9c4"
+sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -55,9 +55,9 @@ sha256 = "cccbb041aa949f327636d4c696a08644005f9455db58cf02de1c496dea75f022"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-state/tests/oracle_data/state_incremental_particle_graph_score_reference.py"
-sha256 = "59d57da8e2c75e0db38802608eea3f218bfc914936b691df3bc42740165fc963"
+sha256 = "18143b4a608c41aecf39eac4622762efb77dd0760f7d3a42acc3b1bcd4726cbe"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-state/tests/oracle_data/state_incremental_particle_graph_score_reference.json"
-sha256 = "0d616dac3500d1b73e6195c0d1b9cead63116e4fcdcd5e0f3b490f434214f10b"
+sha256 = "7c20b311a4e6265143158c1cdcf596f717454233c7928ca0674cd8cd4646f796"

@@ -31,14 +31,14 @@ record_sha256 = "d85c442309e39e96190665df5772826868c9402d4290c3a3aa1b3c5cf04fccc
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/declaration.rs"
-sha256 = "17c299fa7d76d78fb71459ab0136f699230cfc43c0003f7895e8d137f5aa49b0"
+sha256 = "2f8e353a83bcb256fe6d1fdb16d6d52b258bbbe21f8cd531ececabbd27899be0"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/adaptive_design/accounting.rs"
-sha256 = "5136c6971e90884577d52940480500a9ecda4c80e90df103c7ad0f7214ea4fae"
+sha256 = "8b211480077899d5129ce72c805e56fd5088aafe0e659dfe8f0e4b89fa90b13f"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-contract/tests/adaptive_design.rs"
-sha256 = "3d6e1383c6ebaa178e9db326b6038839f5b1b20d65bdcc38a6d5c3c52b185513"
+sha256 = "7ef5229aed6a57b4a590dbcce7849ffd13354a94302ef938989ae5cc07fdcad2"

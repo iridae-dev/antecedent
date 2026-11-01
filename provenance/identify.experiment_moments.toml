@@ -47,7 +47,7 @@ sha256 = "bd549eee525b9af9b9e819099d203a2b4fddd32e5dea9fbc68a4c90fb74d8959"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/clamp_experiment_constraints.rs"
-sha256 = "88ea87a13f96d6e2b86fc60e2723a3797d861190de6ce1db3ce2e76e3f58936c"
+sha256 = "f6daa0735e9350e38e943457f92dd8e3a5c3bd2c9083cbe831e17e1947c45eb1"
 
 [[method_review.artifacts]]
 role = "reference"

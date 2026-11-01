@@ -42,12 +42,12 @@ record_sha256 = "386c11989cd9b86ef1e11addc32d549a64a479a81eabbb912edea796bf1af93
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/overlap.rs"
-sha256 = "f6b1c0512e9cb361e26f92b788233c4ba412eb2cefe6f31414eaab783054acb5"
+sha256 = "0bfd9515bd4f797a9df66b8b641f2f93cae43d327ea6f4d3ed7b8f51616b83f9"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/overlap_reference.rs"
-sha256 = "986790b8ce1aff4e9449097624f6d4839bbc28b8f0e7a13fb89627b5d46c3ca7"
+sha256 = "ba48bca973f16a888c53dec1eb35d09df4e883c08fc663d327a7747e8fb4f722"
 
 [[method_review.artifacts]]
 role = "reference"

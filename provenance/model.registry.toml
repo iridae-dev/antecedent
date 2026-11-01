@@ -96,22 +96,22 @@ findings_resolved = [
  "No numerical defect found in the other paths: weighted least squares, multinomial and binary logit, BVAR, hierarchical-linear (with and without units), interaction and spline bases (fresh and weighted), the filter, smoother, predictive density and EM fit, the Gaussian-process grid selection, the tree-map evaluation and class probabilities, the provider wiring and the candidate scores and ranking agree with the exact references at the stated tolerances.",
  "Recorded as behaviour, not changed: a Gaussian-process point is scored with the fitted noise standard deviation and no posterior variance; the complement 1 - q of a clipped tree-class score carries the rounding of q (relative 3e-8 near 1e-9); boosted and forest class scores are clipped at 1e-9 so the 2^-52 floor is reached only by a hand-built map.",
 ]
-record_sha256 = "ac974e6a03fb66d56aaeb7629c62f3fff737d4005602b06da247abe5a72d6344"
+record_sha256 = "30ece2957918d26cbc258b2769f5ac2be7898865c82d7e3458280e8bf8a35191"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/mod.rs"
-sha256 = "c2217e530bff0e8c494d2ae8408ef0d7a414cc62b68ec66885df3775c003a8d7"
+sha256 = "33aa0f53568b5b7c3b65ec51097b559bdbb7a1f3ca7fa66306dfb4e5b80009f2"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/cv.rs"
-sha256 = "b3e8cafa762efe5d62bf7e19cdabd9f19491c2d95ca9c450c97674cf327ba7c1"
+sha256 = "24b11623124a724921663e7a625a82827f8bf2f12b2a45b22b95f0857c5ccf3a"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/select.rs"
-sha256 = "778c0793b0cb842eb014b4b1b7fedef8f9d98e87f1c4ab8db690b9ac348f2cd5"
+sha256 = "912b74d4ce1c198ec734719aed4385731c2fa48a5971fa7fefdfa0e9fe823c04"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -131,17 +131,17 @@ sha256 = "5fc86bc23616dbd01cc57549c42e46c9b97f469af4f3baa0f7869f7d9cce2837"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/hierarchical.rs"
-sha256 = "e4115efc1de7ec0ace47dce495e7a2530b8c8c60ef49f71765e3551b384a09b1"
+sha256 = "dddfe340402a37fc3e8665972195bf9d20455a56fe2623566f1e4db22b55b6c4"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/basis.rs"
-sha256 = "1700e2ba506c2a36762b50223164843a0b2872e6e68a9e83ce5eff1848c10c9e"
+sha256 = "2bb3b3e65615c2d9e65e78749a67e4c15f2ca4063ed800586493818521dd9e6c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/registry/fit/state_space.rs"
-sha256 = "4825dd49900fb1767d84a969c1a9dd5bf81a5cc69b062350f9067bf76d3f1397"
+sha256 = "3eb350a1afe0086cb415b0cd4f13735ed3b687ad6177fa3a3d198564ee56a381"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -166,7 +166,7 @@ sha256 = "a068abf548606e8496ed56115ffef626e7cf07459cdc28f33aa38cd360626395"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/basis.rs"
-sha256 = "910d16e29dee5ec6388094a24d0ac07f6bffb4da753076b2dd95b224528b148a"
+sha256 = "69290bd804e229b4d0af439e9fb110cfb03e52d0708acdcc9d138bc6aad15a3f"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -176,12 +176,12 @@ sha256 = "91baf98561e231f93694fff12c08e2ed04f72cc98e94e1772f6f3658aa03e878"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_glm_reference.rs"
-sha256 = "053feb0c4646f7688fdc170fa7a310dcd326f74a6ee591e9f8f403ac1f0bcd0a"
+sha256 = "98a083bffa61a5abd06397362fc730ae48c31caf0bd06fdeae8afea008ecc14f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_linear_families_reference.rs"
-sha256 = "c9094951eaba0953f05bfc872531b324ba2c14f7c86c8e1eba6c8a6c8f254def"
+sha256 = "0a5de6682a04a51ed7e023e31b91eed2356eec59d0f3227909e05f379ba26b8a"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -196,17 +196,17 @@ sha256 = "8f54f1c4b3069db2dc636f924c0b28c2d136fb53b2853abfa8a88329fdec0b73"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_tree_ensemble_reference.rs"
-sha256 = "1795854bea6a84cb2a53baa1e14762fc5513a6c18da9117d8aeeab8fe988e4ac"
+sha256 = "4ec28f5ee071d46324ad3e7fd6b92de50d2a5ac3e94ce6448caad4e36a708c8d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_tree_fit_wiring_reference.rs"
-sha256 = "0444c81b3dc1c99b214a79e00d4c5c986e2123160cb44eb287f9f61ccd967077"
+sha256 = "d36bd958688322f24c89dc11abfa10956409c0ed5e9845c60d664964063fce61"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/registry_family_selection_reference.rs"
-sha256 = "80f2c2187ba1a8aa914547ed5c3a8e351b5da1c9e10015c8329d2ce741ded0fc"
+sha256 = "1d21aafd849b0e1e296d29de63c10f9ff58f75e723e3a45adc39e9a77cbdfc0a"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -216,12 +216,12 @@ sha256 = "40c73591a77c21bc11b26e84269a38203de1d6b5bba0d54ca9de9e5caed2c07f"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-model/tests/oracle_data/registry_glm_reference.py"
-sha256 = "56c46a9ab7f180dabd8cfa694d5453dc7f4fc17303d16e14bbad529fdfded120"
+sha256 = "f215ec5010a922b9692b731bec1bbfcc4021a9cf2fb64860e69e1ab9ed985154"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-model/tests/oracle_data/registry_linear_families_reference.py"
-sha256 = "07d67498cddfc077137f2509420fa6c456bfc79d61b1ea1897b2e4c3ee8835ae"
+sha256 = "b2083420a5508a9722d66e9060fe5c9064294142247c0e8d046a7715aa22f8fa"
 
 [[method_review.artifacts]]
 role = "reference"
@@ -241,7 +241,7 @@ sha256 = "2449cbaae2ad897dad1e4ac63cd427e1775726b6a0eadf58d1b1e496381e35a2"
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-model/tests/oracle_data/registry_family_selection_reference.py"
-sha256 = "20a1caf78318678be98b75410bb638f07b195690d750afdafc31429645271173"
+sha256 = "c0cff47e6c203729e2e3841dc4bd9c692c46c526d9457734bf7b266c4a8544ed"
 
 [[method_review.artifacts]]
 role = "fixture"
@@ -251,12 +251,12 @@ sha256 = "4ff50eaed5c8dd955576ea911fa872ffc43305bed282dba14688c682960d9e84"
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-model/tests/oracle_data/registry_glm_reference.json"
-sha256 = "4fd073b1c36a9e98f25547ba09cc9ba11b33f36bd4d000682ce52c2a80812a17"
+sha256 = "9aa03b67b8dc5e12638182187f284ec2ad958d433891e286d3b76bd4451f2d1c"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-model/tests/oracle_data/registry_linear_families_reference.json"
-sha256 = "245803c7cf5daf886513f4ae27a57ffe614e98a9a19528894ba754cff73cc6b3"
+sha256 = "6620e7668664b75ca1527e6fd00713cacd0195c9566a980093b757b13c8a57ab"
 
 [[method_review.artifacts]]
 role = "fixture"
@@ -276,4 +276,4 @@ sha256 = "d3659b2508abc39d0c03eb123d179ace0366a1023953767b0dffcb67c21ff0f9"
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-model/tests/oracle_data/registry_family_selection_reference.json"
-sha256 = "dd0e1d843294277f1f9f926f3e5c5c6965282787e02dd7ba084acda4a59e71ac"
+sha256 = "dec6c0f845744884be95da024df0cc977903fa56730cdedc565500ac39d40cf1"

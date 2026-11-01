@@ -45,17 +45,17 @@ record_sha256 = "be0ffb3834d4fb137bc64fd5ae73054078613ae428df2b9bf9e77b0513b4e58
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/covariance.rs"
-sha256 = "8b89dbcbeb460141c47caa8b088def99108d00594844e6eeb91ce1c8a794b66c"
+sha256 = "f262f41b73a2745de3ac80015bdc636d6bc9c3b7e30c6be1e7c7e5f4e12aa49c"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/cluster.rs"
-sha256 = "9607cb41faa47dd68e68101cc508121aeabcced372990b2c31946e62f4e977e2"
+sha256 = "fe7585203f64da92574b3fd977f5c65bfd281117e5e985b8853b7635dfa752c4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/sandwich_reference.rs"
-sha256 = "b229d9452e060b3675d0f076ca09252926a4c8e4a9119171c1af1d001d82e590"
+sha256 = "f78d56ada48a2aed8232eb300f84bdc4f8c7dea5a55d07269afdf4ebcc3cfe1c"
 
 [[method_review.artifacts]]
 role = "reference"

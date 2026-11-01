@@ -37,9 +37,9 @@ record_sha256 = "d8344b6b59e13d3025f3d625860070bb1d0f8189411c49cdf74ed93b1d8532e
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/randomized_scores.rs"
-sha256 = "76e97dfc9b2f0fba13b67732f8cbf949bd5ec490e5d735e62113288f46817e3f"
+sha256 = "f3b7351d609fe36b5fe6c1e02fc03c0118c80510a26044306690465b34e7d8b4"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/randomized_scores_enumeration.rs"
-sha256 = "576de0f38dd69d2e82805c0023688a9fe67760859ae04166cc827ec9c57a6808"
+sha256 = "7a2fd401d9bbf9a7b7a1d0e99694897a8add449f2e548168f54204756f87312c"

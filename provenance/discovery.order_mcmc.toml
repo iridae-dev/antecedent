@@ -40,19 +40,19 @@ record_sha256 = "2e400cb68ba3180e9ef2b137d6d75caf0bd8af04d56acde640eaed618e295c5
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/order_mcmc.rs"
-sha256 = "c086a31bfa815132a6213d03fc0be013120ae4d7cb13cf90d7e35d11cc96d0d0"
+sha256 = "f6f221e1765a5fd88522e0b94e949a6acee694eb45e566eb88ef432d372a60b6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/exact_marginals_reference.rs"
-sha256 = "57ac62707008bec8adc0619565f9f7f4103cdc9b2a4cbcb8dc5cfec2bd37ed81"
+sha256 = "6806340d5893a5429ed954e0322b719de2d7fa19743561520e98fc798803f651"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.py"
-sha256 = "a39c3ee6bf51f5ab5c0e74bd6245a34dd7b23b687bafcaa1cc03d2262e8969f0"
+sha256 = "69a505abe52e21bee4ee580fb780226ffd2716ca31da94b410ae897def715d08"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-discovery/tests/oracle_data/exact_marginals_reference.json"
-sha256 = "e2b513724beafced143d88a7e15b2755b2803d06fc2802c7ed9d95a74736e3ce"
+sha256 = "589a30a9e940cc29ef795ef541fb1d3acbedd5b075f9f3679a02448562394fdd"

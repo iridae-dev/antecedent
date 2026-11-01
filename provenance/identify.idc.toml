@@ -46,9 +46,9 @@ sha256 = "b384693e8ba8f7d9eed4b66c82361fe1fd6d3b5c105b5b3c162679b60ad74495"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/id.rs"
-sha256 = "70930332d6cd257d7c3feff349978e965da25665c07005050400f1a9292f0ff0"
+sha256 = "ac45030283ae1304899b277c235cfeaf1600955b5c6e36a0bb90504e3c2ed986"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/idc_rule2_enumeration.rs"
-sha256 = "5eb54598d60a614215e3909271e36cedfbaf64565c95c4763e450c4d20ec3160"
+sha256 = "3235394ab234a9dfa23914a0dab07548438366ba6764bd8a38afa34456174565"

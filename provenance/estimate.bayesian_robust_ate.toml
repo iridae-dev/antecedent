@@ -62,7 +62,7 @@ sha256 = "1af9d3f1011fd78ceb722378bdd4744e64d8c4c2fffebdb6d564e02231ab1035"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_robust_ate_reference.rs"
-sha256 = "3002d1a74b1442826b90fa90b0b76d5808a4f061ed2cbfa824ec3062ce75a9bb"
+sha256 = "74aaafdba9e62cf6cf3804e5df25837e396aa064af6023a9e5b72ed7c3f70d92"
 
 [[method_review.artifacts]]
 role = "reference"

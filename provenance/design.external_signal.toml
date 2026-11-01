@@ -51,4 +51,4 @@ sha256 = "86fe7a1dad9bad07452a600c012fb0e9809bb9e13164abd417f7c5405903ee08"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/signal_provider.rs"
-sha256 = "bcbbb96abe72491c8a482dd95cf13b3b2e654f6e9d6145824a114115a08eede4"
+sha256 = "fffb3ae489df749a42c2ccd5cebcc7b403d850e5570811645368e7873f0f5152"

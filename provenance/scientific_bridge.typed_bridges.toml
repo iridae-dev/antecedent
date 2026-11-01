@@ -60,7 +60,7 @@ sha256 = "cf708d1af936357402056a287256409cac4069caac9f6b62a06527df17c5cf8a"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/point_propagation.rs"
-sha256 = "d7f616a55def6f9834f960917f588f2b93887c1142a15f4964172be3ea0b99b1"
+sha256 = "e0f1178d7320d92d23cc8b9dc57d7a55d80ed5daaae5fc525b73527f70cd7723"
 
 [[method_review.artifacts]]
 role = "assertion"

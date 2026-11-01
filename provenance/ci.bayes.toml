@@ -46,4 +46,4 @@ sha256 = "fff309d8abed79d14a9d22c9c8508dac8969a5c609489cde9efc0d612eda5d69"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/bayesian_ci/expected.json"
-sha256 = "a92dd6f2e90b6c6bfc5646047ae06791c6376d89cedcc0be28aa6d832b04e285"
+sha256 = "eb905f9d5371a6cefdb2ab3e149e09f8c97489265ddd3bf472345e1f7ac55dbf"

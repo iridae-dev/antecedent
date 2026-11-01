@@ -21,7 +21,7 @@ record_sha256 = "6d9f713b99eb396ba3ef19e8f6f297c421e57be0f7016f6b7bec3a284452e59
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_static.rs"
-sha256 = "befa71c2bb95886f5d2155d0c5d9eabd1b5723ab17198cf39db31de70b68bbec"
+sha256 = "45ccc5775789106a50f6c33e9836c6b577867a1551f3cbe9916f02389e6e4a71"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

@@ -57,7 +57,7 @@ sha256 = "68f7c7ff840af30d963af32a7343f6ea2214f2284aac411f6b27b5bbfbc7c545"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/temporal_linear_predictor_reference.rs"
-sha256 = "90d25220a9fd9b73b3d2953ee70de7ce2c261a8f69d81e75604fd151ec24a4eb"
+sha256 = "2e0c1d616688ab223a2ea403405bd410839ed5f49d08582c34d61ef98255c767"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -30,7 +30,7 @@
         {
           "role": "generator",
           "path": "conformance/transport/typed_mechanism_shift/reference.py",
-          "sha256": "af6667ad1f97dbfd232960f7eaa09f47e807897fedb442ee67276ab4febcae42"
+          "sha256": "6fb0dd60c5e379aa2145d0b479a4511cbf7000ed48e487d611d83624a8dea6c9"
         },
         {
           "role": "environment_lock",
@@ -40,12 +40,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/typed_mechanism_transport.rs",
-          "sha256": "d41adad655a2f935c4c483ebb687e99bc73cce1dacf0299dadb6169766fc52c6"
+          "sha256": "2297a81076d8c09a46771f5e7b06e099dbf35009f6c3e20db7b61ef0b8b8ddfc"
         },
         {
           "role": "assertion_source",
           "path": "python/tests/test_typed_mechanism_transport.py",
-          "sha256": "6296ce7475092a36638244240976c0a233cd784088d232b28b51923f5d496bce"
+          "sha256": "01d7069a2e8f20160dd7d3db526b921040319ef9faa0d2dddac103690c67c126"
         },
         {
           "role": "input_fixture",

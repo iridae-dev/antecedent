@@ -38,7 +38,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/ou_trajectory/tests.rs",
-          "sha256": "a387f4aec31c6664d1d4dcf1c7d87b28e8b91fc874bc689d8bea1f53125bcbde"
+          "sha256": "21500bb8e7d6010fa5295c5b8fea8d580821c6b1c51a6a9cd1da46a5f6e0cdbb"
         }
       ],
       "fixture_payload_sha256": "ff990ee9e58072a2052072fd1342512413b28f9cad0e6bbada313b200fb4f6bb"

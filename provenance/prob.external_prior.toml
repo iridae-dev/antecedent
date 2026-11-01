@@ -41,7 +41,7 @@ record_sha256 = "bff1015ed09894d06c7758f0d3706887f969ea490a65433fc380e171a61d21b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/external_prior.rs"
-sha256 = "85e2f89a23ae6e4aae8ecec670566b875be74dbdc8d9e6ab1a0affdb76b09f9c"
+sha256 = "3ff7b4709523b71d35ab8c137d1fa383cb27d8ebb03921ea0bf6a494967da00a"
 
 [[method_review.artifacts]]
 role = "assertion"

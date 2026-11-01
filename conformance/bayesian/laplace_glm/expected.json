@@ -38,7 +38,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/laplace_glm/reference.py",
-          "sha256": "fedf224dbc8f595a86c9e2f32c15062969ed64b33ec96e751aa252abe9123dd4"
+          "sha256": "6a6a25f29ef60b537b7ed8bdffd4bfb7af7ba5bee8eacf718b3328298d624a50"
         },
         {
           "role": "environment_lock",
@@ -48,7 +48,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/bayesian.rs",
-          "sha256": "5d4cb6dec2b06a1a5aa334403144f1c9acaadb4eb7ed12ae10129bae04c2a654"
+          "sha256": "ea6b23e5b672f85471bc01871cbf286dc5a51cffc6209b607cc750d04a6f8892"
         }
       ],
       "fixture_payload_sha256": "c1ce3be5fcd759295ad5726542d3b7c4713404583d0912666aead59e4b2ef15e"

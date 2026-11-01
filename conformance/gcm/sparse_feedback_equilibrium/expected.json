@@ -36,7 +36,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/sparse_equilibrium_scale.rs",
-          "sha256": "65df54989b5785419d95bf78cdb5cff5e8915caf81da79caebc7beea22e09c03"
+          "sha256": "3e6b2b73fb097e6ada859b1aba36ab08f17da226edbbb4df660c97b3cf10d465"
         }
       ],
       "sources": [],

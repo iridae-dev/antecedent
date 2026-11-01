@@ -36,12 +36,12 @@ record_sha256 = "ce1c750245e4d48fea978a9deeac00ee2d1029e43dfac3a3473498685862162
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/ols_refresh.rs"
-sha256 = "51595b84d5c6b6e05978e9620288b3427458c87910f072efceb6f95b4a1ee4df"
+sha256 = "2d52f64d53108b214a853e2376cc70847c7443641576847a933556b3bfc20490"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/tests/ols_refresh_reference.rs"
-sha256 = "2d529329bbe69a75c4c889798301c11ed4717dd9255f6e2752b290d76da015dc"
+sha256 = "ef4a1bf8ea1df3ffd22927e385e5d005b9605ffb6bc28f39033bc9ba65af249c"
 
 [[method_review.artifacts]]
 role = "reference"

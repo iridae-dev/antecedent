@@ -44,12 +44,12 @@ sha256 = "41ad4877bf14be8d330c1c9f1476a9644416b696d0d51b35b9dda40833d6d78a"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
-sha256 = "be0206065f9b534173a09ebf1c2e3bebd918f55b1fddc35e99df69e2a8f48d34"
+sha256 = "6f0ffb5ab778856ee130e65b1046931a227508c18afe4e724d02959da00b745a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/repeated_measures_posterior_reference.rs"
-sha256 = "81af4e3ead66c01cb41dd27d02a4b750adae08c546feebb4a85e4e599922eca9"
+sha256 = "aee306270ee16a1c256ed19c943838c8f137c3581eabc1c343a412c3c6851cd7"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -30,7 +30,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_window_truth/reference.py",
-          "sha256": "e9ef8a3fd0240e86b2ca137d09807eb9ff767f49bd169cab536eca6335ddf075"
+          "sha256": "1ffe730eaf6f31752b28d20a9dd48d0e2517d4eae6a85096a33b32e7c0407305"
         },
         {
           "role": "environment_lock",
@@ -40,7 +40,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_window_route_evidence.rs",
-          "sha256": "eec60ba6cb0d77121fa06a42fa6f4e9e81caf4b16a5ba1b435442e954225440b"
+          "sha256": "cb7fc67320f638c03f456a92c69c2ff7f6f8b482f94e8cd526b44969bf81df68"
         }
       ],
       "fixture_payload_sha256": "dd4c1c5285b321dc55377140cb4b53daa4d23f61cc94ce506d7a2b96215512d1"

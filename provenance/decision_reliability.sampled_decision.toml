@@ -47,7 +47,7 @@ sha256 = "5cc944acb9be378d4da08cfd979571c649bfd702bcc6ca45b8323e14b375f3d5"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/decision_reliability_reference.rs"
-sha256 = "564fe8e4bd22e9a93eb1a339ed41031c58542e39be97f246739dae7d7cc3e37b"
+sha256 = "2b3403b216ecfd4241c5a1d6c91b3a0b42ec4863e05d37d844c301381a014005"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -39,7 +39,7 @@ record_sha256 = "2749bc0a042b90de62a6297da72b97bb44dd0fa88a727ec2288ef6aaa7cad98
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/hmc.rs"
-sha256 = "e8dc3b1396bd2d4be607f413deec6743b52e6126d18d686355b9ed212d20b532"
+sha256 = "c4e24fde601bfe26775aecbe25f643ca5edec2e721979f3d45c3c821b78692ae"
 
 [[method_review.artifacts]]
 role = "assertion"

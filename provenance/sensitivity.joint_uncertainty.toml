@@ -45,7 +45,7 @@ sha256 = "a2348a1a253c5080383197000dc5132440909e46ef23f6d74a514812504e75c7"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/joint_uncertainty_reference.rs"
-sha256 = "af16ae70fe926815faa5fe70901526492a371b5caab30d8588838aa0107d6139"
+sha256 = "dc4dcf45f28d0438169b27e235a8a7081c2c1bba417c2806ad9f6f32f811a98f"
 
 [[method_review.artifacts]]
 role = "reference"

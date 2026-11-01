@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/attribution/distribution_change_grid/reference.py",
-          "sha256": "725cd73e583a8a7ce2559d65f88f50fea908841f5a9d9b70df4380e9e3a22ace"
+          "sha256": "92fca3217e5d11502d58fbdfcdad1bb5735b024d1b52223cf9100e9306b24abf"
         },
         {
           "role": "environment_lock",
@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/distribution_change.rs",
-          "sha256": "b30fd6e2684ddf0a414eb77db5087d144b7ef577f36f2164ef884eb194d988c7"
+          "sha256": "b0901c07eb2d2651dfcbf29085b5aeb156fad90867c899f1bd4dfb7664d15752"
         }
       ],
       "fixture_payload_sha256": "10b998ea5771234ea936341a5624e7ec2c7cf265429bde382d4da63091c08ef3"

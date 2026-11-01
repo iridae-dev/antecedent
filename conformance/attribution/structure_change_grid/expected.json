@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/attribution/structure_change_grid/reference.py",
-          "sha256": "db4d25108459840420c1f3e1bfdb024e9fb4fa9838efda1945ee54cc788d76d9"
+          "sha256": "b2c8b12ded1b8d2e5e8f88918b49fec2cc6e17ab317af2332ccd6a4dbb07e1e4"
         },
         {
           "role": "environment_lock",
@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-attribution/src/structure_change.rs",
-          "sha256": "82d1ba69ca08325e3692c26df54ffaaacab581e6e51c0159ac87e8cef73e0595"
+          "sha256": "aa737a79429e52cb272906956053d79535efa8ebab597acf2680f60d09e866f0"
         }
       ],
       "fixture_payload_sha256": "7fb31ec20f0e7552534dd5c83049c38f96f7f899fc209f82b666bdfc8803a0f7"

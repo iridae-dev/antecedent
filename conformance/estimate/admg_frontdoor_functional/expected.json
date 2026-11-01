@@ -130,7 +130,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/admg_posterior_response.rs",
-          "sha256": "67516a04498647ac94fba57cc382c879cbf54885696ce1e255b169de63ce2da7"
+          "sha256": "cd6355295b4ccf0c103f8567197d732883750456801b563ff1a16ee8efb884c9"
         },
         {
           "role": "assertion_source",

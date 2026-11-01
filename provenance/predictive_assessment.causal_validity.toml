@@ -24,9 +24,9 @@ record_sha256 = "b276e7a30d9829b557353294c17aa0090adc7740b7fb1cf9cad70dd7232e137
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-validate/src/predictive_assessment/assess.rs"
-sha256 = "d58a305e8360d235d5f8de81e891597d7c8a681df32cb9124d48e3dbb311e380"
+sha256 = "5fd74d58b9062a29c37f392a8f4bfce3547c9936dc9c5f861ba274c92c873414"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-validate/tests/predictive_assessment.rs"
-sha256 = "a9125d6b1045938df2bbeb45e049f4bc7338be9a1a6d1db50f2f143800bc83e1"
+sha256 = "334da56666efc33b708d5f3b2744823e03c62e2e72298076eba407d7f5c0292c"

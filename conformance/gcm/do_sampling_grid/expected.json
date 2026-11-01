@@ -30,7 +30,7 @@
         {
           "role": "generator",
           "path": "conformance/gcm/do_sampling_grid/reference.py",
-          "sha256": "c7a16398902c132d69cf37dce6701af0a441ff655b25b007bbb3c4e59ad199f8"
+          "sha256": "536abe0a21ac0cb0c5b929be9929ed8bf9a838cb671e043b22ffd0ddea909247"
         },
         {
           "role": "environment_lock",
@@ -40,7 +40,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/scm_oracle.rs",
-          "sha256": "0536a9b92ec10c7b7aba0d4f79ff00eb0f54a73879eedc9407cca1e5e2519ba1"
+          "sha256": "3885ff9133184e08a56e35fdd0b7552bfb24b4bc3ceaa5794bdb1f20ac9d8658"
         }
       ],
       "fixture_payload_sha256": "52b85537525a738a7a62617308a5c5870c676fabbe5ae728adcab9ac57b35ec2"

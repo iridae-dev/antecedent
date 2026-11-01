@@ -37,17 +37,17 @@ record_sha256 = "3c1072f97b39259ce7da8cf16c5ccd0996ee8b3630943e30651717546b2ff76
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_repeated_measures.rs"
-sha256 = "be0206065f9b534173a09ebf1c2e3bebd918f55b1fddc35e99df69e2a8f48d34"
+sha256 = "6f0ffb5ab778856ee130e65b1046931a227508c18afe4e724d02959da00b745a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_repeated_measures_reference.rs"
-sha256 = "a5e59ee32372f77ba15d5cbbf0a76dcfc2ce77e53599f033249b03eb6d62cc15"
+sha256 = "953fc8a82346724a52a46dceed43509d2513ba4dd055000087b44cdec5d9f45a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
 
 [[method_review.artifacts]]
 role = "reference"

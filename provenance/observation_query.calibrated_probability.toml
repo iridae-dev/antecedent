@@ -37,12 +37,12 @@ record_sha256 = "5bdbe7104d72fb6927ff6d4c8b9f0b7aebfe11922fdb540f1bb0ecab0fcbc13
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/count_fitted_posterior.rs"
-sha256 = "be6c3725092f4b87db97659f5d41d1ff1a9aa9764a5ae10ce6a63b391554d17d"
+sha256 = "984d1b836d2550beeea5b37da75f97570c913acef9352ab0185dd0415c753cb6"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/count_fitted_posterior_reference.rs"
-sha256 = "7d381f9f2246b8b09d95f0443d662a74205fb86c1b5a4ebd45fbc070cd9de0c3"
+sha256 = "f95b56399f6bd18703b87f42b439572bc0384cabb7b63368d7c3c16d091c0499"
 
 [[method_review.artifacts]]
 role = "reference"

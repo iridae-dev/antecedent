@@ -86,7 +86,7 @@
         {
           "role": "generator",
           "path": "conformance/discovery/vector_vars_pcmci/reference.py",
-          "sha256": "9bee50e348c879550c007be09bdea8717684fbfdfc495e6033a59cf7891e8a27"
+          "sha256": "c13e879323950ad9c566c71b80e78d4785cb4ceb38a643070dfc56baacccd5a2"
         },
         {
           "role": "environment_lock",

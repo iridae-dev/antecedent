@@ -43,4 +43,4 @@ sha256 = "2e056d63abd0533b6f3a49e858fec701f15ea9afa8cad44c7c2fd3da8da49afe"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-attribution/tests/unit_change_reference.rs"
-sha256 = "28f11b0f3a9e743f0cb0dddfd897d98777c1e8428f77fd138bc73486ad705fa0"
+sha256 = "682486c452bb5dc35456e0fac883a79e183580b58eaf7a7a3289d1fd5528e01b"

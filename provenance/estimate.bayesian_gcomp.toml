@@ -39,17 +39,17 @@ record_sha256 = "c77e3c09f45d47bf351e9f8a12f24ee9f215390e1e63b77d4b624d627f04c8f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/bayesian/gcomp.rs"
-sha256 = "4f75e10ed8efe20961d9b06ccaf65f682b40505d38158d7683379e27ffbb6897"
+sha256 = "cc9d7ff3f218a80ac33724c26308edeb0232a0f4a5fd4fee75af7e0e49ef779b"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/conjugate.rs"
-sha256 = "70fa36f8e8ed0b6b09e0d39e152fbfddaf7f64af0c367115aa7e36fcae534992"
+sha256 = "e27e0ab0ebcd054edfb46dac56f63863a730e15a013a1bf5c07b565fe1d760f2"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/bayesian_gaussian_gcomp_reference.rs"
-sha256 = "4355b3540f12ad32989ed612a8009d53150cf1b41ecc65eb2afafde00da0e03b"
+sha256 = "554be29dfad553d17344acd4ef6094ffc760e979fcbf35db5f7fb016b17c1ed1"
 
 [[method_review.artifacts]]
 role = "reference"

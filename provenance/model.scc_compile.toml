@@ -39,7 +39,7 @@ record_sha256 = "d87163f6c867461cd9669bf1b15eb8bc1b2f4b16d89d8a8981016b3b4728667
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/scc_compile.rs"
-sha256 = "13c7345d1dbf136bfc633c87467a6435201efcc0d0731fbf24a5cd255c5fd9d8"
+sha256 = "ec2aa212dd109ab7dfd27369fce87cfd5324dccd5edbce82f0abb25730db680a"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -49,4 +49,4 @@ sha256 = "74d3103c487537e682694447d8a280d5b468346b38f94c1659355ccdbb301538"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/linear_equilibrium_reference.rs"
-sha256 = "864b2703a88c241cebdf1c942e8f545f8562a39058529a463d441fe5f6a226d3"
+sha256 = "39acacb6aaa06f87e04bda16000d06e16673bff0ec559890c9bcade7aca819fc"

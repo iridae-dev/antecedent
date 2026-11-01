@@ -42,7 +42,7 @@ sha256 = "2c90afef14ecb536b0743f9f35f5b9c303d8b89f39d955f7094f050d5c5004bc"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/staggered_did_reference.rs"
-sha256 = "19078a86c03e57d84533646ac9e741effbc290de74b9666d15ffa1a31a7c5943"
+sha256 = "ce5b4347ca671f8c5c56587534037126881dc09cf9741fee7288b8b347d4de4c"
 
 [[method_review.artifacts]]
 role = "reference"

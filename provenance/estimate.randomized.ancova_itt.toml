@@ -38,17 +38,17 @@ record_sha256 = "8022cd0d6aa501904f8406d03d9dde4fc17d32e80b0940e533cef6455eb37df
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/ancova.rs"
-sha256 = "41cc4ad34288ac4554fb1f4c407875124a396cfbd0b8e2852be282abd1edb5a1"
+sha256 = "60dd0785cbb77ec9049c308b0500b4944abf9485189b1d9550b6686f3a431caf"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/covariance.rs"
-sha256 = "8b89dbcbeb460141c47caa8b088def99108d00594844e6eeb91ce1c8a794b66c"
+sha256 = "f262f41b73a2745de3ac80015bdc636d6bc9c3b7e30c6be1e7c7e5f4e12aa49c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/ancova_reference.rs"
-sha256 = "46337660cafc102642b89bb49835ae9256b1c9d721d072bee01692947b9b012b"
+sha256 = "dbd745165736fbad27d503726c825450c71fb0389b15a6d294aca53cb4169b73"
 
 [[method_review.artifacts]]
 role = "reference"

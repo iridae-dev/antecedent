@@ -48,17 +48,17 @@ record_sha256 = "f8819b29dceb32866dfbe2772676626eee0ca5525d33ee40bc123512007ddb8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw.rs"
-sha256 = "88f070ef7addc45e1b755f01b766348b709ec482c671e6344a83e06f91a0cf51"
+sha256 = "5b540fd74c2a5736e33ca2f23a447a919872f0b213b135a3bcf4cb67d74149c8"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/aipw/scores.rs"
-sha256 = "173122c77bf12ad90cc9949d6c973fb4e94fde336866133118f9eb6b4bc575fd"
+sha256 = "c3e8e263c161459599377b1470258d3db58ad4610df1b07a9ebc71d784dd2e9c"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/aipw_reference.rs"
-sha256 = "659b9943d1cd64cc168007b71560be1eb12b7acf0764c589bbc0afed6f6f2a04"
+sha256 = "89786d5ca884f516776fc0aa63e6e95a9aa8494a0b8d8901d7f3e5b15708a059"
 
 [[method_review.artifacts]]
 role = "reference"

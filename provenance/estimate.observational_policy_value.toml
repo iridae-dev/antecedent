@@ -56,7 +56,7 @@ sha256 = "8423b2691b9a0e7c6c674fbcb74c849e0813c655d95ebbd871ed8e6c7fecf49f"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/observational_policy_reference.rs"
-sha256 = "8017d3b78446d61e694398614e0dac2edc8c0f1fd98c76ad580c1ba9dfc39ad1"
+sha256 = "f1ab9f2bc07d6ad48627d9b52d1659cea5230620c616e15c3baccb4c14faf563"
 
 [[method_review.artifacts]]
 role = "assertion"

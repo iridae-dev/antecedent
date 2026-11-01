@@ -43,4 +43,4 @@ sha256 = "9a1b3a8c4c0d55acaaae726c6c07f7a1cab4f1fa7fed8c220c8d609aa85476a0"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/composition_release_fixture.rs"
-sha256 = "95028592dede0f8ee27ee35df48914a1cbc1a944b5c4936b20428490af85d57c"
+sha256 = "8af7341a8e39d349806c42299380286e26d6c7ef920dad854788e0ce1e314dd4"

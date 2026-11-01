@@ -58,7 +58,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/aipw/reference.py",
-          "sha256": "b9a51ea8f976e2b810716668a89791f21882e3cb353b0144f3af2f3563ed476f"
+          "sha256": "e5a533b7a60b96212927a7fe26b523b21b7798d3bc09d97e04627414e9ef84d9"
         },
         {
           "role": "environment_lock",

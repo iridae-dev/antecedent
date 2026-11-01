@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/composition/rollout/reference.py",
-          "sha256": "b9b873c00d114b458994527ebf155350d3596cf8ca3b6da2b5c91779da6b3794"
+          "sha256": "472139c870f98bc214352baa35c92324ad97165361437c1ea3e217070f41cfee"
         },
         {
           "role": "environment_lock",
@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/rollout_artifact.rs",
-          "sha256": "1355aff7f961f9a1f942a543bfb3bcf92c5834324c62cfd6d6b0840a89cc7af2"
+          "sha256": "de56ab5715360f7f5ffa175c5867239fe24f2841f71a9cfd1f0f7e618125e6ff"
         }
       ],
       "fixture_payload_sha256": "293f527285c6906088201a666b1258d5b2ecac400097687227d34795ac9caa14"

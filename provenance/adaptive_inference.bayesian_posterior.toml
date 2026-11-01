@@ -42,7 +42,7 @@ sha256 = "12d881b9b03ea045116f977db6408fd24e65e6c43d071d2063f4ffb5f9f782ab"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/mod.rs"
-sha256 = "4f48ace36c8c36cbffaa49bd66c8aa97b350cea390ed2d0416aaf6b93ac74de9"
+sha256 = "4873d3084c2f6adb3059c730e9ea049cf0fb52a050031bcfc9670f4fd65daa21"
 
 [[method_review.artifacts]]
 role = "assertion"

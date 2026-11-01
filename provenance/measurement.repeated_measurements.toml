@@ -40,12 +40,12 @@ record_sha256 = "19efe5ae6da3866e99304973f63b3363c88ae2a96c414d9685943f4dff08c17
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/measurement_error.rs"
-sha256 = "e141b13fbbf5bc4514c8a0f76aae3cc2bcd82fdfd8db1e0c3baa60f35ff471f3"
+sha256 = "b216391f4ca4a3f501ff1eba73545525eb516f7f8cc2c732ac2b408729e08066"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/measurement_continuous_reference.rs"
-sha256 = "42a31adf44229938e59850e1cf464f2a428bdec70ade763b4d85cd99f861dd07"
+sha256 = "ee23e27dc13246efbad2cb9cf3a1fd871e6afa90ce51d9f5346028ebcd28d1c3"
 
 [[method_review.artifacts]]
 role = "reference"

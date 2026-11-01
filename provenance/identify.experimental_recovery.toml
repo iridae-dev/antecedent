@@ -41,7 +41,7 @@ record_sha256 = "59ce59365c8a5f04f4b6476e0aa108b4239690d9012d9d309f9d243d237ff72
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/experimental_recovery/decide.rs"
-sha256 = "82fa9d9ace80c226d286232885f7cd74e2b0a3fa05a8f1d99c21af408c074f95"
+sha256 = "ea6a3a7bec72f998e7d02d758d934f6b67408c7af1d82f136107e6cca5d9ec5a"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -39,9 +39,9 @@ record_sha256 = "1ac9d9ad0c17070849097140e0dd5ce4ebc0e4f26dfcd73709e7344f94d8a4a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/response.rs"
-sha256 = "41c859e737a0f73fceb89e7d9520e2290853d25e78d74e825415e27ca2f2d758"
+sha256 = "44b64fa4ac2b7ba4cae6ac69a6b46d00644508a9afc7353786fc8fcdc64aec9e"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/src/joint_response.rs"
-sha256 = "7bfb1884cfeae63d2a052278394f7f5b713780ee6d7971c8b9c2482d43f15ebb"
+sha256 = "7d6f651e39bf76bd1b855e2cc7a231a6d8b385369ba799ee4048f0b623984314"

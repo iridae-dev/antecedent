@@ -23,12 +23,12 @@ record_sha256 = "f3cd56121403db4a89b249a0b6475a9f055c2fa0d6d49950319bc6fcafb5317
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/recalc_bayesian.rs"
-sha256 = "1eaa0be5ad131097080490291949c58a22d6a79bda04ac98985cef74f8003d9e"
+sha256 = "ac736b24d5263782a018893b5617def0e9695d44dd3feb9ed986b1d796e0f63f"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/src/analysis/recalc_bayesian_summary_tests.rs"
-sha256 = "e11f888c6d6ee1fd6756ef102c4cf095abd361a60b06f6e9d287733ab7cf3e67"
+sha256 = "5eeeea1c426df1b9baea696d424cb854c17a3e14387dae060747c332e7ece56a"
 
 [[method_review.artifacts]]
 role = "reference"

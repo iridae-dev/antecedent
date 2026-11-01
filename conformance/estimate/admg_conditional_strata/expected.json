@@ -139,7 +139,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/admg_conditional_strata/reference.py",
-          "sha256": "92340d17eaf834fcceb79a5e933021674a8bf880e257b5c34a28bdc117aff74e"
+          "sha256": "eb6c3331a6674758c15ee415b6810f629c168af05c046bc1a5ff3d2535770547"
         },
         {
           "role": "environment_lock",
@@ -149,7 +149,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/conditional_effect_admg_validation_truth.rs",
-          "sha256": "cb188ec5fe82c6afa215adbc4199c154b629b4e7ea1c0ffaa25412d5969614f1"
+          "sha256": "ca93e1cfd6b2e3931840f5faa2cc110bdde85420c3bbbc7b3ea3d99ff71f3b3c"
         }
       ],
       "fixture_payload_sha256": "1301ab96fa774dbfb888e8c4296db28064ffab3c9fd96cb2984eb4e969a5884a"

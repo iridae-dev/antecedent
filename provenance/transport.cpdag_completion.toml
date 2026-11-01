@@ -47,9 +47,9 @@ record_sha256 = "bc4033eafc02c332f80ff9d86c3d51b3932943b98eb00f9250548b749249d9d
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/cpdag_completion.rs"
-sha256 = "35300f9aba548c593b1e217058eed419eb75577a10a3a132dc8dce0feef675a0"
+sha256 = "ce7c2437a2e4def6bf338765ca3c1e6340838d749dbcd266d7a42e0253f9df6a"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-identify/tests/cpdag_class_exhaustive.rs"
-sha256 = "0b332a6bde1823669af5b06e10a70826ffe47e64fbc92a7953ed2aad22d2572c"
+sha256 = "090fead17d1ff9cafb55f8de7f603e71a4684ca00e80ddac418cfff3ba165822"

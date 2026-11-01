@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-validate/src/tests.rs",
-          "sha256": "a05c53abd8836dad6b154c1807852412aaa9f24ffbc533e4615ca290d94cb8a5"
+          "sha256": "f98e9a8192a2a5950fb98f7012918e375a9672e0176af04a0feb68ca6ff29f76"
         }
       ],
       "fixture_payload_sha256": "bb803e6df4611ad322e9823ffa75968ba44107ad4f819b2a667b876cebd4aa2d"

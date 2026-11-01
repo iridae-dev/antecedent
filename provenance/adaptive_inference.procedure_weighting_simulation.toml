@@ -42,12 +42,12 @@ sha256 = "d271cccb17bb82581e7aad0eba0f59165a50533930311f1ee1fbb1b8b35f2d54"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/adaptive_weighting_simulation_reference.rs"
-sha256 = "5584019e9bd07adc5b4afd379c9b734b0a777965d69e3639e52cd24e6964d330"
+sha256 = "2cee1a0f77a63cd4b597087e97ded6f9b0357750465345c5c466fc1f3934c92d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/support/adaptive_procedure_reference.rs"
-sha256 = "9f51d015a392aa06ce800ee188d32509e63e69292bd667fa9f374638a0eac680"
+sha256 = "ab049d1dd06cd7a6530387ae82458fe580727513af6959303c8538212a4ad2a5"
 
 [[method_review.artifacts]]
 role = "reference"

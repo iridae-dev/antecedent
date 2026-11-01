@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/frontdoor_functional/reference.py",
-          "sha256": "6c3f9a27f9aa554b428f8233c8053f6b76182862011eede3194907a33e9e8b38"
+          "sha256": "cedd275aec5e4054dad69e75d5223ef77b65e1676de6b488ec87ce372ae00eb5"
         },
         {
           "role": "environment_lock",

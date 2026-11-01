@@ -47,4 +47,4 @@ sha256 = "9f4bdd2b680b9f3b3a0b733b098e74a05b229684305d5da7a8d33819f909b4a9"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/model_distinguish_reference.rs"
-sha256 = "767a454b4d4e610db08cf0ea53ce2b05c3849a8f22be447ae91c908456373c74"
+sha256 = "43750b9d8d71e5687fb723d3ec528f18c9bf294edefb58221ec66a105931cfd0"

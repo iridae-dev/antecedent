@@ -32,7 +32,7 @@
         {
           "role": "generator",
           "path": "conformance/identify/numeric_identification_cases/reference.py",
-          "sha256": "68d07607ac00255c0c4bfdfc763906ab2c0062cb282780ce19cc384e5785b752"
+          "sha256": "830d4bd71533e89a17afd73664082956439ab3d384eb2216fcc944e79da28e4e"
         },
         {
           "role": "environment_lock",

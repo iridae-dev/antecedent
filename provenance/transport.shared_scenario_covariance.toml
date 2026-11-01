@@ -46,7 +46,7 @@ sha256 = "c76181124902882858c2e54fa70f14f13f0390c5e13b6828895fc438fc2ce83e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/shared_scenario_covariance_reference.rs"
-sha256 = "8427f54f13b31888e27488f44b352dac427451813220f64fffb5597293c68aaf"
+sha256 = "35ac4f14515fe360efbae8d2131cf147cc81447ddfa3f6184dc11206ea8ef4ef"
 
 [[method_review.artifacts]]
 role = "reference"

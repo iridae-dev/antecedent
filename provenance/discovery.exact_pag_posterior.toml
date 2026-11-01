@@ -41,12 +41,12 @@ record_sha256 = "2a9c73af8710c39aaa823fc7146c66a0f7e4c815feaaa9ca35da56ee057b223
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_pag_posterior.rs"
-sha256 = "6d174182ae510eaa089c5a50ba3b8ee5789ca196744f91cc9f5ef13c0efc04d7"
+sha256 = "01473a70394cea94fc07b73f744d149c604d2ed83b574b138235e35662e794ba"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/exact_pag_posterior_reference.rs"
-sha256 = "37b3a32d9add5cc7fb50014a0fb888dc4896be02ff99a06ac8599a65c33e1370"
+sha256 = "77359a07511d48294ebfe845e8efbb105b73cca2269cd512ed1e205f55ccdd6f"
 
 [[method_review.artifacts]]
 role = "reference"

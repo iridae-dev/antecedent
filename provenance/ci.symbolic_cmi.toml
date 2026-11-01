@@ -48,7 +48,7 @@ sha256 = "49abbb5e641ca4e86c4409a5c83fb00b19fd42479b9ddf4104a8c2e6b86d55f0"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/symbolic_cmi_reference.rs"
-sha256 = "1b7298cd289a23e99189daa9db4c1a97ab4b01383ec9d5321ebf9f0ba8a46b2c"
+sha256 = "7e13304d8fda9bbf23f1d0b553da43684d03cac451c61982d55a213bf53960e7"
 
 [[method_review.artifacts]]
 role = "reference"

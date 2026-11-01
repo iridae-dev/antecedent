@@ -36,12 +36,12 @@ record_sha256 = "eabb501e9d0175361f328ba891f29295d02f77423284347d4e4d045e854a8d9
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_response/bayes.rs"
-sha256 = "6f5bc5c23c13c8f767d2ba7c9a9d0ca447d82a7e13f27eab05fcd22912762f4a"
+sha256 = "47abf80836c555d7bc3a9c7ec894445b485db1100385cb808f022af5c2c9b5ec"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/serial_dependence.rs"
-sha256 = "045c753bf7a4a0b8a13bf3bd2ffd9395321d3c21d39552c78798e43786814639"
+sha256 = "e850fdc3a51c51e1f4249736e986f336589f6afd9ba641c224ea66efa69adb5f"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -51,7 +51,7 @@ sha256 = "3e5a96bbd0d8292982e8764d6a8c227d830b19e69ff3a0e191727ede9b0b239b"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/temporal_slope_design.rs"
-sha256 = "436fa79b455e62e3d1b83fc7a3564950bf2cc9ba2dc1aa9e37f83e6303f48ebb"
+sha256 = "aba8bce478fa4da1e94426afbfcc59987908b786e10411db2d7ca0a4d8c5f0ce"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -61,7 +61,7 @@ sha256 = "3222a823c1a808cd53c2b150b5b6a06b0e3244bd1bed8b05a0b9984523ea8392"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/estimate_response_temporal_bayesian_reference.rs"
-sha256 = "f4f2a55f1509a394168e357dd23a08ae6886211863eae67b2b2ed54399de6ace"
+sha256 = "926fae0f91e1613cae8b02160815562e456522669aa8a32d68f9ec58d909486a"
 
 [[method_review.artifacts]]
 role = "reference"

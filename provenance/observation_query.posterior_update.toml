@@ -42,12 +42,12 @@ record_sha256 = "72c840a755002579a4264dabf942ea9729550c4cd716cccafedb8b5fa9471f1
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/observation_query.rs"
-sha256 = "ea233bd1ba747668e5786ff0e485e68dc81082e233f5f0518842bf1ccd0141a6"
+sha256 = "2d11276e06fb85a305c43f5b6084910b2749563068028157d902d19e59fae0dc"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/evidence_requirement_reference.rs"
-sha256 = "e00282d731a428646f03873c68feb0be2ab2e2fe35d9f710a4055f2bcf09d426"
+sha256 = "03b0e301f60085e5794d5aafac7742175c5b157642036fb793b0598c159ee144"
 
 [[method_review.artifacts]]
 role = "reference"

@@ -197,7 +197,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/known_truth_mixtures/reference.py",
-          "sha256": "df50c5e2332cc6634a5a05f5f5aa48de008d8c37b26228cf00210b308faf930e"
+          "sha256": "ff9267e3671e52a5838b4a6d9cabd3c47db78f0451fb363588651aec6f7b56bf"
         },
         {
           "role": "environment_lock",
@@ -207,22 +207,22 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_posterior_ate.rs",
-          "sha256": "4be2ebbed61dfac1541b6d1792462a455212f5891dda846f272f90e3fedb3e5d"
+          "sha256": "649885931f0d0a632fe8682116dc88d8dd6e9f3e78b53d309e79d49253d34ff9"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "d89ebe2ba520607cd65c2ebeb995a8210ca452a7f20d2188e967093c1366364d"
+          "sha256": "3673b0a028927117567c0257c1574b6212cdfb53fc34d8a57f6280405db8c5fa"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/manufacturing_temporal.rs",
-          "sha256": "390dd829f34b107bb409f8cb0a54541ff8d5174541aebc203d3e81ca895bd0b2"
+          "sha256": "44b6931fbd8b924f635b960a8b288b119276f199e53efc6acfa15e6b6780b7c5"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/temporal_class_posterior.rs",
-          "sha256": "54bab9110d48b69bb8e0ef97941bcabaffa2cbd3802eb6b4208f97ec9aaedb41"
+          "sha256": "6513e6004f747315a4b38c212f13670bff0670526d220fb7a1dcbe4c0b162aa6"
         }
       ],
       "fixture_payload_sha256": "61eac03a090bfcea9f49d379f66b0dbb436ad87155faa2591b9f0001647d7832"

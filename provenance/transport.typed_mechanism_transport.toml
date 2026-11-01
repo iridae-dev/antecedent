@@ -44,12 +44,12 @@ record_sha256 = "764f25d35b3b7a6042df11875c623a903ef8375a75e41eca77c7178cb2c8819
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-model/src/typed_mechanism_transport.rs"
-sha256 = "bc1fdd1e4131bce81dc619f68487a2e2736689f2facaf56329c5c32a505ec66b"
+sha256 = "7f65f8d4c34a624f078e796aec211fdf61579abd4f8a35963c2f4f57104f5e95"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/typed_mechanism_transport_reference.rs"
-sha256 = "468a6f0b75f34726b5239516b980ef861de985f9b32b5e718a3efb2c2bade71f"
+sha256 = "b7c69d7a4aeb7cdef81fadd1db3a0a85180857989b375c10aabb8b18a6e6f354"
 
 [[method_review.artifacts]]
 role = "reference"

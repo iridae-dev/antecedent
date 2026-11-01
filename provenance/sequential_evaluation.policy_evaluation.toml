@@ -50,7 +50,7 @@ record_sha256 = "eaf64e4f0940d18b945b8f8002c5a9e047baf083737288cc15b6f6a41b0cf1b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/sequential_evaluation/gformula.rs"
-sha256 = "ae0048d28968f77adf4e77fb0cc560d1425789139a1f2c580394291d19594892"
+sha256 = "46e468f0053554b6420753f08b4611efefa7cb68fef5f032b31d24b6e2d3af1e"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -60,9 +60,9 @@ sha256 = "6d2925c57f7ee666d802cd6bae1023a6da4bd269dfd880b540afdcfac77c1dfd"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/sequential_evaluation/offpolicy.rs"
-sha256 = "a362324fe570478d04c25a955eceac7161339676c00b6bc8b13e68d2e956853b"
+sha256 = "d402a2529202e1aa9839b03a2554dbf9397392fb05cfc95ede8561267f5529d8"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-design/tests/sequential_evaluation.rs"
-sha256 = "f18f20d2fdb494365a0d89695938e05317d1df6cd1e89e5e4eea9e173381676a"
+sha256 = "dc6f3088f48dfc6628eb8f38afd8abea5faa120944c46a3be925e2e6cc81b26b"

@@ -47,7 +47,7 @@ sha256 = "61dedf95a0aefc361c0807c260f9d29fcb1626f1170be810ec3540545f97899e"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/ipw_weighting_reference.rs"
-sha256 = "1b82c9019c5cc6f93ed21c7b3d97cae9542abb3b745e88777de52cff38ce6cf3"
+sha256 = "bde7ddffb483317bcf32d6f6b8578d1a975a6962a4d16da63b9d88680e27301d"
 
 [[method_review.artifacts]]
 role = "reference"

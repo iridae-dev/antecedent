@@ -34,7 +34,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/shared_functional_ate/reference.py",
-          "sha256": "b5af873bbeca6a50fe31bbcca6e0b3562df3c493043bef29218220e24074ca96"
+          "sha256": "737aa2f91eda0b1c27835880487d6de582dcbb845e182322eb99ed3f75912f31"
         },
         {
           "role": "environment_lock",

@@ -40,17 +40,17 @@ record_sha256 = "d548aec85fa2313d57098355bf08b82d26142ac5d8779bdad67af532dd39294
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/dml.rs"
-sha256 = "1010b2b3dd2c3fc3ec317bd1e823afdc74f5d1f2a7b34106beac752c85b26d62"
+sha256 = "be966f996ec65efc2e848a67f3d0159eb4185886d28ba77df0ff6b8d8939fd33"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/learn_nuisance.rs"
-sha256 = "4bf86f4809716f826e35b9db7407ca20301abf478aaeddebcff3dd555291db5c"
+sha256 = "ec947845edbdd76d8cc005ea41671fb153e1fd2290f5bd7ac91ddfff067ae854"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/dml_reference.rs"
-sha256 = "7cff7719abd04caa235fb6eb081f0b6cefa3b7454f878236cdea0fe9411837ca"
+sha256 = "16bce499234062f65e065d64b5a0db769a989fb4231cbe4639fd492d2512630f"
 
 [[method_review.artifacts]]
 role = "reference"

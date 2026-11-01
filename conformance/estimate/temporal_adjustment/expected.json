@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/estimate/temporal_adjustment/reference.py",
-          "sha256": "252d3deaeaf0c797ec868df1cc97af19c12cd1f8e764efebfc3f91ac3d8afb9c"
+          "sha256": "b8328155004ca7a55fb86fcf4df48b9d24a49f0d7db9286c8cdaa72df56b0e30"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/temporal_adjustment.rs",
-          "sha256": "3d797a96149cf2f2725ad780b6242ee28c002ebfa36c1149e8da0d1e1a647c87"
+          "sha256": "d6e32dd827c0c6567a1f8467b44ec39988b74fd7a8c4d017ab88f0007474493b"
         }
       ],
       "fixture_payload_sha256": "ba7061746c7913883504a70e2181399aed45211b79b6aa8c524e8813a2c35b6d"

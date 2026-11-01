@@ -31,7 +31,7 @@
         {
           "role": "generator",
           "path": "conformance/gcm/minnesota_bvar/reference.py",
-          "sha256": "d55089629320c3280da91f06ac39deac13ab8f2651d83c6f215d19a4ec5ae244"
+          "sha256": "74c5eb79f6a2da880ade82c0c8383addda71b8063cd361b956d072393591ee2c"
         },
         {
           "role": "environment_lock",
@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/scm_oracle.rs",
-          "sha256": "0536a9b92ec10c7b7aba0d4f79ff00eb0f54a73879eedc9407cca1e5e2519ba1"
+          "sha256": "3885ff9133184e08a56e35fdd0b7552bfb24b4bc3ceaa5794bdb1f20ac9d8658"
         }
       ],
       "fixture_payload_sha256": "6e18979853a6dff21a30df89febb28efbcbf5e6b9e618f4673216b572e647149"

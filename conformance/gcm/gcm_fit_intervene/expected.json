@@ -55,7 +55,7 @@
         {
           "role": "generator",
           "path": "conformance/gcm/gcm_fit_intervene/reference.py",
-          "sha256": "35b3410a6d084d64e24140677d342fc8ce333367cc900524838ea72ba6ddfbbd"
+          "sha256": "bd397ca43e9ef38101c2722a18a9428f006d77cbbb10463cbda37a616921c50b"
         },
         {
           "role": "environment_lock",
@@ -65,7 +65,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/gcm.rs",
-          "sha256": "5d1264e46dc8e5720ebd868d2984158a806a03a51960c0246b30a8bdd18dd545"
+          "sha256": "25da685bce2119425ffb221bf9a82663c1eceda6994169f3fab0841149619cf0"
         }
       ],
       "fixture_payload_sha256": "e3a23a0fdbf3a916eea352d60c038d2177372757a0871e1c034fd72c242196fb"
