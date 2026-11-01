@@ -1223,6 +1223,14 @@
     ],
     "url": "https://api.crossref.org/works/10.1214/aoms/1177728069"
   },
+  "10.1214/aoms/1177728549": {
+    "doi": "10.1214/aoms/1177728549",
+    "response_sha256": "d8a33233ddda3e921cf712df5e73a986e367bf476ffccf617f70fa2f62df118d",
+    "titles": [
+      "A Characterization of the Gamma Distribution"
+    ],
+    "url": "https://api.crossref.org/works/10.1214/aoms/1177728549"
+  },
   "10.1214/aoms/1177730491": {
     "doi": "10.1214/aoms/1177730491",
     "response_sha256": "5f76fe3e95ede87d74e2d09ab93a581981ea9dee1bed93b56b7f621e29531f14",
