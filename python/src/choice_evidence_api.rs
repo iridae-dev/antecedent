@@ -31,6 +31,17 @@ fn refusal_json(refusal: &ChoiceRefusal) -> String {
     .to_string()
 }
 
+fn strings(map: &Map<String, Json>, key: &str) -> PyResult<Vec<String>> {
+    list(map, key)?
+        .iter()
+        .map(|v| {
+            v.as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| crate::value_err(format!("`{key}` must hold strings")))
+        })
+        .collect()
+}
+
 fn frame(value: &Json) -> PyResult<ChoiceFrame> {
     let map = object(value, "frame")?;
     let options = list(map, "options")?
@@ -59,7 +70,7 @@ fn sources(map: &Map<String, Json>) -> PyResult<Vec<SourceUse>> {
                     label: text(m, "label")?,
                     frame: frame(member(m, "frame")?)?,
                     counts: reals(m, "counts")?,
-                    observation_id: text(m, "observation_id")?,
+                    observation_ids: strings(m, "observation_ids")?,
                 },
                 discount: real(m, "discount")?,
                 transfer_rationale: opt_text(m, "transfer_rationale")?,
@@ -79,7 +90,7 @@ fn request(map: &Map<String, Json>) -> PyResult<LifecycleRequest> {
             let m = object(v, "observations")?;
             Ok::<_, PyErr>(ChoiceObservations {
                 counts: reals(m, "counts")?,
-                observation_id: text(m, "observation_id")?,
+                observation_ids: strings(m, "observation_ids")?,
             })
         })
         .transpose()?;
@@ -143,7 +154,7 @@ fn result_json(out: &LifecycleResult) -> Json {
             "has_conflict": prior.has_conflict(),
             "sources": prior.sources.iter().map(|s| json!({
                 "label": s.label,
-                "observation_id": s.observation_id,
+                "observation_ids": s.observation_ids,
                 "discount": s.discount,
                 "transferred": s.transferred,
                 "conflict_log_bayes_factor": s.conflict_log_bayes_factor,

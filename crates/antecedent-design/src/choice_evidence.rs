@@ -29,6 +29,8 @@ use antecedent_kernels::rng::sample_gamma;
 use antecedent_stats::adaptive_inference::{DirichletPosterior, MAX_CHOICE_COUNT};
 use antecedent_stats::special::ln_gamma;
 
+use crate::evsi::{DeclaredObservations, ObservationOverlap, declared_overlap};
+
 /// Largest number of retained sources one prior combines.
 pub const MAX_SOURCES: usize = 16;
 
@@ -167,8 +169,9 @@ pub struct RetainedChoiceEvidence {
     pub frame: ChoiceFrame,
     /// Choices per option, in the frame's order.
     pub counts: Vec<f64>,
-    /// Identity of the observation set the counts came from (dependence is judged on this).
-    pub observation_id: String,
+    /// Row-level identities of the observations the counts came from; the evidence ledger
+    /// judges dependence on these.
+    pub observation_ids: Vec<String>,
 }
 
 impl RetainedChoiceEvidence {
@@ -181,7 +184,7 @@ impl RetainedChoiceEvidence {
         frame: ChoiceFrame,
         posterior: &DirichletPosterior,
         prior: &[f64],
-        observation_id: impl Into<String>,
+        observation_ids: Vec<String>,
     ) -> Result<Self, ChoiceRefusal> {
         if posterior.options() != prior.len() {
             return Err(ChoiceRefusal::ParameterizationMismatch("posterior and prior".into()));
@@ -191,7 +194,7 @@ impl RetainedChoiceEvidence {
         if counts.iter().any(|c| *c < 0.0) {
             return Err(ChoiceRefusal::Invalid("the prior exceeds the retained posterior".into()));
         }
-        Ok(Self { label: label.into(), frame, counts, observation_id: observation_id.into() })
+        Ok(Self { label: label.into(), frame, counts, observation_ids })
     }
 }
 
@@ -220,8 +223,8 @@ pub enum ConflictPolicy {
 pub struct QualifiedSource {
     /// Source label.
     pub label: String,
-    /// Observation identity.
-    pub observation_id: String,
+    /// Observation identities.
+    pub observation_ids: Vec<String>,
     /// Discount applied.
     pub discount: f64,
     /// Whether the population differed from the target's.
@@ -250,8 +253,9 @@ pub struct QualifiedPrior {
 impl QualifiedPrior {
     /// Observation identities that have entered the prior.
     #[must_use]
-    pub fn observation_ids(&self) -> BTreeSet<&str> {
-        self.sources.iter().map(|s| s.observation_id.as_str()).collect()
+    pub fn observation_ids(&self) -> Vec<String> {
+        let all: BTreeSet<&String> = self.sources.iter().flat_map(|s| &s.observation_ids).collect();
+        all.into_iter().cloned().collect()
     }
 
     /// Whether any source is flagged as conflicting.
@@ -266,9 +270,26 @@ impl QualifiedPrior {
         let mut w = CanonicalWriter::new("antecedent.choice_evidence.prior.v1");
         w.texts(&self.frame.options).text(&self.frame.population).reals(&self.alpha);
         for source in &self.sources {
-            w.text(&source.observation_id).real(source.discount);
+            w.texts(&source.observation_ids).real(source.discount);
         }
         w.finish_hex()
+    }
+}
+
+/// Refuse observations that two declared sets share, judged by the evidence ledger (duplicate,
+/// subset and re-entry lineage included), never by a private identity comparison.
+fn refuse_overlap(earlier: &[String], later: &[String]) -> Result<(), ChoiceRefusal> {
+    match declared_overlap(
+        DeclaredObservations::Declared(earlier),
+        DeclaredObservations::Declared(later),
+    ) {
+        ObservationOverlap::Independent { .. } => Ok(()),
+        ObservationOverlap::Shared { ids, .. } => {
+            Err(ChoiceRefusal::OverlappingObservations(ids.join(", ")))
+        }
+        ObservationOverlap::Unknown { reason } => Err(ChoiceRefusal::Invalid(format!(
+            "the overlap of the observations is not computable: {reason}"
+        ))),
     }
 }
 
@@ -304,7 +325,7 @@ pub fn qualify_prior(
             "the initial prior must match the options and at most 16 sources".into(),
         ));
     }
-    let mut seen = BTreeSet::new();
+    let mut admitted: Vec<Vec<String>> = Vec::new();
     let mut alpha = initial.to_vec();
     let mut borrowed = 0.0;
     for u in uses {
@@ -322,13 +343,15 @@ pub fn qualify_prior(
         }
         if !(u.discount.is_finite() && (0.0..=1.0).contains(&u.discount))
             || e.counts.iter().any(|c| !(c.is_finite() && *c >= 0.0))
-            || e.observation_id.trim().is_empty()
+            || e.observation_ids.iter().any(|id| id.trim().is_empty())
+            || (e.observation_ids.is_empty() && e.counts.iter().any(|c| *c > 0.0))
         {
             return Err(ChoiceRefusal::Invalid(format!("source `{}` is malformed", e.label)));
         }
-        if !seen.insert(e.observation_id.clone()) {
-            return Err(ChoiceRefusal::OverlappingObservations(e.observation_id.clone()));
+        for earlier in &admitted {
+            refuse_overlap(earlier, &e.observation_ids)?;
         }
+        admitted.push(e.observation_ids.clone());
         for (a, c) in alpha.iter_mut().zip(&e.counts) {
             *a += u.discount * c;
         }
@@ -355,7 +378,7 @@ pub fn qualify_prior(
         }
         sources.push(QualifiedSource {
             label: u.evidence.label.clone(),
-            observation_id: u.evidence.observation_id.clone(),
+            observation_ids: u.evidence.observation_ids.clone(),
             discount: u.discount,
             transferred: u.evidence.frame.population != target.population,
             conflict_log_bayes_factor: if uses.len() > 1 { log_bf } else { 0.0 },
@@ -376,8 +399,8 @@ pub fn qualify_prior(
 pub struct ChoiceObservations {
     /// Choices per option.
     pub counts: Vec<f64>,
-    /// Identity of the observation set.
-    pub observation_id: String,
+    /// Row-level identities of the observations.
+    pub observation_ids: Vec<String>,
 }
 
 /// The licensed inference after an update.
@@ -411,18 +434,18 @@ pub fn update(
     observations: &ChoiceObservations,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ChoiceInference, ChoiceRefusal> {
-    if observations.observation_id.trim().is_empty() {
-        return Err(ChoiceRefusal::Invalid("observations need an identity".into()));
+    if observations.observation_ids.is_empty()
+        || observations.observation_ids.iter().any(|id| id.trim().is_empty())
+    {
+        return Err(ChoiceRefusal::Invalid("observations need row-level identities".into()));
     }
-    if prior.observation_ids().contains(observations.observation_id.as_str()) {
-        return Err(ChoiceRefusal::OverlappingObservations(observations.observation_id.clone()));
-    }
+    refuse_overlap(&prior.observation_ids(), &observations.observation_ids)?;
     if observations.counts.len() != prior.alpha.len() {
         return Err(ChoiceRefusal::ParameterizationMismatch("observations".into()));
     }
     let posterior = DirichletPosterior::from_counts(&prior.alpha, &observations.counts)?;
     let mut w = CanonicalWriter::new("antecedent.choice_evidence.inference.v1");
-    w.text(&prior.digest()).text(&observations.observation_id).reals(&observations.counts);
+    w.text(&prior.digest()).texts(&observations.observation_ids).reals(&observations.counts);
     Ok(ChoiceInference {
         frame: prior.frame.clone(),
         mean: posterior.mean(),
@@ -834,7 +857,7 @@ mod tests {
                 label: label.into(),
                 frame: frame(pop),
                 counts: counts.to_vec(),
-                observation_id: id.into(),
+                observation_ids: vec![id.into()],
             },
             discount: 0.5,
             transfer_rationale: None,
@@ -884,6 +907,28 @@ mod tests {
     }
 
     #[test]
+    fn overlap_is_judged_on_rows_by_the_evidence_ledger() {
+        let t = frame("p");
+        let mut a = source("a", "p", [3.0, 2.0, 1.0], "x");
+        a.evidence.observation_ids = vec!["r1".into(), "r2".into()];
+        let mut b = source("b", "p", [3.0, 2.0, 1.0], "y");
+        b.evidence.observation_ids = vec!["r2".into(), "r3".into()];
+        assert!(matches!(
+            qualify_prior(&t, &[1.0; 3], &[a.clone(), b], ConflictPolicy::Report),
+            Err(ChoiceRefusal::OverlappingObservations(ids)) if ids == "r2"
+        ));
+        let mut c = source("c", "p", [3.0, 2.0, 1.0], "z");
+        c.evidence.observation_ids = vec!["r3".into(), "r4".into()];
+        let prior = qualify_prior(&t, &[1.0; 3], &[a, c], ConflictPolicy::Report).unwrap();
+        let reused =
+            ChoiceObservations { counts: vec![1.0; 3], observation_ids: vec!["r4".into()] };
+        assert!(matches!(
+            update(&prior, &reused, &never),
+            Err(ChoiceRefusal::OverlappingObservations(_))
+        ));
+    }
+
+    #[test]
     fn conflicting_sources_are_flagged_and_can_be_refused() {
         let t = frame("p");
         let mut a = source("a", "p", [60.0, 5.0, 5.0], "o1");
@@ -914,13 +959,14 @@ mod tests {
             ConflictPolicy::Report,
         )
         .unwrap();
-        let reused = ChoiceObservations { counts: vec![1.0; 3], observation_id: "o1".into() };
+        let reused =
+            ChoiceObservations { counts: vec![1.0; 3], observation_ids: vec!["o1".into()] };
         assert!(matches!(
             update(&p, &reused, &never),
             Err(ChoiceRefusal::OverlappingObservations(_))
         ));
         let fresh =
-            ChoiceObservations { counts: vec![20.0, 5.0, 5.0], observation_id: "o2".into() };
+            ChoiceObservations { counts: vec![20.0, 5.0, 5.0], observation_ids: vec!["o2".into()] };
         let inf = update(&p, &fresh, &never).unwrap();
         assert!((inf.probability_best.iter().sum::<f64>() - 1.0).abs() < 1e-9);
         assert!(inf.probability_best[0] > 0.9);
@@ -971,7 +1017,7 @@ mod tests {
         let p = qualify_prior(&t, &[1.0; 3], &[], ConflictPolicy::Report).unwrap();
         let inf = update(
             &p,
-            &ChoiceObservations { counts: vec![6.0, 5.0, 4.0], observation_id: "o".into() },
+            &ChoiceObservations { counts: vec![6.0, 5.0, 4.0], observation_ids: vec!["o".into()] },
             &never,
         )
         .unwrap();
@@ -1002,7 +1048,7 @@ mod tests {
         };
         let early = update(
             &p,
-            &ChoiceObservations { counts: vec![8.0, 6.0, 6.0], observation_id: "a".into() },
+            &ChoiceObservations { counts: vec![8.0, 6.0, 6.0], observation_ids: vec!["a".into()] },
             &never,
         )
         .unwrap();
@@ -1015,14 +1061,20 @@ mod tests {
         }
         let clear = update(
             &p,
-            &ChoiceObservations { counts: vec![90.0, 20.0, 10.0], observation_id: "b".into() },
+            &ChoiceObservations {
+                counts: vec![90.0, 20.0, 10.0],
+                observation_ids: vec!["b".into()],
+            },
             &never,
         )
         .unwrap();
         assert_eq!(rule.evaluate(&clear).unwrap(), LookOutcome::Select { option: 0 });
         let stuck = update(
             &p,
-            &ChoiceObservations { counts: vec![70.0, 70.0, 70.0], observation_id: "c".into() },
+            &ChoiceObservations {
+                counts: vec![70.0, 70.0, 70.0],
+                observation_ids: vec!["c".into()],
+            },
             &never,
         )
         .unwrap();
@@ -1040,7 +1092,7 @@ mod tests {
             conflict_policy: ConflictPolicy::Report,
             observations: Some(ChoiceObservations {
                 counts: vec![14.0, 9.0, 7.0],
-                observation_id: "o2".into(),
+                observation_ids: vec!["o2".into()],
             }),
             rule: Some(SequentialRule {
                 min_probability_best: 0.95,

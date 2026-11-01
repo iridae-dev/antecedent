@@ -121,7 +121,7 @@ fn probability_best_design(options: usize, observations: usize, concentration: f
         let counts = choices(&theta, observations, &mut next);
         let inference = update(
             &empty,
-            &ChoiceObservations { counts, observation_id: format!("replicate.{replicate}") },
+            &ChoiceObservations { counts, observation_ids: vec![format!("replicate.{replicate}")] },
             &never,
         )
         .expect("inference");
@@ -199,7 +199,10 @@ fn sequential_design(threshold: f64, cell: u64) {
             }
             let inference = update(
                 &empty,
-                &ChoiceObservations { counts: counts.clone(), observation_id: "running".into() },
+                &ChoiceObservations {
+                    counts: counts.clone(),
+                    observation_ids: vec!["running".into()],
+                },
                 &never,
             )
             .expect("inference");
@@ -240,7 +243,7 @@ fn study_value_design(options: usize, study: u32, cell: u64) {
         &empty,
         &ChoiceObservations {
             counts: (0..options).map(|i| 6.0 + 3.0 * i as f64).collect(),
-            observation_id: "current".into(),
+            observation_ids: vec!["current".into()],
         },
         &never,
     )

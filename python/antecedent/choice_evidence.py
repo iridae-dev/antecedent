@@ -7,7 +7,7 @@ next-study ranking, each carrying its meaning, dependence and support conditions
   and what a choice means (``stated_preference`` or ``observed_behavior``).
 * :class:`Source` is retained evidence reused as prior; it is admitted only when its option
   order, population and meaning match the target, or a transfer rationale and a discount are
-  declared. The same observation identity is never counted twice, and conflict between sources is
+  declared. The same observation row is never counted twice (the evidence ledger judges overlap), and conflict between sources is
   reported (or refused).
 * :func:`evaluate` conditions on :class:`Observations`, reports the Dirichlet posterior (exact
   probability each option has the largest share, expected loss), evaluates a sequential
@@ -72,7 +72,7 @@ class Source:
     label: str
     frame: Frame
     counts: Sequence[float]
-    observation_id: str
+    observation_ids: Sequence[str]
     discount: float
     transfer_rationale: str | None = None
 
@@ -81,7 +81,7 @@ class Source:
             "label": self.label,
             "frame": self.frame.wire(),
             "counts": [float(c) for c in self.counts],
-            "observation_id": self.observation_id,
+            "observation_ids": list(self.observation_ids),
             "discount": float(self.discount),
             "transfer_rationale": self.transfer_rationale,
         }
@@ -89,10 +89,10 @@ class Source:
 
 @dataclass(frozen=True)
 class Observations:
-    """New choice counts and the identity of the observation set."""
+    """New choice counts and the row-level identities of the observations."""
 
     counts: Sequence[float]
-    observation_id: str
+    observation_ids: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -167,7 +167,7 @@ def evaluate(
     if observations is not None:
         payload["observations"] = {
             "counts": [float(c) for c in observations.counts],
-            "observation_id": observations.observation_id,
+            "observation_ids": list(observations.observation_ids),
         }
     if rule is not None:
         payload["rule"] = {

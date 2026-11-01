@@ -27,7 +27,7 @@ def _source(**kwargs) -> Source:
         "label": "wave1",
         "frame": TARGET,
         "counts": [20, 12, 8],
-        "observation_id": "obs.wave1",
+        "observation_ids": ["obs.wave1"],
         "discount": 0.5,
     }
     return Source(**{**base, **kwargs})
@@ -38,7 +38,7 @@ def test_lifecycle_from_prior_to_ranking() -> None:
         TARGET,
         [1, 1, 1],
         sources=[_source()],
-        observations=Observations([14, 9, 7], "obs.wave2"),
+        observations=Observations([14, 9, 7], ["obs.wave2"]),
         rule=Rule(0.95, 0.05, 10, 500, 0.05),
         values=[1.0, 1.0, 1.0],
         candidates=[Candidate("wave3", 40), Candidate("wave3_small", 10)],
@@ -69,7 +69,7 @@ def test_refusals_are_typed_and_registered() -> None:
             TARGET,
             [1, 1, 1],
             sources=[_source()],
-            observations=Observations([1, 1, 1], "obs.wave1"),
+            observations=Observations([1, 1, 1], ["obs.wave1"]),
         )
     assert caught.value.detail == "choice_evidence.overlapping_observations"
     with pytest.raises(ChoiceEvidenceRefusal) as caught:
