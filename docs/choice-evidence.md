@@ -1,42 +1,55 @@
 # Categorical-choice evidence to decision
 
-Repeated categorical choices (which of K options was chosen, many times) can follow one lifecycle: qualified prior evidence, supported observations, licensed inference, decision evaluation, next-study ranking. This page states what each stage keeps and refuses.
+Repeated categorical choices (which of K options was chosen, many times) run through the same compiler-owned layers as the other adaptive-inference families: a declared contract, a procedure-matrix cell that licenses each route, an estimator, a sealed artifact that a consumer replays, and a decision value over the result. This page states what each stage keeps and refuses.
 
-Rust: `antecedent::choice_evidence` (design layer `antecedent_design::choice_evidence`; inference family `antecedent_stats::adaptive_inference::DirichletPosterior`). Python: `antecedent.choice_evidence`.
+Rust: `antecedent::analysis::choice_inference` (contract `antecedent_contract::adaptive_design::ChoiceDesignContract`, estimators `antecedent_estimate::choice_inference`, artifact `antecedent_io::choice_inference_result_artifact`, ranking `antecedent_design::choice_evsi`). Python: `antecedent.choice_inference`.
 
 ## Stages
 
 | Stage | Object | What it says | What it never says |
 | --- | --- | --- | --- |
-| Qualify prior | `qualify_prior`, `Source` | retained counts become a Dirichlet prior at a power-prior discount, only when the ordered option set, the population and the choice meaning match the target, or a transfer rationale and discount are declared | that a distribution transports across populations; stated and observed choices are never exchangeable |
-| Update | `update`, `Observations` | the exact Dirichlet posterior: mean, probability each option has the largest share, expected loss, exact log marginal likelihood | a calibrated interval; the observations' identity may not repeat any source's |
-| Look | `SequentialRule::evaluate` | select, budget exhausted, or continue with a probability-matching allocation | an assignment, delivery or monitoring plan; a frequentist error rate |
-| Rank | `rank_studies`, `Candidate` | exact expected value of sample information (Dirichlet-multinomial enumeration) net of cost; Monte Carlo with a standard error beyond 250 000 outcomes | that the application should field the study |
-
-`evaluate_lifecycle` (Python `evaluate`) runs the stages requested. A look or a ranking without observations is refused.
+| Declare | `ChoiceStudy` / `ChoiceDesignDeclaration` | ordered options, what a choice means, the population, every respondent's rows, retained sources, looks and stopping rule; nothing is defaulted and a missing element is its own typed refusal | that a stated preference identifies a behavioural or causal outcome |
+| Qualify prior | retained sources | each source becomes a Dirichlet prior at a power-prior discount, only when its ordered options, meaning and population match the target, or a transfer rationale and a discount are declared | that a distribution transports across populations; the discount is a declaration, not an estimated transfer |
+| Infer | `Posterior`, `Stopping`, `Hierarchical`, `HierarchicalStopping` | the pooled Dirichlet posterior of one choice per respondent, the hierarchical Dirichlet-multinomial posterior of repeated choices (two or three options), or the contract's stopping decision on either; each authorized by the procedure matrix | a calibrated interval; every result is point-only with `calibration: unmeasured` |
+| Operating characteristics | `operating_characteristics` | the exact law of the declared sequential procedure (selection, stop at each look, horizon, expected enrolment) under a fixed truth or a Dirichlet prior predictive | a bound over other truths, an error rate for any other truth, a coverage statement |
+| Rank | `rank_studies` | exact expected value of sample information over the pooled posterior at a look, net of cost; Monte Carlo with a standard error beyond 250 000 outcomes | that the application should field the study |
+| Export / consume | `export`, `consume_choice_inference_result_artifact` | `choice_inference_result_v1`, bound to its contract; the consumer replays the contract through the evidence ledger and recomputes every value | trust in the stored numbers |
 
 ## Dependence and conflict
 
-The same observation identity is never counted twice, across sources or between a source and the observations being conditioned on (`choice_evidence_overlap`). Heterogeneity is reported per source as a prior-predictive log Bayes factor of the source against a vague prior versus against the remaining evidence; above `ln 10` the source is flagged, and the policy either reports or refuses (`choice_evidence_conflict`). The threshold is a screen with unmeasured calibration.
+The same observation row is never counted twice, between a source and the respondents or between sources: the evidence ledger judges overlap and a contract that repeats a row is refused (`choice_inference.source_overlaps_respondents`, `choice_inference.sources_overlap`). Pooled counts of respondents who chose repeatedly, and pooled sources under a hierarchical outcome, are refused rather than treated as independent. Heterogeneity between sources is reported per source as a prior-predictive log Bayes factor against a vague prior versus the remaining evidence; above `ln 10` the source is flagged, and the policy either reports or refuses (`choice_inference.source_conflict`). The threshold is a screen with unmeasured calibration.
+
+## Intervals
+
+`interval()` refuses with `cell_not_licensed`. `measured_interval(request)` builds the interval of one result for the measured choice cells (the routes below) and binds it to a currently attesting coverage record. No record exists yet, so it refuses with `cell_not_licensed` for every study. The cells are Dirichlet share intervals of the pooled posterior (final-only, and looks under an efficacy or decision-theoretic rule) and the hierarchical population-share interval (final-only and looks under a decision-theoretic rule).
 
 ## Verification
 
-The Dirichlet family is checked against an independent mpmath reference (`crates/antecedent-stats/tests/oracle_data/dirichlet_choice_reference.py`): probability of being best, expected loss, and the exact ordered-sequence log marginal likelihood, at 1e-9 and 1e-10. The EVSI enumeration is checked against a closed-form beta-binomial sum for two options and against Monte Carlo within its standard error.
+- The Dirichlet family is checked against an independent mpmath reference (`dirichlet_choice_reference.py`).
+- The hierarchical posterior is checked against two independent references (`hierarchical_choice_reference.py`): mpmath tanh-sinh for two options, a trapezoid rule in the coordinates `ln(kappa pi_k)` and scipy adaptive cubature for three.
+- The procedure law is checked against an exact rational reference built from whole-batch multinomial and Dirichlet-multinomial probabilities (`choice_procedure_reference.py`).
+- The EVSI enumeration is checked against the closed-form beta-binomial sum for two options and against Monte Carlo within its standard error.
 
-## Calibration (owed, not run)
+Provenance records: `adaptive_inference.dirichlet_choice`, `adaptive_inference.hierarchical_choice`, `adaptive_inference.choice_procedure_law` and `choice_inference.contract`. The references were written by the implementing agent, not by an independent reviewer; the records say so.
 
-The lifecycle is wired for the final measurement step and measured nothing. `crates/antecedent-design/tests/choice_evidence_calibration.rs` holds three `#[ignore]`d prior-predictive expectation gates, registered in `scripts/calibration_surface.list` (suite and facade facet), `parity/v3_test_registry.toml` and `scripts/gate_calibration.sh` (pass/fail, no coverage record): calibration of the probability that each option is best (options 2 to 5, 20 to 400 observations, flat and informative priors), correctness of the selected option at or above the stopping threshold (0.90, 0.95, 0.99), and agreement of the reported expected value of sample information with the realized gain (study sizes 10 to 200, including the Monte Carlo branch). Until they run, every output carries `calibration: unmeasured`.
+## Calibration (wired, not run)
 
-Owed at the final step, after the branch is stable: run the gates, refresh the frozen family roster (`scripts/calibration_family.py --refresh`, after review) so the new gate groups are in the allocation, and let the collector write their rows. Nothing licensed here depends on them; any edit to this code or to `antecedent-stats` re-opens them. Interval coverage is not designed because no interval is reported.
+Calibration is tied to commit hashes and is a later phase. The choice routes are wired for it and measured nothing:
+
+- `crates/antecedent/tests/choice_inference_calibration.rs` holds `#[ignore]`d prior-predictive expectation gates (probability-best calibration, correctness of the selected option at the stopping threshold, EVSI against realized gain, the procedure law against simulation, and the conflict screen's false-flag rate against its Markov bound of one in ten).
+- `crates/antecedent-estimate/tests/choice_interval_calibration.rs` holds four record-emitting coverage designs (pooled share interval, hierarchical population-share interval, with and without looks).
+- Both are registered in `scripts/calibration_surface.list`, `scripts/gate_calibration.sh` and `parity/v3_test_registry.toml`.
+
+Owed at that phase: run the gates, refresh the frozen family roster after review, and let the collector write the rows. Until then every output carries `calibration: unmeasured`, intervals are closed, and any edit to files in the adaptive-interval or core calibration facets re-opens existing records.
 
 ## What is not claimed
 
-- **Calibration.** No coverage of any interval, no frequentist error rate of a stopping rule, no operating characteristic of the allocation: `calibration` is `unmeasured` everywhere.
+- **Calibration.** No coverage of any interval, no frequentist error rate of a stopping rule for any truth but the declared one, no calibrated conflict screen.
 - **Behaviour.** Shares of stated choices do not identify behavioural or causal outcomes; the frame carries its meaning and a mismatch is refused.
 - **Shapes below one.** The quadrature needs bounded densities; priors with a shape below one are refused.
-- **Hierarchical preference inference.** Deferred. It needs a new inference family (random-coefficient likelihoods with an integral over heterogeneity) with its own independent numerical evidence and calibration; none exists yet, and no externally fitted model is promoted in its place.
-- **Beta-Bernoulli multi-arm paths** keep their existing bounded adaptive-inference routes and historical borrowing; this lifecycle adds the Dirichlet family beside them.
+- **Other preference models.** No conjoint, MaxDiff or arbitrary random-coefficient likelihood, and no externally fitted model promoted to native authority; a new family needs its own independent numerical evidence and calibration.
+- **Transport.** A source from another population or meaning enters only with a declared rationale and discount.
 
 ## Boundary
 
-The application owns candidate designs, acquiring observations, delivering allocations, monitoring and authorizing fieldwork. Antecedent computes the posterior, the decision criterion, the allocation weights and the study values.
+The application owns candidate designs, acquiring observations, fielding, monitoring, orchestration and authorizing fieldwork. Antecedent validates the contract, computes the posterior, the decision criterion, the procedure's exact law and the study values.

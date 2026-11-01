@@ -205,7 +205,7 @@ grid_group() {
     cohort_linear_effect_calibration:*) return 0 ;;
     count_fitted_posterior_calibration:*) return 0 ;;
     # Choice-study expectation gates (posterior probability best, sequential selection, study
-    # value, procedure law); no coverage record. The interval designs below emit records.
+    # value, procedure law, conflict screen); no coverage record. The interval designs below emit records.
     choice_inference_calibration:*) return 1 ;;
     choice_interval_calibration:*) return 0 ;;
     decision_reliability_calibration:*) return 1 ;;
@@ -636,6 +636,7 @@ run_choice_inference_expectation posterior_probability_best_is_calibrated
 run_choice_inference_expectation sequential_selection_is_correct_at_least_at_the_threshold
 run_choice_inference_expectation study_value_matches_realized_gain
 run_choice_inference_expectation procedure_law_matches_simulation
+run_choice_inference_expectation conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten
 
 run_choice_interval() {
   local name="$1"

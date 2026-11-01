@@ -21,6 +21,11 @@
 //!   rather than before. Axis: study size {10, 50, 200}, option values (1.0, 1.1, 0.9).
 //!   Boundary probe: the Monte Carlo branch (study size 200 over 5 options).
 //!
+//! * `conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten`: a source drawn from
+//!   the predictive of the remaining evidence has a log Bayes factor (vague prior against the
+//!   remaining evidence) whose exponential has expectation one, so by Markov's inequality the
+//!   screen at `ln 10` flags it with probability at most one tenth. Axis: source size
+//!   {20, 100, 400}, remaining evidence worth {5, 30} choices, three options.
 //! * `procedure_law_matches_simulation`: the exact law of the sequential procedure
 //!   (`choice_operating_characteristics`) agrees with the frequency of the same procedure
 //!   simulated under the same truth, for each selection probability and the expected enrolment.
@@ -50,8 +55,9 @@ use dgp::{choices, dirichlet};
 use antecedent_core::ExecutionContext;
 use antecedent_design::choice_evsi::{StudyCandidate, rank_studies};
 use antecedent_estimate::choice_inference::{
-    ChoiceKernel, ChoiceProcedureSpec, ChoiceStoppingRule, choice_operating_characteristics,
-    choice_posterior, choice_stopping_decision,
+    ChoiceConflictPolicy, ChoiceKernel, ChoiceProcedureSpec, ChoiceSourceCounts,
+    ChoiceStoppingRule, choice_operating_characteristics, choice_posterior,
+    choice_stopping_decision, qualify_choice_prior,
 };
 use calibration::{grid_seed, map_replicates, n_sim, smoke, uniform};
 
@@ -270,4 +276,56 @@ fn procedure_law_matches_simulation() {
         "expected enrolment {mean:.3} against {:.3}",
         law.expected_enrolled
     );
+}
+
+fn conflict_screen_design(source_size: usize, rest_worth: f64, cell: u64) {
+    let initial = [1.0, 1.0, 1.0];
+    // The remaining evidence: one fixed source, discounted to `rest_worth` choices.
+    let other = [rest_worth * 0.5, rest_worth * 0.3, rest_worth * 0.2];
+    let rest: Vec<f64> = initial.iter().zip(other).map(|(a, c)| a + c).collect();
+    let flagged = map_replicates(replicates(), |replicate| {
+        let seed = grid_seed(0x71_0000 + cell * 1_000_003 + replicate);
+        let theta = dirichlet(&rest, seed);
+        let mut next = uniform(seed, 21);
+        let drawn = choices(&theta, source_size, &mut next);
+        let prior = qualify_choice_prior(
+            &initial,
+            &[
+                ChoiceSourceCounts {
+                    label: "drawn",
+                    counts: &drawn,
+                    discount: 1.0,
+                    transferred: false,
+                },
+                ChoiceSourceCounts {
+                    label: "rest",
+                    counts: &other,
+                    discount: 1.0,
+                    transferred: false,
+                },
+            ],
+            ChoiceConflictPolicy::Report,
+        )
+        .expect("prior");
+        f64::from(u8::from(prior.sources[0].conflicting))
+    });
+    let m = flagged.len() as f64;
+    let rate = flagged.iter().sum::<f64>() / m;
+    let tolerance = 4.5 * (0.1 * 0.9 / m).sqrt();
+    assert!(
+        rate <= 0.1 + tolerance,
+        "source {source_size}, remaining evidence {rest_worth}: flagged {rate:.4} of exchangeable sources",
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn conflict_screen_flags_an_exchangeable_source_at_most_one_time_in_ten() {
+    let mut cell = 0;
+    for source_size in [20, 100, 400] {
+        for rest_worth in [5.0, 30.0] {
+            conflict_screen_design(source_size, rest_worth, cell);
+            cell += 1;
+        }
+    }
 }

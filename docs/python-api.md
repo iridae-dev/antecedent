@@ -97,7 +97,7 @@ Each module below is importable as `antecedent.<name>` without a separate import
 | `errors` | The exception surface: `CausalError` and its concrete subclasses | [reference/refusal-codes.md](reference/refusal-codes.md) |
 | `estimation` | High-level estimation entry points | [python-options.md](python-options.md) |
 | `estimators` | Typed front-end over the `estimator_config=` dict kwarg | [python-options.md](python-options.md) |
-| `choice_evidence` | Qualified prior reuse, Dirichlet posterior, sequential look and EVSI study ranking for repeated categorical choices | [choice-evidence.md](choice-evidence.md) |
+| `choice_inference` | Qualified prior reuse, pooled and hierarchical posteriors, stopping decisions, exact operating characteristics, EVSI study ranking and replayable result artifacts for repeated categorical choices | [choice-evidence.md](choice-evidence.md) |
 | `decision_evidence` | Joint experimental outcomes, derived decision quantities, assumption ranges and robust / assumption-dependent / unresolved decisions | [decision-evidence.md](decision-evidence.md) |
 | `evidence_ledger` | The evidence ledger: which evidence contributed to a result, how it overlaps, and what changed | [evidence-ledger.md](evidence-ledger.md) |
 | `execution_attempt` | Diagnostic work observations around one original synchronous native execution | [recalculation-capabilities.md](recalculation-capabilities.md) |
