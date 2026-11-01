@@ -279,10 +279,20 @@ mod tests {
             Pag::from_unfolding_within(&indexer, &mut budget, &cancelled),
             Err(GraphError::TemporalMaterialization(TemporalMaterializationError::Cancelled))
         ));
-        let huge = TemporalIndexer::new(1, i32::MAX as u32, 1).unwrap();
+        // Use a representable indexer that exceeds the materialization limit;
+        // the indexer now refuses windows beyond its own dense-space ceiling first.
+        let node_limit = u32::try_from(ctx.temporal_materialization_limits().max_graph_nodes)
+            .expect("default graph-node limit fits the indexer");
+        let huge = TemporalIndexer::new(1, node_limit, 1).unwrap();
         assert!(matches!(
             Pag::from_unfolding(&huge),
-            Err(GraphError::TemporalMaterialization(TemporalMaterializationError::Limit { .. }))
+            Err(GraphError::TemporalMaterialization(TemporalMaterializationError::Limit {
+                dimension: "graph nodes"
+            }))
+        ));
+        assert!(matches!(
+            TemporalIndexer::new(1, i32::MAX as u32, 1),
+            Err(antecedent_core::TemporalIndexError::DenseSpaceOverflow)
         ));
     }
 
