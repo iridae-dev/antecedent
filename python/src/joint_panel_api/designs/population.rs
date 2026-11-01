@@ -39,7 +39,12 @@ fn identified_default() -> bool {
 fn parse(
     text: &str,
     ctx: &antecedent_core::ExecutionContext,
-) -> PyResult<(PopulationReferenceBindings, SelectionDiagram, ScientificConsumptionScope)> {
+) -> PyResult<(
+    PopulationReferenceBindings,
+    SelectionDiagram,
+    ScientificConsumptionScope,
+    antecedent_core::execution::AdmissionLease,
+)> {
     bounded_json(text, "population reference decomposition")?;
     let declaration: Declaration =
         serde_json::from_str(text).map_err(|error| crate::value_err(error.to_string()))?;
@@ -77,7 +82,7 @@ fn parse(
             )
         })
         .ok_or_else(|| crate::value_err("population graph memory quote overflow"))?;
-    let _graph_lease = ctx.acquire_admission(0, graph_bytes).map_err(|error| {
+    let graph_lease = ctx.acquire_admission(0, graph_bytes).map_err(|error| {
         panel_error(match error {
             antecedent_core::execution::AdmissionError::Cancelled => {
                 antecedent_estimate::joint_panel::PanelError::Cancelled.into()
@@ -108,7 +113,8 @@ fn parse(
     } else {
         ScientificConsumptionScope::ModelConditional
     };
-    Ok((bindings, diagram, scope))
+    // The lease travels with the graph so it is held for as long as the graph is.
+    Ok((bindings, diagram, scope, graph_lease))
 }
 fn report(result: &PopulationReferenceDecomposition) -> PyResult<String> {
     let graph = antecedent_io::admg_to_wire(result.transport.diagram().causal_graph())
@@ -128,7 +134,7 @@ pub(super) fn execute(
     text: &str,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<String> {
-    let (bindings, diagram, scope) = parse(text, ctx)?;
+    let (bindings, diagram, scope, _graph_lease) = parse(text, ctx)?;
     report(
         &result
             .decompose_population_reference(&bindings, &diagram, scope, ctx)
@@ -140,7 +146,7 @@ pub(super) fn export(
     text: &str,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<Vec<u8>> {
-    let (bindings, diagram, scope) = parse(text, ctx)?;
+    let (bindings, diagram, scope, _graph_lease) = parse(text, ctx)?;
     result.export_population_reference(&bindings, &diagram, scope, ctx).map_err(panel_error)
 }
 pub(super) fn consume(
@@ -149,7 +155,7 @@ pub(super) fn consume(
     text: &str,
     ctx: &antecedent_core::ExecutionContext,
 ) -> PyResult<String> {
-    let (bindings, diagram, scope) = parse(text, ctx)?;
+    let (bindings, diagram, scope, _graph_lease) = parse(text, ctx)?;
     report(
         &result
             .consume_population_reference_current(artifact, &bindings, &diagram, scope, ctx)
@@ -264,7 +270,7 @@ impl super::PyJointDesignResult {
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         let ctx = context(seed, threads, max_bytes, cancel)?;
-        let (bindings, diagram, scope) = parse(declaration_json, &ctx)?;
+        let (bindings, diagram, scope, _graph_lease) = parse(declaration_json, &ctx)?;
         let (fallback, _) = components(fallback_json)?;
         crate::detach_catch(py, || {
             let attempt = self

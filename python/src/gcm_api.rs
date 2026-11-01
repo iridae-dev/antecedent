@@ -843,6 +843,7 @@ impl PyFittedGcm {
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
+        crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
         let allocation = crate::intrinsic_influence_api::allocation_of(allocation, n_permutations)?;
         let source = self.source();
         let names = Arc::clone(&self.names);
@@ -924,6 +925,7 @@ impl PyFittedGcm {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<ChangeAttributionResult> {
+        crate::bridge::check_paths(max_paths, max_len)?;
         let source = self.source();
         let data = Arc::clone(&self.data);
         let names = Arc::clone(&self.names);
@@ -1299,6 +1301,7 @@ fn paths_on(
     max_len: usize,
     ctx: &ExecutionContext,
 ) -> PyResult<ChangeAttributionResult> {
+    crate::bridge::check_paths(max_paths, max_len)?;
     let y_id = source.data.schema().id_of(outcome).map_err(py_err)?;
     let src_ids: Vec<VariableId> = sources
         .iter()

@@ -276,11 +276,14 @@ impl PrepareRequest {
 /// One series, or one event stream aligned onto a grid.
 ///
 /// A `DBN` graph-posterior mixture is licensed only on those two inputs.
-pub(super) fn one_series(input: super::FrameInput) -> PyResult<TimeSeriesData> {
+pub(super) fn one_series(
+    input: super::FrameInput,
+    ctx: &antecedent_core::ExecutionContext,
+) -> PyResult<TimeSeriesData> {
     match input.materialize()? {
         super::FrameData::Series(series) => Ok(series),
         super::FrameData::Events(events, align, _retention) => events
-            .align_to_grid(align)
+            .align_to_grid_in(align, ctx)
             .map_err(|e| crate::py_msg(format!("event align_to_grid: {e}"))),
         _ => Err(crate::refusal(
             antecedent_core::reason_code!("data_modality_not_licensed"),

@@ -160,12 +160,17 @@ impl FrameData {
         }
     }
 
-    pub(super) fn builder(self) -> PyResult<antecedent::StudyBuilder> {
+    pub(super) fn builder(
+        self,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> PyResult<antecedent::StudyBuilder> {
         Ok(match self {
             Self::Series(data) => Study::series(data),
             Self::Panel(data) => Study::panel(data),
             Self::MultiEnv(data) => Study::series_multi(data),
-            Self::Events(data, align, _retention) => Study::events(&data, align).map_err(py_err)?,
+            Self::Events(data, align, _retention) => {
+                Study::events_in(&data, align, ctx).map_err(py_err)?
+            }
         })
     }
 }

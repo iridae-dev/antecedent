@@ -119,6 +119,7 @@ fn trajectory_bootstrap_native(
     replicates: u32,
     seed: u64,
 ) -> PyResult<(f64, f64, f64, f64, u32, u32)> {
+    crate::bridge::check_count("replicates", u64::from(replicates), crate::bridge::MAX_RESAMPLES)?;
     let data = Trajectories {
         subjects,
         periods,

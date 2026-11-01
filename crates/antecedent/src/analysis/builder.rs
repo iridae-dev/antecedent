@@ -2100,9 +2100,28 @@ impl Study {
     /// # Errors
     ///
     /// Event alignment failure (`align_interval_ns` incompatible with the event stream).
+    ///
+    /// The grid's size is limited by memory alone; use [`Self::events_in`] to bound it by an
+    /// execution's memory budget.
     pub fn events(data: &EventData, align_interval_ns: u64) -> Result<StudyBuilder, CausalError> {
         let aligned = data
             .align_to_grid(align_interval_ns)
+            .map_err(|e| CausalError::Compile { message: format!("event align_to_grid: {e}") })?;
+        Ok(StudyBuilder::from_data(DataInput::Event(aligned)))
+    }
+
+    /// [`Self::events`] with the grid admitted against `ctx`'s memory budget and cancellation.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::events`], plus cancellation or a refused memory budget.
+    pub fn events_in(
+        data: &EventData,
+        align_interval_ns: u64,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<StudyBuilder, CausalError> {
+        let aligned = data
+            .align_to_grid_in(align_interval_ns, ctx)
             .map_err(|e| CausalError::Compile { message: format!("event align_to_grid: {e}") })?;
         Ok(StudyBuilder::from_data(DataInput::Event(aligned)))
     }

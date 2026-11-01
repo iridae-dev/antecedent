@@ -254,6 +254,7 @@ pub(super) fn dbn_posterior(
         return Ok(gp);
     }
     let vars: Vec<_> = series.schema().variables().iter().map(|v| v.id).collect();
+    crate::bridge::check_mcmc_schedule(n_chains, n_warmup, mcmc_draws, 1)?;
     let schedule = GraphMcmcSchedule { n_chains, n_warmup, n_draws: mcmc_draws, thin: 1 };
     compiled_posterior(
         DiscoverySpec::dbn_posterior(

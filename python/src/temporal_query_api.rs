@@ -89,6 +89,7 @@ impl TemporalTarget {
         temporal: TemporalGeometry,
         opts: &crate::prepared_options::PrepareOptions,
     ) -> PyResult<CausalQuery> {
+        crate::bridge::check_paths(self.max_paths, self.max_len)?;
         if matches!(
             self.kind.as_str(),
             "counterfactual" | "nested_counterfactual" | "path_specific" | "distribution"
@@ -304,7 +305,7 @@ impl PyPreparedAnalysis {
         let input = req.load_frame(py, columns, frame.as_ref())?;
         req.off_gil(py, move |req| {
             if discovery.is_some() || supplied.is_some() {
-                let series = one_series(input)?;
+                let series = one_series(input, &req.opts.ctx(seed, threads))?;
                 let query = target.query(series.schema(), geometry, &req.opts)?;
                 let ctx = req.opts.ctx(seed, threads);
                 let gp = if let Some(gp) = supplied {
@@ -338,7 +339,7 @@ impl PyPreparedAnalysis {
             }
             let data = input.materialize()?;
             let query = target.query(data.schema(), geometry, &req.opts)?;
-            let builder = data.builder()?;
+            let builder = data.builder(&req.opts.ctx(seed, threads))?;
             let builder = match (dag, class) {
                 (Some(dag), None) => {
                     with_graph(builder, dag, accepted, req.opts.discovery_algorithm())

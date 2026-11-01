@@ -720,7 +720,8 @@ fn invoke_python(
             .call1((query_text, context.to_string(), token.clone()))
             .map_err(|error| {
                 if error.is_instance_of::<pyo3::exceptions::PyException>(py) {
-                    return CallbackFailure::new(format!("{}", error.value(py)));
+                    let text = format!("{}", error.value(py));
+                    return CallbackFailure::new(text.chars().take(512).collect::<String>());
                 }
                 let mut first = interrupt.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 if first.is_none() {

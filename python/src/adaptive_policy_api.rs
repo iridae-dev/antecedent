@@ -304,7 +304,10 @@ impl PySource {
             let value = self.object.bind(py).call_method1(method, tuple)?;
             convert(value)
         })
-        .map_err(|e: PyErr| AdaptivePolicySearchError::Source(format!("{method}: {e}")))
+        .map_err(|e: PyErr| {
+            let failure = crate::interrupt::callback_failure(method, e);
+            AdaptivePolicySearchError::Source(failure.description().chars().take(512).collect())
+        })
     }
 }
 

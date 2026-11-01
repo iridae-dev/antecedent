@@ -1173,13 +1173,21 @@ fn measurement_model_prepare(
 /// identity the consumer retained.
 #[pyfunction]
 fn measurement_model_consume(
+    py: Python<'_>,
     artifact: &[u8],
     expected_model_identity: &str,
-) -> (Option<ConsumedMeasurementHandle>, Option<String>) {
-    match consume_measurement_model_artifact(artifact, expected_model_identity) {
+) -> PyResult<(Option<ConsumedMeasurementHandle>, Option<String>)> {
+    crate::bridge::check_declared_len(
+        artifact.len(),
+        crate::bridge::MAX_SEALED_ARTIFACT_BYTES,
+        "measurement model artifact",
+    )?;
+    let outcome =
+        py.detach(|| consume_measurement_model_artifact(artifact, expected_model_identity));
+    Ok(match outcome {
         Ok(inner) => (Some(ConsumedMeasurementHandle { inner }), None),
         Err(refusal) => (None, Some(refusal_json(&refusal))),
-    }
+    })
 }
 
 /// The identities of a model declaration without preparing anything.

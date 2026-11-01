@@ -716,6 +716,11 @@ fn discover_pcmci(
     unit_lengths: Option<Vec<usize>>,
     background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
     run_series_discovery(
@@ -786,6 +791,11 @@ fn discover_pc(
     cancel: Option<crate::PyCancellationToken>,
     background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
     let batch = numeric_columns_to_batch(&names, &columns)?;
@@ -853,6 +863,11 @@ fn discover_ges(
     max_subset: Option<usize>,
     background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
     let batch = numeric_columns_to_batch(&names, &columns)?;
@@ -915,6 +930,11 @@ fn discover_lingam(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
 
@@ -983,6 +1003,11 @@ fn discover_notears(
     cancel: Option<crate::PyCancellationToken>,
     missing: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let missing = missing.as_deref().map(crate::missing_report::parse_policy).transpose()?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);
@@ -1052,6 +1077,11 @@ fn discover_fci(
     cancel: Option<crate::PyCancellationToken>,
     background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
     let batch = numeric_columns_to_batch(&names, &columns)?;
@@ -1125,6 +1155,11 @@ fn discover_rfci(
     cancel: Option<crate::PyCancellationToken>,
     background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
     let batch = numeric_columns_to_batch(&names, &columns)?;
@@ -1201,6 +1236,11 @@ fn discover_pcmci_plus(
     unit_lengths: Option<Vec<usize>>,
     background_knowledge: Option<String>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge = knowledge_arg(background_knowledge.as_deref())?;
     let identity = knowledge_identity(&knowledge);
     run_series_discovery(
@@ -1278,6 +1318,11 @@ fn discover_lpcmci(
     max_cond_size: usize,
     unit_lengths: Option<Vec<usize>>,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     run_series_discovery(
         py,
         names,
@@ -1380,6 +1425,11 @@ fn discover_jpcmci_plus(
     time_dummy_ci: &str,
     max_cond_size: usize,
 ) -> PyResult<PcmciDiscoveryResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     if env_columns.is_empty() {
         return Err(crate::value_err("discover_jpcmci_plus needs ≥1 environment"));
     }
@@ -1498,6 +1548,11 @@ fn discover_rpcmci(
     cancel: Option<crate::PyCancellationToken>,
     max_cond_size: usize,
 ) -> PyResult<RpcmciDiscoverySummary> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);
@@ -1578,6 +1633,11 @@ fn accept_rpcmci(
     max_cond_size: usize,
     accept_discovered: bool,
 ) -> PyResult<Py<PyAny>> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     let (ci_impl, ci_name, is_callback) = callbacks::resolve_ci_arg(ci.as_ref(), weights)?;
     drop(columns);

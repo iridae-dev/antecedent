@@ -349,6 +349,12 @@ fn discover_bootstrap_stability(
     unit_lengths: Option<Vec<usize>>,
     background_knowledge: Option<String>,
 ) -> PyResult<StructureStabilityResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let temporal = matches!(base, "pcmci" | "pcmci_plus" | "lpcmci");
     if !temporal && !matches!(base, "pc" | "fci" | "rfci" | "ges" | "direct_lingam" | "notears") {
         return Err(crate::value_err(format!(
@@ -512,6 +518,12 @@ fn discover_jpcmci_plus_stability(
     context_names: Option<Vec<String>>,
     max_cond_size: usize,
 ) -> PyResult<StructureStabilityResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     if env_columns.is_empty() {
         return Err(crate::value_err("J-PCMCI+ stability needs at least one environment"));
     }
@@ -609,6 +621,12 @@ fn discover_rpcmci_stability(
     max_cond_size: usize,
     min_regime_len: Option<usize>,
 ) -> PyResult<RegimeStabilityResult> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let (ci_impl, ci_label) = named_ci(ci.as_deref())?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     drop(columns);

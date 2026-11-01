@@ -363,6 +363,7 @@ fn temporal_dependent_interval_closed(
     min_units: usize,
     max_failed_fraction: f64,
 ) -> PyResult<String> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let method = match method {
         "studentized" => IntervalMethod::Studentized,
         other => {
@@ -453,6 +454,7 @@ fn temporal_dependent_interval_candidate(
     min_units: usize,
     max_failed_fraction: f64,
 ) -> Outcome<NativeTemporalIntervalCandidate> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     // Preserve the released entry's complete argument validation and refusals.
     let refusal = temporal_dependent_interval_closed(
         snapshot_id,
@@ -527,6 +529,7 @@ fn temporal_dependent_interval_measured(
     memory_limit_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> Outcome<crate::measured_inference_api::NativeMeasuredInference> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let numerical_bytes = units
         .as_ref()
         .map_or(0, |u| u.iter().map(|(_, h)| h.len()).sum::<usize>())

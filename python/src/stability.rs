@@ -136,6 +136,7 @@ fn validate_pcmci_block_bootstrap(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     with_pcmci_series(
         py,
         names,
@@ -174,6 +175,7 @@ fn validate_pcmci_false_positive(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     let transform = transform.to_ascii_lowercase();
@@ -335,6 +337,7 @@ fn validate_pcmci_plus_orientation(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     drop(columns);
@@ -522,6 +525,7 @@ fn validate_regime_stability(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<Py<PyDict>> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let batch = numeric_columns_to_batch(&names, &columns)?;
     let ci = ci.to_string();
     drop(columns);

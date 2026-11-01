@@ -245,8 +245,16 @@ fn apply_constraints(
         constraints.significance = match get_text(sig, "kind")?.as_str() {
             "analytic" => SignificanceMethod::Analytic,
             "block_shuffle" => SignificanceMethod::BlockShuffle {
-                replicates: opt_u32(sig, "replicates")?
-                    .ok_or_else(|| input_err("block_shuffle needs `replicates`"))?,
+                replicates: {
+                    let replicates = opt_u32(sig, "replicates")?
+                        .ok_or_else(|| input_err("block_shuffle needs `replicates`"))?;
+                    crate::bridge::check_count(
+                        "replicates",
+                        u64::from(replicates),
+                        crate::bridge::MAX_RESAMPLES,
+                    )?;
+                    replicates
+                },
                 block_size: opt_usize(sig, "block_size")?
                     .ok_or_else(|| input_err("block_shuffle needs `block_size`"))?,
             },
@@ -836,6 +844,11 @@ impl SelectiveDiscoveryHandle {
         history: Option<u32>,
         member_bound: Option<usize>,
     ) -> PyResult<(Option<String>, Option<String>)> {
+        crate::bridge::check_count(
+            "horizon_steps",
+            u64::from(horizon_steps),
+            crate::bridge::MAX_HORIZON_STEPS,
+        )?;
         let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
             return Ok((
                 None,
@@ -1778,6 +1791,11 @@ fn sample_split_parent_set_effect(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Effect> {
+    crate::bridge::check_count(
+        "max_degree",
+        u64::from(max_degree),
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let knowledge: Option<Knowledge> = knowledge
         .map(|text| {
             serde_json::from_str(text)

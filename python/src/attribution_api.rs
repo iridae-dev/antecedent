@@ -317,6 +317,7 @@ fn attribute_path_specific(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<gcm_api::ChangeAttributionResult> {
+    crate::bridge::check_paths(max_paths, max_len)?;
     let input = GcmInput::load(&names, columns, edges, seed, threads)?;
     detach_catch(py, move || {
         let t_id = input.id(&treatment)?;
@@ -656,13 +657,18 @@ fn attribution_uncertainty(
                     seed,
                 }
             }
-            "paths" => AttributeTarget::Paths {
-                sources: Arc::from(ids(&json_names(&params, "sources")?)?),
-                outcome: schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?,
-                max_paths: json_usize(&params, "max_paths", 64)?,
-                max_len: json_usize(&params, "max_len", 16)?,
-                through: Arc::from(ids(&json_names(&params, "through")?)?),
-            },
+            "paths" => {
+                let max_paths = json_usize(&params, "max_paths", 64)?;
+                let max_len = json_usize(&params, "max_len", 16)?;
+                crate::bridge::check_paths(max_paths, max_len)?;
+                AttributeTarget::Paths {
+                    sources: Arc::from(ids(&json_names(&params, "sources")?)?),
+                    outcome: schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?,
+                    max_paths,
+                    max_len,
+                    through: Arc::from(ids(&json_names(&params, "through")?)?),
+                }
+            }
             "feature_relevance" => {
                 let outcome = schema.id_of(&json_str(&params, "outcome")?).map_err(py_err)?;
                 let features: Vec<VariableId> = (0..schema.len())

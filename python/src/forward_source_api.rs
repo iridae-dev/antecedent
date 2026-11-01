@@ -182,7 +182,12 @@ fn forward_source_cohort(
     artifact: &[u8],
     expected_identity: &str,
     accepts_transported: bool,
-) -> Refused<ForwardSourceHandle> {
+) -> PyResult<Refused<ForwardSourceHandle>> {
+    crate::bridge::check_declared_len(
+        artifact.len(),
+        crate::bridge::MAX_SEALED_ARTIFACT_BYTES,
+        "cohort source artifact",
+    )?;
     let expectation = CohortExpectation {
         identity: expected_identity.to_owned(),
         parent_claim: None,
@@ -194,7 +199,7 @@ fn forward_source_cohort(
     let source = match py.detach(|| consume_cohort_decision_source(artifact, &expectation)) {
         Ok(source) => source,
         Err(error) => {
-            return (
+            return Ok((
                 None,
                 Some(
                     RefusalJson::new(error.code, "consume", error.detail, &error.to_string())
@@ -202,13 +207,13 @@ fn forward_source_cohort(
                         .remedy(Some(error.remedy))
                         .json(),
                 ),
-            );
+            ));
         }
     };
-    match cohort_source(&source, policy_of(accepts_transported)) {
+    Ok(match cohort_source(&source, policy_of(accepts_transported)) {
         Ok(inner) => (Some(ForwardSourceHandle { inner }), None),
         Err(refusal) => (None, Some(external_refusal_json(&refusal.to_refusal()))),
-    }
+    })
 }
 
 /// A transported response as a forward source.

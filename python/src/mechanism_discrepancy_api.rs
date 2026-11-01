@@ -141,6 +141,11 @@ fn mechanism_discrepancy_consume(
     data: &[u8],
     expected_identity_json: Option<&str>,
 ) -> PyResult<(Option<String>, Option<String>)> {
+    crate::bridge::check_declared_len(
+        data.len(),
+        crate::bridge::MAX_SEALED_ARTIFACT_BYTES,
+        "mechanism discrepancy artifact",
+    )?;
     let expected: Option<MechanismDiscrepancyIdentity> = match expected_identity_json {
         Some(text) => match serde_json::from_str(text) {
             Ok(identity) => Some(identity),

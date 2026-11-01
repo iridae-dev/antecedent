@@ -628,8 +628,14 @@ fn over_classes(spec: DiscoverySpec, equivalence_classes: bool) -> DiscoverySpec
     if equivalence_classes { spec.equivalence_classes() } else { spec }
 }
 
-fn schedule_from_args(n_chains: u32, n_warmup: u32, n_draws: u32, thin: u32) -> GraphMcmcSchedule {
-    GraphMcmcSchedule { n_chains, n_warmup, n_draws, thin }
+fn schedule_from_args(
+    n_chains: u32,
+    n_warmup: u32,
+    n_draws: u32,
+    thin: u32,
+) -> PyResult<GraphMcmcSchedule> {
+    crate::bridge::check_mcmc_schedule(n_chains, n_warmup, n_draws, thin)?;
+    Ok(GraphMcmcSchedule { n_chains, n_warmup, n_draws, thin })
 }
 
 fn parse_soft_weight(name: &str) -> PyResult<CiSoftWeight> {
@@ -723,7 +729,7 @@ fn discover_pag_mcmc(
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
+        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
         let (post, route) = compiled_search(
             DiscoverySpec::pag_mcmc(bayesian_params(), schedule),
             DiscoverInput::Tabular(data),
@@ -808,7 +814,7 @@ fn discover_order_mcmc(
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
+        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
         let mut params = bayesian_params_capped(max_parents);
         params.score_family = family;
         let (post, route) = compiled_search(
@@ -860,7 +866,7 @@ fn discover_structure_mcmc(
     detach_catch(py, move || {
         let (data, variables) = tabular_from_batch(&batch)?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
+        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
         let (post, route) = compiled_search(
             over_classes(
                 DiscoverySpec::structure_mcmc(bayesian_params_capped(max_parents), schedule),
@@ -911,6 +917,11 @@ fn discover_ci_screened_posterior(
     threads: Option<u32>,
     equivalence_classes: bool,
 ) -> PyResult<PyGraphPosterior> {
+    crate::bridge::check_count(
+        "max_cond_size",
+        max_cond_size as u64,
+        crate::bridge::MAX_CONDITIONING,
+    )?;
     let soft = parse_soft_weight(soft_weight)?;
     let ci_name = ci.unwrap_or_else(|| "parcorr".to_string());
     let ci_label = ci_name.to_ascii_lowercase();
@@ -934,7 +945,7 @@ fn discover_ci_screened_posterior(
             max_subset: None,
             knowledge: antecedent::discovery::BackgroundKnowledge::default(),
         };
-        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin);
+        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, thin)?;
         let (post, route) = compiled_search(
             over_classes(
                 DiscoverySpec::ci_screened_posterior(
@@ -992,7 +1003,7 @@ fn discover_dbn_posterior(
     drop(columns);
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, 1);
+        let schedule = schedule_from_args(n_chains, n_warmup, n_draws, 1)?;
         let (input, variables) = match ingested {
             // `unit_lengths` marks the columns as a panel's row-concatenated units: each unit's
             // lag windows are built inside that unit.

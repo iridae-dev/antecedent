@@ -859,6 +859,7 @@ fn sensitivity_msm_parameters_refit(
     temporal: bool,
     target_source: Option<String>,
 ) -> PyResult<String> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     same_length(
         "treatments and their numerator and denominator covariates",
         &[treatments.len(), numerators.len(), denominators.len()],
@@ -1107,6 +1108,7 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         on_stage: Option<Bound<'_, PyAny>>,
     ) -> PyResult<String> {
+        crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
         let suite = suite_of(suite)?;
         let (source, retained) = self.target_refutation_source();
         if require_completed && retained.is_none() {
@@ -1208,6 +1210,7 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<String> {
+        crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
         let suite = suite_of(suite)?;
         let options = TargetRefitOptions {
             negative_control_exposure: column_id(

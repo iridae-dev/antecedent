@@ -255,6 +255,7 @@ fn attribute_intrinsic_influence_py(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
+    crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let allocation = allocation_of(allocation, n_permutations)?;
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {

@@ -222,6 +222,7 @@ impl PyPreparedAnalysis {
                 query
             }
             "path_specific" => {
+                crate::bridge::check_paths(max_paths, max_len)?;
                 let t_id = data.schema().id_of(&need(&treatment, "treatment")?).map_err(py_err)?;
                 let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
                 let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
@@ -538,7 +539,7 @@ impl PyPreparedAnalysis {
         let input = req.load_frame(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
         req.off_gil(py, move |req| {
-            let series = one_series(input)?;
+            let series = one_series(input, &req.opts.ctx(seed, threads))?;
             let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
             let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
             let q = temporal_effect_query(
@@ -617,7 +618,7 @@ impl PyPreparedAnalysis {
         let input = req.load_frame(py, columns, frame.as_ref())?;
         let contrast = contrast.to_string();
         req.off_gil(py, move |req| {
-            let series = one_series(input)?;
+            let series = one_series(input, &req.opts.ctx(seed, threads))?;
             let q = temporal_mediation_query(
                 series.schema(),
                 &treatment,
@@ -696,7 +697,7 @@ impl PyPreparedAnalysis {
         let input = req.load_frame(py, columns, frame.as_ref())?;
         let policy = policy.to_ascii_lowercase();
         req.off_gil(py, move |req| {
-            let series = one_series(input)?;
+            let series = one_series(input, &req.opts.ctx(seed, threads))?;
             let schema = series.schema();
             let treatment_ids: Vec<_> = treatments
                 .iter()

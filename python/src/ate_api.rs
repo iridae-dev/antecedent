@@ -1277,6 +1277,11 @@ fn structure_query(
     window: Option<(i32, i32)>,
     treatments: Option<Vec<String>>,
 ) -> PyResult<CausalQuery> {
+    crate::bridge::check_count(
+        "horizon_steps",
+        u64::from(horizon_steps),
+        crate::bridge::MAX_HORIZON_STEPS,
+    )?;
     let t_id = structure_var_id(names, treatment)?;
     let y_id = structure_var_id(names, outcome)?;
     match kind {

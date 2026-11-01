@@ -45,6 +45,52 @@ pub(crate) fn check_declared_size(text: &str, limit: usize, what: &str) -> PyRes
     check_declared_len(text.len(), limit, &format!("{what} declaration"))
 }
 
+/// Chains one MCMC search may run.
+pub(crate) const MAX_MCMC_CHAINS: u64 = 1024;
+/// Steps one MCMC chain may take (warm-up, or retained draws times thinning).
+pub(crate) const MAX_MCMC_STEPS: u64 = 100_000_000;
+/// Replicates, resamples or Monte-Carlo draws one call may request.
+pub(crate) const MAX_RESAMPLES: u64 = 10_000_000;
+/// Paths one enumeration may return.
+pub(crate) const MAX_PATHS: u64 = 10_000_000;
+/// Edges on one enumerated path.
+pub(crate) const MAX_PATH_LEN: u64 = 65_536;
+/// Time steps a forecast or effect horizon may span.
+pub(crate) const MAX_HORIZON_STEPS: u64 = 1_000_000;
+/// Variables in one conditioning set, or one node's parents.
+pub(crate) const MAX_CONDITIONING: u64 = 4096;
+
+/// Refuse a caller-chosen count above `limit`, as an invalid argument.
+///
+/// The limits refuse the absurd; execution memory and cancellation bound the rest.
+pub(crate) fn check_count(what: &str, value: u64, limit: u64) -> PyResult<()> {
+    if value > limit {
+        return Err(crate::with_reason_code(
+            crate::value_err(format!("{what} is {value}; at most {limit} is accepted")),
+            antecedent_core::reason_code!("invalid_argument"),
+        ));
+    }
+    Ok(())
+}
+
+/// Bound a path enumeration: how many paths, and how long each may be.
+pub(crate) fn check_paths(max_paths: usize, max_len: usize) -> PyResult<()> {
+    check_count("max_paths", max_paths as u64, MAX_PATHS)?;
+    check_count("max_len", max_len as u64, MAX_PATH_LEN)
+}
+
+/// Bound a graph-MCMC schedule: the chains, and the steps each chain takes.
+pub(crate) fn check_mcmc_schedule(
+    n_chains: u32,
+    n_warmup: u32,
+    n_draws: u32,
+    thin: u32,
+) -> PyResult<()> {
+    check_count("n_chains", u64::from(n_chains), MAX_MCMC_CHAINS)?;
+    check_count("n_warmup", u64::from(n_warmup), MAX_MCMC_STEPS)?;
+    check_count("n_draws times thin", u64::from(n_draws) * u64::from(thin), MAX_MCMC_STEPS)
+}
+
 /// A failure that can only mean the bytes do not describe what they claim.
 pub(crate) fn serialization(e: impl std::fmt::Display) -> PyErr {
     crate::serialization_err(e.to_string())
@@ -241,7 +287,9 @@ fn wire_json(wire: &antecedent_io::external_binding_wire::RefusalWire) -> String
 
 #[cfg(test)]
 mod tests {
-    use super::external_refusal_json;
+    use super::{
+        MAX_RESAMPLES, check_count, check_mcmc_schedule, check_paths, external_refusal_json,
+    };
     use antecedent_contract::{ExternalCapability, ExternalRefusal};
 
     fn refusal(capability: Option<ExternalCapability>) -> ExternalRefusal {
@@ -312,5 +360,17 @@ mod tests {
         assert_eq!(value["plan"], via_serde);
         assert_eq!(value["message"], "m");
         assert!(value["offending"].is_null());
+    }
+
+    #[test]
+    fn caller_sized_counts_are_refused_past_their_limit() {
+        pyo3::Python::initialize();
+        assert!(check_count("replicates", MAX_RESAMPLES, MAX_RESAMPLES).is_ok());
+        assert!(check_count("replicates", MAX_RESAMPLES + 1, MAX_RESAMPLES).is_err());
+        assert!(check_mcmc_schedule(4, 500, 1000, 1).is_ok());
+        assert!(check_mcmc_schedule(100_000, 500, 1000, 1).is_err());
+        assert!(check_mcmc_schedule(4, 500, u32::MAX, u32::MAX).is_err());
+        assert!(check_paths(64, 16).is_ok());
+        assert!(check_paths(usize::MAX, 16).is_err());
     }
 }

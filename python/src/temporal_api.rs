@@ -307,6 +307,11 @@ pub(crate) fn temporal_query_from_policy(
     horizon_steps: u32,
     active_level: f64,
 ) -> PyResult<TemporalEffectQuery> {
+    crate::bridge::check_count(
+        "horizon_steps",
+        u64::from(horizon_steps),
+        crate::bridge::MAX_HORIZON_STEPS,
+    )?;
     let parsed = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
     let query = match &parsed {
         TemporalPolicy::Pulse { .. } => TemporalEffectQuery::pulse(t_id, y_id, active_level),

@@ -279,6 +279,15 @@ fn consume_learned_continuous(
 ) -> PyResult<String> {
     let (names, bytes) = unframe_named_artifact(PREFIX, artifact, "learned continuous")?;
     let defaults = LearnedContinuousConsumeLimits::default();
+    // A caller may raise the replay limits, never past what a sealed artifact can hold.
+    let (rows_ceiling, features_ceiling) = (16 * 1024 * 1024, 4096);
+    if max_rows.is_some_and(|n| n > rows_ceiling)
+        || max_features.is_some_and(|n| n > features_ceiling)
+    {
+        return Err(crate::value_err(format!(
+            "max_rows is capped at {rows_ceiling} and max_features at {features_ceiling}"
+        )));
+    }
     let limits = LearnedContinuousConsumeLimits {
         max_rows: max_rows.unwrap_or(defaults.max_rows),
         max_features: max_features.unwrap_or(defaults.max_features),

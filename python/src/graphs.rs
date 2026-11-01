@@ -567,6 +567,7 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> PyResult<bool> {
+        crate::bridge::check_paths(max_paths, max_len)?;
         let (xid, yid, zids) = self.separation_query(x, y, z)?;
         self.pag.is_m_separated(xid, yid, &zids, max_paths, max_len).map_err(py_err)
     }
@@ -582,6 +583,7 @@ impl Pag {
         max_paths: usize,
         max_len: usize,
     ) -> PyResult<&'static str> {
+        crate::bridge::check_paths(max_paths, max_len)?;
         let (xid, yid, zids) = self.separation_query(x, y, z)?;
         let status =
             self.pag.m_separation_status(xid, yid, &zids, max_paths, max_len).map_err(py_err)?;

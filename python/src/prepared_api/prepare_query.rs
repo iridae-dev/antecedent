@@ -274,6 +274,7 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
+        crate::bridge::check_paths(max_paths, max_len)?;
         let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
         req.refuse_prior("a path-specific effect")?;
         let data = req.load_columns(py, columns)?;

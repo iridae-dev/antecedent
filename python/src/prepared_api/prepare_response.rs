@@ -254,7 +254,7 @@ impl PyPreparedAnalysis {
                 &schema,
                 observation.as_ref(),
             )?);
-            let mut builder = data.builder()?;
+            let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
             builder = if let Some(graph) = class_graph {
                 bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
             } else {
@@ -376,7 +376,7 @@ impl PyPreparedAnalysis {
                 let modifier_id = schema.id_of(modifier).map_err(py_err)?;
                 q = q.with_effect_modifiers([modifier_id]);
             }
-            let mut builder = data.builder()?;
+            let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
             builder = if let Some(graph) = class_graph {
                 bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
             } else {
@@ -480,7 +480,7 @@ impl PyPreparedAnalysis {
                 horizons,
                 &req.opts,
             )?;
-            let mut builder = data.builder()?;
+            let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
             builder = if let Some(graph) = class_graph {
                 bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
             } else {
