@@ -1234,7 +1234,10 @@ pub fn corrected_categories(
     {
         return Err(MeasurementErrorError::NonFinite("observed class summaries"));
     }
-    let total: u64 = classes.iter().map(|c| c.count).sum();
+    let total: u64 = classes
+        .iter()
+        .try_fold(0_u64, |sum, c| sum.checked_add(c.count))
+        .ok_or(MeasurementErrorError::InvalidParameter("observed class counts overflow"))?;
     let n = total as f64;
     let p_star: Vec<f64> = classes.iter().map(|c| c.count as f64 / n).collect();
     let c = &confusion.matrix;
@@ -1773,6 +1776,20 @@ mod tests {
         assert!(close(result.variance, expect, 1e-12), "{} vs {expect}", result.variance);
         assert!(close(result.variance_sampling + result.variance_rates, result.variance, 1e-15));
         assert!(!result.outside_unit_interval);
+    }
+
+    #[test]
+    fn observed_class_counts_that_overflow_u64_refuse() {
+        let confusion =
+            ConfusionMatrix::new(2, vec![0.9, 0.2, 0.1, 0.8], Some(vec![200, 300])).unwrap();
+        let classes = [
+            ObservedClassSummary { count: 1 << 63, mean: 1.0, variance: 0.5 },
+            ObservedClassSummary { count: (1 << 63) + 2, mean: 0.0, variance: 0.5 },
+        ];
+        assert!(matches!(
+            corrected_categories(&classes, &confusion, 20.0),
+            Err(MeasurementErrorError::InvalidParameter(_))
+        ));
     }
 
     #[test]

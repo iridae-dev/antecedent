@@ -1060,7 +1060,10 @@ pub fn replay_values(
                 point: result.corrected,
                 naive_point: Some(result.naive),
                 variance: result.variance,
-                rows: table.exposed_total + table.unexposed_total,
+                rows: table
+                    .exposed_total
+                    .checked_add(table.unexposed_total)
+                    .ok_or_else(|| convert("exposure group totals overflow".to_owned()))?,
                 functional_id: "risk_difference",
             })
         }
@@ -1074,7 +1077,10 @@ pub fn replay_values(
             let result = corrected_categories(classes, &matrix, *max_condition)
                 .map_err(|e| convert(e.to_string()))?;
             let k = levels.len();
-            let rows: u64 = classes.iter().map(|c| c.count).sum();
+            let rows: u64 = classes
+                .iter()
+                .try_fold(0_u64, |sum, c| sum.checked_add(c.count))
+                .ok_or_else(|| convert("observed class counts overflow".to_owned()))?;
             let (point, naive, variance, id) = match functional {
                 CategoricalReplayFunctional::Proportion(level) => {
                     let i = level_index(levels, level)?;
