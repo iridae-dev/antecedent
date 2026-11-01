@@ -27,7 +27,7 @@
         {
           "role": "generator",
           "path": "conformance/design/candidate_ranking/reference.py",
-          "sha256": "7fc8761a66e9e0b5151e89f975681f68b7492738181d683204d40a73cfdb8698"
+          "sha256": "673d67a6e23dae5a32dfbfb12f2760d24717c1604a1419e7d9afa25aca88efd2"
         },
         {
           "role": "environment_lock",
@@ -37,7 +37,7 @@
         {
           "role": "input_fixture",
           "path": "conformance/design/expected_information_gain/expected.json",
-          "sha256": "cfedabd2287052ef533224e58c314d0dcf6fc7aed9469476bd63686748594163"
+          "sha256": "1c3f1171c5acf1a550526b0fb4745dbb368f459eda9ae8f1f0069c44ede10f60"
         },
         {
           "role": "assertion_source",

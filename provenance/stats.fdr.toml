@@ -57,12 +57,12 @@ sha256 = "b16c11e30f8066a806cc5aab40ebf0e6a180b17000f876af6de5484af9bb8ad3"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/multiplicity/expected.json"
-sha256 = "a60c787df28d99d01d1f16bc7dd6c7107e998d63f3d542c8a4017ce656ade011"
+sha256 = "a1747f146e138fa8d4628d29c3be3c6f2d9b24b6c658353081ed5608e2b4926c"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/stats/ols_wls/reference.py"
-sha256 = "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+sha256 = "2fec65f98c935a30a0d44590a9b0accd25467d638ba4d696831fc47e1253bd5d"
 
 [[method_review.artifacts]]
 role = "reference"

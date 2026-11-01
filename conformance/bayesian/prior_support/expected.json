@@ -40,7 +40,7 @@
         {
           "role": "generator",
           "path": "conformance/bayesian/prior_support/reference.py",
-          "sha256": "4bbe31d72669429118c06c0bbf75c79d04908230a93b72e398f846a768b0c5a2"
+          "sha256": "147f295cf77d5a79f382888974d97e0608acee4212b5daa7fccddead0d65ce08"
         },
         {
           "role": "environment_lock",
@@ -55,7 +55,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-prob/tests/prior_support_oracle.rs",
-          "sha256": "d30b64d100e6407638455f2089e92648697ec71cb981e2857c7914c4d6777761"
+          "sha256": "6b515f07aca3ffeb9fcab2f8ee9491b8b0a1023e39740c6d1f1bf7fa5df2616d"
         }
       ],
       "fixture_payload_sha256": "3817f8c8f06d951724f8addd58ab3d94bc18f58e8fad989cca888a80fb904230"

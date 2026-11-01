@@ -39,7 +39,7 @@
         {
           "role": "generator",
           "path": "conformance/discovery/jpcmci_plus_matrix/reference.py",
-          "sha256": "a1bdc6439959a3e52bb772be32d06f793c63241508e7acda4645f28a4e028dc1"
+          "sha256": "bd5f54b94ed191d7b8486a06d09424b0f8a32cda4546cf0b88fe424b51620ee2"
         },
         {
           "role": "environment_lock",

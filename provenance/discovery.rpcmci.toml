@@ -41,7 +41,7 @@ record_sha256 = "4d70cf1cd69173205e09a396f29789f76115d69d5ffc6943680e7122b6fd28a
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rpcmci.rs"
-sha256 = "6232859d95685a9b748ca0ffcbcabe3d005fb6254c00e11c6beb7b45e48a1409"
+sha256 = "de1de101e1a1fdb4582ae791818f5b5ed7fde7a549555137a180391d198afabe"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -51,4 +51,4 @@ sha256 = "5546059ed8f3e1b8a3bdda3d0ea4a950e5416a83cda6c57b5114da638c1feaf6"
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/rpcmci_fixed_regime_matrix/expected.json"
-sha256 = "52db0650a8c85938661635cb6e55109a6d28fc24a4f86a9f99293caf6e9059ca"
+sha256 = "43ce7e9d3ffae492f230e15c2f57a71211b3e704ab2e84dc694da6e173634785"

@@ -48,7 +48,7 @@
     {
      "role": "generator",
      "path": "conformance/identify/counterfactual_id_y0/reference.py",
-     "sha256": "b8d63d9c626697be9afd2db1a86557aa13f8908cf01911217c6a21995c50d5fb"
+     "sha256": "f866fed479b193cec45125ef4b568af05fe900d6194ab35c6a49f459e5ad1214"
     },
     {
      "role": "environment_lock",

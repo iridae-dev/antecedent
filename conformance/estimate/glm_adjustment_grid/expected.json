@@ -35,7 +35,7 @@
         {
           "role": "generator",
           "path": "conformance/stats/ols_wls/reference.py",
-          "sha256": "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+          "sha256": "2fec65f98c935a30a0d44590a9b0accd25467d638ba4d696831fc47e1253bd5d"
         },
         {
           "role": "environment_lock",
@@ -50,7 +50,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/glm_adjustment/tests.rs",
-          "sha256": "2bc7a0529a8d9d8c6ea93331ce911b888887e31d299b13efa0e1846310640785"
+          "sha256": "3b9e2afff9dab6f025f266efbcb8bb785d17f67af6e334b2aa6db3fcc8b4f58d"
         }
       ],
       "fixture_payload_sha256": "a2f9bfbf56b2e14dbb3d851416c0bae85a2edafcb21f29860e905fb97f82cf64"

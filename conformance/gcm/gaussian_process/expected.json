@@ -48,7 +48,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/src/registry/mod.rs",
-          "sha256": "c2217e530bff0e8c494d2ae8408ef0d7a414cc62b68ec66885df3775c003a8d7"
+          "sha256": "33aa0f53568b5b7c3b65ec51097b559bdbb7a1f3ca7fa66306dfb4e5b80009f2"
         }
       ],
       "sources": [],

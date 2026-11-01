@@ -42,7 +42,7 @@
         {
           "role": "generator",
           "path": "conformance/design/expected_information_gain/reference.py",
-          "sha256": "5ea8a9f9e7cf498a8f435f48bdbd72f944802580cd04a0fead5a3294a2d40284"
+          "sha256": "4f634e7a403caf4e0c753140c85551bb1cc5c76ac10e2c908634c5c04575deb5"
         },
         {
           "role": "environment_lock",

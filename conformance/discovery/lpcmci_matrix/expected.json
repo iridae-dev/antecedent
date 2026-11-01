@@ -38,7 +38,7 @@
         {
           "role": "generator",
           "path": "conformance/discovery/lpcmci_matrix/reference.py",
-          "sha256": "9b6563cfbab445afdbf5d22d1a381e0e1ca17f41f30f64e7db68357ac5d463ba"
+          "sha256": "e5bca82451e480d8e83bac8b68ca1a3c7fd4957b6ef02068a0813a611201dd42"
         },
         {
           "role": "environment_lock",

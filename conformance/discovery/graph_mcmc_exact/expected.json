@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/discovery/graph_mcmc_exact/reference_exact.py",
-          "sha256": "64d50b0e20a40fe50bbec2baf8f855a8015a94b4d9fee467e9fe99fc48f9972b"
+          "sha256": "f594b55f602cc09de7a5400219125fdff71e7fcfd6720cb952e430b6cc9fe50f"
         },
         {
           "role": "environment_lock",
@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs",
-          "sha256": "42ca047d3dceee1dc9014d89e8bfda6f033a08291888ba6ca953c107fef99fc6"
+          "sha256": "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
         }
       ],
       "sources": [],

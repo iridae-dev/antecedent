@@ -8,7 +8,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "On the compound multinomial distribution, the multivariate beta-distribution, and correlations among proportions", doi = "10.1093/biomet/49.1-2.65", sections = ["the compound multinomial (Dirichlet-multinomial) distribution of counts whose probabilities are Dirichlet"] },
+ { title = "On the compound multinomial distribution, the multivariate β-distribution, and correlations among proportions", doi = "10.1093/biomet/49.1-2.65", sections = ["the compound multinomial (Dirichlet-multinomial) distribution of counts whose probabilities are Dirichlet"] },
 ]
 implementation_deviations = [
  "Respondent shares are Dirichlet(kappa pi) with a Dirichlet(a) population mean and a log-normal concentration kappa; the paper derives the compound distribution and its correlation structure and does not prescribe this prior or any posterior computation. Two or three options only, with every prior shape at least one.",
@@ -30,17 +30,17 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "Mosimann's paper was not retrieved; the likelihood is checked against its definition, not against the paper's text. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into a gate; it takes about 85 minutes on an M1. The comparison covers the frozen two- and three-option cases only, and the posterior is refused beyond its quadrature error limit. It does not examine more than three options, more than 512 choices per respondent or concentrations outside the frozen grid, and it is not an independent human review."
 sources = ["https://doi.org/10.1093/biomet/49.1-2.65", "https://mpmath.org/doc/1.3.0/", "https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.cubature.html"]
 findings_resolved = ["No defect was found against the references. Scope finding: with two options the kernel is the beta-binomial of the participant posterior with correlation 1/(kappa+1); the family is nonetheless a separate posterior because the prior is on (pi, kappa) rather than on a per-arm Beta."]
-record_sha256 = "e0043d6ec24b888bbf3cb19c08d26867eb3863447594e6d98c7ab467a387a80e"
+record_sha256 = "1ca98d9108c9a0d679cc90086c7e2084dad50f9262c80aa2b84ea07f52660a8d"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs"
-sha256 = "6a261b38c9173f494ba13ea6b59fb4842c6ea6a4c3d1158a733f27d91e0dc2de"
+sha256 = "7a9ab56aa751187a6b171170cf02e3865cff3243ad462f66bb9da05fa6f007ac"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-stats/tests/hierarchical_choice_reference.rs"
-sha256 = "451df8dd0d15b9d1fb3d3655abf0773fdf5cde428c22db750c2f40363fc6e3f0"
+sha256 = "e2cfd12d40928b6919cd17986186b3285ab42d3176409e4f3ed48fbb15cc1983"
 
 [[method_review.artifacts]]
 role = "reference"

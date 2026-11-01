@@ -38,7 +38,7 @@
         {
           "role": "generator",
           "path": "conformance/stats/rng_gaussian/reference.py",
-          "sha256": "9612d2f3bbc3fa6236f90d7897dc2a225c9bfc04e864e876769ce8b205077bce"
+          "sha256": "989aa56023f58d0b3634cd10d93816efb9717809b9d79839a2b962ec9f847922"
         },
         {
           "role": "environment_lock",
@@ -48,7 +48,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
-          "sha256": "1dd4b2e088fb457a9b704c07fa86ce5211a58e18e9c46642cbbf38486dc025df"
+          "sha256": "3292303fd8deb689a3e773e5450b5e861d9c4ccbd6827654b9a0d88dccb8adca"
         }
       ],
       "fixture_payload_sha256": "8ee3a6030d9dd1239da91cf333e31df5685d000667d70e49f9fa3f8c9d0df3e3"

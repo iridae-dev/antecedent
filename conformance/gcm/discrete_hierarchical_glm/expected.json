@@ -52,7 +52,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/tests/scm_oracle.rs",
-          "sha256": "0536a9b92ec10c7b7aba0d4f79ff00eb0f54a73879eedc9407cca1e5e2519ba1"
+          "sha256": "3885ff9133184e08a56e35fdd0b7552bfb24b4bc3ceaa5794bdb1f20ac9d8658"
         }
       ],
       "fixture_payload_sha256": "25add928e65bd643641243b436e71fed45a550f1721714c2b0eb9a172b099db5"

@@ -543,6 +543,14 @@
     ],
     "url": "https://api.crossref.org/works/10.1093/biomet/28.3-4.321"
   },
+  "10.1093/biomet/49.1-2.65": {
+    "doi": "10.1093/biomet/49.1-2.65",
+    "response_sha256": "ceaac9dbb7d456212cb03fd4351ee6f5df2d37248a85995917cff69cdd7f9630",
+    "titles": [
+      "On the compound multinomial distribution, the multivariate \u03b2-distribution, and correlations among proportions"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/49.1-2.65"
+  },
   "10.1093/biomet/62.2.441": {
     "doi": "10.1093/biomet/62.2.441",
     "response_sha256": "0ceb6f3a925d1cde79ef4c2d0e66928fd6f3f35c6a910fadd5683c68ab3ed0ed",

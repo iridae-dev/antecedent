@@ -29,7 +29,7 @@
         {
           "role": "generator",
           "path": "conformance/stats/ols_wls/reference.py",
-          "sha256": "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+          "sha256": "2fec65f98c935a30a0d44590a9b0accd25467d638ba4d696831fc47e1253bd5d"
         },
         {
           "role": "environment_lock",

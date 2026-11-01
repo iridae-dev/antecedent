@@ -40,34 +40,34 @@ record_sha256 = "299307101951fc4b20d26c257ff98d33783382faff156a3797cd0d3aadae29f
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
-sha256 = "6ab7b828cd441fd76b1aa3d45143bc9940566d6d0faf2faf0f6fcb2db0a10d40"
+sha256 = "f05350502d26f8a364fd713dece746e90faa73ba186a124944db459f146004af"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-sha256 = "aa44d7e1dad1c91356386a7ad05169d6ffdebb216db0ec3e5bdb6b27b861d9c4"
+sha256 = "c4e5444cc71b234cbc62df746b3c878978b1b484546a3a9baaf485514d4edafd"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-discovery/tests/graph_mcmc_oracle.rs"
-sha256 = "42ca047d3dceee1dc9014d89e8bfda6f033a08291888ba6ca953c107fef99fc6"
+sha256 = "ac928cfc793ed77213bca7ca08b8f35f523202eb44dbed7b20696eef9db89f9d"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "crates/antecedent-state/tests/oracle_data/gaussian_bic_reference.py"
-sha256 = "cac1a373f5f36be1ca4a98b375e0897d246c0e0ceaaf59e0ae653aaf02003401"
+sha256 = "ec8d1ad6597075b5ba11d1177c7938d5d2d69b49101f568d2f7925577e95024b"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "crates/antecedent-state/tests/oracle_data/gaussian_bic_reference.json"
-sha256 = "71db326fb8b9059c2c2aecffa102193d79a6a9a567dba43a0a826e7ff0c737a3"
+sha256 = "81d95a21605880ac4fe078aa69ca975bcbbd5d4002f97c3f0025c9dc15203c7b"
 
 [[method_review.artifacts]]
 role = "reference"
 path = "conformance/discovery/graph_mcmc_exact/reference_exact.py"
-sha256 = "64d50b0e20a40fe50bbec2baf8f855a8015a94b4d9fee467e9fe99fc48f9972b"
+sha256 = "f594b55f602cc09de7a5400219125fdff71e7fcfd6720cb952e430b6cc9fe50f"
 
 [[method_review.artifacts]]
 role = "fixture"
 path = "conformance/discovery/graph_mcmc_exact/expected.json"
-sha256 = "a033a250de6ea08cebb18ef6a7e2c8531001cd49973e1d811bbd6f4bbf4a24ed"
+sha256 = "6dbac279f2aa37d25f725d6943d3b7c561123d5000aa1a48cf63a381232c7569"

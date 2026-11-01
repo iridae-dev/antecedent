@@ -55,7 +55,7 @@
         {
           "role": "generator",
           "path": "conformance/identify/mixed_source_external/reference.py",
-          "sha256": "43800215ff9e4bf7aad94fe6b223ee591c1c15e3b6c740ed544f79bacadeb4a6"
+          "sha256": "5276a187b9c52d3c958f842b3576ab87271ee6a8947332838ba66f2a46de3c23"
         },
         {
           "role": "generator",
@@ -80,7 +80,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-identify/tests/mixed_source_external_parity.rs",
-          "sha256": "b53d1a8b03b0153329d4537521b4b7e6b5fb7141e9ad11cedf516b21bea14c7d"
+          "sha256": "e3bd87c90339e6bac521e0862238e8216b4013f329f0d614113289aff0d36ba8"
         }
       ],
       "fixture_payload_sha256": "341d4783a1202f93447c87a7f384b46ff801b122bdd2107e616cc554b5bf7856"

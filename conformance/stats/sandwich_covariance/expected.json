@@ -345,7 +345,7 @@
         {
           "role": "generator",
           "path": "conformance/stats/ols_wls/reference.py",
-          "sha256": "ca9771a799a9d6bfd92c35f1d91ec40190fe30882fa8dd3cf48977f382cd2532"
+          "sha256": "2fec65f98c935a30a0d44590a9b0accd25467d638ba4d696831fc47e1253bd5d"
         },
         {
           "role": "environment_lock",
@@ -360,7 +360,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-stats/tests/foundations_oracle.rs",
-          "sha256": "1dd4b2e088fb457a9b704c07fa86ce5211a58e18e9c46642cbbf38486dc025df"
+          "sha256": "3292303fd8deb689a3e773e5450b5e861d9c4ccbd6827654b9a0d88dccb8adca"
         }
       ],
       "fixture_payload_sha256": "0d07a1c2bc0411c90d5f90371f91efd9590b39beeda0dcc449f71bbb5b286c53"
