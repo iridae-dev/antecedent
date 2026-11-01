@@ -1169,7 +1169,8 @@ fn binding_from(json: &str, names: &[String]) -> Result<ScenarioClaimBinding, St
     let calibration = match wire.calibration.as_str() {
         "exact" => DistributionCalibration::Exact,
         "point_only" => DistributionCalibration::PointOnly,
-        "measured" => DistributionCalibration::Measured,
+        // A measured calibration cites a coordinate-specific record the binding cannot carry;
+        // the laws are bound as exact, point-only or unmeasured.
         "unmeasured" => DistributionCalibration::Unmeasured,
         other => {
             return Err(invalid_json("scenario_decision.unknown_calibration", Some(other.into())));

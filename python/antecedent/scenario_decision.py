@@ -63,8 +63,8 @@ from .errors import CausalTypeError, CausalValueError
 from .joint_distribution import ScientificQuantity
 
 _POLICIES = ("require_invariant_best_action", "maximin", "bayes_over_structures", "report_only")
-_CALIBRATIONS = ("exact", "point_only", "measured", "unmeasured")
-Calibration = Literal["exact", "point_only", "measured", "unmeasured"]
+_CALIBRATIONS = ("exact", "point_only", "unmeasured")
+Calibration = Literal["exact", "point_only", "unmeasured"]
 #: What the structural analysis of a scenario decision can claim.
 StructuralVerdictKind = Literal[
     "invariant_best",

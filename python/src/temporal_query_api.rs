@@ -262,6 +262,18 @@ impl PyPreparedAnalysis {
             .filter(|value| !value.is_none())
             .map(pyo3::Bound::cast_into::<crate::bayesian::PyGraphPosterior>)
             .transpose()?;
+        if let Some(bound) = &posterior {
+            if discovery.is_some() {
+                return Err(crate::value_err(
+                    "pass a posterior or a discovery request, not both: a supplied posterior is not refitted",
+                ));
+            }
+            if !bound.borrow().is_temporal() {
+                return Err(crate::value_err(
+                    "a temporal query needs a dynamic-network posterior with lagged edge marginals",
+                ));
+            }
+        }
         let supplied = take_supplied_posterior(posterior, &req.names)?;
         let class_prior_ordered = query_spec
             .get_item("class_prior_ordered")?

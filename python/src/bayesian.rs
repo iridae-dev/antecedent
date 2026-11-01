@@ -216,6 +216,11 @@ impl PyGraphPosterior {
     ///
     /// Atom masks are positional, so a reordered table would silently permute the
     /// structure; this mirrors the column-order check applied to supplied graphs.
+    /// Whether the atoms carry lagged edge marginals (a dynamic-network posterior).
+    pub(crate) fn is_temporal(&self) -> bool {
+        self.lagged_edge_marginals.is_some() && self.max_lag.is_some()
+    }
+
     pub(crate) fn require_bound_to(&self, names: &[String]) -> PyResult<()> {
         if self.names != names || self.n_vars != names.len() {
             return Err(crate::value_err(
