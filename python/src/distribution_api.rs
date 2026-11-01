@@ -63,43 +63,52 @@ impl PyJointDistributionArtifact {
 impl PyJointDistributionArtifact {
     #[new]
     fn new(metadata_json: &str, draws: PyReadonlyArray2<'_, f64>) -> PyResult<Self> {
-        check_declared_size(
-            metadata_json,
-            MAX_DISTRIBUTION_ARTIFACT_BYTES,
-            "distribution metadata",
-        )?;
-        let metadata_json = normalize_distribution_metadata(metadata_json)?;
-        let metadata: DistributionMetadata =
-            serde_json::from_str(&metadata_json).map_err(artifact_error)?;
-        let shape = draws.shape();
-        if shape[0] == 0
-            || shape[0] > MAX_DISTRIBUTION_DRAWS
-            || shape[1] == 0
-            || shape[1] > MAX_DISTRIBUTION_COORDINATES
-            || shape[0]
-                .checked_mul(shape[1])
-                .and_then(|n| n.checked_mul(8))
-                .is_none_or(|bytes| bytes > MAX_DISTRIBUTION_ARTIFACT_BYTES)
-        {
-            return Err(crate::value_err("distribution draw array exceeds its bounds"));
-        }
-        let values = draws.as_array().iter().copied().collect();
-        let artifact = DistributionArtifact::new(metadata, values).map_err(artifact_error)?;
-        Ok(Self { artifact, source_claim: None })
+        crate::catch_ffi(|| {
+            check_declared_size(
+                metadata_json,
+                MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                "distribution metadata",
+            )?;
+            let metadata_json = normalize_distribution_metadata(metadata_json)?;
+            let metadata: DistributionMetadata =
+                serde_json::from_str(&metadata_json).map_err(artifact_error)?;
+            let shape = draws.shape();
+            if shape[0] == 0
+                || shape[0] > MAX_DISTRIBUTION_DRAWS
+                || shape[1] == 0
+                || shape[1] > MAX_DISTRIBUTION_COORDINATES
+                || shape[0]
+                    .checked_mul(shape[1])
+                    .and_then(|n| n.checked_mul(8))
+                    .is_none_or(|bytes| bytes > MAX_DISTRIBUTION_ARTIFACT_BYTES)
+            {
+                return Err(crate::value_err("distribution draw array exceeds its bounds"));
+            }
+            let values = draws.as_array().iter().copied().collect();
+            let artifact = DistributionArtifact::new(metadata, values).map_err(artifact_error)?;
+            Ok(Self { artifact, source_claim: None })
+        })
     }
 
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
-        check_declared_len(data.len(), MAX_DISTRIBUTION_ARTIFACT_BYTES, "distribution artifact")?;
-        check_declared_size(
-            expected_identity_json,
-            MAX_DISTRIBUTION_ARTIFACT_BYTES,
-            "distribution identity",
-        )?;
-        let expected: DistributionIdentity =
-            serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
-        let artifact = DistributionArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
-        Ok(Self { artifact, source_claim: None })
+        crate::catch_ffi(|| {
+            check_declared_len(
+                data.len(),
+                MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                "distribution artifact",
+            )?;
+            check_declared_size(
+                expected_identity_json,
+                MAX_DISTRIBUTION_ARTIFACT_BYTES,
+                "distribution identity",
+            )?;
+            let expected: DistributionIdentity =
+                serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
+            let artifact =
+                DistributionArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
+            Ok(Self { artifact, source_claim: None })
+        })
     }
 
     #[getter]
@@ -142,10 +151,12 @@ impl PyJointDistributionArtifact {
 
     /// One bounded copy into NumPy-owned, row-major f64 storage.
     fn draws_copy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyArray2<f64>>> {
-        let [rows, columns] = self.artifact.shape();
-        let array = Array2::from_shape_vec((rows, columns), self.artifact.draws().to_vec())
-            .map_err(artifact_error)?;
-        Ok(PyArray2::from_owned_array(py, array))
+        crate::catch_ffi(|| {
+            let [rows, columns] = self.artifact.shape();
+            let array = Array2::from_shape_vec((rows, columns), self.artifact.draws().to_vec())
+                .map_err(artifact_error)?;
+            Ok(PyArray2::from_owned_array(py, array))
+        })
     }
 
     fn mean(&self, coordinate: usize) -> PyResult<f64> {

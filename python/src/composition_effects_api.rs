@@ -112,46 +112,48 @@ fn composition_plan_declaration(
     capabilities_json: &str,
     bindings_json: &str,
 ) -> PyResult<Declared> {
-    let previous: Vec<DeclaredStageWire> = decode(previous_json, "previous")?;
-    let requested: Vec<DeclaredStageWire> = decode(requested_json, "requested")?;
-    let capabilities: CapabilitiesWire = decode(capabilities_json, "capabilities")?;
-    let plan = plan_from_wire(&previous, &requested, &capabilities)
-        .map_err(|e| crate::value_err(e.to_string()))?;
-    let parsed = parse(bindings_json, "stage bindings")?;
-    let items = parsed.as_array().ok_or_else(|| crate::value_err("bindings must be a list"))?;
-    let mut nodes = Vec::with_capacity(items.len());
-    let mut bound: Vec<(String, Stage)> = Vec::with_capacity(items.len());
-    for item in items {
-        let map = object(item, "stage binding")?;
-        let key = text(map, "key")?;
-        let kind_name = text(map, "kind")?;
-        let kind = NodeKind::from_name(&kind_name)
-            .ok_or_else(|| crate::value_err(format!("unknown node kind `{kind_name}`")))?;
-        let label = text(map, "stage")?;
-        let stage = stage_from_label(&label)
-            .ok_or_else(|| crate::value_err(format!("unknown stage `{label}`")))?;
-        let node = match present(map, "standing") {
-            Some(standing) => {
-                stage_node_with_standing(&key, kind, &plan, stage, standing_of(standing)?)
-            }
-            None => stage_node(&key, kind, &plan, stage),
-        };
-        let Some(node) = node else {
-            return Ok((
-                None,
-                Some(invalid(
-                    "composition_verification.stage_not_in_plan",
-                    &format!("the requested workflow does not contain stage `{label}`"),
-                    Some(&label),
-                )),
-            ));
-        };
-        nodes.push(node_wire(&node));
-        bound.push((key, stage));
-    }
-    let bindings: Vec<(&str, Stage)> = bound.iter().map(|(k, s)| (k.as_str(), *s)).collect();
-    let effects = effects_wire(&stage_effects(&plan, &bindings));
-    Ok((Some(json!({"nodes": nodes, "effects": effects}).to_string()), None))
+    crate::catch_ffi(|| {
+        let previous: Vec<DeclaredStageWire> = decode(previous_json, "previous")?;
+        let requested: Vec<DeclaredStageWire> = decode(requested_json, "requested")?;
+        let capabilities: CapabilitiesWire = decode(capabilities_json, "capabilities")?;
+        let plan = plan_from_wire(&previous, &requested, &capabilities)
+            .map_err(|e| crate::value_err(e.to_string()))?;
+        let parsed = parse(bindings_json, "stage bindings")?;
+        let items = parsed.as_array().ok_or_else(|| crate::value_err("bindings must be a list"))?;
+        let mut nodes = Vec::with_capacity(items.len());
+        let mut bound: Vec<(String, Stage)> = Vec::with_capacity(items.len());
+        for item in items {
+            let map = object(item, "stage binding")?;
+            let key = text(map, "key")?;
+            let kind_name = text(map, "kind")?;
+            let kind = NodeKind::from_name(&kind_name)
+                .ok_or_else(|| crate::value_err(format!("unknown node kind `{kind_name}`")))?;
+            let label = text(map, "stage")?;
+            let stage = stage_from_label(&label)
+                .ok_or_else(|| crate::value_err(format!("unknown stage `{label}`")))?;
+            let node = match present(map, "standing") {
+                Some(standing) => {
+                    stage_node_with_standing(&key, kind, &plan, stage, standing_of(standing)?)
+                }
+                None => stage_node(&key, kind, &plan, stage),
+            };
+            let Some(node) = node else {
+                return Ok((
+                    None,
+                    Some(invalid(
+                        "composition_verification.stage_not_in_plan",
+                        &format!("the requested workflow does not contain stage `{label}`"),
+                        Some(&label),
+                    )),
+                ));
+            };
+            nodes.push(node_wire(&node));
+            bound.push((key, stage));
+        }
+        let bindings: Vec<(&str, Stage)> = bound.iter().map(|(k, s)| (k.as_str(), *s)).collect();
+        let effects = effects_wire(&stage_effects(&plan, &bindings));
+        Ok((Some(json!({"nodes": nodes, "effects": effects}).to_string()), None))
+    })
 }
 
 fn decode<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
@@ -175,22 +177,25 @@ fn composition_ledger_effects(
     ledger: PyRef<'_, EvidenceLedgerHandle>,
     bindings_json: &str,
 ) -> PyResult<Declared> {
-    let parsed = parse(bindings_json, "ledger bindings")?;
-    let map = object(&parsed, "ledger bindings")?;
-    let mut bound: Vec<(String, ResultId)> = Vec::with_capacity(map.len());
-    for (key, value) in map {
-        let id = value
-            .as_str()
-            .and_then(ResultId::from_hex)
-            .ok_or_else(|| crate::value_err("a result id is 64 hexadecimal characters"))?;
-        bound.push((key.clone(), id));
-    }
-    let bindings: Vec<(&str, ResultId)> = bound.iter().map(|(k, id)| (k.as_str(), *id)).collect();
-    Ok(match ledger_effects(ledger.ledger(), &bindings) {
-        Ok(effects) => (Some(effects_wire(&effects).to_string()), None),
-        Err(refusal) => {
-            (None, Some(refusal_json(refusal.code, &refusal.detail, &refusal.message, None)))
+    crate::catch_ffi(|| {
+        let parsed = parse(bindings_json, "ledger bindings")?;
+        let map = object(&parsed, "ledger bindings")?;
+        let mut bound: Vec<(String, ResultId)> = Vec::with_capacity(map.len());
+        for (key, value) in map {
+            let id = value
+                .as_str()
+                .and_then(ResultId::from_hex)
+                .ok_or_else(|| crate::value_err("a result id is 64 hexadecimal characters"))?;
+            bound.push((key.clone(), id));
         }
+        let bindings: Vec<(&str, ResultId)> =
+            bound.iter().map(|(k, id)| (k.as_str(), *id)).collect();
+        Ok(match ledger_effects(ledger.ledger(), &bindings) {
+            Ok(effects) => (Some(effects_wire(&effects).to_string()), None),
+            Err(refusal) => {
+                (None, Some(refusal_json(refusal.code, &refusal.detail, &refusal.message, None)))
+            }
+        })
     })
 }
 
@@ -243,21 +248,26 @@ fn claim_bindings(bindings_json: &str) -> PyResult<Vec<ClaimBinding>> {
 /// whose snapshot no longer matches recomputes, an offline receiver learns nothing.
 #[pyfunction]
 fn composition_freshness_effects(bindings_json: &str) -> PyResult<String> {
-    let bound = claim_bindings(bindings_json)?;
-    let bindings: Vec<(&str, &_)> = bound.iter().map(|b| (b.key.as_str(), &b.freshness)).collect();
-    Ok(effects_wire(&freshness_effects(&bindings)).to_string())
+    crate::catch_ffi(|| {
+        let bound = claim_bindings(bindings_json)?;
+        let bindings: Vec<(&str, &_)> =
+            bound.iter().map(|b| (b.key.as_str(), &b.freshness)).collect();
+        Ok(effects_wire(&freshness_effects(&bindings)).to_string())
+    })
 }
 
 /// The effects of claim contracts against the identities the receiver now holds: every identity
 /// layer is compared and the changed layers are named in the cause.
 #[pyfunction]
 fn composition_contract_effects(bindings_json: &str) -> PyResult<String> {
-    let bound = claim_bindings(bindings_json)?;
-    let bindings: Vec<(&str, &ClaimEnvelope, &_, Option<&ContractIdentities>)> = bound
-        .iter()
-        .map(|b| (b.key.as_str(), &b.claim, &b.freshness, b.current.as_ref()))
-        .collect();
-    Ok(effects_wire(&contract_effects(&bindings)).to_string())
+    crate::catch_ffi(|| {
+        let bound = claim_bindings(bindings_json)?;
+        let bindings: Vec<(&str, &ClaimEnvelope, &_, Option<&ContractIdentities>)> = bound
+            .iter()
+            .map(|b| (b.key.as_str(), &b.claim, &b.freshness, b.current.as_ref()))
+            .collect();
+        Ok(effects_wire(&contract_effects(&bindings)).to_string())
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -320,28 +330,32 @@ fn composition_invalidation_effects(
     since: u64,
     bindings_json: &str,
 ) -> PyResult<String> {
-    let log = log_of(log_json)?;
-    let parsed = parse(bindings_json, "invalidation bindings")?;
-    let items = parsed.as_array().ok_or_else(|| crate::value_err("bindings must be a list"))?;
-    let mut bound: Vec<(String, InvalidationTarget)> = Vec::with_capacity(items.len());
-    for item in items {
-        let map = object(item, "invalidation binding")?;
-        bound.push((text(map, "key")?, target_of(member(map, "target")?)?));
-    }
-    let bindings: Vec<(&str, InvalidationTarget)> =
-        bound.iter().map(|(k, t)| (k.as_str(), t.clone())).collect();
-    let effects = invalidation_effects(&log, StateVersion::from_raw(since), &bindings);
-    Ok(effects_wire(&effects).to_string())
+    crate::catch_ffi(|| {
+        let log = log_of(log_json)?;
+        let parsed = parse(bindings_json, "invalidation bindings")?;
+        let items = parsed.as_array().ok_or_else(|| crate::value_err("bindings must be a list"))?;
+        let mut bound: Vec<(String, InvalidationTarget)> = Vec::with_capacity(items.len());
+        for item in items {
+            let map = object(item, "invalidation binding")?;
+            bound.push((text(map, "key")?, target_of(member(map, "target")?)?));
+        }
+        let bindings: Vec<(&str, InvalidationTarget)> =
+            bound.iter().map(|(k, t)| (k.as_str(), t.clone())).collect();
+        let effects = invalidation_effects(&log, StateVersion::from_raw(since), &bindings);
+        Ok(effects_wire(&effects).to_string())
+    })
 }
 
 /// The three-state class of a query in the log after `since`: `still_valid`, `recompute` or
 /// `withdrawn`.
 #[pyfunction]
 fn composition_query_revalidation(log_json: &str, query: u32, since: u64) -> PyResult<String> {
-    let log = log_of(log_json)?;
-    Ok(query_revalidation(&log, QueryId::from_raw(query), StateVersion::from_raw(since))
-        .as_str()
-        .to_owned())
+    crate::catch_ffi(|| {
+        let log = log_of(log_json)?;
+        Ok(query_revalidation(&log, QueryId::from_raw(query), StateVersion::from_raw(since))
+            .as_str()
+            .to_owned())
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -354,31 +368,33 @@ fn composition_query_revalidation(log_json: &str, query: u32, since: u64) -> PyR
 /// further observed effect is read. `(classification json, refusal json)`.
 #[pyfunction]
 fn selective_discovery_revalidate(previous_json: &str, current_json: &str) -> PyResult<Declared> {
-    let previous = parse(previous_json, "previous claim graph")?;
-    let current = parse(current_json, "current claim graph")?;
-    let previous = match parse_graph(&previous, "previous claim graph")? {
-        Ok(graph) => graph,
-        Err(error) => return Ok((None, Some(graph_refusal(&error)))),
-    };
-    let current = match parse_graph(&current, "current claim graph")? {
-        Ok(graph) => graph,
-        Err(error) => return Ok((None, Some(graph_refusal(&error)))),
-    };
-    Ok(match revalidate_after_discovery(&previous, &current) {
-        Ok(result) => (
-            Some(
-                json!({
-                    "claims": result.claims().map(claim_json).collect::<Vec<_>>(),
-                    "removed": result.removed(),
-                    "previous_identity": result.previous_identity().to_hex(),
-                    "current_identity": result.current_identity().to_hex(),
-                    "identity": result.identity().to_hex(),
-                })
-                .to_string(),
+    crate::catch_ffi(|| {
+        let previous = parse(previous_json, "previous claim graph")?;
+        let current = parse(current_json, "current claim graph")?;
+        let previous = match parse_graph(&previous, "previous claim graph")? {
+            Ok(graph) => graph,
+            Err(error) => return Ok((None, Some(graph_refusal(&error)))),
+        };
+        let current = match parse_graph(&current, "current claim graph")? {
+            Ok(graph) => graph,
+            Err(error) => return Ok((None, Some(graph_refusal(&error)))),
+        };
+        Ok(match revalidate_after_discovery(&previous, &current) {
+            Ok(result) => (
+                Some(
+                    json!({
+                        "claims": result.claims().map(claim_json).collect::<Vec<_>>(),
+                        "removed": result.removed(),
+                        "previous_identity": result.previous_identity().to_hex(),
+                        "current_identity": result.current_identity().to_hex(),
+                        "identity": result.identity().to_hex(),
+                    })
+                    .to_string(),
+                ),
+                None,
             ),
-            None,
-        ),
-        Err(error) => (None, Some(graph_refusal(&error))),
+            Err(error) => (None, Some(graph_refusal(&error))),
+        })
     })
 }
 

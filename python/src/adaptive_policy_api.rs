@@ -541,9 +541,11 @@ fn adaptive_policy_search(
     source: Py<PyAny>,
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<String> {
-    crate::bridge::check_declared_size(config_json, MAX_CONFIG_BYTES, "policy search config")?;
-    let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
-    run_config(&config, &[], &PySource::bind(source)?, cancel)
+    crate::catch_ffi(|| {
+        crate::bridge::check_declared_size(config_json, MAX_CONFIG_BYTES, "policy search config")?;
+        let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
+        run_config(&config, &[], &PySource::bind(source)?, cancel)
+    })
 }
 
 fn scalar(spec: &Value, key: &str, default: f64) -> PyResult<f64> {
@@ -563,80 +565,89 @@ impl crate::gcm_api::PyFittedGcm {
         config_json: &str,
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<String> {
-        crate::bridge::check_declared_size(config_json, MAX_CONFIG_BYTES, "policy search config")?;
-        let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
-        let names: Vec<String> = self.names.to_vec();
-        let spec = config.get("model_source").ok_or_else(|| bad("model_source is required"))?;
-        let var = |key: &str| variable_of(spec, key, &names);
-        let utility = spec.get("utility").cloned().unwrap_or(Value::Null);
-        let stage = StageUtility {
-            outcome: var("outcome")?,
-            target: scalar(&utility, "target", 0.0)?,
-            over: scalar(&utility, "over", 0.0)?,
-            under: scalar(&utility, "under", 0.0)?,
-            quadratic: scalar(&utility, "quadratic", 0.0)?,
-            action_linear: scalar(&utility, "action_linear", 0.0)?,
-            action_quadratic: scalar(&utility, "action_quadratic", 0.0)?,
-            discount: scalar(&utility, "discount", 1.0)?,
-        };
-        let mut initial_state = Vec::new();
-        if let Some(Value::Object(map)) = spec.get("initial_state") {
-            for (name, value) in map {
+        crate::catch_ffi(|| {
+            crate::bridge::check_declared_size(
+                config_json,
+                MAX_CONFIG_BYTES,
+                "policy search config",
+            )?;
+            let config: Value =
+                serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
+            let names: Vec<String> = self.names.to_vec();
+            let spec = config.get("model_source").ok_or_else(|| bad("model_source is required"))?;
+            let var = |key: &str| variable_of(spec, key, &names);
+            let utility = spec.get("utility").cloned().unwrap_or(Value::Null);
+            let stage = StageUtility {
+                outcome: var("outcome")?,
+                target: scalar(&utility, "target", 0.0)?,
+                over: scalar(&utility, "over", 0.0)?,
+                under: scalar(&utility, "under", 0.0)?,
+                quadratic: scalar(&utility, "quadratic", 0.0)?,
+                action_linear: scalar(&utility, "action_linear", 0.0)?,
+                action_quadratic: scalar(&utility, "action_quadratic", 0.0)?,
+                discount: scalar(&utility, "discount", 1.0)?,
+            };
+            let mut initial_state = Vec::new();
+            if let Some(Value::Object(map)) = spec.get("initial_state") {
+                for (name, value) in map {
+                    let id = names
+                        .iter()
+                        .position(|n| n == name)
+                        .ok_or_else(|| bad(format!("unknown variable {name:?}")))?;
+                    let value =
+                        value.as_f64().ok_or_else(|| bad("initial_state values are numbers"))?;
+                    let id = u32::try_from(id)
+                        .map_err(|_| bad("initial_state variable index exceeds capacity"))?;
+                    initial_state.push((VariableId::from_raw(id), value));
+                }
+            }
+            let mut observed = Vec::new();
+            for item in
+                spec.get("observed").and_then(Value::as_array).map_or(&[][..], Vec::as_slice)
+            {
+                let name = item.as_str().ok_or_else(|| bad("observed lists variable names"))?;
                 let id = names
                     .iter()
                     .position(|n| n == name)
                     .ok_or_else(|| bad(format!("unknown variable {name:?}")))?;
-                let value =
-                    value.as_f64().ok_or_else(|| bad("initial_state values are numbers"))?;
                 let id = u32::try_from(id)
-                    .map_err(|_| bad("initial_state variable index exceeds capacity"))?;
-                initial_state.push((VariableId::from_raw(id), value));
+                    .map_err(|_| bad("observed variable index exceeds capacity"))?;
+                observed.push(VariableId::from_raw(id));
             }
-        }
-        let mut observed = Vec::new();
-        for item in spec.get("observed").and_then(Value::as_array).map_or(&[][..], Vec::as_slice) {
-            let name = item.as_str().ok_or_else(|| bad("observed lists variable names"))?;
-            let id = names
-                .iter()
-                .position(|n| n == name)
-                .ok_or_else(|| bad(format!("unknown variable {name:?}")))?;
-            let id =
-                u32::try_from(id).map_err(|_| bad("observed variable index exceeds capacity"))?;
-            observed.push(VariableId::from_raw(id));
-        }
-        let design = ModelRolloutDesign {
-            horizon: bounded_size(spec, "horizon", 0)?,
-            rows: bounded_size(spec, "rows", 1000)?,
-            held_out_rows: bounded_size(spec, "held_out_rows", 0)?,
-            noise_seed: opt_count(spec, "noise_seed")?.unwrap_or(0),
-            initial_state,
-            unit_cost: scalar(spec, "unit_cost", 0.0)?,
-            exposure_weight: scalar(spec, "exposure_weight", 0.0)?,
-            decision_interval: bounded_size(spec, "decision_interval", 1)?,
-        };
-        let cells = (design.rows.max(design.held_out_rows) as u64)
-            .saturating_mul(names.len().max(1) as u64);
-        if cells > MAX_ROLLOUT_CELLS {
-            return Err(crate::CausalResourceError::new_err(format!(
-                "rows and held_out_rows over {} variables exceed the bound of \
+            let design = ModelRolloutDesign {
+                horizon: bounded_size(spec, "horizon", 0)?,
+                rows: bounded_size(spec, "rows", 1000)?,
+                held_out_rows: bounded_size(spec, "held_out_rows", 0)?,
+                noise_seed: opt_count(spec, "noise_seed")?.unwrap_or(0),
+                initial_state,
+                unit_cost: scalar(spec, "unit_cost", 0.0)?,
+                exposure_weight: scalar(spec, "exposure_weight", 0.0)?,
+                decision_interval: bounded_size(spec, "decision_interval", 1)?,
+            };
+            let cells = (design.rows.max(design.held_out_rows) as u64)
+                .saturating_mul(names.len().max(1) as u64);
+            if cells > MAX_ROLLOUT_CELLS {
+                return Err(crate::CausalResourceError::new_err(format!(
+                    "rows and held_out_rows over {} variables exceed the bound of \
                  {MAX_ROLLOUT_CELLS} simulated values",
-                names.len()
-            )));
-        }
-        let identified = opt_flag(spec, "identified")?.unwrap_or(false);
-        let basis = opt_text(spec, "identification_basis")?.unwrap_or(
-            "fitted structural model; identification of the policy effect not established",
-        );
-        let source = ModelPolicySource::new(
-            vec![Arc::new(self.inner.model.clone())],
-            var("action")?,
-            stage,
-            design,
-            observed,
-            ResponseStanding { identified, basis: basis.to_owned() },
-        )
-        .map_err(translate)?;
-        run_config(&config, &names, &source, cancel)
+                    names.len()
+                )));
+            }
+            let identified = opt_flag(spec, "identified")?.unwrap_or(false);
+            let basis = opt_text(spec, "identification_basis")?.unwrap_or(
+                "fitted structural model; identification of the policy effect not established",
+            );
+            let source = ModelPolicySource::new(
+                vec![Arc::new(self.inner.model.clone())],
+                var("action")?,
+                stage,
+                design,
+                observed,
+                ResponseStanding { identified, basis: basis.to_owned() },
+            )
+            .map_err(translate)?;
+            run_config(&config, &names, &source, cancel)
+        })
     }
 }
 

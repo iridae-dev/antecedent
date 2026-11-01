@@ -48,28 +48,30 @@ impl PyGraphScoreCache {
     #[new]
     #[pyo3(signature = (columns, *, family="gaussian_bic", byte_budget=None))]
     fn new(columns: Vec<Vec<f64>>, family: &str, byte_budget: Option<u64>) -> PyResult<Self> {
-        let family = family_of(family)?;
-        let n_rows = columns.first().map_or(0, Vec::len);
-        if columns.iter().any(|column| column.len() != n_rows) {
-            return Err(value_err("every column must have the same number of rows"));
-        }
-        if columns.iter().flatten().any(|value| !value.is_finite()) {
-            return Err(value_err("graph score columns must be finite"));
-        }
-        let n_vars = columns.len();
-        let flat: Vec<f64> = columns.into_iter().flatten().collect();
-        let data = GraphScoreData::new(n_rows, n_vars, Arc::from(flat)).map_err(state_err)?;
-        let key = GraphScoreCacheKey {
-            data_version: 1,
-            family,
-            var_fingerprint: n_vars as u64,
-            penalty_fingerprint: n_rows as u64,
-        };
-        let mut cache = LocalScoreCache::new(key);
-        if let Some(bytes) = byte_budget {
-            cache = cache.with_byte_budget(bytes);
-        }
-        Ok(Self { data, family, cache })
+        crate::catch_ffi(|| {
+            let family = family_of(family)?;
+            let n_rows = columns.first().map_or(0, Vec::len);
+            if columns.iter().any(|column| column.len() != n_rows) {
+                return Err(value_err("every column must have the same number of rows"));
+            }
+            if columns.iter().flatten().any(|value| !value.is_finite()) {
+                return Err(value_err("graph score columns must be finite"));
+            }
+            let n_vars = columns.len();
+            let flat: Vec<f64> = columns.into_iter().flatten().collect();
+            let data = GraphScoreData::new(n_rows, n_vars, Arc::from(flat)).map_err(state_err)?;
+            let key = GraphScoreCacheKey {
+                data_version: 1,
+                family,
+                var_fingerprint: n_vars as u64,
+                penalty_fingerprint: n_rows as u64,
+            };
+            let mut cache = LocalScoreCache::new(key);
+            if let Some(bytes) = byte_budget {
+                cache = cache.with_byte_budget(bytes);
+            }
+            Ok(Self { data, family, cache })
+        })
     }
 
     /// Rows of the dataset.
@@ -97,9 +99,14 @@ impl PyGraphScoreCache {
 
     /// Replace `node`'s parent set: `(delta, new total)`. Only that node is rescored.
     fn set_parents(&mut self, node: u32, parents: Vec<u32>) -> PyResult<(f64, f64)> {
-        self.cache
-            .delta_score(&self.data, ParentSetOp::SetParents { node, parents: Arc::from(parents) })
-            .map_err(state_err)
+        crate::catch_ffi(|| {
+            self.cache
+                .delta_score(
+                    &self.data,
+                    ParentSetOp::SetParents { node, parents: Arc::from(parents) },
+                )
+                .map_err(state_err)
+        })
     }
 
     /// Current sorted parent set of `node` (empty when none was set).

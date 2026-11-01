@@ -112,71 +112,75 @@ impl PythonExecution {
         temporal_materialization_limits: Option<(u64, u64, u64, u64, u64)>,
         randomization_test_max_row_visits: Option<u64>,
     ) -> PyResult<Self> {
-        if let Some(ranges) = pulse_extrapolation_ranges {
-            if !(ranges.is_finite() && ranges >= 0.0) {
-                return Err(crate::value_err(
-                    "pulse_extrapolation_ranges must be finite and nonnegative",
-                ));
+        crate::catch_ffi(|| {
+            if let Some(ranges) = pulse_extrapolation_ranges {
+                if !(ranges.is_finite() && ranges >= 0.0) {
+                    return Err(crate::value_err(
+                        "pulse_extrapolation_ranges must be finite and nonnegative",
+                    ));
+                }
             }
-        }
-        if threads == Some(0) {
-            return Err(crate::value_err("threads must be positive"));
-        }
-        let mut context = ExecutionContext::production(seed, crate::resolve_user_threads(threads))
-            .with_shared_memory_limit(memory_bytes);
-        if let Some(limit) = exposure_probability_work_limit {
-            context = context.with_exposure_probability_work_limit(limit);
-        }
-        if let Some(limit) = hmc_work_limit {
-            context = context.with_hmc_work_limit(limit);
-        }
-        if let Some((max_offsets, max_work, max_bytes, max_graph_nodes, max_graph_edges)) =
-            temporal_materialization_limits
-        {
-            context = context.with_temporal_materialization_limits(TemporalMaterializationLimits {
-                max_offsets,
-                max_work,
-                max_bytes,
-                max_graph_nodes,
-                max_graph_edges,
-            });
-        }
-        if let Some(max_row_visits) = randomization_test_max_row_visits {
-            context =
-                context.with_randomization_test_limits(RandomizationTestLimits { max_row_visits });
-        }
-        context.cache_policy = match cache {
-            "disabled" => CachePolicy::disabled(),
-            "unbounded" => CachePolicy::enabled(None),
-            "bounded" => CachePolicy::enabled(Some(
-                cache_bytes
-                    .ok_or_else(|| crate::value_err("bounded cache requires cache_bytes"))?,
-            )),
-            _ => return Err(crate::value_err("cache must be disabled, bounded or unbounded")),
-        };
-        context.kernel_policy = match kernel {
-            "auto" => KernelPolicy::production_policy(),
-            "scalar" => KernelPolicy::scalar_only(),
-            "portable" => KernelPolicy {
-                allow_portable_optimized: true,
-                allow_arch_simd: false,
-                force_scalar: false,
-            },
-            _ => return Err(crate::value_err("kernel must be auto, scalar or portable")),
-        };
-        let cancel = cancel.map(|cancel| cancel.inner);
-        if let Some(cancel) = &cancel {
-            context.cancellation = cancel.clone();
-        }
-        let progress = crate::callbacks::progress_sink_from_py(on_progress.as_ref())?;
-        Ok(Self {
-            policy: Arc::new(Policy {
-                context,
-                progress,
-                cancel,
-                callback_failure_capacity,
-                pulse_extrapolation_ranges,
-            }),
+            if threads == Some(0) {
+                return Err(crate::value_err("threads must be positive"));
+            }
+            let mut context =
+                ExecutionContext::production(seed, crate::resolve_user_threads(threads))
+                    .with_shared_memory_limit(memory_bytes);
+            if let Some(limit) = exposure_probability_work_limit {
+                context = context.with_exposure_probability_work_limit(limit);
+            }
+            if let Some(limit) = hmc_work_limit {
+                context = context.with_hmc_work_limit(limit);
+            }
+            if let Some((max_offsets, max_work, max_bytes, max_graph_nodes, max_graph_edges)) =
+                temporal_materialization_limits
+            {
+                context =
+                    context.with_temporal_materialization_limits(TemporalMaterializationLimits {
+                        max_offsets,
+                        max_work,
+                        max_bytes,
+                        max_graph_nodes,
+                        max_graph_edges,
+                    });
+            }
+            if let Some(max_row_visits) = randomization_test_max_row_visits {
+                context = context
+                    .with_randomization_test_limits(RandomizationTestLimits { max_row_visits });
+            }
+            context.cache_policy = match cache {
+                "disabled" => CachePolicy::disabled(),
+                "unbounded" => CachePolicy::enabled(None),
+                "bounded" => CachePolicy::enabled(Some(
+                    cache_bytes
+                        .ok_or_else(|| crate::value_err("bounded cache requires cache_bytes"))?,
+                )),
+                _ => return Err(crate::value_err("cache must be disabled, bounded or unbounded")),
+            };
+            context.kernel_policy = match kernel {
+                "auto" => KernelPolicy::production_policy(),
+                "scalar" => KernelPolicy::scalar_only(),
+                "portable" => KernelPolicy {
+                    allow_portable_optimized: true,
+                    allow_arch_simd: false,
+                    force_scalar: false,
+                },
+                _ => return Err(crate::value_err("kernel must be auto, scalar or portable")),
+            };
+            let cancel = cancel.map(|cancel| cancel.inner);
+            if let Some(cancel) = &cancel {
+                context.cancellation = cancel.clone();
+            }
+            let progress = crate::callbacks::progress_sink_from_py(on_progress.as_ref())?;
+            Ok(Self {
+                policy: Arc::new(Policy {
+                    context,
+                    progress,
+                    cancel,
+                    callback_failure_capacity,
+                    pulse_extrapolation_ranges,
+                }),
+            })
         })
     }
 

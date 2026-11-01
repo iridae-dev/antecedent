@@ -28,7 +28,8 @@ fn support_licensed_cells() -> Vec<String> {
 /// matrix raises `invalid_argument`.
 #[pyfunction]
 fn support_cell_report(coordinate: &str) -> PyResult<String> {
-    let cell = support_cell_from_coordinate(coordinate).ok_or_else(|| {
+    crate::catch_ffi(|| {
+        let cell = support_cell_from_coordinate(coordinate).ok_or_else(|| {
         value_err_code(
             antecedent_core::reason_code!("invalid_argument"),
             format!(
@@ -37,21 +38,22 @@ fn support_cell_report(coordinate: &str) -> PyResult<String> {
             ),
         )
     })?;
-    let status = classify(cell);
-    let message = match status {
-        CellStatus::Licensed => None,
-        CellStatus::NotApplicable { reason } | CellStatus::Allowlisted { reason, .. } => {
-            Some(reason)
-        }
-        CellStatus::Refused => Some(refused_message(cell)),
-    };
-    let report = serde_json::json!({
-        "coordinate": cell_coordinate(cell),
-        "status": status.as_str(),
-        "message": message,
-        "neighbors": antecedent::host::neighbor_records(&licensed_neighbors(cell)),
-    });
-    serde_json::to_string(&report).map_err(|error| crate::value_err(error.to_string()))
+        let status = classify(cell);
+        let message = match status {
+            CellStatus::Licensed => None,
+            CellStatus::NotApplicable { reason } | CellStatus::Allowlisted { reason, .. } => {
+                Some(reason)
+            }
+            CellStatus::Refused => Some(refused_message(cell)),
+        };
+        let report = serde_json::json!({
+            "coordinate": cell_coordinate(cell),
+            "status": status.as_str(),
+            "message": message,
+            "neighbors": antecedent::host::neighbor_records(&licensed_neighbors(cell)),
+        });
+        serde_json::to_string(&report).map_err(|error| crate::value_err(error.to_string()))
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

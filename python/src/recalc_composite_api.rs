@@ -174,13 +174,15 @@ impl PyCompositeSession {
         native: PyRef<'_, crate::recalc_static_api::PyStaticSession>,
         payload: &Bound<'_, PyDict>,
     ) -> PyResult<Self> {
-        let ctx = context(1, None);
-        let native_request = native_request(payload, &ctx)?;
-        CompositeSession::from_native(native.clone_native(), &native_request, &ctx)
-            .map(|inner| Self { inner })
-            .map_err(|cause| {
-                invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
-            })
+        crate::catch_ffi(|| {
+            let ctx = context(1, None);
+            let native_request = native_request(payload, &ctx)?;
+            CompositeSession::from_native(native.clone_native(), &native_request, &ctx)
+                .map(|inner| Self { inner })
+                .map_err(|cause| {
+                    invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
+                })
+        })
     }
     #[pyo3(signature=(payload,*,memory_limit_bytes=None,cancel=None))]
     fn plan(
@@ -189,20 +191,22 @@ impl PyCompositeSession {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let ctx = bounded_context(1, None, memory_limit_bytes, cancel);
-        let request = request(payload, &ctx)?;
-        match self.inner.plan(&request) {
-            Ok(plan) => Ok((
-                Some(
-                    serde_json::to_string(&antecedent_io::recalc_receipt_artifact::plan_to_wire(
-                        &plan,
-                    ))
-                    .map_err(crate::py_msg)?,
-                ),
-                None,
-            )),
-            Err(cause) => Ok((None, Some(error(&cause)?))),
-        }
+        crate::catch_ffi(|| {
+            let ctx = bounded_context(1, None, memory_limit_bytes, cancel);
+            let request = request(payload, &ctx)?;
+            match self.inner.plan(&request) {
+                Ok(plan) => Ok((
+                    Some(
+                        serde_json::to_string(
+                            &antecedent_io::recalc_receipt_artifact::plan_to_wire(&plan),
+                        )
+                        .map_err(crate::py_msg)?,
+                    ),
+                    None,
+                )),
+                Err(cause) => Ok((None, Some(error(&cause)?))),
+            }
+        })
     }
     #[pyo3(signature=(payload,providers,*,seed=1,threads=None,memory_limit_bytes=None,cancel=None))]
     #[allow(clippy::too_many_arguments)]
@@ -216,54 +220,59 @@ impl PyCompositeSession {
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<crate::recalc_api::RunPayload> {
-        let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
-        let request = request(payload, &ctx)?;
-        if providers.len() > 2 {
-            return Err(invalid("composite_recalc.invalid_request", "too many providers"));
-        }
-        let mut actual = Vec::new();
-        for (branch, provider) in providers.iter() {
-            let branch: u8 = branch.extract()?;
-            let branch = Branch::new(branch).ok_or_else(|| {
-                invalid("composite_recalc.invalid_request", "branch exceeds bound")
-            })?;
-            let provider =
-                provider.extract::<PyRef<'_, crate::recalc_external_api::PyCallbackProvider>>()?;
-            actual.push((branch, provider.clone_actual_provider(py)?));
-        }
-        let outcome = py.detach(|| {
-            let mut providers = actual
-                .iter_mut()
-                .map(|(branch, provider)| (*branch, provider as &mut dyn ExternalMeanProvider))
-                .collect::<BTreeMap<_, _>>();
-            self.inner.execute(&request, &mut providers, &ctx)
-        });
-        match outcome {
-            Err(cause) => Ok((None, None, Some(error(&cause)?))),
-            Ok(out) => crate::recalc_family_api::payload(
-                &out.previous,
-                &out.requested,
-                &out.capabilities,
-                &out.plan,
-                &out.receipt,
-                serde_json::json!({"decision":crate::composition_api::supported_json(&out.decision)}),
-            ),
-        }
+        crate::catch_ffi(|| {
+            let ctx = bounded_context(seed, threads, memory_limit_bytes, cancel);
+            let request = request(payload, &ctx)?;
+            if providers.len() > 2 {
+                return Err(invalid("composite_recalc.invalid_request", "too many providers"));
+            }
+            let mut actual = Vec::new();
+            for (branch, provider) in providers.iter() {
+                let branch: u8 = branch.extract()?;
+                let branch = Branch::new(branch).ok_or_else(|| {
+                    invalid("composite_recalc.invalid_request", "branch exceeds bound")
+                })?;
+                let provider = provider
+                    .extract::<PyRef<'_, crate::recalc_external_api::PyCallbackProvider>>()?;
+                actual.push((branch, provider.clone_actual_provider(py)?));
+            }
+            let outcome = py.detach(|| {
+                let mut providers = actual
+                    .iter_mut()
+                    .map(|(branch, provider)| (*branch, provider as &mut dyn ExternalMeanProvider))
+                    .collect::<BTreeMap<_, _>>();
+                self.inner.execute(&request, &mut providers, &ctx)
+            });
+            match outcome {
+                Err(cause) => Ok((None, None, Some(error(&cause)?))),
+                Ok(out) => crate::recalc_family_api::payload(
+                    &out.previous,
+                    &out.requested,
+                    &out.capabilities,
+                    &out.plan,
+                    &out.receipt,
+                    serde_json::json!({"decision":crate::composition_api::supported_json(&out.decision)}),
+                ),
+            }
+        })
     }
     fn rank_conditional_studies(&self, policy_json: &str) -> PyResult<ConditionalPayload> {
-        use antecedent::analysis::conditional_study_ranking::{
-            ConditionalStudyPolicy, ConditionalStudyRanking,
-        };
-        if policy_json.len() > 256 * 1024 {
-            return Err(invalid(
-                "conditional_study_ranking.invalid_policy",
-                "policy exceeds byte bound",
-            ));
-        }
-        let policy: ConditionalStudyPolicy = serde_json::from_str(policy_json).map_err(|_| {
-            invalid("conditional_study_ranking.invalid_policy", "invalid policy schema")
-        })?;
-        conditional_payload(ConditionalStudyRanking::execute(&self.inner, policy), true)
+        crate::catch_ffi(|| {
+            use antecedent::analysis::conditional_study_ranking::{
+                ConditionalStudyPolicy, ConditionalStudyRanking,
+            };
+            if policy_json.len() > 256 * 1024 {
+                return Err(invalid(
+                    "conditional_study_ranking.invalid_policy",
+                    "policy exceeds byte bound",
+                ));
+            }
+            let policy: ConditionalStudyPolicy =
+                serde_json::from_str(policy_json).map_err(|_| {
+                    invalid("conditional_study_ranking.invalid_policy", "invalid policy schema")
+                })?;
+            conditional_payload(ConditionalStudyRanking::execute(&self.inner, policy), true)
+        })
     }
     #[pyo3(signature=(artifact,expected_identity=None))]
     fn consume_conditional_studies(
@@ -271,36 +280,53 @@ impl PyCompositeSession {
         artifact: &Bound<'_, pyo3::types::PyBytes>,
         expected_identity: Option<&str>,
     ) -> PyResult<ConditionalPayload> {
-        use antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking;
-        conditional_payload(
-            ConditionalStudyRanking::consume(artifact.as_bytes(), &self.inner, expected_identity),
-            true,
-        )
+        crate::catch_ffi(|| {
+            use antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking;
+            conditional_payload(
+                ConditionalStudyRanking::consume(
+                    artifact.as_bytes(),
+                    &self.inner,
+                    expected_identity,
+                ),
+                true,
+            )
+        })
     }
     fn native_response(&self) -> PyResult<Option<crate::response_api::ResponseAnalysisResult>> {
-        let native = self.inner.native();
-        let (Some(result), Some(prepared), Some(ctx)) =
-            (native.result(), native.prepared(), native.producing_context())
-        else {
-            return Ok(None);
-        };
-        let names =
-            prepared.schema().variables().iter().map(|v| v.name.to_string()).collect::<Vec<_>>();
-        crate::prepared_api::response_from_retained(&names, result, prepared, ctx).map(Some)
+        crate::catch_ffi(|| {
+            let native = self.inner.native();
+            let (Some(result), Some(prepared), Some(ctx)) =
+                (native.result(), native.prepared(), native.producing_context())
+            else {
+                return Ok(None);
+            };
+            let names = prepared
+                .schema()
+                .variables()
+                .iter()
+                .map(|v| v.name.to_string())
+                .collect::<Vec<_>>();
+            crate::prepared_api::response_from_retained(&names, result, prepared, ctx).map(Some)
+        })
     }
     fn export_native(&self) -> PyResult<Vec<u8>> {
-        self.inner.native().export_result(&context(1, None)).map_err(|cause| {
-            invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
+        crate::catch_ffi(|| {
+            self.inner.native().export_result(&context(1, None)).map_err(|cause| {
+                invalid("composite_recalc.native_state_mismatch", format!("{cause:?}"))
+            })
         })
     }
     fn export_callback(&self, branch: u8) -> PyResult<Vec<u8>> {
-        let branch = Branch::new(branch)
-            .ok_or_else(|| invalid("composite_recalc.invalid_request", "branch exceeds bound"))?;
-        self.inner
-            .callback(branch)
-            .ok_or_else(|| invalid("external_recalc.output_unavailable", "no issued callback"))?
-            .export_output()
-            .map_err(|cause| invalid("external_recalc.artifact_invalid", cause.to_string()))
+        crate::catch_ffi(|| {
+            let branch = Branch::new(branch).ok_or_else(|| {
+                invalid("composite_recalc.invalid_request", "branch exceeds bound")
+            })?;
+            self.inner
+                .callback(branch)
+                .ok_or_else(|| invalid("external_recalc.output_unavailable", "no issued callback"))?
+                .export_output()
+                .map_err(|cause| invalid("external_recalc.artifact_invalid", cause.to_string()))
+        })
     }
 }
 /// Validate a sealed historical ranking without accepting current source state.
@@ -310,13 +336,15 @@ fn conditional_study_ranking_inspect(
     artifact: &[u8],
     expected_identity: Option<&str>,
 ) -> PyResult<ConditionalPayload> {
-    conditional_payload(
+    crate::catch_ffi(|| {
+        conditional_payload(
         antecedent::analysis::conditional_study_ranking::ConditionalStudyRanking::inspect_retained(
             artifact,
             expected_identity,
         ),
         false,
     )
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

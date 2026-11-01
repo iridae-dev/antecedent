@@ -138,23 +138,25 @@ impl FallbackStage {
     fn associational(
         &self,
     ) -> PyResult<Option<(crate::prepared_api::PyPreparedAnalysis, crate::AteAnalysisResult)>> {
-        let Ok(part) = &self.fallback.associational else {
-            return Ok(None);
-        };
-        let raw = crate::ate_result_from_analysis(
-            &self.names,
-            &part.result,
-            false,
-            &self.metadata_context,
-        )?;
-        let handle = crate::prepared_api::PyPreparedAnalysis::from_completed(
-            Arc::new(part.prepared.clone()),
-            Arc::new(part.result.clone()),
-            self.names.clone(),
-            self.seed,
-            self.threads,
-        );
-        Ok(Some((handle, raw)))
+        crate::catch_ffi(|| {
+            let Ok(part) = &self.fallback.associational else {
+                return Ok(None);
+            };
+            let raw = crate::ate_result_from_analysis(
+                &self.names,
+                &part.result,
+                false,
+                &self.metadata_context,
+            )?;
+            let handle = crate::prepared_api::PyPreparedAnalysis::from_completed(
+                Arc::new(part.prepared.clone()),
+                Arc::new(part.result.clone()),
+                self.names.clone(),
+                self.seed,
+                self.threads,
+            );
+            Ok(Some((handle, raw)))
+        })
     }
 
     /// The typed reason there are no evidence needs, when there are none.
@@ -164,37 +166,43 @@ impl FallbackStage {
 
     /// The verified obligations, each with its proof step.
     fn obligations(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        let Ok(needs) = &self.fallback.evidence else {
-            return Ok(None);
-        };
-        let values: Vec<Value> =
-            needs.obligations.iter().map(|o| obligation_json(o, &needs.names)).collect();
-        crate::transport_z_api::to_py_json(py, &Value::Array(values)).map(Some)
+        crate::catch_ffi(|| {
+            let Ok(needs) = &self.fallback.evidence else {
+                return Ok(None);
+            };
+            let values: Vec<Value> =
+                needs.obligations.iter().map(|o| obligation_json(o, &needs.names)).collect();
+            crate::transport_z_api::to_py_json(py, &Value::Array(values)).map(Some)
+        })
     }
 
     /// The evidence-gathering next actions the obligations imply.
     fn next_actions(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        let Ok(needs) = &self.fallback.evidence else {
-            return Ok(None);
-        };
-        let values: Vec<Value> = needs
-            .next_actions
-            .iter()
-            .map(|a| json!({ "id": a.id.as_ref(), "description": a.description.as_ref() }))
-            .collect();
-        crate::transport_z_api::to_py_json(py, &Value::Array(values)).map(Some)
+        crate::catch_ffi(|| {
+            let Ok(needs) = &self.fallback.evidence else {
+                return Ok(None);
+            };
+            let values: Vec<Value> = needs
+                .next_actions
+                .iter()
+                .map(|a| json!({ "id": a.id.as_ref(), "description": a.description.as_ref() }))
+                .collect();
+            crate::transport_z_api::to_py_json(py, &Value::Array(values)).map(Some)
+        })
     }
 
     /// The unfinished studies the obligations determine.
     fn templates(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
-        let Ok(needs) = &self.fallback.evidence else {
-            return Ok(None);
-        };
-        crate::transport_z_api::to_py_json(
-            py,
-            &generation_json(&needs.candidate_templates, &needs.names),
-        )
-        .map(Some)
+        crate::catch_ffi(|| {
+            let Ok(needs) = &self.fallback.evidence else {
+                return Ok(None);
+            };
+            crate::transport_z_api::to_py_json(
+                py,
+                &generation_json(&needs.candidate_templates, &needs.names),
+            )
+            .map(Some)
+        })
     }
 
     /// `not_requested`, `ranked` or `unavailable`; `None` without evidence needs.
@@ -221,10 +229,12 @@ impl FallbackStage {
     /// The report of the refusal beside its description and evidence plan, as `markdown` or
     /// `html`: Rust reads its own `AnalysisWithFallback` and writes the document.
     fn report(&self, format: &str) -> PyResult<String> {
-        let format = ReportFormat::from_name(format).ok_or_else(|| {
-            crate::value_err(format!("unknown report format {format:?}; use markdown or html"))
-        })?;
-        Ok(render_fallback_report(&self.fallback, format))
+        crate::catch_ffi(|| {
+            let format = ReportFormat::from_name(format).ok_or_else(|| {
+                crate::value_err(format!("unknown report format {format:?}; use markdown or html"))
+            })?;
+            Ok(render_fallback_report(&self.fallback, format))
+        })
     }
 
     /// The typed reason the declared candidates could not be ranked.

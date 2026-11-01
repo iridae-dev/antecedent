@@ -36,28 +36,30 @@ fn score_published_decision(
     slope: Option<f64>,
     intercept: Option<f64>,
 ) -> PyResult<Scored> {
-    let demand = match demand {
-        "affine_posterior" => {
-            let (slope, intercept) = affine(slope, intercept, "affine_posterior")?;
-            DecisionDemand::AffinePosterior { slope, intercept }
-        }
-        "affine_mean" => {
-            let (slope, intercept) = affine(slope, intercept, "affine_mean")?;
-            DecisionDemand::AffineMean { slope, intercept }
-        }
-        "nonlinear" => DecisionDemand::Nonlinear,
-        "risk" => DecisionDemand::Risk,
-        other => {
-            return Err(value_err(format!(
-                "unknown decision demand {other:?}; use affine_posterior, affine_mean, \
+    crate::catch_ffi(|| {
+        let demand = match demand {
+            "affine_posterior" => {
+                let (slope, intercept) = affine(slope, intercept, "affine_posterior")?;
+                DecisionDemand::AffinePosterior { slope, intercept }
+            }
+            "affine_mean" => {
+                let (slope, intercept) = affine(slope, intercept, "affine_mean")?;
+                DecisionDemand::AffineMean { slope, intercept }
+            }
+            "nonlinear" => DecisionDemand::Nonlinear,
+            "risk" => DecisionDemand::Risk,
+            other => {
+                return Err(value_err(format!(
+                    "unknown decision demand {other:?}; use affine_posterior, affine_mean, \
                  nonlinear or risk"
-            )));
+                )));
+            }
+        };
+        match score_decision(demand, PublishedCarriers { mean, posterior_mean }) {
+            Ok(scored) => Ok((Some((scored.value, scored.carrier.as_str().to_owned())), None)),
+            Err(missing) => Ok((None, Some(missing.as_str().to_owned()))),
         }
-    };
-    match score_decision(demand, PublishedCarriers { mean, posterior_mean }) {
-        Ok(scored) => Ok((Some((scored.value, scored.carrier.as_str().to_owned())), None)),
-        Err(missing) => Ok((None, Some(missing.as_str().to_owned()))),
-    }
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

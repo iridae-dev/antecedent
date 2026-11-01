@@ -230,137 +230,143 @@ impl PyPreparedAnalysis {
         frame: Option<Bound<'_, PyDict>>,
         accepted: bool,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let target: TemporalTarget = query_spec
-            .get_item("target")?
-            .ok_or_else(|| crate::value_err("temporal target is required"))?
-            .extract()?;
-        let geometry: TemporalGeometry = query_spec
-            .get_item("temporal")?
-            .ok_or_else(|| crate::value_err("temporal geometry is required"))?
-            .extract()?;
-        let response_options_value = query_spec.get_item("response_options")?;
-        let response_options = parse_response_options(
-            response_options_value
-                .as_ref()
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let target: TemporalTarget = query_spec
+                .get_item("target")?
+                .ok_or_else(|| crate::value_err("temporal target is required"))?
+                .extract()?;
+            let geometry: TemporalGeometry = query_spec
+                .get_item("temporal")?
+                .ok_or_else(|| crate::value_err("temporal geometry is required"))?
+                .extract()?;
+            let response_options_value = query_spec.get_item("response_options")?;
+            let response_options = parse_response_options(
+                response_options_value
+                    .as_ref()
+                    .filter(|value| !value.is_none())
+                    .map(|value| value.cast::<PyDict>())
+                    .transpose()?,
+            )?;
+            if response_options.is_some() {
+                return Err(crate::refusal(
+                    antecedent_core::reason_code!("option_not_applicable"),
+                    "the native unfolded temporal estimator does not use static response smoothing options",
+                ));
+            }
+            let discovery = query_spec
+                .get_item("discovery")?
                 .filter(|value| !value.is_none())
-                .map(|value| value.cast::<PyDict>())
-                .transpose()?,
-        )?;
-        if response_options.is_some() {
-            return Err(crate::refusal(
-                antecedent_core::reason_code!("option_not_applicable"),
-                "the native unfolded temporal estimator does not use static response smoothing options",
-            ));
-        }
-        let discovery = query_spec
-            .get_item("discovery")?
-            .filter(|value| !value.is_none())
-            .map(|value| value.extract::<DbnRequest>())
-            .transpose()?;
-        let posterior = query_spec
-            .get_item("posterior")?
-            .filter(|value| !value.is_none())
-            .map(pyo3::Bound::cast_into::<crate::bayesian::PyGraphPosterior>)
-            .transpose()?;
-        if let Some(bound) = &posterior {
-            if discovery.is_some() {
-                return Err(crate::value_err(
-                    "pass a posterior or a discovery request, not both: a supplied posterior is not refitted",
-                ));
+                .map(|value| value.extract::<DbnRequest>())
+                .transpose()?;
+            let posterior = query_spec
+                .get_item("posterior")?
+                .filter(|value| !value.is_none())
+                .map(pyo3::Bound::cast_into::<crate::bayesian::PyGraphPosterior>)
+                .transpose()?;
+            if let Some(bound) = &posterior {
+                if discovery.is_some() {
+                    return Err(crate::value_err(
+                        "pass a posterior or a discovery request, not both: a supplied posterior is not refitted",
+                    ));
+                }
+                if !bound.borrow().is_temporal() {
+                    return Err(crate::value_err(
+                        "a temporal query needs a dynamic-network posterior with lagged edge marginals",
+                    ));
+                }
             }
-            if !bound.borrow().is_temporal() {
-                return Err(crate::value_err(
-                    "a temporal query needs a dynamic-network posterior with lagged edge marginals",
-                ));
-            }
-        }
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let class_prior_ordered = query_spec
-            .get_item("class_prior_ordered")?
-            .filter(|value| !value.is_none())
-            .map(|value| value.extract::<Vec<f64>>())
-            .transpose()?;
-        let class_prior_pairs = query_spec
-            .get_item("class_prior_pairs")?
-            .filter(|value| !value.is_none())
-            .map(|value| value.extract::<Vec<(u64, f64)>>())
-            .transpose()?;
-        let max_completions = query_spec
-            .get_item("max_completions")?
-            .filter(|value| !value.is_none())
-            .map(|value| value.extract::<usize>())
-            .transpose()?;
-        let dag = graph
-            .as_ref()
-            .map(pyo3::types::PyAnyMethods::extract::<graphs::TemporalDag>)
-            .transpose();
-        let (dag, class) = match dag {
-            Ok(Some(dag)) => {
-                require_named_graph_order(&dag.names, &req.names, "TemporalDag")?;
-                (Some(dag.dag), None)
-            }
-            _ => (None, extract_temporal_class(graph.clone(), &req.names)?),
-        };
-        let input = req.load_frame(py, columns, frame.as_ref())?;
-        req.off_gil(py, move |req| {
-            if discovery.is_some() || supplied.is_some() {
-                let series = one_series(input, &req.opts.ctx(seed, threads))?;
-                let query = target.query(series.schema(), geometry, &req.opts)?;
-                let ctx = req.opts.ctx(seed, threads);
-                let gp = if let Some(gp) = supplied {
-                    gp
-                } else {
-                    let settings = discovery
-                        .ok_or_else(|| crate::value_err("posterior discovery is required"))?;
-                    dbn_posterior(
-                        None,
-                        &series,
-                        settings.max_lag,
-                        settings.force_mcmc,
-                        settings.n_chains,
-                        settings.n_warmup,
-                        settings.n_draws,
-                        &ctx,
-                    )?
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let class_prior_ordered = query_spec
+                .get_item("class_prior_ordered")?
+                .filter(|value| !value.is_none())
+                .map(|value| value.extract::<Vec<f64>>())
+                .transpose()?;
+            let class_prior_pairs = query_spec
+                .get_item("class_prior_pairs")?
+                .filter(|value| !value.is_none())
+                .map(|value| value.extract::<Vec<(u64, f64)>>())
+                .transpose()?;
+            let max_completions = query_spec
+                .get_item("max_completions")?
+                .filter(|value| !value.is_none())
+                .map(|value| value.extract::<usize>())
+                .transpose()?;
+            let dag = graph
+                .as_ref()
+                .map(pyo3::types::PyAnyMethods::extract::<graphs::TemporalDag>)
+                .transpose();
+            let (dag, class) = match dag {
+                Ok(Some(dag)) => {
+                    require_named_graph_order(&dag.names, &req.names, "TemporalDag")?;
+                    (Some(dag.dag), None)
+                }
+                _ => (None, extract_temporal_class(graph.clone(), &req.names)?),
+            };
+            let input = req.load_frame(py, columns, frame.as_ref())?;
+            req.off_gil(py, move |req| {
+                if discovery.is_some() || supplied.is_some() {
+                    let series = one_series(input, &req.opts.ctx(seed, threads))?;
+                    let query = target.query(series.schema(), geometry, &req.opts)?;
+                    let ctx = req.opts.ctx(seed, threads);
+                    let gp = if let Some(gp) = supplied {
+                        gp
+                    } else {
+                        let settings = discovery
+                            .ok_or_else(|| crate::value_err("posterior discovery is required"))?;
+                        dbn_posterior(
+                            None,
+                            &series,
+                            settings.max_lag,
+                            settings.force_mcmc,
+                            settings.n_chains,
+                            settings.n_warmup,
+                            settings.n_draws,
+                            &ctx,
+                        )?
+                    };
+                    let builder = with_response_options(
+                        antecedent::Study::series(series).graph_posterior(gp).query(query),
+                        response_options,
+                    );
+                    let builder = crate::temporal_api::apply_class_prior(
+                        builder,
+                        class_prior_ordered,
+                        class_prior_pairs,
+                    )?;
+                    let builder =
+                        crate::temporal_api::apply_max_completions(builder, max_completions);
+                    let builder = req.opts.apply(builder);
+                    return req.finish_with(builder, true, &ctx);
+                }
+                let data = input.materialize()?;
+                let query = target.query(data.schema(), geometry, &req.opts)?;
+                let builder = data.builder(&req.opts.ctx(seed, threads))?;
+                let builder = match (dag, class) {
+                    (Some(dag), None) => {
+                        with_graph(builder, dag, accepted, req.opts.discovery_algorithm())
+                    }
+                    (None, Some(class)) => bind_temporal_class(
+                        builder,
+                        class,
+                        accepted,
+                        req.opts.discovery_algorithm(),
+                    ),
+                    _ => {
+                        return Err(crate::value_err(
+                            "TemporalQuery requires a temporal graph or graph posterior",
+                        ));
+                    }
                 };
-                let builder = with_response_options(
-                    antecedent::Study::series(series).graph_posterior(gp).query(query),
-                    response_options,
-                );
+                let builder = with_response_options(builder.query(query), response_options);
                 let builder = crate::temporal_api::apply_class_prior(
                     builder,
                     class_prior_ordered,
                     class_prior_pairs,
                 )?;
                 let builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-                let builder = req.opts.apply(builder);
-                return req.finish_with(builder, true, &ctx);
-            }
-            let data = input.materialize()?;
-            let query = target.query(data.schema(), geometry, &req.opts)?;
-            let builder = data.builder(&req.opts.ctx(seed, threads))?;
-            let builder = match (dag, class) {
-                (Some(dag), None) => {
-                    with_graph(builder, dag, accepted, req.opts.discovery_algorithm())
-                }
-                (None, Some(class)) => {
-                    bind_temporal_class(builder, class, accepted, req.opts.discovery_algorithm())
-                }
-                _ => {
-                    return Err(crate::value_err(
-                        "TemporalQuery requires a temporal graph or graph posterior",
-                    ));
-                }
-            };
-            let builder = with_response_options(builder.query(query), response_options);
-            let builder = crate::temporal_api::apply_class_prior(
-                builder,
-                class_prior_ordered,
-                class_prior_pairs,
-            )?;
-            let builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            req.finish_applied(builder, true)
+                req.finish_applied(builder, true)
+            })
         })
     }
 }

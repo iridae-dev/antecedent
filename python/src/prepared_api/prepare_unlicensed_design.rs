@@ -42,35 +42,37 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_design("sequential contrast")?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-            let query = antecedent_core::SequentialContrastQuery {
-                outcome: id(&outcome)?,
-                first_treatment: id(&first_treatment)?,
-                second_treatment: id(&second_treatment)?,
-                baseline: baseline
-                    .iter()
-                    .map(|name| id(name))
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into(),
-                intermediate: intermediate
-                    .iter()
-                    .map(|name| id(name))
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into(),
-                active: [active.0, active.1],
-                control: [control.0, control.1],
-                fold_of_row: fold_of_row.into(),
-                fold_count,
-                min_probability,
-            };
-            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
-            let builder = Study::tabular(data).query(CausalQuery::SequentialContrast(query));
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_design("sequential contrast")?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+                let query = antecedent_core::SequentialContrastQuery {
+                    outcome: id(&outcome)?,
+                    first_treatment: id(&first_treatment)?,
+                    second_treatment: id(&second_treatment)?,
+                    baseline: baseline
+                        .iter()
+                        .map(|name| id(name))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into(),
+                    intermediate: intermediate
+                        .iter()
+                        .map(|name| id(name))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into(),
+                    active: [active.0, active.1],
+                    control: [control.0, control.1],
+                    fold_of_row: fold_of_row.into(),
+                    fold_count,
+                    min_probability,
+                };
+                query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+                let _ = accepted;
+                let builder = Study::tabular(data).query(CausalQuery::SequentialContrast(query));
+                req.finish_applied(builder, false)
+            })
         })
     }
 
@@ -94,23 +96,29 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_design("history match")?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-            let query = antecedent_core::HistoryMatchQuery {
-                outcome: id(&outcome)?,
-                treated: id(&treated)?,
-                history: history.iter().map(|name| id(name)).collect::<Result<Vec<_>, _>>()?.into(),
-                period: period.as_deref().map(id).transpose()?,
-                weight: weight.as_deref().map(id).transpose()?,
-                caliper,
-            };
-            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let _ = accepted;
-            let builder = Study::tabular(data).query(CausalQuery::HistoryMatch(query));
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_design("history match")?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+                let query = antecedent_core::HistoryMatchQuery {
+                    outcome: id(&outcome)?,
+                    treated: id(&treated)?,
+                    history: history
+                        .iter()
+                        .map(|name| id(name))
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into(),
+                    period: period.as_deref().map(id).transpose()?,
+                    weight: weight.as_deref().map(id).transpose()?,
+                    caliper,
+                };
+                query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+                let _ = accepted;
+                let builder = Study::tabular(data).query(CausalQuery::HistoryMatch(query));
+                req.finish_applied(builder, false)
+            })
         })
     }
 
@@ -134,22 +142,24 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_design("IV bounds")?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-            let mut query = antecedent_core::IvBoundsQuery::new(
-                id(&outcome)?,
-                id(&treatment)?,
-                id(&instrument)?,
-            );
-            if let Some(weight) = weight.as_deref() {
-                query = query.with_weight(id(weight)?);
-            }
-            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let builder = Study::tabular(data).query(CausalQuery::IvBounds(query));
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_design("IV bounds")?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+                let mut query = antecedent_core::IvBoundsQuery::new(
+                    id(&outcome)?,
+                    id(&treatment)?,
+                    id(&instrument)?,
+                );
+                if let Some(weight) = weight.as_deref() {
+                    query = query.with_weight(id(weight)?);
+                }
+                query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+                let builder = Study::tabular(data).query(CausalQuery::IvBounds(query));
+                req.finish_applied(builder, false)
+            })
         })
     }
 }
@@ -208,15 +218,16 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_design("association")?;
-        let functional = association_functional(&functional, folds)?;
-        let scale = match outcome_scale.as_deref() {
-            None | Some("schema") => antecedent_core::AssociationOutcome::Schema,
-            Some(other) => antecedent_core::AssociationOutcome::from_name(other)
-                .ok_or_else(|| crate::value_err(format!("unknown outcome scale `{other}`")))?,
-        };
-        let build = move |req: PrepareRequest,
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_design("association")?;
+            let functional = association_functional(&functional, folds)?;
+            let scale = match outcome_scale.as_deref() {
+                None | Some("schema") => antecedent_core::AssociationOutcome::Schema,
+                Some(other) => antecedent_core::AssociationOutcome::from_name(other)
+                    .ok_or_else(|| crate::value_err(format!("unknown outcome scale `{other}`")))?,
+            };
+            let build = move |req: PrepareRequest,
                           schema: &antecedent_core::CausalSchema|
               -> PyResult<(PrepareRequest, antecedent_core::AssociationQuery)> {
             let id = |name: &str| crate::graph_build::schema_var_id(schema, name);
@@ -237,27 +248,28 @@ impl PyPreparedAnalysis {
             query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
             Ok((req, query))
         };
-        if series {
-            let input = req.load_frame(py, columns, None)?;
-            let FrameData::Series(data) = input.materialize()? else {
-                return Err(crate::refusal(
-                    antecedent_core::reason_code!("data_modality_not_licensed"),
-                    "an association over time reads the consecutive points of one series",
-                ));
-            };
-            req.off_gil(py, move |req| {
-                let (req, query) = build(req, data.schema())?;
-                let builder = Study::series(data).query(CausalQuery::Association(query));
-                req.finish_applied(builder, true)
-            })
-        } else {
-            let data = req.load_columns(py, columns)?;
-            req.off_gil(py, move |req| {
-                let (req, query) = build(req, data.schema())?;
-                let builder = Study::tabular(data).query(CausalQuery::Association(query));
-                req.finish_applied(builder, false)
-            })
-        }
+            if series {
+                let input = req.load_frame(py, columns, None)?;
+                let FrameData::Series(data) = input.materialize()? else {
+                    return Err(crate::refusal(
+                        antecedent_core::reason_code!("data_modality_not_licensed"),
+                        "an association over time reads the consecutive points of one series",
+                    ));
+                };
+                req.off_gil(py, move |req| {
+                    let (req, query) = build(req, data.schema())?;
+                    let builder = Study::series(data).query(CausalQuery::Association(query));
+                    req.finish_applied(builder, true)
+                })
+            } else {
+                let data = req.load_columns(py, columns)?;
+                req.off_gil(py, move |req| {
+                    let (req, query) = build(req, data.schema())?;
+                    let builder = Study::tabular(data).query(CausalQuery::Association(query));
+                    req.finish_applied(builder, false)
+                })
+            }
+        })
     }
 }
 

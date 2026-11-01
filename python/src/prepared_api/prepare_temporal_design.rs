@@ -125,128 +125,139 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_design("temporal design")?;
-        let spec: DesignSpec = serde_json::from_str(&design)
-            .map_err(|error| crate::value_err(format!("invalid temporal design: {error}")))?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
-            let assignment = match spec {
-                DesignSpec::TwoArm { assignment, probability } => TemporalAssignment::TwoArm {
-                    assignment: assignment.into(),
-                    probability: probability.into(),
-                },
-                DesignSpec::MultiArm { assignment, probabilities, arms, categorical, ordered } => {
-                    TemporalAssignment::MultiArm {
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_design("temporal design")?;
+            let spec: DesignSpec = serde_json::from_str(&design)
+                .map_err(|error| crate::value_err(format!("invalid temporal design: {error}")))?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let id = |name: &str| crate::graph_build::schema_var_id(data.schema(), name);
+                let assignment = match spec {
+                    DesignSpec::TwoArm { assignment, probability } => TemporalAssignment::TwoArm {
+                        assignment: assignment.into(),
+                        probability: probability.into(),
+                    },
+                    DesignSpec::MultiArm {
+                        assignment,
+                        probabilities,
+                        arms,
+                        categorical,
+                        ordered,
+                    } => TemporalAssignment::MultiArm {
                         assignment: assignment.into(),
                         probabilities: probabilities.into(),
                         arms: labels(&arms),
                         categorical,
                         ordered,
-                    }
-                }
-                DesignSpec::Factorial { first, first_probability, second, second_probability } => {
-                    TemporalAssignment::Factorial {
+                    },
+                    DesignSpec::Factorial {
+                        first,
+                        first_probability,
+                        second,
+                        second_probability,
+                    } => TemporalAssignment::Factorial {
                         first: first.into(),
                         first_probability: first_probability.into(),
                         second: second.into(),
                         second_probability: second_probability.into(),
-                    }
-                }
-                DesignSpec::Interference { assignment, probability, clusters } => {
-                    TemporalAssignment::Interference {
-                        assignment: assignment.into(),
-                        probability: probability.into(),
-                        clusters: labels(&clusters),
-                    }
-                }
-                DesignSpec::Dose { dose, density, bandwidth, target } => TemporalAssignment::Dose {
-                    dose: dose.into(),
-                    density: density.into(),
-                    bandwidth,
-                    target: match target {
-                        DoseSpec::SmoothedCurve { grid } => {
-                            TemporalDoseTarget::SmoothedCurve { grid: grid.into() }
-                        }
-                        DoseSpec::SmoothedContrast { active, control } => {
-                            TemporalDoseTarget::SmoothedContrast { active, control }
-                        }
-                        DoseSpec::LocalQuadratic { grid, derivative, curvature_bound } => {
-                            TemporalDoseTarget::LocalQuadratic {
-                                grid: grid.into(),
-                                derivative,
-                                curvature_bound,
-                            }
-                        }
                     },
-                },
-                DesignSpec::RegimeSurvival { treatment, censored, confounders, horizon } => {
-                    TemporalAssignment::RegimeSurvival {
+                    DesignSpec::Interference { assignment, probability, clusters } => {
+                        TemporalAssignment::Interference {
+                            assignment: assignment.into(),
+                            probability: probability.into(),
+                            clusters: labels(&clusters),
+                        }
+                    }
+                    DesignSpec::Dose { dose, density, bandwidth, target } => {
+                        TemporalAssignment::Dose {
+                            dose: dose.into(),
+                            density: density.into(),
+                            bandwidth,
+                            target: match target {
+                                DoseSpec::SmoothedCurve { grid } => {
+                                    TemporalDoseTarget::SmoothedCurve { grid: grid.into() }
+                                }
+                                DoseSpec::SmoothedContrast { active, control } => {
+                                    TemporalDoseTarget::SmoothedContrast { active, control }
+                                }
+                                DoseSpec::LocalQuadratic { grid, derivative, curvature_bound } => {
+                                    TemporalDoseTarget::LocalQuadratic {
+                                        grid: grid.into(),
+                                        derivative,
+                                        curvature_bound,
+                                    }
+                                }
+                            },
+                        }
+                    }
+                    DesignSpec::RegimeSurvival { treatment, censored, confounders, horizon } => {
+                        TemporalAssignment::RegimeSurvival {
+                            treatment: id(&treatment)?,
+                            censored: id(&censored)?,
+                            confounders: confounders
+                                .iter()
+                                .map(|name| id(name))
+                                .collect::<Result<Vec<_>, _>>()?
+                                .into(),
+                            horizon,
+                        }
+                    }
+                    DesignSpec::ObservationalExcursion { treatment, history } => {
+                        TemporalAssignment::ObservationalExcursion {
+                            treatment: id(&treatment)?,
+                            history: history
+                                .iter()
+                                .map(|name| id(name))
+                                .collect::<Result<Vec<_>, _>>()?
+                                .into(),
+                        }
+                    }
+                    DesignSpec::ObservationalRegime {
+                        treatment,
+                        confounders,
+                        active,
+                        reference,
+                        method,
+                    } => TemporalAssignment::ObservationalRegime {
                         treatment: id(&treatment)?,
-                        censored: id(&censored)?,
                         confounders: confounders
                             .iter()
                             .map(|name| id(name))
                             .collect::<Result<Vec<_>, _>>()?
                             .into(),
-                        horizon,
-                    }
-                }
-                DesignSpec::ObservationalExcursion { treatment, history } => {
-                    TemporalAssignment::ObservationalExcursion {
-                        treatment: id(&treatment)?,
-                        history: history
-                            .iter()
-                            .map(|name| id(name))
-                            .collect::<Result<Vec<_>, _>>()?
-                            .into(),
-                    }
-                }
-                DesignSpec::ObservationalRegime {
-                    treatment,
-                    confounders,
-                    active,
-                    reference,
-                    method,
-                } => TemporalAssignment::ObservationalRegime {
-                    treatment: id(&treatment)?,
-                    confounders: confounders
-                        .iter()
-                        .map(|name| id(name))
-                        .collect::<Result<Vec<_>, _>>()?
-                        .into(),
-                    active: active.into(),
-                    reference: reference.into(),
-                    method: antecedent::TemporalRegimeMethod::from_name(&method).ok_or_else(
-                        || crate::value_err(format!("unknown regime estimator {method:?}")),
-                    )?,
-                },
-            };
-            let query = TemporalDesignQuery {
-                outcome: id(&outcome)?,
-                units: labels(&units),
-                periods: periods.into(),
-                lag,
-                assignment,
-                functional: quantile_level.map_or(TemporalDesignFunctional::Mean, |level| {
-                    TemporalDesignFunctional::Quantile { level }
-                }),
-                min_probability,
-                outcome_misclassification: misclassification.map(
-                    |(true_positive, false_negative, true_negative, false_positive)| {
-                        OutcomeMisclassification {
-                            true_positive,
-                            false_negative,
-                            true_negative,
-                            false_positive,
-                        }
+                        active: active.into(),
+                        reference: reference.into(),
+                        method: antecedent::TemporalRegimeMethod::from_name(&method).ok_or_else(
+                            || crate::value_err(format!("unknown regime estimator {method:?}")),
+                        )?,
                     },
-                ),
-            };
-            query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
-            let builder = Study::tabular(data).query(CausalQuery::TemporalDesign(query));
-            req.finish_applied(builder, false)
+                };
+                let query = TemporalDesignQuery {
+                    outcome: id(&outcome)?,
+                    units: labels(&units),
+                    periods: periods.into(),
+                    lag,
+                    assignment,
+                    functional: quantile_level.map_or(TemporalDesignFunctional::Mean, |level| {
+                        TemporalDesignFunctional::Quantile { level }
+                    }),
+                    min_probability,
+                    outcome_misclassification: misclassification.map(
+                        |(true_positive, false_negative, true_negative, false_positive)| {
+                            OutcomeMisclassification {
+                                true_positive,
+                                false_negative,
+                                true_negative,
+                                false_positive,
+                            }
+                        },
+                    ),
+                };
+                query.validate().map_err(|e| py_err(antecedent::CausalError::rejected(e)))?;
+                let builder = Study::tabular(data).query(CausalQuery::TemporalDesign(query));
+                req.finish_applied(builder, false)
+            })
         })
     }
 }

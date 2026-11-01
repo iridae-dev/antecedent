@@ -20,31 +20,34 @@ pub(crate) struct IndexSnapshot {
 impl IndexSnapshot {
     #[new]
     fn new(values: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let len = values.len()?;
-        let bytes = u64::try_from(len)
-            .ok()
-            .and_then(|len| len.checked_mul(8))
-            .ok_or_else(|| crate::value_err("event index size overflow"))?;
-        let mut ctx = antecedent_core::ExecutionContext::production_default(1);
-        crate::execution_api::apply(&mut ctx);
-        let retention =
-            Arc::new(ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map_err(
-                |error| match error {
-                    antecedent_core::execution::AdmissionError::Cancelled => {
-                        crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
-                    }
-                    error => crate::CausalResourceError::new_err(error.to_string()),
-                },
-            )?);
-        let values = if let Ok(array) = values.extract::<numpy::PyReadonlyArray1<'_, i64>>() {
-            match array.as_slice() {
-                Ok(slice) => Arc::from(slice),
-                Err(_) => array.as_array().iter().copied().collect(),
-            }
-        } else {
-            Arc::from(values.extract::<Vec<i64>>()?)
-        };
-        Ok(Self { values, retention })
+        crate::catch_ffi(|| {
+            let len = values.len()?;
+            let bytes = u64::try_from(len)
+                .ok()
+                .and_then(|len| len.checked_mul(8))
+                .ok_or_else(|| crate::value_err("event index size overflow"))?;
+            let mut ctx = antecedent_core::ExecutionContext::production_default(1);
+            crate::execution_api::apply(&mut ctx);
+            let retention = Arc::new(
+                ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map_err(
+                    |error| match error {
+                        antecedent_core::execution::AdmissionError::Cancelled => {
+                            crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
+                        }
+                        error => crate::CausalResourceError::new_err(error.to_string()),
+                    },
+                )?,
+            );
+            let values = if let Ok(array) = values.extract::<numpy::PyReadonlyArray1<'_, i64>>() {
+                match array.as_slice() {
+                    Ok(slice) => Arc::from(slice),
+                    Err(_) => array.as_array().iter().copied().collect(),
+                }
+            } else {
+                Arc::from(values.extract::<Vec<i64>>()?)
+            };
+            Ok(Self { values, retention })
+        })
     }
 
     fn __len__(&self) -> usize {
@@ -82,14 +85,16 @@ impl SnapshotColumn {
     }
 
     fn __getitem__(&self, index: isize) -> PyResult<f64> {
-        let len = isize::try_from(self.table.row_count())
-            .map_err(|_| crate::value_err("snapshot row count exceeds Python index range"))?;
-        let index = if index < 0 { index.checked_add(len) } else { Some(index) };
-        let values = self.values()?;
-        let value = index.and_then(|i| usize::try_from(i).ok()).and_then(|i| values.get(i));
-        value
-            .copied()
-            .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("snapshot row out of range"))
+        crate::catch_ffi(|| {
+            let len = isize::try_from(self.table.row_count())
+                .map_err(|_| crate::value_err("snapshot row count exceeds Python index range"))?;
+            let index = if index < 0 { index.checked_add(len) } else { Some(index) };
+            let values = self.values()?;
+            let value = index.and_then(|i| usize::try_from(i).ok()).and_then(|i| values.get(i));
+            value
+                .copied()
+                .ok_or_else(|| pyo3::exceptions::PyIndexError::new_err("snapshot row out of range"))
+        })
     }
 
     #[getter]
@@ -117,97 +122,123 @@ impl TableSnapshot {
     #[new]
     #[pyo3(signature = (names, columns, *, borrow=false))]
     fn new(names: Vec<String>, columns: Vec<Bound<'_, PyAny>>, borrow: bool) -> PyResult<Self> {
-        if let Some(data) = from_columns(&names, &columns)? {
-            return Ok(Self { data: Arc::new(data), copied_bytes: 0, borrowed_bytes: 0 });
-        }
-        if names.len() != columns.len() || columns.is_empty() {
-            return Err(crate::value_err("snapshot needs one nonempty column per name"));
-        }
-        let rows = columns[0].len()?;
-        let mut arrow = true;
-        for column in &columns {
-            if column.len()? != rows {
-                return Err(crate::value_err("snapshot columns must have equal lengths"));
+        crate::catch_ffi(|| {
+            if let Some(data) = from_columns(&names, &columns)? {
+                return Ok(Self { data: Arc::new(data), copied_bytes: 0, borrowed_bytes: 0 });
             }
-            arrow &= column.hasattr("__arrow_c_array__")?;
-        }
-        let numeric = if arrow {
-            None
-        } else {
-            Some(
-                columns
-                    .iter()
-                    .map(crate::NumericColumn::from_object)
-                    .collect::<PyResult<Vec<_>>>()?,
-            )
-        };
-        let shared = numeric
-            .as_ref()
-            .map(|columns| {
-                columns
+            if names.len() != columns.len() || columns.is_empty() {
+                return Err(crate::value_err("snapshot needs one nonempty column per name"));
+            }
+            let rows = columns[0].len()?;
+            let mut arrow = true;
+            for column in &columns {
+                if column.len()? != rows {
+                    return Err(crate::value_err("snapshot columns must have equal lengths"));
+                }
+                arrow &= column.hasattr("__arrow_c_array__")?;
+            }
+            let numeric = if arrow {
+                None
+            } else {
+                Some(
+                    columns
+                        .iter()
+                        .map(crate::NumericColumn::from_object)
+                        .collect::<PyResult<Vec<_>>>()?,
+                )
+            };
+            let shared = numeric
+                .as_ref()
+                .map(|columns| {
+                    columns
+                        .iter()
+                        .map(|column| match column {
+                            crate::NumericColumn::F64(array) => {
+                                numpy_buffer(array).map(|buffer| buffer.is_some())
+                            }
+                            _ => Ok(false),
+                        })
+                        .collect::<PyResult<Vec<_>>>()
+                })
+                .transpose()?
+                .unwrap_or_else(|| vec![false; columns.len()]);
+            let allocated = shared.iter().filter(|shared| !**shared).count();
+            let bytes_to_retain = rows
+                .checked_mul(allocated)
+                .and_then(|count| count.checked_mul(8))
+                .and_then(|bytes| u64::try_from(bytes).ok())
+                .ok_or_else(|| crate::value_err("snapshot size overflow"))?;
+            let mut ctx = antecedent_core::ExecutionContext::production_default(1);
+            crate::execution_api::apply(&mut ctx);
+            let retention = Arc::new(
+                ctx.acquire_admission_bounded(0, bytes_to_retain, std::time::Duration::ZERO)
+                    .map_err(|error| match error {
+                        antecedent_core::execution::AdmissionError::Cancelled => {
+                            crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
+                        }
+                        error => crate::CausalResourceError::new_err(error.to_string()),
+                    })?,
+            );
+            let (mut data, borrowed, mut copied_bytes) = if let Some(numeric) = numeric {
+                let loaded = crate::numeric_columns_to_batch(&names, &numeric)?.loaded()?;
+                (loaded.data, None, loaded.receipt.bytes_copied)
+            } else {
+                let (data, borrowed) = crate::tabular_from_py_columns(names, columns)?;
+                (data, borrowed, bytes_to_retain.saturating_sub(borrowed.unwrap_or(0)))
+            };
+            let bytes = data
+                .row_count()
+                .checked_mul(data.schema().len())
+                .and_then(|n| n.checked_mul(std::mem::size_of::<f64>()))
+                .and_then(|n| u64::try_from(n).ok())
+                .ok_or_else(|| crate::value_err("snapshot size overflow"))?;
+            if !borrow && borrowed.is_some_and(|n| n > 0) {
+                copied_bytes = bytes;
+                // Arrow can alias writable NumPy arrays. Default snapshots therefore take
+                // ownership too; only the explicit borrow constructor accepts that contract.
+                let storage = data.storage();
+                let columns = storage
+                    .columns()
                     .iter()
                     .map(|column| match column {
-                        crate::NumericColumn::F64(array) => {
-                            numpy_buffer(array).map(|buffer| buffer.is_some())
-                        }
-                        _ => Ok(false),
+                        OwnedColumn::Float64(column) => Float64Column::new(
+                            column.id,
+                            F64Buffer::owned(Arc::<[f64]>::from(column.values.as_slice())),
+                            column.validity.clone(),
+                        )
+                        .map(OwnedColumn::Float64),
+                        _ => Err(antecedent_data::DataError::InvalidArgument {
+                            message: "table snapshots require numeric columns".into(),
+                        }),
                     })
-                    .collect::<PyResult<Vec<_>>>()
-            })
-            .transpose()?
-            .unwrap_or_else(|| vec![false; columns.len()]);
-        let allocated = shared.iter().filter(|shared| !**shared).count();
-        let bytes_to_retain = rows
-            .checked_mul(allocated)
-            .and_then(|count| count.checked_mul(8))
-            .and_then(|bytes| u64::try_from(bytes).ok())
-            .ok_or_else(|| crate::value_err("snapshot size overflow"))?;
-        let mut ctx = antecedent_core::ExecutionContext::production_default(1);
-        crate::execution_api::apply(&mut ctx);
-        let retention = Arc::new(
-            ctx.acquire_admission_bounded(0, bytes_to_retain, std::time::Duration::ZERO).map_err(
-                |error| match error {
-                    antecedent_core::execution::AdmissionError::Cancelled => {
-                        crate::py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
-                    }
-                    error => crate::CausalResourceError::new_err(error.to_string()),
-                },
-            )?,
-        );
-        let (mut data, borrowed, mut copied_bytes) = if let Some(numeric) = numeric {
-            let loaded = crate::numeric_columns_to_batch(&names, &numeric)?.loaded()?;
-            (loaded.data, None, loaded.receipt.bytes_copied)
-        } else {
-            let (data, borrowed) = crate::tabular_from_py_columns(names, columns)?;
-            (data, borrowed, bytes_to_retain.saturating_sub(borrowed.unwrap_or(0)))
-        };
-        let bytes = data
-            .row_count()
-            .checked_mul(data.schema().len())
-            .and_then(|n| n.checked_mul(std::mem::size_of::<f64>()))
-            .and_then(|n| u64::try_from(n).ok())
-            .ok_or_else(|| crate::value_err("snapshot size overflow"))?;
-        if !borrow && borrowed.is_some_and(|n| n > 0) {
-            copied_bytes = bytes;
-            // Arrow can alias writable NumPy arrays. Default snapshots therefore take
-            // ownership too; only the explicit borrow constructor accepts that contract.
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(crate::py_err)?;
+                data = TabularData::new(
+                    OwnedColumnarStorage::try_new(
+                        storage.schema().clone(),
+                        columns,
+                        storage.analysis_mask().cloned(),
+                        storage.weights().map(Arc::from),
+                    )
+                    .map_err(crate::py_err)?,
+                );
+            }
             let storage = data.storage();
             let columns = storage
                 .columns()
                 .iter()
-                .map(|column| match column {
-                    OwnedColumn::Float64(column) => Float64Column::new(
-                        column.id,
-                        F64Buffer::owned(Arc::<[f64]>::from(column.values.as_slice())),
-                        column.validity.clone(),
-                    )
-                    .map(OwnedColumn::Float64),
-                    _ => Err(antecedent_data::DataError::InvalidArgument {
-                        message: "table snapshots require numeric columns".into(),
-                    }),
+                .cloned()
+                .enumerate()
+                .map(|(index, column)| match column {
+                    OwnedColumn::Float64(mut column) => {
+                        if !shared[index] {
+                            column.values = column.values.with_admission(Arc::clone(&retention));
+                        }
+                        OwnedColumn::Float64(column)
+                    }
+                    column => column,
                 })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(crate::py_err)?;
+                .collect();
             data = TabularData::new(
                 OwnedColumnarStorage::try_new(
                     storage.schema().clone(),
@@ -217,34 +248,9 @@ impl TableSnapshot {
                 )
                 .map_err(crate::py_err)?,
             );
-        }
-        let storage = data.storage();
-        let columns = storage
-            .columns()
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(index, column)| match column {
-                OwnedColumn::Float64(mut column) => {
-                    if !shared[index] {
-                        column.values = column.values.with_admission(Arc::clone(&retention));
-                    }
-                    OwnedColumn::Float64(column)
-                }
-                column => column,
-            })
-            .collect();
-        data = TabularData::new(
-            OwnedColumnarStorage::try_new(
-                storage.schema().clone(),
-                columns,
-                storage.analysis_mask().cloned(),
-                storage.weights().map(Arc::from),
-            )
-            .map_err(crate::py_err)?,
-        );
-        let borrowed_bytes = if borrow { borrowed.unwrap_or(0) } else { 0 };
-        Ok(Self { data: Arc::new(data), copied_bytes, borrowed_bytes })
+            let borrowed_bytes = if borrow { borrowed.unwrap_or(0) } else { 0 };
+            Ok(Self { data: Arc::new(data), copied_bytes, borrowed_bytes })
+        })
     }
 
     #[getter]
@@ -268,16 +274,18 @@ impl TableSnapshot {
     }
 
     fn column(&self, name: &str) -> PyResult<SnapshotColumn> {
-        let id = self
-            .data
-            .schema()
-            .variables()
-            .iter()
-            .position(|v| &*v.name == name)
-            .and_then(|i| u32::try_from(i).ok())
-            .map(VariableId::from_raw)
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_owned()))?;
-        Ok(SnapshotColumn { table: Arc::clone(&self.data), id })
+        crate::catch_ffi(|| {
+            let id = self
+                .data
+                .schema()
+                .variables()
+                .iter()
+                .position(|v| &*v.name == name)
+                .and_then(|i| u32::try_from(i).ok())
+                .map(VariableId::from_raw)
+                .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_owned()))?;
+            Ok(SnapshotColumn { table: Arc::clone(&self.data), id })
+        })
     }
 }
 

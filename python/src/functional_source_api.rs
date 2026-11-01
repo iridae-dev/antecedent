@@ -12,41 +12,43 @@ fn export_law_functional_source(
     functional_json: &str,
     input: &crate::composition_api::PyDecisionInput,
 ) -> PyResult<(String, Vec<u8>)> {
-    if contract_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
-        return Err(crate::with_reason_code(
-            crate::value_err("functional_source.invalid_contract"),
-            antecedent_core::reason_code!("invalid_argument"),
-        ));
-    }
-    let functional = crate::composition_api::parsed_functional(functional_json)?;
-    let contract = contract_from_json_refusal(contract_json)
-        .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
-    let antecedent_design::composition_boundary::InputSource::JointLaw(source) =
-        input.inner().source()
-    else {
-        return Err(crate::with_reason_code(
-            crate::value_err("functional_source.original_law_required"),
-            antecedent_core::reason_code!("route_not_supported"),
-        ));
-    };
-    let mut artifact = antecedent_design::functional_source::LawFunctionalArtifact::produce(
-        source.clone(),
-        contract,
-        action_id,
-        functional,
-    )
-    .map_err(functional_source_error)?;
-    if let Some(claim) = &input.source_claim {
-        artifact = artifact
-            .with_source_evidence(
-                &crate::source_evidence_api::PySourceEvidence::from_claim(claim)?.inner,
-            )
-            .map_err(functional_source_error)?;
-    }
-    Ok((
-        artifact.summary().map_err(functional_source_error)?.to_string(),
-        artifact.export().map_err(functional_source_error)?,
-    ))
+    crate::catch_ffi(|| {
+        if contract_json.len() > crate::bridge::MAX_CONFIG_DECLARATION_BYTES {
+            return Err(crate::with_reason_code(
+                crate::value_err("functional_source.invalid_contract"),
+                antecedent_core::reason_code!("invalid_argument"),
+            ));
+        }
+        let functional = crate::composition_api::parsed_functional(functional_json)?;
+        let contract = contract_from_json_refusal(contract_json)
+            .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
+        let antecedent_design::composition_boundary::InputSource::JointLaw(source) =
+            input.inner().source()
+        else {
+            return Err(crate::with_reason_code(
+                crate::value_err("functional_source.original_law_required"),
+                antecedent_core::reason_code!("route_not_supported"),
+            ));
+        };
+        let mut artifact = antecedent_design::functional_source::LawFunctionalArtifact::produce(
+            source.clone(),
+            contract,
+            action_id,
+            functional,
+        )
+        .map_err(functional_source_error)?;
+        if let Some(claim) = &input.source_claim {
+            artifact = artifact
+                .with_source_evidence(
+                    &crate::source_evidence_api::PySourceEvidence::from_claim(claim)?.inner,
+                )
+                .map_err(functional_source_error)?;
+        }
+        Ok((
+            artifact.summary().map_err(functional_source_error)?.to_string(),
+            artifact.export().map_err(functional_source_error)?,
+        ))
+    })
 }
 fn functional_source_error(error: antecedent_io::IoError) -> PyErr {
     if let antecedent_io::IoError::Refused { code, message } = error {
@@ -62,13 +64,15 @@ fn consume_law_functional_source(
     bytes: &[u8],
     expected_identity: Option<&str>,
 ) -> PyResult<String> {
-    antecedent_design::functional_source::LawFunctionalArtifact::consume_expected(
-        bytes,
-        expected_identity,
-    )
-    .and_then(|artifact| artifact.summary())
-    .map(|value| value.to_string())
-    .map_err(functional_source_error)
+    crate::catch_ffi(|| {
+        antecedent_design::functional_source::LawFunctionalArtifact::consume_expected(
+            bytes,
+            expected_identity,
+        )
+        .and_then(|artifact| artifact.summary())
+        .map(|value| value.to_string())
+        .map_err(functional_source_error)
+    })
 }
 
 /// Explicit actual producer replay validates retained original rows without importing authority.
@@ -77,51 +81,53 @@ fn resolve_law_functional_source(
     bytes: &[u8],
     actual: &crate::program_claims_api::PyNativeResponseClaim,
 ) -> PyResult<String> {
-    use antecedent::analysis::native_claims::NativeDecisionSource;
-    use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
-    let artifact = antecedent_design::functional_source::LawFunctionalArtifact::consume(bytes)
-        .map_err(functional_source_error)?;
-    let expected = artifact.source_evidence().ok_or_else(|| {
-        crate::with_reason_code(
-            crate::value_err("functional_source.native_source_unavailable"),
-            antecedent_core::reason_code!("invalid_argument"),
-        )
-    })?;
-    let fresh = crate::source_evidence_api::PySourceEvidence::from_claim(actual)?;
-    expected.require_same_source(&fresh.inner).map_err(|_| {
-        crate::with_reason_code(
-            crate::value_err("functional_source.source_mismatch"),
-            antecedent_core::reason_code!("invalid_argument"),
-        )
-    })?;
-    let original = actual
-        .claim
-        .decision_source(&SourceRequirement {
-            any_of: vec![SourceRepresentation::JointDraws],
-            sampled_needs_error_receipt: false,
-        })
-        .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
-    let NativeDecisionSource::JointLaw(law) = original.source else {
-        return Err(crate::with_reason_code(
-            crate::value_err("functional_source.native_source_unavailable"),
-            antecedent_core::reason_code!("invalid_argument"),
-        ));
-    };
-    if artifact
-        .original_law()
-        .to_bytes("native-law-source-check")
-        .map_err(functional_source_error)?
-        != law.to_bytes("native-law-source-check").map_err(functional_source_error)?
-    {
-        return Err(crate::with_reason_code(
-            crate::value_err("functional_source.source_mismatch"),
-            antecedent_core::reason_code!("invalid_argument"),
-        ));
-    }
-    let mut report = artifact.summary().map_err(functional_source_error)?;
-    report["native_row_origin_verified"] = serde_json::json!(true);
-    report["source_resolution"] = serde_json::json!({"kind":"actual_original_native_law_comparison","native_authority_issued":false,"calibration_license_issued":false});
-    Ok(report.to_string())
+    crate::catch_ffi(|| {
+        use antecedent::analysis::native_claims::NativeDecisionSource;
+        use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
+        let artifact = antecedent_design::functional_source::LawFunctionalArtifact::consume(bytes)
+            .map_err(functional_source_error)?;
+        let expected = artifact.source_evidence().ok_or_else(|| {
+            crate::with_reason_code(
+                crate::value_err("functional_source.native_source_unavailable"),
+                antecedent_core::reason_code!("invalid_argument"),
+            )
+        })?;
+        let fresh = crate::source_evidence_api::PySourceEvidence::from_claim(actual)?;
+        expected.require_same_source(&fresh.inner).map_err(|_| {
+            crate::with_reason_code(
+                crate::value_err("functional_source.source_mismatch"),
+                antecedent_core::reason_code!("invalid_argument"),
+            )
+        })?;
+        let original = actual
+            .claim
+            .decision_source(&SourceRequirement {
+                any_of: vec![SourceRepresentation::JointDraws],
+                sampled_needs_error_receipt: false,
+            })
+            .map_err(|cause| crate::value_err_code(cause.code, cause.detail))?;
+        let NativeDecisionSource::JointLaw(law) = original.source else {
+            return Err(crate::with_reason_code(
+                crate::value_err("functional_source.native_source_unavailable"),
+                antecedent_core::reason_code!("invalid_argument"),
+            ));
+        };
+        if artifact
+            .original_law()
+            .to_bytes("native-law-source-check")
+            .map_err(functional_source_error)?
+            != law.to_bytes("native-law-source-check").map_err(functional_source_error)?
+        {
+            return Err(crate::with_reason_code(
+                crate::value_err("functional_source.source_mismatch"),
+                antecedent_core::reason_code!("invalid_argument"),
+            ));
+        }
+        let mut report = artifact.summary().map_err(functional_source_error)?;
+        report["native_row_origin_verified"] = serde_json::json!(true);
+        report["source_resolution"] = serde_json::json!({"kind":"actual_original_native_law_comparison","native_authority_issued":false,"calibration_license_issued":false});
+        Ok(report.to_string())
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

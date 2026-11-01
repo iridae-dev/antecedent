@@ -91,48 +91,51 @@ impl PosteriorArtifact {
         treatment_contrast: Option<f64>,
         subsampled_out_mass: f64,
     ) -> PyResult<Self> {
-        let count = u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
-        // Empty draws use the existing summary-only encoding, including when
-        // supplied to the direct constructor.
-        let draws_encoding = if draws.is_empty() { "none" } else { "f64_le_colmajor" };
-        let meta = CausalPosteriorWire {
-            quantities: quantity_names
-                .iter()
-                .map(|name| PosteriorQuantityWire::Effect { name: name.clone() })
-                .collect(),
-            n_draws: count,
-            mean,
-            sd,
-            q025,
-            q975,
-            identification,
-            unidentified_mass,
-            subsampled_out_mass,
-            backend_id,
-            converged,
-            hessian_condition,
-            draws_encoding: draws_encoding.into(),
-            treatment_contrast,
-            preparation: None,
-        };
-        antecedent_io_core::posterior::validate_posterior_meta(&meta, Some(&draws))
-            .map_err(|error| crate::value_err(error.to_string()))?;
-        Ok(Self {
-            n_draws,
-            mean: meta.mean,
-            sd: meta.sd,
-            q025: meta.q025,
-            q975: meta.q975,
-            draws,
-            backend_id: meta.backend_id,
-            identification: meta.identification,
-            unidentified_mass: meta.unidentified_mass,
-            subsampled_out_mass: meta.subsampled_out_mass,
-            converged: meta.converged,
-            hessian_condition: meta.hessian_condition,
-            quantity_names,
-            treatment_contrast: meta.treatment_contrast,
-            quantity_schema: None,
+        crate::catch_ffi(|| {
+            let count =
+                u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
+            // Empty draws use the existing summary-only encoding, including when
+            // supplied to the direct constructor.
+            let draws_encoding = if draws.is_empty() { "none" } else { "f64_le_colmajor" };
+            let meta = CausalPosteriorWire {
+                quantities: quantity_names
+                    .iter()
+                    .map(|name| PosteriorQuantityWire::Effect { name: name.clone() })
+                    .collect(),
+                n_draws: count,
+                mean,
+                sd,
+                q025,
+                q975,
+                identification,
+                unidentified_mass,
+                subsampled_out_mass,
+                backend_id,
+                converged,
+                hessian_condition,
+                draws_encoding: draws_encoding.into(),
+                treatment_contrast,
+                preparation: None,
+            };
+            antecedent_io_core::posterior::validate_posterior_meta(&meta, Some(&draws))
+                .map_err(|error| crate::value_err(error.to_string()))?;
+            Ok(Self {
+                n_draws,
+                mean: meta.mean,
+                sd: meta.sd,
+                q025: meta.q025,
+                q975: meta.q975,
+                draws,
+                backend_id: meta.backend_id,
+                identification: meta.identification,
+                unidentified_mass: meta.unidentified_mass,
+                subsampled_out_mass: meta.subsampled_out_mass,
+                converged: meta.converged,
+                hessian_condition: meta.hessian_condition,
+                quantity_names,
+                treatment_contrast: meta.treatment_contrast,
+                quantity_schema: None,
+            })
         })
     }
 
@@ -181,45 +184,48 @@ impl PosteriorArtifact {
         treatment_contrast: Option<f64>,
         subsampled_out_mass: f64,
     ) -> PyResult<Self> {
-        let count = u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
-        let meta = CausalPosteriorWire {
-            quantities: quantity_names
-                .iter()
-                .map(|name| PosteriorQuantityWire::Effect { name: name.clone() })
-                .collect(),
-            n_draws: count,
-            mean,
-            sd,
-            q025,
-            q975,
-            identification,
-            unidentified_mass,
-            subsampled_out_mass,
-            backend_id,
-            converged,
-            hessian_condition,
-            draws_encoding: "none".into(),
-            treatment_contrast,
-            preparation: None,
-        };
-        antecedent_io_core::posterior::validate_posterior_meta(&meta, None)
-            .map_err(|error| crate::value_err(error.to_string()))?;
-        Ok(Self {
-            n_draws,
-            mean: meta.mean,
-            sd: meta.sd,
-            q025: meta.q025,
-            q975: meta.q975,
-            draws: Vec::new(),
-            backend_id: meta.backend_id,
-            identification: meta.identification,
-            unidentified_mass: meta.unidentified_mass,
-            subsampled_out_mass: meta.subsampled_out_mass,
-            converged: meta.converged,
-            hessian_condition: meta.hessian_condition,
-            quantity_names,
-            treatment_contrast: meta.treatment_contrast,
-            quantity_schema: None,
+        crate::catch_ffi(|| {
+            let count =
+                u32::try_from(n_draws).map_err(|_| crate::value_err("n_draws exceeds u32"))?;
+            let meta = CausalPosteriorWire {
+                quantities: quantity_names
+                    .iter()
+                    .map(|name| PosteriorQuantityWire::Effect { name: name.clone() })
+                    .collect(),
+                n_draws: count,
+                mean,
+                sd,
+                q025,
+                q975,
+                identification,
+                unidentified_mass,
+                subsampled_out_mass,
+                backend_id,
+                converged,
+                hessian_condition,
+                draws_encoding: "none".into(),
+                treatment_contrast,
+                preparation: None,
+            };
+            antecedent_io_core::posterior::validate_posterior_meta(&meta, None)
+                .map_err(|error| crate::value_err(error.to_string()))?;
+            Ok(Self {
+                n_draws,
+                mean: meta.mean,
+                sd: meta.sd,
+                q025: meta.q025,
+                q975: meta.q975,
+                draws: Vec::new(),
+                backend_id: meta.backend_id,
+                identification: meta.identification,
+                unidentified_mass: meta.unidentified_mass,
+                subsampled_out_mass: meta.subsampled_out_mass,
+                converged: meta.converged,
+                hessian_condition: meta.hessian_condition,
+                quantity_names,
+                treatment_contrast: meta.treatment_contrast,
+                quantity_schema: None,
+            })
         })
     }
 
@@ -242,52 +248,56 @@ impl PosteriorArtifact {
         dtype: Option<Bound<'py, PyAny>>,
         copy: Option<Bound<'py, PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        // Tri-state: None = copy-if-needed, Some(false) = never, Some(true) = always.
-        let force_copy = match &copy {
-            Some(c) => Some(c.is_truthy()?),
-            None => None,
-        };
-        let np = py.import("numpy")?;
-        let float64 = np.getattr("float64")?;
-        let arr = if force_copy == Some(true) {
-            let draws = &slf.borrow().draws;
-            PyArray1::from_slice(py, draws).into_any()
-        } else {
-            let mv = py.import("builtins")?.call_method1("memoryview", (slf,))?;
-            np.getattr("asarray")?.call((mv, &float64), None)?
-        };
-        match dtype {
-            None => Ok(arr),
-            Some(dt) => match force_copy {
-                // copy=None → NumPy default (copy only if the cast requires it).
-                None => Ok(np.getattr("asarray")?.call((arr, dt), None)?),
-                Some(force) => {
-                    // NumPy 2: forward explicit copy= so False cannot silently allocate.
-                    // NumPy 1.x lacks copy=; fall back to an explicit same-dtype check.
-                    let kwargs = PyDict::new(py);
-                    kwargs.set_item("copy", force)?;
-                    match np.getattr("asarray")?.call((&arr, &dt), Some(&kwargs)) {
-                        Ok(out) => Ok(out),
-                        Err(err) if !force => {
-                            let msg = err.to_string();
-                            if msg.contains("unexpected keyword argument") || msg.contains("copy") {
-                                let cur = arr.getattr("dtype")?;
-                                if cur.eq(dt)? {
-                                    Ok(arr)
-                                } else {
-                                    Err(crate::value_err(
-                                        "Unable to avoid a copy while casting PosteriorArtifact \
+        crate::catch_ffi(|| {
+            // Tri-state: None = copy-if-needed, Some(false) = never, Some(true) = always.
+            let force_copy = match &copy {
+                Some(c) => Some(c.is_truthy()?),
+                None => None,
+            };
+            let np = py.import("numpy")?;
+            let float64 = np.getattr("float64")?;
+            let arr = if force_copy == Some(true) {
+                let draws = &slf.borrow().draws;
+                PyArray1::from_slice(py, draws).into_any()
+            } else {
+                let mv = py.import("builtins")?.call_method1("memoryview", (slf,))?;
+                np.getattr("asarray")?.call((mv, &float64), None)?
+            };
+            match dtype {
+                None => Ok(arr),
+                Some(dt) => match force_copy {
+                    // copy=None → NumPy default (copy only if the cast requires it).
+                    None => Ok(np.getattr("asarray")?.call((arr, dt), None)?),
+                    Some(force) => {
+                        // NumPy 2: forward explicit copy= so False cannot silently allocate.
+                        // NumPy 1.x lacks copy=; fall back to an explicit same-dtype check.
+                        let kwargs = PyDict::new(py);
+                        kwargs.set_item("copy", force)?;
+                        match np.getattr("asarray")?.call((&arr, &dt), Some(&kwargs)) {
+                            Ok(out) => Ok(out),
+                            Err(err) if !force => {
+                                let msg = err.to_string();
+                                if msg.contains("unexpected keyword argument")
+                                    || msg.contains("copy")
+                                {
+                                    let cur = arr.getattr("dtype")?;
+                                    if cur.eq(dt)? {
+                                        Ok(arr)
+                                    } else {
+                                        Err(crate::value_err(
+                                            "Unable to avoid a copy while casting PosteriorArtifact \
                                          dtype; pass copy=True to allow a conversion",
-                                    ))
+                                        ))
+                                    }
+                                } else {
+                                    Err(err)
                                 }
-                            } else {
-                                Err(err)
                             }
+                            Err(err) => Err(err),
                         }
-                        Err(err) => Err(err),
                     }
-                }
-            },
-        }
+                },
+            }
+        })
     }
 }

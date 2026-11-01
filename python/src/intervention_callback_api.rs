@@ -173,19 +173,21 @@ impl PyBatchCallbackHandle {
         source_sha256: Option<String>,
         entry_point: Option<String>,
     ) -> PyResult<Self> {
-        if !function.is_callable() {
-            return Err(value_err("a batch callback must be callable"));
-        }
-        let spec = spec_of(
-            name,
-            inputs,
-            output_kind,
-            &output_params,
-            dependencies,
-            source_sha256,
-            entry_point,
-        )?;
-        Ok(Self { inner: Arc::new(PyBatchCallback { spec, function: function.unbind() }) })
+        crate::catch_ffi(|| {
+            if !function.is_callable() {
+                return Err(value_err("a batch callback must be callable"));
+            }
+            let spec = spec_of(
+                name,
+                inputs,
+                output_kind,
+                &output_params,
+                dependencies,
+                source_sha256,
+                entry_point,
+            )?;
+            Ok(Self { inner: Arc::new(PyBatchCallback { spec, function: function.unbind() }) })
+        })
     }
 
     #[getter]
@@ -206,21 +208,23 @@ impl PyBatchCallbackHandle {
 
     /// The recovery record fields, or `None` for a runtime binding.
     fn recovery_record<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyDict>>> {
-        let Some(record) = self.inner.spec.recovery_record() else {
-            return Ok(None);
-        };
-        let out = PyDict::new(py);
-        out.set_item("name", &record.name)?;
-        out.set_item("inputs", record.inputs.to_vec())?;
-        let (kind, params) = output_parts(&record.output);
-        out.set_item("output_kind", kind)?;
-        out.set_item("output_params", params)?;
-        out.set_item("source_sha256", &record.source_sha256)?;
-        out.set_item("entry_point", &record.entry_point)?;
-        let dependencies: Vec<(String, String)> =
-            record.dependencies.iter().map(|d| (d.name.clone(), d.version.clone())).collect();
-        out.set_item("dependencies", dependencies)?;
-        Ok(Some(out))
+        crate::catch_ffi(|| {
+            let Some(record) = self.inner.spec.recovery_record() else {
+                return Ok(None);
+            };
+            let out = PyDict::new(py);
+            out.set_item("name", &record.name)?;
+            out.set_item("inputs", record.inputs.to_vec())?;
+            let (kind, params) = output_parts(&record.output);
+            out.set_item("output_kind", kind)?;
+            out.set_item("output_params", params)?;
+            out.set_item("source_sha256", &record.source_sha256)?;
+            out.set_item("entry_point", &record.entry_point)?;
+            let dependencies: Vec<(String, String)> =
+                record.dependencies.iter().map(|d| (d.name.clone(), d.version.clone())).collect();
+            out.set_item("dependencies", dependencies)?;
+            Ok(Some(out))
+        })
     }
 }
 
@@ -260,20 +264,22 @@ pub fn verify_callback_recovery(
     dependencies: Vec<(String, String)>,
     supplied: PyRef<'_, PyBatchCallbackHandle>,
 ) -> PyResult<()> {
-    let record = RecoveryRecord {
-        name,
-        inputs: inputs.into(),
-        output: output_of(output_kind, &output_params)?,
-        source_sha256,
-        entry_point,
-        dependencies: dependencies
-            .into_iter()
-            .map(|(name, version)| PinnedDependency { name, version })
-            .collect(),
-    };
-    record.verify(&supplied.inner.spec).map_err(|mismatch| {
-        let r = mismatch.refusal();
-        refusal(r.code, r.message)
+    crate::catch_ffi(|| {
+        let record = RecoveryRecord {
+            name,
+            inputs: inputs.into(),
+            output: output_of(output_kind, &output_params)?,
+            source_sha256,
+            entry_point,
+            dependencies: dependencies
+                .into_iter()
+                .map(|(name, version)| PinnedDependency { name, version })
+                .collect(),
+        };
+        record.verify(&supplied.inner.spec).map_err(|mismatch| {
+            let r = mismatch.refusal();
+            refusal(r.code, r.message)
+        })
     })
 }
 
@@ -312,32 +318,35 @@ pub fn encode_callback_policy_program(
     names: Vec<String>,
     items: Vec<ProgramItem>,
 ) -> PyResult<Bound<'_, PyBytes>> {
-    let resolve = index_resolver(&names);
-    let mut interventions: Vec<Intervention> = Vec::with_capacity(items.len());
-    for (closed, callback) in &items {
-        match (closed, callback) {
-            (Some(text), None) => interventions
-                .extend(artifact::interventions_from_named_json(text, &resolve).map_err(io_err)?),
-            (None, Some((mode, variable, handle, reads))) => {
-                let id = resolve(variable)
-                    .map(VariableId::from_raw)
-                    .ok_or_else(|| value_err(format!("unknown variable {variable:?}")))?;
-                let args = reads
-                    .iter()
-                    .map(|read| match read {
-                        Some(name) => resolve(name)
-                            .map(|raw| ValueExpr::var(VariableId::from_raw(raw)))
-                            .ok_or_else(|| value_err(format!("unknown variable {name:?}"))),
-                        None => Ok(ValueExpr::generated()),
-                    })
-                    .collect::<PyResult<Vec<_>>>()?;
-                interventions.push(program_intervention(mode, id, handle.get(), args)?);
+    crate::catch_ffi(|| {
+        let resolve = index_resolver(&names);
+        let mut interventions: Vec<Intervention> = Vec::with_capacity(items.len());
+        for (closed, callback) in &items {
+            match (closed, callback) {
+                (Some(text), None) => interventions.extend(
+                    artifact::interventions_from_named_json(text, &resolve).map_err(io_err)?,
+                ),
+                (None, Some((mode, variable, handle, reads))) => {
+                    let id = resolve(variable)
+                        .map(VariableId::from_raw)
+                        .ok_or_else(|| value_err(format!("unknown variable {variable:?}")))?;
+                    let args = reads
+                        .iter()
+                        .map(|read| match read {
+                            Some(name) => resolve(name)
+                                .map(|raw| ValueExpr::var(VariableId::from_raw(raw)))
+                                .ok_or_else(|| value_err(format!("unknown variable {name:?}"))),
+                            None => Ok(ValueExpr::generated()),
+                        })
+                        .collect::<PyResult<Vec<_>>>()?;
+                    interventions.push(program_intervention(mode, id, handle.get(), args)?);
+                }
+                _ => return Err(value_err("a program item is either closed-form or a callback")),
             }
-            _ => return Err(value_err("a program item is either closed-form or a callback")),
         }
-    }
-    let bytes = artifact::encode_policy_program(&interventions).map_err(io_err)?;
-    Ok(PyBytes::new(py, &bytes))
+        let bytes = artifact::encode_policy_program(&interventions).map_err(io_err)?;
+        Ok(PyBytes::new(py, &bytes))
+    })
 }
 
 /// The recovery records an encoded program carries, in the order its callbacks run: what a
@@ -345,24 +354,29 @@ pub fn encode_callback_policy_program(
 /// checked first.
 #[pyfunction]
 pub fn policy_program_callback_records(py: Python<'_>, data: &[u8]) -> PyResult<Vec<Py<PyDict>>> {
-    artifact::policy_program_callback_records(data)
-        .map_err(io_err)?
-        .iter()
-        .map(|record| {
-            let out = PyDict::new(py);
-            out.set_item("name", &record.name)?;
-            out.set_item("inputs", record.inputs.to_vec())?;
-            let (kind, params) = output_parts(&record.output);
-            out.set_item("output_kind", kind)?;
-            out.set_item("output_params", params)?;
-            out.set_item("source_sha256", &record.source_sha256)?;
-            out.set_item("entry_point", &record.entry_point)?;
-            let dependencies: Vec<(String, String)> =
-                record.dependencies.iter().map(|d| (d.name.clone(), d.version.clone())).collect();
-            out.set_item("dependencies", dependencies)?;
-            Ok(out.unbind())
-        })
-        .collect()
+    crate::catch_ffi(|| {
+        artifact::policy_program_callback_records(data)
+            .map_err(io_err)?
+            .iter()
+            .map(|record| {
+                let out = PyDict::new(py);
+                out.set_item("name", &record.name)?;
+                out.set_item("inputs", record.inputs.to_vec())?;
+                let (kind, params) = output_parts(&record.output);
+                out.set_item("output_kind", kind)?;
+                out.set_item("output_params", params)?;
+                out.set_item("source_sha256", &record.source_sha256)?;
+                out.set_item("entry_point", &record.entry_point)?;
+                let dependencies: Vec<(String, String)> = record
+                    .dependencies
+                    .iter()
+                    .map(|d| (d.name.clone(), d.version.clone()))
+                    .collect();
+                out.set_item("dependencies", dependencies)?;
+                Ok(out.unbind())
+            })
+            .collect()
+    })
 }
 
 /// Decode an encoded program that may carry callbacks, binding each recovery record to the
@@ -382,64 +396,67 @@ pub fn decode_callback_policy_program(
     data: &[u8],
     supplied: Vec<PyRef<'_, PyBatchCallbackHandle>>,
 ) -> PyResult<Vec<(String, String, Option<String>, Option<String>, Option<Vec<Option<String>>>)>> {
-    let by_name: Vec<(&str, Arc<dyn BatchCallback>)> = supplied
-        .iter()
-        .map(|h| (h.inner.spec.name.as_str(), Arc::clone(&h.inner) as Arc<dyn BatchCallback>))
-        .collect();
-    let interventions = artifact::decode_policy_program_with(data, &|record| {
-        by_name.iter().find(|(name, _)| *name == record.name).map(|(_, cb)| Arc::clone(cb))
-    })
-    .map_err(io_err)?;
-    let spell = |id: VariableId| {
-        names
-            .get(id.raw() as usize)
-            .cloned()
-            .ok_or_else(|| value_err(format!("variable id {} has no name", id.raw())))
-    };
-    interventions
-        .iter()
-        .map(|iv| {
-            let callback_program = match iv {
-                Intervention::Transform { variable, expr: ValueExpr::Callback(call), .. } => {
-                    Some(("transform", variable, call))
-                }
-                Intervention::Assign { variable, expr: ValueExpr::Callback(call), .. } => {
-                    Some(("assign", variable, call))
-                }
-                _ => None,
-            };
-            if let Some((mode, variable, call)) = callback_program {
-                let reads = call
-                    .args()
-                    .iter()
-                    .map(|arg| match arg {
-                        ValueExpr::Var(id) => spell(*id).map(Some),
-                        ValueExpr::Generated => Ok(None),
-                        _ => Err(value_err(format!(
-                            "callback {} is applied to an expression; Python programs apply a \
-                             callback to variables or the generated value only",
-                            call.spec().name
-                        ))),
-                    })
-                    .collect::<PyResult<Vec<_>>>()?;
-                return Ok((
-                    "callback".to_string(),
-                    mode.to_string(),
-                    Some(spell(*variable)?),
-                    Some(call.spec().name.clone()),
-                    Some(reads),
-                ));
-            }
-            if matches!(iv.portability(), Portability::Recoverable(_)) {
-                return Err(value_err(
-                    "a callback nested inside a larger expression has no Python program form",
-                ));
-            }
-            let text = artifact::named_json_from_interventions(std::slice::from_ref(iv), &names)
-                .map_err(io_err)?;
-            Ok(("closed".to_string(), text, None, None, None))
+    crate::catch_ffi(|| {
+        let by_name: Vec<(&str, Arc<dyn BatchCallback>)> = supplied
+            .iter()
+            .map(|h| (h.inner.spec.name.as_str(), Arc::clone(&h.inner) as Arc<dyn BatchCallback>))
+            .collect();
+        let interventions = artifact::decode_policy_program_with(data, &|record| {
+            by_name.iter().find(|(name, _)| *name == record.name).map(|(_, cb)| Arc::clone(cb))
         })
-        .collect()
+        .map_err(io_err)?;
+        let spell = |id: VariableId| {
+            names
+                .get(id.raw() as usize)
+                .cloned()
+                .ok_or_else(|| value_err(format!("variable id {} has no name", id.raw())))
+        };
+        interventions
+            .iter()
+            .map(|iv| {
+                let callback_program = match iv {
+                    Intervention::Transform {
+                        variable, expr: ValueExpr::Callback(call), ..
+                    } => Some(("transform", variable, call)),
+                    Intervention::Assign { variable, expr: ValueExpr::Callback(call), .. } => {
+                        Some(("assign", variable, call))
+                    }
+                    _ => None,
+                };
+                if let Some((mode, variable, call)) = callback_program {
+                    let reads = call
+                        .args()
+                        .iter()
+                        .map(|arg| match arg {
+                            ValueExpr::Var(id) => spell(*id).map(Some),
+                            ValueExpr::Generated => Ok(None),
+                            _ => Err(value_err(format!(
+                                "callback {} is applied to an expression; Python programs apply a \
+                             callback to variables or the generated value only",
+                                call.spec().name
+                            ))),
+                        })
+                        .collect::<PyResult<Vec<_>>>()?;
+                    return Ok((
+                        "callback".to_string(),
+                        mode.to_string(),
+                        Some(spell(*variable)?),
+                        Some(call.spec().name.clone()),
+                        Some(reads),
+                    ));
+                }
+                if matches!(iv.portability(), Portability::Recoverable(_)) {
+                    return Err(value_err(
+                        "a callback nested inside a larger expression has no Python program form",
+                    ));
+                }
+                let text =
+                    artifact::named_json_from_interventions(std::slice::from_ref(iv), &names)
+                        .map_err(io_err)?;
+                Ok(("closed".to_string(), text, None, None, None))
+            })
+            .collect()
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

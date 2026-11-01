@@ -1036,14 +1036,8 @@ pub(crate) fn ate_result_from_analysis(
         mediation_mediated: result.mediation().and_then(|m| m.mediated),
         mediation_horizons: mediation_slices.iter().map(|slice| slice.horizon).collect(),
         mediation_effects: mediation_slices.iter().map(|slice| slice.estimate.effect.ate).collect(),
-        mediation_totals: mediation_slices
-            .iter()
-            .map(|slice| slice.estimate.total)
-            .collect(),
-        mediation_directs: mediation_slices
-            .iter()
-            .map(|slice| slice.estimate.direct)
-            .collect(),
+        mediation_totals: mediation_slices.iter().map(|slice| slice.estimate.total).collect(),
+        mediation_directs: mediation_slices.iter().map(|slice| slice.estimate.direct).collect(),
         mediation_mediated_effects: mediation_slices
             .iter()
             .map(|slice| slice.estimate.mediated)

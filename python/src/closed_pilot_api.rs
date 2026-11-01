@@ -39,17 +39,19 @@ fn joint_bayesian_transport_closed(
     has_target: bool,
     draws: usize,
 ) -> PyResult<()> {
-    let request = JointBayesianRequest {
-        graph_class,
-        dependence,
-        varying,
-        sharing,
-        features,
-        sources,
-        has_target,
-        draws,
-    };
-    Err(closed_err(&joint_bayesian_transport_refusal(&request)))
+    crate::catch_ffi(|| {
+        let request = JointBayesianRequest {
+            graph_class,
+            dependence,
+            varying,
+            sharing,
+            features,
+            sources,
+            has_target,
+            draws,
+        };
+        Err(closed_err(&joint_bayesian_transport_refusal(&request)))
+    })
 }
 
 /// One regime table of a nested-Markov request: `(fixed variables or None, levels, cells)`.
@@ -65,16 +67,18 @@ fn binary_nested_markov_closed(
     bidirected: Vec<(usize, usize)>,
     regimes: Vec<RegimeTuple>,
 ) -> PyResult<()> {
-    let request = NestedMarkovRequest {
-        variables,
-        directed,
-        bidirected,
-        regimes: regimes
-            .into_iter()
-            .map(|(fixed, levels, cells)| ClosedRegimeCounts { fixed, levels, cells })
-            .collect(),
-    };
-    Err(closed_err(&nested_markov_refusal(&request)))
+    crate::catch_ffi(|| {
+        let request = NestedMarkovRequest {
+            variables,
+            directed,
+            bidirected,
+            regimes: regimes
+                .into_iter()
+                .map(|(fixed, levels, cells)| ClosedRegimeCounts { fixed, levels, cells })
+                .collect(),
+        };
+        Err(closed_err(&nested_markov_refusal(&request)))
+    })
 }
 
 /// The closed sampled observation-recovery route; always raises.
@@ -88,14 +92,16 @@ fn sampled_observation_recovery_closed(
     replicates: usize,
     rows: Vec<(u64, u8, u8, u8)>,
 ) -> PyResult<()> {
-    let request = SampledRecoveryRequest {
-        graph_recoverable,
-        partially_observed,
-        fully_observed,
-        replicates,
-        rows: &rows,
-    };
-    Err(closed_err(&sampled_recovery_refusal(&request)))
+    crate::catch_ffi(|| {
+        let request = SampledRecoveryRequest {
+            graph_recoverable,
+            partially_observed,
+            fully_observed,
+            replicates,
+            rows: &rows,
+        };
+        Err(closed_err(&sampled_recovery_refusal(&request)))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

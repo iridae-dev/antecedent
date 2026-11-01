@@ -199,9 +199,11 @@ impl SpillRegistryHandle {
 /// A registry whose byte budget never exceeds the admission pool of the running `Execution`.
 #[pyfunction]
 fn spill_registry_open(directory: &str, requested_bytes: u64) -> PyResult<SpillRegistryHandle> {
-    let inner =
-        spill_registry_within_admission(&ctx(), directory, requested_bytes).map_err(py_err)?;
-    Ok(SpillRegistryHandle { inner })
+    crate::catch_ffi(|| {
+        let inner =
+            spill_registry_within_admission(&ctx(), directory, requested_bytes).map_err(py_err)?;
+        Ok(SpillRegistryHandle { inner })
+    })
 }
 
 /// The summary a prepared study's estimator keeps, with its rows.
@@ -222,13 +224,15 @@ impl RetainedRefreshHandle {
     /// retained rows; the summary is unchanged when either is refused. Returns `updated` or
     /// `recomputed`.
     fn apply(&mut self, mutation_json: &str) -> PyResult<&'static str> {
-        let value: Value = serde_json::from_str(mutation_json)
-            .map_err(|e| value_err(format!("invalid refresh mutation: {e}")))?;
-        let mutation = mutation_of(&value)?;
-        self.study
-            .apply_retained_refresh(&mut self.inner, &mutation)
-            .map(outcome_label)
-            .map_err(py_err)
+        crate::catch_ffi(|| {
+            let value: Value = serde_json::from_str(mutation_json)
+                .map_err(|e| value_err(format!("invalid refresh mutation: {e}")))?;
+            let mutation = mutation_of(&value)?;
+            self.study
+                .apply_retained_refresh(&mut self.inner, &mutation)
+                .map(outcome_label)
+                .map_err(py_err)
+        })
     }
 
     /// The complete cached result as JSON.
@@ -255,18 +259,20 @@ impl RetainedRefreshHandle {
     /// Apply a retention policy: a window of rows is kept as a trailing window, zero rows or
     /// sufficient statistics drop the rows.
     fn with_retention(&self, policy: PyRef<'_, PyRetentionPolicy>) -> PyResult<Self> {
-        let policy: RetentionPolicy = policy.inner;
-        let mut next = self.inner.clone();
-        match policy.max_retained_rows() {
-            Some(0) => next = next.into_summary_only(),
-            Some(max_rows) => {
-                let max_rows = usize::try_from(max_rows)
-                    .map_err(|_| value_err("retained row cap is too large"))?;
-                next.apply(&RefreshMutation::Window { max_rows }).map_err(py_err)?;
+        crate::catch_ffi(|| {
+            let policy: RetentionPolicy = policy.inner;
+            let mut next = self.inner.clone();
+            match policy.max_retained_rows() {
+                Some(0) => next = next.into_summary_only(),
+                Some(max_rows) => {
+                    let max_rows = usize::try_from(max_rows)
+                        .map_err(|_| value_err("retained row cap is too large"))?;
+                    next.apply(&RefreshMutation::Window { max_rows }).map_err(py_err)?;
+                }
+                None => {}
             }
-            None => {}
-        }
-        Ok(Self { study: Arc::clone(&self.study), inner: next })
+            Ok(Self { study: Arc::clone(&self.study), inner: next })
+        })
     }
 
     /// Accept `operation` under this summary's retention, or raise the refusal.
@@ -285,11 +291,13 @@ impl RetainedRefreshHandle {
         registry: PyRef<'_, SpillRegistryHandle>,
         key: &str,
     ) -> PyResult<SpilledRefreshHandle> {
-        let spilled = self
-            .study
-            .spill_retained_refresh(&self.inner, &ctx(), &registry.inner, key)
-            .map_err(py_err)?;
-        Ok(SpilledRefreshHandle { study: Arc::clone(&self.study), inner: spilled })
+        crate::catch_ffi(|| {
+            let spilled = self
+                .study
+                .spill_retained_refresh(&self.inner, &ctx(), &registry.inner, key)
+                .map_err(py_err)?;
+            Ok(SpilledRefreshHandle { study: Arc::clone(&self.study), inner: spilled })
+        })
     }
 }
 
@@ -343,38 +351,40 @@ fn retained_refresh_start(
     rows_json: &str,
     prior_json: Option<&str>,
 ) -> PyResult<RetainedRefreshHandle> {
-    let rows_value: Value = serde_json::from_str(rows_json)
-        .map_err(|e| value_err(format!("invalid refresh rows: {e}")))?;
-    let rows = rows_value
-        .as_array()
-        .ok_or_else(|| value_err("rows must be a list"))?
-        .iter()
-        .map(observation_of)
-        .collect::<PyResult<Vec<_>>>()?;
-    let prior = prior_json
-        .map(|text| -> PyResult<(ConjugateOlsPrior, String)> {
-            let value: Value =
-                serde_json::from_str(text).map_err(|e| value_err(format!("invalid prior: {e}")))?;
-            let prior = ConjugateOlsPrior::new(
-                reals(&value, "mean")?,
-                reals(&value, "precision")?,
-                real(&value, "shape")?,
-                real(&value, "rate")?,
+    crate::catch_ffi(|| {
+        let rows_value: Value = serde_json::from_str(rows_json)
+            .map_err(|e| value_err(format!("invalid refresh rows: {e}")))?;
+        let rows = rows_value
+            .as_array()
+            .ok_or_else(|| value_err("rows must be a list"))?
+            .iter()
+            .map(observation_of)
+            .collect::<PyResult<Vec<_>>>()?;
+        let prior = prior_json
+            .map(|text| -> PyResult<(ConjugateOlsPrior, String)> {
+                let value: Value = serde_json::from_str(text)
+                    .map_err(|e| value_err(format!("invalid prior: {e}")))?;
+                let prior = ConjugateOlsPrior::new(
+                    reals(&value, "mean")?,
+                    reals(&value, "precision")?,
+                    real(&value, "shape")?,
+                    real(&value, "rate")?,
+                )
+                .map_err(py_err)?;
+                Ok((prior, text_of(&value, "label")?))
+            })
+            .transpose()?;
+        let inner = study
+            .inner
+            .start_retained_refresh(
+                source,
+                width,
+                &rows,
+                prior.as_ref().map(|(prior, label)| (prior, label.as_str())),
             )
             .map_err(py_err)?;
-            Ok((prior, text_of(&value, "label")?))
-        })
-        .transpose()?;
-    let inner = study
-        .inner
-        .start_retained_refresh(
-            source,
-            width,
-            &rows,
-            prior.as_ref().map(|(prior, label)| (prior, label.as_str())),
-        )
-        .map_err(py_err)?;
-    Ok(RetainedRefreshHandle { study: Arc::clone(&study.inner), inner })
+        Ok(RetainedRefreshHandle { study: Arc::clone(&study.inner), inner })
+    })
 }
 
 fn text_of(value: &Value, key: &str) -> PyResult<String> {

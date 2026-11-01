@@ -27,11 +27,14 @@ fn seal_provider_result<'py>(
     header_json: &str,
     external_artifact: Option<&[u8]>,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    let header: ProviderEnvelopeHeader = serde_json::from_str(header_json).map_err(value_error)?;
-    let envelope =
-        ProviderEnvelope { header, external_artifact: external_artifact.map(<[u8]>::to_vec) };
-    let bytes = seal_provider_envelope(envelope).map_err(value_error)?;
-    Ok(PyBytes::new(py, &bytes))
+    crate::catch_ffi(|| {
+        let header: ProviderEnvelopeHeader =
+            serde_json::from_str(header_json).map_err(value_error)?;
+        let envelope =
+            ProviderEnvelope { header, external_artifact: external_artifact.map(<[u8]>::to_vec) };
+        let bytes = seal_provider_envelope(envelope).map_err(value_error)?;
+        Ok(PyBytes::new(py, &bytes))
+    })
 }
 
 #[pyfunction]
@@ -43,24 +46,26 @@ fn open_provider_result<'py>(
     verified_request_digest: Option<&str>,
     verified_evidence_digest: Option<&str>,
 ) -> PyResult<(String, Option<Bound<'py, PyBytes>>)> {
-    let envelope =
-        match (verified_spec_digest, verified_request_digest, verified_evidence_digest) {
-            (None, None, None) => open_provider_envelope(bytes),
-            (Some(spec), Some(request), Some(evidence)) => {
-                open_verified_provider_envelope(bytes, spec, request, evidence)
+    crate::catch_ffi(|| {
+        let envelope =
+            match (verified_spec_digest, verified_request_digest, verified_evidence_digest) {
+                (None, None, None) => open_provider_envelope(bytes),
+                (Some(spec), Some(request), Some(evidence)) => {
+                    open_verified_provider_envelope(bytes, spec, request, evidence)
+                }
+                _ => {
+                    return Err(value_error(
+                        "verified provider opening requires all three host digests",
+                    ));
+                }
             }
-            _ => {
-                return Err(value_error(
-                    "verified provider opening requires all three host digests",
-                ));
-            }
-        }
-        .map_err(value_error)?;
-    let header_json = serde_json::to_string(&envelope.header).map_err(value_error)?;
-    Ok((
-        header_json,
-        envelope.external_artifact.as_deref().map(|artifact| PyBytes::new(py, artifact)),
-    ))
+            .map_err(value_error)?;
+        let header_json = serde_json::to_string(&envelope.header).map_err(value_error)?;
+        Ok((
+            header_json,
+            envelope.external_artifact.as_deref().map(|artifact| PyBytes::new(py, artifact)),
+        ))
+    })
 }
 
 /// A passing provider verification receipt, issued only by Rust.
@@ -78,25 +83,31 @@ impl PyProviderVerificationReceipt {
     /// Verify executable-provider requests; returns the receipt or a structured refusal as JSON.
     #[staticmethod]
     fn verify(requests_json: &str) -> PyResult<(Option<Self>, Option<String>)> {
-        check_declared_size(requests_json, 4 * 1024 * 1024, "provider verification requests")?;
-        let wire: ExecutionVerificationWire =
-            serde_json::from_str(requests_json).map_err(value_error)?;
-        match verify_execution_requests(&wire) {
-            Ok(inner) => Ok((Some(Self { inner }), None)),
-            Err(refusal) => Ok((None, Some(serde_json::to_string(&refusal).map_err(value_error)?))),
-        }
+        crate::catch_ffi(|| {
+            check_declared_size(requests_json, 4 * 1024 * 1024, "provider verification requests")?;
+            let wire: ExecutionVerificationWire =
+                serde_json::from_str(requests_json).map_err(value_error)?;
+            match verify_execution_requests(&wire) {
+                Ok(inner) => Ok((Some(Self { inner }), None)),
+                Err(refusal) => {
+                    Ok((None, Some(serde_json::to_string(&refusal).map_err(value_error)?)))
+                }
+            }
+        })
     }
 
     /// Load an exported receipt under the digest the consumer retained independently.
     #[staticmethod]
     fn load(data: &[u8], expected_digest: &str) -> PyResult<Self> {
-        check_declared_len(
-            data.len(),
-            MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
-            "provider verification receipt",
-        )?;
-        let inner = receipt_from_bytes(data, expected_digest).map_err(value_error)?;
-        Ok(Self { inner })
+        crate::catch_ffi(|| {
+            check_declared_len(
+                data.len(),
+                MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES,
+                "provider verification receipt",
+            )?;
+            let inner = receipt_from_bytes(data, expected_digest).map_err(value_error)?;
+            Ok(Self { inner })
+        })
     }
 
     /// The stored wire: origin, verified requests with their probes, and the digest.

@@ -96,25 +96,27 @@ pub(crate) type Checked = (Option<String>, Option<String>);
 /// The canonical identity of a declared contract, or its refusal.
 #[pyfunction]
 fn interface_contract_identity(contract_json: &str) -> PyResult<Checked> {
-    let contract = contract_of(contract_json, "interface contract")?;
-    Ok(match contract.validate() {
-        Ok(()) => (Some(contract.canonical_identity().to_hex()), None),
-        Err(refusal) => (
-            None,
-            Some(
-                json!({
-                    "code": refusal.code,
-                    "stage": "interface_contract",
-                    "detail": refusal.detail,
-                    "message": refusal.remedy.unwrap_or_default(),
-                    "offending": refusal.offending,
-                    "expected": refusal.expected,
-                    "supplied": refusal.supplied,
-                    "remedy": refusal.remedy,
-                })
-                .to_string(),
+    crate::catch_ffi(|| {
+        let contract = contract_of(contract_json, "interface contract")?;
+        Ok(match contract.validate() {
+            Ok(()) => (Some(contract.canonical_identity().to_hex()), None),
+            Err(refusal) => (
+                None,
+                Some(
+                    json!({
+                        "code": refusal.code,
+                        "stage": "interface_contract",
+                        "detail": refusal.detail,
+                        "message": refusal.remedy.unwrap_or_default(),
+                        "offending": refusal.offending,
+                        "expected": refusal.expected,
+                        "supplied": refusal.supplied,
+                        "remedy": refusal.remedy,
+                    })
+                    .to_string(),
+                ),
             ),
-        ),
+        })
     })
 }
 
@@ -127,11 +129,13 @@ fn interface_contract_check_connection(
     consumer_json: &str,
     consumed_port: &str,
 ) -> PyResult<Checked> {
-    let producer = contract_of(producer_json, "producer contract")?;
-    let consumer = contract_of(consumer_json, "consumer contract")?;
-    Ok(match check_interface_connection(&producer, produced_port, &consumer, consumed_port) {
-        Ok(connection) => (Some(connection_json(&connection)), None),
-        Err(refusals) => (None, Some(refusals_json(&refusals))),
+    crate::catch_ffi(|| {
+        let producer = contract_of(producer_json, "producer contract")?;
+        let consumer = contract_of(consumer_json, "consumer contract")?;
+        Ok(match check_interface_connection(&producer, produced_port, &consumer, consumed_port) {
+            Ok(connection) => (Some(connection_json(&connection)), None),
+            Err(refusals) => (None, Some(refusals_json(&refusals))),
+        })
     })
 }
 
@@ -199,9 +203,11 @@ fn interface_contract_check_composition(
     components_json: &str,
     connections_json: &str,
 ) -> PyResult<Checked> {
-    let components = components_of(components_json)?;
-    let connections = connections_of(connections_json)?;
-    Ok(composed_checked(check_interface_composition(&components, &connections)))
+    crate::catch_ffi(|| {
+        let components = components_of(components_json)?;
+        let connections = connections_of(connections_json)?;
+        Ok(composed_checked(check_interface_composition(&components, &connections)))
+    })
 }
 
 /// Check a composition against an evidence ledger: a requirement of disjoint evidence is decided
@@ -213,13 +219,15 @@ fn interface_contract_check_composition_with_ledger(
     connections_json: &str,
     ledger: PyRef<'_, EvidenceLedgerHandle>,
 ) -> PyResult<Checked> {
-    let components = components_of(components_json)?;
-    let connections = connections_of(connections_json)?;
-    Ok(composed_checked(check_interface_composition_with_ledger(
-        &components,
-        &connections,
-        ledger.ledger(),
-    )))
+    crate::catch_ffi(|| {
+        let components = components_of(components_json)?;
+        let connections = connections_of(connections_json)?;
+        Ok(composed_checked(check_interface_composition_with_ledger(
+            &components,
+            &connections,
+            ledger.ledger(),
+        )))
+    })
 }
 
 type Exported = (Option<(Py<PyBytes>, String, String)>, Option<String>);
@@ -231,13 +239,19 @@ fn interface_contract_export(
     contract_json: &str,
     artifact_id: &str,
 ) -> PyResult<Exported> {
-    let contract = contract_of(contract_json, "interface contract")?;
-    Ok(match export_interface_contract(&contract, artifact_id) {
-        Ok(done) => (
-            Some((PyBytes::new(py, &done.bytes).unbind(), done.identity, done.contract_identity)),
-            None,
-        ),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let contract = contract_of(contract_json, "interface contract")?;
+        Ok(match export_interface_contract(&contract, artifact_id) {
+            Ok(done) => (
+                Some((
+                    PyBytes::new(py, &done.bytes).unbind(),
+                    done.identity,
+                    done.contract_identity,
+                )),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 

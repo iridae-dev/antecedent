@@ -914,11 +914,13 @@ impl CallbackSessionHandle {
 
     /// One history record as JSON.
     fn record_json(&self, index: usize) -> PyResult<String> {
-        self.inner
-            .history()
-            .get(index)
-            .map(|record| record_json(record).to_string())
-            .ok_or_else(|| crate::value_err("history index out of range"))
+        crate::catch_ffi(|| {
+            self.inner
+                .history()
+                .get(index)
+                .map(|record| record_json(record).to_string())
+                .ok_or_else(|| crate::value_err("history index out of range"))
+        })
     }
 
     /// History indices of results that consumed the callback with this
@@ -936,19 +938,21 @@ impl CallbackSessionHandle {
         request_json: &str,
         current_state: Option<&str>,
     ) -> PyResult<Checked> {
-        let declaration = declaration_of(declaration_json)?;
-        let request = request_of(request_json)?;
-        Ok(match self.inner.plan(&declaration, &request, current_state) {
-            Ok(CallbackPlan::Reuse) => (Some(json!({"plan": "reuse"}).to_string()), None),
-            Ok(CallbackPlan::Recompute(reason)) => (
-                Some(json!({"plan": "recompute", "reason": reason_name(&reason)}).to_string()),
-                None,
-            ),
-            Ok(CallbackPlan::Refuse(refusal)) => (
-                Some(json!({"plan": "refuse", "refusal": refusal_json(&refusal)}).to_string()),
-                None,
-            ),
-            Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+        crate::catch_ffi(|| {
+            let declaration = declaration_of(declaration_json)?;
+            let request = request_of(request_json)?;
+            Ok(match self.inner.plan(&declaration, &request, current_state) {
+                Ok(CallbackPlan::Reuse) => (Some(json!({"plan": "reuse"}).to_string()), None),
+                Ok(CallbackPlan::Recompute(reason)) => (
+                    Some(json!({"plan": "recompute", "reason": reason_name(&reason)}).to_string()),
+                    None,
+                ),
+                Ok(CallbackPlan::Refuse(refusal)) => (
+                    Some(json!({"plan": "refuse", "refusal": refusal_json(&refusal)}).to_string()),
+                    None,
+                ),
+                Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+            })
         })
     }
 
@@ -970,19 +974,21 @@ impl CallbackSessionHandle {
         policy_json: &str,
         token: &CallbackToken,
     ) -> PyResult<Checked> {
-        let declaration = declaration_of(declaration_json)?;
-        let request = request_of(request_json)?;
-        let policy = policy_of(policy_json)?;
-        let inputs = inputs_of(&self.inner, inputs_json)?;
-        let interrupt = Interrupt::default();
-        let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
-        let ctx = context_of(token);
-        let outcome =
-            self.inner.execute(&mut provider, &declaration, &request, &inputs, &policy, &ctx);
-        raise_interrupt(&interrupt)?;
-        Ok(match outcome {
-            Ok(execution) => (Some(execution_json(&self.inner, &execution)), None),
-            Err(error) => (None, Some(error_json(&error))),
+        crate::catch_ffi(|| {
+            let declaration = declaration_of(declaration_json)?;
+            let request = request_of(request_json)?;
+            let policy = policy_of(policy_json)?;
+            let inputs = inputs_of(&self.inner, inputs_json)?;
+            let interrupt = Interrupt::default();
+            let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
+            let ctx = context_of(token);
+            let outcome =
+                self.inner.execute(&mut provider, &declaration, &request, &inputs, &policy, &ctx);
+            raise_interrupt(&interrupt)?;
+            Ok(match outcome {
+                Ok(execution) => (Some(execution_json(&self.inner, &execution)), None),
+                Err(error) => (None, Some(error_json(&error))),
+            })
         })
     }
 
@@ -1008,26 +1014,27 @@ impl CallbackSessionHandle {
         policy_json: &str,
         token: &CallbackToken,
     ) -> PyResult<Checked> {
-        let declaration = declaration_of(declaration_json)?;
-        let consumer = contract_of(consumer_json, "consumer contract")?;
-        let request = request_of(request_json)?;
-        let policy = policy_of(policy_json)?;
-        let inputs = inputs_of(&self.inner, inputs_json)?;
-        let interrupt = Interrupt::default();
-        let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
-        let ctx = context_of(token);
-        let outcome = self.inner.execute_for_consumer(
-            &mut provider,
-            &declaration,
-            &consumer,
-            consumed_port,
-            &request,
-            &inputs,
-            &policy,
-            &ctx,
-        );
-        raise_interrupt(&interrupt)?;
-        Ok(
+        crate::catch_ffi(|| {
+            let declaration = declaration_of(declaration_json)?;
+            let consumer = contract_of(consumer_json, "consumer contract")?;
+            let request = request_of(request_json)?;
+            let policy = policy_of(policy_json)?;
+            let inputs = inputs_of(&self.inner, inputs_json)?;
+            let interrupt = Interrupt::default();
+            let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
+            let ctx = context_of(token);
+            let outcome = self.inner.execute_for_consumer(
+                &mut provider,
+                &declaration,
+                &consumer,
+                consumed_port,
+                &request,
+                &inputs,
+                &policy,
+                &ctx,
+            );
+            raise_interrupt(&interrupt)?;
+            Ok(
             match outcome {
                 Ok((connection, execution)) => (
                     Some(
@@ -1051,6 +1058,7 @@ impl CallbackSessionHandle {
                 Err(CallbackConnectionError::Execution(error)) => (None, Some(error_json(&error))),
             },
         )
+        })
     }
 
     /// Resume a stored result in this process. With no provider the stage is
@@ -1068,27 +1076,28 @@ impl CallbackSessionHandle {
         policy_json: &str,
         token: &CallbackToken,
     ) -> PyResult<Checked> {
-        let policy = policy_of(policy_json)?;
-        let inputs = inputs_of(&self.inner, inputs_json)?;
-        let ctx = context_of(token);
-        let interrupt = Interrupt::default();
-        let mut provider = match (identity_json, invoke) {
-            (Some(identity), Some(invoke)) => {
-                Some(provider_of(identity, invoke, state, token, &interrupt)?)
-            }
-            (None, None) => None,
-            _ => return Err(bad("provider", "supply both the identity and the callable")),
-        };
-        let resumed = self.inner.resume(
-            artifact,
-            expected_identity,
-            provider.as_mut().map(|p| p as &mut dyn ProviderCallback),
-            &inputs,
-            &policy,
-            &ctx,
-        );
-        raise_interrupt(&interrupt)?;
-        Ok(match resumed {
+        crate::catch_ffi(|| {
+            let policy = policy_of(policy_json)?;
+            let inputs = inputs_of(&self.inner, inputs_json)?;
+            let ctx = context_of(token);
+            let interrupt = Interrupt::default();
+            let mut provider = match (identity_json, invoke) {
+                (Some(identity), Some(invoke)) => {
+                    Some(provider_of(identity, invoke, state, token, &interrupt)?)
+                }
+                (None, None) => None,
+                _ => return Err(bad("provider", "supply both the identity and the callable")),
+            };
+            let resumed = self.inner.resume(
+                artifact,
+                expected_identity,
+                provider.as_mut().map(|p| p as &mut dyn ProviderCallback),
+                &inputs,
+                &policy,
+                &ctx,
+            );
+            raise_interrupt(&interrupt)?;
+            Ok(match resumed {
             Ok(CallbackResume::Answered(execution)) => (
                 Some(
                     json!({
@@ -1108,28 +1117,31 @@ impl CallbackSessionHandle {
             ),
             Err(error) => (None, Some(error_json(&error))),
         })
+        })
     }
 
     /// The empirical-sample forecast law of the accepted sample output at a history index, as the
     /// predictive-assessment law JSON, or the typed refusal when the output is not a sample.
     fn forecast_law(&self, index: usize) -> PyResult<Checked> {
-        let record = self
-            .inner
-            .history()
-            .get(index)
-            .ok_or_else(|| crate::value_err("history index out of range"))?;
-        let output = match &record.outcome {
-            CallbackOutcome::Computed { output, .. } => output,
-            CallbackOutcome::Unavailable { .. } => {
-                return Err(bad("forecast law", "an unavailable stage has no output"));
-            }
-        };
-        Ok(match forecast_law_from_sample(output) {
-            Ok(ForecastLaw::EmpiricalSample { draws }) => {
-                (Some(json!({"kind": "empirical_sample", "draws": draws}).to_string()), None)
-            }
-            Ok(_) => return Err(bad("forecast law", "a sample output lifts to a sample law")),
-            Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+        crate::catch_ffi(|| {
+            let record = self
+                .inner
+                .history()
+                .get(index)
+                .ok_or_else(|| crate::value_err("history index out of range"))?;
+            let output = match &record.outcome {
+                CallbackOutcome::Computed { output, .. } => output,
+                CallbackOutcome::Unavailable { .. } => {
+                    return Err(bad("forecast law", "an unavailable stage has no output"));
+                }
+            };
+            Ok(match forecast_law_from_sample(output) {
+                Ok(ForecastLaw::EmpiricalSample { draws }) => {
+                    (Some(json!({"kind": "empirical_sample", "draws": draws}).to_string()), None)
+                }
+                Ok(_) => return Err(bad("forecast law", "a sample output lifts to a sample law")),
+                Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+            })
         })
     }
 
@@ -1140,19 +1152,21 @@ impl CallbackSessionHandle {
         index: usize,
         artifact_id: &str,
     ) -> PyResult<ExportedRecord> {
-        let record = self
-            .inner
-            .history()
-            .get(index)
-            .ok_or_else(|| crate::value_err("history index out of range"))?;
-        Ok(match export_callback_result(record, artifact_id) {
-            Ok(bytes) => {
-                let identity = CallbackResultArtifact::from_bytes(&bytes, None)
-                    .map(|a| a.identity().to_owned())
-                    .unwrap_or_default();
-                (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
-            }
-            Err(error) => (None, Some(artifact_error_json(&error))),
+        crate::catch_ffi(|| {
+            let record = self
+                .inner
+                .history()
+                .get(index)
+                .ok_or_else(|| crate::value_err("history index out of range"))?;
+            Ok(match export_callback_result(record, artifact_id) {
+                Ok(bytes) => {
+                    let identity = CallbackResultArtifact::from_bytes(&bytes, None)
+                        .map(|a| a.identity().to_owned())
+                        .unwrap_or_default();
+                    (Some((PyBytes::new(py, &bytes).unbind(), identity)), None)
+                }
+                Err(error) => (None, Some(artifact_error_json(&error))),
+            })
         })
     }
 }
@@ -1181,8 +1195,9 @@ fn artifact_error_json(
 /// The canonical identity of a declaration, or its refusal. Runs nothing.
 #[pyfunction]
 fn callback_declaration_identity(declaration_json: &str) -> PyResult<Checked> {
-    let declaration = declaration_of(declaration_json)?;
-    Ok(match declaration.validate() {
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(declaration_json)?;
+        Ok(match declaration.validate() {
         Ok(()) => (
             Some(
                 json!({
@@ -1197,14 +1212,17 @@ fn callback_declaration_identity(declaration_json: &str) -> PyResult<Checked> {
         ),
         Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
     })
+    })
 }
 
 /// The request identity (hex) against a declaration.
 #[pyfunction]
 fn callback_request_identity(declaration_json: &str, request_json: &str) -> PyResult<String> {
-    let declaration = declaration_of(declaration_json)?;
-    let request = request_of(request_json)?;
-    Ok(request.identity(&declaration).to_hex())
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(declaration_json)?;
+        let request = request_of(request_json)?;
+        Ok(request.identity(&declaration).to_hex())
+    })
 }
 
 /// The digest (hex) of output values, for binding a nested callback's input.
@@ -1241,15 +1259,17 @@ fn callback_result_inspect(artifact: &[u8]) -> Checked {
 /// `native_trust`, `identification_licence` or `joint_law`.
 #[pyfunction]
 fn callback_closed_refusal(route: &str) -> PyResult<String> {
-    let refusal = match route {
-        "interval" => refuse_interval(),
-        "posterior_guarantee" => refuse_posterior_guarantee(),
-        "native_trust" => refuse_native_trust(),
-        "identification_licence" => refuse_identification_licence(),
-        "joint_law" => refuse_joint_law(),
-        other => return Err(bad("closed route", other)),
-    };
-    Ok(refusal_json(&refusal).to_string())
+    crate::catch_ffi(|| {
+        let refusal = match route {
+            "interval" => refuse_interval(),
+            "posterior_guarantee" => refuse_posterior_guarantee(),
+            "native_trust" => refuse_native_trust(),
+            "identification_licence" => refuse_identification_licence(),
+            "joint_law" => refuse_joint_law(),
+            other => return Err(bad("closed route", other)),
+        };
+        Ok(refusal_json(&refusal).to_string())
+    })
 }
 
 /// Verify the exact provider object of a declared callback against independently computed
@@ -1261,24 +1281,27 @@ fn callback_verify_provider(
     declaration_json: &str,
     probes_json: &str,
 ) -> PyResult<(Option<Py<PyProviderVerificationReceipt>>, Option<String>)> {
-    let declaration = declaration_of(declaration_json)?;
-    let wires: Vec<VerificationProbeWire> =
-        serde_json::from_value(parse(probes_json, "verification probes")?)
-            .map_err(|error| bad("verification probes", error))?;
-    let mut probes = Vec::with_capacity(wires.len());
-    for wire in &wires {
-        let kind = probe_from_name(&wire.kind)
-            .ok_or_else(|| bad("verification probe", format!("unknown kind `{}`", wire.kind)))?;
-        probes.push(VerificationProbe {
-            kind,
-            observed: wire.observed,
-            expected: wire.expected,
-            tolerance: wire.tolerance,
-        });
-    }
-    Ok(match verify_external_object(&declaration.provider_object(), &probes) {
-        Ok(inner) => (Some(Py::new(py, PyProviderVerificationReceipt { inner })?), None),
-        Err(error) => (None, Some(refusal_json(&error.to_refusal()).to_string())),
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(declaration_json)?;
+        let wires: Vec<VerificationProbeWire> =
+            serde_json::from_value(parse(probes_json, "verification probes")?)
+                .map_err(|error| bad("verification probes", error))?;
+        let mut probes = Vec::with_capacity(wires.len());
+        for wire in &wires {
+            let kind = probe_from_name(&wire.kind).ok_or_else(|| {
+                bad("verification probe", format!("unknown kind `{}`", wire.kind))
+            })?;
+            probes.push(VerificationProbe {
+                kind,
+                observed: wire.observed,
+                expected: wire.expected,
+                tolerance: wire.tolerance,
+            });
+        }
+        Ok(match verify_external_object(&declaration.provider_object(), &probes) {
+            Ok(inner) => (Some(Py::new(py, PyProviderVerificationReceipt { inner })?), None),
+            Err(error) => (None, Some(refusal_json(&error.to_refusal()).to_string())),
+        })
     })
 }
 
@@ -1292,29 +1315,31 @@ fn callback_predictive_law_source(
     declaration_json: &str,
     receipt: Option<PyRef<'_, PyProviderVerificationReceipt>>,
 ) -> PyResult<Checked> {
-    let declaration = declaration_of(declaration_json)?;
-    let verification_confirmed =
-        receipt.is_some_and(|receipt| verification_holds(&declaration, &receipt.inner));
-    Ok(match predictive_law_source(&declaration, verification_confirmed) {
-        Ok(LawSource::Provider { identity, trust }) => (
-            Some(
-                json!({
-                    "class": "provider",
-                    "identity": {
-                        "provider_id": identity.provider_id,
-                        "object_id": identity.object_id,
-                        "version_id": identity.version_id,
-                        "snapshot_id": identity.snapshot_id,
-                        "request_id": identity.request_id,
-                    },
-                    "trust": trust.name(),
-                })
-                .to_string(),
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(declaration_json)?;
+        let verification_confirmed =
+            receipt.is_some_and(|receipt| verification_holds(&declaration, &receipt.inner));
+        Ok(match predictive_law_source(&declaration, verification_confirmed) {
+            Ok(LawSource::Provider { identity, trust }) => (
+                Some(
+                    json!({
+                        "class": "provider",
+                        "identity": {
+                            "provider_id": identity.provider_id,
+                            "object_id": identity.object_id,
+                            "version_id": identity.version_id,
+                            "snapshot_id": identity.snapshot_id,
+                            "request_id": identity.request_id,
+                        },
+                        "trust": trust.name(),
+                    })
+                    .to_string(),
+                ),
+                None,
             ),
-            None,
-        ),
-        Ok(_) => return Err(bad("law source", "a callback declares a provider law source")),
-        Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+            Ok(_) => return Err(bad("law source", "a callback declares a provider law source")),
+            Err(refusal) => (None, Some(refusal_json(&refusal).to_string())),
+        })
     })
 }
 
@@ -1327,13 +1352,15 @@ fn callback_check_claim_connection(
     callback_json: &str,
     input: &str,
 ) -> PyResult<Checked> {
-    let producer = contract_of(producer_json, "producer contract")?;
-    let declaration = declaration_of(callback_json)?;
-    Ok(match check_claim_to_callback(&producer, produced_port, &declaration, input) {
-        Ok(connection) => (Some(connection_json(&connection)), None),
-        Err(refusals) => {
-            (None, Some(Json::Array(refusals.iter().map(refusal_json).collect()).to_string()))
-        }
+    crate::catch_ffi(|| {
+        let producer = contract_of(producer_json, "producer contract")?;
+        let declaration = declaration_of(callback_json)?;
+        Ok(match check_claim_to_callback(&producer, produced_port, &declaration, input) {
+            Ok(connection) => (Some(connection_json(&connection)), None),
+            Err(refusals) => {
+                (None, Some(Json::Array(refusals.iter().map(refusal_json).collect()).to_string()))
+            }
+        })
     })
 }
 
@@ -1375,11 +1402,13 @@ fn callback_register_source(
     declaration_json: &str,
     inner_sources_json: &str,
 ) -> PyResult<Refused<String>> {
-    let declaration = declaration_of(declaration_json)?;
-    let inner = inner_sources_of(inner_sources_json)?;
-    Ok(match ledger.session_mut().register_callback(&declaration, &inner) {
-        Ok(id) => (Some(id.to_hex()), None),
-        Err(error) => (None, Some(registration_error_json(&error))),
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(declaration_json)?;
+        let inner = inner_sources_of(inner_sources_json)?;
+        Ok(match ledger.session_mut().register_callback(&declaration, &inner) {
+            Ok(id) => (Some(id.to_hex()), None),
+            Err(error) => (None, Some(registration_error_json(&error))),
+        })
     })
 }
 
@@ -1392,12 +1421,14 @@ fn callback_supersede_source(
     replacement_json: &str,
     inner_sources_json: &str,
 ) -> PyResult<Refused<String>> {
-    let old = SourceId::from_hex(old).ok_or_else(|| bad("source", "not a digest"))?;
-    let replacement = declaration_of(replacement_json)?;
-    let inner = inner_sources_of(inner_sources_json)?;
-    Ok(match ledger.session_mut().supersede_callback(old, &replacement, &inner) {
-        Ok(id) => (Some(id.to_hex()), None),
-        Err(error) => (None, Some(registration_error_json(&error))),
+    crate::catch_ffi(|| {
+        let old = SourceId::from_hex(old).ok_or_else(|| bad("source", "not a digest"))?;
+        let replacement = declaration_of(replacement_json)?;
+        let inner = inner_sources_of(inner_sources_json)?;
+        Ok(match ledger.session_mut().supersede_callback(old, &replacement, &inner) {
+            Ok(id) => (Some(id.to_hex()), None),
+            Err(error) => (None, Some(registration_error_json(&error))),
+        })
     })
 }
 
@@ -1509,36 +1540,38 @@ fn transport_handoff_seal(
     accepts_transported: bool,
     artifact_id: &str,
 ) -> PyResult<Refused<(Py<PyBytes>, String, String)>> {
-    let offer = offer_of(offer_json)?;
-    let callback = declaration_of(callback_json)?;
-    let policy = if accepts_transported {
-        TransportedInputPolicy::AcceptsTransported
-    } else {
-        TransportedInputPolicy::NativeTargetOnly
-    };
-    let handoff = match hand_to_callback(&offer, &callback, input, policy) {
-        Ok(handoff) => handoff,
-        Err(error) => return Ok((None, Some(handoff_refusal_json(&error)))),
-    };
-    let bytes = match handoff.to_bytes(artifact_id) {
-        Ok(bytes) => bytes,
-        Err(error) => return Ok((None, Some(handoff_refusal_json(&error)))),
-    };
-    let calibration = handoff.artifact().handoff().connection().calibration.clone();
-    let summary = handoff_summary(
-        handoff.identity(),
-        handoff.transport(),
-        &calibration,
-        handoff.artifact().handoff().standing(),
-    );
-    Ok((
-        Some((
-            PyBytes::new(py, &bytes).unbind(),
-            handoff.identity().to_owned(),
-            summary.to_string(),
-        )),
-        None,
-    ))
+    crate::catch_ffi(|| {
+        let offer = offer_of(offer_json)?;
+        let callback = declaration_of(callback_json)?;
+        let policy = if accepts_transported {
+            TransportedInputPolicy::AcceptsTransported
+        } else {
+            TransportedInputPolicy::NativeTargetOnly
+        };
+        let handoff = match hand_to_callback(&offer, &callback, input, policy) {
+            Ok(handoff) => handoff,
+            Err(error) => return Ok((None, Some(handoff_refusal_json(&error)))),
+        };
+        let bytes = match handoff.to_bytes(artifact_id) {
+            Ok(bytes) => bytes,
+            Err(error) => return Ok((None, Some(handoff_refusal_json(&error)))),
+        };
+        let calibration = handoff.artifact().handoff().connection().calibration.clone();
+        let summary = handoff_summary(
+            handoff.identity(),
+            handoff.transport(),
+            &calibration,
+            handoff.artifact().handoff().standing(),
+        );
+        Ok((
+            Some((
+                PyBytes::new(py, &bytes).unbind(),
+                handoff.identity().to_owned(),
+                summary.to_string(),
+            )),
+            None,
+        ))
+    })
 }
 
 /// Consume a handoff's bytes and verify them against the callback declaration the consumer
@@ -1550,18 +1583,20 @@ fn transport_handoff_consume(
     callback_json: &str,
     expected_identity: Option<&str>,
 ) -> PyResult<Refused<String>> {
-    let callback = declaration_of(callback_json)?;
-    Ok(match consume_for_callback(artifact, expected_identity, &callback) {
-        Ok(consumed) => {
-            let summary = handoff_summary(
-                consumed.identity(),
-                consumed.transport(),
-                &consumed.handoff().connection().calibration,
-                consumed.handoff().standing(),
-            );
-            (Some(summary.to_string()), None)
-        }
-        Err(error) => (None, Some(handoff_refusal_json(&error))),
+    crate::catch_ffi(|| {
+        let callback = declaration_of(callback_json)?;
+        Ok(match consume_for_callback(artifact, expected_identity, &callback) {
+            Ok(consumed) => {
+                let summary = handoff_summary(
+                    consumed.identity(),
+                    consumed.transport(),
+                    &consumed.handoff().connection().calibration,
+                    consumed.handoff().standing(),
+                );
+                (Some(summary.to_string()), None)
+            }
+            Err(error) => (None, Some(handoff_refusal_json(&error))),
+        })
     })
 }
 

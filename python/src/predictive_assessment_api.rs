@@ -576,40 +576,42 @@ impl PredictiveAssessmentHandle {
         score: &str,
         level: f64,
     ) -> PyResult<Refused<String>> {
-        let Some(kind) = ScoreKind::from_name(score) else {
-            return Err(crate::value_err(format!("unknown score `{score}`")));
-        };
-        let query = ScoreIntervalQuery {
-            predictor: predictor.to_owned(),
-            reference: reference.map(str::to_owned),
-            score: kind,
-            level,
-        };
-        Ok(match self.inner.expected_score_interval(&query) {
-            Ok(interval) => (
-                Some(
-                    json!({
-                        "predictor": interval.predictor,
-                        "reference": interval.reference,
-                        "score": interval.score.name(),
-                        "mean": interval.mean,
-                        "standard_error": interval.standard_error,
-                        "degrees_of_freedom": interval.degrees_of_freedom,
-                        "lower": interval.lower,
-                        "upper": interval.upper,
-                        "level": interval.level,
-                        "cases": interval.cases,
-                        "dependence": interval.dependence,
-                        "construction": interval.construction,
-                        "coverage_record": interval.coverage_record,
-                        "calibration_sha": interval.calibration_sha,
-                        "assumptions": interval.assumptions,
-                    })
-                    .to_string(),
+        crate::catch_ffi(|| {
+            let Some(kind) = ScoreKind::from_name(score) else {
+                return Err(crate::value_err(format!("unknown score `{score}`")));
+            };
+            let query = ScoreIntervalQuery {
+                predictor: predictor.to_owned(),
+                reference: reference.map(str::to_owned),
+                score: kind,
+                level,
+            };
+            Ok(match self.inner.expected_score_interval(&query) {
+                Ok(interval) => (
+                    Some(
+                        json!({
+                            "predictor": interval.predictor,
+                            "reference": interval.reference,
+                            "score": interval.score.name(),
+                            "mean": interval.mean,
+                            "standard_error": interval.standard_error,
+                            "degrees_of_freedom": interval.degrees_of_freedom,
+                            "lower": interval.lower,
+                            "upper": interval.upper,
+                            "level": interval.level,
+                            "cases": interval.cases,
+                            "dependence": interval.dependence,
+                            "construction": interval.construction,
+                            "coverage_record": interval.coverage_record,
+                            "calibration_sha": interval.calibration_sha,
+                            "assumptions": interval.assumptions,
+                        })
+                        .to_string(),
+                    ),
+                    None,
                 ),
-                None,
-            ),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
         })
     }
 
@@ -650,11 +652,13 @@ fn predictive_assessment_assess(
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused<PredictiveAssessmentHandle>> {
-    let spec = parse_spec(&parse(spec_json, "predictive assessment")?)?;
-    let ctx = execution_context(seed, None, cancel);
-    Ok(match PreparedPredictiveAssessment::assess(&spec, &ctx) {
-        Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let spec = parse_spec(&parse(spec_json, "predictive assessment")?)?;
+        let ctx = execution_context(seed, None, cancel);
+        Ok(match PreparedPredictiveAssessment::assess(&spec, &ctx) {
+            Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 
@@ -668,17 +672,22 @@ fn predictive_assessment_consume(
     max_cases: Option<usize>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused<PredictiveAssessmentHandle>> {
-    let expected = expected_identity_json
-        .map(|text| parse(text, "assessment identity").and_then(|v| parse_identity(&v)))
-        .transpose()?;
-    let mut limits = PredictiveAssessmentConsumeLimits::default();
-    if let Some(max_cases) = max_cases {
-        limits.max_cases = max_cases;
-    }
-    let ctx = execution_context(0, None, cancel);
-    Ok(match consume_predictive_assessment_artifact(artifact, expected.as_ref(), limits, &ctx) {
-        Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let expected = expected_identity_json
+            .map(|text| parse(text, "assessment identity").and_then(|v| parse_identity(&v)))
+            .transpose()?;
+        let mut limits = PredictiveAssessmentConsumeLimits::default();
+        if let Some(max_cases) = max_cases {
+            limits.max_cases = max_cases;
+        }
+        let ctx = execution_context(0, None, cancel);
+        Ok(
+            match consume_predictive_assessment_artifact(artifact, expected.as_ref(), limits, &ctx)
+            {
+                Ok(inner) => (Some(PredictiveAssessmentHandle { inner }), None),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            },
+        )
     })
 }
 
@@ -690,16 +699,18 @@ fn predictive_assessment_score_case(
     law_json: &str,
     outcome_json: &str,
 ) -> PyResult<Refused<f64>> {
-    let kind = parse_score(kind)?;
-    let form = parse_form(form)?;
-    let law = parse_law(&parse(law_json, "predictive law")?)?;
-    let outcomes = parse_outcomes(&parse(outcome_json, "outcome")?)?;
-    let [outcome] = outcomes.as_slice() else {
-        return Err(crate::value_err("score_case takes exactly one outcome"));
-    };
-    Ok(match law.validate().and_then(|()| score_case(kind, form, &law, outcome)) {
-        Ok(value) => (Some(value), None),
-        Err(error) => (None, Some(contract_refusal(&error))),
+    crate::catch_ffi(|| {
+        let kind = parse_score(kind)?;
+        let form = parse_form(form)?;
+        let law = parse_law(&parse(law_json, "predictive law")?)?;
+        let outcomes = parse_outcomes(&parse(outcome_json, "outcome")?)?;
+        let [outcome] = outcomes.as_slice() else {
+            return Err(crate::value_err("score_case takes exactly one outcome"));
+        };
+        Ok(match law.validate().and_then(|()| score_case(kind, form, &law, outcome)) {
+            Ok(value) => (Some(value), None),
+            Err(error) => (None, Some(contract_refusal(&error))),
+        })
     })
 }
 
@@ -710,27 +721,29 @@ fn predictive_assessment_exact_expected_score(
     law_json: &str,
     truth_json: &str,
 ) -> PyResult<Refused<f64>> {
-    let kind = parse_score(kind)?;
-    let law = parse_law(&parse(law_json, "predictive law")?)?;
-    let truth = parse(truth_json, "finite truth")?;
-    let map = object(&truth, "finite truth")?;
-    let truth = match text(map, "kind")?.as_str() {
-        "real" => FiniteTruth::Real {
-            support: reals(map, "support")?,
-            probabilities: reals(map, "probabilities")?,
-        },
-        "category" => FiniteTruth::Category { probabilities: reals(map, "probabilities")? },
-        "vector" => FiniteTruth::Vector {
-            dimension: usize::try_from(unsigned(map, "dimension")?)
-                .map_err(|_| crate::value_err("`dimension` does not fit"))?,
-            atoms: reals(map, "atoms")?,
-            probabilities: reals(map, "probabilities")?,
-        },
-        other => return Err(crate::value_err(format!("unknown finite truth `{other}`"))),
-    };
-    Ok(match exact_expected_score(kind, &law, &truth) {
-        Ok(value) => (Some(value), None),
-        Err(error) => (None, Some(contract_refusal(&error))),
+    crate::catch_ffi(|| {
+        let kind = parse_score(kind)?;
+        let law = parse_law(&parse(law_json, "predictive law")?)?;
+        let truth = parse(truth_json, "finite truth")?;
+        let map = object(&truth, "finite truth")?;
+        let truth = match text(map, "kind")?.as_str() {
+            "real" => FiniteTruth::Real {
+                support: reals(map, "support")?,
+                probabilities: reals(map, "probabilities")?,
+            },
+            "category" => FiniteTruth::Category { probabilities: reals(map, "probabilities")? },
+            "vector" => FiniteTruth::Vector {
+                dimension: usize::try_from(unsigned(map, "dimension")?)
+                    .map_err(|_| crate::value_err("`dimension` does not fit"))?,
+                atoms: reals(map, "atoms")?,
+                probabilities: reals(map, "probabilities")?,
+            },
+            other => return Err(crate::value_err(format!("unknown finite truth `{other}`"))),
+        };
+        Ok(match exact_expected_score(kind, &law, &truth) {
+            Ok(value) => (Some(value), None),
+            Err(error) => (None, Some(contract_refusal(&error))),
+        })
     })
 }
 
@@ -773,27 +786,30 @@ fn predictive_assessment_ledger_fit(
     ledger: PyRef<'_, EvidenceLedgerHandle>,
     sources_json: &str,
 ) -> PyResult<Refused<String>> {
-    let sources = source_ids(sources_json)?;
-    Ok(match fit_declaration_from_ledger(ledger.ledger(), &sources) {
-        Ok(FitDeclaration::FittedOn(found)) => (
-            Some(
-                json!({
-                    "kind": "fitted_on",
-                    "keys": found.iter().map(ObservationKey::to_hex).collect::<Vec<_>>(),
-                    "reason": Json::Null,
-                })
-                .to_string(),
+    crate::catch_ffi(|| {
+        let sources = source_ids(sources_json)?;
+        Ok(match fit_declaration_from_ledger(ledger.ledger(), &sources) {
+            Ok(FitDeclaration::FittedOn(found)) => (
+                Some(
+                    json!({
+                        "kind": "fitted_on",
+                        "keys": found.iter().map(ObservationKey::to_hex).collect::<Vec<_>>(),
+                        "reason": Json::Null,
+                    })
+                    .to_string(),
+                ),
+                None,
             ),
-            None,
-        ),
-        Ok(FitDeclaration::Undeclared { reason }) => {
-            (Some(json!({"kind": "undeclared", "keys": [], "reason": reason}).to_string()), None)
-        }
-        Ok(FitDeclaration::NotFitted) => (
-            Some(json!({"kind": "not_fitted", "keys": [], "reason": Json::Null}).to_string()),
-            None,
-        ),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+            Ok(FitDeclaration::Undeclared { reason }) => (
+                Some(json!({"kind": "undeclared", "keys": [], "reason": reason}).to_string()),
+                None,
+            ),
+            Ok(FitDeclaration::NotFitted) => (
+                Some(json!({"kind": "not_fitted", "keys": [], "reason": Json::Null}).to_string()),
+                None,
+            ),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 
@@ -803,11 +819,13 @@ fn predictive_assessment_ledger_observations(
     ledger: PyRef<'_, EvidenceLedgerHandle>,
     source: &str,
 ) -> PyResult<Refused<Vec<String>>> {
-    let id = SourceId::from_hex(source)
-        .ok_or_else(|| crate::value_err("a source identity is 64 hexadecimal characters"))?;
-    Ok(match observation_keys_from_ledger(ledger.ledger(), id) {
-        Ok(found) => (Some(found.iter().map(ObservationKey::to_hex).collect()), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let id = SourceId::from_hex(source)
+            .ok_or_else(|| crate::value_err("a source identity is 64 hexadecimal characters"))?;
+        Ok(match observation_keys_from_ledger(ledger.ledger(), id) {
+            Ok(found) => (Some(found.iter().map(ObservationKey::to_hex).collect()), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 

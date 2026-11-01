@@ -79,32 +79,34 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let response_options = parse_response_options(response_options.as_ref())?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let query = response_query(
-                ResponseFunctional::MeanCurve {
-                    outcome: y_id,
-                    treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
-                },
-                &req.opts,
-            );
-            let mut builder = req.opts.apply(with_response_options(
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(query),
-                response_options,
-            ));
-            if let Some(id) = parse_identifier(identifier)? {
-                builder = builder.identifier(id);
-            }
-            if let Some(est) = parse_estimator(estimator)? {
-                builder = builder.estimator(est);
-            }
-            req.finish(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let response_options = parse_response_options(response_options.as_ref())?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
+                let query = response_query(
+                    ResponseFunctional::MeanCurve {
+                        outcome: y_id,
+                        treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
+                    },
+                    &req.opts,
+                );
+                let mut builder = req.opts.apply(with_response_options(
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(query),
+                    response_options,
+                ));
+                if let Some(id) = parse_identifier(identifier)? {
+                    builder = builder.identifier(id);
+                }
+                if let Some(est) = parse_estimator(estimator)? {
+                    builder = builder.estimator(est);
+                }
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -190,88 +192,92 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let class_graph = extract_temporal_class(class_graph, &req.names)?;
-        let input = req.load_frame(py, columns, frame.as_ref())?;
-        let policy = policy.to_ascii_lowercase();
-        req.off_gil(py, move |mut req| {
-            let data = input.materialize()?;
-            let schema = data.schema().clone();
-            let dag = temporal_dag_from_schema_edges(&schema, &edges)?;
-            let treatment_ids: Vec<_> = treatments
-                .iter()
-                .map(|n| schema.id_of(n).map_err(py_err))
-                .collect::<PyResult<_>>()?;
-            let outcome_ids: Vec<_> = outcomes
-                .iter()
-                .map(|n| schema.id_of(n).map_err(py_err))
-                .collect::<PyResult<_>>()?;
-            let functional = build_functional(
-                &kind,
-                &treatment_ids,
-                &outcome_ids,
-                grid,
-                None,
-                None,
-                intervention_kinds,
-                intervention_parameters,
-                1,
-                antecedent_core::DerivativeScale::Identity,
-                antecedent_core::DerivativeWeighting::Observed,
-            )?;
-            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
-            let origin = -i32::try_from(treatment_lag)
-                .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
-            let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
-            let mut temporal =
-                TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-                    .map_err(|e| crate::value_err(e.to_string()))?;
-            if let Some(feedback) = feedback {
-                temporal = temporal
-                    .with_feedback(feedback_declaration(feedback)?)
-                    .map_err(|e| crate::value_err(e.to_string()))?;
-            }
-            let observation =
-                observation_kind.map(|kind| crate::observation_api::ObservationArgs {
-                    kind,
-                    latent: latent.unwrap_or_default(),
-                    observed,
-                    censoring,
-                    event,
-                    lower,
-                    upper,
-                    indicator,
-                    assumption_kind: assumption_kind.unwrap_or_default(),
-                    assumption_variables,
-                    structural_model,
-                });
-            let mut response = ResponseQuery::new(functional).with_temporal(temporal);
-            if let Some(population) = req.opts.target_population.clone() {
-                response.target_population = population;
-            }
-            let query = CausalQuery::Response(crate::observation_api::maybe_with_observation(
-                response,
-                &schema,
-                observation.as_ref(),
-            )?);
-            let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
-            builder = if let Some(graph) = class_graph {
-                bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
-            } else {
-                with_graph(builder, dag, accepted, req.opts.discovery_algorithm())
-            };
-            builder = req.opts.apply(builder.query(query));
-            builder = req.opts.apply_inference(builder)?;
-            if req.opts.retain_joint_horizons {
-                builder = builder.retain_joint_horizons(true);
-            }
-            builder = crate::temporal_api::apply_class_prior(
-                builder,
-                class_prior_ordered,
-                class_prior_pairs,
-            )?;
-            builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            req.compile(builder, true)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let class_graph = extract_temporal_class(class_graph, &req.names)?;
+            let input = req.load_frame(py, columns, frame.as_ref())?;
+            let policy = policy.to_ascii_lowercase();
+            req.off_gil(py, move |mut req| {
+                let data = input.materialize()?;
+                let schema = data.schema().clone();
+                let dag = temporal_dag_from_schema_edges(&schema, &edges)?;
+                let treatment_ids: Vec<_> = treatments
+                    .iter()
+                    .map(|n| schema.id_of(n).map_err(py_err))
+                    .collect::<PyResult<_>>()?;
+                let outcome_ids: Vec<_> = outcomes
+                    .iter()
+                    .map(|n| schema.id_of(n).map_err(py_err))
+                    .collect::<PyResult<_>>()?;
+                let functional = build_functional(
+                    &kind,
+                    &treatment_ids,
+                    &outcome_ids,
+                    grid,
+                    None,
+                    None,
+                    intervention_kinds,
+                    intervention_parameters,
+                    1,
+                    antecedent_core::DerivativeScale::Identity,
+                    antecedent_core::DerivativeWeighting::Observed,
+                )?;
+                let temporal_policy =
+                    crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+                let origin = -i32::try_from(treatment_lag)
+                    .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
+                let functional =
+                    crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
+                let mut temporal =
+                    TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+                        .map_err(|e| crate::value_err(e.to_string()))?;
+                if let Some(feedback) = feedback {
+                    temporal = temporal
+                        .with_feedback(feedback_declaration(feedback)?)
+                        .map_err(|e| crate::value_err(e.to_string()))?;
+                }
+                let observation =
+                    observation_kind.map(|kind| crate::observation_api::ObservationArgs {
+                        kind,
+                        latent: latent.unwrap_or_default(),
+                        observed,
+                        censoring,
+                        event,
+                        lower,
+                        upper,
+                        indicator,
+                        assumption_kind: assumption_kind.unwrap_or_default(),
+                        assumption_variables,
+                        structural_model,
+                    });
+                let mut response = ResponseQuery::new(functional).with_temporal(temporal);
+                if let Some(population) = req.opts.target_population.clone() {
+                    response.target_population = population;
+                }
+                let query = CausalQuery::Response(crate::observation_api::maybe_with_observation(
+                    response,
+                    &schema,
+                    observation.as_ref(),
+                )?);
+                let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
+                builder = if let Some(graph) = class_graph {
+                    bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
+                } else {
+                    with_graph(builder, dag, accepted, req.opts.discovery_algorithm())
+                };
+                builder = req.opts.apply(builder.query(query));
+                builder = req.opts.apply_inference(builder)?;
+                if req.opts.retain_joint_horizons {
+                    builder = builder.retain_joint_horizons(true);
+                }
+                builder = crate::temporal_api::apply_class_prior(
+                    builder,
+                    class_prior_ordered,
+                    class_prior_pairs,
+                )?;
+                builder = crate::temporal_api::apply_max_completions(builder, max_completions);
+                req.compile(builder, true)
+            })
         })
     }
 
@@ -338,76 +344,78 @@ impl PyPreparedAnalysis {
         options: Option<Bound<'_, PyDict>>,
         as_average_effect: bool,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let class_graph = extract_temporal_class(class_graph, &req.names)?;
-        let input = req.load_weighted_series(py, columns, frame.as_ref())?;
-        let policy = policy.to_ascii_lowercase();
-        if as_average_effect
-            && (policy != "pulse"
-                || window.is_some()
-                || treatment_lag != 0
-                || horizon_steps != 1
-                || modifier.is_some()
-                || frame.is_some())
-        {
-            return Err(crate::value_err(
-                "as_average_effect is the lag-0 pulse on one series: policy='pulse', \
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let class_graph = extract_temporal_class(class_graph, &req.names)?;
+            let input = req.load_weighted_series(py, columns, frame.as_ref())?;
+            let policy = policy.to_ascii_lowercase();
+            if as_average_effect
+                && (policy != "pulse"
+                    || window.is_some()
+                    || treatment_lag != 0
+                    || horizon_steps != 1
+                    || modifier.is_some()
+                    || frame.is_some())
+            {
+                return Err(crate::value_err(
+                    "as_average_effect is the lag-0 pulse on one series: policy='pulse', \
                  treatment_lag=0, horizon_steps=1, no window, modifier or frame",
-            ));
-        }
-        req.off_gil(py, move |mut req| {
-            let data = input.materialize()?;
-            let schema = data.schema().clone();
-            let t_id = schema.id_of(&treatment).map_err(py_err)?;
-            let y_id = schema.id_of(&outcome).map_err(py_err)?;
-            let mut q = temporal_effect_query(
-                &policy,
-                window,
-                t_id,
-                y_id,
-                treatment_lag,
-                horizon_steps,
-                control_level,
-                active_level,
-                max_history_lag,
-                &req.opts,
-            )?;
-            if let Some(modifier) = modifier.as_deref() {
-                let modifier_id = schema.id_of(modifier).map_err(py_err)?;
-                q = q.with_effect_modifiers([modifier_id]);
+                ));
             }
-            let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
-            builder = if let Some(graph) = class_graph {
-                bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
-            } else {
-                with_graph(
-                    builder,
-                    temporal_dag_from_schema_edges(&schema, &edges)?,
-                    accepted,
-                    req.opts.discovery_algorithm(),
-                )
-            };
-            builder = if as_average_effect {
-                let mut average = antecedent_core::AverageEffectQuery::with_levels(
+            req.off_gil(py, move |mut req| {
+                let data = input.materialize()?;
+                let schema = data.schema().clone();
+                let t_id = schema.id_of(&treatment).map_err(py_err)?;
+                let y_id = schema.id_of(&outcome).map_err(py_err)?;
+                let mut q = temporal_effect_query(
+                    &policy,
+                    window,
                     t_id,
                     y_id,
+                    treatment_lag,
+                    horizon_steps,
                     control_level,
                     active_level,
-                );
-                average.target_population = q.target_population.clone();
-                req.opts.apply(builder.query(CausalQuery::AverageEffect(average)))
-            } else {
-                req.opts.apply(builder.temporal_query(q))
-            };
-            builder = req.opts.apply_inference(builder)?;
-            builder = req.opts.apply_selection(builder);
-            builder = crate::temporal_api::apply_class_prior(
-                builder,
-                class_prior_ordered,
-                class_prior_pairs,
-            )?;
-            builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            req.compile(builder, true)
+                    max_history_lag,
+                    &req.opts,
+                )?;
+                if let Some(modifier) = modifier.as_deref() {
+                    let modifier_id = schema.id_of(modifier).map_err(py_err)?;
+                    q = q.with_effect_modifiers([modifier_id]);
+                }
+                let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
+                builder = if let Some(graph) = class_graph {
+                    bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
+                } else {
+                    with_graph(
+                        builder,
+                        temporal_dag_from_schema_edges(&schema, &edges)?,
+                        accepted,
+                        req.opts.discovery_algorithm(),
+                    )
+                };
+                builder = if as_average_effect {
+                    let mut average = antecedent_core::AverageEffectQuery::with_levels(
+                        t_id,
+                        y_id,
+                        control_level,
+                        active_level,
+                    );
+                    average.target_population = q.target_population.clone();
+                    req.opts.apply(builder.query(CausalQuery::AverageEffect(average)))
+                } else {
+                    req.opts.apply(builder.temporal_query(q))
+                };
+                builder = req.opts.apply_inference(builder)?;
+                builder = req.opts.apply_selection(builder);
+                builder = crate::temporal_api::apply_class_prior(
+                    builder,
+                    class_prior_ordered,
+                    class_prior_pairs,
+                )?;
+                builder = crate::temporal_api::apply_max_completions(builder, max_completions);
+                req.compile(builder, true)
+            })
         })
     }
 
@@ -461,45 +469,47 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("temporal mediation")?;
-        let class_graph = extract_temporal_class(class_graph, &req.names)?;
-        let input = req.load_frame(py, columns, frame.as_ref())?;
-        let contrast = contrast.to_string();
-        req.off_gil(py, move |mut req| {
-            let data = input.materialize()?;
-            let schema = data.schema().clone();
-            let q = temporal_mediation_query(
-                &schema,
-                &treatment,
-                &mediator,
-                &outcome,
-                &contrast,
-                control_level,
-                active_level,
-                horizons,
-                &req.opts,
-            )?;
-            let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
-            builder = if let Some(graph) = class_graph {
-                bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
-            } else {
-                with_graph(
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("temporal mediation")?;
+            let class_graph = extract_temporal_class(class_graph, &req.names)?;
+            let input = req.load_frame(py, columns, frame.as_ref())?;
+            let contrast = contrast.to_string();
+            req.off_gil(py, move |mut req| {
+                let data = input.materialize()?;
+                let schema = data.schema().clone();
+                let q = temporal_mediation_query(
+                    &schema,
+                    &treatment,
+                    &mediator,
+                    &outcome,
+                    &contrast,
+                    control_level,
+                    active_level,
+                    horizons,
+                    &req.opts,
+                )?;
+                let mut builder = data.builder(&req.opts.ctx(seed, threads))?;
+                builder = if let Some(graph) = class_graph {
+                    bind_temporal_class(builder, graph, accepted, req.opts.discovery_algorithm())
+                } else {
+                    with_graph(
+                        builder,
+                        temporal_dag_from_schema_edges(&schema, &edges)?,
+                        accepted,
+                        req.opts.discovery_algorithm(),
+                    )
+                };
+                builder = req.opts.apply(builder.query(CausalQuery::Mediation(q)));
+                builder = req.opts.apply_inference(builder)?;
+                builder = crate::temporal_api::apply_class_prior(
                     builder,
-                    temporal_dag_from_schema_edges(&schema, &edges)?,
-                    accepted,
-                    req.opts.discovery_algorithm(),
-                )
-            };
-            builder = req.opts.apply(builder.query(CausalQuery::Mediation(q)));
-            builder = req.opts.apply_inference(builder)?;
-            builder = crate::temporal_api::apply_class_prior(
-                builder,
-                class_prior_ordered,
-                class_prior_pairs,
-            )?;
-            builder = crate::temporal_api::apply_max_completions(builder, max_completions);
-            req.compile(builder, true)
+                    class_prior_ordered,
+                    class_prior_pairs,
+                )?;
+                builder = crate::temporal_api::apply_max_completions(builder, max_completions);
+                req.compile(builder, true)
+            })
         })
     }
 }

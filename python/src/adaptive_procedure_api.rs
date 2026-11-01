@@ -592,33 +592,35 @@ impl AdaptiveProcedureHandle {
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let value = parse(request_json, "simulation request")?;
-        let request = simulation_of(object(&value, "simulation request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match py.detach(|| self.inner.simulate(&truth, &request, &ctx)) {
-            Ok(report) => (
-                Some(
-                    json!({
-                        "procedure_identity": report.procedure_identity,
-                        "calibration": report.calibration,
-                        "mean_enrolled": report.law.mean_enrolled(),
-                        "rule_stop_fraction": report.law.rule_stop_fraction(),
-                        "receipt": receipt_json(&report.law.receipt),
-                        "replicates": report.law.replicates.iter().map(|r| json!({
-                            "estimate": r.estimate,
-                            "variance": r.variance,
-                            "look": r.look,
-                            "rule_stopped": r.rule_stopped,
-                            "decision": r.decision,
-                            "enrolled": r.enrolled,
-                            "analysed_units": r.analysed_units,
-                        })).collect::<Vec<_>>(),
-                    })
-                    .to_string(),
+        crate::catch_ffi(|| {
+            let value = parse(request_json, "simulation request")?;
+            let request = simulation_of(object(&value, "simulation request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match py.detach(|| self.inner.simulate(&truth, &request, &ctx)) {
+                Ok(report) => (
+                    Some(
+                        json!({
+                            "procedure_identity": report.procedure_identity,
+                            "calibration": report.calibration,
+                            "mean_enrolled": report.law.mean_enrolled(),
+                            "rule_stop_fraction": report.law.rule_stop_fraction(),
+                            "receipt": receipt_json(&report.law.receipt),
+                            "replicates": report.law.replicates.iter().map(|r| json!({
+                                "estimate": r.estimate,
+                                "variance": r.variance,
+                                "look": r.look,
+                                "rule_stopped": r.rule_stopped,
+                                "decision": r.decision,
+                                "enrolled": r.enrolled,
+                                "analysed_units": r.analysed_units,
+                            })).collect::<Vec<_>>(),
+                        })
+                        .to_string(),
+                    ),
+                    None,
                 ),
-                None,
-            ),
-            Err(refusal) => refused(&refusal),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -630,11 +632,13 @@ impl AdaptiveProcedureHandle {
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = request_of(&parse(request_json, "procedure report request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match py.detach(|| self.inner.report(&request, &ctx)) {
-            Ok(report) => (Some(report_json(&report).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let request = request_of(&parse(request_json, "procedure report request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match py.detach(|| self.inner.report(&request, &ctx)) {
+                Ok(report) => (Some(report_json(&report).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 }
@@ -644,10 +648,12 @@ impl AdaptiveProcedureHandle {
 fn adaptive_procedure_declare(
     declaration_json: &str,
 ) -> PyResult<Refused<AdaptiveProcedureHandle>> {
-    let declaration = declaration_of(&parse(declaration_json, "procedure declaration")?)?;
-    Ok(match AdaptiveProcedure::declare(declaration) {
-        Ok(inner) => (Some(AdaptiveProcedureHandle { inner }), None),
-        Err(refusals) => refused_all(&refusals),
+    crate::catch_ffi(|| {
+        let declaration = declaration_of(&parse(declaration_json, "procedure declaration")?)?;
+        Ok(match AdaptiveProcedure::declare(declaration) {
+            Ok(inner) => (Some(AdaptiveProcedureHandle { inner }), None),
+            Err(refusals) => refused_all(&refusals),
+        })
     })
 }
 
@@ -660,11 +666,13 @@ fn adaptive_procedure_from_contract(
     elements_json: &str,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused<AdaptiveProcedureHandle>> {
-    let elements = elements_of(&parse(elements_json, "procedure elements")?)?;
-    let ctx = execution_context(0, None, cancel);
-    Ok(match session.inner.procedure(&elements, &ctx) {
-        Ok(inner) => (Some(AdaptiveProcedureHandle { inner }), None),
-        Err(refusals) => refused_all(&refusals),
+    crate::catch_ffi(|| {
+        let elements = elements_of(&parse(elements_json, "procedure elements")?)?;
+        let ctx = execution_context(0, None, cancel);
+        Ok(match session.inner.procedure(&elements, &ctx) {
+            Ok(inner) => (Some(AdaptiveProcedureHandle { inner }), None),
+            Err(refusals) => refused_all(&refusals),
+        })
     })
 }
 
@@ -932,92 +940,101 @@ impl RepeatedMeasuresProcedureHandle {
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = repeated_measures_request_of(&parse(
-            request_json,
-            "repeated-measures report request",
-        )?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match py.detach(|| self.inner.report(&request, &ctx)) {
-            Ok(report) => (Some(repeated_measures_report_json(&report).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let request = repeated_measures_request_of(&parse(
+                request_json,
+                "repeated-measures report request",
+            )?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match py.detach(|| self.inner.report(&request, &ctx)) {
+                Ok(report) => (Some(repeated_measures_report_json(&report).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// The exact posterior of the arm means and of the declared contrast, as the retained
     /// report's JSON.
     fn posterior(&self, request_json: &str) -> PyResult<Refused<String>> {
-        crate::bridge::check_declared_size(
-            request_json,
-            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
-            "repeated-measures posterior request",
-        )?;
-        let wire: antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire =
+        crate::catch_ffi(|| {
+            crate::bridge::check_declared_size(
+                request_json,
+                crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+                "repeated-measures posterior request",
+            )?;
+            let wire: antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorRequestWire =
             serde_json::from_str(request_json).map_err(|error| {
                 crate::value_err(format!("invalid repeated-measures posterior request: {error}"))
             })?;
-        let outcome = wire.into_spec().and_then(|spec| self.inner.posterior(&spec));
-        Ok(match outcome {
-            Ok(report) => match serde_json::to_string(&report) {
-                Ok(text) => (Some(text), None),
-                Err(error) => return Err(crate::serialization_err(error.to_string())),
-            },
-            Err(refusal) => refused(&refusal),
+            let outcome = wire.into_spec().and_then(|spec| self.inner.posterior(&spec));
+            Ok(match outcome {
+                Ok(report) => match serde_json::to_string(&report) {
+                    Ok(text) => (Some(text), None),
+                    Err(error) => return Err(crate::serialization_err(error.to_string())),
+                },
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// Write a posterior report (JSON) as the retained artifact text, after recomputing it under
     /// this procedure.
     fn posterior_artifact(&self, report_json: &str) -> PyResult<Refused<String>> {
-        crate::bridge::check_declared_size(
-            report_json,
-            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
-            "repeated-measures posterior report",
-        )?;
-        let report: antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport =
+        crate::catch_ffi(|| {
+            crate::bridge::check_declared_size(
+                report_json,
+                crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+                "repeated-measures posterior report",
+            )?;
+            let report: antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport =
             serde_json::from_str(report_json).map_err(|error| {
                 crate::value_err(format!("invalid repeated-measures posterior report: {error}"))
             })?;
-        Ok(
+            Ok(
             match antecedent::analysis::repeated_measures_posterior_report::encode_repeated_measures_posterior_report(&report, &self.inner) {
                 Ok(text) => (Some(text), None),
                 Err(refusal) => refused(&refusal),
             },
         )
+        })
     }
 
     /// Export a self-contained envelope without altering the historical posterior bytes.
     fn export_posterior(&self, report_json: &str) -> PyResult<Refused<(String, String)>> {
-        let (posterior, refusal) = self.posterior_artifact(report_json)?;
-        let Some(posterior) = posterior else {
-            return Ok((None, refusal));
-        };
-        let identity = posterior_bundle_identity(&self.declaration, &posterior)?;
-        let bundle = PosteriorBundle {
-            format: POSTERIOR_BUNDLE_FORMAT.to_owned(),
-            version: 1,
-            declaration: self.declaration.clone(),
-            posterior,
-            identity: identity.clone(),
-        };
-        let text = serde_json::to_string(&bundle)
-            .map_err(|error| crate::serialization_err(error.to_string()))?;
-        crate::bridge::check_declared_size(
-            &text,
-            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
-            "repeated-measures posterior bundle",
-        )?;
-        Ok((Some((text, identity)), None))
+        crate::catch_ffi(|| {
+            let (posterior, refusal) = self.posterior_artifact(report_json)?;
+            let Some(posterior) = posterior else {
+                return Ok((None, refusal));
+            };
+            let identity = posterior_bundle_identity(&self.declaration, &posterior)?;
+            let bundle = PosteriorBundle {
+                format: POSTERIOR_BUNDLE_FORMAT.to_owned(),
+                version: 1,
+                declaration: self.declaration.clone(),
+                posterior,
+                identity: identity.clone(),
+            };
+            let text = serde_json::to_string(&bundle)
+                .map_err(|error| crate::serialization_err(error.to_string()))?;
+            crate::bridge::check_declared_size(
+                &text,
+                crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+                "repeated-measures posterior bundle",
+            )?;
+            Ok((Some((text, identity)), None))
+        })
     }
 
     /// Load a retained posterior artifact, recomputing it under this procedure; returns the
     /// report's JSON.
     fn load_posterior_artifact(&self, artifact: &str) -> PyResult<Refused<String>> {
-        crate::bridge::check_declared_size(
-            artifact,
-            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
-            "repeated-measures posterior artifact",
-        )?;
-        Ok(
+        crate::catch_ffi(|| {
+            crate::bridge::check_declared_size(
+                artifact,
+                crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+                "repeated-measures posterior artifact",
+            )?;
+            Ok(
             match antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report(artifact, &self.inner) {
                 Ok(report) => match serde_json::to_string(&report) {
                     Ok(text) => (Some(text), None),
@@ -1026,6 +1043,7 @@ impl RepeatedMeasuresProcedureHandle {
                 Err(refusal) => refused(&refusal),
             },
         )
+        })
     }
 }
 
@@ -1065,32 +1083,34 @@ fn repeated_measures_posterior_consume(
     artifact: &str,
     expected_identity: Option<&str>,
 ) -> PyResult<Refused<(String, String)>> {
-    crate::bridge::check_declared_size(
-        artifact,
-        crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
-        "repeated-measures posterior bundle",
-    )?;
-    let bundle: PosteriorBundle = serde_json::from_str(artifact)
-        .map_err(|error| crate::serialization_err(error.to_string()))?;
-    if bundle.format != POSTERIOR_BUNDLE_FORMAT || bundle.version != 1 {
-        return Err(crate::serialization_err("unsupported repeated-measures posterior bundle"));
-    }
-    let identity = posterior_bundle_identity(&bundle.declaration, &bundle.posterior)?;
-    if identity != bundle.identity || expected_identity.is_some_and(|value| value != identity) {
-        return Err(crate::serialization_err(
-            "repeated-measures posterior bundle identity mismatch",
-        ));
-    }
-    let declaration = repeated_measures_declaration_of(&bundle.declaration)?;
-    let procedure = match RepeatedMeasuresProcedure::declare(declaration) {
-        Ok(procedure) => procedure,
-        Err(refusals) => return Ok(refused_all(&refusals)),
-    };
-    Ok(match antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report(
+    crate::catch_ffi(|| {
+        crate::bridge::check_declared_size(
+            artifact,
+            crate::bridge::MAX_DECLARED_ARTIFACT_BYTES,
+            "repeated-measures posterior bundle",
+        )?;
+        let bundle: PosteriorBundle = serde_json::from_str(artifact)
+            .map_err(|error| crate::serialization_err(error.to_string()))?;
+        if bundle.format != POSTERIOR_BUNDLE_FORMAT || bundle.version != 1 {
+            return Err(crate::serialization_err("unsupported repeated-measures posterior bundle"));
+        }
+        let identity = posterior_bundle_identity(&bundle.declaration, &bundle.posterior)?;
+        if identity != bundle.identity || expected_identity.is_some_and(|value| value != identity) {
+            return Err(crate::serialization_err(
+                "repeated-measures posterior bundle identity mismatch",
+            ));
+        }
+        let declaration = repeated_measures_declaration_of(&bundle.declaration)?;
+        let procedure = match RepeatedMeasuresProcedure::declare(declaration) {
+            Ok(procedure) => procedure,
+            Err(refusals) => return Ok(refused_all(&refusals)),
+        };
+        Ok(match antecedent::analysis::repeated_measures_posterior_report::load_repeated_measures_posterior_report(
         &bundle.posterior, &procedure,
     ) {
         Ok(report) => (Some((serde_json::to_string(&report).map_err(|error| crate::serialization_err(error.to_string()))?, identity)), None),
         Err(refusal) => refused(&refusal),
+    })
     })
 }
 
@@ -1099,11 +1119,15 @@ fn repeated_measures_posterior_consume(
 fn repeated_measures_procedure_declare(
     declaration_json: &str,
 ) -> PyResult<Refused<RepeatedMeasuresProcedureHandle>> {
-    let retained = parse(declaration_json, "repeated-measures declaration")?;
-    let declaration = repeated_measures_declaration_of(&retained)?;
-    Ok(match RepeatedMeasuresProcedure::declare(declaration) {
-        Ok(inner) => (Some(RepeatedMeasuresProcedureHandle { inner, declaration: retained }), None),
-        Err(refusals) => refused_all(&refusals),
+    crate::catch_ffi(|| {
+        let retained = parse(declaration_json, "repeated-measures declaration")?;
+        let declaration = repeated_measures_declaration_of(&retained)?;
+        Ok(match RepeatedMeasuresProcedure::declare(declaration) {
+            Ok(inner) => {
+                (Some(RepeatedMeasuresProcedureHandle { inner, declaration: retained }), None)
+            }
+            Err(refusals) => refused_all(&refusals),
+        })
     })
 }
 

@@ -178,60 +178,63 @@ fn prior_catalog_filter<'py>(
     sources: &Bound<'_, PyList>,
     target: &Bound<'_, PyDict>,
 ) -> PyResult<Bound<'py, PyList>> {
-    let mut refs = Vec::with_capacity(sources.len());
-    for item in sources.iter() {
-        let d = item.cast::<PyDict>()?;
-        let meta_obj =
-            d.get_item("meta")?.ok_or_else(|| crate::value_err("source requires meta dict"))?;
-        let meta = meta_from_dict(meta_obj.cast::<PyDict>()?)?;
-        let artifact = match d.get_item("artifact")? {
-            Some(a) if !a.is_none() => {
-                let bytes: Vec<u8> = a.extract()?;
-                Some(bytes)
-            }
-            _ => None,
-        };
-        refs.push(match artifact {
-            Some(b) => PriorSourceRef::with_bytes(meta, b),
-            None => PriorSourceRef::from_meta(meta),
-        });
-    }
-
-    let estimand_obj =
-        target.get_item("estimand")?.ok_or_else(|| crate::value_err("target.estimand required"))?;
-    let ed = estimand_obj.cast::<PyDict>()?;
-    let estimand = EstimandFingerprint::new(
-        ed.get_item("query_kind")?
-            .ok_or_else(|| crate::value_err("estimand.query_kind"))?
-            .extract::<String>()?,
-        ed.get_item("treatment")?
-            .ok_or_else(|| crate::value_err("estimand.treatment"))?
-            .extract::<String>()?,
-        ed.get_item("outcome")?
-            .ok_or_else(|| crate::value_err("estimand.outcome"))?
-            .extract::<String>()?,
-    );
-    let variables: Vec<String> = match target.get_item("variables")? {
-        Some(v) => v.extract()?,
-        None => Vec::new(),
-    };
-    let mut td = TargetDesign::new(estimand, variables);
-    if let Some(tags) = target.get_item("tags")? {
-        td = td.with_tags(tags.extract()?);
-    }
-    if let Some(allow) = target.get_item("allow_unidentified")? {
-        if allow.extract::<bool>()? {
-            td = td.allow_unidentified();
+    crate::catch_ffi(|| {
+        let mut refs = Vec::with_capacity(sources.len());
+        for item in sources.iter() {
+            let d = item.cast::<PyDict>()?;
+            let meta_obj =
+                d.get_item("meta")?.ok_or_else(|| crate::value_err("source requires meta dict"))?;
+            let meta = meta_from_dict(meta_obj.cast::<PyDict>()?)?;
+            let artifact = match d.get_item("artifact")? {
+                Some(a) if !a.is_none() => {
+                    let bytes: Vec<u8> = a.extract()?;
+                    Some(bytes)
+                }
+                _ => None,
+            };
+            refs.push(match artifact {
+                Some(b) => PriorSourceRef::with_bytes(meta, b),
+                None => PriorSourceRef::from_meta(meta),
+            });
         }
-    }
 
-    let catalog = PriorCatalog::from_sources(refs);
-    let reports = catalog.filter_compatible(&td);
-    let out = PyList::empty(py);
-    for r in &reports {
-        out.append(report_to_dict(py, r)?)?;
-    }
-    Ok(out)
+        let estimand_obj = target
+            .get_item("estimand")?
+            .ok_or_else(|| crate::value_err("target.estimand required"))?;
+        let ed = estimand_obj.cast::<PyDict>()?;
+        let estimand = EstimandFingerprint::new(
+            ed.get_item("query_kind")?
+                .ok_or_else(|| crate::value_err("estimand.query_kind"))?
+                .extract::<String>()?,
+            ed.get_item("treatment")?
+                .ok_or_else(|| crate::value_err("estimand.treatment"))?
+                .extract::<String>()?,
+            ed.get_item("outcome")?
+                .ok_or_else(|| crate::value_err("estimand.outcome"))?
+                .extract::<String>()?,
+        );
+        let variables: Vec<String> = match target.get_item("variables")? {
+            Some(v) => v.extract()?,
+            None => Vec::new(),
+        };
+        let mut td = TargetDesign::new(estimand, variables);
+        if let Some(tags) = target.get_item("tags")? {
+            td = td.with_tags(tags.extract()?);
+        }
+        if let Some(allow) = target.get_item("allow_unidentified")? {
+            if allow.extract::<bool>()? {
+                td = td.allow_unidentified();
+            }
+        }
+
+        let catalog = PriorCatalog::from_sources(refs);
+        let reports = catalog.filter_compatible(&td);
+        let out = PyList::empty(py);
+        for r in &reports {
+            out.append(report_to_dict(py, r)?)?;
+        }
+        Ok(out)
+    })
 }
 
 /// Rank usable compatibility reports by similarity scores `{id: score}`.
@@ -241,53 +244,55 @@ fn prior_catalog_rank<'py>(
     reports: &Bound<'_, PyList>,
     scores: &Bound<'_, PyDict>,
 ) -> PyResult<Bound<'py, PyList>> {
-    let mut parsed = Vec::with_capacity(reports.len());
-    for item in reports.iter() {
-        let d = item.cast::<PyDict>()?;
-        let status: String = d
-            .get_item("status")?
-            .ok_or_else(|| crate::value_err("report.status required"))?
-            .extract()?;
-        let artifact_id: String = d
-            .get_item("artifact_id")?
-            .ok_or_else(|| crate::value_err("report.artifact_id required"))?
-            .extract()?;
-        let report = match status.as_str() {
-            "compatible" => CompatibilityReport::Compatible { artifact_id },
-            "partial" => CompatibilityReport::Partial {
-                artifact_id,
-                missing: d
-                    .get_item("missing")?
-                    .map(|v| v.extract())
-                    .transpose()?
-                    .unwrap_or_default(),
-                mappable: d
-                    .get_item("mappable")?
-                    .map(|v| v.extract())
-                    .transpose()?
-                    .unwrap_or_default(),
-            },
-            "rejected" => CompatibilityReport::Rejected {
-                artifact_id,
-                reason: antecedent_io::CompatibilityRejectReason::ArtifactUnreadable {
-                    message: "rank ignores rejected detail".into(),
+    crate::catch_ffi(|| {
+        let mut parsed = Vec::with_capacity(reports.len());
+        for item in reports.iter() {
+            let d = item.cast::<PyDict>()?;
+            let status: String = d
+                .get_item("status")?
+                .ok_or_else(|| crate::value_err("report.status required"))?
+                .extract()?;
+            let artifact_id: String = d
+                .get_item("artifact_id")?
+                .ok_or_else(|| crate::value_err("report.artifact_id required"))?
+                .extract()?;
+            let report = match status.as_str() {
+                "compatible" => CompatibilityReport::Compatible { artifact_id },
+                "partial" => CompatibilityReport::Partial {
+                    artifact_id,
+                    missing: d
+                        .get_item("missing")?
+                        .map(|v| v.extract())
+                        .transpose()?
+                        .unwrap_or_default(),
+                    mappable: d
+                        .get_item("mappable")?
+                        .map(|v| v.extract())
+                        .transpose()?
+                        .unwrap_or_default(),
                 },
-            },
-            other => {
-                return Err(crate::value_err(format!("unknown report status `{other}`")));
-            }
-        };
-        parsed.push(report);
-    }
-    let score_map: BTreeMap<String, f64> = scores.extract()?;
-    let score_vec: Vec<(String, f64)> = score_map.into_iter().collect();
-    let catalog = PriorCatalog::new();
-    let ranked = catalog.rank(&parsed, &score_vec);
-    let out = PyList::empty(py);
-    for r in &ranked {
-        out.append(report_to_dict(py, r)?)?;
-    }
-    Ok(out)
+                "rejected" => CompatibilityReport::Rejected {
+                    artifact_id,
+                    reason: antecedent_io::CompatibilityRejectReason::ArtifactUnreadable {
+                        message: "rank ignores rejected detail".into(),
+                    },
+                },
+                other => {
+                    return Err(crate::value_err(format!("unknown report status `{other}`")));
+                }
+            };
+            parsed.push(report);
+        }
+        let score_map: BTreeMap<String, f64> = scores.extract()?;
+        let score_vec: Vec<(String, f64)> = score_map.into_iter().collect();
+        let catalog = PriorCatalog::new();
+        let ranked = catalog.rank(&parsed, &score_vec);
+        let out = PyList::empty(py);
+        for r in &ranked {
+            out.append(report_to_dict(py, r)?)?;
+        }
+        Ok(out)
+    })
 }
 
 /// Encode prior-source meta dict → CBOR bytes.
@@ -300,48 +305,50 @@ fn encode_prior_source_meta(meta: &Bound<'_, PyDict>) -> PyResult<Vec<u8>> {
 /// Decode prior-source meta CBOR → dict.
 #[pyfunction]
 fn decode_prior_source_meta(py: Python<'_>, bytes: Vec<u8>) -> PyResult<Bound<'_, PyDict>> {
-    let meta = antecedent_io::decode_prior_source_meta(&bytes).map_err(py_err)?;
-    let d = PyDict::new(py);
-    d.set_item("artifact_id", meta.artifact_id)?;
-    let est = PyDict::new(py);
-    est.set_item("query_kind", meta.estimand.query_kind)?;
-    est.set_item("treatment", meta.estimand.treatment)?;
-    est.set_item("outcome", meta.estimand.outcome)?;
-    d.set_item("estimand", est)?;
-    d.set_item("identification", meta.identification)?;
-    d.set_item("tags", meta.tags)?;
-    let design = PyList::empty(py);
-    for row in meta.design {
-        let rd = PyDict::new(py);
-        rd.set_item("name", row.name)?;
-        rd.set_item("role", role_to_str(row.role))?;
-        design.append(rd)?;
-    }
-    d.set_item("design", design)?;
-    if let Some(c) = meta.contrast {
-        d.set_item("contrast", c)?;
-    }
-    if !meta.provenance.is_empty() {
-        d.set_item("provenance", meta.provenance)?;
-    }
-    if let Some(m) = meta.declared_mapping {
-        let md = PyDict::new(py);
-        match m {
-            PriorMapping::IdenticalCoefficientSubspace => {
-                md.set_item("kind", "identical_coefficient_subspace")?;
-            }
-            PriorMapping::EffectFunctional { source_quantity } => {
-                md.set_item("kind", "effect_functional")?;
-                md.set_item("source_quantity", source_quantity)?;
-            }
-            PriorMapping::NamedParameters { pairs } => {
-                md.set_item("kind", "named_parameters")?;
-                md.set_item("pairs", pairs)?;
-            }
+    crate::catch_ffi(|| {
+        let meta = antecedent_io::decode_prior_source_meta(&bytes).map_err(py_err)?;
+        let d = PyDict::new(py);
+        d.set_item("artifact_id", meta.artifact_id)?;
+        let est = PyDict::new(py);
+        est.set_item("query_kind", meta.estimand.query_kind)?;
+        est.set_item("treatment", meta.estimand.treatment)?;
+        est.set_item("outcome", meta.estimand.outcome)?;
+        d.set_item("estimand", est)?;
+        d.set_item("identification", meta.identification)?;
+        d.set_item("tags", meta.tags)?;
+        let design = PyList::empty(py);
+        for row in meta.design {
+            let rd = PyDict::new(py);
+            rd.set_item("name", row.name)?;
+            rd.set_item("role", role_to_str(row.role))?;
+            design.append(rd)?;
         }
-        d.set_item("declared_mapping", md)?;
-    }
-    Ok(d)
+        d.set_item("design", design)?;
+        if let Some(c) = meta.contrast {
+            d.set_item("contrast", c)?;
+        }
+        if !meta.provenance.is_empty() {
+            d.set_item("provenance", meta.provenance)?;
+        }
+        if let Some(m) = meta.declared_mapping {
+            let md = PyDict::new(py);
+            match m {
+                PriorMapping::IdenticalCoefficientSubspace => {
+                    md.set_item("kind", "identical_coefficient_subspace")?;
+                }
+                PriorMapping::EffectFunctional { source_quantity } => {
+                    md.set_item("kind", "effect_functional")?;
+                    md.set_item("source_quantity", source_quantity)?;
+                }
+                PriorMapping::NamedParameters { pairs } => {
+                    md.set_item("kind", "named_parameters")?;
+                    md.set_item("pairs", pairs)?;
+                }
+            }
+            d.set_item("declared_mapping", md)?;
+        }
+        Ok(d)
+    })
 }
 
 fn prior_set_from_moments(mean: &[f64], variance: &[f64]) -> PyResult<PriorSet> {

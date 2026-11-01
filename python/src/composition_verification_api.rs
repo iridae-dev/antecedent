@@ -518,34 +518,37 @@ impl CompositionVerificationHandle {
 /// Classify the current graph against the earlier one and seal the result.
 #[pyfunction]
 fn composition_verification_verify(request_json: &str) -> PyResult<Made> {
-    let parsed = parse(request_json, "composition verification request")?;
-    let map = object(&parsed, "request")?;
-    let current = match parse_graph(member(map, "current")?, "current graph")? {
-        Ok(graph) => graph,
-        Err(error) => return Ok((None, Some(graph_refusal(&error)))),
-    };
-    let previous = match present(map, "previous") {
-        None => None,
-        Some(value) => match parse_graph(value, "previous graph")? {
-            Ok(graph) => Some(graph),
+    crate::catch_ffi(|| {
+        let parsed = parse(request_json, "composition verification request")?;
+        let map = object(&parsed, "request")?;
+        let current = match parse_graph(member(map, "current")?, "current graph")? {
+            Ok(graph) => graph,
             Err(error) => return Ok((None, Some(graph_refusal(&error)))),
-        },
-    };
-    let effects = parse_effects(present(map, "effects"))?;
-    let shared = parse_shared(present(map, "shared_data"))?;
-    let state = opt_text(map, "ledger_state")?.map(|t| digest(&t, "ledger state")).transpose()?;
-    Ok(
-        match CompositionVerificationArtifact::seal(
-            previous.as_ref(),
-            &current,
-            &effects,
-            &shared,
-            state,
-        ) {
-            Ok((inner, _)) => (Some(CompositionVerificationHandle { inner }), None),
-            Err(error) => (None, Some(artifact_refusal(&error))),
-        },
-    )
+        };
+        let previous = match present(map, "previous") {
+            None => None,
+            Some(value) => match parse_graph(value, "previous graph")? {
+                Ok(graph) => Some(graph),
+                Err(error) => return Ok((None, Some(graph_refusal(&error)))),
+            },
+        };
+        let effects = parse_effects(present(map, "effects"))?;
+        let shared = parse_shared(present(map, "shared_data"))?;
+        let state =
+            opt_text(map, "ledger_state")?.map(|t| digest(&t, "ledger state")).transpose()?;
+        Ok(
+            match CompositionVerificationArtifact::seal(
+                previous.as_ref(),
+                &current,
+                &effects,
+                &shared,
+                state,
+            ) {
+                Ok((inner, _)) => (Some(CompositionVerificationHandle { inner }), None),
+                Err(error) => (None, Some(artifact_refusal(&error))),
+            },
+        )
+    })
 }
 
 /// Consume a composition verification artifact by classifying again, against
@@ -576,9 +579,11 @@ fn composition_registry_record_attests(record: &str) -> PyResult<bool> {
 /// attesting shipped record replaced by `required`. Other declarations are returned unchanged.
 #[pyfunction]
 fn composition_registry_resolved_calibration(calibration_json: &str) -> PyResult<String> {
-    let value = parse(calibration_json, "calibration declaration")?;
-    let declaration = parse_calibration(&value)?;
-    Ok(calibration_wire(&registry_resolved_calibration(&declaration)).to_string())
+    crate::catch_ffi(|| {
+        let value = parse(calibration_json, "calibration declaration")?;
+        let declaration = parse_calibration(&value)?;
+        Ok(calibration_wire(&registry_resolved_calibration(&declaration)).to_string())
+    })
 }
 
 /// The keys of the nodes of a graph whose held or inherited record does not name a currently
@@ -587,10 +592,12 @@ fn composition_registry_resolved_calibration(calibration_json: &str) -> PyResult
 fn composition_registry_unresolved(
     graph_json: &str,
 ) -> PyResult<(Option<Vec<String>>, Option<String>)> {
-    let value = parse(graph_json, "composition graph")?;
-    Ok(match parse_graph(&value, "graph")? {
-        Ok(graph) => (Some(unresolved_registry_calibrations(&graph)), None),
-        Err(error) => (None, Some(graph_refusal(&error))),
+    crate::catch_ffi(|| {
+        let value = parse(graph_json, "composition graph")?;
+        Ok(match parse_graph(&value, "graph")? {
+            Ok(graph) => (Some(unresolved_registry_calibrations(&graph)), None),
+            Err(error) => (None, Some(graph_refusal(&error))),
+        })
     })
 }
 

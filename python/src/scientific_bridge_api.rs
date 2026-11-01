@@ -674,32 +674,35 @@ impl PreparedBridgeHandle {
 
     /// Derive the claim for a declared source claim, or the refusal.
     fn derive(&self, source_json: &str) -> PyResult<Derived> {
-        let parsed = parse(source_json, "source claim")?;
-        let map = object(&parsed, "source")?;
-        let claim = parse_claim(member(map, "claim")?)?;
-        let quantity = parse_quantity(member(map, "quantity")?)?;
-        let source = BridgeSource { claim: &claim, quantity: &quantity };
-        let standard_error = match present(map, "standard_error") {
-            None => None,
-            Some(number) => Some(
-                number
-                    .as_f64()
-                    .ok_or_else(|| crate::value_err("source `standard_error` must be a number"))?,
-            ),
-        };
-        let nonlinear = parse_nonlinear(map)?;
-        Ok(match self.inner.derive_propagating(&source, standard_error, nonlinear) {
-            Ok(inner) => (Some(BridgedClaimHandle { inner }), None),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        crate::catch_ffi(|| {
+            let parsed = parse(source_json, "source claim")?;
+            let map = object(&parsed, "source")?;
+            let claim = parse_claim(member(map, "claim")?)?;
+            let quantity = parse_quantity(member(map, "quantity")?)?;
+            let source = BridgeSource { claim: &claim, quantity: &quantity };
+            let standard_error =
+                match present(map, "standard_error") {
+                    None => None,
+                    Some(number) => Some(number.as_f64().ok_or_else(|| {
+                        crate::value_err("source `standard_error` must be a number")
+                    })?),
+                };
+            let nonlinear = parse_nonlinear(map)?;
+            Ok(match self.inner.derive_propagating(&source, standard_error, nonlinear) {
+                Ok(inner) => (Some(BridgedClaimHandle { inner }), None),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
         })
     }
 
     /// A prepared bridge for a replacement contract, re-checked in full.
     fn with_contract(&self, contract_json: &str) -> PyResult<Prepared> {
-        let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
-        Ok(match self.inner.with_contract(contract) {
-            Ok(inner) => (Some(PreparedBridgeHandle { inner }), None),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        crate::catch_ffi(|| {
+            let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
+            Ok(match self.inner.with_contract(contract) {
+                Ok(inner) => (Some(PreparedBridgeHandle { inner }), None),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
         })
     }
 }
@@ -718,9 +721,11 @@ impl BridgedClaimHandle {
 
     /// The refusal when a consumer requires another kind of object.
     fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
-        let kind = ValueKind::from_name(kind)
-            .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
-        Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
+        crate::catch_ffi(|| {
+            let kind = ValueKind::from_name(kind)
+                .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+            Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
+        })
     }
 
     /// The propagated variance and mean of the bridged value as JSON, or the typed
@@ -778,14 +783,16 @@ impl BridgedClaimHandle {
         source_superseded: bool,
         current_snapshot: Option<&str>,
     ) -> PyResult<String> {
-        let current = current_snapshot_of(current_snapshot)?;
-        Ok(freshness_of(
-            self.inner.source_claim(),
-            self.inner.bridged(),
-            current,
-            source_withdrawn,
-            source_superseded,
-        ))
+        crate::catch_ffi(|| {
+            let current = current_snapshot_of(current_snapshot)?;
+            Ok(freshness_of(
+                self.inner.source_claim(),
+                self.inner.bridged(),
+                current,
+                source_withdrawn,
+                source_superseded,
+            ))
+        })
     }
 
     /// The artifact bytes and identity, or the refusal.
@@ -815,14 +822,16 @@ impl ConsumedBridgeHandle {
 
     /// The refusal when a consumer requires another kind of object.
     fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
-        let kind = ValueKind::from_name(kind)
-            .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
-        Ok(self
-            .inner
-            .bridged
-            .require_value_kind(kind)
-            .err()
-            .map(|refusal| external_refusal_json(&refusal)))
+        crate::catch_ffi(|| {
+            let kind = ValueKind::from_name(kind)
+                .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+            Ok(self
+                .inner
+                .bridged
+                .require_value_kind(kind)
+                .err()
+                .map(|refusal| external_refusal_json(&refusal)))
+        })
     }
 
     /// The propagated variance and mean the replayed derivation carried as JSON, or the
@@ -856,14 +865,16 @@ impl ConsumedBridgeHandle {
         source_superseded: bool,
         current_snapshot: Option<&str>,
     ) -> PyResult<String> {
-        let current = current_snapshot_of(current_snapshot)?;
-        Ok(freshness_of(
-            &self.inner.source,
-            &self.inner.bridged,
-            current,
-            source_withdrawn,
-            source_superseded,
-        ))
+        crate::catch_ffi(|| {
+            let current = current_snapshot_of(current_snapshot)?;
+            Ok(freshness_of(
+                &self.inner.source,
+                &self.inner.bridged,
+                current,
+                source_withdrawn,
+                source_superseded,
+            ))
+        })
     }
 }
 
@@ -874,10 +885,12 @@ impl ConsumedBridgeHandle {
 /// Check a bridge contract before any number is formed.
 #[pyfunction]
 fn scientific_bridge_prepare(contract_json: &str) -> PyResult<Prepared> {
-    let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
-    Ok(match PreparedScientificBridge::prepare(contract) {
-        Ok(inner) => (Some(PreparedBridgeHandle { inner }), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
+        Ok(match PreparedScientificBridge::prepare(contract) {
+            Ok(inner) => (Some(PreparedBridgeHandle { inner }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 
@@ -1014,19 +1027,23 @@ impl PreparedDistributionBridgeHandle {
         seed: u64,
         claim_kind: Option<&str>,
     ) -> PyResult<DerivedDistribution> {
-        let kind = claim_kind_of(claim_kind)?;
-        Ok(match self.inner.derive(distribution.inner(), kind, seed) {
-            Ok(inner) => (Some(BridgedDistributionHandle { inner, identity: None }), None),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        crate::catch_ffi(|| {
+            let kind = claim_kind_of(claim_kind)?;
+            Ok(match self.inner.derive(distribution.inner(), kind, seed) {
+                Ok(inner) => (Some(BridgedDistributionHandle { inner, identity: None }), None),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
         })
     }
 
     /// A prepared bridge for a replacement contract, re-checked in full.
     fn with_contract(&self, contract_json: &str) -> PyResult<PreparedDistribution> {
-        let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
-        Ok(match self.inner.with_contract(contract) {
-            Ok(inner) => (Some(PreparedDistributionBridgeHandle { inner }), None),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        crate::catch_ffi(|| {
+            let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
+            Ok(match self.inner.with_contract(contract) {
+                Ok(inner) => (Some(PreparedDistributionBridgeHandle { inner }), None),
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
         })
     }
 }
@@ -1058,9 +1075,11 @@ impl BridgedDistributionHandle {
 
     /// The refusal when a consumer requires another kind of object.
     fn require_value_kind(&self, kind: &str) -> PyResult<Option<String>> {
-        let kind = ValueKind::from_name(kind)
-            .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
-        Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
+        crate::catch_ffi(|| {
+            let kind = ValueKind::from_name(kind)
+                .ok_or_else(|| crate::value_err(format!("unknown value kind `{kind}`")))?;
+            Ok(self.inner.require_value_kind(kind).err().map(|r| refusal_json(&r)))
+        })
     }
 
     /// The typed refusal of an unscoped request for an interval.
@@ -1138,10 +1157,12 @@ impl BridgedDistributionHandle {
 /// predictive law.
 #[pyfunction]
 fn scientific_bridge_distribution_prepare(contract_json: &str) -> PyResult<PreparedDistribution> {
-    let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
-    Ok(match PreparedScientificBridgeDistribution::prepare(contract) {
-        Ok(inner) => (Some(PreparedDistributionBridgeHandle { inner }), None),
-        Err(refusal) => (None, Some(refusal_json(&refusal))),
+    crate::catch_ffi(|| {
+        let contract = parse_contract(&parse(contract_json, "bridge contract")?)?;
+        Ok(match PreparedScientificBridgeDistribution::prepare(contract) {
+            Ok(inner) => (Some(PreparedDistributionBridgeHandle { inner }), None),
+            Err(refusal) => (None, Some(refusal_json(&refusal))),
+        })
     })
 }
 

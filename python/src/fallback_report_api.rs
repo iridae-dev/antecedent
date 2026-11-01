@@ -192,12 +192,14 @@ impl ReportWire {
 /// the JSON values of its parts.
 #[pyfunction]
 fn render_fallback_report(parts_json: &str, format: &str) -> PyResult<String> {
-    let format = ReportFormat::from_name(format).ok_or_else(|| {
-        crate::value_err(format!("unknown report format {format:?}; use markdown or html"))
-    })?;
-    let wire: ReportWire = serde_json::from_str(parts_json)
-        .map_err(|e| crate::value_err(format!("invalid fallback report parts: {e}")))?;
-    Ok(render_fallback_input(&wire.into_input()?, format))
+    crate::catch_ffi(|| {
+        let format = ReportFormat::from_name(format).ok_or_else(|| {
+            crate::value_err(format!("unknown report format {format:?}; use markdown or html"))
+        })?;
+        let wire: ReportWire = serde_json::from_str(parts_json)
+            .map_err(|e| crate::value_err(format!("invalid fallback report parts: {e}")))?;
+        Ok(render_fallback_input(&wire.into_input()?, format))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

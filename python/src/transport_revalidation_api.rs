@@ -165,30 +165,34 @@ fn transported_response_standing(
     calibration_json: &str,
     provider_trust: Option<&str>,
 ) -> PyResult<Refused<String>> {
-    let calibration = standalone_calibration(calibration_json)?;
-    Ok(
-        match transported_claim_standing(
-            &response.inner,
-            calibration.clone(),
-            provider_of(provider_trust)?,
-        ) {
-            Ok(standing) => {
-                let support = match &standing.support {
-                    SupportStanding::Supported => json!({"kind": "supported", "coordinates": []}),
-                    SupportStanding::Unsupported { coordinates } => {
-                        json!({"kind": "unsupported", "coordinates": coordinates})
-                    }
-                };
-                let wire = json!({
-                    "support": support,
-                    "trust": standing.trust.as_str(),
-                    "calibration": crate::composition_verification_api::calibration_wire(&calibration),
-                });
-                (Some(wire.to_string()), None)
-            }
-            Err(error) => (None, Some(refusal_json(&error))),
-        },
-    )
+    crate::catch_ffi(|| {
+        let calibration = standalone_calibration(calibration_json)?;
+        Ok(
+            match transported_claim_standing(
+                &response.inner,
+                calibration.clone(),
+                provider_of(provider_trust)?,
+            ) {
+                Ok(standing) => {
+                    let support = match &standing.support {
+                        SupportStanding::Supported => {
+                            json!({"kind": "supported", "coordinates": []})
+                        }
+                        SupportStanding::Unsupported { coordinates } => {
+                            json!({"kind": "unsupported", "coordinates": coordinates})
+                        }
+                    };
+                    let wire = json!({
+                        "support": support,
+                        "trust": standing.trust.as_str(),
+                        "calibration": crate::composition_verification_api::calibration_wire(&calibration),
+                    });
+                    (Some(wire.to_string()), None)
+                }
+                Err(error) => (None, Some(refusal_json(&error))),
+            },
+        )
+    })
 }
 
 /// The composition-verification node of a standalone transported response, in the node
@@ -201,20 +205,22 @@ fn transported_response_node(
     calibration_json: &str,
     provider_trust: Option<&str>,
 ) -> PyResult<Refused<String>> {
-    let calibration = standalone_calibration(calibration_json)?;
-    Ok(
-        match transported_claim_node(
-            key,
-            &response.inner,
-            calibration,
-            provider_of(provider_trust)?,
-        ) {
-            Ok(node) => {
-                (Some(crate::composition_verification_api::node_wire(&node).to_string()), None)
-            }
-            Err(error) => (None, Some(refusal_json(&error))),
-        },
-    )
+    crate::catch_ffi(|| {
+        let calibration = standalone_calibration(calibration_json)?;
+        Ok(
+            match transported_claim_node(
+                key,
+                &response.inner,
+                calibration,
+                provider_of(provider_trust)?,
+            ) {
+                Ok(node) => {
+                    (Some(crate::composition_verification_api::node_wire(&node).to_string()), None)
+                }
+                Err(error) => (None, Some(refusal_json(&error))),
+            },
+        )
+    })
 }
 
 fn standalone_calibration(
@@ -243,64 +249,66 @@ fn transport_scene_build(
     scene_json: &str,
     responses: Vec<PyRef<'_, TransportedResponseHandle>>,
 ) -> PyResult<Refused<TransportSceneHandle>> {
-    check_size(scene_json, "transport scene")?;
-    let wire: SceneIn = serde_json::from_str(scene_json)
-        .map_err(|e| crate::value_err(format!("invalid transport scene: {e}")))?;
-    let mut builder = TransportSceneBuilder::new(
-        wire.target_population.clone(),
-        digest(&wire.target_data_identity, "target_data_identity")?,
-    );
-    let own_target = builder.target_identity();
-    if let Some(coordinates) = wire.unsupported_target {
-        builder = builder.target_support(SupportStanding::Unsupported { coordinates });
-    }
-    for (population, evidence) in wire.sources {
-        builder = builder.source(population, digest(&evidence, "source evidence identity")?);
-    }
-    for claim in wire.claims {
-        match claim {
-            ClaimIn::Transported { key, response, calibration, trust } => {
-                let held = responses.get(response).ok_or_else(|| {
-                    crate::value_err(format!("claim `{key}` names response {response}"))
-                })?;
-                let trust = match trust {
-                    None => TrustStanding::NotApplicable,
-                    Some(name) => TrustStanding::from_name(&name).ok_or_else(|| {
-                        crate::value_err(format!("unknown trust standing `{name}`"))
-                    })?,
-                };
-                builder = builder.transported(
-                    key,
-                    &held.inner,
-                    calibration_of(calibration, own_target)?,
-                    trust,
-                );
-            }
-            ClaimIn::TransportedClaim { key, response, calibration, provider_trust } => {
-                let held = responses.get(response).ok_or_else(|| {
-                    crate::value_err(format!("claim `{key}` names response {response}"))
-                })?;
-                builder = builder.transported_claim(
-                    key,
-                    &held.inner,
-                    calibration_of(calibration, own_target)?,
-                    provider_of(provider_trust.as_deref())?,
-                );
-            }
-            ClaimIn::Decision { key, identity, quantity, rests_on } => {
-                let rests: Vec<&str> = rests_on.iter().map(String::as_str).collect();
-                builder = builder.decision(
-                    key,
-                    digest(&identity, "decision identity")?,
-                    digest(&quantity, "decision quantity")?,
-                    &rests,
-                );
+    crate::catch_ffi(|| {
+        check_size(scene_json, "transport scene")?;
+        let wire: SceneIn = serde_json::from_str(scene_json)
+            .map_err(|e| crate::value_err(format!("invalid transport scene: {e}")))?;
+        let mut builder = TransportSceneBuilder::new(
+            wire.target_population.clone(),
+            digest(&wire.target_data_identity, "target_data_identity")?,
+        );
+        let own_target = builder.target_identity();
+        if let Some(coordinates) = wire.unsupported_target {
+            builder = builder.target_support(SupportStanding::Unsupported { coordinates });
+        }
+        for (population, evidence) in wire.sources {
+            builder = builder.source(population, digest(&evidence, "source evidence identity")?);
+        }
+        for claim in wire.claims {
+            match claim {
+                ClaimIn::Transported { key, response, calibration, trust } => {
+                    let held = responses.get(response).ok_or_else(|| {
+                        crate::value_err(format!("claim `{key}` names response {response}"))
+                    })?;
+                    let trust = match trust {
+                        None => TrustStanding::NotApplicable,
+                        Some(name) => TrustStanding::from_name(&name).ok_or_else(|| {
+                            crate::value_err(format!("unknown trust standing `{name}`"))
+                        })?,
+                    };
+                    builder = builder.transported(
+                        key,
+                        &held.inner,
+                        calibration_of(calibration, own_target)?,
+                        trust,
+                    );
+                }
+                ClaimIn::TransportedClaim { key, response, calibration, provider_trust } => {
+                    let held = responses.get(response).ok_or_else(|| {
+                        crate::value_err(format!("claim `{key}` names response {response}"))
+                    })?;
+                    builder = builder.transported_claim(
+                        key,
+                        &held.inner,
+                        calibration_of(calibration, own_target)?,
+                        provider_of(provider_trust.as_deref())?,
+                    );
+                }
+                ClaimIn::Decision { key, identity, quantity, rests_on } => {
+                    let rests: Vec<&str> = rests_on.iter().map(String::as_str).collect();
+                    builder = builder.decision(
+                        key,
+                        digest(&identity, "decision identity")?,
+                        digest(&quantity, "decision quantity")?,
+                        &rests,
+                    );
+                }
             }
         }
-    }
-    Ok(match builder.build() {
-        Ok(inner) => (Some(TransportSceneHandle { inner }), None),
-        Err(error) => (None, Some(refusal_json(&error))),
+        Ok(match builder.build() {
+            Ok(inner) => (Some(TransportSceneHandle { inner }), None),
+            Err(error) => (None, Some(refusal_json(&error))),
+        })
     })
 }
 
@@ -432,10 +440,12 @@ fn transport_revalidate(
     current: PyRef<'_, TransportSceneHandle>,
     effects_json: Option<&str>,
 ) -> PyResult<Refused<TransportRevalidationHandle>> {
-    let effects = effects_of(effects_json)?;
-    Ok(match revalidate(previous.as_ref().map(|p| &p.inner), &current.inner, &effects) {
-        Ok(inner) => (Some(TransportRevalidationHandle { inner }), None),
-        Err(error) => (None, Some(refusal_json(&error))),
+    crate::catch_ffi(|| {
+        let effects = effects_of(effects_json)?;
+        Ok(match revalidate(previous.as_ref().map(|p| &p.inner), &current.inner, &effects) {
+            Ok(inner) => (Some(TransportRevalidationHandle { inner }), None),
+            Err(error) => (None, Some(refusal_json(&error))),
+        })
     })
 }
 
@@ -460,10 +470,12 @@ impl TransportClaimStateHandle {
         current: PyRef<'_, TransportSceneHandle>,
         effects_json: Option<&str>,
     ) -> PyResult<Refused<TransportRevalidationHandle>> {
-        let effects = effects_of(effects_json)?;
-        Ok(match self.inner.observe(current.inner.clone(), &effects) {
-            Ok(inner) => (Some(TransportRevalidationHandle { inner }), None),
-            Err(error) => (None, Some(refusal_json(&error))),
+        crate::catch_ffi(|| {
+            let effects = effects_of(effects_json)?;
+            Ok(match self.inner.observe(current.inner.clone(), &effects) {
+                Ok(inner) => (Some(TransportRevalidationHandle { inner }), None),
+                Err(error) => (None, Some(refusal_json(&error))),
+            })
         })
     }
 

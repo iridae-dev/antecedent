@@ -55,52 +55,56 @@ fn compose_horizon_draws(
     map: Option<Bound<'_, PyAny>>,
     seed: u64,
 ) -> PyResult<String> {
-    let operation = PropagationOperation::from_name(operation)
-        .ok_or_else(|| crate::value_err(format!("unknown propagation operation {operation:?}")))?;
-    if horizons.len() != columns.len() {
-        return Err(crate::value_err("give one draw column per horizon"));
-    }
-    let columns: Vec<Vec<f64>> = columns
-        .iter()
-        .map(|c| c.owned("draw column").map(|(values, _)| values.to_vec()))
-        .collect::<PyResult<_>>()?;
-    let center = columns.iter().map(|c| c.iter().sum::<f64>() / c.len().max(1) as f64).collect();
-    let draws = HorizonDraws { horizons, center, columns, alignment_id, evidence_id };
-    let refusal = |error: antecedent_contract::ExternalRefusal| {
-        py_msg(format!("{}: {} ({})", error.code, error.detail, error.remedy.unwrap_or("")))
-    };
-    let composed = match (coefficients, map) {
-        (Some(coefficients), None) => {
-            compose_horizons(&draws, &coefficients, operation).map_err(refusal)?
+    crate::catch_ffi(|| {
+        let operation = PropagationOperation::from_name(operation).ok_or_else(|| {
+            crate::value_err(format!("unknown propagation operation {operation:?}"))
+        })?;
+        if horizons.len() != columns.len() {
+            return Err(crate::value_err("give one draw column per horizon"));
         }
-        (None, Some(map)) => {
-            if !map.is_callable() {
-                return Err(crate::value_err("map must be callable"));
+        let columns: Vec<Vec<f64>> = columns
+            .iter()
+            .map(|c| c.owned("draw column").map(|(values, _)| values.to_vec()))
+            .collect::<PyResult<_>>()?;
+        let center =
+            columns.iter().map(|c| c.iter().sum::<f64>() / c.len().max(1) as f64).collect();
+        let draws = HorizonDraws { horizons, center, columns, alignment_id, evidence_id };
+        let refusal = |error: antecedent_contract::ExternalRefusal| {
+            py_msg(format!("{}: {} ({})", error.code, error.detail, error.remedy.unwrap_or("")))
+        };
+        let composed = match (coefficients, map) {
+            (Some(coefficients), None) => {
+                compose_horizons(&draws, &coefficients, operation).map_err(refusal)?
             }
-            let failure: RefCell<Option<PyErr>> = RefCell::new(None);
-            let call = |values: &[f64]| -> f64 {
-                match map.call1((values.to_vec(),)).and_then(|out| out.extract::<f64>()) {
-                    Ok(value) => value,
-                    Err(error) => {
-                        failure.borrow_mut().get_or_insert(error);
-                        f64::NAN
-                    }
+            (None, Some(map)) => {
+                if !map.is_callable() {
+                    return Err(crate::value_err("map must be callable"));
                 }
-            };
-            let ctx = py_execution_context(seed, 1);
-            let result = compose_horizons_with(&draws, operation, &call, &ctx);
-            if let Some(error) = failure.into_inner() {
-                return Err(error);
+                let failure: RefCell<Option<PyErr>> = RefCell::new(None);
+                let call = |values: &[f64]| -> f64 {
+                    match map.call1((values.to_vec(),)).and_then(|out| out.extract::<f64>()) {
+                        Ok(value) => value,
+                        Err(error) => {
+                            failure.borrow_mut().get_or_insert(error);
+                            f64::NAN
+                        }
+                    }
+                };
+                let ctx = py_execution_context(seed, 1);
+                let result = compose_horizons_with(&draws, operation, &call, &ctx);
+                if let Some(error) = failure.into_inner() {
+                    return Err(error);
+                }
+                result.map_err(refusal)?
             }
-            result.map_err(refusal)?
-        }
-        _ => {
-            return Err(crate::value_err(
-                "give coefficients for a linear composition or map for a nonlinear one, not both",
-            ));
-        }
-    };
-    Ok(summary_json(&composed))
+            _ => {
+                return Err(crate::value_err(
+                    "give coefficients for a linear composition or map for a nonlinear one, not both",
+                ));
+            }
+        };
+        Ok(summary_json(&composed))
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

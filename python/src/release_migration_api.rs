@@ -96,15 +96,17 @@ fn declared_target_digest(level: f64) -> PyResult<Vec<u8>> {
 /// Adopt a previous-release artifact against the target set to `level`.
 #[pyfunction]
 fn consume_previous_release(artifact: &[u8], level: f64) -> PyResult<Adopted> {
-    let target = declared_target(level)?;
-    let adopted =
-        consume_previous_release_artifact(&artifact, &target).map_err(|e| release_err(&e))?;
-    Ok((
-        adopted.score_row_digest.to_vec(),
-        adopted.target_digest.to_vec(),
-        adopted.boundary_name,
-        adopted.stage_status,
-    ))
+    crate::catch_ffi(|| {
+        let target = declared_target(level)?;
+        let adopted =
+            consume_previous_release_artifact(&artifact, &target).map_err(|e| release_err(&e))?;
+        Ok((
+            adopted.score_row_digest.to_vec(),
+            adopted.target_digest.to_vec(),
+            adopted.boundary_name,
+            adopted.stage_status,
+        ))
+    })
 }
 
 fn assignment_json(assignment: &MethodAssignment) -> Json {
@@ -150,31 +152,33 @@ fn break_json(error: &RouteRecordError) -> Json {
 /// remedy. One break does not hide the other records.
 #[pyfunction]
 fn consume_previous_routes(artifact: &[u8], methods: Vec<MethodRow>) -> PyResult<String> {
-    let current: Vec<CurrentMethod> = methods
-        .into_iter()
-        .map(|(id, route, estimator, design, inference, status)| CurrentMethod {
-            id,
-            route,
-            estimator,
-            design,
-            inference,
-            status,
-        })
-        .collect();
-    let migrated =
-        consume_previous_route_records(&artifact, &current).map_err(|e| release_err(&e))?;
-    let rows: Vec<Json> = migrated
-        .iter()
-        .map(|record| {
-            let mut value = match &record.result {
-                Ok(outcome) => outcome_json(outcome),
-                Err(error) => break_json(error),
-            };
-            value["id"] = Json::from(record.id.clone());
-            value
-        })
-        .collect();
-    Ok(Json::Array(rows).to_string())
+    crate::catch_ffi(|| {
+        let current: Vec<CurrentMethod> = methods
+            .into_iter()
+            .map(|(id, route, estimator, design, inference, status)| CurrentMethod {
+                id,
+                route,
+                estimator,
+                design,
+                inference,
+                status,
+            })
+            .collect();
+        let migrated =
+            consume_previous_route_records(&artifact, &current).map_err(|e| release_err(&e))?;
+        let rows: Vec<Json> = migrated
+            .iter()
+            .map(|record| {
+                let mut value = match &record.result {
+                    Ok(outcome) => outcome_json(outcome),
+                    Err(error) => break_json(error),
+                };
+                value["id"] = Json::from(record.id.clone());
+                value
+            })
+            .collect();
+        Ok(Json::Array(rows).to_string())
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -561,12 +561,14 @@ fn decision_evidence_excursion_quantity(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let source = compiled_excursion_from_json(payload_json, &ctx)?;
-    Ok(finish(
-        antecedent::decision_evidence::compiled_excursion_quantity(&source, component)
-            .map(|q| json!(antecedent_io::quantity_wire::ScientificQuantityWire::from(&q))),
-    ))
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let source = compiled_excursion_from_json(payload_json, &ctx)?;
+        Ok(finish(
+            antecedent::decision_evidence::compiled_excursion_quantity(&source, component)
+                .map(|q| json!(antecedent_io::quantity_wire::ScientificQuantityWire::from(&q))),
+        ))
+    })
 }
 
 fn request(value: &Json) -> PyResult<Request> {
@@ -850,36 +852,38 @@ fn plan_json(p: &antecedent::decision_evidence::EvidencePlan) -> Json {
 /// Compile a joint experiment before any fit. Returns the compiled description or a refusal.
 #[pyfunction]
 fn decision_evidence_compile(spec_json: &str) -> PyResult<Refused> {
-    let value = parse_decision(spec_json, "joint experiment")?;
-    let map = object(&value, "joint experiment")?;
-    let spec = JointExperimentSpec {
-        outcomes: components(map, "outcomes")?,
-        assignment_design: text(map, "assignment_design")?,
-        population_id: text(map, "population_id")?,
-        treated_regime_id: text(map, "treated_regime_id")?,
-        control_regime_id: text(map, "control_regime_id")?,
-        horizon: u32::try_from(count(map, "horizon")?)
-            .map_err(|_| crate::value_err("horizon too large"))?,
-        adjustments: adjustments(map)?,
-        exposure: exposure(map)?,
-    };
-    Ok(finish(compile_joint_experiment(spec).map(|c| {
-        json!({
-            "unit_of_analysis": c.unit_of_analysis,
-            "scientific_identity": c.scientific_identity,
-            "adjustment_identity": c.adjustment_identity,
-            "adjustment_verdicts": c.adjustment_verdicts.iter().map(|v| json!({
-                "strategy": v.strategy,
-                "coefficient": v.coefficient,
-                "admissible": v.admissible.is_ok(),
-                "reason": v.admissible.unwrap_or_else(|e| e),
-            })).collect::<Vec<_>>(),
-            "obligations": c.obligations.iter().map(|o| json!({
-                "id": o.id, "kind": o.kind.as_str(), "statement": o.statement,
-            })).collect::<Vec<_>>(),
-            "statistical_requirements": c.statistical_requirements,
-        })
-    })))
+    crate::catch_ffi(|| {
+        let value = parse_decision(spec_json, "joint experiment")?;
+        let map = object(&value, "joint experiment")?;
+        let spec = JointExperimentSpec {
+            outcomes: components(map, "outcomes")?,
+            assignment_design: text(map, "assignment_design")?,
+            population_id: text(map, "population_id")?,
+            treated_regime_id: text(map, "treated_regime_id")?,
+            control_regime_id: text(map, "control_regime_id")?,
+            horizon: u32::try_from(count(map, "horizon")?)
+                .map_err(|_| crate::value_err("horizon too large"))?,
+            adjustments: adjustments(map)?,
+            exposure: exposure(map)?,
+        };
+        Ok(finish(compile_joint_experiment(spec).map(|c| {
+            json!({
+                "unit_of_analysis": c.unit_of_analysis,
+                "scientific_identity": c.scientific_identity,
+                "adjustment_identity": c.adjustment_identity,
+                "adjustment_verdicts": c.adjustment_verdicts.iter().map(|v| json!({
+                    "strategy": v.strategy,
+                    "coefficient": v.coefficient,
+                    "admissible": v.admissible.is_ok(),
+                    "reason": v.admissible.unwrap_or_else(|e| e),
+                })).collect::<Vec<_>>(),
+                "obligations": c.obligations.iter().map(|o| json!({
+                    "id": o.id, "kind": o.kind.as_str(), "statement": o.statement,
+                })).collect::<Vec<_>>(),
+                "statistical_requirements": c.statistical_requirements,
+            })
+        })))
+    })
 }
 
 /// Compile complete-cluster outcomes and declared preassignment adjustment.
@@ -892,40 +896,42 @@ fn decision_evidence_compiled_cluster(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let v = parse_decision(payload_json, "compiled cluster evidence")?;
-    let m = object(&v, "compiled cluster evidence")?;
-    let recipe_wire = object(member(m, "recipe")?, "cluster recipe")?;
-    let source_exposure = object(member(recipe_wire, "exposure")?, "cluster exposure")?;
-    if text(source_exposure, "kind")? == "unspecified" {
-        return Ok(finish(Err(EvidenceRefusal::InterferenceUnspecified)));
-    }
-    let recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe =
-        decoded(m, "recipe")?;
-    let evidence_id = text(m, "evidence_id")?;
-    let bound = match compile_and_evidence_from_cluster(recipe, &evidence_id, &ctx) {
-        Ok(value) => value,
-        Err(error) => return Ok(finish(Err(error))),
-    };
-    let artifact = match bound.source().export_artifact_with_context(
-        &ctx,
-        antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-    ) {
-        Ok(value) => value,
-        Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
-    };
-    let ev = bound.numerical_evidence();
-    let Dependence::Joint { treated, control } = &ev.dependence else { unreachable!() };
-    Ok(finish(Ok(json!({
-        "evidence_id":ev.evidence_id, "population_id":ev.population_id,
-        "treated_regime_id":ev.treated_regime_id, "control_regime_id":ev.control_regime_id,
-        "horizon":ev.horizon, "components":m["components"], "treated_means":ev.treated_means,
-        "control_means":ev.control_means, "dependence":{"kind":"joint", "treated":treated, "control":control},
-        "design":{"assignment_design":"cluster", "treated_units":ev.design.treated_units,
-            "control_units":ev.design.control_units, "outcome_rows":ev.design.outcome_rows},
-        "design_contract_id":ev.design_contract_id, "compiled_source_artifact":artifact,
-        "adjustments":m["adjustments"], "exposure":m["exposure"]
-    }))))
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let v = parse_decision(payload_json, "compiled cluster evidence")?;
+        let m = object(&v, "compiled cluster evidence")?;
+        let recipe_wire = object(member(m, "recipe")?, "cluster recipe")?;
+        let source_exposure = object(member(recipe_wire, "exposure")?, "cluster exposure")?;
+        if text(source_exposure, "kind")? == "unspecified" {
+            return Ok(finish(Err(EvidenceRefusal::InterferenceUnspecified)));
+        }
+        let recipe: antecedent_estimate::joint_design::cluster_decision::JointClusterRecipe =
+            decoded(m, "recipe")?;
+        let evidence_id = text(m, "evidence_id")?;
+        let bound = match compile_and_evidence_from_cluster(recipe, &evidence_id, &ctx) {
+            Ok(value) => value,
+            Err(error) => return Ok(finish(Err(error))),
+        };
+        let artifact = match bound.source().export_artifact_with_context(
+            &ctx,
+            antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+        ) {
+            Ok(value) => value,
+            Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+        };
+        let ev = bound.numerical_evidence();
+        let Dependence::Joint { treated, control } = &ev.dependence else { unreachable!() };
+        Ok(finish(Ok(json!({
+            "evidence_id":ev.evidence_id, "population_id":ev.population_id,
+            "treated_regime_id":ev.treated_regime_id, "control_regime_id":ev.control_regime_id,
+            "horizon":ev.horizon, "components":m["components"], "treated_means":ev.treated_means,
+            "control_means":ev.control_means, "dependence":{"kind":"joint", "treated":treated, "control":control},
+            "design":{"assignment_design":"cluster", "treated_units":ev.design.treated_units,
+                "control_units":ev.design.control_units, "outcome_rows":ev.design.outcome_rows},
+            "design_contract_id":ev.design_contract_id, "compiled_source_artifact":artifact,
+            "adjustments":m["adjustments"], "exposure":m["exposure"]
+        }))))
+    })
 }
 
 /// Compile a bounded adaptive policy comparison and retain its native source.
@@ -938,61 +944,64 @@ fn decision_evidence_adaptive(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let v = parse_decision(payload_json, "adaptive regime evidence")?;
-    let m = object(&v, "adaptive regime evidence")?;
-    let recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe =
-        decoded(m, "recipe")?;
-    let bound =
-        match compile_and_evidence_from_adaptive_regime(recipe, &text(m, "evidence_id")?, &ctx) {
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let v = parse_decision(payload_json, "adaptive regime evidence")?;
+        let m = object(&v, "adaptive regime evidence")?;
+        let recipe: antecedent_estimate::joint_design::adaptive_regime::JointAdaptiveRegimeRecipe =
+            decoded(m, "recipe")?;
+        let bound =
+            match compile_and_evidence_from_adaptive_regime(recipe, &text(m, "evidence_id")?, &ctx)
+            {
+                Ok(v) => v,
+                Err(e) => return Ok(finish(Err(e))),
+            };
+        let artifact = match bound.source().export_artifact_with_context(
+            &ctx,
+            antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+        ) {
             Ok(v) => v,
-            Err(e) => return Ok(finish(Err(e))),
+            Err(e) => return Ok(finish(Err(compiled_decision_refusal(e)))),
         };
-    let artifact = match bound.source().export_artifact_with_context(
-        &ctx,
-        antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-    ) {
-        Ok(v) => v,
-        Err(e) => return Ok(finish(Err(compiled_decision_refusal(e)))),
-    };
-    let ev = bound.numerical_evidence();
-    let Some(DesignDetails::AdaptiveRegime {
-        subject_ids,
-        periods,
-        policy_prespecification_assumption_id,
-        positivity_assumption_id,
-        exchangeability_assumption_id,
-        consistency_assumption_id,
-        followup_assumption_id,
-        failures,
-    }) = &ev.design_details
-    else {
-        unreachable!()
-    };
-    let dependence = match &ev.dependence {
-        Dependence::JointArms { covariance } => {
-            json!({"kind":"joint_arms", "covariance":covariance})
-        }
-        Dependence::PointOnly => json!({"kind":"point_only"}),
-        _ => unreachable!(),
-    };
-    let components: Vec<_> = ev
-        .components
-        .iter()
-        .map(|c| json!({"name":c.name, "variable_id":c.variable_id, "units":c.units}))
-        .collect();
-    let Exposure::NoBetweenUnitInterference { assumption_id } = &ev.exposure else {
-        unreachable!()
-    };
-    Ok(finish(Ok(json!({
-        "evidence_id":ev.evidence_id, "population_id":ev.population_id,
-        "treated_regime_id":ev.treated_regime_id, "control_regime_id":ev.control_regime_id,
-        "horizon":ev.horizon, "components":components, "treated_means":ev.treated_means, "control_means":ev.control_means,
-        "dependence":dependence, "design":{"assignment_design":"adaptive_regime", "treated_units":ev.design.treated_units,"control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
-        "design_contract_id":ev.design_contract_id, "compiled_source_artifact":artifact,
-        "design_details":{"kind":"adaptive_regime", "subject_ids":subject_ids,"periods":periods,"policy_prespecification_assumption_id":policy_prespecification_assumption_id,"positivity_assumption_id":positivity_assumption_id,"exchangeability_assumption_id":exchangeability_assumption_id,"consistency_assumption_id":consistency_assumption_id,"followup_assumption_id":followup_assumption_id,"failures":failures},
-        "adjustments":[], "exposure":{"kind":"no_between_unit_interference","assumption_id":assumption_id}
-    }))))
+        let ev = bound.numerical_evidence();
+        let Some(DesignDetails::AdaptiveRegime {
+            subject_ids,
+            periods,
+            policy_prespecification_assumption_id,
+            positivity_assumption_id,
+            exchangeability_assumption_id,
+            consistency_assumption_id,
+            followup_assumption_id,
+            failures,
+        }) = &ev.design_details
+        else {
+            unreachable!()
+        };
+        let dependence = match &ev.dependence {
+            Dependence::JointArms { covariance } => {
+                json!({"kind":"joint_arms", "covariance":covariance})
+            }
+            Dependence::PointOnly => json!({"kind":"point_only"}),
+            _ => unreachable!(),
+        };
+        let components: Vec<_> = ev
+            .components
+            .iter()
+            .map(|c| json!({"name":c.name, "variable_id":c.variable_id, "units":c.units}))
+            .collect();
+        let Exposure::NoBetweenUnitInterference { assumption_id } = &ev.exposure else {
+            unreachable!()
+        };
+        Ok(finish(Ok(json!({
+            "evidence_id":ev.evidence_id, "population_id":ev.population_id,
+            "treated_regime_id":ev.treated_regime_id, "control_regime_id":ev.control_regime_id,
+            "horizon":ev.horizon, "components":components, "treated_means":ev.treated_means, "control_means":ev.control_means,
+            "dependence":dependence, "design":{"assignment_design":"adaptive_regime", "treated_units":ev.design.treated_units,"control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
+            "design_contract_id":ev.design_contract_id, "compiled_source_artifact":artifact,
+            "design_details":{"kind":"adaptive_regime", "subject_ids":subject_ids,"periods":periods,"policy_prespecification_assumption_id":policy_prespecification_assumption_id,"positivity_assumption_id":positivity_assumption_id,"exchangeability_assumption_id":exchangeability_assumption_id,"consistency_assumption_id":consistency_assumption_id,"followup_assumption_id":followup_assumption_id,"failures":failures},
+            "adjustments":[], "exposure":{"kind":"no_between_unit_interference","assumption_id":assumption_id}
+        }))))
+    })
 }
 
 /// Prepare a design or execute joint estimation against a declared design.
@@ -1006,279 +1015,283 @@ fn decision_evidence_experimental(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let payload = parse_decision(payload_json, "experimental evidence")?;
-    let map = object(&payload, "experimental evidence")?;
-    let dm = object(member(map, "design")?, "design")?;
-    let kind = text(dm, "kind")?;
-    let (identity, obligations, paired, switchback, excursion, regime) = match kind.as_str() {
-        "matched_pairs" => match compile_matched_pair_design(paired_design(dm)?) {
-            Ok(d) => (d.identity.clone(), d.obligations.clone(), Some(d), None, None, None),
-            Err(e) => return Ok(finish(Err(e))),
-        },
-        "switchback" => match compile_joint_switchback(switch_design(dm)?) {
-            Ok(d) => (d.identity.clone(), d.obligations.clone(), None, Some(d), None, None),
-            Err(e) => return Ok(finish(Err(e))),
-        },
-        "temporal_excursion" => match compile_joint_excursion(excursion_design(dm)?) {
-            Ok(d) => (d.identity.clone(), d.obligations.clone(), None, None, Some(d), None),
-            Err(e) => return Ok(finish(Err(e))),
-        },
-        "temporal_regime" => match compile_joint_static_regime(regime_design(dm)?) {
-            Ok(d) => (d.identity.clone(), d.obligations.clone(), None, None, None, Some(d)),
-            Err(e) => return Ok(finish(Err(e))),
-        },
-        _ => return Ok(finish(Err(EvidenceRefusal::UnsupportedAssignmentDesign(kind)))),
-    };
-    if !fit {
-        return Ok((
-            Some(json!({"identity":identity,"obligations":obligations,"design":dm}).to_string()),
-            None,
-        ));
-    }
-    let raw: Vec<Vec<f64>> = decoded(map, "outcomes")?;
-    let slices: Vec<&[f64]> = raw.iter().map(Vec::as_slice).collect();
-    let assigned: Vec<bool> = decoded(map, "assigned")?;
-    let horizon =
-        u32::try_from(count(map, "horizon")?).map_err(|_| crate::value_err("horizon too large"))?;
-    let comps = components(map, "components")?;
-    let evidence_id = text(map, "evidence_id")?;
-    let population = text(map, "population_id")?;
-    let treated = text(map, "treated_regime_id")?;
-    let control = text(map, "control_regime_id")?;
-    let exp = exposure(map)?;
-    let confounders: Vec<Vec<f64>> =
-        if regime.is_some() { decoded(map, "confounders")? } else { Vec::new() };
-    if let Some(d) = &regime {
-        if d.design.realized_assignment != assigned
-            || horizon as usize != d.design.active_path.len()
-        {
-            return Ok(finish(Err(EvidenceRefusal::Invalid(
-                "regime assignment and horizon must match the compiled histories".into(),
-            ))));
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let payload = parse_decision(payload_json, "experimental evidence")?;
+        let map = object(&payload, "experimental evidence")?;
+        let dm = object(member(map, "design")?, "design")?;
+        let kind = text(dm, "kind")?;
+        let (identity, obligations, paired, switchback, excursion, regime) = match kind.as_str() {
+            "matched_pairs" => match compile_matched_pair_design(paired_design(dm)?) {
+                Ok(d) => (d.identity.clone(), d.obligations.clone(), Some(d), None, None, None),
+                Err(e) => return Ok(finish(Err(e))),
+            },
+            "switchback" => match compile_joint_switchback(switch_design(dm)?) {
+                Ok(d) => (d.identity.clone(), d.obligations.clone(), None, Some(d), None, None),
+                Err(e) => return Ok(finish(Err(e))),
+            },
+            "temporal_excursion" => match compile_joint_excursion(excursion_design(dm)?) {
+                Ok(d) => (d.identity.clone(), d.obligations.clone(), None, None, Some(d), None),
+                Err(e) => return Ok(finish(Err(e))),
+            },
+            "temporal_regime" => match compile_joint_static_regime(regime_design(dm)?) {
+                Ok(d) => (d.identity.clone(), d.obligations.clone(), None, None, None, Some(d)),
+                Err(e) => return Ok(finish(Err(e))),
+            },
+            _ => return Ok(finish(Err(EvidenceRefusal::UnsupportedAssignmentDesign(kind)))),
+        };
+        if !fit {
+            return Ok((
+                Some(
+                    json!({"identity":identity,"obligations":obligations,"design":dm}).to_string(),
+                ),
+                None,
+            ));
         }
-    }
-    if let Some(d) = regime.as_ref() {
-        let fitted = if present(dm, "bootstrap_replicates").is_some() {
-            let replicates = count(dm, "bootstrap_replicates")?;
-            let seed = u64::try_from(count(dm, "bootstrap_seed")?)
-                .map_err(|_| crate::value_err("bootstrap seed too large"))?;
-            compile_and_evidence_from_joint_static_regime_bootstrap(
-                d,
-                &slices,
-                &confounders,
-                &evidence_id,
-                &population,
-                (&treated, &control),
-                comps.clone(),
-                exp.clone(),
-                replicates,
-                seed,
-                &ctx,
-            )
-        } else {
-            if present(dm, "bootstrap_seed").is_some() {
+        let raw: Vec<Vec<f64>> = decoded(map, "outcomes")?;
+        let slices: Vec<&[f64]> = raw.iter().map(Vec::as_slice).collect();
+        let assigned: Vec<bool> = decoded(map, "assigned")?;
+        let horizon = u32::try_from(count(map, "horizon")?)
+            .map_err(|_| crate::value_err("horizon too large"))?;
+        let comps = components(map, "components")?;
+        let evidence_id = text(map, "evidence_id")?;
+        let population = text(map, "population_id")?;
+        let treated = text(map, "treated_regime_id")?;
+        let control = text(map, "control_regime_id")?;
+        let exp = exposure(map)?;
+        let confounders: Vec<Vec<f64>> =
+            if regime.is_some() { decoded(map, "confounders")? } else { Vec::new() };
+        if let Some(d) = &regime {
+            if d.design.realized_assignment != assigned
+                || horizon as usize != d.design.active_path.len()
+            {
                 return Ok(finish(Err(EvidenceRefusal::Invalid(
-                    "bootstrap seed requires replicate count".into(),
+                    "regime assignment and horizon must match the compiled histories".into(),
                 ))));
             }
-            compile_and_evidence_from_joint_static_regime(
+        }
+        if let Some(d) = regime.as_ref() {
+            let fitted = if present(dm, "bootstrap_replicates").is_some() {
+                let replicates = count(dm, "bootstrap_replicates")?;
+                let seed = u64::try_from(count(dm, "bootstrap_seed")?)
+                    .map_err(|_| crate::value_err("bootstrap seed too large"))?;
+                compile_and_evidence_from_joint_static_regime_bootstrap(
+                    d,
+                    &slices,
+                    &confounders,
+                    &evidence_id,
+                    &population,
+                    (&treated, &control),
+                    comps.clone(),
+                    exp.clone(),
+                    replicates,
+                    seed,
+                    &ctx,
+                )
+            } else {
+                if present(dm, "bootstrap_seed").is_some() {
+                    return Ok(finish(Err(EvidenceRefusal::Invalid(
+                        "bootstrap seed requires replicate count".into(),
+                    ))));
+                }
+                compile_and_evidence_from_joint_static_regime(
+                    d,
+                    &slices,
+                    &confounders,
+                    &evidence_id,
+                    &population,
+                    (&treated, &control),
+                    comps.clone(),
+                    exp.clone(),
+                    &ctx,
+                )
+            };
+            let bound = match fitted {
+                Ok(value) => value,
+                Err(error) => return Ok(finish(Err(error))),
+            };
+            let artifact = match bound.source().export_artifact_with_context(
+                &ctx,
+                antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+            ) {
+                Ok(value) => value,
+                Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+            };
+            let ev = bound.numerical_evidence();
+            let mut retained_design = dm.clone();
+            retained_design.insert("realized_assignment".into(), json!(assigned));
+            if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) =
+                &ev.design_details
+            {
+                retained_design.insert(
+                    "observed_minimum_probabilities".into(),
+                    json!(observed_minimum_probabilities),
+                );
+            }
+            let dependence = match &ev.dependence {
+                Dependence::PointOnly => json!({"kind":"point_only"}),
+                Dependence::JointArms { covariance } => {
+                    json!({"kind":"joint_arms", "covariance":covariance})
+                }
+                _ => unreachable!(),
+            };
+            return Ok(finish(Ok(json!({
+                "evidence_id": evidence_id, "population_id": population,
+                "treated_regime_id": treated, "control_regime_id": control, "horizon": horizon,
+                "components": map["components"], "treated_means": ev.treated_means,
+                "control_means": ev.control_means, "dependence": dependence,
+                "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
+                    "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
+                "design_contract_id":ev.design_contract_id, "design_details":retained_design,
+                "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
+            }))));
+        }
+        if let Some(d) = excursion.as_ref() {
+            let bound = match compile_and_evidence_from_joint_excursion(
                 d,
+                &slices,
+                &assigned,
+                &evidence_id,
+                &population,
+                (&treated, &control),
+                horizon,
+                comps.clone(),
+                exp.clone(),
+                &ctx,
+            ) {
+                Ok(value) => value,
+                Err(error) => return Ok(finish(Err(error))),
+            };
+            let artifact = match bound.source().export_artifact_with_context(
+                &ctx,
+                antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+            ) {
+                Ok(value) => value,
+                Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+            };
+            let ev = bound.numerical_evidence();
+            let mut retained_design = dm.clone();
+            retained_design.insert("realized_assignment".into(), json!(assigned));
+            if let Some(DesignDetails::TemporalExcursion { paired_decisions, .. }) =
+                &ev.design_details
+            {
+                retained_design.insert("paired_decisions".into(), json!(paired_decisions));
+            }
+            let Dependence::JointArms { covariance } = &ev.dependence else { unreachable!() };
+            return Ok(finish(Ok(json!({
+                "evidence_id": evidence_id, "population_id": population,
+                "treated_regime_id": treated, "control_regime_id": control, "horizon": horizon,
+                "components": map["components"], "treated_means": ev.treated_means,
+                "control_means": ev.control_means, "dependence": {"kind":"joint_arms", "covariance":covariance},
+                "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
+                    "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
+                "design_contract_id":ev.design_contract_id, "design_details":retained_design,
+                "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
+            }))));
+        }
+        if paired.is_some() || switchback.is_some() {
+            let result = if let Some(d) = paired.as_ref() {
+                compile_and_evidence_from_matched_pairs(
+                    d,
+                    &slices,
+                    &assigned,
+                    &evidence_id,
+                    &population,
+                    (&treated, &control),
+                    horizon,
+                    comps.clone(),
+                    exp.clone(),
+                    &ctx,
+                )
+            } else {
+                compile_and_evidence_from_joint_switchback(
+                    switchback.as_ref().expect("compiled switchback"),
+                    &slices,
+                    &assigned,
+                    &evidence_id,
+                    &population,
+                    (&treated, &control),
+                    horizon,
+                    comps.clone(),
+                    exp.clone(),
+                    &ctx,
+                )
+            };
+            let bound = match result {
+                Ok(value) => value,
+                Err(error) => return Ok(finish(Err(error))),
+            };
+            let artifact = match bound.source().export_artifact_with_context(
+                &ctx,
+                antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
+            ) {
+                Ok(value) => value,
+                Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
+            };
+            let ev = bound.numerical_evidence();
+            let mut retained_design = dm.clone();
+            retained_design.insert("realized_assignment".into(), json!(assigned));
+            let Dependence::JointArms { covariance } = &ev.dependence else { unreachable!() };
+            return Ok(finish(Ok(json!({
+                "evidence_id":evidence_id, "population_id":population, "treated_regime_id":treated,
+                "control_regime_id":control, "horizon":horizon, "components":map["components"],
+                "treated_means":ev.treated_means, "control_means":ev.control_means,
+                "dependence":{"kind":"joint_arms", "covariance":covariance},
+                "design":{"assignment_design":ev.design.assignment_design, "treated_units":ev.design.treated_units,
+                    "control_units":ev.design.control_units, "outcome_rows":ev.design.outcome_rows},
+                "design_contract_id":ev.design_contract_id, "design_details":retained_design,
+                "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
+            }))));
+        }
+        let result = if let Some(d) = paired {
+            evidence_from_matched_pairs(
+                &d,
+                &slices,
+                &assigned,
+                &evidence_id,
+                &population,
+                (&treated, &control),
+                horizon,
+                comps,
+                exp,
+            )
+        } else if let Some(d) = regime {
+            evidence_from_joint_static_regime(
+                &d,
                 &slices,
                 &confounders,
                 &evidence_id,
                 &population,
                 (&treated, &control),
-                comps.clone(),
-                exp.clone(),
-                &ctx,
+                comps,
+                exp,
             )
-        };
-        let bound = match fitted {
-            Ok(value) => value,
-            Err(error) => return Ok(finish(Err(error))),
-        };
-        let artifact = match bound.source().export_artifact_with_context(
-            &ctx,
-            antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
-        };
-        let ev = bound.numerical_evidence();
-        let mut retained_design = dm.clone();
-        retained_design.insert("realized_assignment".into(), json!(assigned));
-        if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) =
-            &ev.design_details
-        {
-            retained_design.insert(
-                "observed_minimum_probabilities".into(),
-                json!(observed_minimum_probabilities),
-            );
-        }
-        let dependence = match &ev.dependence {
-            Dependence::PointOnly => json!({"kind":"point_only"}),
-            Dependence::JointArms { covariance } => {
-                json!({"kind":"joint_arms", "covariance":covariance})
-            }
-            _ => unreachable!(),
-        };
-        return Ok(finish(Ok(json!({
-            "evidence_id": evidence_id, "population_id": population,
-            "treated_regime_id": treated, "control_regime_id": control, "horizon": horizon,
-            "components": map["components"], "treated_means": ev.treated_means,
-            "control_means": ev.control_means, "dependence": dependence,
-            "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
-                "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
-            "design_contract_id":ev.design_contract_id, "design_details":retained_design,
-            "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
-        }))));
-    }
-    if let Some(d) = excursion.as_ref() {
-        let bound = match compile_and_evidence_from_joint_excursion(
-            d,
-            &slices,
-            &assigned,
-            &evidence_id,
-            &population,
-            (&treated, &control),
-            horizon,
-            comps.clone(),
-            exp.clone(),
-            &ctx,
-        ) {
-            Ok(value) => value,
-            Err(error) => return Ok(finish(Err(error))),
-        };
-        let artifact = match bound.source().export_artifact_with_context(
-            &ctx,
-            antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
-        };
-        let ev = bound.numerical_evidence();
-        let mut retained_design = dm.clone();
-        retained_design.insert("realized_assignment".into(), json!(assigned));
-        if let Some(DesignDetails::TemporalExcursion { paired_decisions, .. }) = &ev.design_details
-        {
-            retained_design.insert("paired_decisions".into(), json!(paired_decisions));
-        }
-        let Dependence::JointArms { covariance } = &ev.dependence else { unreachable!() };
-        return Ok(finish(Ok(json!({
-            "evidence_id": evidence_id, "population_id": population,
-            "treated_regime_id": treated, "control_regime_id": control, "horizon": horizon,
-            "components": map["components"], "treated_means": ev.treated_means,
-            "control_means": ev.control_means, "dependence": {"kind":"joint_arms", "covariance":covariance},
-            "design": {"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,
-                "control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
-            "design_contract_id":ev.design_contract_id, "design_details":retained_design,
-            "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
-        }))));
-    }
-    if paired.is_some() || switchback.is_some() {
-        let result = if let Some(d) = paired.as_ref() {
-            compile_and_evidence_from_matched_pairs(
-                d,
+        } else if let Some(d) = excursion {
+            evidence_from_joint_excursion(
+                &d,
                 &slices,
                 &assigned,
                 &evidence_id,
                 &population,
                 (&treated, &control),
                 horizon,
-                comps.clone(),
-                exp.clone(),
-                &ctx,
+                comps,
+                exp,
             )
         } else {
-            compile_and_evidence_from_joint_switchback(
-                switchback.as_ref().expect("compiled switchback"),
+            evidence_from_joint_switchback(
+                &switchback.expect("compiled design"),
                 &slices,
                 &assigned,
                 &evidence_id,
                 &population,
                 (&treated, &control),
                 horizon,
-                comps.clone(),
-                exp.clone(),
-                &ctx,
+                comps,
+                exp,
             )
         };
-        let bound = match result {
-            Ok(value) => value,
-            Err(error) => return Ok(finish(Err(error))),
-        };
-        let artifact = match bound.source().export_artifact_with_context(
-            &ctx,
-            antecedent::analysis::joint_panel::DesignArtifactLimits::default(),
-        ) {
-            Ok(value) => value,
-            Err(error) => return Ok(finish(Err(compiled_decision_refusal(error)))),
-        };
-        let ev = bound.numerical_evidence();
-        let mut retained_design = dm.clone();
-        retained_design.insert("realized_assignment".into(), json!(assigned));
-        let Dependence::JointArms { covariance } = &ev.dependence else { unreachable!() };
-        return Ok(finish(Ok(json!({
-            "evidence_id":evidence_id, "population_id":population, "treated_regime_id":treated,
-            "control_regime_id":control, "horizon":horizon, "components":map["components"],
-            "treated_means":ev.treated_means, "control_means":ev.control_means,
-            "dependence":{"kind":"joint_arms", "covariance":covariance},
-            "design":{"assignment_design":ev.design.assignment_design, "treated_units":ev.design.treated_units,
-                "control_units":ev.design.control_units, "outcome_rows":ev.design.outcome_rows},
-            "design_contract_id":ev.design_contract_id, "design_details":retained_design,
-            "compiled_source_artifact":artifact, "adjustments":[], "exposure":map["exposure"]
-        }))));
-    }
-    let result = if let Some(d) = paired {
-        evidence_from_matched_pairs(
-            &d,
-            &slices,
-            &assigned,
-            &evidence_id,
-            &population,
-            (&treated, &control),
-            horizon,
-            comps,
-            exp,
-        )
-    } else if let Some(d) = regime {
-        evidence_from_joint_static_regime(
-            &d,
-            &slices,
-            &confounders,
-            &evidence_id,
-            &population,
-            (&treated, &control),
-            comps,
-            exp,
-        )
-    } else if let Some(d) = excursion {
-        evidence_from_joint_excursion(
-            &d,
-            &slices,
-            &assigned,
-            &evidence_id,
-            &population,
-            (&treated, &control),
-            horizon,
-            comps,
-            exp,
-        )
-    } else {
-        evidence_from_joint_switchback(
-            &switchback.expect("compiled design"),
-            &slices,
-            &assigned,
-            &evidence_id,
-            &population,
-            (&treated, &control),
-            horizon,
-            comps,
-            exp,
-        )
-    };
-    Ok(finish(result.map(|ev| {
+        Ok(finish(result.map(|ev| {
         let mut retained_design = dm.clone();
         retained_design.insert("realized_assignment".into(), json!(assigned));
         if let Some(DesignDetails::TemporalRegime { observed_minimum_probabilities, .. }) = &ev.design_details {
@@ -1294,6 +1307,7 @@ fn decision_evidence_experimental(
           "design":{"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,"control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
           "design_contract_id":identity,"design_details":retained_design,"adjustments":[],"exposure":map["exposure"]})
     })))
+    })
 }
 
 /// Apply an explicitly scoped causal proxy-effect bridge.
@@ -1306,39 +1320,41 @@ fn decision_evidence_proxy(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let value = parse_decision(payload_json, "proxy evidence")?;
-    let map = object(&value, "proxy evidence")?;
-    let ev = match evidence_with_context(member(map, "evidence")?, &ctx)? {
-        Ok(e) => e,
-        Err(e) => return Ok(finish(Err(e))),
-    };
-    let req = request(member(map, "request")?)?;
-    let f = frame(member(map, "frame")?)?;
-    let b = object(member(map, "bridge")?, "bridge")?;
-    let m = object(member(b, "mapping")?, "mapping")?;
-    let mapping = match text(m, "kind")?.as_str() {
-        "predictive_association" => ProxyMapping::PredictiveAssociation,
-        "causal_effect_bounds" => ProxyMapping::CausalEffectBounds {
-            multiplier: decoded(m, "multiplier")?,
-            residual: decoded(m, "residual")?,
-            assumption_id: text(m, "assumption_id")?,
-            mapping_evidence_id: text(m, "mapping_evidence_id")?,
-        },
-        other => return Err(crate::value_err(format!("unknown proxy mapping `{other}`"))),
-    };
-    let bridge = ProxyBridge {
-        proxy_component: text(b, "proxy_component")?,
-        target_variable_id: text(b, "target_variable_id")?,
-        target_units: text(b, "target_units")?,
-        population_id: text(b, "population_id")?,
-        treated_regime_id: text(b, "treated_regime_id")?,
-        control_regime_id: text(b, "control_regime_id")?,
-        horizon: u32::try_from(count(b, "horizon")?)
-            .map_err(|_| crate::value_err("horizon too large"))?,
-        mapping,
-    };
-    Ok(finish(decide_with_proxy(&ev,&req,&bridge,&f).map(|r|json!({"identity":r.identity,"assumption_range":r.assumption_range,"sampling_envelope":r.sampling_envelope,"verdict":verdict_json(&r.verdict),"evidence_ids":r.evidence_ids,"assumption_id":r.assumption_id,"target_variable_id":r.target_variable_id,"target_units":r.target_units}))))
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let value = parse_decision(payload_json, "proxy evidence")?;
+        let map = object(&value, "proxy evidence")?;
+        let ev = match evidence_with_context(member(map, "evidence")?, &ctx)? {
+            Ok(e) => e,
+            Err(e) => return Ok(finish(Err(e))),
+        };
+        let req = request(member(map, "request")?)?;
+        let f = frame(member(map, "frame")?)?;
+        let b = object(member(map, "bridge")?, "bridge")?;
+        let m = object(member(b, "mapping")?, "mapping")?;
+        let mapping = match text(m, "kind")?.as_str() {
+            "predictive_association" => ProxyMapping::PredictiveAssociation,
+            "causal_effect_bounds" => ProxyMapping::CausalEffectBounds {
+                multiplier: decoded(m, "multiplier")?,
+                residual: decoded(m, "residual")?,
+                assumption_id: text(m, "assumption_id")?,
+                mapping_evidence_id: text(m, "mapping_evidence_id")?,
+            },
+            other => return Err(crate::value_err(format!("unknown proxy mapping `{other}`"))),
+        };
+        let bridge = ProxyBridge {
+            proxy_component: text(b, "proxy_component")?,
+            target_variable_id: text(b, "target_variable_id")?,
+            target_units: text(b, "target_units")?,
+            population_id: text(b, "population_id")?,
+            treated_regime_id: text(b, "treated_regime_id")?,
+            control_regime_id: text(b, "control_regime_id")?,
+            horizon: u32::try_from(count(b, "horizon")?)
+                .map_err(|_| crate::value_err("horizon too large"))?,
+            mapping,
+        };
+        Ok(finish(decide_with_proxy(&ev,&req,&bridge,&f).map(|r|json!({"identity":r.identity,"assumption_range":r.assumption_range,"sampling_envelope":r.sampling_envelope,"verdict":verdict_json(&r.verdict),"evidence_ids":r.evidence_ids,"assumption_id":r.assumption_id,"target_variable_id":r.target_variable_id,"target_units":r.target_units}))))
+    })
 }
 
 fn temporal_estimand(value: &Json) -> PyResult<TemporalEstimand> {
@@ -1386,36 +1402,38 @@ fn decision_evidence_temporal_bridge(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let v = parse_decision(payload_json, "temporal bridge")?;
-    let m = object(&v, "temporal bridge")?;
-    let ev = match evidence_with_context(member(m, "evidence")?, &ctx)? {
-        Ok(e) => e,
-        Err(e) => return Ok(finish(Err(e))),
-    };
-    let req = request(member(m, "request")?)?;
-    let frame = frame(member(m, "frame")?)?;
-    let b = object(member(m, "bridge")?, "bridge")?;
-    let mapping = object(member(b, "mapping")?, "mapping")?;
-    let mapping = match text(mapping, "kind")?.as_str() {
-        "predictive_association" => ProxyMapping::PredictiveAssociation,
-        "causal_effect_bounds" => ProxyMapping::CausalEffectBounds {
-            multiplier: decoded(mapping, "multiplier")?,
-            residual: decoded(mapping, "residual")?,
-            assumption_id: text(mapping, "assumption_id")?,
-            mapping_evidence_id: text(mapping, "mapping_evidence_id")?,
-        },
-        other => return Err(crate::value_err(format!("unknown temporal mapping `{other}`"))),
-    };
-    let bridge = TemporalEffectBridge {
-        source: temporal_estimand(member(b, "source")?)?,
-        target: temporal_estimand(member(b, "target")?)?,
-        source_component: text(b, "source_component")?,
-        target_variable_id: text(b, "target_variable_id")?,
-        target_units: text(b, "target_units")?,
-        mapping,
-    };
-    Ok(finish(decide_with_temporal_bridge(&ev,&req,&bridge,&frame).map(|r|json!({"identity":r.identity,"source":b["source"],"target":b["target"],"assumption_range":r.decision.assumption_range,"sampling_envelope":r.decision.sampling_envelope,"verdict":verdict_json(&r.decision.verdict),"evidence_ids":r.decision.evidence_ids,"assumption_id":r.decision.assumption_id,"target_variable_id":r.decision.target_variable_id,"target_units":r.decision.target_units}))))
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let v = parse_decision(payload_json, "temporal bridge")?;
+        let m = object(&v, "temporal bridge")?;
+        let ev = match evidence_with_context(member(m, "evidence")?, &ctx)? {
+            Ok(e) => e,
+            Err(e) => return Ok(finish(Err(e))),
+        };
+        let req = request(member(m, "request")?)?;
+        let frame = frame(member(m, "frame")?)?;
+        let b = object(member(m, "bridge")?, "bridge")?;
+        let mapping = object(member(b, "mapping")?, "mapping")?;
+        let mapping = match text(mapping, "kind")?.as_str() {
+            "predictive_association" => ProxyMapping::PredictiveAssociation,
+            "causal_effect_bounds" => ProxyMapping::CausalEffectBounds {
+                multiplier: decoded(mapping, "multiplier")?,
+                residual: decoded(mapping, "residual")?,
+                assumption_id: text(mapping, "assumption_id")?,
+                mapping_evidence_id: text(mapping, "mapping_evidence_id")?,
+            },
+            other => return Err(crate::value_err(format!("unknown temporal mapping `{other}`"))),
+        };
+        let bridge = TemporalEffectBridge {
+            source: temporal_estimand(member(b, "source")?)?,
+            target: temporal_estimand(member(b, "target")?)?,
+            source_component: text(b, "source_component")?,
+            target_variable_id: text(b, "target_variable_id")?,
+            target_units: text(b, "target_units")?,
+            mapping,
+        };
+        Ok(finish(decide_with_temporal_bridge(&ev,&req,&bridge,&frame).map(|r|json!({"identity":r.identity,"source":b["source"],"target":b["target"],"assumption_range":r.decision.assumption_range,"sampling_envelope":r.decision.sampling_envelope,"verdict":verdict_json(&r.decision.verdict),"evidence_ids":r.decision.evidence_ids,"assumption_id":r.decision.assumption_id,"target_variable_id":r.decision.target_variable_id,"target_units":r.decision.target_units}))))
+    })
 }
 
 /// Derive a quantity and, when a frame is given, classify the decision; with candidates, plan
@@ -1429,36 +1447,38 @@ fn decision_evidence_evaluate(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Refused> {
-    let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
-    let value = parse_decision(payload_json, "decision evidence")?;
-    let map = object(&value, "decision evidence")?;
-    let ev = match evidence_with_context(member(map, "evidence")?, &ctx)? {
-        Ok(ev) => ev,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
-    };
-    let req = request(member(map, "request")?)?;
-    let q = quantity(member(map, "quantity")?)?;
-    let frame = present(map, "frame").map(frame).transpose()?;
-    let cands = candidates(map)?;
-    let run = || -> Result<Json, EvidenceRefusal> {
-        let mut out = Map::new();
-        if let Some(f) = &frame {
-            let d = decide(&ev, &req, &q, f)?;
-            out.insert("decision".into(), decision_json(&d));
-            out.insert("stage_digests".into(), digests_json(&StageDigests::of(&ev, &q, f)));
-            if !cands.is_empty() {
-                out.insert("plan".into(), plan_json(&plan_evidence(&ev, &req, &q, f, &cands)?));
+    crate::catch_ffi(|| {
+        let ctx = crate::joint_panel_api::context(seed, threads, max_bytes, cancel)?;
+        let value = parse_decision(payload_json, "decision evidence")?;
+        let map = object(&value, "decision evidence")?;
+        let ev = match evidence_with_context(member(map, "evidence")?, &ctx)? {
+            Ok(ev) => ev,
+            Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        };
+        let req = request(member(map, "request")?)?;
+        let q = quantity(member(map, "quantity")?)?;
+        let frame = present(map, "frame").map(frame).transpose()?;
+        let cands = candidates(map)?;
+        let run = || -> Result<Json, EvidenceRefusal> {
+            let mut out = Map::new();
+            if let Some(f) = &frame {
+                let d = decide(&ev, &req, &q, f)?;
+                out.insert("decision".into(), decision_json(&d));
+                out.insert("stage_digests".into(), digests_json(&StageDigests::of(&ev, &q, f)));
+                if !cands.is_empty() {
+                    out.insert("plan".into(), plan_json(&plan_evidence(&ev, &req, &q, f, &cands)?));
+                }
+            } else {
+                if !cands.is_empty() {
+                    return Err(invalid("planning needs a decision frame"));
+                }
+                out.insert("derived".into(), derived_json(&derive(&ev, &req, &q)?));
             }
-        } else {
-            if !cands.is_empty() {
-                return Err(invalid("planning needs a decision frame"));
-            }
-            out.insert("derived".into(), derived_json(&derive(&ev, &req, &q)?));
-        }
-        out.insert("estimate_identity".into(), Json::String(ev.estimate_identity()));
-        Ok(Json::Object(out))
-    };
-    Ok(finish(run()))
+            out.insert("estimate_identity".into(), Json::String(ev.estimate_identity()));
+            Ok(Json::Object(out))
+        };
+        Ok(finish(run()))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

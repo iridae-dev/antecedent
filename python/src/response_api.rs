@@ -212,21 +212,23 @@ impl ResponseAnalysisResult {
     }
 
     fn program_basis_json(&self) -> PyResult<Option<String>> {
-        let Some(authority) = &self.authority else {
-            return Ok(None);
-        };
-        let Some(contract) = authority.result.executed_contract() else {
-            return Ok(None);
-        };
-        let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
-            &authority.response.estimand
-        else {
-            return Ok(None);
-        };
-        let grid = treatment.grid.values().map_err(|error| crate::value_err(error.to_string()))?;
-        let named =
-            |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
-        Ok(Some(
+        crate::catch_ffi(|| {
+            let Some(authority) = &self.authority else {
+                return Ok(None);
+            };
+            let Some(contract) = authority.result.executed_contract() else {
+                return Ok(None);
+            };
+            let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
+                &authority.response.estimand
+            else {
+                return Ok(None);
+            };
+            let grid =
+                treatment.grid.values().map_err(|error| crate::value_err(error.to_string()))?;
+            let named =
+                |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
+            Ok(Some(
             serde_json::json!({
                 "graph_id": format!("graph:{}", contract.identities.identification),
                 "status": authority.response.identification_status.as_str(),
@@ -238,6 +240,7 @@ impl ResponseAnalysisResult {
             })
             .to_string(),
         ))
+        })
     }
 
     /// The joint draws of dose number `dose_index` across the horizons of a temporal response
@@ -247,36 +250,38 @@ impl ResponseAnalysisResult {
     /// horizons, the point value of each horizon's cell, one column of replicates per horizon
     /// and the alignment and evidence identities.
     fn horizon_draws_json(&self, dose_index: usize) -> PyResult<(Option<String>, Option<String>)> {
-        let Some(authority) = &self.authority else {
-            return Err(crate::value_err(
-                "this response carries no native response payload to read horizon draws from",
-            ));
-        };
-        match antecedent::analysis::horizon_composition::horizon_draws(
-            &authority.response,
-            dose_index,
-        ) {
-            Ok(draws) => Ok((
-                Some(
-                    serde_json::json!({
-                        "horizons": draws.horizons,
-                        "center": draws.center,
-                        "columns": draws.columns,
-                        "alignment_id": draws.alignment_id,
-                        "evidence_id": draws.evidence_id,
-                    })
-                    .to_string(),
-                ),
-                None,
-            )),
-            Err(refusal) => {
-                let json = serde_json::to_string(
-                    &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
-                )
-                .map_err(|error| crate::value_err(error.to_string()))?;
-                Ok((None, Some(json)))
+        crate::catch_ffi(|| {
+            let Some(authority) = &self.authority else {
+                return Err(crate::value_err(
+                    "this response carries no native response payload to read horizon draws from",
+                ));
+            };
+            match antecedent::analysis::horizon_composition::horizon_draws(
+                &authority.response,
+                dose_index,
+            ) {
+                Ok(draws) => Ok((
+                    Some(
+                        serde_json::json!({
+                            "horizons": draws.horizons,
+                            "center": draws.center,
+                            "columns": draws.columns,
+                            "alignment_id": draws.alignment_id,
+                            "evidence_id": draws.evidence_id,
+                        })
+                        .to_string(),
+                    ),
+                    None,
+                )),
+                Err(refusal) => {
+                    let json = serde_json::to_string(
+                        &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                    )
+                    .map_err(|error| crate::value_err(error.to_string()))?;
+                    Ok((None, Some(json)))
+                }
             }
-        }
+        })
     }
 
     /// The scientific coordinates of the response values, derived natively.
@@ -291,31 +296,33 @@ impl ResponseAnalysisResult {
         population: &str,
         transform: &str,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let labels = antecedent_contract::ResponseCoordinateLabels {
-            outcome_units,
-            population_id: population,
-            transform_id: transform,
-        };
-        let labelled = self
-            .coordinates
-            .clone()
-            .and_then(|cells| antecedent_contract::label_coordinates(&cells, &labels));
-        match labelled {
-            Ok(quantities) => {
-                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
-                    quantities.iter().map(Into::into).collect();
-                let json = serde_json::to_string(&wires)
+        crate::catch_ffi(|| {
+            let labels = antecedent_contract::ResponseCoordinateLabels {
+                outcome_units,
+                population_id: population,
+                transform_id: transform,
+            };
+            let labelled = self
+                .coordinates
+                .clone()
+                .and_then(|cells| antecedent_contract::label_coordinates(&cells, &labels));
+            match labelled {
+                Ok(quantities) => {
+                    let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                        quantities.iter().map(Into::into).collect();
+                    let json = serde_json::to_string(&wires)
+                        .map_err(|error| crate::value_err(error.to_string()))?;
+                    Ok((Some(json), None))
+                }
+                Err(refusal) => {
+                    let json = serde_json::to_string(
+                        &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                    )
                     .map_err(|error| crate::value_err(error.to_string()))?;
-                Ok((Some(json), None))
+                    Ok((None, Some(json)))
+                }
             }
-            Err(refusal) => {
-                let json = serde_json::to_string(
-                    &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
-                )
-                .map_err(|error| crate::value_err(error.to_string()))?;
-                Ok((None, Some(json)))
-            }
-        }
+        })
     }
 }
 

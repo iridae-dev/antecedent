@@ -618,18 +618,22 @@ impl EvidenceLedgerHandle {
 
     /// The standing of one result: still_valid, recompute or withdrawn.
     fn standing(&self, result: &str) -> PyResult<Option<&'static str>> {
-        Ok(self
-            .inner
-            .standing(result_id(result)?)
-            .map(antecedent_contract::evidence_ledger::Revalidation::as_str))
+        crate::catch_ffi(|| {
+            Ok(self
+                .inner
+                .standing(result_id(result)?)
+                .map(antecedent_contract::evidence_ledger::Revalidation::as_str))
+        })
     }
 
     /// Add a source; a refusal leaves the session unchanged.
     fn add_source(&mut self, declaration_json: &str) -> PyResult<Refused<String>> {
-        let declaration = parse_declaration(&parse(declaration_json, "source declaration")?)?;
-        Ok(match self.inner.add_source(declaration) {
-            Ok(id) => (Some(id.to_hex()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let declaration = parse_declaration(&parse(declaration_json, "source declaration")?)?;
+            Ok(match self.inner.add_source(declaration) {
+                Ok(id) => (Some(id.to_hex()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -640,32 +644,36 @@ impl EvidenceLedgerHandle {
         label: &str,
         kind: &str,
     ) -> PyResult<Refused<String>> {
-        let kind = SourceKind::from_name(kind)
-            .ok_or_else(|| crate::value_err(format!("unknown source kind `{kind}`")))?;
-        Ok(match self.inner.declare_from_result(result_id(result)?, label, kind) {
-            Ok(declaration) => (Some(declaration_json(&declaration).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let kind = SourceKind::from_name(kind)
+                .ok_or_else(|| crate::value_err(format!("unknown source kind `{kind}`")))?;
+            Ok(match self.inner.declare_from_result(result_id(result)?, label, kind) {
+                Ok(declaration) => (Some(declaration_json(&declaration).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// The mass the sources contribute, each observation counted once, and
     /// how every pair overlaps.
     fn account_observations(&self, sources_json: &str) -> PyResult<Refused<String>> {
-        let parsed = parse(sources_json, "sources")?;
-        let sources = parsed
-            .as_array()
-            .ok_or_else(|| crate::value_err("sources must be a list"))?
-            .iter()
-            .map(|value| {
-                value
-                    .as_str()
-                    .ok_or_else(|| crate::value_err("a source identity must be a string"))
-                    .and_then(source_id)
+        crate::catch_ffi(|| {
+            let parsed = parse(sources_json, "sources")?;
+            let sources = parsed
+                .as_array()
+                .ok_or_else(|| crate::value_err("sources must be a list"))?
+                .iter()
+                .map(|value| {
+                    value
+                        .as_str()
+                        .ok_or_else(|| crate::value_err("a source identity must be a string"))
+                        .and_then(source_id)
+                })
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(match self.inner.account_observations(&sources) {
+                Ok(account) => (Some(account_json(&account).to_string()), None),
+                Err(refusal) => refused(&refusal),
             })
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(match self.inner.account_observations(&sources) {
-            Ok(account) => (Some(account_json(&account).to_string()), None),
-            Err(refusal) => refused(&refusal),
         })
     }
 
@@ -677,12 +685,15 @@ impl EvidenceLedgerHandle {
         dependence_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = parse_pooling(&parse(request_json, "pooling request")?)?;
-        let dependence = parse_pooling_dependence(&parse(dependence_json, "pooling dependence")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.pool_summaries(request, dependence, &ctx) {
-            Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let request = parse_pooling(&parse(request_json, "pooling request")?)?;
+            let dependence =
+                parse_pooling_dependence(&parse(dependence_json, "pooling dependence")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match self.inner.pool_summaries(request, dependence, &ctx) {
+                Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -694,27 +705,29 @@ impl EvidenceLedgerHandle {
         method: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = parse_pooling(&parse(request_json, "pooling request")?)?;
-        if method == "equal_study_gaussian" {
+        crate::catch_ffi(|| {
+            let request = parse_pooling(&parse(request_json, "pooling request")?)?;
+            if method == "equal_study_gaussian" {
+                let ctx = execution_context(0, None, cancel);
+                return Ok(match self.inner.pool_gaussian_studies(request, &ctx) {
+                    Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
+                    Err(refusal) => refused(&refusal),
+                });
+            }
+            let method = match method {
+                "dersimonian_laird" => BetweenStudy::DerSimonianLaird,
+                "reml" => BetweenStudy::RestrictedMaximumLikelihood,
+                other => {
+                    return Err(crate::value_err(format!(
+                        "unknown between-study method `{other}`; use dersimonian_laird, reml or equal_study_gaussian"
+                    )));
+                }
+            };
             let ctx = execution_context(0, None, cancel);
-            return Ok(match self.inner.pool_gaussian_studies(request, &ctx) {
+            Ok(match self.inner.random_effects(request, method, &ctx) {
                 Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
                 Err(refusal) => refused(&refusal),
-            });
-        }
-        let method = match method {
-            "dersimonian_laird" => BetweenStudy::DerSimonianLaird,
-            "reml" => BetweenStudy::RestrictedMaximumLikelihood,
-            other => {
-                return Err(crate::value_err(format!(
-                    "unknown between-study method `{other}`; use dersimonian_laird, reml or equal_study_gaussian"
-                )));
-            }
-        };
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.random_effects(request, method, &ctx) {
-            Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
-            Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -726,11 +739,13 @@ impl EvidenceLedgerHandle {
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = parse_borrowing(&parse(request_json, "borrowing request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.hierarchical_borrowing(request, &ctx) {
-            Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let request = parse_borrowing(&parse(request_json, "borrowing request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match self.inner.hierarchical_borrowing(request, &ctx) {
+                Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -741,11 +756,13 @@ impl EvidenceLedgerHandle {
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = parse_range(&parse(request_json, "dependence range request")?)?;
-        let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.dependence_range(request, &ctx) {
-            Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let request = parse_range(&parse(request_json, "dependence range request")?)?;
+            let ctx = execution_context(0, None, cancel);
+            Ok(match self.inner.dependence_range(request, &ctx) {
+                Ok(outcome) => (Some(outcome_json(&outcome).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -758,26 +775,30 @@ impl EvidenceLedgerHandle {
         native_json: &str,
         replaces: Option<&str>,
     ) -> PyResult<Refused<String>> {
-        let ids = |json: &str, what: &str| -> PyResult<Vec<SourceId>> {
-            let parsed = parse(json, what)?;
-            let map = json!({"ids": parsed});
-            source_ids(map.as_object().ok_or_else(|| crate::value_err("internal"))?, "ids")
-        };
-        let transported = ids(transported_json, "transported sources")?;
-        let native = ids(native_json, "native sources")?;
-        let replaces = replaces.map(result_id).transpose()?;
-        Ok(match self.inner.transport_claim(label, transported, native, replaces) {
-            Ok(id) => (Some(id.to_hex()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let ids = |json: &str, what: &str| -> PyResult<Vec<SourceId>> {
+                let parsed = parse(json, what)?;
+                let map = json!({"ids": parsed});
+                source_ids(map.as_object().ok_or_else(|| crate::value_err("internal"))?, "ids")
+            };
+            let transported = ids(transported_json, "transported sources")?;
+            let native = ids(native_json, "native sources")?;
+            let replaces = replaces.map(result_id).transpose()?;
+            Ok(match self.inner.transport_claim(label, transported, native, replaces) {
+                Ok(id) => (Some(id.to_hex()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// Cite a valid existing result again.
     fn reuse_result(&mut self, label: &str, of: &str) -> PyResult<Refused<String>> {
-        let of = result_id(of)?;
-        Ok(match self.inner.reuse_result(label, of) {
-            Ok(id) => (Some(id.to_hex()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let of = result_id(of)?;
+            Ok(match self.inner.reuse_result(label, of) {
+                Ok(id) => (Some(id.to_hex()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -788,23 +809,27 @@ impl EvidenceLedgerHandle {
         sources_json: &str,
         stage: &str,
     ) -> PyResult<Refused<String>> {
-        let parsed = parse(sources_json, "sources")?;
-        let map = json!({"ids": parsed});
-        let sources =
-            source_ids(map.as_object().ok_or_else(|| crate::value_err("internal"))?, "ids")?;
-        Ok(match self.inner.repeat_observations(label, sources, stage) {
-            Ok(id) => (Some(id.to_hex()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let parsed = parse(sources_json, "sources")?;
+            let map = json!({"ids": parsed});
+            let sources =
+                source_ids(map.as_object().ok_or_else(|| crate::value_err("internal"))?, "ids")?;
+            Ok(match self.inner.repeat_observations(label, sources, stage) {
+                Ok(id) => (Some(id.to_hex()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// Apply one revision; results that rested on the retired source are
     /// reclassified.
     fn revise_source(&mut self, revision_json: &str) -> PyResult<Refused<String>> {
-        let revision = parse_revision(&parse(revision_json, "source revision")?)?;
-        Ok(match self.inner.revise_source(revision) {
-            Ok(report) => (Some(report_json(&report).to_string()), None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let revision = parse_revision(&parse(revision_json, "source revision")?)?;
+            Ok(match self.inner.revise_source(revision) {
+                Ok(report) => (Some(report_json(&report).to_string()), None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -820,44 +845,48 @@ impl EvidenceLedgerHandle {
     /// (`cell_not_licensed`) when no currently attesting coverage record
     /// governs the construction.
     fn pooled_interval(&self, result: &str) -> PyResult<Refused<String>> {
-        let result = result_id(result)?;
-        Ok(match self.inner.pooled_interval(result) {
-            Ok(interval) => {
-                let slot = interval.report.scalars.first().map(|s| {
-                    json!({
-                        "status": s.calibration.status,
-                        "record_id": s.calibration.record_id,
-                        "calibration_sha": s.calibration.calibration_sha,
-                    })
-                });
-                (
-                    Some(
+        crate::catch_ffi(|| {
+            let result = result_id(result)?;
+            Ok(match self.inner.pooled_interval(result) {
+                Ok(interval) => {
+                    let slot = interval.report.scalars.first().map(|s| {
                         json!({
-                            "result": interval.result.to_hex(),
-                            "method": interval.method,
-                            "estimate": interval.estimate,
-                            "lower": interval.lower,
-                            "upper": interval.upper,
-                            "level": interval.level,
-                            "calibration": slot,
+                            "status": s.calibration.status,
+                            "record_id": s.calibration.record_id,
+                            "calibration_sha": s.calibration.calibration_sha,
                         })
-                        .to_string(),
-                    ),
-                    None,
-                )
-            }
-            Err(refusal) => refused(&refusal),
+                    });
+                    (
+                        Some(
+                            json!({
+                                "result": interval.result.to_hex(),
+                                "method": interval.method,
+                                "estimate": interval.estimate,
+                                "lower": interval.lower,
+                                "upper": interval.upper,
+                                "level": interval.level,
+                                "calibration": slot,
+                            })
+                            .to_string(),
+                        ),
+                        None,
+                    )
+                }
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
     /// The numbers of a result that is still valid. `(None, None)` is a valid
     /// result registered for accounting only.
     fn synthesis(&self, result: &str) -> PyResult<Refused<String>> {
-        let result = result_id(result)?;
-        Ok(match self.inner.synthesis(result) {
-            Ok(Some(value)) => (Some(value_json(value).to_string()), None),
-            Ok(None) => (None, None),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let result = result_id(result)?;
+            Ok(match self.inner.synthesis(result) {
+                Ok(Some(value)) => (Some(value_json(value).to_string()), None),
+                Ok(None) => (None, None),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 
@@ -867,23 +896,25 @@ impl EvidenceLedgerHandle {
         &self,
         changes_json: &str,
     ) -> PyResult<Refused<(EvidenceLedgerHandle, String, String)>> {
-        let parsed = parse(changes_json, "source changes")?;
-        let changes = parsed
-            .as_array()
-            .ok_or_else(|| crate::value_err("source changes must be a list"))?
-            .iter()
-            .map(parse_change)
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(match self.inner.refresh(changes) {
-            Ok(LedgerRefresh { session, reports, classification }) => (
-                Some((
-                    EvidenceLedgerHandle { inner: session },
-                    Json::Array(reports.iter().map(report_json).collect()).to_string(),
-                    classification_json(&classification).to_string(),
-                )),
-                None,
-            ),
-            Err(refusal) => refused(&refusal),
+        crate::catch_ffi(|| {
+            let parsed = parse(changes_json, "source changes")?;
+            let changes = parsed
+                .as_array()
+                .ok_or_else(|| crate::value_err("source changes must be a list"))?
+                .iter()
+                .map(parse_change)
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(match self.inner.refresh(changes) {
+                Ok(LedgerRefresh { session, reports, classification }) => (
+                    Some((
+                        EvidenceLedgerHandle { inner: session },
+                        Json::Array(reports.iter().map(report_json).collect()).to_string(),
+                        classification_json(&classification).to_string(),
+                    )),
+                    None,
+                ),
+                Err(refusal) => refused(&refusal),
+            })
         })
     }
 

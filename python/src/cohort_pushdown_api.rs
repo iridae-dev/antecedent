@@ -62,10 +62,12 @@ fn cohort_checked_projection(
     observed: Vec<(String, Vec<bool>)>,
     keep: Vec<String>,
 ) -> PyResult<Vec<usize>> {
-    let closure = closure_of(closure);
-    let frame = frame_of(observed)?;
-    let cohort = checked_projection(&closure, &frame, &roles(keep)).map_err(refuse)?;
-    Ok(cohort.rows().to_vec())
+    crate::catch_ffi(|| {
+        let closure = closure_of(closure);
+        let frame = frame_of(observed)?;
+        let cohort = checked_projection(&closure, &frame, &roles(keep)).map_err(refuse)?;
+        Ok(cohort.rows().to_vec())
+    })
 }
 
 /// Push a row filter read off `column` and check it drops no row of the closure's complete-case
@@ -77,11 +79,13 @@ fn cohort_checked_push_filter(
     column: &str,
     drop_row: Vec<bool>,
 ) -> PyResult<Vec<usize>> {
-    let closure = closure_of(closure);
-    let frame = frame_of(observed)?;
-    let filter = ColumnFilter::new(ColumnRole::new(column), drop_row);
-    let cohort = checked_push_filter(&closure, &frame, &filter).map_err(refuse)?;
-    Ok(cohort.rows().to_vec())
+    crate::catch_ffi(|| {
+        let closure = closure_of(closure);
+        let frame = frame_of(observed)?;
+        let filter = ColumnFilter::new(ColumnRole::new(column), drop_row);
+        let cohort = checked_push_filter(&closure, &frame, &filter).map_err(refuse)?;
+        Ok(cohort.rows().to_vec())
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

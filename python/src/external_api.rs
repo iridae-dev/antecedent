@@ -39,21 +39,23 @@ impl PyExternalClaimArtifact {
     }
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
-        check_declared_len(
-            data.len(),
-            MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
-            "external claim artifact",
-        )?;
-        check_declared_size(
-            expected_identity_json,
-            MAX_BINDING_WIRE_BYTES,
-            "external claim identity",
-        )?;
-        let expected: ExternalClaimIdentity =
-            serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
-        let artifact =
-            ExternalClaimArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
-        Ok(Self { artifact })
+        crate::catch_ffi(|| {
+            check_declared_len(
+                data.len(),
+                MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
+                "external claim artifact",
+            )?;
+            check_declared_size(
+                expected_identity_json,
+                MAX_BINDING_WIRE_BYTES,
+                "external claim identity",
+            )?;
+            let expected: ExternalClaimIdentity =
+                serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
+            let artifact =
+                ExternalClaimArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
+            Ok(Self { artifact })
+        })
     }
 
     #[getter]
@@ -87,21 +89,23 @@ pub(crate) struct PyExternalColumnClaimArtifact {
 impl PyExternalColumnClaimArtifact {
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
-        check_declared_len(
-            data.len(),
-            MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES,
-            "external column claim artifact",
-        )?;
-        check_declared_size(
-            expected_identity_json,
-            MAX_BINDING_WIRE_BYTES,
-            "external column claim identity",
-        )?;
-        let expected: ExternalColumnIdentity =
-            serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
-        let artifact =
-            ExternalColumnClaimArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
-        Ok(Self { artifact })
+        crate::catch_ffi(|| {
+            check_declared_len(
+                data.len(),
+                MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES,
+                "external column claim artifact",
+            )?;
+            check_declared_size(
+                expected_identity_json,
+                MAX_BINDING_WIRE_BYTES,
+                "external column claim identity",
+            )?;
+            let expected: ExternalColumnIdentity =
+                serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
+            let artifact =
+                ExternalColumnClaimArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
+            Ok(Self { artifact })
+        })
     }
 
     #[getter]
@@ -137,22 +141,25 @@ fn bind_external_column(
     values: PyReadonlyArray1<'_, f64>,
     causal_contract_id: &str,
 ) -> PyResult<(Option<PyExternalColumnClaimArtifact>, Option<String>)> {
-    check_declared_size(contract_json, MAX_BINDING_WIRE_BYTES, "external binding contract")?;
-    check_declared_size(column_json, MAX_BINDING_WIRE_BYTES, "external binding column")?;
-    check_declared_len(
-        values.len()?,
-        usize::try_from(MAX_EXTERNAL_COLUMN_ROWS).unwrap_or(usize::MAX),
-        "external column rows",
-    )?;
-    let contract: ContractWire = serde_json::from_str(contract_json).map_err(artifact_error)?;
-    let column: ColumnResponseWire = serde_json::from_str(column_json).map_err(artifact_error)?;
-    match bind_column(&contract, &column, values.as_array().to_vec(), causal_contract_id) {
-        Ok(artifact) => Ok((Some(PyExternalColumnClaimArtifact { artifact }), None)),
-        Err(refusal) => {
-            let refusal: RefusalWire = refusal;
-            Ok((None, Some(serde_json::to_string(&refusal).map_err(artifact_error)?)))
+    crate::catch_ffi(|| {
+        check_declared_size(contract_json, MAX_BINDING_WIRE_BYTES, "external binding contract")?;
+        check_declared_size(column_json, MAX_BINDING_WIRE_BYTES, "external binding column")?;
+        check_declared_len(
+            values.len()?,
+            usize::try_from(MAX_EXTERNAL_COLUMN_ROWS).unwrap_or(usize::MAX),
+            "external column rows",
+        )?;
+        let contract: ContractWire = serde_json::from_str(contract_json).map_err(artifact_error)?;
+        let column: ColumnResponseWire =
+            serde_json::from_str(column_json).map_err(artifact_error)?;
+        match bind_column(&contract, &column, values.as_array().to_vec(), causal_contract_id) {
+            Ok(artifact) => Ok((Some(PyExternalColumnClaimArtifact { artifact }), None)),
+            Err(refusal) => {
+                let refusal: RefusalWire = refusal;
+                Ok((None, Some(serde_json::to_string(&refusal).map_err(artifact_error)?)))
+            }
         }
-    }
+    })
 }
 
 /// Bind a response; returns the claim or a structured refusal as JSON.
@@ -162,17 +169,19 @@ fn bind_external_response(
     response_json: &str,
     causal_contract_id: &str,
 ) -> PyResult<(Option<PyExternalClaimArtifact>, Option<String>)> {
-    check_declared_size(contract_json, MAX_BINDING_WIRE_BYTES, "external binding contract")?;
-    check_declared_size(response_json, MAX_BINDING_WIRE_BYTES, "external binding response")?;
-    let contract: ContractWire = serde_json::from_str(contract_json).map_err(artifact_error)?;
-    let response: ResponseWire = serde_json::from_str(response_json).map_err(artifact_error)?;
-    match bind_response(&contract, &response, causal_contract_id) {
-        Ok(artifact) => Ok((Some(PyExternalClaimArtifact { artifact }), None)),
-        Err(refusal) => {
-            let refusal: RefusalWire = refusal;
-            Ok((None, Some(serde_json::to_string(&refusal).map_err(artifact_error)?)))
+    crate::catch_ffi(|| {
+        check_declared_size(contract_json, MAX_BINDING_WIRE_BYTES, "external binding contract")?;
+        check_declared_size(response_json, MAX_BINDING_WIRE_BYTES, "external binding response")?;
+        let contract: ContractWire = serde_json::from_str(contract_json).map_err(artifact_error)?;
+        let response: ResponseWire = serde_json::from_str(response_json).map_err(artifact_error)?;
+        match bind_response(&contract, &response, causal_contract_id) {
+            Ok(artifact) => Ok((Some(PyExternalClaimArtifact { artifact }), None)),
+            Err(refusal) => {
+                let refusal: RefusalWire = refusal;
+                Ok((None, Some(serde_json::to_string(&refusal).map_err(artifact_error)?)))
+            }
         }
-    }
+    })
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

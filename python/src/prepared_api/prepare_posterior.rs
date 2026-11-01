@@ -54,22 +54,24 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let spec = configured_spec(estimator_config, None, &req.opts)?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let query = CausalQuery::AverageEffect(static_ate_query(
-                &data,
-                &treatment,
-                &outcome,
-                control_level,
-                active_level,
-                &req.opts,
-            )?);
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, req, gp, query, spec, None, &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let spec = configured_spec(estimator_config, None, &req.opts)?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let query = CausalQuery::AverageEffect(static_ate_query(
+                    &data,
+                    &treatment,
+                    &outcome,
+                    control_level,
+                    active_level,
+                    &req.opts,
+                )?);
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                finish_static_graph_posterior(data, req, gp, query, spec, None, &ctx)
+            })
         })
     }
 
@@ -106,24 +108,26 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let query = conditional_query(
-                &data,
-                &treatment,
-                &outcome,
-                &modifiers,
-                control_level,
-                active_level,
-                functional,
-                &req.opts,
-            )?;
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let query = conditional_query(
+                    &data,
+                    &treatment,
+                    &outcome,
+                    &modifiers,
+                    control_level,
+                    active_level,
+                    functional,
+                    &req.opts,
+                )?;
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+            })
         })
     }
 
@@ -192,109 +196,118 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        let contrast = contrast.to_owned();
-        let need = |value: &Option<String>, what: &str| -> PyResult<String> {
-            value.clone().ok_or_else(|| crate::value_err(format!("{kind} requires a {what}")))
-        };
-        let query = match kind.as_str() {
-            "mediation" | "nested_counterfactual" => {
-                if kind == "nested_counterfactual" {
-                    req.refuse_population("a nested counterfactual query")?;
-                }
-                let mut query = static_kind_query(
-                    data.schema(),
-                    &kind,
-                    &need(&treatment, "treatment")?,
-                    &need(&outcome, "outcome")?,
-                    &mediators,
-                    &contrast,
-                    control_level,
-                    active_level,
-                )?;
-                if let (CausalQuery::Mediation(q), Some(population)) =
-                    (&mut query, req.opts.target_population.clone())
-                {
-                    q.target_population = population;
-                }
-                query
-            }
-            "path_specific" => {
-                crate::bridge::check_paths(max_paths, max_len)?;
-                let t_id = data.schema().id_of(&need(&treatment, "treatment")?).map_err(py_err)?;
-                let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
-                let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
-                    .with_max_paths(max_paths)
-                    .with_max_len(max_len);
-                query.control = Intervention::set(t_id, Value::f64(control_level));
-                query.active = Intervention::set(t_id, Value::f64(active_level));
-                if let Some(population) = req.opts.target_population.clone() {
-                    query.target_population = population;
-                }
-                if let Some(nodes) = &path_nodes {
-                    let mut ids = Vec::with_capacity(nodes.len());
-                    for name in nodes {
-                        ids.push(data.schema().id_of(name).map_err(py_err)?);
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            let contrast = contrast.to_owned();
+            let need = |value: &Option<String>, what: &str| -> PyResult<String> {
+                value.clone().ok_or_else(|| crate::value_err(format!("{kind} requires a {what}")))
+            };
+            let query = match kind.as_str() {
+                "mediation" | "nested_counterfactual" => {
+                    if kind == "nested_counterfactual" {
+                        req.refuse_population("a nested counterfactual query")?;
                     }
-                    query = query.with_path_nodes(ids);
-                }
-                CausalQuery::PathSpecific(query)
-            }
-            "distribution" => {
-                let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
-                let mut ivs = Vec::new();
-                for (name, level) in interventions.as_ref().into_iter().flatten() {
-                    let id = data.schema().id_of(name).map_err(py_err)?;
-                    ivs.push(Intervention::set(id, Value::f64(*level)));
-                }
-                let mut query = InterventionalDistributionQuery::new(y_id, ivs);
-                if let Some(population) = req.opts.target_population.clone() {
-                    query.target_population = population;
-                }
-                if let Some(cond) = &conditioning {
-                    let mut z = Vec::with_capacity(cond.len());
-                    for name in cond {
-                        z.push(data.schema().id_of(name).map_err(py_err)?);
+                    let mut query = static_kind_query(
+                        data.schema(),
+                        &kind,
+                        &need(&treatment, "treatment")?,
+                        &need(&outcome, "outcome")?,
+                        &mediators,
+                        &contrast,
+                        control_level,
+                        active_level,
+                    )?;
+                    if let (CausalQuery::Mediation(q), Some(population)) =
+                        (&mut query, req.opts.target_population.clone())
+                    {
+                        q.target_population = population;
                     }
-                    query = query.with_conditioning(z);
+                    query
                 }
-                CausalQuery::Distribution(query)
-            }
-            "anomaly_attribution" => {
-                req.refuse_population("an anomaly attribution query")?;
-                let ids = targets
-                    .iter()
-                    .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
-                    .collect::<PyResult<Vec<_>>>()?;
-                let mut query = AnomalyAttributionQuery::new(ids, max_units);
-                if let Some((center, scale)) = reference {
-                    query = query
-                        .with_reference(antecedent_core::AnomalyReference::fixed(center, scale));
+                "path_specific" => {
+                    crate::bridge::check_paths(max_paths, max_len)?;
+                    let t_id =
+                        data.schema().id_of(&need(&treatment, "treatment")?).map_err(py_err)?;
+                    let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
+                    let mut query = PathSpecificEffectQuery::binary(t_id, y_id)
+                        .with_max_paths(max_paths)
+                        .with_max_len(max_len);
+                    query.control = Intervention::set(t_id, Value::f64(control_level));
+                    query.active = Intervention::set(t_id, Value::f64(active_level));
+                    if let Some(population) = req.opts.target_population.clone() {
+                        query.target_population = population;
+                    }
+                    if let Some(nodes) = &path_nodes {
+                        let mut ids = Vec::with_capacity(nodes.len());
+                        for name in nodes {
+                            ids.push(data.schema().id_of(name).map_err(py_err)?);
+                        }
+                        query = query.with_path_nodes(ids);
+                    }
+                    CausalQuery::PathSpecific(query)
                 }
-                CausalQuery::AnomalyAttribution(query)
-            }
-            "change_attribution" => {
-                req.refuse_population("a change attribution query")?;
-                let outcome_id =
-                    crate::graph_build::schema_var_id(data.schema(), &need(&outcome, "outcome")?)?;
-                CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
-                    outcome_id,
-                    PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
-                    PopulationSelector::TimeRange { start: comparison_start, end: comparison_end },
-                ))
-            }
-            other => {
-                return Err(crate::value_err(format!(
-                    "unsupported graph-posterior query kind {other:?}"
-                )));
-            }
-        };
-        req.off_gil(py, move |req| {
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+                "distribution" => {
+                    let y_id = data.schema().id_of(&need(&outcome, "outcome")?).map_err(py_err)?;
+                    let mut ivs = Vec::new();
+                    for (name, level) in interventions.as_ref().into_iter().flatten() {
+                        let id = data.schema().id_of(name).map_err(py_err)?;
+                        ivs.push(Intervention::set(id, Value::f64(*level)));
+                    }
+                    let mut query = InterventionalDistributionQuery::new(y_id, ivs);
+                    if let Some(population) = req.opts.target_population.clone() {
+                        query.target_population = population;
+                    }
+                    if let Some(cond) = &conditioning {
+                        let mut z = Vec::with_capacity(cond.len());
+                        for name in cond {
+                            z.push(data.schema().id_of(name).map_err(py_err)?);
+                        }
+                        query = query.with_conditioning(z);
+                    }
+                    CausalQuery::Distribution(query)
+                }
+                "anomaly_attribution" => {
+                    req.refuse_population("an anomaly attribution query")?;
+                    let ids = targets
+                        .iter()
+                        .map(|name| crate::graph_build::schema_var_id(data.schema(), name))
+                        .collect::<PyResult<Vec<_>>>()?;
+                    let mut query = AnomalyAttributionQuery::new(ids, max_units);
+                    if let Some((center, scale)) = reference {
+                        query = query.with_reference(antecedent_core::AnomalyReference::fixed(
+                            center, scale,
+                        ));
+                    }
+                    CausalQuery::AnomalyAttribution(query)
+                }
+                "change_attribution" => {
+                    req.refuse_population("a change attribution query")?;
+                    let outcome_id = crate::graph_build::schema_var_id(
+                        data.schema(),
+                        &need(&outcome, "outcome")?,
+                    )?;
+                    CausalQuery::ChangeAttribution(ChangeAttributionQuery::new(
+                        outcome_id,
+                        PopulationSelector::TimeRange { start: baseline_start, end: baseline_end },
+                        PopulationSelector::TimeRange {
+                            start: comparison_start,
+                            end: comparison_end,
+                        },
+                    ))
+                }
+                other => {
+                    return Err(crate::value_err(format!(
+                        "unsupported graph-posterior query kind {other:?}"
+                    )));
+                }
+            };
+            req.off_gil(py, move |req| {
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+            })
         })
     }
 
@@ -331,48 +344,52 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("a transport query")?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
-        req.off_gil(py, move |mut req| {
-            use crate::transport_interference_api::{ResponseArgs, schema_ids, transport_query};
-            let schema = data.schema().clone();
-            let query = transport_query(
-                ResponseArgs {
-                    kind,
-                    treatments,
-                    outcomes,
-                    grid,
-                    at,
-                    direction,
-                    order,
-                    scale,
-                    weighting,
-                },
-                source_population,
-                target_population,
-                &source_experiments,
-                |names| schema_ids(&schema, names),
-            )?;
-            let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
-            let trial_spec = antecedent::TransportTrialSpec {
-                trial: column(&trial)?,
-                selection_probability: column(&selection_probability)?,
-                treatment_probability: column(&treatment_probability)?,
-            };
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            req.refuse_prior("a graph-posterior mixture")?;
-            let builder = antecedent::Study::tabular(data)
-                .graph_posterior(gp)
-                .query(CausalQuery::Transport(query))
-                .selection_targets(schema_ids(&schema, &selections)?)
-                .transport_trial(trial_spec);
-            let builder = req.opts.apply_budget_for(builder, false);
-            let builder = req.opts.apply_inference(builder)?;
-            req.compile_with(builder, false, &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("a transport query")?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            let (scale, weighting) = (scale.to_owned(), weighting.to_owned());
+            req.off_gil(py, move |mut req| {
+                use crate::transport_interference_api::{
+                    ResponseArgs, schema_ids, transport_query,
+                };
+                let schema = data.schema().clone();
+                let query = transport_query(
+                    ResponseArgs {
+                        kind,
+                        treatments,
+                        outcomes,
+                        grid,
+                        at,
+                        direction,
+                        order,
+                        scale,
+                        weighting,
+                    },
+                    source_population,
+                    target_population,
+                    &source_experiments,
+                    |names| schema_ids(&schema, names),
+                )?;
+                let column = |name: &str| crate::graph_build::schema_var_id(&schema, name);
+                let trial_spec = antecedent::TransportTrialSpec {
+                    trial: column(&trial)?,
+                    selection_probability: column(&selection_probability)?,
+                    treatment_probability: column(&treatment_probability)?,
+                };
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                req.refuse_prior("a graph-posterior mixture")?;
+                let builder = antecedent::Study::tabular(data)
+                    .graph_posterior(gp)
+                    .query(CausalQuery::Transport(query))
+                    .selection_targets(schema_ids(&schema, &selections)?)
+                    .transport_trial(trial_spec);
+                let builder = req.opts.apply_budget_for(builder, false);
+                let builder = req.opts.apply_inference(builder)?;
+                req.compile_with(builder, false, &ctx)
+            })
         })
     }
 
@@ -405,23 +422,25 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let response_options = parse_response_options(response_options.as_ref())?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let query = response_query(
-                ResponseFunctional::MeanCurve {
-                    outcome: y_id,
-                    treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
-                },
-                &req.opts,
-            );
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let response_options = parse_response_options(response_options.as_ref())?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+                let query = response_query(
+                    ResponseFunctional::MeanCurve {
+                        outcome: y_id,
+                        treatment: ContinuousDomain::new(t_id, GridSpec::Values(grid.into())),
+                    },
+                    &req.opts,
+                );
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                finish_static_graph_posterior(data, req, gp, query, None, response_options, &ctx)
+            })
         })
     }
 
@@ -454,29 +473,31 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
-            let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
-            let functional = crate::response_api::build_functional(
-                "intervention_response",
-                &treatment_ids,
-                &outcome_ids,
-                None,
-                None,
-                None,
-                Some(intervention_kinds),
-                Some(intervention_parameters),
-                1,
-                antecedent_core::DerivativeScale::Identity,
-                antecedent_core::DerivativeWeighting::Observed,
-            )?;
-            let query = response_query(functional, &req.opts);
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = exact_dag_posterior(supplied, &data, &ctx)?;
-            finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+                let outcome_ids = crate::response_api::resolve_names(data.schema(), &[outcome])?;
+                let functional = crate::response_api::build_functional(
+                    "intervention_response",
+                    &treatment_ids,
+                    &outcome_ids,
+                    None,
+                    None,
+                    None,
+                    Some(intervention_kinds),
+                    Some(intervention_parameters),
+                    1,
+                    antecedent_core::DerivativeScale::Identity,
+                    antecedent_core::DerivativeWeighting::Observed,
+                )?;
+                let query = response_query(functional, &req.opts);
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = exact_dag_posterior(supplied, &data, &ctx)?;
+                finish_static_graph_posterior(data, req, gp, query, None, None, &ctx)
+            })
         })
     }
 
@@ -534,31 +555,33 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let input = req.load_frame(py, columns, frame.as_ref())?;
-        let policy = policy.to_ascii_lowercase();
-        req.off_gil(py, move |req| {
-            let series = one_series(input, &req.opts.ctx(seed, threads))?;
-            let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
-            let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
-            let q = temporal_effect_query(
-                &policy,
-                window,
-                t_id,
-                y_id,
-                treatment_lag,
-                horizon_steps,
-                control_level,
-                active_level,
-                max_history_lag,
-                &req.opts,
-            )?;
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = dbn_posterior(
-                supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
-            )?;
-            finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Temporal(q), &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let input = req.load_frame(py, columns, frame.as_ref())?;
+            let policy = policy.to_ascii_lowercase();
+            req.off_gil(py, move |req| {
+                let series = one_series(input, &req.opts.ctx(seed, threads))?;
+                let t_id = series.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = series.schema().id_of(&outcome).map_err(py_err)?;
+                let q = temporal_effect_query(
+                    &policy,
+                    window,
+                    t_id,
+                    y_id,
+                    treatment_lag,
+                    horizon_steps,
+                    control_level,
+                    active_level,
+                    max_history_lag,
+                    &req.opts,
+                )?;
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = dbn_posterior(
+                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+                )?;
+                finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Temporal(q), &ctx)
+            })
         })
     }
 
@@ -613,28 +636,30 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let input = req.load_frame(py, columns, frame.as_ref())?;
-        let contrast = contrast.to_string();
-        req.off_gil(py, move |req| {
-            let series = one_series(input, &req.opts.ctx(seed, threads))?;
-            let q = temporal_mediation_query(
-                series.schema(),
-                &treatment,
-                &mediator,
-                &outcome,
-                &contrast,
-                control_level,
-                active_level,
-                horizons,
-                &req.opts,
-            )?;
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = dbn_posterior(
-                supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
-            )?;
-            finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Mediation(q), &ctx)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let input = req.load_frame(py, columns, frame.as_ref())?;
+            let contrast = contrast.to_string();
+            req.off_gil(py, move |req| {
+                let series = one_series(input, &req.opts.ctx(seed, threads))?;
+                let q = temporal_mediation_query(
+                    series.schema(),
+                    &treatment,
+                    &mediator,
+                    &outcome,
+                    &contrast,
+                    control_level,
+                    active_level,
+                    horizons,
+                    &req.opts,
+                )?;
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = dbn_posterior(
+                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+                )?;
+                finish_series_graph_posterior(series, req, gp, SeriesGraphQuery::Mediation(q), &ctx)
+            })
         })
     }
 
@@ -692,55 +717,60 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let supplied = take_supplied_posterior(posterior, &req.names)?;
-        let input = req.load_frame(py, columns, frame.as_ref())?;
-        let policy = policy.to_ascii_lowercase();
-        req.off_gil(py, move |req| {
-            let series = one_series(input, &req.opts.ctx(seed, threads))?;
-            let schema = series.schema();
-            let treatment_ids: Vec<_> = treatments
-                .iter()
-                .map(|n| schema.id_of(n).map_err(py_err))
-                .collect::<PyResult<_>>()?;
-            let outcome_ids: Vec<_> = outcomes
-                .iter()
-                .map(|n| schema.id_of(n).map_err(py_err))
-                .collect::<PyResult<_>>()?;
-            let functional = build_functional(
-                &kind,
-                &treatment_ids,
-                &outcome_ids,
-                grid,
-                None,
-                None,
-                intervention_kinds,
-                intervention_parameters,
-                1,
-                antecedent_core::DerivativeScale::Identity,
-                antecedent_core::DerivativeWeighting::Observed,
-            )?;
-            let temporal_policy = crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
-            let origin = -i32::try_from(treatment_lag)
-                .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
-            let functional = crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
-            let temporal = TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
-                .map_err(|e| crate::value_err(e.to_string()))?;
-            let mut response = ResponseQuery::new(functional).with_temporal(temporal);
-            if let Some(population) = req.opts.target_population.clone() {
-                response.target_population = population;
-            }
-            let ctx = req.opts.ctx(seed, threads);
-            let gp = dbn_posterior(
-                supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
-            )?;
-            finish_series_graph_posterior(
-                series,
-                req,
-                gp,
-                SeriesGraphQuery::Response(response),
-                &ctx,
-            )
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let supplied = take_supplied_posterior(posterior, &req.names)?;
+            let input = req.load_frame(py, columns, frame.as_ref())?;
+            let policy = policy.to_ascii_lowercase();
+            req.off_gil(py, move |req| {
+                let series = one_series(input, &req.opts.ctx(seed, threads))?;
+                let schema = series.schema();
+                let treatment_ids: Vec<_> = treatments
+                    .iter()
+                    .map(|n| schema.id_of(n).map_err(py_err))
+                    .collect::<PyResult<_>>()?;
+                let outcome_ids: Vec<_> = outcomes
+                    .iter()
+                    .map(|n| schema.id_of(n).map_err(py_err))
+                    .collect::<PyResult<_>>()?;
+                let functional = build_functional(
+                    &kind,
+                    &treatment_ids,
+                    &outcome_ids,
+                    grid,
+                    None,
+                    None,
+                    intervention_kinds,
+                    intervention_parameters,
+                    1,
+                    antecedent_core::DerivativeScale::Identity,
+                    antecedent_core::DerivativeWeighting::Observed,
+                )?;
+                let temporal_policy =
+                    crate::temporal_license::policy_at_lag(policy, treatment_lag)?;
+                let origin = -i32::try_from(treatment_lag)
+                    .map_err(|_| crate::value_err("treatment_lag does not fit in i32"))?;
+                let functional =
+                    crate::response_api::wrap_temporal_sequence_steps(functional, origin)?;
+                let temporal =
+                    TemporalResponseSpec::new(horizons, temporal_policy, max_history_lag)
+                        .map_err(|e| crate::value_err(e.to_string()))?;
+                let mut response = ResponseQuery::new(functional).with_temporal(temporal);
+                if let Some(population) = req.opts.target_population.clone() {
+                    response.target_population = population;
+                }
+                let ctx = req.opts.ctx(seed, threads);
+                let gp = dbn_posterior(
+                    supplied, &series, max_lag, force_mcmc, n_chains, n_warmup, mcmc_draws, &ctx,
+                )?;
+                finish_series_graph_posterior(
+                    series,
+                    req,
+                    gp,
+                    SeriesGraphQuery::Response(response),
+                    &ctx,
+                )
+            })
         })
     }
 }

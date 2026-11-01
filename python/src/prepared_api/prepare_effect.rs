@@ -68,72 +68,74 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let mut req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let parsed_estimator = crate::estimator_config::parse_estimator_config(
-            estimator_config,
-            estimator.as_deref(),
-            req.opts.ambient_bootstrap(),
-        )?;
-        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let data = req.load_columns_recording(py, columns)?;
-
-        req.off_gil(py, move |req| {
-            let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
-            let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let mut query =
-                AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
-            if let Some(pop) = req.opts.target_population.clone() {
-                query = query.with_target_population(pop);
-            }
-            if let Some(functional) = functional {
-                query = query.with_outcome_functional(functional);
-            }
-            let (merged_rv, merged_cutoff, merged_bandwidth) =
-                crate::estimator_config::merge_rd_triple(
-                    running_variable,
-                    cutoff,
-                    bandwidth,
-                    parsed_estimator.rd_running_variable,
-                    parsed_estimator.rd_cutoff,
-                    parsed_estimator.rd_bandwidth,
-                )?;
-            let rd_ids = crate::ate_api::parse_rd_config(
+        crate::catch_ffi(|| {
+            let mut req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let parsed_estimator = crate::estimator_config::parse_estimator_config(
+                estimator_config,
                 estimator.as_deref(),
-                merged_rv.as_deref(),
-                merged_cutoff,
-                merged_bandwidth,
-                |rv| data.schema().id_of(rv).map_err(py_err),
+                req.opts.ambient_bootstrap(),
             )?;
-            let mut builder = req.opts.apply_budget_for(
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(query),
-                parsed_estimator.spec.is_some(),
-            );
-            let mut identifier = parse_identifier(identifier)?;
-            let mut estimator_id = parse_estimator(estimator)?;
-            if let Some((rv_id, cut, bw)) = rd_ids {
-                builder = builder.rd_design(crate::ate_api::rd_design(
-                    rv_id,
-                    cut,
-                    bw,
-                    parsed_estimator.rd_se_kind,
-                ));
-                // The running-variable design is the rd.sharp strategy; an
-                // omitted identifier or estimator names that strategy.
-                identifier = identifier.or(Some(IdentifierId::RdSharp));
-                estimator_id = estimator_id.or(Some(EstimatorId::RdSharp));
-            }
-            req.refuse_conflicting_selection(identifier, estimator_id)?;
-            if let Some(id) = identifier {
-                builder = builder.identifier(id);
-            }
-            if let Some(spec) = parsed_estimator.spec {
-                builder = builder.estimator(spec);
-            } else if let Some(est) = estimator_id {
-                builder = builder.estimator(est);
-            }
-            req.finish(builder, false)
+            let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let data = req.load_columns_recording(py, columns)?;
+
+            req.off_gil(py, move |req| {
+                let t_id = data.schema().id_of(&treatment).map_err(py_err)?;
+                let y_id = data.schema().id_of(&outcome).map_err(py_err)?;
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
+                let mut query =
+                    AverageEffectQuery::with_levels(t_id, y_id, control_level, active_level);
+                if let Some(pop) = req.opts.target_population.clone() {
+                    query = query.with_target_population(pop);
+                }
+                if let Some(functional) = functional {
+                    query = query.with_outcome_functional(functional);
+                }
+                let (merged_rv, merged_cutoff, merged_bandwidth) =
+                    crate::estimator_config::merge_rd_triple(
+                        running_variable,
+                        cutoff,
+                        bandwidth,
+                        parsed_estimator.rd_running_variable,
+                        parsed_estimator.rd_cutoff,
+                        parsed_estimator.rd_bandwidth,
+                    )?;
+                let rd_ids = crate::ate_api::parse_rd_config(
+                    estimator.as_deref(),
+                    merged_rv.as_deref(),
+                    merged_cutoff,
+                    merged_bandwidth,
+                    |rv| data.schema().id_of(rv).map_err(py_err),
+                )?;
+                let mut builder = req.opts.apply_budget_for(
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(query),
+                    parsed_estimator.spec.is_some(),
+                );
+                let mut identifier = parse_identifier(identifier)?;
+                let mut estimator_id = parse_estimator(estimator)?;
+                if let Some((rv_id, cut, bw)) = rd_ids {
+                    builder = builder.rd_design(crate::ate_api::rd_design(
+                        rv_id,
+                        cut,
+                        bw,
+                        parsed_estimator.rd_se_kind,
+                    ));
+                    // The running-variable design is the rd.sharp strategy; an
+                    // omitted identifier or estimator names that strategy.
+                    identifier = identifier.or(Some(IdentifierId::RdSharp));
+                    estimator_id = estimator_id.or(Some(EstimatorId::RdSharp));
+                }
+                req.refuse_conflicting_selection(identifier, estimator_id)?;
+                if let Some(id) = identifier {
+                    builder = builder.identifier(id);
+                }
+                if let Some(spec) = parsed_estimator.spec {
+                    builder = builder.estimator(spec);
+                } else if let Some(est) = estimator_id {
+                    builder = builder.estimator(est);
+                }
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -174,37 +176,41 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
-        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
-            let named: Vec<Vec<&str>> =
-                tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
-            let background =
-                antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
-                    .map_err(py_err)?;
-            let query = static_ate_query(
-                &data,
-                &treatment,
-                &outcome,
-                control_level,
-                active_level,
-                &req.opts,
-            )?;
-            let query = match functional {
-                Some(functional) => query.with_outcome_functional(functional),
-                None => query,
-            };
-            let builder =
-                Study::tabular(data).tiered_background(background).map_err(py_err)?.query(query);
-            let builder = apply_estimator(
-                req.opts.apply_budget_for(builder, spec.is_some()),
-                estimator,
-                spec,
-            )?;
-            req.finish(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
+            let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let within = crate::parse_within_tier(Some(within_tier.as_str()))?;
+                let named: Vec<Vec<&str>> =
+                    tiers.iter().map(|tier| tier.iter().map(String::as_str).collect()).collect();
+                let background =
+                    antecedent_graph::TieredBackground::from_named(data.schema(), &named, within)
+                        .map_err(py_err)?;
+                let query = static_ate_query(
+                    &data,
+                    &treatment,
+                    &outcome,
+                    control_level,
+                    active_level,
+                    &req.opts,
+                )?;
+                let query = match functional {
+                    Some(functional) => query.with_outcome_functional(functional),
+                    None => query,
+                };
+                let builder = Study::tabular(data)
+                    .tiered_background(background)
+                    .map_err(py_err)?
+                    .query(query);
+                let builder = apply_estimator(
+                    req.opts.apply_budget_for(builder, spec.is_some()),
+                    estimator,
+                    spec,
+                )?;
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -250,36 +256,38 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
-        let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-        let graph = StaticClassGraph::extract(&graph, &req.names)?;
-        if matches!(graph, StaticClassGraph::Admg(_)) {
-            req.refuse_prior("an ADMG general-ID average effect")?;
-        }
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let query = static_ate_query(
-                &data,
-                &treatment,
-                &outcome,
-                control_level,
-                active_level,
-                &req.opts,
-            )?;
-            let query = match functional {
-                Some(functional) => query.with_outcome_functional(functional),
-                None => query,
-            };
-            let builder = graph
-                .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
-                .query(query);
-            let mut builder = req.opts.apply_budget_for(builder, spec.is_some());
-            if let Some(id) = parse_identifier(identifier)? {
-                builder = builder.identifier(id);
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let spec = configured_spec(estimator_config, estimator.as_deref(), &req.opts)?;
+            let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
+            let graph = StaticClassGraph::extract(&graph, &req.names)?;
+            if matches!(graph, StaticClassGraph::Admg(_)) {
+                req.refuse_prior("an ADMG general-ID average effect")?;
             }
-            let builder = apply_estimator(builder, estimator, spec)?;
-            req.finish(builder, false)
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let query = static_ate_query(
+                    &data,
+                    &treatment,
+                    &outcome,
+                    control_level,
+                    active_level,
+                    &req.opts,
+                )?;
+                let query = match functional {
+                    Some(functional) => query.with_outcome_functional(functional),
+                    None => query,
+                };
+                let builder = graph
+                    .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                    .query(query);
+                let mut builder = req.opts.apply_budget_for(builder, spec.is_some());
+                if let Some(id) = parse_identifier(identifier)? {
+                    builder = builder.identifier(id);
+                }
+                let builder = apply_estimator(builder, estimator, spec)?;
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -324,41 +332,43 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("a Cpdag/Pag response envelope")?;
-        let response_options = parse_response_options(response_options.as_ref())?;
-        let graph = StaticClassGraph::extract(&graph, &req.names)?;
-        let data = req.load_columns(py, columns)?;
-        req.off_gil(py, move |req| {
-            let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
-            let outcome_ids = crate::response_api::resolve_names(data.schema(), &outcomes)?;
-            let functional = build_functional(
-                &kind,
-                &treatment_ids,
-                &outcome_ids,
-                grid,
-                None,
-                None,
-                intervention_kinds,
-                intervention_parameters,
-                1,
-                antecedent_core::DerivativeScale::Identity,
-                antecedent_core::DerivativeWeighting::Observed,
-            )?;
-            let query = response_query(functional, &req.opts);
-            let mut builder = req.opts.apply(with_response_options(
-                graph
-                    .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
-                    .query(query),
-                response_options,
-            ));
-            if let Some(id) = parse_identifier(identifier)? {
-                builder = builder.identifier(id);
-            }
-            if let Some(est) = parse_estimator(estimator)? {
-                builder = builder.estimator(est);
-            }
-            req.finish(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("a Cpdag/Pag response envelope")?;
+            let response_options = parse_response_options(response_options.as_ref())?;
+            let graph = StaticClassGraph::extract(&graph, &req.names)?;
+            let data = req.load_columns(py, columns)?;
+            req.off_gil(py, move |req| {
+                let treatment_ids = crate::response_api::resolve_names(data.schema(), &treatments)?;
+                let outcome_ids = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+                let functional = build_functional(
+                    &kind,
+                    &treatment_ids,
+                    &outcome_ids,
+                    grid,
+                    None,
+                    None,
+                    intervention_kinds,
+                    intervention_parameters,
+                    1,
+                    antecedent_core::DerivativeScale::Identity,
+                    antecedent_core::DerivativeWeighting::Observed,
+                )?;
+                let query = response_query(functional, &req.opts);
+                let mut builder = req.opts.apply(with_response_options(
+                    graph
+                        .bind(Study::tabular(data), accepted, req.opts.discovery_algorithm())
+                        .query(query),
+                    response_options,
+                ));
+                if let Some(id) = parse_identifier(identifier)? {
+                    builder = builder.identifier(id);
+                }
+                if let Some(est) = parse_estimator(estimator)? {
+                    builder = builder.estimator(est);
+                }
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -384,12 +394,16 @@ impl PyPreparedAnalysis {
         scale: &str,
         weighting: &str,
     ) -> PyResult<(String, String, Vec<String>, String)> {
-        let empty: &[f64] = &[];
-        let data = TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), empty)))
-            .map_err(py_err)?;
-        let dag = dag_from_named_edges(data.schema(), &edges)?;
-        let query =
-            if kind == "mediation" || kind == "counterfactual" || kind == "nested_counterfactual" {
+        crate::catch_ffi(|| {
+            let empty: &[f64] = &[];
+            let data =
+                TabularData::from_f64_columns(names.iter().map(|name| (name.as_str(), empty)))
+                    .map_err(py_err)?;
+            let dag = dag_from_named_edges(data.schema(), &edges)?;
+            let query = if kind == "mediation"
+                || kind == "counterfactual"
+                || kind == "nested_counterfactual"
+            {
                 if treatments.len() != 1 || outcomes.len() != 1 {
                     return Err(crate::value_err("one treatment/outcome required"));
                 }
@@ -420,16 +434,25 @@ impl PyPreparedAnalysis {
                     crate::response_api::parse_weighting(weighting)?,
                 )?))
             };
-        // The compiled study over the schema-only table: a bare DAG is an explicit structure.
-        let id =
-            Study::tabular(data).graph(dag).query(query).identify_structure().map_err(py_err)?;
-        let adjustment = id
-            .estimands()
-            .first()
-            .map(|e| e.adjustment_set.iter().map(|v| names[v.as_usize()].clone()).collect())
-            .unwrap_or_default();
-        let method = id.estimands().first().map(|e| e.method.to_string()).unwrap_or_default();
-        Ok((format!("{:?}", id.status()), method, adjustment, id.strategy().as_str().to_owned()))
+            // The compiled study over the schema-only table: a bare DAG is an explicit structure.
+            let id = Study::tabular(data)
+                .graph(dag)
+                .query(query)
+                .identify_structure()
+                .map_err(py_err)?;
+            let adjustment = id
+                .estimands()
+                .first()
+                .map(|e| e.adjustment_set.iter().map(|v| names[v.as_usize()].clone()).collect())
+                .unwrap_or_default();
+            let method = id.estimands().first().map(|e| e.method.to_string()).unwrap_or_default();
+            Ok((
+                format!("{:?}", id.status()),
+                method,
+                adjustment,
+                id.strategy().as_str().to_owned(),
+            ))
+        })
     }
 
     /// Static mediation and counterfactuals retain the same staged result axes.
@@ -459,51 +482,53 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        if kind == "counterfactual" || kind == "nested_counterfactual" {
-            req.refuse_prior("a counterfactual query")?;
-        }
-        let data = req.load_columns(py, columns)?;
-        let mut query = static_kind_query(
-            data.schema(),
-            kind,
-            &treatment,
-            &outcome,
-            &mediators,
-            contrast,
-            control_level,
-            active_level,
-        )?;
-        if kind == "counterfactual" {
-            query = widen_counterfactual(
-                query,
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            if kind == "counterfactual" || kind == "nested_counterfactual" {
+                req.refuse_prior("a counterfactual query")?;
+            }
+            let data = req.load_columns(py, columns)?;
+            let mut query = static_kind_query(
                 data.schema(),
-                &extra_outcomes,
-                &joint_active,
-                &joint_control,
+                kind,
+                &treatment,
+                &outcome,
+                &mediators,
+                contrast,
+                control_level,
+                active_level,
             )?;
-        } else if !extra_outcomes.is_empty()
-            || !joint_active.is_empty()
-            || !joint_control.is_empty()
-        {
-            return Err(crate::value_err(
-                "additional outcomes and joint interventions apply to a counterfactual only",
-            ));
-        }
-        if let (CausalQuery::Mediation(q), Some(population)) =
-            (&mut query, req.opts.target_population.clone())
-        {
-            q.target_population = population;
-        } else {
-            req.refuse_population("a counterfactual unit-effect query")?;
-        }
-        req.off_gil(py, move |req| {
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let builder = req.opts.apply(
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(query),
-            );
-            req.finish(builder, false)
+            if kind == "counterfactual" {
+                query = widen_counterfactual(
+                    query,
+                    data.schema(),
+                    &extra_outcomes,
+                    &joint_active,
+                    &joint_control,
+                )?;
+            } else if !extra_outcomes.is_empty()
+                || !joint_active.is_empty()
+                || !joint_control.is_empty()
+            {
+                return Err(crate::value_err(
+                    "additional outcomes and joint interventions apply to a counterfactual only",
+                ));
+            }
+            if let (CausalQuery::Mediation(q), Some(population)) =
+                (&mut query, req.opts.target_population.clone())
+            {
+                q.target_population = population;
+            } else {
+                req.refuse_population("a counterfactual unit-effect query")?;
+            }
+            req.off_gil(py, move |req| {
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
+                let builder = req.opts.apply(
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(query),
+                );
+                req.finish(builder, false)
+            })
         })
     }
 
@@ -532,25 +557,27 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
-        req.refuse_prior("a response derivative")?;
-        let response_options = parse_response_options(response_options.as_ref())?;
-        let data = req.load_columns(py, columns)?;
-        let scale = crate::response_api::parse_scale(scale)?;
-        let weighting = crate::response_api::parse_weighting(weighting)?;
-        req.off_gil(py, move |req| {
-            let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
-            let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
-            let functional = build_functional(
-                &kind, &ts, &ys, None, at, direction, None, None, order, scale, weighting,
-            )?;
-            let dag = dag_from_named_edges(data.schema(), &edges)?;
-            let builder = with_response_options(
-                with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
-                    .query(response_query(functional, &req.opts)),
-                response_options,
-            );
-            req.finish_applied(builder, false)
+        crate::catch_ffi(|| {
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            req.refuse_prior("a response derivative")?;
+            let response_options = parse_response_options(response_options.as_ref())?;
+            let data = req.load_columns(py, columns)?;
+            let scale = crate::response_api::parse_scale(scale)?;
+            let weighting = crate::response_api::parse_weighting(weighting)?;
+            req.off_gil(py, move |req| {
+                let ts = crate::response_api::resolve_names(data.schema(), &treatments)?;
+                let ys = crate::response_api::resolve_names(data.schema(), &outcomes)?;
+                let functional = build_functional(
+                    &kind, &ts, &ys, None, at, direction, None, None, order, scale, weighting,
+                )?;
+                let dag = dag_from_named_edges(data.schema(), &edges)?;
+                let builder = with_response_options(
+                    with_graph(Study::tabular(data), dag, accepted, req.opts.discovery_algorithm())
+                        .query(response_query(functional, &req.opts)),
+                    response_options,
+                );
+                req.finish_applied(builder, false)
+            })
         })
     }
 }
