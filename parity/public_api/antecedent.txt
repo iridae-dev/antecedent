@@ -297,7 +297,6 @@ impl core::clone::Clone for antecedent::CheckedTransportTrialInfo
 impl core::clone::Clone for antecedent::CheckedUnknownTieredAverageInfo
 impl core::clone::Clone for antecedent::ChoiceInferenceOutcome
 impl core::clone::Clone for antecedent::ChoiceInferenceRefusal
-impl core::clone::Clone for antecedent::ChoiceInferenceSession
 impl core::clone::Clone for antecedent::ClaimPoint
 impl core::clone::Clone for antecedent::ClaimReport
 impl core::clone::Clone for antecedent::ClassPrior
@@ -13092,13 +13091,17 @@ pub fn <antecedent::CheckedStudyClaim>::fn target(&self) -> &antecedent_core::sc
 pub fn <antecedent::ChoiceInferenceSession>::const fn contract(&self) -> &antecedent_contract::adaptive_design::choice::ChoiceDesignContract
 pub fn <antecedent::ChoiceInferenceSession>::fn analyse(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ChoiceInferenceOutcome, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn cell_status(&self) -> antecedent_contract::adaptive_design::matrix::CellStatus
+pub fn <antecedent::ChoiceInferenceSession>::fn consume_current(&self, bytes: &[u8], retained_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ConsumedChoiceResult, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn contract_identity(&self) -> alloc::string::String
 pub fn <antecedent::ChoiceInferenceSession>::fn export_result(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn interval(&self) -> core::result::Result<(), antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn measured_interval(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn operating_characteristics(&self, kernel: &antecedent_stats::adaptive_inference::choice_procedure::ChoiceKernel, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::choice_inference::ChoiceOperatingCharacteristics, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn prepare(declaration: antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration) -> core::result::Result<Self, alloc::vec::Vec<antecedent::ChoiceInferenceRefusal>>
+pub fn <antecedent::ChoiceInferenceSession>::fn prepare_with_context(declaration: antecedent_contract::adaptive_design::choice::ChoiceDesignDeclaration, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, alloc::vec::Vec<antecedent::ChoiceInferenceRefusal>>
+pub fn <antecedent::ChoiceInferenceSession>::fn rank_hierarchical_studies(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ChoiceInferenceSession>::fn rank_studies(&self, look: usize, values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent::ChoiceInferenceRefusal>
+pub fn <antecedent::ChoiceInferenceSession>::fn withdraw_source(&mut self, label: &str, reason: &str) -> core::result::Result<(), antecedent::ChoiceInferenceRefusal>
 pub fn <antecedent::ClassPrior>::fn from_ordered(masses: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn from_pairs(pairs: impl core::convert::Into<alloc::sync::Arc<[(u64, f64)]>>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::ClassPrior>::fn masses_for_envelope(&self, envelope: &antecedent_identify::temporal_generalized::TemporalClassEnvelope) -> core::result::Result<alloc::vec::Vec<f64>, antecedent::CausalError>
@@ -15661,6 +15664,7 @@ pub fn antecedent::analysis::api::plan_rank_drop(input: &antecedent::PreflightIn
 pub fn antecedent::analysis::api::posterior_predictive_predictor(check: &antecedent_validate::bayesian_checks::predictive::PosteriorPredictiveCheck, problem: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, posterior: &antecedent_estimate::bayesian::CausalPosterior, name: &str, model: &str, target: antecedent_validate::predictive_assessment::law::PredictiveTarget, fit: antecedent_validate::predictive_assessment::overlap::FitDeclaration) -> core::result::Result<(antecedent_validate::predictive_assessment::law::PredictorLaws, alloc::vec::Vec<antecedent_validate::predictive_assessment::law::Outcome>), antecedent::PredictiveAssessmentRefusal>
 pub fn antecedent::analysis::api::preflight_design(input: &antecedent::PreflightInput<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreflightReport, antecedent::CausalError>
 pub fn antecedent::analysis::api::prepare_counterfactual_transport(problem: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportProblem, query: &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, evidence: core::option::Option<antecedent_expr::exact::ExactTransportData>, options: &antecedent::CounterfactualTransportOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::CounterfactualTransportPreparation, antecedent_io_core::error::IoError>
+pub fn antecedent::analysis::api::retained_source_from_artifact(bytes: &[u8], expected_identity: &str, label: &str, discount: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_contract::adaptive_design::choice::RetainedChoiceSource, antecedent::ChoiceInferenceRefusal>
 pub fn antecedent::analysis::api::route_missing_support(cell: antecedent::MissingRouteCell) -> core::option::Option<&'static antecedent::MissingRouteSupport>
 pub fn antecedent::analysis::api::scientific_bridge_artifact_shape(bytes: &[u8]) -> core::result::Result<&'static str, antecedent::ScientificBridgeRefusal>
 pub fn antecedent::analysis::api::temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
@@ -18113,12 +18117,15 @@ pub use antecedent::analysis::choice_inference::RetainedChoiceSource = anteceden
 pub use antecedent::analysis::choice_inference::StudyCandidate = super::choice_ranking::StudyCandidate
 pub use antecedent::analysis::choice_inference::StudyRank = super::choice_ranking::StudyRank
 pub use antecedent::analysis::choice_inference::consume_choice_inference_result_artifact = antecedent::analysis::api::consume_choice_inference_result_artifact
+pub use antecedent::analysis::choice_inference::retained_source_from_artifact = antecedent::analysis::api::retained_source_from_artifact
 pub use antecedent::analysis::choice_ranking::ChoiceEvsiError = antecedent_design::choice_evsi::ChoiceEvsiError
 pub use antecedent::analysis::choice_ranking::EvsiMethod = antecedent_design::choice_evsi::EvsiMethod
 pub use antecedent::analysis::choice_ranking::MAX_EXACT_COMPOSITIONS = antecedent_design::choice_evsi::MAX_EXACT_COMPOSITIONS
 pub use antecedent::analysis::choice_ranking::StudyCandidate = antecedent_design::choice_evsi::StudyCandidate
 pub use antecedent::analysis::choice_ranking::StudyRank = antecedent_design::choice_evsi::StudyRank
+pub use antecedent::analysis::choice_ranking::rank_hierarchical_studies = antecedent_design::choice_evsi::rank_hierarchical_studies
 pub use antecedent::analysis::choice_ranking::rank_studies = antecedent_design::choice_evsi::rank_studies
+pub use antecedent::analysis::choice_ranking::rank_studies_with_context = antecedent_design::choice_evsi::rank_studies_with_context
 pub use antecedent::analysis::classify_inverse_outcome = antecedent::analysis::api::classify_inverse_outcome
 pub use antecedent::analysis::cohort_decision::CATE_FUNCTIONAL_ID = antecedent_io::cohort_decision::CATE_FUNCTIONAL_ID
 pub use antecedent::analysis::cohort_decision::COHORT_DECISION_ARTIFACT_KIND = antecedent_io::cohort_decision::COHORT_DECISION_ARTIFACT_KIND
@@ -19215,6 +19222,7 @@ pub use antecedent::analysis::repair::ZTransportRepairFamily = antecedent_design
 pub use antecedent::analysis::repair::identification_failure_obligations = antecedent_design::obligation_adapters::identification_failure_obligations
 pub use antecedent::analysis::repair::latent_expansion = antecedent_design::latent_expansion
 pub use antecedent::analysis::replay_decision = antecedent::analysis::composition_verification::replay_decision
+pub use antecedent::analysis::retained_source_from_artifact = antecedent::analysis::api::retained_source_from_artifact
 pub use antecedent::analysis::route_missing_support = antecedent::analysis::api::route_missing_support
 pub use antecedent::analysis::sample_split_analysis::SampleSplitReceipt = antecedent_discovery::selective::reuse::SampleSplitReceipt
 pub use antecedent::analysis::sample_split_analysis::SplitRows = antecedent_discovery::selective::reuse::SplitRows
@@ -20323,6 +20331,7 @@ pub use antecedent::result::SurvivalEstimate = antecedent::SurvivalEstimate
 pub use antecedent::result::SyntheticControlEstimate = antecedent::SyntheticControlEstimate
 pub use antecedent::result::SyntheticDidEstimate = antecedent::SyntheticDidEstimate
 pub use antecedent::result::TemporalDesignEstimate = antecedent::TemporalDesignEstimate
+pub use antecedent::retained_source_from_artifact = antecedent::analysis::api::retained_source_from_artifact
 pub use antecedent::route_missing_support = antecedent::analysis::api::route_missing_support
 pub use antecedent::scientific::ArmBinding = antecedent_core::measurement_model::ArmBinding
 pub use antecedent::scientific::BinaryArmRates = antecedent_core::measurement_model::BinaryArmRates

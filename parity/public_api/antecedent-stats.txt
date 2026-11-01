@@ -166,6 +166,7 @@ impl core::clone::Clone for antecedent_stats::RecordedSmooth
 impl core::clone::Clone for antecedent_stats::RegressionCi
 impl core::clone::Clone for antecedent_stats::RidgeIntercept
 impl core::clone::Clone for antecedent_stats::RobustPartialCorrelation
+impl core::clone::Clone for antecedent_stats::RoughnessPenalty
 impl core::clone::Clone for antecedent_stats::SignificanceMethod
 impl core::clone::Clone for antecedent_stats::SmoothSpec
 impl core::clone::Clone for antecedent_stats::SparseDiscreteCi
@@ -351,6 +352,7 @@ impl core::cmp::Eq for antecedent_stats::MultipleTestingMethod
 impl core::cmp::Eq for antecedent_stats::PairStructure
 impl core::cmp::Eq for antecedent_stats::QuantileRule
 impl core::cmp::Eq for antecedent_stats::RidgeIntercept
+impl core::cmp::Eq for antecedent_stats::RoughnessPenalty
 impl core::cmp::Eq for antecedent_stats::SignificanceMethod
 impl core::cmp::Eq for antecedent_stats::StatsError
 impl core::cmp::Eq for antecedent_stats::ValueFunctional
@@ -462,6 +464,7 @@ impl core::cmp::PartialEq for antecedent_stats::RandomizationMean
 impl core::cmp::PartialEq for antecedent_stats::RecordedContrast
 impl core::cmp::PartialEq for antecedent_stats::RecordedSmooth
 impl core::cmp::PartialEq for antecedent_stats::RidgeIntercept
+impl core::cmp::PartialEq for antecedent_stats::RoughnessPenalty
 impl core::cmp::PartialEq for antecedent_stats::SignificanceMethod
 impl core::cmp::PartialEq for antecedent_stats::SmoothSpec
 impl core::cmp::PartialEq for antecedent_stats::StageOp
@@ -661,6 +664,7 @@ impl core::default::Default for antecedent_stats::PosteriorPredictiveCi
 impl core::default::Default for antecedent_stats::PropensityWorkspace
 impl core::default::Default for antecedent_stats::RegressionCi
 impl core::default::Default for antecedent_stats::RobustPartialCorrelation
+impl core::default::Default for antecedent_stats::RoughnessPenalty
 impl core::default::Default for antecedent_stats::StandardizationRecord
 impl core::default::Default for antecedent_stats::SymbolicCmi
 impl core::default::Default for antecedent_stats::adaptive_inference::ResourceBudget
@@ -789,6 +793,7 @@ impl core::fmt::Debug for antecedent_stats::RecordedSmooth
 impl core::fmt::Debug for antecedent_stats::RegressionCi
 impl core::fmt::Debug for antecedent_stats::RidgeIntercept
 impl core::fmt::Debug for antecedent_stats::RobustPartialCorrelation
+impl core::fmt::Debug for antecedent_stats::RoughnessPenalty
 impl core::fmt::Debug for antecedent_stats::SignificanceMethod
 impl core::fmt::Debug for antecedent_stats::SmoothSpec
 impl core::fmt::Debug for antecedent_stats::SparseDiscreteCi
@@ -1040,6 +1045,7 @@ impl core::marker::Copy for antecedent_stats::QuantileRule
 impl core::marker::Copy for antecedent_stats::RandomizationContrast
 impl core::marker::Copy for antecedent_stats::RandomizationMean
 impl core::marker::Copy for antecedent_stats::RidgeIntercept
+impl core::marker::Copy for antecedent_stats::RoughnessPenalty
 impl core::marker::Copy for antecedent_stats::SignificanceMethod
 impl core::marker::Copy for antecedent_stats::StandardizedColumn
 impl core::marker::Copy for antecedent_stats::UnaryFn
@@ -1232,6 +1238,7 @@ impl core::marker::Freeze for antecedent_stats::RecordedSmooth [auto]
 impl core::marker::Freeze for antecedent_stats::RegressionCi [auto]
 impl core::marker::Freeze for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Freeze for antecedent_stats::RobustPartialCorrelation [auto]
+impl core::marker::Freeze for antecedent_stats::RoughnessPenalty [auto]
 impl core::marker::Freeze for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Freeze for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Freeze for antecedent_stats::SparseDiscreteCi [auto]
@@ -1365,6 +1372,7 @@ impl core::marker::Freeze for antecedent_stats::continuous_error::ReliabilityErr
 impl core::marker::Freeze for antecedent_stats::continuous_error::SimexConfig [auto]
 impl core::marker::Freeze for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Freeze for antecedent_stats::continuous_error::SimexFit [auto]
+impl core::marker::Freeze for antecedent_stats::dcor::DistanceY [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Freeze for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -1510,6 +1518,7 @@ impl core::marker::Send for antecedent_stats::RecordedSmooth [auto]
 impl core::marker::Send for antecedent_stats::RegressionCi [auto]
 impl core::marker::Send for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Send for antecedent_stats::RobustPartialCorrelation [auto]
+impl core::marker::Send for antecedent_stats::RoughnessPenalty [auto]
 impl core::marker::Send for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Send for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Send for antecedent_stats::SparseDiscreteCi [auto]
@@ -1643,6 +1652,7 @@ impl core::marker::Send for antecedent_stats::continuous_error::ReliabilityError
 impl core::marker::Send for antecedent_stats::continuous_error::SimexConfig [auto]
 impl core::marker::Send for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Send for antecedent_stats::continuous_error::SimexFit [auto]
+impl core::marker::Send for antecedent_stats::dcor::DistanceY [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Send for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -1751,6 +1761,7 @@ impl core::marker::StructuralPartialEq for antecedent_stats::RandomizationMean
 impl core::marker::StructuralPartialEq for antecedent_stats::RecordedContrast
 impl core::marker::StructuralPartialEq for antecedent_stats::RecordedSmooth
 impl core::marker::StructuralPartialEq for antecedent_stats::RidgeIntercept
+impl core::marker::StructuralPartialEq for antecedent_stats::RoughnessPenalty
 impl core::marker::StructuralPartialEq for antecedent_stats::SignificanceMethod
 impl core::marker::StructuralPartialEq for antecedent_stats::SmoothSpec
 impl core::marker::StructuralPartialEq for antecedent_stats::StageOp
@@ -2021,6 +2032,7 @@ impl core::marker::Sync for antecedent_stats::RecordedSmooth [auto]
 impl core::marker::Sync for antecedent_stats::RegressionCi [auto]
 impl core::marker::Sync for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Sync for antecedent_stats::RobustPartialCorrelation [auto]
+impl core::marker::Sync for antecedent_stats::RoughnessPenalty [auto]
 impl core::marker::Sync for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Sync for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Sync for antecedent_stats::SparseDiscreteCi [auto]
@@ -2154,6 +2166,7 @@ impl core::marker::Sync for antecedent_stats::continuous_error::ReliabilityError
 impl core::marker::Sync for antecedent_stats::continuous_error::SimexConfig [auto]
 impl core::marker::Sync for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Sync for antecedent_stats::continuous_error::SimexFit [auto]
+impl core::marker::Sync for antecedent_stats::dcor::DistanceY [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Sync for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -2300,6 +2313,7 @@ impl core::marker::Unpin for antecedent_stats::RecordedSmooth [auto]
 impl core::marker::Unpin for antecedent_stats::RegressionCi [auto]
 impl core::marker::Unpin for antecedent_stats::RidgeIntercept [auto]
 impl core::marker::Unpin for antecedent_stats::RobustPartialCorrelation [auto]
+impl core::marker::Unpin for antecedent_stats::RoughnessPenalty [auto]
 impl core::marker::Unpin for antecedent_stats::SignificanceMethod [auto]
 impl core::marker::Unpin for antecedent_stats::SmoothSpec [auto]
 impl core::marker::Unpin for antecedent_stats::SparseDiscreteCi [auto]
@@ -2433,6 +2447,7 @@ impl core::marker::Unpin for antecedent_stats::continuous_error::ReliabilityErro
 impl core::marker::Unpin for antecedent_stats::continuous_error::SimexConfig [auto]
 impl core::marker::Unpin for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::marker::Unpin for antecedent_stats::continuous_error::SimexFit [auto]
+impl core::marker::Unpin for antecedent_stats::dcor::DistanceY [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::marker::Unpin for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -2580,6 +2595,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RecordedSmoot
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RegressionCi [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RidgeIntercept [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RobustPartialCorrelation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::RoughnessPenalty [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SmoothSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
@@ -2713,6 +2729,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_er
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::SimexConfig [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::continuous_error::SimexFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -2859,6 +2876,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RecordedSmooth [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RegressionCi [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RidgeIntercept [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RobustPartialCorrelation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::RoughnessPenalty [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SignificanceMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SmoothSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::SparseDiscreteCi [auto]
@@ -2992,6 +3010,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::SimexConfig [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::SimexExtrapolant [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::continuous_error::SimexFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquares [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_stats::faer_backend::SolverTraffic [auto]
@@ -3093,7 +3112,6 @@ impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::Posterio
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::ci::CovarianceCiSession<'a> [auto]
-impl<'a> core::marker::Freeze for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
@@ -3112,7 +3130,6 @@ impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::PosteriorR
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::ci::CovarianceCiSession<'a> [auto]
-impl<'a> core::marker::Send for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Send for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
@@ -3132,7 +3149,6 @@ impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::PosteriorR
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::ci::CovarianceCiSession<'a> [auto]
-impl<'a> core::marker::Sync for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
@@ -3151,7 +3167,6 @@ impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::Posterior
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::ci::CovarianceCiSession<'a> [auto]
-impl<'a> core::marker::Unpin for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
@@ -3170,7 +3185,6 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::ci::CovarianceCiSession<'a> [auto]
-impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
@@ -3189,12 +3203,12 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inf
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::RepeatedMeasuresPosteriorRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::adaptive_inference::UnitRecord<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::ci::CovarianceCiSession<'a> [auto]
-impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::dcor::DistanceY<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::ColumnMajorDesign<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::gram::DesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SequentialDrInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::longitudinal_regime::SubjectHistories<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_stats::measurement_error::LinearErrorData<'a> [auto]
+impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<E>> for antecedent_stats::StatsError where Self: core::convert::From<E>
 pub const <antecedent_stats::Combine>::ALL: [Self; 4]
 pub const <antecedent_stats::IdentifiedSetIntervalMethod>::ALL: [Self; 3]
 pub const <antecedent_stats::ValueFunctional>::ALL: [Self; 5]
@@ -3265,6 +3279,7 @@ pub const antecedent_stats::adaptive_inference::participant_posterior::MAX_RESPO
 pub const antecedent_stats::continuous_error::DEFAULT_SIMEX_LAMBDAS: [f64; 4]
 pub const antecedent_stats::continuous_error::DEFAULT_SIMEX_REPLICATES: u32
 pub const antecedent_stats::continuous_error::MAX_SIMEX_LAMBDAS: usize
+pub const antecedent_stats::interference::EXPOSURE_PROBABILITY_MAX_WORK: u64
 pub const antecedent_stats::joint_law::MAX_COMPONENTS: usize
 pub const antecedent_stats::joint_law::MAX_LATTICE_CHECKS: usize
 pub const antecedent_stats::joint_law::MAX_MARGINAL_ATOMS: usize
@@ -3276,6 +3291,7 @@ pub const antecedent_stats::propagation_chain::DECISION_BAND_LEVEL: f64
 pub const antecedent_stats::propagation_chain::MAX_CHAIN_CELLS: usize
 pub const antecedent_stats::propagation_chain::MAX_CHAIN_NODES: usize
 pub const antecedent_stats::propagation_chain::MAX_CHAIN_ROWS: usize
+pub const antecedent_stats::propagation_chain::MAX_MOMENT_MATCHED_TABLE_WORK: u64
 pub const antecedent_stats::propagation_chain::MAX_PREPOSTERIOR_ROWS: usize
 pub const antecedent_stats::propagation_chain::MAX_TABLE_VARIABLES: usize
 pub const antecedent_stats::propagation_chain::MIN_UPDATE_EFFECTIVE_SIZE: f64
@@ -3302,6 +3318,7 @@ pub enum antecedent_stats::NbAlphaPolicy
 pub enum antecedent_stats::PairStructure
 pub enum antecedent_stats::QuantileRule
 pub enum antecedent_stats::RidgeIntercept
+pub enum antecedent_stats::RoughnessPenalty
 pub enum antecedent_stats::SandwichKind<'a>
 pub enum antecedent_stats::SignificanceMethod
 pub enum antecedent_stats::StageOp
@@ -3556,6 +3573,7 @@ pub field antecedent_stats::LocalPolynomialBiasCorrected::robust_standard_error:
 pub field antecedent_stats::LocalPolynomialBiasCorrected::second_derivative: f64
 pub field antecedent_stats::LocalPolynomialBiasCorrected::value: f64
 pub field antecedent_stats::LocalPolynomialInfluence::coefficient_covariance: [[f64; 3]; 3]
+pub field antecedent_stats::LocalPolynomialInfluence::first_derivative_influences: alloc::vec::Vec<f64>
 pub field antecedent_stats::LocalPolynomialInfluence::influences: alloc::vec::Vec<f64>
 pub field antecedent_stats::LocalPolynomialInfluence::point: antecedent_stats::LocalPolynomialPoint
 pub field antecedent_stats::LocalPolynomialInfluence::robust_first_derivative_standard_error: f64
@@ -3677,6 +3695,7 @@ pub field antecedent_stats::SmoothSpec::auto_lambda: bool
 pub field antecedent_stats::SmoothSpec::knots: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_stats::SmoothSpec::lambda: f64
 pub field antecedent_stats::SmoothSpec::n_basis: usize
+pub field antecedent_stats::SmoothSpec::penalty: antecedent_stats::RoughnessPenalty
 pub field antecedent_stats::SmoothSpec::raw_col: usize
 pub field antecedent_stats::SmoothSpec::variable: core::option::Option<antecedent_core::ids::VariableId>
 pub field antecedent_stats::StageSpec::inputs: alloc::vec::Vec<usize>
@@ -4354,6 +4373,7 @@ pub fn <antecedent_stats::RobustPartialCorrelation>::fn new() -> Self
 pub fn <antecedent_stats::SmoothSpec>::fn auto(raw_col: usize, n_basis: usize) -> Self
 pub fn <antecedent_stats::SmoothSpec>::fn new(raw_col: usize, n_basis: usize, lambda: f64) -> Self
 pub fn <antecedent_stats::SmoothSpec>::fn with_knots(self, knots: impl core::convert::Into<alloc::sync::Arc<[f64]>>) -> Self
+pub fn <antecedent_stats::SmoothSpec>::fn with_penalty(self, penalty: antecedent_stats::RoughnessPenalty) -> Self
 pub fn <antecedent_stats::SparseDiscreteCi>::fn new(permutations: u32) -> core::result::Result<Self, antecedent_stats::StatsError>
 pub fn <antecedent_stats::StatsError>::const fn route_diagnostic(&self) -> core::option::Option<antecedent_core::diagnostic::RouteNativeDiagnostic>
 pub fn <antecedent_stats::StatsError>::fn glm_boundary_margin(&self) -> core::option::Option<f64>
@@ -4522,8 +4542,10 @@ pub fn <antecedent_stats::ci::CovarianceCiSession<'a>>::fn try_test(&self, query
 pub fn <antecedent_stats::continuous_error::OutcomeFamily>::const fn as_str(self) -> &'static str
 pub fn <antecedent_stats::continuous_error::SimexConfig>::fn validate(&self) -> core::result::Result<(), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn <antecedent_stats::continuous_error::SimexExtrapolant>::const fn as_str(self) -> &'static str
-pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn correlate(&self, x: &[f64]) -> f64
-pub fn <antecedent_stats::dcor::DistanceY<'a>>::fn new(y: &'a [f64]) -> Self
+pub fn <antecedent_stats::dcor::DistanceY>::const fn is_defined(&self) -> bool
+pub fn <antecedent_stats::dcor::DistanceY>::fn correlate(&self, x: &[f64]) -> f64
+pub fn <antecedent_stats::dcor::DistanceY>::fn correlate_or_zero_without_spread(&self, x: &[f64]) -> f64
+pub fn <antecedent_stats::dcor::DistanceY>::fn new(y: &[f64]) -> Self
 pub fn <antecedent_stats::faer_backend::ResampledLeastSquares>::fn prepare(x: &[f64], n: usize, p: usize, y: &[f64], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<Self>
 pub fn <antecedent_stats::faer_backend::ResampledLeastSquares>::fn try_coefficients(&self, rows: &[usize], ws: &mut antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace) -> core::result::Result<core::option::Option<alloc::vec::Vec<f64>>, antecedent_stats::StatsError>
 pub fn <antecedent_stats::faer_scope::FaerScope>::const fn try_new(workers: u32) -> core::result::Result<Self, antecedent_stats::faer_scope::FaerScopeError>
@@ -4682,6 +4704,7 @@ pub fn antecedent_stats::evaluate_columns(sources: &[alloc::vec::Vec<f64>], stag
 pub fn antecedent_stats::evaluate_enclosures(sources: &[antecedent_stats::Enclosure], stages: &[antecedent_stats::StageSpec]) -> core::result::Result<alloc::vec::Vec<antecedent_stats::Enclosure>, antecedent_stats::ChainError>
 pub fn antecedent_stats::expand_bspline(x: &[f64], n_basis: usize, knots: core::option::Option<&[f64]>) -> core::result::Result<(alloc::vec::Vec<f64>, alloc::sync::Arc<[f64]>), antecedent_stats::StatsError>
 pub fn antecedent_stats::exposure_probabilities(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
+pub fn antecedent_stats::exposure_probabilities_with_context(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
 pub fn antecedent_stats::exposures(assignment: &[bool], incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping) -> core::result::Result<alloc::vec::Vec<antecedent_core::query::interference::ExposureLevel>, antecedent_stats::StatsError>
 pub fn antecedent_stats::f_critical(level: f64, d1: usize, d2: usize) -> f64
 pub fn antecedent_stats::faer_backend::observe_solver_traffic<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, antecedent_stats::faer_backend::SolverTraffic)
@@ -4691,6 +4714,7 @@ pub fn antecedent_stats::fit_2sls(blocks: &antecedent_stats::IvBlocks<'_>, endog
 pub fn antecedent_stats::fit_2sls_from_moments(moments: &antecedent_stats::IvMoments<'_>) -> core::result::Result<antecedent_stats::TwoSlsMomentFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_counts::count_least_squares_solves<R>(work: impl core::ops::function::FnOnce() -> R) -> (R, u64)
 pub fn antecedent_stats::fit_gam(predictors: &antecedent_stats::PredictorMatrix<'_>, y: &[f64], specs: &[antecedent_stats::SmoothSpec], options: &antecedent_stats::GamOptions, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::GamWorkspace) -> core::result::Result<antecedent_stats::GamFit, antecedent_stats::StatsError>
+pub fn antecedent_stats::fit_gam_fixed_weighted_design(design: &antecedent_stats::AdditiveDesign, y: &[f64], weights: core::option::Option<&[f64]>, workspace: &mut antecedent_stats::GamWorkspace) -> core::result::Result<core::option::Option<antecedent_stats::GamFit>, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_gam_weighted(predictors: &antecedent_stats::PredictorMatrix<'_>, y: &[f64], specs: &[antecedent_stats::SmoothSpec], options: &antecedent_stats::GamOptions, weights: core::option::Option<&[f64]>, _backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::GamWorkspace) -> core::result::Result<antecedent_stats::GamFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_gam_weighted_design(design: &antecedent_stats::AdditiveDesign, y: &[f64], options: &antecedent_stats::GamOptions, weights: core::option::Option<&[f64]>, workspace: &mut antecedent_stats::GamWorkspace) -> core::result::Result<antecedent_stats::GamFit, antecedent_stats::StatsError>
 pub fn antecedent_stats::fit_glm(family: antecedent_stats::GlmFamily, design: antecedent_stats::GlmDesignRef<'_>, backend: &impl antecedent_stats::DenseLinearAlgebra, workspace: &mut antecedent_stats::LeastSquaresWorkspace, options: &antecedent_stats::GlmOptions) -> core::result::Result<antecedent_stats::GlmFit, antecedent_stats::StatsError>
@@ -4723,12 +4747,14 @@ pub fn antecedent_stats::functional_envelope(x: &antecedent_stats::Marginal, y: 
 pub fn antecedent_stats::gam::predict_gam(fit: &antecedent_stats::GamFit, x_colmajor: &[f64], nrows: usize, n_raw_cols: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::gamma_q(a: f64, x: f64) -> f64
 pub fn antecedent_stats::gauss_hermite_standard_normal(n: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
+pub fn antecedent_stats::gauss_legendre(n: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_stats::gaussian_density(value: f64, mean: f64, standard_deviation: f64) -> f64
 pub fn antecedent_stats::gaussian_local_quadratic_adjusted_influence_prechecked(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_bias_corrected(x: &[f64], y: &[f64], at: f64, bandwidth: f64, observation_weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::LocalPolynomialBiasCorrected, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_bias_corrected_influence(x: &[f64], y: &[f64], at: f64, bandwidth: f64, observation_weights: core::option::Option<&[f64]>) -> core::result::Result<(antecedent_stats::LocalPolynomialBiasCorrected, alloc::vec::Vec<[f64; 3]>), antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence(x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence_prechecked(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
+pub fn antecedent_stats::gaussian_local_quadratic_influence_weighted_with(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64, weights: &[f64]) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_influence_with(workspace: &mut antecedent_stats::LocalQuadraticWorkspace, x: &[f64], y: &[f64], at: f64, bandwidth: f64) -> core::result::Result<antecedent_stats::LocalPolynomialInfluence, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_local_quadratic_weighted(x: &[f64], y: &[f64], at: f64, bandwidth: f64, weights: &[f64]) -> core::result::Result<antecedent_stats::LocalPolynomialPoint, antecedent_stats::StatsError>
 pub fn antecedent_stats::gaussian_observation_log_likelihood(observations: &[antecedent_stats::GaussianObservation], means: &[f64], sigma: f64) -> core::result::Result<f64, antecedent_stats::StatsError>
@@ -4741,6 +4767,8 @@ pub fn antecedent_stats::identified_set::imbens_manski_influence(points: &[f64],
 pub fn antecedent_stats::identified_set::imbens_manski_posterior_draws(posterior_means: &[f64], draws: &[&[f64]], rows: usize, level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
 pub fn antecedent_stats::identified_set::imbens_manski_shared_replicates(points: &[f64], draws: &[alloc::vec::Vec<f64>], se_scale: f64, rows: usize, level: f64) -> core::option::Option<antecedent_stats::IdentifiedSetInterval>
 pub fn antecedent_stats::independent_product_table(columns: &[alloc::vec::Vec<f64>], max_rows: usize) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
+pub fn antecedent_stats::interference::admit_exposure_probability_work(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], draws: u32, levels: u64, limit: u64) -> core::result::Result<(), antecedent_stats::StatsError>
+pub fn antecedent_stats::interference::admit_exposure_probability_work_for_shape(design: &antecedent_core::query::interference::AssignmentDesign, units: usize, edges: u64, draws: u32, levels: u64, limit: u64) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn antecedent_stats::interference::randomization_contrast(from: antecedent_stats::RandomizationMean, to: antecedent_stats::RandomizationMean) -> antecedent_stats::RandomizationContrast
 pub fn antecedent_stats::interference::randomization_mean(outcomes: &[f64], observed: &[antecedent_core::query::interference::ExposureLevel], probabilities: &[f64], level: antecedent_core::query::interference::ExposureLevel) -> core::result::Result<antecedent_stats::RandomizationMean, antecedent_stats::StatsError>
 pub fn antecedent_stats::joint_law::linear_combination_moments(coefficients: &[f64], means: &[f64], covariance: &[f64]) -> core::result::Result<antecedent_stats::LinearMoments, antecedent_stats::JointLawError>
@@ -4776,6 +4804,7 @@ pub fn antecedent_stats::measurement_error::posterior_means(draws: &[f64], n: us
 pub fn antecedent_stats::measurement_error::replicate_variance_components(values: &[f64], sizes: &[u32]) -> core::result::Result<(antecedent_stats::measurement_error::VarianceComponents, alloc::vec::Vec<f64>), antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::measurement_error::rubin_combine(coefficients: &[alloc::vec::Vec<f64>], covariances: &[alloc::vec::Vec<f64>]) -> core::result::Result<antecedent_stats::measurement_error::CombinedImputations, antecedent_stats::measurement_error::MeasurementErrorError>
 pub fn antecedent_stats::moment_matched_normal_table(means: &[f64], covariance: &[f64], rows: usize, seed: u64) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
+pub fn antecedent_stats::moment_matched_normal_table_with_work_limit(means: &[f64], covariance: &[f64], rows: usize, seed: u64, work_limit: u64) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<f64>>, antecedent_stats::ChainError>
 pub fn antecedent_stats::normal_ppf(p: f64) -> f64
 pub fn antecedent_stats::observation::selected_outcome_pseudo_values(observed: &[f64], indicator: &[f64], probabilities: &[f64], outcome_regression: core::option::Option<&[f64]>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::pooled_dependence_envelope(estimates: &[f64], standard_errors: &[f64], rho_lo: f64, rho_hi: f64) -> core::result::Result<antecedent_stats::DependenceEnvelope, antecedent_stats::SynthesisError>
@@ -4790,6 +4819,7 @@ pub fn antecedent_stats::power::t_test_power(noncentrality: f64, df: core::optio
 pub fn antecedent_stats::predict_lasso(fit: &antecedent_stats::LassoFit, x_colmajor: &[f64], nrows: usize, ncols: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::predict_propensity(x_colmajor: &[f64], nrows: usize, ncols: usize, coefficients: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn antecedent_stats::preposterior(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::admit_moment_matched_table_work(k: usize, rows: usize, limit: u64) -> core::result::Result<(), antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::shared_row_correlation(rows_a: usize, rows_b: usize, shared: usize) -> core::result::Result<f64, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::summarize(column: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::ColumnSummary, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::validate_spec(n_sources: usize, stages: &[antecedent_stats::StageSpec]) -> core::result::Result<(), antecedent_stats::ChainError>
@@ -4802,7 +4832,6 @@ pub fn antecedent_stats::regularized::ridge_gram_inverse_with(x_colmajor: &[f64]
 pub fn antecedent_stats::regularized::soft_threshold(z: f64, gamma: f64) -> f64
 pub fn antecedent_stats::response::silverman_bandwidth(x: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::response::silverman_normal_reference_factor(n: usize, dim: usize) -> core::result::Result<f64, antecedent_stats::StatsError>
-pub fn antecedent_stats::special::gauss_legendre(n: usize) -> (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>)
 pub fn antecedent_stats::special::student_t_ppf(p: f64, df: f64) -> f64
 pub fn antecedent_stats::special::student_t_sf(t: f64, df: f64) -> f64
 pub fn antecedent_stats::synthesis::equal_study_gaussian(estimates: &[f64]) -> core::result::Result<antecedent_stats::synthesis::GaussianStudyEstimate, antecedent_stats::SynthesisError>
@@ -5084,8 +5113,8 @@ pub struct antecedent_stats::continuous_error::CalibratedFit
 pub struct antecedent_stats::continuous_error::ReliabilityErrorVariance
 pub struct antecedent_stats::continuous_error::SimexConfig
 pub struct antecedent_stats::continuous_error::SimexFit
+pub struct antecedent_stats::dcor::DistanceY
 pub struct antecedent_stats::dcor::DistanceY has private fields
-pub struct antecedent_stats::dcor::DistanceY<'a>
 pub struct antecedent_stats::faer_backend::ResampledLeastSquares
 pub struct antecedent_stats::faer_backend::ResampledLeastSquares has private fields
 pub struct antecedent_stats::faer_backend::ResampledLeastSquaresWorkspace
@@ -5133,6 +5162,7 @@ pub trait antecedent_stats::DenseLinearAlgebra: core::marker::Send + core::marke
 pub trait fn fn antecedent_stats::ConditionalIndependence::attainable_p(&self) -> antecedent_stats::ci::AttainableP {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::covariance_session<'a>(&self, _columns: &'a [&'a [f64]], _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::option::Option<antecedent_stats::ci::CovarianceCiSession<'a>> {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::min_attainable_p(&self, significance: antecedent_stats::SignificanceMethod) -> f64 {default}
+pub trait fn fn antecedent_stats::ConditionalIndependence::min_resolvable_p(&self, significance: antecedent_stats::SignificanceMethod, rows: usize) -> f64 {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::p_value_is_frequentist(&self) -> bool {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::prepare(&self, columns: &[&[f64]], plan: &antecedent_stats::CiPreparationPlan, _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::PreparedCiTest, antecedent_stats::StatsError> {default}
 pub trait fn fn antecedent_stats::ConditionalIndependence::series_aligned_weights_len(&self) -> core::option::Option<usize> {default}
@@ -5416,9 +5446,11 @@ pub use antecedent_stats::gam::GamFit = antecedent_stats::GamFit
 pub use antecedent_stats::gam::GamOptions = antecedent_stats::GamOptions
 pub use antecedent_stats::gam::GamWorkspace = antecedent_stats::GamWorkspace
 pub use antecedent_stats::gam::PredictorMatrix = antecedent_stats::PredictorMatrix
+pub use antecedent_stats::gam::RoughnessPenalty = antecedent_stats::RoughnessPenalty
 pub use antecedent_stats::gam::SmoothSpec = antecedent_stats::SmoothSpec
 pub use antecedent_stats::gam::expand_bspline = antecedent_stats::expand_bspline
 pub use antecedent_stats::gam::fit_gam = antecedent_stats::fit_gam
+pub use antecedent_stats::gam::fit_gam_fixed_weighted_design = antecedent_stats::fit_gam_fixed_weighted_design
 pub use antecedent_stats::gam::fit_gam_weighted = antecedent_stats::fit_gam_weighted
 pub use antecedent_stats::gam::fit_gam_weighted_design = antecedent_stats::fit_gam_weighted_design
 pub use antecedent_stats::gaussian_kl = antecedent_stats::divergence::gaussian_kl
@@ -5460,6 +5492,7 @@ pub use antecedent_stats::interference::ExposureProbabilityMethod = antecedent_s
 pub use antecedent_stats::interference::RandomizationContrast = antecedent_stats::RandomizationContrast
 pub use antecedent_stats::interference::RandomizationMean = antecedent_stats::RandomizationMean
 pub use antecedent_stats::interference::exposure_probabilities = antecedent_stats::exposure_probabilities
+pub use antecedent_stats::interference::exposure_probabilities_with_context = antecedent_stats::exposure_probabilities_with_context
 pub use antecedent_stats::interference::exposures = antecedent_stats::exposures
 pub use antecedent_stats::intern_cluster_tuples = antecedent_stats::cluster::intern_cluster_tuples
 pub use antecedent_stats::invert_square = antecedent_stats::gram::invert_square
@@ -5561,6 +5594,7 @@ pub use antecedent_stats::propagation_chain::evaluate_columns = antecedent_stats
 pub use antecedent_stats::propagation_chain::evaluate_enclosures = antecedent_stats::evaluate_enclosures
 pub use antecedent_stats::propagation_chain::independent_product_table = antecedent_stats::independent_product_table
 pub use antecedent_stats::propagation_chain::moment_matched_normal_table = antecedent_stats::moment_matched_normal_table
+pub use antecedent_stats::propagation_chain::moment_matched_normal_table_with_work_limit = antecedent_stats::moment_matched_normal_table_with_work_limit
 pub use antecedent_stats::propagation_chain::preposterior = antecedent_stats::preposterior
 pub use antecedent_stats::propensity::PropensityFit = antecedent_stats::PropensityFit
 pub use antecedent_stats::propensity::PropensityWorkspace = antecedent_stats::PropensityWorkspace
@@ -5598,6 +5632,7 @@ pub use antecedent_stats::response::gaussian_local_quadratic_bias_corrected = an
 pub use antecedent_stats::response::gaussian_local_quadratic_bias_corrected_influence = antecedent_stats::gaussian_local_quadratic_bias_corrected_influence
 pub use antecedent_stats::response::gaussian_local_quadratic_influence = antecedent_stats::gaussian_local_quadratic_influence
 pub use antecedent_stats::response::gaussian_local_quadratic_influence_prechecked = antecedent_stats::gaussian_local_quadratic_influence_prechecked
+pub use antecedent_stats::response::gaussian_local_quadratic_influence_weighted_with = antecedent_stats::gaussian_local_quadratic_influence_weighted_with
 pub use antecedent_stats::response::gaussian_local_quadratic_influence_with = antecedent_stats::gaussian_local_quadratic_influence_with
 pub use antecedent_stats::response::gaussian_local_quadratic_weighted = antecedent_stats::gaussian_local_quadratic_weighted
 pub use antecedent_stats::ridge_gram_inverse = antecedent_stats::regularized::ridge_gram_inverse
@@ -5614,6 +5649,7 @@ pub use antecedent_stats::special::NORMAL_Q975 = antecedent_kernels::NORMAL_Q975
 pub use antecedent_stats::special::chi_square_sf = antecedent_stats::chi_square_sf
 pub use antecedent_stats::special::gamma_q = antecedent_stats::gamma_q
 pub use antecedent_stats::special::gauss_hermite_standard_normal = antecedent_stats::gauss_hermite_standard_normal
+pub use antecedent_stats::special::gauss_legendre = antecedent_stats::gauss_legendre
 pub use antecedent_stats::special::ln_gamma = antecedent_stats::ln_gamma
 pub use antecedent_stats::special::normal_ppf = antecedent_stats::normal_ppf
 pub use antecedent_stats::standardize_columns = antecedent_stats::design::standardize_columns
@@ -5747,6 +5783,8 @@ pub variant antecedent_stats::QuantileRule::ExchangeableRank
 pub variant antecedent_stats::QuantileRule::Interpolated
 pub variant antecedent_stats::RidgeIntercept::LeadingColumn
 pub variant antecedent_stats::RidgeIntercept::None
+pub variant antecedent_stats::RoughnessPenalty::CoefficientSecondDifference
+pub variant antecedent_stats::RoughnessPenalty::IntegratedSecondDerivative
 pub variant antecedent_stats::SandwichKind::Cluster { groups: &'a [u32] }
 pub variant antecedent_stats::SandwichKind::Hc0
 pub variant antecedent_stats::SandwichKind::Hc1
@@ -5765,6 +5803,7 @@ pub variant antecedent_stats::StageOp::Pool { dependent: bool }
 pub variant antecedent_stats::StageOp::Preposterior(antecedent_stats::Preposterior)
 pub variant antecedent_stats::StageOp::Reweight { weights: alloc::vec::Vec<f64> }
 pub variant antecedent_stats::StageOp::Unary(antecedent_stats::UnaryFn)
+pub variant antecedent_stats::StatsError::Admission(antecedent_core::execution::admission::AdmissionError)
 pub variant antecedent_stats::StatsError::Backend(alloc::string::String)
 pub variant antecedent_stats::StatsError::CallbackFailed(antecedent_core::callback::CallbackFailure)
 pub variant antecedent_stats::StatsError::Cancelled

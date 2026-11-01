@@ -9895,6 +9895,7 @@ pub field antecedent_design::adaptive_trial_transport::TrialSelectionDiagram::ta
 pub field antecedent_design::choice_evsi::StudyCandidate::cost: f64
 pub field antecedent_design::choice_evsi::StudyCandidate::label: alloc::string::String
 pub field antecedent_design::choice_evsi::StudyCandidate::observations: u32
+pub field antecedent_design::choice_evsi::StudyRank::calibration: &'static str
 pub field antecedent_design::choice_evsi::StudyRank::candidate: antecedent_design::choice_evsi::StudyCandidate
 pub field antecedent_design::choice_evsi::StudyRank::evsi: f64
 pub field antecedent_design::choice_evsi::StudyRank::method: antecedent_design::choice_evsi::EvsiMethod
@@ -12591,7 +12592,9 @@ pub fn antecedent_design::adaptive_trial_transport::transport_adaptive_trial(req
 pub fn antecedent_design::adaptive_trial_transport::verify_adaptive_transport(estimate: &antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate, request: &antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'_>) -> antecedent_design::sequential_evaluation::SequentialResult<()>
 pub fn antecedent_design::candidate_generation::generate_candidates(obligations: &[antecedent_contract::evidence_obligation::EvidenceObligation]) -> antecedent_design::CandidateGeneration
 pub fn antecedent_design::candidate_generation::verified_unlocks(report: &antecedent_design::RepairReport, candidates: &[antecedent_design::DurableStudyCandidate], base_law: &[antecedent_core::ids::VariableId]) -> antecedent_design::VerifiedUnlocks
+pub fn antecedent_design::choice_evsi::rank_hierarchical_studies(prior: &antecedent_stats::adaptive_inference::hierarchical_choice::HierarchicalChoicePrior, respondents: &[alloc::vec::Vec<u32>], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 pub fn antecedent_design::choice_evsi::rank_studies(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
+pub fn antecedent_design::choice_evsi::rank_studies_with_context(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 pub fn antecedent_design::cohort_decision_input::cohort_decision_input(id: &str, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<antecedent_design::composition_boundary::DecisionInput, antecedent_design::composition_boundary::BoundaryError>
 pub fn antecedent_design::cohort_decision_input::cohort_forward_claim(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> core::result::Result<antecedent_design::inverse_query::ForwardClaim, antecedent_io_core::cohort_decision::CohortRefusal>
 pub fn antecedent_design::cohort_decision_input::cohort_mean_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> antecedent_design::decision_eval::MeanSource
@@ -13996,8 +13999,11 @@ pub variant antecedent_design::adaptive_policy_search::StandingRequest::FittedMo
 pub variant antecedent_design::adaptive_policy_search::StandingRequest::IdentifiedPolicyEffect
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::OutcomeGivenStratumAndArm
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::StratumLaw
+pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Cancelled
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Invalid(alloc::string::String)
+pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Resource(alloc::string::String)
 pub variant antecedent_design::choice_evsi::EvsiMethod::Exact { compositions: u64 }
+pub variant antecedent_design::choice_evsi::EvsiMethod::HierarchicalQuadrature { compositions: u64, max_reported_change: f64, predictive_mass_error: f64 }
 pub variant antecedent_design::choice_evsi::EvsiMethod::MonteCarlo { draws: usize }
 pub variant antecedent_design::composition_boundary::ActionStatus::Evaluated
 pub variant antecedent_design::composition_boundary::ActionStatus::Unevaluated { reason: antecedent_design::composition_boundary::UnevaluatedReason }
