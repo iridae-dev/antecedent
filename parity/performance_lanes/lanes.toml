@@ -17,7 +17,7 @@ environment_name = "ANTECEDENT_BASELINE_SCALAR_KERNELS"
 environment_value = "1"
 direct_arguments = "--mode solo"
 direct_controls = ["prepared_query_families"]
-source = "crates/antecedent-core/src/execution.rs"
+source = "crates/antecedent-core/src/execution/budget.rs"
 
 [[lane]]
 id = "first_answer"
