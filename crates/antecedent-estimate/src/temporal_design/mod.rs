@@ -63,6 +63,17 @@ pub const NOMINAL_LEVEL: f64 = 0.95;
 pub const MIN_CLUSTERS: usize = 2;
 /// Default Gaussian multiplier replicates of a simultaneous band.
 pub const DEFAULT_BAND_REPLICATES: usize = 2000;
+/// Most Gaussian multiplier replicates a band is computed from.
+///
+/// A resource policy, not a validity bound: the Monte Carlo rank of the critical value is
+/// valid for any replicate count of two or more, and beyond this count the standard error of
+/// the rank is already far below the unmeasured calibration error of the band. A larger request
+/// is refused rather than silently reduced.
+pub const MAX_BAND_REPLICATES: usize = 100_000;
+/// Most multiplier-sum multiply-adds one band may cost: replicates, times clusters, times band
+/// coordinates (and one normal draw per cluster per replicate). The caller's admission pool
+/// bounds the memory of a band; this bounds its time, which no pool does.
+pub const MAX_BAND_WORK: u128 = 10_000_000_000;
 
 /// Stream key of the simultaneous-band multipliers.
 const BAND_STREAM: u64 = 0x7E5D_BA4D_0000_0000;
@@ -371,6 +382,7 @@ pub fn sup_t_band(
     replicates: usize,
     ctx: &ExecutionContext,
 ) -> Result<(), EstimationError> {
+    let _lease = crate::util::admit_array::<f64>(ctx, scores.sums.len(), 1)?;
     let residuals = scores.residuals(&summary.estimate);
     let g_count = scores.clusters();
     let total: f64 = scores.counts.iter().sum();
@@ -420,7 +432,9 @@ pub(crate) fn attach_band(
 /// Monte Carlo rank of [`NOMINAL_LEVEL`] among the replicate statistics.
 ///
 /// # Errors
-/// Fewer than two replicates, a coordinate out of range, a zero standard error, or cancellation.
+/// Fewer than two replicates, a coordinate out of range, a zero standard error, a replicate count
+/// above [`MAX_BAND_REPLICATES`] or work above [`MAX_BAND_WORK`] (typed refusals), admission or
+/// cancellation.
 pub fn sup_t_critical(
     residuals: &[f64],
     coordinates: usize,
@@ -450,7 +464,28 @@ pub fn sup_t_critical(
         ));
     }
     let g_count = residuals.len() / k;
-    let _lease = crate::util::admit_array::<f64>(ctx, replicates + g_count, 1)?;
+    let width = band_coordinates.len();
+    let work =
+        (replicates as u128).saturating_mul(g_count as u128).saturating_mul(width as u128 + 1);
+    if replicates > MAX_BAND_REPLICATES || work > MAX_BAND_WORK {
+        return Err(refuse(
+            antecedent_core::reason_code!("execution_resource_limit"),
+            "temporal_design.band_work_limit",
+            &format!(
+                "a band of {replicates} replicates over {g_count} clusters and {width} \
+                 coordinates exceeds the limit of {MAX_BAND_REPLICATES} replicates and \
+                 {MAX_BAND_WORK} multiplier operations. Next attempt: fewer replicates or a \
+                 coarser grid"
+            ),
+        ));
+    }
+    // The statistics, the multipliers and one contiguous column of residuals per band
+    // coordinate (the replicate loop reads each column in order, not at stride `k`).
+    let _lease = crate::util::admit_array::<f64>(ctx, replicates + g_count * (width + 1), 1)?;
+    let columns: Vec<Vec<f64>> = band_coordinates
+        .iter()
+        .map(|&j| (0..g_count).map(|g| residuals[g * k + j]).collect())
+        .collect();
     let mut maxima = Vec::with_capacity(replicates);
     let mut multipliers = vec![0.0; g_count];
     for replicate in 0..replicates {
@@ -460,9 +495,8 @@ pub fn sup_t_critical(
         let mut rng = ctx.rng.stream_for(StreamDomain::Resample, BAND_STREAM | replicate as u64);
         antecedent_kernels::fill_standard_normal(&mut rng, &mut multipliers);
         let mut largest = 0.0_f64;
-        for &j in band_coordinates {
-            let sum: f64 =
-                multipliers.iter().enumerate().map(|(g, xi)| xi * residuals[g * k + j]).sum();
+        for (column, &j) in columns.iter().zip(band_coordinates) {
+            let sum: f64 = multipliers.iter().zip(column).map(|(xi, r)| xi * r).sum();
             largest = largest.max((sum * scale / standard_error[j]).abs());
         }
         maxima.push(largest);
@@ -640,6 +674,47 @@ mod tests {
         let r = [-1.5_f64, 1.0, 0.5];
         let expected = 1.5 * r.iter().map(|v| v * v).sum::<f64>() / 16.0;
         assert!((cov[0] - expected).abs() < 1e-12);
+    }
+
+    fn band_inputs() -> (Vec<f64>, Vec<f64>, Vec<usize>) {
+        let residuals: Vec<f64> = (0..40).map(|i| f64::from(i % 7) - 3.0).collect();
+        (residuals, vec![1.0, 1.0], vec![0, 1])
+    }
+
+    #[test]
+    fn a_band_is_charged_to_the_pool_and_refused_when_the_pool_is_short() {
+        let (residuals, se, band) = band_inputs();
+        let ok = ExecutionContext::for_tests(1);
+        assert!(sup_t_critical(&residuals, 2, 1.0, &se, &band, 50, &ok).is_ok());
+        let tiny = ExecutionContext::for_tests(1)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 8));
+        let error = sup_t_critical(&residuals, 2, 1.0, &se, &band, 50, &tiny).unwrap_err();
+        assert!(matches!(error, EstimationError::ResampleBuffer(_)), "{error:?}");
+        // The pool is whole again: the lease is released.
+        assert_eq!(tiny.admission().available().bytes(), 8);
+    }
+
+    #[test]
+    fn a_cancelled_band_is_refused() {
+        let (residuals, se, band) = band_inputs();
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(sup_t_critical(&residuals, 2, 1.0, &se, &band, 50, &ctx).is_err());
+    }
+
+    #[test]
+    fn a_band_over_the_replicate_or_work_limit_is_a_typed_refusal() {
+        let (residuals, se, band) = band_inputs();
+        let ctx = ExecutionContext::for_tests(1);
+        let error = sup_t_critical(&residuals, 2, 1.0, &se, &band, MAX_BAND_REPLICATES + 1, &ctx)
+            .unwrap_err();
+        assert_eq!(error.reason_code(), Some("execution_resource_limit"), "{error:?}");
+        // Many clusters: replicates x clusters x coordinates passes the work limit.
+        let clusters = 40_000;
+        let wide = vec![1.0; clusters * 2];
+        let error =
+            sup_t_critical(&wide, 2, 1.0, &se, &band, MAX_BAND_REPLICATES, &ctx).unwrap_err();
+        assert_eq!(error.reason_code(), Some("execution_resource_limit"), "{error:?}");
     }
 
     #[test]

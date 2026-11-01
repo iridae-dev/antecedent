@@ -1347,7 +1347,9 @@ pub fn estimate_dose_grid_bias_aware_declared(
         ));
     }
     let n = request.dose.len();
-    let _lease = crate::util::admit_array::<f64>(ctx, n, points.len() + 2)?;
+    // Per grid dose: its influence column, the copy handed to the coordinates, and (at most) its
+    // column of the band's per-unit residual matrix; plus the smoother's three row vectors.
+    let _lease = crate::util::admit_array::<f64>(ctx, n, 3 * points.len() + 3)?;
     let mut columns: Vec<(Vec<f64>, f64)> = Vec::with_capacity(points.len());
     for &at in &points {
         if ctx.cancellation.is_cancelled() {
