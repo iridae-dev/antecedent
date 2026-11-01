@@ -15385,6 +15385,7 @@ pub fn antecedent_io_core::causal_artifact::decode_causal_payload_artifact(bytes
 pub fn antecedent_io_core::causal_artifact::encode_causal_payload_artifact(payload: &antecedent_io_core::CausalPayloadWire, variable_names: alloc::vec::Vec<alloc::string::String>, artifact_id: &str) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_artifact::validate_interference_estimate(estimate: &antecedent_io_core::InterferenceEstimateWire) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_query_from_wire(w: &antecedent_io_core::CausalQueryWire) -> core::result::Result<antecedent_core::query::variants::CausalQuery, antecedent_io_core::IoError>
+pub fn antecedent_io_core::causal_query_from_wire_with_registry(w: &antecedent_io_core::CausalQueryWire, registry: &antecedent_core::query::population::PopulationRegistry) -> core::result::Result<antecedent_core::query::variants::CausalQuery, antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_query_to_wire(q: &antecedent_core::query::variants::CausalQuery) -> core::result::Result<antecedent_io_core::CausalQueryWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_query_to_wire_with_registry(q: &antecedent_core::query::variants::CausalQuery, registry: core::option::Option<&antecedent_core::query::population::PopulationRegistry>) -> core::result::Result<antecedent_io_core::CausalQueryWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_response_from_wire(w: &antecedent_io_core::CausalResponseWire) -> core::result::Result<antecedent_core::response::CausalResponse, antecedent_io_core::IoError>
@@ -15470,7 +15471,7 @@ pub fn antecedent_io_core::dag_to_networkx_node_link(dag: &antecedent_graph::dag
 pub fn antecedent_io_core::dag_wire_from_dot(dot: &str) -> core::result::Result<antecedent_io_core::DagWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::dag_wire_from_gml(gml: &str) -> core::result::Result<antecedent_io_core::DagWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::dag_wire_to_dot(wire: &antecedent_io_core::DagWire, names: core::option::Option<&[alloc::string::String]>) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
-pub fn antecedent_io_core::dag_wire_to_gml(wire: &antecedent_io_core::DagWire, names: core::option::Option<&[alloc::string::String]>) -> alloc::string::String
+pub fn antecedent_io_core::dag_wire_to_gml(wire: &antecedent_io_core::DagWire, names: core::option::Option<&[alloc::string::String]>) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn antecedent_io_core::data_snapshot_digest(wire: &antecedent_io_core::DataSnapshotIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_causal_posterior_bytes(bytes: &[u8]) -> core::result::Result<(antecedent_io_core::CausalPosteriorWire, alloc::vec::Vec<f64>), antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_external_estimate_claim(bytes: &[u8]) -> core::result::Result<(antecedent_io_core::AnalysisResultWire, antecedent_io_core::AnalysisResultContractWire, antecedent_io_core::ClaimSectionWire), antecedent_io_core::IoError>
@@ -15558,7 +15559,7 @@ pub fn antecedent_io_core::graph_networkx::dag_with_names_from_networkx_adjacenc
 pub fn antecedent_io_core::graph_networkx::dag_with_names_from_networkx_adjacency_with_limits(json: &str, limits: &antecedent_io_core::convert::GraphLimits) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::IoError>
 pub fn antecedent_io_core::graph_networkx::dag_with_names_from_networkx_node_link(json: &str) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::IoError>
 pub fn antecedent_io_core::graph_networkx::dag_with_names_from_networkx_node_link_with_limits(json: &str, limits: &antecedent_io_core::convert::GraphLimits) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::IoError>
-pub fn antecedent_io_core::graph_networkx::networkx_node_link_from_wire(wire: &antecedent_io_core::DagWire, names: core::option::Option<&[alloc::string::String]>) -> antecedent_io_core::NetworkXNodeLink
+pub fn antecedent_io_core::graph_networkx::networkx_node_link_from_wire(wire: &antecedent_io_core::DagWire, names: core::option::Option<&[alloc::string::String]>) -> core::result::Result<antecedent_io_core::NetworkXNodeLink, antecedent_io_core::IoError>
 pub fn antecedent_io_core::graph_posterior_atom_identities(posterior: &antecedent_discovery::graph_posterior::GraphPosterior) -> core::result::Result<alloc::vec::Vec<antecedent_io_core::PosteriorAtomIdentityWire>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::graphless_support::classify_graphless(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport) -> antecedent_io_core::graphless_support::GraphlessSupportStatus
 pub fn antecedent_io_core::graphless_support::graphless_admits(key: antecedent_io_core::graphless_support::GraphlessSupportKey<'_>, observed: antecedent_io_core::graphless_support::GraphlessAssignmentSupport) -> bool
@@ -16972,6 +16973,7 @@ pub use antecedent_io_core::query_wire::ValueWire = antecedent_io_core::ValueWir
 pub use antecedent_io_core::query_wire::association_query_from_wire = antecedent_io_core::association_query_from_wire
 pub use antecedent_io_core::query_wire::association_query_to_wire = antecedent_io_core::association_query_to_wire
 pub use antecedent_io_core::query_wire::causal_query_from_wire = antecedent_io_core::causal_query_from_wire
+pub use antecedent_io_core::query_wire::causal_query_from_wire_with_registry = antecedent_io_core::causal_query_from_wire_with_registry
 pub use antecedent_io_core::query_wire::causal_query_to_wire = antecedent_io_core::causal_query_to_wire
 pub use antecedent_io_core::query_wire::causal_query_to_wire_with_registry = antecedent_io_core::causal_query_to_wire_with_registry
 pub use antecedent_io_core::query_wire::interference_query_from_wire = antecedent_io_core::interference_query_from_wire

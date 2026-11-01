@@ -2539,8 +2539,9 @@ mod decode;
 mod encode;
 
 pub use decode::{
-    association_query_from_wire, causal_query_from_wire, interference_query_from_wire,
-    interventional_distribution_from_wire, path_specific_from_wire, transport_query_from_wire,
+    association_query_from_wire, causal_query_from_wire, causal_query_from_wire_with_registry,
+    interference_query_from_wire, interventional_distribution_from_wire, path_specific_from_wire,
+    transport_query_from_wire,
 };
 pub use encode::{
     association_query_to_wire, causal_query_to_wire, causal_query_to_wire_with_registry,
@@ -2663,6 +2664,29 @@ mod tests {
             depends_on.push(7);
         }
         assert!(other_parents.to_domain_with_registry(&registry).is_err());
+    }
+
+    #[test]
+    fn query_decode_with_registry_refuses_a_tampered_population_digest() {
+        let registry = registry_for_wire_tests();
+        for population in [
+            TargetPopulation::Predicate(PredicateExpr::named("cohort")),
+            TargetPopulation::CustomDistribution(DistributionRef::from_raw(9)),
+        ] {
+            let query = CausalQuery::AverageEffect(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                    .with_target_population(population),
+            );
+            let mut wire = causal_query_to_wire_with_registry(&query, Some(&registry)).unwrap();
+            assert_eq!(causal_query_from_wire_with_registry(&wire, &registry).unwrap(), query);
+            match wire.target_population_mut().unwrap() {
+                TargetPopulationWire::PredicateNamed { rows, .. } => rows[0] ^= 1,
+                TargetPopulationWire::CustomDistribution { weights, .. } => weights[0] ^= 1,
+                other => panic!("registry-backed variant expected: {other:?}"),
+            }
+            assert_eq!(causal_query_from_wire(&wire).unwrap(), query);
+            assert!(causal_query_from_wire_with_registry(&wire, &registry).is_err());
+        }
     }
 
     #[test]

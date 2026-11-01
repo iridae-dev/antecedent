@@ -362,6 +362,7 @@ impl CyclicGraphRequest {
                 y,
                 conditioning,
             } => {
+                admit_bipartite_size(*variables, equations, "bipartite")?;
                 let mut graph = antecedent_graph::bipartite::BipartiteCausalGraph::new(
                     *variables,
                     exogenous,
@@ -388,16 +389,8 @@ impl CyclicGraphRequest {
                 outcomes,
                 conditioning,
             } => {
-                // Admission by size, not a fixed variable count: the acyclification is
-                // polynomial in the incidence, quadratic only inside one cluster.
-                let incidences: usize = equations.iter().map(Vec::len).sum();
-                if *variables >= DOMAIN_INVARIANCE_MAX_VARIABLES
-                    || incidences > DOMAIN_INVARIANCE_MAX_INCIDENCES
-                {
-                    return Err(invalid(
-                        "domain invariance size exceeds the admitted variables or incidences",
-                    ));
-                }
+                // The selector input is one more variable than the request names.
+                admit_bipartite_size(variables.saturating_add(1), equations, "domain invariance")?;
                 if outcomes.is_empty()
                     || outcomes.iter().chain(conditioning).any(|&v| v >= *variables)
                     || changed_equations.iter().any(|&e| e >= equations.len())
@@ -596,7 +589,62 @@ impl CyclicGraphRequest {
     }
 }
 
-/// Admitted variables of a domain-invariance graph.
-const DOMAIN_INVARIANCE_MAX_VARIABLES: usize = 16_384;
-/// Admitted equation-variable incidences of a domain-invariance graph.
-const DOMAIN_INVARIANCE_MAX_INCIDENCES: usize = 4_000_000;
+/// Admitted variables of an equation-variable (bipartite) graph, selector included.
+const BIPARTITE_MAX_VARIABLES: usize = 16_384;
+/// Admitted equation-variable incidences of an equation-variable (bipartite) graph.
+const BIPARTITE_MAX_INCIDENCES: usize = 4_000_000;
+
+/// Admission by size, not a fixed variable count: the causal-ordering matching allocates per
+/// variable and the acyclification is polynomial in the incidence, quadratic only inside one
+/// cluster. `variables` counts every node of the graph that will be built.
+fn admit_bipartite_size(
+    variables: usize,
+    equations: &[Vec<usize>],
+    what: &str,
+) -> Result<(), CyclicArtifactError> {
+    let incidences = equations.iter().try_fold(0_usize, |sum, e| sum.checked_add(e.len()));
+    if variables > BIPARTITE_MAX_VARIABLES
+        || equations.len() > BIPARTITE_MAX_VARIABLES
+        || incidences.is_none_or(|n| n > BIPARTITE_MAX_INCIDENCES)
+    {
+        return Err(invalid(format!("{what} size exceeds the admitted variables or incidences")));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bipartite(variables: usize, equations: Vec<Vec<usize>>) -> CyclicGraphRequest {
+        CyclicGraphRequest::Bipartite {
+            variables,
+            exogenous: Vec::new(),
+            equations,
+            replacement: None,
+            x: 0,
+            y: 1,
+            conditioning: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn bipartite_request_is_admitted_by_size_before_any_allocation() {
+        let ctx = ExecutionContext::for_tests(1);
+        // `variables` sizes the matching tables; a few bytes of request must not ask for them.
+        for variables in [BIPARTITE_MAX_VARIABLES + 1, u32::MAX as usize] {
+            let error = bipartite(variables, Vec::new()).execute(&ctx).unwrap_err();
+            assert!(error.to_string().contains("bipartite size exceeds"), "{error}");
+        }
+        let wide = vec![(0..BIPARTITE_MAX_VARIABLES).collect::<Vec<_>>(); 256];
+        let error = bipartite(BIPARTITE_MAX_VARIABLES, wide).execute(&ctx).unwrap_err();
+        assert!(error.to_string().contains("bipartite size exceeds"), "{error}");
+    }
+
+    #[test]
+    fn small_bipartite_request_still_executes() {
+        let ctx = ExecutionContext::for_tests(1);
+        let report = bipartite(2, vec![vec![0], vec![0, 1]]).execute(&ctx).unwrap();
+        assert!(matches!(report, CyclicGraphReport::Bipartite { .. }));
+    }
+}

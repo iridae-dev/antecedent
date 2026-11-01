@@ -10,7 +10,9 @@ use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
-use crate::convert::{GraphLimits, dag_from_wire_with_limits, dag_to_wire};
+use crate::convert::{
+    GraphLimits, check_graph_budget_within, dag_from_wire_with_limits, dag_to_wire,
+};
 use crate::error::IoError;
 use crate::graph_json::without_names;
 use crate::wire::DagWire;
@@ -64,8 +66,7 @@ pub fn dag_with_names_from_dot_with_limits(
 ///
 /// Wire conversion failures (non-static / non-directed edges).
 pub fn dag_to_dot(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
-    let wire = dag_to_wire(dag)?;
-    dag_wire_to_dot(&wire, names)
+    emit_dag_dot(&dag_to_wire(dag)?, names)
 }
 
 /// Parse DOT into [`DagWire`] (shared with JSON path for tests).
@@ -230,6 +231,13 @@ pub(crate) fn parse_dot_graph(dot: &str, options: DotParseOptions) -> Result<Par
 ///
 /// An edge endpoint at or beyond `node_count`.
 pub fn dag_wire_to_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), &GraphLimits::default())?;
+    emit_dag_dot(wire, names)
+}
+
+/// Emit DOT for a wire already known to be bounded (encoded from an in-memory graph or
+/// admitted by [`dag_wire_to_dot`]).
+fn emit_dag_dot(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
     let node_count = wire.node_count as usize;
     if let Some(&(from, to)) = wire
         .edges
@@ -653,5 +661,13 @@ mod tests {
         let back = dag_from_dot(&s).unwrap();
         assert_eq!(back.node_count(), 3);
         assert!(back.reaches(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)));
+    }
+
+    #[test]
+    fn wire_export_refuses_an_unbounded_node_count() {
+        let wire = DagWire { node_count: u32::MAX, edges: Vec::new() };
+        assert!(matches!(dag_wire_to_dot(&wire, None), Err(IoError::Convert(_))));
+        let wire = DagWire { node_count: 3, edges: vec![(0, 1)] };
+        assert!(dag_wire_to_dot(&wire, None).is_ok());
     }
 }

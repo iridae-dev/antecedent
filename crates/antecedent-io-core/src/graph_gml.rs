@@ -10,7 +10,9 @@ use std::fmt::Write as _;
 
 use antecedent_graph::Dag;
 
-use crate::convert::{GraphLimits, dag_from_wire_with_limits, dag_to_wire};
+use crate::convert::{
+    GraphLimits, check_graph_budget_within, dag_from_wire_with_limits, dag_to_wire,
+};
 use crate::error::IoError;
 use crate::graph_dot;
 use crate::graph_json::without_names;
@@ -58,7 +60,7 @@ pub fn dag_with_names_from_gml_with_limits(
 ///
 /// Wire conversion failures.
 pub fn dag_to_gml(dag: &Dag, names: Option<&[String]>) -> Result<String, IoError> {
-    Ok(dag_wire_to_gml(&dag_to_wire(dag)?, names))
+    Ok(emit_dag_gml(&dag_to_wire(dag)?, names))
 }
 
 /// Parse GML into [`DagWire`].
@@ -200,8 +202,21 @@ fn parse_attr_block(tokens: &[Tok], i: &mut usize) -> Result<HashMap<String, Str
 }
 
 /// Emit GML from wire.
-#[must_use]
-pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> String {
+///
+/// The wire's `node_count` is an iteration count, so a wire that did not come from an
+/// in-memory graph is held to the default graph bounds before anything is emitted.
+///
+/// # Errors
+///
+/// [`IoError::Convert`] when `node_count` or the edge count exceeds [`GraphLimits::default`].
+pub fn dag_wire_to_gml(wire: &DagWire, names: Option<&[String]>) -> Result<String, IoError> {
+    check_graph_budget_within(wire.node_count, wire.edges.len(), &GraphLimits::default())?;
+    Ok(emit_dag_gml(wire, names))
+}
+
+/// Emit GML for a wire already known to be bounded (encoded from an in-memory graph or
+/// admitted by [`dag_wire_to_gml`]).
+fn emit_dag_gml(wire: &DagWire, names: Option<&[String]>) -> String {
     let label_of = |i: u32| -> std::borrow::Cow<'_, str> {
         names.and_then(|n| n.get(i as usize)).map_or_else(
             || std::borrow::Cow::Owned(i.to_string()),
@@ -447,7 +462,7 @@ mod tests {
         .unwrap();
         let wire = crate::convert::dag_to_wire(&dag).unwrap();
         let names = vec!["say \"hi\"".to_string(), "a&b".to_string()];
-        let gml = dag_wire_to_gml(&wire, Some(&names));
+        let gml = dag_wire_to_gml(&wire, Some(&names)).unwrap();
         assert!(gml.contains("say &quot;hi&quot;"), "{gml}");
         assert!(gml.contains("a&amp;b"), "{gml}");
         let (back, back_names) = dag_with_names_from_gml(&gml).unwrap();
@@ -559,5 +574,13 @@ mod tests {
         let gml = "graph [ directed 1 node [ id 0 label \"caf\u{e9} \u{a0}x\" ] ]";
         let (_dag, names) = dag_with_names_from_gml(gml).unwrap();
         assert_eq!(names, vec!["caf\u{e9} \u{a0}x".to_string()]);
+    }
+
+    #[test]
+    fn wire_export_refuses_an_unbounded_node_count() {
+        let wire = DagWire { node_count: u32::MAX, edges: Vec::new() };
+        assert!(matches!(dag_wire_to_gml(&wire, None), Err(IoError::Convert(_))));
+        let wire = DagWire { node_count: 3, edges: vec![(0, 1)] };
+        assert!(dag_wire_to_gml(&wire, None).is_ok());
     }
 }

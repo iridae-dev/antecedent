@@ -10556,6 +10556,7 @@ pub use antecedent_io::canonical_json = antecedent_io_core::canonical_json
 pub use antecedent_io::canonical_temporal_dag_wire = antecedent_io_core::canonical_temporal_dag_wire
 pub use antecedent_io::causal_artifact = antecedent_io_core::causal_artifact
 pub use antecedent_io::causal_query_from_wire = antecedent_io_core::causal_query_from_wire
+pub use antecedent_io::causal_query_from_wire_with_registry = antecedent_io_core::causal_query_from_wire_with_registry
 pub use antecedent_io::causal_query_to_wire = antecedent_io_core::causal_query_to_wire
 pub use antecedent_io::causal_query_to_wire_with_registry = antecedent_io_core::causal_query_to_wire_with_registry
 pub use antecedent_io::causal_response_from_wire = antecedent_io_core::causal_response_from_wire

@@ -13,9 +13,9 @@ use super::{
     IvBoundsQueryWire, LocalPolynomialRatioQuery, LocalPolynomialRatioQueryWire,
     LongitudinalRegimeQueryWire, MechanismChangeQuery, MediationQuery, OrderedFloatBits,
     PanelDidQuery, PanelDidQueryWire, PathSpecificEffectQuery, PathSpecificEffectQueryWire,
-    PolicyValueQuery, PolicyValueQueryWire, RandomizationDesign, RandomizationDesignWire,
-    RandomizedEffectQuery, RandomizedEffectQueryWire, RandomizedEstimandWire,
-    SequentialContrastQueryWire, SurvivalQueryWire, SyntheticControlQuery,
+    PolicyValueQuery, PolicyValueQueryWire, PopulationRegistry, RandomizationDesign,
+    RandomizationDesignWire, RandomizedEffectQuery, RandomizedEffectQueryWire,
+    RandomizedEstimandWire, SequentialContrastQueryWire, SurvivalQueryWire, SyntheticControlQuery,
     SyntheticControlQueryWire, TemporalEffectQuery, TransportQuery, TransportQueryWire,
     UnitChangeQuery, VariableId, allocation_from_wire, population_from_wire,
     response_query_from_wire, vars_from_raw,
@@ -75,6 +75,27 @@ pub fn causal_query_from_wire(w: &CausalQueryWire) -> Result<CausalQuery, IoErro
         }
     };
     query.validate().map_err(|error| IoError::Convert(error.to_string()))?;
+    Ok(query)
+}
+
+/// Decode [`CausalQueryWire`], verifying registry-backed populations against `registry`.
+///
+/// [`causal_query_from_wire`] has no registry and drops the digests a named predicate or a
+/// custom distribution carries. Here the query's target population is decoded through
+/// [`TargetPopulationWire::to_domain_with_registry`], so a wire whose recorded rows, weights or
+/// declared parents differ from the registry's is refused.
+///
+/// # Errors
+///
+/// As [`causal_query_from_wire`], or a population wire that disagrees with `registry`.
+pub fn causal_query_from_wire_with_registry(
+    w: &CausalQueryWire,
+    registry: &PopulationRegistry,
+) -> Result<CausalQuery, IoError> {
+    let query = causal_query_from_wire(w)?;
+    if let Some(population) = w.target_population() {
+        population.to_domain_with_registry(registry)?;
+    }
     Ok(query)
 }
 
