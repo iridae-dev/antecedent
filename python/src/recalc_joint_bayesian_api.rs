@@ -305,10 +305,16 @@ impl PyJointBayesianSession {
         }
     }
     #[pyo3(signature=(*,seed=1,threads=None))]
-    fn export_result(&self, seed: u64, threads: Option<u32>) -> (Option<Vec<u8>>, Option<String>) {
-        // The sealed result was produced at execution; export samples and fits nothing.
+    fn export_result(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: Option<u32>,
+    ) -> (Option<Vec<u8>>, Option<String>) {
+        // The sealed result was produced at execution; export samples and fits nothing, so the
+        // execution controls are accepted for call-shape parity and change nothing.
         let _ = (seed, threads);
-        match self.inner.export_result() {
+        match py.detach(|| self.inner.export_result()) {
             Ok(bytes) => (Some(bytes), None),
             Err(error) => (None, Some(run_error(&error, REFUSED))),
         }

@@ -341,6 +341,9 @@ fn build_request(
 
 pub(crate) fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, crate::resolve_user_threads(threads));
+    // The caller's explicit Execution (admission, token, progress) and Ctrl-C reach the run.
+    crate::apply_cancel(&mut ctx, None);
+    crate::execution_api::apply(&mut ctx);
     // The route proves reuse by counted fits; no persistent cache may stand in for a fit.
     ctx.cache_policy = antecedent_core::CachePolicy::disabled();
     ctx

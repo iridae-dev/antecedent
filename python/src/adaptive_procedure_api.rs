@@ -544,9 +544,14 @@ impl AdaptiveProcedureHandle {
 
     /// The exact law of the terminal state under a truth, as JSON.
     #[pyo3(signature = (truth, cancel=None))]
-    fn law(&self, truth: Vec<f64>, cancel: Option<crate::PyCancellationToken>) -> Refused<String> {
+    fn law(
+        &self,
+        py: Python<'_>,
+        truth: Vec<f64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> Refused<String> {
         let ctx = execution_context(0, None, cancel);
-        match self.inner.law(&truth, &ctx) {
+        match py.detach(|| self.inner.law(&truth, &ctx)) {
             Ok(report) => {
                 let law = &report.law;
                 (
@@ -582,6 +587,7 @@ impl AdaptiveProcedureHandle {
     #[pyo3(signature = (truth, request_json, cancel=None))]
     fn simulate(
         &self,
+        py: Python<'_>,
         truth: Vec<f64>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
@@ -589,7 +595,7 @@ impl AdaptiveProcedureHandle {
         let value = parse(request_json, "simulation request")?;
         let request = simulation_of(object(&value, "simulation request")?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.simulate(&truth, &request, &ctx) {
+        Ok(match py.detach(|| self.inner.simulate(&truth, &request, &ctx)) {
             Ok(report) => (
                 Some(
                     json!({
@@ -620,12 +626,13 @@ impl AdaptiveProcedureHandle {
     #[pyo3(signature = (request_json, cancel=None))]
     fn report(
         &self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
         let request = request_of(&parse(request_json, "procedure report request")?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.report(&request, &ctx) {
+        Ok(match py.detach(|| self.inner.report(&request, &ctx)) {
             Ok(report) => (Some(report_json(&report).to_string()), None),
             Err(refusal) => refused(&refusal),
         })
@@ -921,6 +928,7 @@ impl RepeatedMeasuresProcedureHandle {
     #[pyo3(signature = (request_json, cancel=None))]
     fn report(
         &self,
+        py: Python<'_>,
         request_json: &str,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
@@ -929,7 +937,7 @@ impl RepeatedMeasuresProcedureHandle {
             "repeated-measures report request",
         )?)?;
         let ctx = execution_context(0, None, cancel);
-        Ok(match self.inner.report(&request, &ctx) {
+        Ok(match py.detach(|| self.inner.report(&request, &ctx)) {
             Ok(report) => (Some(repeated_measures_report_json(&report).to_string()), None),
             Err(refusal) => refused(&refusal),
         })

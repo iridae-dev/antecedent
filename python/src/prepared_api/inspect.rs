@@ -295,6 +295,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (*, cancel=None))]
     fn tier_diagnostics_json(
         &self,
+        py: Python<'_>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
         use antecedent::analysis::{TierDesign, tier_diagnostics};
@@ -319,7 +320,7 @@ impl PyPreparedAnalysis {
                 "available": false, "code": u.code, "detail": u.detail, "reason": u.reason,
             })
         };
-        let report = tier_diagnostics(result, &ctx).map_err(|error| {
+        let report = py.detach(|| tier_diagnostics(result, &ctx)).map_err(|error| {
             crate::refusal(error.code, format!("{}: {}", error.detail, error.message))
         })?;
         let design = match &report.design {

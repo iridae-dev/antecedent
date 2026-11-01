@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use antecedent::gcm::{
     ChangeAttributionResult as RustChangeAttributionResult, FittedGcm, RobustChangeOptions,
-    fit_gcm, fit_gcm_with, rank_root_causes as facade_rank_root_causes,
+    rank_root_causes as facade_rank_root_causes,
 };
 use antecedent::{AcceptedGraph, AttributionOutcome, MechanismProgram, SimulationOutcome};
 use antecedent_attribution::{
@@ -1477,8 +1477,8 @@ fn parse_splits(splits: &str, purge: usize) -> PyResult<ValidationSplits> {
 /// `gradient_boosted_trees`, `tree_ensembles`, `tree_ensemble_classifier`) replaces the
 /// candidate set; `constraints` narrows it per node; `splits` declares how rows are
 /// cut for the held-out scores (`shuffled`, `time_ordered` with an optional `purge`,
-/// or `clustered` by the `UnitId` column). The fit runs serially: `threads` is accepted so the
-/// call shape matches the other entry points and does not change the fit.
+/// or `clustered` by the `UnitId` column). The fit runs serially; `threads` sizes the execution
+/// context, whose cancellation (Ctrl-C) the fit polls.
 #[pyfunction]
 #[pyo3(
     name = "fit_gcm",
@@ -1496,12 +1496,12 @@ fn fit_gcm_py(
     splits: &str,
     purge: usize,
 ) -> PyResult<PyFittedGcm> {
-    let _ = threads;
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
+    let ctx = crate::py_execution_context_cancel(0, crate::resolve_user_threads(threads), None);
     detach_catch(py, move || {
         let g = dag_from_edges(&data, &edges)?;
-        selection.fit(g, data, names, None)
+        selection.fit(g, data, names, None, &ctx)
     })
 }
 
@@ -1556,13 +1556,12 @@ impl Selection {
         data: TabularData,
         names: Vec<String>,
         accepted: Option<AcceptedGraph>,
+        ctx: &antecedent_core::ExecutionContext,
     ) -> PyResult<PyFittedGcm> {
-        let fit = if self.is_standard() {
-            fit_gcm(graph, &data)
-        } else {
-            fit_gcm_with(graph, &data, &self.registry, &self.options)
-        };
-        let fitted = fit.map_err(py_err)?;
+        let selection =
+            if self.is_standard() { None } else { Some((&self.registry, &self.options)) };
+        let fitted =
+            antecedent::gcm::fit_gcm_polled(graph, &data, selection, ctx).map_err(py_err)?;
         Ok(PyFittedGcm::new(fitted, names, data, self.program()?, accepted))
     }
 }
@@ -1592,7 +1591,6 @@ fn fit_gcm_accepted_py(
     splits: &str,
     purge: usize,
 ) -> PyResult<(PyFittedGcm, Vec<(String, String)>)> {
-    let _ = threads;
     let route = discovery
         .route
         .clone()
@@ -1600,6 +1598,7 @@ fn fit_gcm_accepted_py(
     drop(discovery);
     let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
     let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
+    let ctx = crate::py_execution_context_cancel(0, crate::resolve_user_threads(threads), None);
     detach_catch(py, move || {
         let accepted = route.execution.accept_dag(&route.ctx).map_err(py_err)?;
         let dag = accepted
@@ -1624,7 +1623,7 @@ fn fit_gcm_accepted_py(
                 )
             })
             .collect();
-        let fitted = selection.fit(dag, data, names, Some(accepted))?;
+        let fitted = selection.fit(dag, data, names, Some(accepted), &ctx)?;
         Ok((fitted, edges))
     })
 }
