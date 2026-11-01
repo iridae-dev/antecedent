@@ -142,7 +142,7 @@ fn declaration_for_rule(
     declaration_to_wire(&shell).stopping_rule
 }
 
-fn status_json(status: &CellStatus) -> Json {
+pub(crate) fn status_json(status: &CellStatus) -> Json {
     match status {
         CellStatus::Licensed { paradigms } => json!({
             "class": "licensed",

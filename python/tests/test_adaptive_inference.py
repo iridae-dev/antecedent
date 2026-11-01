@@ -651,7 +651,13 @@ AXES = {
         "contextual_bandit",
         "batched_adaptive",
     ],
-    "outcome": ["single_outcome", "repeated_measures", "hierarchical_clustered"],
+    "outcome": [
+        "single_outcome",
+        "repeated_measures",
+        "hierarchical_clustered",
+        "categorical_choice",
+        "repeated_choice",
+    ],
     "monitoring": [
         "final_analysis_only",
         "fixed_interim_looks",
@@ -664,7 +670,7 @@ AXES = {
 
 def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry_table():
     expected_ids = {"/".join(c) for c in itertools.product(*AXES.values())}
-    assert len(expected_ids) == 360
+    assert len(expected_ids) == 600
     matrix = ai.procedure_matrix()
     assert {c.id for c in matrix} == expected_ids, "a cell is unlisted or invented"
     assert len(matrix) == len(expected_ids)
@@ -682,10 +688,10 @@ def test_the_procedure_matrix_lists_every_cell_once_and_agrees_with_the_registry
         }
     classes = [c.status for c in matrix]
     assert {s: classes.count(s) for s in set(classes)} == {
-        "licensed": 7,
-        "closed_incoherent": 144,
-        "closed_pairing": 17,
-        "carried_forward": 192,
+        "licensed": 12,
+        "closed_incoherent": 360,
+        "closed_pairing": 20,
+        "carried_forward": 208,
     }
     assert all(c.owner for c in matrix if c.status == "carried_forward")
 

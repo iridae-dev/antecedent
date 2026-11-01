@@ -475,7 +475,9 @@ fn reals(values: &[u64]) -> Vec<f64> {
     values.iter().map(|v| f64::from_bits(*v)).collect()
 }
 
-fn declaration_to_wire(d: &ChoiceDesignDeclaration) -> ChoiceDeclarationWire {
+/// A declaration as its wire form.
+#[must_use]
+pub fn declaration_to_wire(d: &ChoiceDesignDeclaration) -> ChoiceDeclarationWire {
     ChoiceDeclarationWire {
         label: d.label.clone(),
         assignment: d.cell.assignment.as_str().to_owned(),
@@ -510,7 +512,11 @@ fn declaration_to_wire(d: &ChoiceDesignDeclaration) -> ChoiceDeclarationWire {
     }
 }
 
-fn declaration_from_wire(w: &ChoiceDeclarationWire) -> Result<ChoiceDesignDeclaration, Error> {
+/// A declaration from its wire form.
+///
+/// # Errors
+/// A name that is not a procedure-matrix element, or a malformed rule.
+pub fn declaration_from_wire(w: &ChoiceDeclarationWire) -> Result<ChoiceDesignDeclaration, Error> {
     let cell = ProcedureCell {
         assignment: AssignmentFamily::from_name(&w.assignment)
             .ok_or(Error::UnsupportedSemantics("assignment family"))?,
@@ -586,7 +592,11 @@ fn spec_to_wire(spec: &ChoiceResultSpec) -> ChoiceSpecWire {
     }
 }
 
-fn spec_from_wire(w: &ChoiceSpecWire) -> Result<ChoiceResultSpec, Error> {
+/// A request from its wire form.
+///
+/// # Errors
+/// A request kind that is not a route, or a hierarchical request without its two parameters.
+pub fn spec_from_wire(w: &ChoiceSpecWire) -> Result<ChoiceResultSpec, Error> {
     let look = w.look;
     let hierarchical = || -> Result<(Vec<f64>, f64, f64), Error> {
         match w.parameter_bits[..] {

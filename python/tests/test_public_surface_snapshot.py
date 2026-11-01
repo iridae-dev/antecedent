@@ -392,7 +392,7 @@ SNAPSHOT: dict[str, set[str]] = {
         # (`joint_distribution` and `preflight` above are also in this family)
         "adaptive_inference",
         "effect_constancy_review",
-        "choice_evidence",
+        "choice_inference",
         "decision_evidence",
         "decision_reliability",
         "cross_world_execution",

@@ -56,7 +56,10 @@ def test_foreign_payload_callback_is_not_invoked():
     ("changed", "refusal"),
     [
         ({"route": ""}, "route must be a nonempty bounded string"),
-        ({"candidate_digest": "f" * 63}, "candidate_digest requires 64 lowercase hexadecimal digits"),
+        (
+            {"candidate_digest": "f" * 63},
+            "candidate_digest requires 64 lowercase hexadecimal digits",
+        ),
         ({"premises_digest": "F" * 64}, "premises_digest requires 64 lowercase hexadecimal digits"),
         ({"level": 0}, "level must be finite and strictly between zero and one"),
         ({"level": float("nan")}, "level must be finite and strictly between zero and one"),
@@ -87,14 +90,18 @@ def test_bounds_and_missing_native_cannot_be_overridden_by_basis(monkeypatch):
     import antecedent._measured_inference as module
 
     monkeypatch.delattr(module._native, "consume_measured_inference", raising=False)
-    with pytest.raises(CausalValueError, match=r"measured inference artifact exceeds the byte bound"):
+    with pytest.raises(
+        CausalValueError, match=r"measured inference artifact exceeds the byte bound"
+    ):
         MeasuredInference.load(b"\0" * (64 * 1024 * 1024 + 1), expected=identity())
     for kwargs in [{"max_bytes": 0}, {"memory_limit_bytes": 0}, {"cancel": None}]:
         with pytest.raises(TypeError, match="unexpected keyword"):
             MeasuredInference.load(b"", expected=identity(), **kwargs)
     with pytest.raises(CausalTypeError, match=r"execution must be an antecedent\.Execution"):
         MeasuredInference.load(b"", expected=identity(), execution=object())
-    with pytest.raises(CausalTypeError, match=r"expected must be a retained MeasuredInferenceIdentity"):
+    with pytest.raises(
+        CausalTypeError, match=r"expected must be a retained MeasuredInferenceIdentity"
+    ):
         MeasuredInference.load(b"", expected=identity()._wire())
     with pytest.raises(CausalUnsupportedError) as caught:
         MeasuredInference.load(b"", expected=identity())
@@ -138,6 +145,7 @@ def test_source_report_unreachable_route_guard_is_class_only():
         "cohort_interval",
         "count_fitted_interval",
         "adaptive_interval",
+        "choice_interval",
         "split_effect",
         "split_parent_set_effect",
     }

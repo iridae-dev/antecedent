@@ -3081,3 +3081,15 @@ rust = "antecedent::choice_evidence::evaluate_lifecycle"
 kind = "fn"
 status = "bound"
 python = "antecedent.choice_evidence.evaluate"
+
+[[entry]]
+rust = "antecedent::analysis::choice_inference::consume_choice_inference_result_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.choice_inference.consume_choice_inference_result_artifact"
+
+[[entry]]
+rust = "antecedent::ChoiceInferenceSession"
+kind = "type"
+status = "bound"
+python = "antecedent.choice_inference.ChoiceInferenceSession"

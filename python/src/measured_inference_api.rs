@@ -126,6 +126,10 @@ impl NativeMeasuredInference {
                     let wire = antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
                     serde_json::to_string(&wire).map_err(crate::py_msg)
                 }
+                "choice_interval" => {
+                    let wire = antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::decode_unchecked(bytes).map_err(|e| crate::value_err(format!("{e:?}")))?;
+                    serde_json::to_string(&wire).map_err(crate::py_msg)
+                }
                 "split_effect" => {
                     let wire: antecedent_io::measured_inference::split_effect::SplitEffectSource =
                         antecedent_io::from_cbor(bytes).map_err(crate::transport_common::error)?;

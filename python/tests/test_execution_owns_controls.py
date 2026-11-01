@@ -25,6 +25,9 @@ PHYSICAL = re.compile(
 
 # "<defining module>.<qualified name>:<parameter>" -> reason.
 ALLOWLIST: dict[str, str] = {
+    "antecedent.choice_inference.ChoiceInferenceSession.rank_studies:seed": (
+        "the scientific seed of the Monte Carlo EVSI beyond the exact enumeration bound"
+    ),
     # --- constructors and declarations of Execution itself ---------------------------------
     "antecedent.execution.Execution:seed": "Execution owns the seed",
     "antecedent.execution.Execution:threads": "Execution owns the thread count",
