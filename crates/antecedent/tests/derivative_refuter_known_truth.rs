@@ -113,7 +113,7 @@ fn study(
         .refute(suite)
         .bootstrap_replicates(0);
     if bayesian {
-        builder.inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(48)))
+        builder.inference(InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(48)))
     } else {
         builder
     }
@@ -359,7 +359,7 @@ fn a_derivative_without_a_directed_path_is_the_exact_structural_zero() {
                     .bootstrap_replicates(0);
                 if bayesian {
                     builder = builder.inference(InferenceMode::Bayesian(
-                        BayesianConfig::conjugate().n_draws(24),
+                        BayesianConfig::laplace().n_draws(24),
                     ));
                 }
                 let context = ExecutionContext::for_tests(830);

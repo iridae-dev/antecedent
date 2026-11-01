@@ -232,7 +232,7 @@ fn bayesian_class_derivative_validation_adds_the_predictive_checks() {
     let structural = ols(&[&cols[0], &cols[1]], &cols[2])[1];
     let naive = ols(&[&cols[0]], &cols[2])[1];
     let table = class_table(&cols);
-    let inference = || InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(48));
+    let inference = || InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(48));
     let ctx = ExecutionContext::for_tests(32);
     for kind in ["pag", "admg"] {
         let result = class_study(&table, kind, false, inference(), RefuteSuite::Cheap)
@@ -288,7 +288,7 @@ fn a_front_door_derivative_is_checked_by_smoother_sensitivity_and_resampling() {
     for (inference, suite, replicates) in [
         (InferenceMode::Frequentist, RefuteSuite::Cheap, 24),
         (InferenceMode::Frequentist, RefuteSuite::Full, 24),
-        (InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(24)), RefuteSuite::Full, 0),
+        (InferenceMode::Bayesian(BayesianConfig::laplace().n_draws(24)), RefuteSuite::Full, 0),
     ] {
         let label = format!("{inference:?} {suite:?}");
         let result = Study::tabular(table.clone())
