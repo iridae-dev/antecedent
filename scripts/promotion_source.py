@@ -1111,6 +1111,7 @@ def defensive_carrier_route_problems(root: Path) -> list[str]:
         "adaptive_interval",
         "cohort_interval",
         "count_fitted_interval",
+        "choice_interval",
         "sampled_counterfactual_transport",
         "split_effect",
         "split_parent_set_effect",
