@@ -12,7 +12,8 @@ use antecedent_graph::SelectionDiagram;
 use antecedent_identify::sid::SidDerivationRecord;
 use antecedent_identify::{ClassicalTransportDerivation, ClassicalTransportQuery, SidLimits};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+use std::rc::Rc;
 
 /// One locally checked proof step and its dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,6 +107,43 @@ fn collect_factors(
             collect_factors(arena, *right, catalog, target, seen, factors);
         }
     }
+}
+
+/// Sorted, distinct distribution-leaf nodes reachable from `id`, memoized per node so a
+/// sub-expression shared by many steps is walked once.
+fn reachable_factor_nodes(
+    arena: &CausalExprArena,
+    id: ExprId,
+    memo: &mut HashMap<u32, Rc<[u32]>>,
+) -> Rc<[u32]> {
+    if let Some(known) = memo.get(&id.raw()) {
+        return Rc::clone(known);
+    }
+    let children: Vec<ExprId> = match arena.node(id) {
+        ExprNode::Distribution { .. } => {
+            let leaf: Rc<[u32]> = Rc::from([id.raw()]);
+            memo.insert(id.raw(), Rc::clone(&leaf));
+            return leaf;
+        }
+        ExprNode::Kernel { body, .. }
+        | ExprNode::SumOut { expr: body, .. }
+        | ExprNode::IntegralOut { expr: body, .. } => vec![*body],
+        ExprNode::Expectation { distribution, .. } => vec![*distribution],
+        ExprNode::Product(list) => arena.list(*list).to_vec(),
+        ExprNode::Ratio { numerator, denominator } => vec![*numerator, *denominator],
+        ExprNode::Contrast { left, right, .. } => vec![*left, *right],
+    };
+    let nodes: Rc<[u32]> = if let [only] = children.as_slice() {
+        reachable_factor_nodes(arena, *only, memo)
+    } else {
+        let mut union = BTreeSet::new();
+        for child in children {
+            union.extend(reachable_factor_nodes(arena, child, memo).iter().copied());
+        }
+        union.into_iter().collect()
+    };
+    memo.insert(id.raw(), Rc::clone(&nodes));
+    nodes
 }
 
 #[allow(
@@ -235,30 +273,23 @@ impl TransportProofWire {
                 pending.extend(self.proof.steps[index].children.iter().copied());
             }
         }
+        // One memo across every step: a shared sub-expression's factor leaves are computed
+        // once, so the walk is linear in the arena rather than steps x arena.
+        let mut leaves = HashMap::new();
         let steps = reachable
             .into_iter()
             .map(|index| {
                 let step = &self.proof.steps[index];
-                let mut step_seen = BTreeSet::new();
-                let mut step_factors = Vec::new();
-                collect_factors(
+                let factor_nodes = reachable_factor_nodes(
                     checked.arena(),
                     ExprId::from_raw(step.output),
-                    catalog,
-                    &query.target,
-                    &mut step_seen,
-                    &mut step_factors,
+                    &mut leaves,
                 );
-                let mut factor_nodes = step_factors
-                    .into_iter()
-                    .map(|factor| factor.expression_node)
-                    .collect::<Vec<_>>();
-                factor_nodes.sort_unstable();
                 TransportProofStepView {
                     index,
                     rule: format!("{:?}", step.rule),
                     children: step.children.clone(),
-                    factor_nodes,
+                    factor_nodes: factor_nodes.to_vec(),
                 }
             })
             .collect();
@@ -394,6 +425,21 @@ mod tests {
         let bound = wire.inspect(&diagram, &query, &catalog, limits, &ctx).unwrap();
         assert!(bound.factors.iter().all(|factor| factor.binding_failure.is_none()));
         assert!(bound.factors.iter().all(|factor| factor.supplied_by.is_some()));
+        // The memoized per-step leaves equal an independent walk of each step's output.
+        let mut memo = HashMap::new();
+        for step in &bound.steps {
+            let output = ExprId::from_raw(wire.proof.steps[step.index].output);
+            let mut seen = BTreeSet::new();
+            let mut walked = Vec::new();
+            collect_factors(proof.arena(), output, &catalog, &query.target, &mut seen, &mut walked);
+            let mut expected =
+                walked.iter().map(|factor| factor.expression_node).collect::<Vec<_>>();
+            expected.sort_unstable();
+            assert_eq!(step.factor_nodes, expected, "step {}", step.index);
+            let first = reachable_factor_nodes(proof.arena(), output, &mut memo);
+            let again = reachable_factor_nodes(proof.arena(), output, &mut memo);
+            assert!(Rc::ptr_eq(&first, &again), "a second request must hit the memo");
+        }
         let mut margins = catalog.regimes.to_vec();
         for regime in &mut margins {
             regime.distribution = DistributionAvailability::SeparateMarginals {

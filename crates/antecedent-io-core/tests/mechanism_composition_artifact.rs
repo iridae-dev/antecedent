@@ -522,3 +522,34 @@ fn a_semantic_plan_binds_to_numbers_and_a_foreign_population_needs_its_admission
         other => panic!("{other:?}"),
     }
 }
+
+#[test]
+fn non_finite_wire_numbers_are_refused_by_the_coherence_checker_on_consume() {
+    use antecedent_io_core::mechanism_composition_artifact::DomainWire;
+    let independent = uncertain_chain(PosteriorDependence::IndependentByDesign {
+        justification: "disjoint trials".into(),
+    });
+    let wire =
+        MechanismCompositionArtifactWire::seal(&independent, contrast_query(), &ctx()).unwrap();
+    assert!(wire.consume(None, &ctx()).is_ok());
+
+    // A resealed NaN interval end is a different premise, and the checker refuses it.
+    let mut nan_support = wire.clone();
+    nan_support.premises.mechanisms[0].output_support =
+        DomainWire::Interval { lo: f64::NAN, hi: 1.0 };
+    reseal(&mut nan_support);
+    assert!(matches!(
+        nan_support.consume(None, &ctx()),
+        Err(MechanismCompositionArtifactError::Incoherent { .. })
+    ));
+
+    // A resealed NaN covariance entry is refused rather than propagated into the variance.
+    let mut nan_covariance = wire.clone();
+    let uncertainty = nan_covariance.premises.mechanisms[1].uncertainty.as_mut().unwrap();
+    uncertainty.covariance[0] = f64::NAN;
+    reseal(&mut nan_covariance);
+    assert!(matches!(
+        nan_covariance.consume(None, &ctx()),
+        Err(MechanismCompositionArtifactError::Incoherent { .. })
+    ));
+}
