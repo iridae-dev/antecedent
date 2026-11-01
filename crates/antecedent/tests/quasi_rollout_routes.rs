@@ -651,6 +651,11 @@ fn reference_synthetic_did(
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals() {
     let mut rng = Rng(10);
     let mut trend = Vec::new();
@@ -891,6 +896,12 @@ fn fuzzy_rd_with_a_selected_bandwidth_and_diagnostics_recovers_the_effect() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn a_discontinuity_in_time_uses_a_block_bootstrap_and_respects_the_sampling_design() {
     let mut rng = Rng(12);
     let (mut time, mut treated, mut y) = (Vec::new(), Vec::new(), Vec::new());

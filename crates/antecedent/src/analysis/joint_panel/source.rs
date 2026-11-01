@@ -353,7 +353,7 @@ pub(super) fn adapt(
     let weighted = normalize_weights(&mut groups, &declared)?;
     let accounting = PanelDataAccounting { policy, weighted, units };
     if policy != PanelMissingPolicy::Refuse || weighted || !accounting.is_complete() {
-        writer.word(0x4441_5441_504f_4c).word(policy.tag()).word(u64::from(weighted));
+        writer.word(0x0044_4154_4150_4f4c).word(policy.tag()).word(u64::from(weighted));
     }
     let data = engine::PanelData {
         groups,

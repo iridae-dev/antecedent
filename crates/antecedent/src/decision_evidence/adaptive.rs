@@ -1,6 +1,9 @@
 //! Compiler-owned adaptive-policy evidence for decision composition.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::*;
+use super::{
+    Dependence, DesignDetails, DesignRecord, EvidenceRefusal, Exposure, JointExperimentEvidence,
+    OutcomeComponent,
+};
 use crate::analysis::joint_panel::designs::{NativeJointDesignResult, PreparedNativeJointDesign};
 use antecedent_estimate::joint_design::compiled::{
     JointDesignInference, JointDesignRecipe, JointNativeDesignLaw,

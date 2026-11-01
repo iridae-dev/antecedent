@@ -509,6 +509,10 @@ fn conditional_dag() -> TemporalDag {
 }
 
 #[test]
+#[allow(
+    clippy::large_stack_arrays,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_temporal_conditional_pulse_is_refuted_on_the_series_for_a_dag_and_its_class() {
     // Y_t = 1.5 X_{t-1} + 0.2 W_t + 0.8 X_{t-1} W_t with W ~ Bernoulli(1/2): the marginal pulse
     // effect is 1.5 + 0.8 / 2 = 1.9 (a closed form independent of the estimator).

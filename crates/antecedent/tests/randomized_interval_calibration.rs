@@ -619,6 +619,11 @@ fn the_small_arm_interval_is_published_under_its_own_construction() {
 /// Calibrate the executed nonlinear decision-evidence interval under a fixed cluster population.
 /// Each replicate randomizes clusters; the truth is the difference of functions of the known
 /// finite-population arm means. The optional coefficient is fixed independently of outcomes.
+#[allow(
+    clippy::items_after_statements,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn measure_decision_margin(test: &'static str, centered: bool) {
     use antecedent::decision_evidence::*;
     let n = grid_n(160);
@@ -976,6 +981,10 @@ fn bind_decision_candidate(tally: &mut CoverageTally, basis: &antecedent_core::C
 /// Registered, unmeasured coverage design for a lagged randomized excursion margin.
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+#[allow(
+    clippy::cast_possible_wrap,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn decision_margin_lagged_excursion_delta_interval() {
     use antecedent::decision_evidence::*;
     let units = grid_n(80);

@@ -172,6 +172,12 @@ impl Study {
     ///
     /// `option_not_applicable` when the table carries weights or an estimator declares them
     /// and the route is a static effect route that cannot honour them.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(crate) fn refuse_unread_sampling_weights(
         &self,
         table: &TabularData,

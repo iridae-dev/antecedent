@@ -50,6 +50,10 @@ struct ClassAtomResponseEval {
 
 impl super::Study {
     /// Mix CPDAG/PAG posterior atoms through the existing class response envelope.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the route keeps preparation, mixing and finish in one bounded operation"
+    )]
     pub(super) fn execute_class_graph_posterior_response(
         &self,
         data: &TabularData,
@@ -119,7 +123,7 @@ impl super::Study {
                 mixed: &mixed,
                 source: physical
                     .lowered()
-                    .and_then(|p| p.semantic_identity())
+                    .and_then(crate::planner::lowered::LoweredProgram::semantic_identity)
                     .map(|id| *id.as_bytes()),
                 estimator_id,
                 treatment,
@@ -819,11 +823,11 @@ fn joint_surface_band(
     value: Option<&ResponseValue>,
     level: f64,
 ) -> Option<ResponseUncertainty> {
-    let mean = match value? {
-        ResponseValue::Surface { mean, .. }
-        | ResponseValue::Vector(mean)
-        | ResponseValue::Jacobian { values: mean, .. } => mean,
-        _ => return None,
+    let (ResponseValue::Surface { mean, .. }
+    | ResponseValue::Vector(mean)
+    | ResponseValue::Jacobian { values: mean, .. }) = value?
+    else {
+        return None;
     };
     let mixed = response_path::mix_response_influences(scores, rows)?;
     if mixed.columns.len() != mean.len() {
@@ -1146,8 +1150,12 @@ impl antecedent_validate::common::EffectRefit for StaticResponseLevelRefit<'_> {
 }
 
 /// Drop each adjustment column while refitting the same level on one fixed
-/// complete-case population. The generic GraphRefuter cannot do this through
-/// EffectRefit, whose trait does not receive the reduced estimand.
+/// complete-case population. The generic `GraphRefuter` cannot do this through
+/// `EffectRefit`, whose trait does not receive the reduced estimand.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the adjustment refits share one fixed complete-case population"
+)]
 pub(super) fn level_adjustment_sensitivity(
     refitter: &StaticResponseLevelRefit<'_>,
     data: &TabularData,
@@ -1304,6 +1312,14 @@ pub(super) fn level_adjustment_sensitivity(
         u32::try_from(adjustments.len()).unwrap_or(u32::MAX)))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "each completion is checked and scoped in one bounded traversal"
+)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the refuter binds the compiled route, data and completion state"
+)]
 fn plugin_level_on_class_response_atoms(
     study: &Study,
     data: &TabularData,
@@ -1729,7 +1745,7 @@ mod nested_weight_tests {
         // Distinct doses identify the unpenalized cubic target spline. Its basis
         // evaluates outside the observed domain at the endpoint, so the shift
         // oracle uses the endpoint-clamped dose, not linear extrapolation.
-        let x: Vec<f64> = (0..100).map(|i| i as f64 / 25.0).collect();
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i) / 25.0).collect();
         let max_x = x.last().copied().unwrap();
         let shift_expected =
             10.0 + 2.0 * x.iter().map(|v| (v + 1.0).min(max_x)).sum::<f64>() / x.len() as f64;
@@ -1772,7 +1788,7 @@ mod nested_weight_tests {
         let (_, evals, _, dag) = fixture();
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(1);
-        let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i % 5)).collect();
         let y: Vec<f64> = x
             .iter()
             .enumerate()
@@ -1856,7 +1872,7 @@ mod nested_weight_tests {
         let (_, evals, _, dag) = fixture();
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(1);
-        let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i % 5)).collect();
         let y: Vec<f64> = x
             .iter()
             .enumerate()
@@ -1927,8 +1943,10 @@ mod nested_weight_tests {
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(1);
         let z_id = VariableId::from_raw(2);
-        let z: Vec<f64> = (0..100).map(|i| (i % 2) as f64).collect();
-        let x: Vec<f64> = (0..100).map(|i| 0.5 * z[i] + 0.2 * ((i % 5) as f64 - 2.0)).collect();
+        let z: Vec<f64> = (0..100).map(|i| f64::from(i % 2)).collect();
+        let x: Vec<f64> = (0..100)
+            .map(|i| 0.5 * z[i] + 0.2 * (f64::from(u32::try_from(i % 5).unwrap()) - 2.0))
+            .collect();
         let y: Vec<f64> = (0..100).map(|i| 10.0 + 2.0 * x[i] + 5.0 * z[i]).collect();
         let data = TabularData::from_f64_columns([
             ("t", x.as_slice()),
@@ -1993,7 +2011,7 @@ mod nested_weight_tests {
 
     struct LevelRefitValidator;
     impl antecedent_validate::CustomEffectValidator for LevelRefitValidator {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "test.level_refit"
         }
         fn validate(
@@ -2022,11 +2040,15 @@ mod nested_weight_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the test checks complete and incomplete scoped executions together"
+    )]
     fn completion_reports_refit_the_level_and_keep_distinct_scopes() {
         let (cache, mut evals, _, dag) = fixture();
         let treatment = VariableId::from_raw(0);
         let outcome = VariableId::from_raw(1);
-        let x: Vec<f64> = (0..100).map(|i| (i % 5) as f64).collect();
+        let x: Vec<f64> = (0..100).map(|i| f64::from(i % 5)).collect();
         let y: Vec<f64> = x.iter().map(|v| 10.0 + 2.0 * v).collect();
         let data =
             TabularData::from_f64_columns([("t", x.as_slice()), ("y", y.as_slice())]).unwrap();
@@ -2044,7 +2066,7 @@ mod nested_weight_tests {
                 .map(|(index, weight)| {
                     (
                         *weight,
-                        [eval.key as u8 + index as u8; 32],
+                        [u8::try_from(eval.key).unwrap() + u8::try_from(index).unwrap(); 32],
                         eval.status,
                         eval.estimand.as_ref().unwrap().clone(),
                         14.0,
@@ -2149,7 +2171,7 @@ mod nested_weight_tests {
                 .map(|weight| {
                     (
                         *weight,
-                        [eval.key as u8; 32],
+                        [u8::try_from(eval.key).unwrap(); 32],
                         eval.status,
                         eval.estimand.as_ref().unwrap().clone(),
                         match &eval.response.as_ref().unwrap().estimate {

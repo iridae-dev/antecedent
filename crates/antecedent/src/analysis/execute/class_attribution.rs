@@ -84,7 +84,7 @@ enum MemberKind {
 /// The members of a class, and whether they cover it.
 struct ClassMembers {
     members: Vec<Member>,
-    _temporal_leases: Vec<antecedent_core::execution::AdmissionLease>,
+    temporal_leases: Vec<antecedent_core::execution::AdmissionLease>,
     /// Whether the enumeration stopped at the retention cap or its search budget, so the
     /// members are a subset of the class.
     capped: bool,
@@ -191,9 +191,10 @@ impl super::Study {
         provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let mut budget = provenance.map(|p| p.budget().clone()).unwrap_or_else(|| {
-            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
-        });
+        let mut budget = provenance.map_or_else(
+            || antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()),
+            |p| p.budget().clone(),
+        );
         let class = self.temporal_class_members_within(series, &mut budget, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
         let common_history = class_temporal_history(&class);
@@ -214,6 +215,11 @@ impl super::Study {
 
     /// Attribute one member of a temporal structure class on a series, as
     /// [`Self::attribute_static_member`] does on a table.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and retained graphs together"
+    )]
     fn attribute_series_member(
         &self,
         member: &Member,
@@ -324,7 +330,7 @@ impl super::Study {
         let cap = self.declared.max_completions.unwrap_or(DEFAULT_CLASS_MEMBERS);
         match self.graph.graph_ref() {
             GraphRef::Admg(admg) => Ok(ClassMembers {
-                _temporal_leases: Vec::new(),
+                temporal_leases: Vec::new(),
                 members: vec![Member { weight: 1.0, kind: mixed_member(admg, &targets)? }],
                 capped: false,
                 class: "admg",
@@ -333,7 +339,7 @@ impl super::Study {
             GraphRef::TemporalAdmg(temporal) => {
                 let admg = temporal_admg_projection(temporal)?;
                 Ok(ClassMembers {
-                    _temporal_leases: Vec::new(),
+                    temporal_leases: Vec::new(),
                     members: vec![Member { weight: 1.0, kind: mixed_member(&admg, &targets)? }],
                     capped: false,
                     class: "temporal_admg",
@@ -357,7 +363,7 @@ impl super::Study {
                     .collect();
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
-                    _temporal_leases: Vec::new(),
+                    temporal_leases: Vec::new(),
                     members,
                     capped: sampler.hit_cap(),
                     class: "cpdag",
@@ -379,7 +385,7 @@ impl super::Study {
                 }
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
-                    _temporal_leases: Vec::new(),
+                    temporal_leases: Vec::new(),
                     members,
                     capped: sampler.hit_cap() || sampler.class_audit_incomplete(),
                     class: "pag",
@@ -418,7 +424,7 @@ impl super::Study {
                 let (kind, lease) =
                     temporal_mixed_member(template, series, &targets, temporal_budget, ctx)?;
                 Ok(ClassMembers {
-                    _temporal_leases: lease.into_iter().collect(),
+                    temporal_leases: lease.into_iter().collect(),
                     members: vec![Member { weight: 1.0, kind }],
                     capped: false,
                     class: "temporal_admg",
@@ -442,7 +448,7 @@ impl super::Study {
                     .collect();
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
-                    _temporal_leases: Vec::new(),
+                    temporal_leases: Vec::new(),
                     members,
                     capped: sampler.hit_cap(),
                     class: "temporal_cpdag",
@@ -471,7 +477,7 @@ impl super::Study {
                 }
                 crate::strategy_table::check_class_search_stop(sampler.search_stop())?;
                 Ok(ClassMembers {
-                    _temporal_leases: leases,
+                    temporal_leases: leases,
                     members,
                     capped: sampler.hit_cap() || sampler.class_audit_incomplete(),
                     class: "temporal_pag",
@@ -791,9 +797,10 @@ impl super::Study {
         provenance: Option<&super::TemporalRowProvenance>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let mut budget = provenance.map(|p| p.budget().clone()).unwrap_or_else(|| {
-            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
-        });
+        let mut budget = provenance.map_or_else(
+            || antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()),
+            |p| p.budget().clone(),
+        );
         let class = self.series_posterior_members(series, gp, &mut budget, ctx)?;
         let cache = self.class_attribution_identification(physical, ctx)?;
         let mut base = self.clone();
@@ -895,7 +902,7 @@ impl super::Study {
                 atom.graph = Arc::new(graph);
                 let completions =
                     atom.temporal_class_members_within(series, temporal_budget, ctx)?;
-                graph_leases.extend(completions._temporal_leases);
+                graph_leases.extend(completions.temporal_leases);
                 capped |= completions.capped;
                 let share = weight / completions.members.len().max(1) as f64;
                 kinds.extend(completions.members.into_iter().map(|member| (share, member.kind)));
@@ -911,7 +918,7 @@ impl super::Study {
             }
         }
         Ok(ClassMembers {
-            _temporal_leases: graph_leases,
+            temporal_leases: graph_leases,
             members,
             capped,
             class: "graph_posterior",
@@ -921,6 +928,11 @@ impl super::Study {
 
     /// The members an attribution over `gp` is repeated over: one per DAG or mixed-graph atom,
     /// one per completion of a class atom, weighted by the posterior probability of the atom.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and retained graphs together"
+    )]
     fn posterior_class_members(
         &self,
         gp: &GraphPosterior,
@@ -1023,7 +1035,7 @@ impl super::Study {
             }
         }
         Ok(ClassMembers {
-            _temporal_leases: Vec::new(),
+            temporal_leases: Vec::new(),
             members,
             capped,
             class: "graph_posterior",
@@ -1100,6 +1112,11 @@ fn template_history(nodes: &[NodeRef]) -> u32 {
 /// bidirected edge, otherwise the noise-block attribution on the template unrolled over the
 /// periods the longest lag spans (the causes before the window are latent common causes of their
 /// in-window effects).
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    reason = "the bounded operation keeps its execution inputs and retained graphs together"
+)]
 fn temporal_mixed_member(
     template: &TemporalAdmg,
     series: &TimeSeriesData,
@@ -1785,6 +1802,11 @@ enum SeriesAtomGraph {
     Class(AcceptedGraph, antecedent_core::execution::AdmissionLease),
 }
 
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    reason = "the bounded operation keeps its execution inputs and retained graphs together"
+)]
 fn series_posterior_atom(
     series: &TimeSeriesData,
     gp: &GraphPosterior,
@@ -1903,7 +1925,7 @@ mod temporal_owner_tests {
         let available = pool.available().bytes();
         let class = study.temporal_class_members(&data, &ctx).unwrap();
         assert!(matches!(class.members[0].kind, MemberKind::Directed(_)));
-        assert_eq!(class._temporal_leases.len(), 1);
+        assert_eq!(class.temporal_leases.len(), 1);
         assert!(pool.available().bytes() < available);
         drop(class);
         assert_eq!(pool.available().bytes(), available);

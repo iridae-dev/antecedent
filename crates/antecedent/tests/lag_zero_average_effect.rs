@@ -5,7 +5,7 @@
 //! class envelope (frequentist and Bayesian) on a `TemporalCpdag` or `TemporalPag` and the
 //! temporal backdoor on a `TemporalDag`. These tests pin that the answer is exactly the
 //! explicit lag-0 pulse's, that the support status is `licensed` (the `AverageEffect` cell has known-truth
-//! evidence in lag_zero_average_effect_truth) on the direct and prepared paths, that the result discloses the
+//! evidence in `lag_zero_average_effect_truth`) on the direct and prepared paths, that the result discloses the
 //! reading, and that modifiers and another functional are refused. Over a graph posterior the
 //! same pulse is compiled, so the alias equals the explicit pulse over the posterior in both
 //! inference modes.

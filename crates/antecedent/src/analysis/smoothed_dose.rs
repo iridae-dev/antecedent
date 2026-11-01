@@ -108,6 +108,10 @@ impl StudyBuilder {
     /// # Errors
     /// A malformed query, an uncertified graph, a request outside the frozen bounds, an
     /// estimated density, invalid or thin dose support, invalid rows or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
     pub fn smoothed_dose_transport(
         diagram: SelectionDiagram,
         query: SmoothedDoseTransportQuery,
@@ -214,6 +218,10 @@ impl PreparedSmoothedDose {
     /// # Errors
     /// A changed feature schema or sampling design (`transport.reprepare_required`),
     /// invalid rows, an invalid or thin dose support, or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
     pub fn refresh(
         &self,
         input: SmoothedDoseInput,

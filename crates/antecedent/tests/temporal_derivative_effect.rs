@@ -94,6 +94,10 @@ fn functionals() -> Vec<(&'static str, ResponseFunctional)> {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_dag_derivatives_publish_the_linear_slope() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/temporal_derivative/expected.json"

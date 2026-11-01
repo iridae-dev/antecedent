@@ -56,6 +56,12 @@ const DEFAULT_REDRAWS: u32 = 199;
 /// Admit one complete study operation: the initial probability pair (when
 /// used) plus every pair in its Full-suite re-randomization. Independent API
 /// calls receive independent ceilings even when they reuse the same context.
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    reason = "the operation keeps its checked inputs and execution context together"
+)]
 pub(super) fn admit_interference_procedure(
     query: &InterferenceQuery,
     units: usize,
@@ -83,7 +89,7 @@ pub(super) fn admit_interference_procedure(
     } else {
         0
     };
-    let levels = 2 * (u64::from(redraws) + if initial_pair { 1 } else { 0 });
+    let levels = 2 * (u64::from(redraws) + u64::from(initial_pair));
     if levels == 0 {
         return Ok(());
     }
@@ -467,6 +473,12 @@ fn exposure_overlap(minimum: f64) -> RefutationReport {
     )
 }
 
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    reason = "the operation keeps its checked inputs and execution context together"
+)]
 fn randomization_unbiasedness(
     input: &InterferenceRefutationInput<'_>,
     ctx: &ExecutionContext,
@@ -809,7 +821,7 @@ mod tests {
     ) -> (antecedent_data::NetworkData, Vec<bool>, InterferenceQuery) {
         let units = 120_usize;
         let assignment: Vec<bool> = (0..units).map(|unit| (unit / 2) % 2 == 1).collect();
-        let clusters: Vec<u32> = (0..units).map(|unit| (unit / 2) as u32).collect();
+        let clusters: Vec<u32> = (0..units).map(|unit| u32::try_from(unit / 2).unwrap()).collect();
         let edges: Vec<antecedent_data::NetworkEdge> = (0..units)
             .map(|unit| antecedent_data::NetworkEdge::new((unit ^ 1) as u64, unit as u64, 1.0))
             .collect();

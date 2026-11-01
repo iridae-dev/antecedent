@@ -29,6 +29,10 @@ struct Fixture {
     tolerance: f64,
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn fixture() -> Fixture {
     let document: serde_json::Value = serde_json::from_str(FIXTURE).unwrap();
     let cells = document["design"]["cells"]

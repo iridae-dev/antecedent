@@ -67,6 +67,10 @@ fn table() -> TabularData {
         .unwrap()
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn count(t: Option<f64>, m: Option<f64>, y: Option<f64>) -> f64 {
     CELLS
         .iter()

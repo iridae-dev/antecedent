@@ -1,7 +1,7 @@
 //! Stream the retained identification hierarchy directly into one admitted buffer.
 use super::borrowed_graph::{DagView, PagView, TemporalCompletion};
 use super::borrowed_summary::BorrowedSummary;
-use super::*;
+use super::{Arc, IdentificationCache, IdentificationLayer, Node, PreparedIdentificationView};
 use antecedent_io_core::admitted_json::{AdmittedJson, serialize_admitted};
 use antecedent_io_core::analysis_wire::BorrowedIdentificationWire;
 use antecedent_io_core::transport_interference_wire::BorrowedTransportIdentificationWire;
@@ -256,7 +256,9 @@ impl Serialize for HorizonDemotion<'_> {
 struct NonGraphical<'a>(&'a crate::planner::lowered::NonGraphicalIdentification);
 impl Serialize for NonGraphical<'_> {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use crate::planner::lowered::NonGraphicalIdentification::*;
+        use crate::planner::lowered::NonGraphicalIdentification::{
+            CyclicIoScm, ExperimentalRecovery, SharedEvidenceContract, SpecifiedModelConditional,
+        };
         let mut object = s.serialize_map(None)?;
         match self.0 {
             SpecifiedModelConditional { model } => {

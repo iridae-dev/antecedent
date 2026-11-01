@@ -75,7 +75,7 @@ fn panel(units: Vec<TimeSeriesData>) -> PanelData {
     let units = units
         .into_iter()
         .enumerate()
-        .map(|(i, series)| PanelUnit { unit_id: i as u32, series })
+        .map(|(i, series)| PanelUnit { unit_id: u32::try_from(i).unwrap(), series })
         .collect::<Vec<_>>();
     PanelData::try_new(Arc::from(units)).unwrap()
 }
@@ -237,6 +237,11 @@ fn a_missing_cell_in_any_channel_outcome_or_confounder_is_refused_not_imputed() 
     }
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the fixture values are declared nonnegative categorical codes"
+)]
 fn categorical_channel_series() -> TimeSeriesData {
     let plain = base();
     let id = CategoryDomainId::from_raw(3);
@@ -276,7 +281,7 @@ fn categorical_channel_series() -> TimeSeriesData {
     for (index, values) in [&plain.b, &plain.y, &plain.z, &plain.season].into_iter().enumerate() {
         columns.push(OwnedColumn::Float64(
             Float64Column::new(
-                VariableId::from_raw(index as u32 + 1),
+                VariableId::from_raw(u32::try_from(index).unwrap() + 1),
                 Arc::<[f64]>::from(values.as_slice()),
                 ValidityBitmap::all_valid(8),
             )
@@ -297,8 +302,7 @@ fn a_categorical_channel_is_refused_not_read_as_a_magnitude() {
     let source = panel(units);
     let request = request(&source, 1.0);
     let error = Study::prepare_joint_panel(source, request, &ctx())
-        .err()
-        .expect("a dictionary-coded channel was read as a dose");
+        .expect_err("a dictionary-coded channel was read as a dose");
     let text = error.to_string();
     assert!(text.contains("joint panel compilation refused"), "{text}");
     assert!(text.contains("variable V0 is not of type float64"), "{text}");

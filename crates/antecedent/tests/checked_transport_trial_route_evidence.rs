@@ -1,6 +1,8 @@
 //! Builder independent execution evidence for the certified trial-to-target transport routes.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
 use antecedent::analysis::RetainedOperation;
@@ -175,7 +177,7 @@ fn transport_trial_executes_from_retained_sid_proof_after_builder_drop_body() {
             assert!((refreshed.transport().unwrap().ipw - ipw).abs() <= ipw_tolerance);
         }
         assert!(matches!(prepared.retained_operation(), RetainedOperation::TransportTrial(..)));
-        let refused = rebind_estimate(&mut prepared, widened(), &ctx).err().expect("widened");
+        let refused = rebind_estimate(&mut prepared, widened(), &ctx).expect_err("widened");
         assert!(refused.to_string().contains("requires the same schema"), "{refused}");
         // The refused refresh leaves the handle on its last good branch.
         assert!(rebind_estimate(&mut prepared, shifted.clone(), &ctx).is_ok());
@@ -524,9 +526,10 @@ mod declared_design {
             ("e", e.as_slice()),
         ])
         .unwrap();
-        match rows["weights"].is_null() {
-            true => data,
-            false => data.with_weights(Arc::from(floats(&rows["weights"]))).unwrap(),
+        if rows["weights"].is_null() {
+            data
+        } else {
+            data.with_weights(Arc::from(floats(&rows["weights"]))).unwrap()
         }
     }
 
@@ -694,7 +697,7 @@ mod declared_design {
             let weighted = find("independent_weighted");
             for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
                 let error =
-                    run(builder(table(&weighted["rows"])).refute(suite)).err().expect("refused");
+                    run(builder(table(&weighted["rows"])).refute(suite)).expect_err("refused");
                 assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
                 assert!(error.to_string().contains("observation weights"), "{error}");
             }
@@ -708,7 +711,7 @@ mod declared_design {
             let base = &all["estimate"].as_array().unwrap()[0];
             let plain = run(builder(table(&base["rows"]))).unwrap();
             let refused = |result: Result<StudyResult, CausalError>, needle: &str| {
-                let error = result.err().expect("a declaration was ignored");
+                let error = result.expect_err("a declaration was ignored");
                 assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
                 assert!(error.to_string().contains(needle), "{error}");
                 assert!(error.to_string().contains("Next attempt"), "{error}");
@@ -765,7 +768,7 @@ mod declared_design {
             let base = &estimate[0];
             let n = base["rows"]["outcome"].as_array().unwrap().len();
             let refused = |result: Result<StudyResult, CausalError>, needle: &str| {
-                let error = result.err().expect("an estimate was published");
+                let error = result.expect_err("an estimate was published");
                 assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
                 assert!(error.to_string().contains(needle), "{error}");
                 assert!(error.to_string().contains("Next attempt"), "{error}");
@@ -793,7 +796,7 @@ mod declared_design {
                 run(builder(table(&base["rows"]))
                     .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
                     .score_dependence(ScoreDependence::clusters(
-                        (0..n as u32).collect::<Vec<_>>(),
+                        (0..u32::try_from(n).unwrap()).collect::<Vec<_>>(),
                     ))),
                 "disagree",
             );
@@ -809,8 +812,7 @@ mod declared_design {
             let error = run(builder(table(&base["rows"]))
                 .sampling_design(DeclaredSamplingDesign::ClusteredPanel)
                 .score_dependence(ScoreDependence::clusters(vec![3_u32; n])))
-            .err()
-            .expect("one cluster");
+            .expect_err("one cluster");
             assert!(error.to_string().contains("at least two clusters"), "{error}");
         });
     }

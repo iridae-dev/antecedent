@@ -797,8 +797,8 @@ mod tests {
         assert!(run(Some(0.2), 0.4, false).se_analytic().is_nan());
         // The zero-weight atom is outside the conditional mixture even with invalid SE.
         let only = run(Some(f64::NAN), 0.0, false);
-        assert_eq!(only.ate, 1.0);
-        assert_eq!(only.se_analytic(), 0.1);
+        assert_eq!(only.ate.to_bits(), 1.0_f64.to_bits());
+        assert_eq!(only.se_analytic().to_bits(), 0.1_f64.to_bits());
 
         // Complete shared-row influences give the variance of the entire weighted
         // estimator: scores [0.2, -0.2, 0.4, -0.4], mean zero; sample

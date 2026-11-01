@@ -371,6 +371,10 @@ fn sandwich(groups: Option<&[u32]>, lag: Option<usize>) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_declared_panel_or_series_is_read_by_the_cluster_and_newey_west_errors_of_the_average_effect() {
     let query = &point_routes()[0].1;
     let clusters: Vec<u32> = (0..N).map(|i| (i / 10) as u32).collect();

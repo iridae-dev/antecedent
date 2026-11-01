@@ -37,6 +37,10 @@ struct Truth {
     document: serde_json::Value,
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn truth() -> Truth {
     let document: serde_json::Value = serde_json::from_str(FIXTURE).unwrap();
     let cells = document["table"]
@@ -253,7 +257,8 @@ fn conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference
     }
 }
 
-/// `ConditionalEffect` x `Admg` and `TemporalAdmg` x graph_posterior x Frequentist and Bayesian
+/// `ConditionalEffect` x `Admg` and `TemporalAdmg` x `graph_posterior` x Frequentist and Bayesian
+/// `ConditionalEffect` x `Admg` and `TemporalAdmg` x `graph_posterior` x Frequentist and Bayesian
 /// x none, cheap and full: every identified atom answers with the stratified difference, so
 /// the pooled value is the same number; an atom the identifier refuses is stated as
 /// unidentified mass and is not redistributed.
@@ -290,6 +295,10 @@ fn conditional_effect_admg_graph_posterior_states_its_mass_and_matches_the_strat
 /// The retained plan runs every explicit, accepted and graph-posterior cell with the builder
 /// dropped; the plan names the IDC identifier and the functional estimator.
 #[test]
+#[allow(
+    clippy::unnecessary_map_or,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn conditional_effect_admg_cells_execute_from_the_retained_plan_with_the_builder_dropped() {
     let truth = truth();
     let data = table(&truth);

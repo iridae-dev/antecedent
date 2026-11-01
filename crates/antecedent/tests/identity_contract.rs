@@ -349,8 +349,7 @@ fn refresh_same_shape_changes_snapshot_and_expires_preview() {
     assert!((refreshed.effect() - original.effect() - 1.0).abs() < 1e-10);
     assert!((refreshed.effect() - 3.0).abs() < 0.2);
     let failure = data.with_replaced_float(VariableId::from_raw(0), vec![0.0; 256].into()).unwrap();
-    let refused =
-        rebind_estimate(&mut prepared, failure, &ctx).err().expect("a constant treatment");
+    let refused = rebind_estimate(&mut prepared, failure, &ctx).expect_err("a constant treatment");
     assert!(refused.to_string().contains("reason=arm_not_populated"), "{refused}");
     assert_eq!(after.identities, prepared.contract().unwrap().identities);
 }
@@ -400,8 +399,7 @@ fn same_shape_inspection_distinguishes_masks_and_weights() {
             // unweighted number for the weighted population.
             let refused = study(changed, dag.clone(), query.clone())
                 .prepare(&ctx)
-                .err()
-                .expect("table weights must be refused on a route that never reads them");
+                .expect_err("table weights must be refused on a route that never reads them");
             assert!(
                 format!("{refused:?}").contains("sampling_weights.route_unsupported"),
                 "{refused:?}"
@@ -769,8 +767,7 @@ fn apply_refresh_requires_a_bound_preview() {
     let mut prepared = study(data.clone(), dag, query).prepare(&ctx).unwrap();
     let preview = prepared.preview_transform(TransformIntent::CompatibleDataReplace).unwrap();
     let stale = prepared.preview_transform(TransformIntent::ChangeGraph).unwrap();
-    let refused =
-        prepared.apply_refresh(&stale, data.clone(), &ctx).err().expect("a stale preview");
+    let refused = prepared.apply_refresh(&stale, data.clone(), &ctx).expect_err("a stale preview");
     assert!(
         refused.to_string().contains("refresh preview does not bind the current prepared contract"),
         "{refused}"
@@ -1704,6 +1701,10 @@ fn accept_temporal_class(mut review: TemporalCpdagReview) -> AcceptedGraph {
 /// Least-squares coefficient of the first regressor in `y ~ 1 + regressors`, by
 /// normal equations and Gauss-Jordan elimination: an independent calculation
 /// of a completion's regression-adjustment effect.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn ols_first_coefficient(y: &[f64], regressors: &[&[f64]]) -> f64 {
     let p = regressors.len() + 1;
     let column = |j: usize, i: usize| if j == 0 { 1.0 } else { regressors[j - 1][i] };
@@ -2108,7 +2109,7 @@ fn composition_score_table_retarget_reuses_scores_and_refuses_illegal_weights() 
     assert!(retargeted.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
     assert!((retargeted.effect() - 2.0).abs() < 0.12);
     let illegal = prepared.retarget(&weights, &[VariableId::from_raw(0)], &ctx);
-    let illegal = illegal.err().expect("treatment-dependent weights must refuse");
+    let illegal = illegal.expect_err("treatment-dependent weights must refuse");
     assert!(
         illegal.to_string().contains("retarget depends_on must not include the treatment"),
         "{illegal}"
@@ -2277,7 +2278,7 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         .expect("same-design ATE catalog");
     let wrong_outcome = catalog
         .require_usable(&TargetDesign::new(EstimandFingerprint::new("ate", "t", "z"), ["t", "z"]));
-    let wrong_outcome = wrong_outcome.err().expect("outcome mismatch must refuse").to_string();
+    let wrong_outcome = wrong_outcome.expect_err("outcome mismatch must refuse").to_string();
     assert!(wrong_outcome.contains("EstimandMismatch"), "{wrong_outcome}");
 
     let (series, graph) = lag1_series();
@@ -2299,7 +2300,7 @@ fn composition_prior_transfer_keeps_identification_and_refuses_mismatch() {
         EstimandFingerprint::new("pulse", "x", "y").with_temporal(TemporalCoordinates::new([2], 2)),
         ["x", "y"],
     ));
-    let lag_mismatch = lag_mismatch.err().expect("lag mismatch must refuse").to_string();
+    let lag_mismatch = lag_mismatch.expect_err("lag mismatch must refuse").to_string();
     assert!(lag_mismatch.contains("TemporalCoordinatesMismatch"), "{lag_mismatch}");
 
     let bad_map = Study::series(series.clone())
@@ -4520,7 +4521,7 @@ fn failed_series_refresh_then_estimate_on_old_data() {
     let before = prepared.contract().unwrap().identities;
     let first = prepared.estimate_series(&series, &ctx).unwrap();
     assert!((first.effect() - 0.5).abs() < 1e-9);
-    let refused = prepared.refresh_series(xy_series_len(2), &ctx).err().expect("a two-row series");
+    let refused = prepared.refresh_series(xy_series_len(2), &ctx).expect_err("a two-row series");
     assert!(refused.to_string().contains("reason=positivity_violated"), "{refused}");
     assert_eq!(before, prepared.contract().unwrap().identities);
     let recovered = prepared.estimate_series(&series, &ctx).unwrap();
@@ -4598,7 +4599,7 @@ fn temporal_state_events_keep_lineage_and_refuse_stale_publish() {
     assert!(stale_publish.to_string().contains("stale commit"));
     assert!(state.is_stale(pulse_q));
 
-    let refused = pulse.refresh_series(xy_series_len(2), &ctx).err().expect("a two-row series");
+    let refused = pulse.refresh_series(xy_series_len(2), &ctx).expect_err("a two-row series");
     assert!(refused.to_string().contains("rank deficient"), "{refused}");
     assert_eq!(pulse.contract().unwrap().identities, pulse_id);
     assert!(state.is_stale(pulse_q), "failed recompute must not publish freshness");
@@ -6151,8 +6152,7 @@ fn encoder_refuses_result_population_mismatch() {
         average.retarget(&z_weights(&data, 3.0), &[VariableId::from_raw(2)], &ctx).unwrap();
     let refused = treated
         .encode_contracted_result(&retargeted, "mismatch", &ctx)
-        .err()
-        .expect("a retargeted result is not the treated handle's");
+        .expect_err("a retargeted result is not the treated handle's");
     assert!(
         refused.to_string().contains("row-weight target requires a prepared score table"),
         "{refused}"
@@ -6777,8 +6777,7 @@ fn claim_id_binds_the_data_snapshot_and_the_whole_result() {
         header.variable_names.clone(),
         "tampered",
     )
-    .err()
-    .expect("a standard error without its estimate");
+    .expect_err("a standard error without its estimate");
     assert!(
         forged.to_string().contains("analysis standard error requires the estimate it describes"),
         "{forged}"
@@ -6885,8 +6884,7 @@ fn a_tampered_verified_artifact_is_refused() {
         "tampered",
         Some(&tampered),
     )
-    .err()
-    .expect("a tampered section");
+    .expect_err("a tampered section");
     assert!(
         rewritten.to_string().contains("contract does not verify against analysis_result body"),
         "{rewritten}"
@@ -7076,6 +7074,10 @@ fn rebind_estimate(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn cheap_validation_uses_the_executed_base_snapshot_without_losing_full_identity() {
     let ctx = ExecutionContext::for_tests(141);
     let (data, dag, query) = confounded_scm(400, 141);
@@ -7199,6 +7201,10 @@ fn cheap_validation_uses_the_executed_base_snapshot_without_losing_full_identity
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn resealed_scope_erasure_cannot_promote_a_completion_report_to_checked_support() {
     use antecedent_io_core::analysis_wire::{RefutationScopeWire, RefutationTargetWire};
     let ctx = ExecutionContext::for_tests(7);

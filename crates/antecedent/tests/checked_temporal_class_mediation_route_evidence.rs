@@ -2,6 +2,8 @@
 //! temporal graph-posterior mediation.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
 use antecedent::analysis::RetainedOperation;
@@ -188,6 +190,10 @@ fn has_cached_identification(result: &antecedent::StudyResult) -> bool {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the lifecycle fixture checks all retained coordinates together"
+)]
 fn checked_temporal_class_mediation_lifecycle_covers_all_class_envelope_coordinates() {
     let initial = confounded_series(0.0, false);
     let query = mediation_query(&[1]);

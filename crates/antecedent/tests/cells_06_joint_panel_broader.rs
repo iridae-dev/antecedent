@@ -2,6 +2,8 @@
 //! A held-out whole-program intervention on the broader panel family: a world whose complete
 //! program no source group received is not certified by the design, however well the mechanism
 //! fits, and the model-conditional response there stays unlicensed.
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]
 mod fixture;
 

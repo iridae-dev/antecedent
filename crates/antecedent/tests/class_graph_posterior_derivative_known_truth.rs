@@ -142,6 +142,10 @@ enum Structure {
 const CLASS_EDGES: [(usize, usize); 6] = [(3, 0), (1, 0), (0, 2), (1, 2), (0, 4), (1, 4)];
 
 /// The same edges plus `w -> z` and a latent common cause of `w` and `y` (`w <-> y`).
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn admg() -> Admg {
     let mut g = Admg::with_variables(6);
     for (from, to) in [(3, 0), (1, 0), (0, 2), (1, 2), (0, 4), (1, 4), (5, 1)] {

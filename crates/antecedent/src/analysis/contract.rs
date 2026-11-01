@@ -176,6 +176,10 @@ fn bind_graphless_reasoning(
 /// by `validate_result` against the published interval, and stay off the
 /// matrix axis so calibration verification is not broken by a coordinate no
 /// route expects.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the coordinate mapping covers each graphless result family"
+)]
 fn graphless_coordinate(
     result: &StudyResult,
     query: &CausalQuery,
@@ -1778,6 +1782,10 @@ mod frontdoor_artifact_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the test keeps the complete tampering procedure together"
+    )]
     fn rehashed_frontdoor_procedure_tampering_is_refused_semantically() {
         let data = fixture();
         let graph = Dag::from_named_edges(data.schema(), &[("t", "m"), ("m", "y")]).unwrap();
@@ -1820,12 +1828,7 @@ mod frontdoor_artifact_tests {
         // unresolved even when its procedure is internally consistent.
         assert!(!intact.acceptance.accepts_as_verified_program());
         assert_eq!(
-            intact
-                .acceptance
-                .unresolved
-                .iter()
-                .map(|reason| reason.as_ref())
-                .collect::<Vec<&str>>(),
+            intact.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
             ["dependencies.checked_estimator_operation"]
         );
 
@@ -2030,12 +2033,7 @@ mod checked_iv_artifact_tests {
             // published estimate. The intact artifact is readable but unresolved.
             assert!(!intact.acceptance.accepts_as_verified_program());
             assert_eq!(
-                intact
-                    .acceptance
-                    .unresolved
-                    .iter()
-                    .map(|reason| reason.as_ref())
-                    .collect::<Vec<&str>>(),
+                intact.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
                 ["dependencies.checked_estimator_operation"],
                 "{expected}"
             );

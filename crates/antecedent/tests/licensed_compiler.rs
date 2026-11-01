@@ -1013,6 +1013,10 @@ struct CellSetup {
 /// the identified atoms of the mixture fixture: each class has atoms the identifier decides, on
 /// the count table the fixture enumerates, so the mixture is the posterior-weighted mean of
 /// identified functionals.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, String>> {
     let family = match cell.query.as_str() {
         "PathSpecificEffect" => "path_specific",
@@ -1185,6 +1189,10 @@ fn mixture_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, Stri
 /// The counterfactual and nested-effect cells on mixed, class and graph-posterior structures read
 /// the enumerated count tables of their conformance fixtures: a table with few levels, and a
 /// graph that describes exactly its columns.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn cross_world_setup(cell: antecedent::SupportCell) -> Option<Result<CellSetup, String>> {
     let class = cell.graph_class.as_str();
     let counterfactual = cell.query.as_str() == "Counterfactual"
@@ -2364,6 +2372,11 @@ struct Route {
     lowering: String,
 }
 
+#[allow(
+    clippy::nonminimal_bool,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn consume_setup(setup: CellSetup) -> Result<Route, String> {
     let expected = setup.expected.clone();
     inspect_setup(&setup)?;
@@ -3144,6 +3157,10 @@ fn observe(setup: CellSetup) -> Result<Observed, String> {
 }
 
 /// The first Frequentist explicit-structure average-effect cell that licenses `estimator`.
+#[allow(
+    clippy::useless_conversion,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn cell_licensing(estimator: &str) -> antecedent::SupportCell {
     licensed_support_cells()
         .into_iter()
@@ -3233,6 +3250,10 @@ impl Regression {
     }
 
     /// Sandwich standard error with weight `scale(leverage)` on each squared residual.
+    #[allow(
+        clippy::needless_range_loop,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn sandwich_se(&self, k: usize, scale: impl Fn(f64) -> f64) -> f64 {
         let p = self.beta.len();
         let mut meat = vec![vec![0.0; p]; p];
@@ -3475,6 +3496,10 @@ fn replay_cell(cell: antecedent::SupportCell) -> Result<Replayed, String> {
 /// licensed cell is replayed, which covers every query family on both
 /// inference axes.
 #[test]
+#[allow(
+    clippy::useless_conversion,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn sampled_licensed_cells_replay_to_the_published_number() {
     let mut failures = Vec::new();
     let mut replayed = 0usize;
@@ -3528,6 +3553,10 @@ fn rebind_estimate(
 }
 
 #[allow(dead_code)]
+#[allow(
+    clippy::mixed_attributes_style,
+    reason = "the fixture retains its existing module-level lint configuration"
+)]
 mod temporal_admg_compiler_fixture {
     //! Known-truth evidence for derivatives on a supplied or accepted temporal ADMG at one horizon,
     //! at validation none, cheap and full.

@@ -25,6 +25,10 @@ use crate::result::{StructuralResponseAtom, StructuralResponseMixture, Structura
 
 impl super::Study {
     /// Mix TemporalCpdag/Pag posterior atoms through the existing class response envelope.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the posterior response combines identified atoms and their uncertainty in one execution"
+    )]
     pub(super) fn execute_temporal_class_graph_posterior_response(
         &self,
         data: &TimeSeriesData,
@@ -66,7 +70,7 @@ impl super::Study {
                 .into(),
         })?;
         let masses = ClassPosteriorMasses::of(&weighted, gp, (unidentified_mass, failed_mass));
-        let mixed = self.mix_temporal_class_posterior_atoms(
+        let mixed = Self::mix_temporal_class_posterior_atoms(
             &inputs,
             (&weighted, &atoms, &contributing),
             identification,
@@ -229,7 +233,6 @@ impl super::Study {
     /// policy, the conditional mix and identified set, the resolved status and
     /// the pooled uncertainty.
     fn mix_temporal_class_posterior_atoms(
-        &self,
         inputs: &ClassPosteriorInputs<'_>,
         (weighted, atoms, contributing): ClassPosteriorAtoms<'_>,
         mut identification: IdentificationResult,
@@ -517,6 +520,10 @@ struct ClassPosteriorMix {
 
 /// Folds each atom's class response into a structural atom, classifying it as
 /// unidentified, unevaluable or contributing.
+#[allow(
+    clippy::too_many_lines,
+    reason = "folding atoms retains their responses, masses and admitted witnesses together"
+)]
 fn fold_temporal_class_posterior_atoms(
     mapped: Vec<ClassPosteriorAtomRun>,
     capture: bool,
@@ -818,6 +825,10 @@ fn response_pulse_witness(query: &ResponseQuery) -> Result<TemporalEffectQuery, 
     })
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the refuter keeps the posterior, temporal data and shared execution budget together"
+)]
 fn refute_temporal_class_graph_posterior_intervention(
     study: &Study,
     data: &TimeSeriesData,

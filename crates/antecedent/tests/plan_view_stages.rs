@@ -224,6 +224,10 @@ fn observe_no_work<T>(label: &str, build: impl FnOnce() -> T) -> T {
 }
 
 /// Operations a view must list, counted from the program the view reads.
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn assert_operations_derive_from_the_program(label: &str, view: &PlanView) {
     let operations = view.operations();
     let count = |layer: OperationLayer| {
@@ -341,6 +345,10 @@ fn each_stage_builds_its_view_without_scanning_copying_fitting_or_leasing() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn a_graph_posterior_mixture_is_one_evidence_composition_over_its_atoms() {
     let ctx = ExecutionContext::for_tests(71);
     let study = graph_posterior_study();
@@ -439,6 +447,10 @@ fn noise(i: usize) -> f64 {
     ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5
 }
 
+#[allow(
+    clippy::redundant_closure,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn discovery_study() -> Study {
     let n = 240;
     let z: Vec<f64> = (0..n).map(|i| noise(i)).collect();

@@ -239,6 +239,10 @@ fn every_design_gives_its_closed_form_effect_and_is_invariant_to_the_order_of_ro
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn a_constant_outcome_has_exactly_zero_effect_and_no_variance_in_every_design() {
     for case in cases() {
         let constant = vec![4.25; outcomes_of(&case).len()];
@@ -265,6 +269,10 @@ fn an_outcome_with_a_missing_value_is_refused_by_every_design_without_a_policy()
 }
 
 /// The two-arm designs added to the four above: Bernoulli and cluster randomization.
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn two_arm_cases() -> Vec<Case> {
     let n = 12;
     let outcomes: Vec<f64> = (0..n).map(|i| 1.0 + f64::from(i % 3)).collect();

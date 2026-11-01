@@ -446,6 +446,10 @@ fn noise(i: usize) -> f64 {
     ((i as f64 * 12.9898).sin() * 43758.5453).fract().abs() - 0.5
 }
 
+#[allow(
+    clippy::cast_lossless,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn line_data(offset: usize) -> TabularData {
     let x: Vec<f64> = (0..120).map(|i| (i as f64) / 12.0).collect();
     let y: Vec<f64> =
@@ -828,6 +832,11 @@ fn carrier_refusal(error: &CausalError) -> Option<DecisionCarrierError> {
     Some(**refusal)
 }
 
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn decision_findings(rep: &mut Rep) -> Vec<String> {
     let mut found = Findings::new(rep.label);
     let context = ctx();
@@ -958,6 +967,10 @@ fn decision_findings(rep: &mut Rep) -> Vec<String> {
 // ---------------------------------------------------------------------------------------
 // Saved result and independent consumer
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn artifact_findings(rep: &mut Rep) -> Vec<String> {
     let mut found = Findings::new(rep.label);
     let context = ctx();
@@ -1129,6 +1142,13 @@ fn logged_since(prepared: &PreparedStudy, from: usize) -> (BTreeSet<String>, boo
     (products, all_results, other)
 }
 
+#[allow(
+    clippy::bool_comparison,
+    clippy::nonminimal_bool,
+    clippy::redundant_closure_for_method_calls,
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn refresh_findings(rep: &Rep, prepared: &mut PreparedStudy, found: &mut Findings) {
     let context = ctx();
     let Some(base) = identities_of(prepared, found) else { return };
@@ -1248,6 +1268,10 @@ fn refresh_findings(rep: &Rep, prepared: &mut PreparedStudy, found: &mut Finding
 }
 
 /// The staleness diagnostic names exactly the keys a refresh recomputes.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn staleness_findings(
     prepared: &PreparedStudy,
     same: TabularData,
@@ -1277,6 +1301,10 @@ fn staleness_findings(
     }
 }
 
+#[allow(
+    clippy::useless_vec,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn retarget_findings(prepared: &PreparedStudy, found: &mut Findings) {
     let context = ctx();
     let Some(base) = identities_of(prepared, found) else { return };
@@ -1603,6 +1631,10 @@ fn world_mean(report: &CyclicFamilyReport, world: usize) -> Option<Vec<f64>> {
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn cyclic_findings(found: &mut Findings, obligation: Obligation) {
     let context = ctx();
     let request = feedback_pair(0.0);
@@ -1815,6 +1847,10 @@ fn cluster_plan(attrition: f64) -> PlanningRequest {
     .with_simulation(200, 3)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn planning_findings(found: &mut Findings, obligation: Obligation) {
     let context = ctx();
     let request = cluster_plan(0.1);
@@ -2075,6 +2111,10 @@ fn chain_names_attempt(found: &mut Findings, what: &str, refusal: &ChainRefusal)
     );
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn chain_findings(found: &mut Findings, obligation: Obligation) {
     let context = ctx();
     let plan = match compile_propagation_chain(

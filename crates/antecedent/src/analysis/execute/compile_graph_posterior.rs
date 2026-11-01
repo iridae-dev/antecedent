@@ -118,7 +118,8 @@ impl super::Study {
         q: &antecedent_core::ResponseQuery,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
+        let atom_kind =
+            self.graph_posterior.as_ref().map(antecedent_discovery::GraphPosterior::atom_kind);
         let mut logical = if matches!(
             atom_kind,
             Some(
@@ -182,7 +183,8 @@ impl super::Study {
             message: "too many variables for graph-posterior compile".into(),
         })?;
         let stub = Dag::with_variables(n_vars);
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
+        let atom_kind =
+            self.graph_posterior.as_ref().map(antecedent_discovery::GraphPosterior::atom_kind);
         let (identifier, estimator) = match atom_kind {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Admg
@@ -230,7 +232,8 @@ impl super::Study {
             message: "too many variables for graph-posterior compile".into(),
         })?;
         let stub = Dag::with_variables(n_vars);
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
+        let atom_kind =
+            self.graph_posterior.as_ref().map(antecedent_discovery::GraphPosterior::atom_kind);
         let (identifier, estimator) = match atom_kind {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Cpdag
@@ -407,8 +410,11 @@ impl super::Study {
             false,
             class,
         )?;
-        let class_atom =
-            self.graph_posterior.as_ref().map(|gp| gp.atom_kind()).is_some_and(is_class_atom);
+        let class_atom = self
+            .graph_posterior
+            .as_ref()
+            .map(antecedent_discovery::GraphPosterior::atom_kind)
+            .is_some_and(is_class_atom);
         if self.lagged_admg_atoms()? {
             // Every atom is identified on the unrolled window of its own template and
             // evaluated by the discrete plug-in on the lag-aligned window table.
@@ -470,7 +476,12 @@ impl super::Study {
         }
         super::temporal_posterior_response::dbn_posterior_response_supported(q)?;
         let mut logical = compile_logical_temporal_response(data, &TemporalDag::empty(), q, false)?;
-        if self.graph_posterior.as_ref().map(|gp| gp.atom_kind()).is_some_and(is_class_atom) {
+        if self
+            .graph_posterior
+            .as_ref()
+            .map(antecedent_discovery::GraphPosterior::atom_kind)
+            .is_some_and(is_class_atom)
+        {
             logical.record.identifier =
                 Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
         }
@@ -614,7 +625,8 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         q.validate()?;
-        let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind());
+        let atom_kind =
+            self.graph_posterior.as_ref().map(antecedent_discovery::GraphPosterior::atom_kind);
         let (identifier, estimator) = match atom_kind {
             Some(
                 antecedent_discovery::GraphPosteriorAtomKind::Dag

@@ -97,7 +97,7 @@ fn masked_body() {
     }
     let masked = data.with_analysis_mask(ValidityBitmap::from_bytes(bytes, rows).unwrap()).unwrap();
     let column = |name: usize| -> Vec<f64> {
-        let view = data.column(VariableId::from_raw(name as u32)).unwrap();
+        let view = data.column(VariableId::from_raw(u32::try_from(name).unwrap())).unwrap();
         let antecedent_data::ColumnView::Float64(values) = view else { panic!("float column") };
         visible.iter().map(|&row| values.values[row]).collect()
     };

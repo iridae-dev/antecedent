@@ -386,9 +386,10 @@ mod tests {
         JointDesignProof, JointDesignWorldBinding, PreparedJointDesign,
     };
     use antecedent_core::{
-        Conditioning, GraphFamily, InferenceSelection, InterventionSequence, InterventionWorld,
-        ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget,
-        TargetForm, TargetPopulation, TimeFrame, Value, WorldBinding, WorldCollection,
+        AssumptionSet, Conditioning, GraphFamily, InferenceSelection, InterventionSequence,
+        InterventionWorld, ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits,
+        ScientificTarget, TargetForm, TargetPopulation, TimeFrame, Value, WorldBinding,
+        WorldCollection,
     };
     use antecedent_estimate::joint_design::compiled::{JointDesignInference, JointDesignRecipe};
     use antecedent_estimate::joint_design::randomized::{
@@ -396,6 +397,10 @@ mod tests {
     };
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture keeps its full scientific procedure together"
+    )]
     fn continuous_history_bootstrap_and_posterior_reference_preserve_the_actual_law() {
         let ctx = ExecutionContext::for_tests(559);
         let (recipe, bayesian, _) =
@@ -415,12 +420,12 @@ mod tests {
                     .map(|(time, values)| {
                         SequencedIntervention::new(
                             Intervention::set(VariableId::from_raw(1), Value::f64(values[0])),
-                            TemporalPolicy::pulse(time as i32),
+                            TemporalPolicy::pulse(i32::try_from(time).unwrap()),
                         )
                     })
                     .collect();
                 InterventionWorld::new(
-                    ScientificWorldId::from_raw(index as u32),
+                    ScientificWorldId::from_raw(u32::try_from(index).unwrap()),
                     WorldAction::schedule(
                         Intervention::Sequence(InterventionSequence::new(steps)),
                         TemporalPolicy::sustained(0, 1),
@@ -478,7 +483,7 @@ mod tests {
                 .enumerate()
                 .map(|(index, world)| JointDesignWorldBinding {
                     key: index.to_string(),
-                    world: index as u32,
+                    world: u32::try_from(index).unwrap(),
                     target_identity:
                         crate::analysis::joint_panel::designs::joint_design_world_identity(world)
                             .to_hex(),
@@ -487,7 +492,7 @@ mod tests {
         };
         let target = ScientificTarget::new(
             TargetForm::Worlds(WorldCollection::new(worlds).unwrap()),
-            ModelAssumptions::new(GraphFamily::Unspecified, Default::default()),
+            ModelAssumptions::new(GraphFamily::Unspecified, AssumptionSet::default()),
             InferenceSelection::Bayesian,
         );
         let prepared = PreparedJointDesign::compile(target, proof, &ctx).unwrap();
@@ -518,8 +523,8 @@ mod tests {
                     result.law().frequentist_failures().unwrap()
                 );
                 assert_eq!(
-                    decomposition.decomposition.point.hybrids[1],
-                    result.law().estimate().means[3]
+                    decomposition.decomposition.point.hybrids[1].to_bits(),
+                    result.law().estimate().means[3].to_bits()
                 );
                 for (actual, native) in decomposition.decomposition.draws.iter().zip(rows) {
                     assert_eq!(actual.is_some(), native.is_some());
@@ -555,6 +560,10 @@ mod tests {
     ) -> (super::super::super::designs::JointDesignResult, ReferenceComponentBindings) {
         compiled_parameter_population_scenario(temporal, study_seed, posterior_draws, false)
     }
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture keeps its full scientific procedure together"
+    )]
     fn compiled_parameter_population_scenario(
         temporal: bool,
         study_seed: Option<u64>,
@@ -577,7 +586,10 @@ mod tests {
                 let values = levels(mask);
                 let interventions = (0..variables)
                     .map(|j| {
-                        Intervention::set(VariableId::from_raw(j as u32), Value::f64(values[j]))
+                        Intervention::set(
+                            VariableId::from_raw(u32::try_from(j).unwrap()),
+                            Value::f64(values[j]),
+                        )
                     })
                     .collect::<Vec<_>>();
                 let action = if temporal {
@@ -611,14 +623,14 @@ mod tests {
                     TimeFrame::static_decision()
                 };
                 InterventionWorld::new(
-                    ScientificWorldId::from_raw(mask as u32),
+                    ScientificWorldId::from_raw(u32::try_from(mask).unwrap()),
                     action,
                     mask == 0,
                     WorldBinding::new(
                         TargetPopulation::AllObserved,
                         ObservationUnit::new("independent participant").unwrap(),
                         OutcomeQuantity::mean(
-                            VariableId::from_raw(variables as u32),
+                            VariableId::from_raw(u32::try_from(variables).unwrap()),
                             QuantityUnits::new("response").unwrap(),
                         )
                         .unwrap(),
@@ -632,7 +644,7 @@ mod tests {
             .collect::<Vec<_>>();
         let target = ScientificTarget::new(
             TargetForm::Worlds(WorldCollection::new(worlds).unwrap()),
-            ModelAssumptions::new(GraphFamily::Unspecified, Default::default()),
+            ModelAssumptions::new(GraphFamily::Unspecified, AssumptionSet::default()),
             InferenceSelection::Bayesian,
         );
         let design=JointRandomizedDesign { worlds:(0..arms).map(|arm|format!("parameter-arm-{arm}")).collect(),sampling_unit:"independent participant".into(),population:"randomized observed participant population".into(),consistency:"physical interventions jointly set dose A, saturation-control node S and mechanism-control node M; final response measured under each full program".into(),between_unit_isolation:"participants have isolated responses".into() };
@@ -656,7 +668,8 @@ mod tests {
             let mut rng = antecedent_core::CausalRng::from_seed(seed);
             (0..512)
                 .map(|unit| {
-                    let arm = (rng.next_u64() % arms as u64) as usize;
+                    let arm =
+                        usize::try_from(rng.next_u64() % u64::try_from(arms).unwrap()).unwrap();
                     let values = levels(arm);
                     let noise = (-2.0 * rng.next_f64().max(f64::MIN_POSITIVE).ln()).sqrt()
                         * (std::f64::consts::TAU * rng.next_f64()).cos();
@@ -687,10 +700,10 @@ mod tests {
             worlds: (0..arms)
                 .map(|arm| JointDesignWorldBinding {
                     key: format!("parameter-arm-{arm}"),
-                    world: arm as u32,
+                    world: u32::try_from(arm).unwrap(),
                     target_identity:
                         crate::analysis::joint_panel::designs::joint_design_world_identity(
-                            &super::super::contracts::target_worlds(&target).unwrap()[arm as usize],
+                            &super::super::contracts::target_worlds(&target).unwrap()[arm],
                         )
                         .to_hex(),
                 })
@@ -705,7 +718,7 @@ mod tests {
                         variance: vec![1e6; arms],
                         outcome_variance: vec![0.04; units.len()],
                         draws: posterior_draws,
-                        seed: study_seed.unwrap_or(732) ^ 0x25A931,
+                        seed: study_seed.unwrap_or(732) ^ 0x0025_A931,
                     },
                 },
                 &ctx,
@@ -716,7 +729,7 @@ mod tests {
             saturation: vec![VariableId::from_raw(1)],
             mechanism: vec![VariableId::from_raw(2)],
             hybrids: std::array::from_fn(|mask| {
-                ScientificWorldId::from_raw(((mask & 3) | ((mask & 8) >> 1)) as u32)
+                ScientificWorldId::from_raw(u32::try_from((mask & 3) | ((mask & 8) >> 1)).unwrap())
             }),
             order: [
                 ChangeComponent::Exposure,
@@ -728,6 +741,10 @@ mod tests {
         (result, bindings)
     }
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture keeps its full scientific procedure together"
+    )]
     fn actual_parameter_factorial_reference_decomposes_static_and_temporal_posterior_sources() {
         for temporal in [false, true] {
             let (result, bindings) = compiled_parameter_experiment(temporal);
@@ -878,6 +895,10 @@ mod tests {
         }
     }
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture keeps its full scientific procedure together"
+    )]
     fn actual_population_transport_decomposition_is_positive_in_both_modes_and_time_forms() {
         use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
         for temporal in [false, true] {
@@ -910,8 +931,8 @@ mod tests {
                             source.target(),
                         )
                         .unwrap();
-                    let declaration = serde_json::json!({"baseline":3,"strata":[0.0,1.0],"stratum_worlds":bindings.stratum_worlds.iter().map(|worlds|worlds.map(|id|id.raw())).collect::<Vec<_>>(),"before_weights":bindings.before_weights,"after_weights":bindings.after_weights,"exposure":[0],"saturation":[1],"mechanism":[2],"order":["exposure","saturation","population","mechanism"],"diagram":{"node_count":5,"directed":[[0,4],[1,4],[2,4],[3,4]],"bidirected":[],"selection_targets":[3]},"require_identified":true});
-                    let fixture = serde_json::json!({"schema":1,"target":target,"proof":posterior.prepared().proof(),"population_reference":declaration,"bayesian":{"inference":"randomized_gaussian","prior":{"mean":vec![0.0;16],"variance":vec![1e6;16],"outcome_variance":vec![0.04;64],"draws":512,"seed":986311}},"known_truth":{"response":"(1+L)*M*A/(A+S)","before_population":[0.8,0.2],"after_population":[0.2,0.8]}});
+                    let declaration = serde_json::json!({"baseline":3,"strata":[0.0,1.0],"stratum_worlds":bindings.stratum_worlds.iter().map(|worlds|worlds.map(ScientificWorldId::raw)).collect::<Vec<_>>(),"before_weights":bindings.before_weights,"after_weights":bindings.after_weights,"exposure":[0],"saturation":[1],"mechanism":[2],"order":["exposure","saturation","population","mechanism"],"diagram":{"node_count":5,"directed":[[0,4],[1,4],[2,4],[3,4]],"bidirected":[],"selection_targets":[3]},"require_identified":true});
+                    let fixture = serde_json::json!({"schema":1,"target":target,"proof":posterior.prepared().proof(),"population_reference":declaration,"bayesian":{"inference":"randomized_gaussian","prior":{"mean":vec![0.0;16],"variance":vec![1e6;16],"outcome_variance":vec![0.04;64],"draws":512,"seed":986_311}},"known_truth":{"response":"(1+L)*M*A/(A+S)","before_population":[0.8,0.2],"after_population":[0.2,0.8]}});
                     std::fs::write(path, serde_json::to_vec_pretty(&fixture).unwrap()).unwrap();
                 }
             }
@@ -1079,6 +1100,10 @@ mod tests {
     /// decomposition measurement. Execution does not grant a release calibration license.
     #[test]
     #[ignore = "Q08/E14 stable-candidate measurement; execute explicitly"]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture keeps its full scientific procedure together"
+    )]
     fn calibration_compiled_reference_decomposition_full_procedure() {
         let repetitions = 400;
         let truth_table: [f64; 16] = std::array::from_fn(|mask| {
@@ -1107,7 +1132,7 @@ mod tests {
             for seed in 0..repetitions {
                 let (posterior, bindings) = compiled_parameter_population_scenario(
                     temporal,
-                    Some(0x28F100 + seed),
+                    Some(0x0028_F100 + seed),
                     2048,
                     true,
                 );
@@ -1155,14 +1180,14 @@ mod tests {
                     )
                     .unwrap();
                 let mut simultaneous = [true; 2];
-                for component in 0..4 {
-                    let half_width = 2.49770547441237
+                for (component, &true_value) in truth.iter().enumerate() {
+                    let half_width = 2.497_705_474_412_37
                         * f.covariance.as_ref().unwrap().shapley[component][component]
                             .max(0.0)
                             .sqrt();
                     let point = f.decomposition.point.shapley[component];
-                    simultaneous[0] &= truth[component] >= point - half_width
-                        && truth[component] <= point + half_width;
+                    simultaneous[0] &=
+                        true_value >= point - half_width && true_value <= point + half_width;
                     width[0] += 2.0 * half_width;
                     ordering_sensitivity[0] += f.decomposition.point.order_range[component][1]
                         - f.decomposition.point.order_range[component][0];
@@ -1178,7 +1203,7 @@ mod tests {
                     values.sort_by(f64::total_cmp);
                     let lower = values[12];
                     let upper = values[2035];
-                    simultaneous[1] &= truth[component] >= lower && truth[component] <= upper;
+                    simultaneous[1] &= true_value >= lower && true_value <= upper;
                     width[1] += upper - lower;
                 }
                 for mode in 0..2 {

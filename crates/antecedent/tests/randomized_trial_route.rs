@@ -1128,11 +1128,11 @@ fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows() {
 #[test]
 fn fisher_large_scale_includes_the_observed_allocation() {
     let outcomes = [
-        -7.199619291182174,
-        -6.495018842300632,
-        -9.402742742215064,
-        -7413320277575814.0,
-        -0.43013958293997245,
+        -7.199_619_291_182_174,
+        -6.495_018_842_300_632,
+        -9.402_742_742_215_064,
+        -7_413_320_277_575_814.0,
+        -0.430_139_582_939_972_45,
     ];
     let data = TabularData::from_f64_columns([("outcome", &outcomes[..])]).unwrap();
     let query = RandomizedEffectQuery::with_design(

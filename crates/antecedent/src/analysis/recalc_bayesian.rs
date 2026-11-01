@@ -891,6 +891,11 @@ mod quantile_selection_tests {
     use super::empirical_quantile;
 
     #[test]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "fixed probabilities index this seven-value fixture"
+    )]
     fn selected_quantiles_match_the_sorted_interpolation() {
         let draws = [9.0, 1.0, 4.0, 7.0, 2.0, 8.0, 3.0];
         let mut sorted = draws;

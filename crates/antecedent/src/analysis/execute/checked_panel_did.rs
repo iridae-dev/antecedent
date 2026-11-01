@@ -21,19 +21,23 @@ use super::BayesianConfig;
 pub(super) use bayesian::bayesian_panel_did_plan_ids;
 
 /// Why `design` cannot execute `policy`, if it cannot.
+fn pick<T: Clone>(values: &[T], keep: &[bool]) -> Vec<T> {
+    values.iter().zip(keep).filter(|(_, kept)| **kept).map(|(v, _)| v.clone()).collect()
+}
+
 fn design_refusal(
     design: antecedent_core::DidSamplingDesign,
     policy: MissingPolicy,
 ) -> Option<&'static str> {
     use antecedent_core::DidSamplingDesign;
     match (policy, design) {
-        (MissingPolicy::ErrorOnMissing, _) => None,
         // One row per subject: a subject missing an outcome or a supplied prediction is dropped
         // whole, and the row-aligned nuisance columns are restricted with it.
         (
             MissingPolicy::AvailableCase | MissingPolicy::BalancedPanel,
             DidSamplingDesign::AugmentedPanel,
-        ) => None,
+        )
+        | (MissingPolicy::ErrorOnMissing, _) => None,
         (_, DidSamplingDesign::AugmentedPanel) => Some(
             "the augmented panel reads complete subject rows (available_case or balanced_panel); it has no estimator for this policy",
         ),
@@ -789,9 +793,6 @@ impl CheckedPanelDidOperation {
                     ),
                 ));
             }
-        }
-        fn pick<T: Clone>(values: &[T], keep: &[bool]) -> Vec<T> {
-            values.iter().zip(keep).filter(|(_, kept)| **kept).map(|(v, _)| v.clone()).collect()
         }
         let (pre, post, propensity, prediction, treated) = (
             pick(&pre, &keep),

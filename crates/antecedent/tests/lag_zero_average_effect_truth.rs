@@ -152,6 +152,10 @@ fn posterior(kind: GraphPosteriorAtomKind, lag: u64) -> GraphPosterior {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the fixture names the compared temporal graph classes"
+)]
 enum Class {
     TemporalDag,
     TemporalCpdag,
@@ -334,7 +338,7 @@ fn assert_cell(
 }
 
 /// `AverageEffect` x `TemporalDag`, `TemporalCpdag` and `TemporalPag` x explicit, accepted and
-/// graph_posterior x Frequentist and Bayesian x none, cheap and full: the lag-0 effect is the
+/// `graph_posterior` x Frequentist and Bayesian x none, cheap and full: the lag-0 effect is the
 /// structural coefficient and the refuters the fixture names run at their expected values.
 #[test]
 fn lag_zero_average_effect_matches_the_structural_coefficient_on_every_temporal_cell() {

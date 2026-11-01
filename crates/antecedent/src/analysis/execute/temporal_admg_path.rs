@@ -53,6 +53,12 @@ impl super::Study {
     /// period), the series holds a missing value or too few complete windows, a custom validator
     /// was attached (none applies to a window contrast), or the declared sampling design refuses
     /// the draw.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(super) fn execute_temporal_admg_contrast(
         &self,
         series: &TimeSeriesData,

@@ -53,11 +53,14 @@ fn an_earlier_observation_recovery_artifact_is_inspectable_and_refused() {
         RecoveryConsumeLimits::default(),
         &ctx(),
     );
-    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
-    assert!(
-        error.contains(r#"ProofMismatch(RecoveryError { detail: InvalidDerivation"#),
-        "{error}"
+    let error = format!(
+        "{:?}",
+        match outcome {
+            Ok(_) => panic!("the earlier rule spelling is not accepted"),
+            Err(error) => error,
+        }
     );
+    assert!(error.contains("ProofMismatch(RecoveryError { detail: InvalidDerivation"), "{error}");
 }
 
 #[test]
@@ -76,8 +79,7 @@ fn an_earlier_sampled_recovery_artifact_is_inspectable_and_refused() {
             .iter()
             .any(|margin| margin.identity.starts_with("catalog_distribution.v1|"))
     );
-    let error =
-        format!("{:?}", outcome.err().expect("the earlier catalog binding is not accepted"));
+    let error = format!("{:?}", outcome.expect_err("the earlier catalog binding is not accepted"));
     assert!(error.contains("recovery.invalid_derivation: recovery formula check: a leaf's margin binding disagrees with the catalog distribution"), "{error}");
 }
 
@@ -87,7 +89,7 @@ fn an_earlier_recovery_chain_artifact_is_inspectable_and_refused() {
         .expect("the stored wire is still readable");
     assert_eq!(wire.plan.as_ref().expect("a plan").rule_version, "b2.recovery_chain.v1");
     let outcome = RecoveryChainArtifactWire::consume_typed(RECOVERY_CHAIN, &ctx());
-    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
+    let error = format!("{:?}", outcome.expect_err("the earlier rule spelling is not accepted"));
     assert!(error.contains(r#"DecisionMismatch("plan")"#), "{error}");
 }
 
@@ -101,8 +103,8 @@ fn an_earlier_mixed_source_artifact_is_inspectable_and_refused() {
         MixedSourceConsumeLimits::default(),
         &ExecutionContext::for_tests(3),
     );
-    let error = format!("{:?}", outcome.err().expect("the earlier rule spelling is not accepted"));
-    assert!(error.contains(r#"mixed_search.invalid_derivation"#), "{error}");
+    let error = format!("{:?}", outcome.expect_err("the earlier rule spelling is not accepted"));
+    assert!(error.contains("mixed_search.invalid_derivation"), "{error}");
 }
 
 #[test]

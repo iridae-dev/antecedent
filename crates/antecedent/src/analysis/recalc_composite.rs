@@ -527,10 +527,9 @@ fn decision_bounded(contract: &DecisionContract) -> bool {
     }
     for action in &contract.actions {
         if action.id.len() > 256
-            || action
-                .inputs
-                .iter()
-                .any(|q| !super::recalc_external::quantity_bounded(q, &Default::default()))
+            || action.inputs.iter().any(|q| {
+                !super::recalc_external::quantity_bounded(q, &ExternalMetadataLimits::default())
+            })
         {
             return false;
         }

@@ -88,6 +88,10 @@ fn near(got: f64, want: f64, tolerance: f64, label: &str) {
 /// -ln erfc(|y - median| / (1.4826 MAD sqrt 2)) of the planted row, the baseline is the score of the
 /// target rebuilt with every noise set to 0, and the Shapley split of score - baseline is
 /// over the members' players, merged with equal weights.
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn check_anomaly_truth(
     label: &str,
     result: &antecedent::StudyResult,
@@ -116,6 +120,10 @@ fn check_anomaly_truth(
     close(total, score - baseline, &format!("{label}: efficiency"));
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn check_change_truth(
     label: &str,
     result: &antecedent::StudyResult,

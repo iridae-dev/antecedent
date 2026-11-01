@@ -330,6 +330,11 @@ fn field(diagnostic: &antecedent_core::Diagnostic, name: &str) -> f64 {
 /// A class whose completions disagree publishes, atom by atom, the lowest and highest
 /// probability the generator derives for the two completions, with their equal-weight mean.
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn a_cpdag_whose_completions_disagree_publishes_the_enumerated_envelope() {
     let fixture = pin();
     let case = &fixture["class_disagree"];

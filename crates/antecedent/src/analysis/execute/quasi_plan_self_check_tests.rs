@@ -81,8 +81,7 @@ fn panel_did_refuses_a_forged_plan_or_structure_source() {
     let mut explicit = study.clone();
     explicit.structure_source = crate::support::StructureSource::Explicit;
     let error = CheckedPanelDidOperation::checked(&explicit, &data, &physical)
-        .err()
-        .expect("an explicit structure source is refused");
+        .expect_err("an explicit structure source is refused");
     assert!(
         error
             .to_string()

@@ -149,6 +149,10 @@ fn report<'a>(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn derivative_refuter_states_known_truth() {
     let pin = fixture();
     let data = table(false);
@@ -337,6 +341,10 @@ fn graph_without_a_path_to_the_outcome() -> Dag {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_derivative_without_a_directed_path_is_the_exact_structural_zero() {
     let data = table(false);
     let linear = [

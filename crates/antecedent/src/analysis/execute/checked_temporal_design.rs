@@ -1238,10 +1238,12 @@ fn select_pairs(
 /// Apply the table's sampling weights to the retained pairs: a pair carries the weight of its
 /// decision row, a pair of weight zero is removed before scoring (the estimate equals the one on
 /// the table without it), and the weights act through their ratios only.
+type WeightedLaggedPairs = (LaggedPairs, Option<Vec<f64>>, Option<SamplingWeightRecord>);
+
 fn apply_weights(
     data: &TabularData,
     kept: LaggedPairs,
-) -> Result<(LaggedPairs, Option<Vec<f64>>, Option<SamplingWeightRecord>), CausalError> {
+) -> Result<WeightedLaggedPairs, CausalError> {
     let Some(source) = data.storage().weights() else {
         return Ok((kept, None, None));
     };

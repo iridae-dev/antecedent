@@ -295,9 +295,11 @@ impl PolicyRolloutSource for ModelPolicySource {
             let mut ws = MechanismWorkspace::default();
             let path = rollout_temporal(model, &plan, TemporalNoise::Draw(&mut rng), &mut ws, ctx)
                 .map_err(map_model_error)?;
-            let action_node = model.dense_of(self.action).map(|n| n.as_usize()).unwrap_or(0);
-            let outcome_node =
-                model.dense_of(self.utility.outcome).map(|n| n.as_usize()).unwrap_or(0);
+            let action_node =
+                model.dense_of(self.action).map_or(0, antecedent_graph::DenseNodeId::as_usize);
+            let outcome_node = model
+                .dense_of(self.utility.outcome)
+                .map_or(0, antecedent_graph::DenseNodeId::as_usize);
             for row in 0..rows {
                 let mut utility = 0.0;
                 let mut discount = 1.0;

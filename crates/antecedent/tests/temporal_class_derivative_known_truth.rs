@@ -1,5 +1,5 @@
 //! Known-truth evidence for the temporal derivative refuter states on a supplied or accepted
-//! TemporalCpdag and TemporalPag.
+//! `TemporalCpdag` and `TemporalPag`.
 //!
 //! The class of the lagged template has one completion, so the Pulse witness is that completion's.
 //! The series follows the lag-one linear law of
@@ -8,7 +8,7 @@
 //! semi-elasticity, average-derivative, Jacobian and directional-derivative coordinate is built
 //! under both structure routes, both inference modes and both refuter suites, then executed from
 //! the prepared study with the builder dropped. The published value and the unit-step difference of
-//! the identified levels are compared with the fixture's closed-form truth, the TemporalDag
+//! the identified levels are compared with the fixture's closed-form truth, the `TemporalDag`
 //! Pulse-native suite runs on the Pulse witness, and the planted violation the fixture declares (an
 //! evaluation point beyond the observed series) must be detected.
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -225,6 +225,10 @@ fn report<'a>(
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_class_derivative_refuter_states_known_truth() {
     let pin = fixture();
     let data = series();

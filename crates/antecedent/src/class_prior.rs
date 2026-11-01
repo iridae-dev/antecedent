@@ -235,6 +235,10 @@ fn scaled_masses(masses: &[f64]) -> Option<(Vec<f64>, f64)> {
     Some((scaled, sum + compensation))
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the operation accepts owned input as part of its interface"
+)]
 fn normalized(masses: Vec<f64>) -> Result<Vec<f64>, CausalError> {
     let Some((mut scaled, total)) = scaled_masses(&masses) else {
         return Err(non_positive_total());

@@ -275,6 +275,10 @@ fn latent_projection_msep() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn envelope_unidentified_mass() {
     let expected = load_expected_json(&fixture_dir("envelope_unidentified_mass"));
     let mut pag = Pag::with_variables(2);

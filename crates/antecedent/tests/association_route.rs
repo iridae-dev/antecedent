@@ -43,7 +43,7 @@ fn noise(i: usize) -> f64 {
 
 /// Columns x, y with `y = 1 + 2 x + noise` over 120 rows.
 fn line() -> (TabularData, Vec<f64>, Vec<f64>) {
-    let x: Vec<f64> = (0..120).map(|i| (i as f64) / 12.0).collect();
+    let x: Vec<f64> = (0..120).map(|i| (f64::from(i)) / 12.0).collect();
     let y: Vec<f64> = x.iter().enumerate().map(|(i, x)| 1.0 + 2.0 * x + noise(i)).collect();
     (TabularData::from_f64_columns([("x", &x[..]), ("y", &y[..])]).unwrap(), x, y)
 }

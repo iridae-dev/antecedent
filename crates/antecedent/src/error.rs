@@ -182,7 +182,7 @@ pub enum CompileCause {
 }
 
 impl CompileCause {
-    /// The family of the typed error that made the compile refuse, as a stable snake_case
+    /// The family of the typed error that made the compile refuse, as a stable `snake_case`
     /// name (`graph`, `data`, `identification`, ...).
     #[must_use]
     pub const fn kind(&self) -> &'static str {
@@ -474,10 +474,10 @@ impl StageError for ValidationError {
 
     fn classify(self) -> Classified<Self> {
         match self {
-            Self::Estimation(EstimationError::TemporalMaterialization(error))
-            | Self::Estimation(EstimationError::Graph(GraphError::TemporalMaterialization(
-                error,
-            ))) => {
+            Self::Estimation(
+                EstimationError::TemporalMaterialization(error)
+                | EstimationError::Graph(GraphError::TemporalMaterialization(error)),
+            ) => {
                 use antecedent_core::TemporalMaterializationError as T;
                 match error {
                     T::Cancelled
@@ -498,10 +498,10 @@ impl StageError for ValidationError {
             | Self::Discovery(DiscoveryError::Cancelled)
             | Self::Stats(StatsError::Cancelled) => Classified::Cancelled,
             Self::Prob(ProbError::Cancelled { stage })
-            | Self::Estimation(EstimationError::Prob(ProbError::Cancelled { stage }))
-            | Self::Estimation(EstimationError::Learner(LearnError::Probability(
-                ProbError::Cancelled { stage },
-            ))) => Classified::CancelledAt(stage),
+            | Self::Estimation(
+                EstimationError::Prob(ProbError::Cancelled { stage })
+                | EstimationError::Learner(LearnError::Probability(ProbError::Cancelled { stage })),
+            ) => Classified::CancelledAt(stage),
             Self::Stats(StatsError::Admission(error))
             | Self::Estimation(EstimationError::Admission(error))
             | Self::Prob(ProbError::Admission(error)) => match error {
@@ -734,15 +734,16 @@ impl From<EstimationError> for CausalError {
                 antecedent_estimate::adaptive_resample_waves::WaveError::Admission(error),
             )
             | EstimationError::Tile(antecedent_estimate::TileError::Admission(error))
-            | EstimationError::Learner(LearnError::Admission(error))
-            | EstimationError::Learner(LearnError::Stats(StatsError::Admission(error)))
-            | EstimationError::Learner(LearnError::Probability(ProbError::Admission(error))) => {
-                lift_admission(error, STAGE_MODEL)
-            }
+            | EstimationError::Learner(
+                LearnError::Admission(error)
+                | LearnError::Stats(StatsError::Admission(error))
+                | LearnError::Probability(ProbError::Admission(error)),
+            ) => lift_admission(error, STAGE_MODEL),
             EstimationError::Stats(StatsError::Cancelled)
             | EstimationError::Data(DataError::Cancelled)
-            | EstimationError::Learner(LearnError::Cancelled)
-            | EstimationError::Learner(LearnError::Stats(StatsError::Cancelled))
+            | EstimationError::Learner(
+                LearnError::Cancelled | LearnError::Stats(StatsError::Cancelled),
+            )
             | EstimationError::Tile(antecedent_estimate::TileError::Cancelled)
             | EstimationError::Wave(
                 antecedent_estimate::adaptive_resample_waves::WaveError::Cancelled { .. },
@@ -774,14 +775,15 @@ impl From<TemporalIndexError> for CausalError {
 impl From<LearnError> for CausalError {
     fn from(error: LearnError) -> Self {
         match error {
-            LearnError::Cancelled => Self::Cancelled { stage: STAGE_MODEL },
+            LearnError::Cancelled | LearnError::Stats(StatsError::Cancelled) => {
+                Self::Cancelled { stage: STAGE_MODEL }
+            }
             LearnError::Probability(ProbError::Cancelled { stage }) => Self::Cancelled { stage },
             LearnError::Admission(error)
             | LearnError::Stats(StatsError::Admission(error))
             | LearnError::Probability(ProbError::Admission(error)) => {
                 lift_admission(error, STAGE_MODEL)
             }
-            LearnError::Stats(StatsError::Cancelled) => Self::Cancelled { stage: STAGE_MODEL },
             other => Self::rejected(other),
         }
     }
@@ -932,10 +934,10 @@ impl CausalError {
         use antecedent_core::TemporalMaterializationError as T;
         match cause.into() {
             CompileCause::Graph(GraphError::TemporalMaterialization(error))
-            | CompileCause::Estimation(EstimationError::TemporalMaterialization(error))
-            | CompileCause::Estimation(EstimationError::Graph(
-                GraphError::TemporalMaterialization(error),
-            )) if !matches!(&error, T::Policy(_)) => {
+            | CompileCause::Estimation(
+                EstimationError::TemporalMaterialization(error)
+                | EstimationError::Graph(GraphError::TemporalMaterialization(error)),
+            ) if !matches!(&error, T::Policy(_)) => {
                 lift_temporal_materialization(error, STAGE_MODEL)
             }
             cause => Self::Rejected(CompileFailure::from(cause)),

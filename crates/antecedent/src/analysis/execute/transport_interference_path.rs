@@ -577,8 +577,8 @@ pub(super) fn transport_point(
 ///
 /// The independent-row error is the root of the summed squared influence; on one series it is
 /// the Newey-West long-run variance of the influence at the block length, and on declared
-/// clusters the cluster sandwich (sums of the influence inside each cluster, with the `G / (G
-/// - 1)` factor); with sampling weights the influence carries each row's weight.
+/// clusters the cluster sandwich (sums of the influence inside each cluster, with the
+/// `G / (G - 1)` factor); with sampling weights the influence carries each row's weight.
 pub(super) fn frequentist_transport_estimate(
     columns: &TrialColumns<'_>,
     (ipw, dependence): (f64, &TrialDependence),
@@ -716,7 +716,7 @@ impl super::Study {
             }
             (Some(Design::DependentTimeSeries) | None, None) if temporal => Ok(series_default()),
             (Some(Design::DependentTimeSeries), None) => Ok(series_default()),
-            (None, None) | (Some(Design::IndependentSubjectTrajectories), None) => {
+            (None | Some(Design::IndependentSubjectTrajectories), None) => {
                 Ok(TrialDependence::Independent)
             }
             (_, Some(_)) => Err(crate::compile_reason!(

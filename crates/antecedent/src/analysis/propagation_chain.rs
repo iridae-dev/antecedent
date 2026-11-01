@@ -699,6 +699,10 @@ fn dependence_source(
 /// factors; a ledger overlap request without authorizing sources, with a
 /// retired source or with undeclared observations; a table the arithmetic
 /// refuses.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 pub fn family_table(
     alignment: &str,
     estimates: &[FamilyEstimate],

@@ -309,6 +309,10 @@ fn checked_bridge_slot(basis: &CalibrationBasisWire, expected_method: &str) -> C
     live
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn assert_not_attesting(refused: ScientificBridgeRefusal) {
     assert_eq!(refused.code, antecedent_core::reason_code!("cell_not_licensed"));
     assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");

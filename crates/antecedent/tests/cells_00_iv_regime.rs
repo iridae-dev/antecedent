@@ -8,6 +8,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use antecedent::{CausalError, IdentifierId, RefuteSuite, Study, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::{TableView, TabularData};

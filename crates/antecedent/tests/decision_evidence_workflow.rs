@@ -333,6 +333,10 @@ fn centered_adjustment_and_arm_spillover_compose_for_a_nonlinear_decision() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn matched_pairs_preserve_arm_dependence_and_improve_precision() {
     let pairs = 40;
     let design = compile_matched_pair_design(MatchedPairDesign {
@@ -530,6 +534,10 @@ fn proxy_bridge_requires_a_scoped_effect_assumption_and_retains_lineage() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn switchback_uses_independent_sequences_and_preserves_period_identity() {
     let nseq = 40;
     let periods = 4;
@@ -649,6 +657,11 @@ fn switchback_uses_independent_sequences_and_preserves_period_identity() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn joint_lagged_excursion_reuses_existing_scores_and_keeps_estimand_scope() {
     use antecedent_estimate::temporal_design::contrasts::two_arm_scores;
     use antecedent_estimate::temporal_design::{
@@ -877,6 +890,10 @@ fn joint_lagged_excursion_reuses_existing_scores_and_keeps_estimand_scope() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn observational_whole_regime_reuses_gformula_and_keeps_missing_joint_uncertainty() {
     use antecedent_estimate::temporal_design::{
         dense_labels,
@@ -1067,6 +1084,12 @@ fn observational_whole_regime_reuses_gformula_and_keeps_missing_joint_uncertaint
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::items_after_statements,
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn joint_excursion_matches_independent_rational_oracle() {
     let units = 32;
     let periods = 4;
@@ -1289,6 +1312,10 @@ fn compiled_cluster_matches_existing_estimator_and_retains_source() {
 }
 
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn static_regime_bootstrap_refits_outcomes_with_the_same_subject_weights() {
     let n = 120;
     let assigned: Vec<bool> = (0..n).map(|i| i % 2 == 0).collect();
@@ -1387,6 +1414,10 @@ fn static_regime_bootstrap_refits_outcomes_with_the_same_subject_weights() {
 }
 
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn regime_bootstrap_does_not_drop_unsupported_refits() {
     let design = compile_joint_static_regime(JointStaticRegimeDesign {
         unit_ids: vec!["a".into(), "b".into()],

@@ -655,6 +655,12 @@ impl super::Study {
         plan.execute(data, ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(super) fn execute_anomaly(
         &self,
         data: &TabularData,
@@ -806,8 +812,13 @@ impl super::Study {
     ) -> Result<Option<AttributionRows>, CausalError> {
         use crate::analysis::missing_data::{self, MissingRoute};
         use antecedent_data::{MissingPolicy, RowAccounting, complete_rows, first_missing_cell};
-        let variables: Vec<VariableId> =
-            (0..graph.node_count()).map(|node| VariableId::from_raw(node as u32)).collect();
+        let variables: Vec<VariableId> = (0..graph.node_count())
+            .map(|node| {
+                u32::try_from(node).map(VariableId::from_raw).map_err(|_| CausalError::Resource {
+                    message: "attribution graph variable count overflow".into(),
+                })
+            })
+            .collect::<Result<_, _>>()?;
         for &variable in &variables {
             if !matches!(data.column(variable)?, antecedent_data::ColumnView::Float64(_)) {
                 return Err(crate::compile_reason!(

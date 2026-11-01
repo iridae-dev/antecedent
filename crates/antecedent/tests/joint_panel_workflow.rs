@@ -211,7 +211,7 @@ fn exercise_reference_decomposition(
 fn static_full_procedure_bootstrap_decomposition_executes_and_replays_publicly() {
     use antecedent::analysis::joint_panel::{JointPanelFunctional, joint_panel_target};
     use antecedent_core::{InferenceSelection, ScientificWorldId};
-    let ctx = cached_context(20261024);
+    let ctx = cached_context(20_261_024);
     let data = fixture::source_static();
     let mut request =
         fixture::request(&data, false, PanelInference::FrequentistBootstrap { draws: 3 });
@@ -653,6 +653,10 @@ fn terminal_decomposition(
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn flagship_mechanism_explanation_is_complete_under_a_supported_design_and_names_the_next_design_otherwise()
  {
     use antecedent::analysis::joint_panel::{
@@ -1252,6 +1256,10 @@ fn broader_families_inherit_the_randomized_design_claim_and_leave_confounded_pan
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn temporal_panel_fits_a_broader_family_through_the_same_selection_procedure() {
     use antecedent_estimate::joint_panel::{
         PanelOptimizerOptions,

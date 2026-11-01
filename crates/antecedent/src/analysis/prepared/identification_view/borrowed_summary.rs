@@ -1,5 +1,7 @@
 //! Heap-free summary projection for explicit streamed proof materialization.
-use super::*;
+use super::{
+    Arc, IdentificationCache, IdentificationLayer, Node, PreparedIdentificationView, PreparedStudy,
+};
 use serde::{
     Serialize, Serializer,
     ser::{SerializeMap, SerializeStruct},
@@ -65,7 +67,7 @@ impl<'a> From<&'a str> for EntryValue<'a> {
         Self::Text(v)
     }
 }
-impl<'a> From<Arc<str>> for EntryValue<'a> {
+impl From<Arc<str>> for EntryValue<'_> {
     fn from(v: Arc<str>) -> Self {
         Self::Shared(v)
     }
@@ -149,6 +151,10 @@ impl<'a> BorrowedSummary<'a> {
     pub(super) fn new(view: &PreparedIdentificationView<'a>) -> Self {
         Self(PreparedIdentificationView { study: view.study, node: view.node })
     }
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the borrowed projection enumerates each retained identification node"
+    )]
     fn fields(&self) -> Fields<'a> {
         let view = &self.0;
         let study = view.study;
@@ -209,7 +215,7 @@ impl<'a> BorrowedSummary<'a> {
                     IdentificationLayer::NonGraphical(proof) => {
                         fields.put("non_graphical", proof.as_str())
                     }
-                    _ => {}
+                    IdentificationLayer::Retained(_) => {}
                 }
             }
             Node::Cache(cache) => match cache {

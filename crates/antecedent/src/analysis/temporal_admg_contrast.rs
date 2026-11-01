@@ -570,6 +570,10 @@ pub(crate) fn window_table(
     clippy::trivially_copy_pass_by_ref,
     reason = "the policy is passed by reference as every kernel-policy consumer takes it"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 pub(crate) fn window_table_over(
     series: &TimeSeriesData,
     variables: &[VariableId],

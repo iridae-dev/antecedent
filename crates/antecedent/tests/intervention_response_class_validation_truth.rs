@@ -239,6 +239,10 @@ impl Class {
     }
 }
 
+#[allow(
+    clippy::match_same_arms,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn level_query(class: Class) -> CausalQuery {
     let (outcome, treatment) = match class {
         Class::Cpdag => (2, 1),
@@ -288,6 +292,10 @@ fn run(class: Class, accepted: bool, inference: &InferenceMode, suite: RefuteSui
 
 /// Every level the response publishes: a point, the ends of an identified set, or the levels of
 /// the completions a graph-dependent result keeps apart.
+#[allow(
+    clippy::match_wildcard_for_single_variants,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn levels(result: &StudyResult) -> Vec<f64> {
     fn of(value: &ResponseValue) -> Vec<f64> {
         match value {

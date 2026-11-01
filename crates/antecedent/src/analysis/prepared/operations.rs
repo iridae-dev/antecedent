@@ -971,6 +971,10 @@ impl CheckedAipwOperation {
 
     /// Execute the retained procedure with optional progressive boundaries, using the same
     /// final diagnostics, certificate and provenance as an unobserved checked execution.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the retained execution keeps progressive observations and final evidence together"
+    )]
     pub(super) fn execute_observed(
         &self,
         data: &TabularData,

@@ -708,6 +708,10 @@ fn a_weighted_sustained_window_is_weighted_least_squares_on_its_lag_windows() {
 /// changes nothing, unit weights are the unweighted fit, and the weights move the value (the
 /// declared population is not the sample).
 #[test]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_weighted_multi_step_window_is_row_replication_rescale_invariant_and_unit_weights_are_unweighted()
  {
     let n = 300;

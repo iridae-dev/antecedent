@@ -116,6 +116,10 @@ fn check_source(
 ///
 /// # Errors
 /// Mismatched source, target, likelihood declaration, evidence, data, bridge, or execution policy.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves the declared boundary and identity semantics"
+)]
 pub fn condition_panel_on_compiled_excursion(
     panel: &JointPanelResult,
     excursion: CompiledExcursionEvidence,

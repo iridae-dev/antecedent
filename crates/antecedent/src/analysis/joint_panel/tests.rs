@@ -952,6 +952,7 @@ fn reference_decomposition_inherits_exact_hybrid_proofs_and_refuses_unearned_tra
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the replay fixture preserves the exact same calculation")]
 fn design_adaptive_reference_executes_identified_steps_and_names_the_design_for_the_rest() {
     use super::explanation::{
         ChangeComponent, DecompositionEndpoint, MechanismPeriodMap, PanelDecompositionRequest,
@@ -1389,6 +1390,11 @@ fn panel_source_refuses_weights_masks_and_missing_cells_with_typed_errors() {
     assert!(matches!(prepare_declared(season, |_| {}), Err(JointPanelError::Compile(_))));
 }
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the fixture contains only bounded nonnegative category codes"
+)]
 fn panel_source_refuses_a_categorical_channel_instead_of_coding_it() {
     use antecedent_core::{CategoryDomainId, CausalSchemaBuilder, MeasurementSpec};
     use antecedent_core::{SmallRoleSet, ValueType};

@@ -253,7 +253,7 @@ fn one_shot_run_identifies_once_per_family() {
     // posterior builders report their own). Every executor then takes the prepared
     // cache, the product the plan retained, or only then a fresh identification,
     // which reports too: a one-shot run that identified twice reports two.
-    for (family, study) in [
+    for (family, study) in vec![
         ("graph posterior", graph_posterior_study()),
         ("static effect", static_effect_study()),
         ("class effect", class_effect_study()),
@@ -262,7 +262,9 @@ fn one_shot_run_identifies_once_per_family() {
         ("temporal class", temporal_class_study()),
         ("structural", structural_study()),
         ("design", design_study()),
-    ] {
+    ]
+    .into_boxed_slice()
+    {
         let (ctx, sink) = recording_ctx(7);
         let result = study.run(&ctx).unwrap_or_else(|error| panic!("{family}: {error}"));
         assert_eq!(identify_computations(&sink), 1, "{family}: a one-shot run identifies once");

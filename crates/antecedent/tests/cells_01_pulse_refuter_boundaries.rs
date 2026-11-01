@@ -7,6 +7,8 @@
 //! refused as not float64; a constant treatment or an adjustment column that is an exact affine
 //! copy of another leaves the design rank deficient and is refused under both refuter suites; a
 //! constant outcome has effect zero to rounding, and the e-value refuter then does not pass.
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use antecedent::{RefuteSuite, Study};
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ExecutionContext, Lag, TemporalEffectQuery, VariableId,
@@ -138,7 +140,8 @@ fn categorical_series(y: &[f64]) -> TimeSeriesData {
             MeasurementSpec::default(),
         )
         .unwrap();
-    let codes: Vec<CategoryCode> = (0..N).map(|i| CategoryCode::from_raw((i % 3) as u32)).collect();
+    let codes: Vec<CategoryCode> =
+        (0..N).map(|i| CategoryCode::from_raw(u32::try_from(i % 3).unwrap())).collect();
     let columns = vec![
         OwnedColumn::Categorical(
             CategoricalColumn::try_new(v(0), codes, ValidityBitmap::all_valid(N), Arc::new(domain))

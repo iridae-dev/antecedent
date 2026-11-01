@@ -225,6 +225,7 @@ fn pairs<'a>(graph: &'a Value, key: &str) -> impl Iterator<Item = (u64, u64)> + 
         .map(|edge| (edge[0].as_u64().unwrap(), edge[1].as_u64().unwrap()))
 }
 
+#[allow(clippy::too_many_lines, reason = "the fixture covers each native graph representation")]
 fn structure_of(case: &Case<'_>) -> Structure {
     let graph = &case.value["graph"];
     let count = || u32::try_from(graph["nodes"].as_u64().unwrap()).unwrap();
@@ -271,10 +272,18 @@ fn structure_of(case: &Case<'_>) -> Structure {
                 })
                 .collect();
             for (a, b) in pairs(graph, "directed") {
-                g.insert_directed(ids[a as usize], ids[b as usize]).unwrap();
+                g.insert_directed(
+                    ids[usize::try_from(a).unwrap()],
+                    ids[usize::try_from(b).unwrap()],
+                )
+                .unwrap();
             }
             for (a, b) in pairs(graph, "undirected") {
-                g.insert_undirected(ids[a as usize], ids[b as usize]).unwrap();
+                g.insert_undirected(
+                    ids[usize::try_from(a).unwrap()],
+                    ids[usize::try_from(b).unwrap()],
+                )
+                .unwrap();
             }
             Structure::TemporalCpdag(g)
         }
@@ -293,10 +302,18 @@ fn structure_of(case: &Case<'_>) -> Structure {
                 })
                 .collect();
             for (a, b) in pairs(graph, "directed") {
-                g.insert_directed(ids[a as usize], ids[b as usize]).unwrap();
+                g.insert_directed(
+                    ids[usize::try_from(a).unwrap()],
+                    ids[usize::try_from(b).unwrap()],
+                )
+                .unwrap();
             }
             for (a, b) in pairs(graph, "bidirected") {
-                g.insert_bidirected(ids[a as usize], ids[b as usize]).unwrap();
+                g.insert_bidirected(
+                    ids[usize::try_from(a).unwrap()],
+                    ids[usize::try_from(b).unwrap()],
+                )
+                .unwrap();
             }
             Structure::TemporalAdmg(g)
         }
@@ -386,6 +403,10 @@ fn try_study_of(
 
 /// The graph posterior of a case: its atoms with their probabilities, and a mask that is no
 /// structure of the posterior's kind as the last atom where the case declares outside mass.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific fixture keeps its complete reference procedure together"
+)]
 fn posterior_of(case: &Case<'_>) -> GraphPosterior {
     let spec = &case.value["posterior"];
     let n = u32::try_from(case.columns().len()).unwrap() as usize;
@@ -753,6 +774,10 @@ fn verify_change(case: &Case<'_>, result: &StudyResult) {
 }
 
 /// The completion envelope, the identified set and the masses of a class.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific fixture keeps its complete reference procedure together"
+)]
 fn verify_mixture(case: &Case<'_>, result: &StudyResult) {
     let merged = case.merged();
     let members = case.members();
@@ -1195,6 +1220,10 @@ struct Family {
     posterior: bool,
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific fixture keeps its complete reference procedure together"
+)]
 fn families() -> Vec<Family> {
     use serde_json::json;
     let family = |name, table, target, series, structure: Value, posterior| Family {

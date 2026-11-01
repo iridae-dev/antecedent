@@ -230,6 +230,10 @@ fn a_single_series_gets_block_bootstrap_placebo_timing_and_a_lagged_placebo() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_gathered_block_bootstrap_carries_the_sampling_weights_of_a_weighted_series() {
     let plain = series(600, 5, 0.0);
     // Sampling weights that favour the second half: the weighted target differs from the
@@ -257,6 +261,10 @@ fn a_gathered_block_bootstrap_carries_the_sampling_weights_of_a_weighted_series(
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn independent_environments_are_perturbed_one_by_one_and_refit_together() {
     let environments = antecedent_data::MultiEnvironmentData::try_new(vec![
         series(400, 41, 0.0),

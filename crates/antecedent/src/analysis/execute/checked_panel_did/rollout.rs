@@ -495,7 +495,7 @@ mod posterior_sd_tests {
         let wrong_point_centered = ((1.0 - point).powi(2) + (3.0 - point).powi(2)).sqrt();
         assert!((rollout_draw_sd(&[1.0, 3.0]) - wrong_point_centered).abs() > 100.0);
         assert!((rollout_draw_sd(&[101.0, 103.0]) - expected).abs() < 1e-12);
-        assert_eq!(rollout_draw_sd(&[4.0, 4.0]), 0.0);
+        assert_eq!(rollout_draw_sd(&[4.0, 4.0]).to_bits(), 0.0_f64.to_bits());
         for invalid in [&[][..], &[1.0][..], &[1.0, f64::NAN][..], &[1.0, f64::INFINITY][..]] {
             assert!(rollout_draw_sd(invalid).is_nan());
         }

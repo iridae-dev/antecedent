@@ -288,6 +288,10 @@ fn labelled(prefix: &str, values: &[f64]) -> (Vec<Arc<str>>, Vec<f64>) {
     clippy::type_complexity,
     reason = "the public signature returns the family, labels and values as one tuple"
 )]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the target-specific branches preserve a single checked operation"
+)]
 pub fn result_target_values(
     result: &StudyResult,
 ) -> Result<(TargetFamily, Vec<Arc<str>>, Vec<f64>), CausalError> {
@@ -514,6 +518,10 @@ fn same_temporal_point_layout(
     }
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the target-specific branches preserve a single checked operation"
+)]
 fn check_temporal_response_contributors(
     original: &StudyResult,
     refitted: &StudyResult,
@@ -743,6 +751,10 @@ pub(crate) fn reset_pooled_refutations(result: &mut StudyResult) {
 // This is an in-process owner state, never reconstructed from serialized fields.
 // The result view invalidates it before giving a mutable reference to public
 // target/identification/report state; no recursive caller-owned query is hashed.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "issuance callers use a shared fallible sealing interface"
+)]
 pub(super) fn seal_runtime_refutations(
     result: &mut StudyResult,
     origin: crate::result::RuntimeRefutationOrigin,
@@ -1526,6 +1538,10 @@ pub fn refute_prepared_target(
 
 // Run a scoped member's actual level target through full-program refits. The
 // selector comes from the point-time witness retained by this same operation.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the checked refit binds its member, data and execution context"
+)]
 pub(super) fn refute_temporal_response_member(
     prepared: &PreparedStudy,
     result: &StudyResult,
@@ -1746,6 +1762,10 @@ fn input_digest(
     })
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the target-specific branches preserve a single checked operation"
+)]
 pub(crate) fn executed_input_identity(
     data: &DataInput,
     ctx: &ExecutionContext,
@@ -3369,6 +3389,10 @@ impl PreparedRefit<'_> {
     /// them, and a gathered circular-block resample of that window for replicates after the
     /// first. This is what the weighted construction means for a route that reads no row
     /// weights; `None` for any other perturbation.
+    #[allow(
+        clippy::type_complexity,
+        reason = "the returned series retains its provenance and row selection"
+    )]
     fn materialised_window(
         &self,
         series: &TimeSeriesData,
@@ -3643,6 +3667,10 @@ impl PreparedRefit<'_> {
         }
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the target-specific branches preserve a single checked operation"
+    )]
     fn series_refit(
         &self,
         series: &TimeSeriesData,
@@ -5161,6 +5189,10 @@ mod temporal_contributor_order_tests {
             .unwrap()
     }
 
+    #[allow(
+        clippy::used_underscore_binding,
+        reason = "the copied member must retain its graph admission leases"
+    )]
     fn copied_member(
         m: &crate::result::TemporalPosteriorWitnessMember,
     ) -> crate::result::TemporalPosteriorWitnessMember {

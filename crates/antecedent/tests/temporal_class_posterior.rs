@@ -122,7 +122,7 @@ fn series_lagged_coefficient(adjust_z: bool) -> f64 {
 }
 
 /// The at-0 forms for both kinds, plus the explicit `t@-1` pulse where the class carries no
-/// visibility witness requirement (a TemporalPag atom needs one the single-mask posterior lacks).
+/// visibility witness requirement (a `TemporalPag` atom needs one the single-mask posterior lacks).
 fn queries_for(kind: GraphPosteriorAtomKind) -> Vec<TemporalEffectQuery> {
     let mut queries = vec![pulse(), sustained()];
     if kind == GraphPosteriorAtomKind::Cpdag {
@@ -594,7 +594,7 @@ fn temporal_class_graph_posterior_same_estimand_scalar() {
     assert_same_estimand_scalar();
 }
 
-/// y_t = 1.4 t_{t-1} + 0.1 sin(1.7 phase), z a distractor: the graph t@-1 -> y has no omitted
+/// `y_t` = 1.4 t_{t-1} + 0.1 sin(1.7 phase), z a distractor: the graph t@-1 -> y has no omitted
 /// parent, so the structural coefficient is the effect.
 fn pag_pin_series() -> TimeSeriesData {
     let n = 48usize;
@@ -1251,7 +1251,7 @@ fn temporal_class_level_does_not_accept_scalar_custom_validator() {
     };
     struct ScalarOnly;
     impl CustomEffectValidator for ScalarOnly {
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "scalar_only"
         }
         fn validate(

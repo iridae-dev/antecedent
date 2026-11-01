@@ -123,7 +123,7 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
         let (graph, data) = (&graphs[index], &all_data[index]);
         let query = query(multi_step);
         let builder = Study::series(data.clone())
-            .graph(structure(&graph, source == "accepted"))
+            .graph(structure(graph, source == "accepted"))
             .query(CausalQuery::TemporalEffect(query.clone()))
             .inference(inference())
             .refute(suite)
@@ -138,7 +138,7 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
             panic!("Bayesian class effect must retain its complete execution plan")
         };
         assert_eq!(plan.query, query);
-        assert_eq!(plan.graph_class.as_str(), graph_class(&graph));
+        assert_eq!(plan.graph_class.as_str(), graph_class(graph));
         assert_eq!(plan.identifier.as_str(), "generalized.adjustment");
         assert_eq!(
             plan.estimator.as_str(),
@@ -158,13 +158,13 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
             RetainedOperation::TemporalClassEffect(..)
         ));
 
-        let result = prepared.estimate_series(&data, &ctx).unwrap();
+        let result = prepared.estimate_series(data, &ctx).unwrap();
         let (lower, upper) = envelope_bounds(&result);
-        let true_effect = truth(&graph, multi_step);
+        let true_effect = truth(graph, multi_step);
         assert!(
             lower - 0.1 <= true_effect && true_effect <= upper + 0.1,
             "class={}, source={source}, multi_step={multi_step}, suite={suite:?}, truth {true_effect} outside [{lower}, {upper}]",
-            graph_class(&graph),
+            graph_class(graph),
         );
         if matches!(graph, SourceGraph::Cpdag(_)) {
             // The two completions are the adjusted law (truth B1) and the unadjusted one, whose
@@ -192,7 +192,7 @@ fn all_bayesian_temporal_class_effect_coordinates_execute_from_retained_source_p
         );
         assert!(one_shot.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
 
-        let refreshed = prepared.refresh_series(series(&graph, 978), &ctx).unwrap();
+        let refreshed = prepared.refresh_series(series(graph, 978), &ctx).unwrap();
         let (refreshed_lower, refreshed_upper) = envelope_bounds(&refreshed);
         assert!(refreshed_lower - 0.1 <= true_effect && true_effect <= refreshed_upper + 0.1);
         let RetainedOperation::BayesianTemporalClassEffect(retained) =

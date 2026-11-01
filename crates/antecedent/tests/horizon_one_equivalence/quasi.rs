@@ -58,6 +58,10 @@ fn ratio_query(
 /// published uncertainty is formed: a within-side moving-block bootstrap refits the whole ratio,
 /// so the block standard error is a different object from the HC0 one.
 #[test]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn horizon_one_time_discontinuity_local_ratio_matches_the_static_fit_with_block_uncertainty() {
     let (time, treated, outcome) = time_discontinuity();
     let data = table(&[("time", &time), ("treatment", &treated), ("outcome", &outcome)]);

@@ -328,6 +328,27 @@ impl PreparedStudy {
     }
 }
 
+impl super::batch::PreparedBatch {
+    /// Automatically collected member reports in declared query order.
+    #[must_use]
+    pub fn data_diagnostics(&self) -> Vec<Option<&DataDiagnosticsReport>> {
+        self.plans().iter().map(PreparedStudy::data_diagnostics).collect()
+    }
+
+    /// Explicit fit-free member evaluation with compatible table profiles shared.
+    ///
+    /// # Errors
+    /// Invalid policy, storage access, resource admission or cancellation.
+    pub fn diagnose_data(
+        &self,
+        policy: &DataDiagnostics,
+        ctx: &ExecutionContext,
+    ) -> Result<Vec<DataDiagnosticsReport>, CausalError> {
+        let _profiles = batch_profiles();
+        self.plans().iter().map(|plan| plan.diagnose_data(policy, ctx)).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,26 +408,5 @@ mod tests {
             });
         }
         BATCH_PROFILES.with(|slot| assert!(slot.borrow().is_none()));
-    }
-}
-
-impl super::batch::PreparedBatch {
-    /// Automatically collected member reports in declared query order.
-    #[must_use]
-    pub fn data_diagnostics(&self) -> Vec<Option<&DataDiagnosticsReport>> {
-        self.plans().iter().map(PreparedStudy::data_diagnostics).collect()
-    }
-
-    /// Explicit fit-free member evaluation with compatible table profiles shared.
-    ///
-    /// # Errors
-    /// Invalid policy, storage access, resource admission or cancellation.
-    pub fn diagnose_data(
-        &self,
-        policy: &DataDiagnostics,
-        ctx: &ExecutionContext,
-    ) -> Result<Vec<DataDiagnosticsReport>, CausalError> {
-        let _profiles = batch_profiles();
-        self.plans().iter().map(|plan| plan.diagnose_data(policy, ctx)).collect()
     }
 }

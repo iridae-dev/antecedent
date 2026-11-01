@@ -71,6 +71,10 @@ fn zxy() -> TabularData {
 
 /// Least squares by the normal equations and Gauss-Jordan elimination with partial pivoting,
 /// independent of the product's solver: the coefficients of `y` on an intercept and `columns`.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn ols(columns: &[&[f64]], y: &[f64]) -> Vec<f64> {
     let p = columns.len() + 1;
     let column = |j: usize, i: usize| if j == 0 { 1.0 } else { columns[j - 1][i] };
@@ -330,6 +334,10 @@ fn a_hedge_returns_the_refusal_the_description_and_a_ranked_plan_over_declared_s
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_successful_causal_query_returns_the_ordinary_result_and_never_a_fallback() {
     let x: Vec<f64> = (0..120).map(|i| f64::from(u8::from(noise(i) > 0.0))).collect();
     let y: Vec<f64> = (0..120).map(|i| 1.0 + 2.0 * x[i] + noise(i + 40)).collect();

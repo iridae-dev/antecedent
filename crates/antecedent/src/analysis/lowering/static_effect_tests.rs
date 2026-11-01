@@ -794,7 +794,7 @@ fn static_cross_world_cells_retain_execute_refresh_and_export_their_own_family()
             "PathSpecificCpdag" => 0.3,
             "CounterfactualClass" => 0.18,
             "PathSpecificMixed" => 0.14625,
-            "PathSpecificPag" => 0.140625,
+            "PathSpecificPag" => 0.140_625,
             other => panic!("no hand value for {other}"),
         };
         assert!((first.effect() - hand).abs() < 1e-12, "{name}: {} vs {hand}", first.effect());

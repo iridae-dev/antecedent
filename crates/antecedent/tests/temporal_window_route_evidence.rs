@@ -221,6 +221,10 @@ fn the_fixture_enumerates_distinct_pulse_and_sustained_truths_and_a_bow_that_is_
 // ---------------------------------------------------------------------------
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_contrasts_match_the_enumerated_truth_on_both_inferences() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = contrast_series();
@@ -277,6 +281,10 @@ fn temporal_admg_window_contrasts_match_the_enumerated_truth_on_both_inferences(
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = contrast_series();
@@ -311,6 +319,10 @@ fn temporal_admg_window_contrasts_run_from_the_retained_plan_without_the_builder
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_contrasts_refuse_a_hedge_and_a_modifier_the_treatment_reaches() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = contrast_series();
@@ -346,6 +358,10 @@ fn temporal_admg_window_contrasts_refuse_a_hedge_and_a_modifier_the_treatment_re
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_validation_reports_the_known_refits_and_detects_a_planted_break() {
     let _inferences = ("Frequentist", "Bayesian");
     let clean = contrast_series();
@@ -533,6 +549,10 @@ fn posterior_study(
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_posterior_mixes_by_posterior_weight_and_accounts_for_unidentified_mass() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = contrast_series();
@@ -595,6 +615,10 @@ fn temporal_admg_window_posterior_mixes_by_posterior_weight_and_accounts_for_uni
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builder() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = contrast_series();
@@ -628,6 +652,10 @@ fn temporal_admg_window_posterior_runs_from_the_retained_plan_without_the_builde
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_posterior_validation_mixes_the_per_atom_window_suite() {
     let _inferences = ("Frequentist", "Bayesian");
     let clean = contrast_series();
@@ -798,6 +826,10 @@ fn mediation_study(
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_mediation_matches_the_enumerated_decomposition_on_both_inferences() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -850,6 +882,10 @@ fn temporal_admg_window_mediation_matches_the_enumerated_decomposition_on_both_i
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_mediation_runs_from_the_retained_plan_without_the_builder() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -880,6 +916,10 @@ fn temporal_admg_window_mediation_runs_from_the_retained_plan_without_the_builde
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_mediation_refuses_a_recanting_district() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -934,6 +974,10 @@ fn assert_mediation_suite(result: &StudyResult, suite: RefuteSuite) {
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_mediation_validation_runs_the_mediation_suite_on_the_window_table() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -1024,6 +1068,10 @@ fn mediation_posterior() -> GraphPosterior {
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_mediation_posterior_mixes_each_component_over_the_atoms_that_identify_it() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -1108,6 +1156,10 @@ fn temporal_admg_window_mediation_posterior_mixes_each_component_over_the_atoms_
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_admg_window_mediation_posterior_validation_mixes_the_per_atom_reports() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -1235,6 +1287,10 @@ fn pag_study(
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_pag_window_mediation_brackets_the_enumerated_decomposition_on_both_inferences() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -1270,6 +1326,10 @@ fn temporal_pag_window_mediation_brackets_the_enumerated_decomposition_on_both_i
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_pag_window_mediation_runs_from_the_retained_plan_without_the_builder() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -1301,6 +1361,10 @@ fn temporal_pag_window_mediation_runs_from_the_retained_plan_without_the_builder
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_pag_window_mediation_refuses_a_treatment_with_only_invisible_edges() {
     let _inferences = ("Frequentist", "Bayesian");
     let data = mediation_series();
@@ -1319,6 +1383,10 @@ fn temporal_pag_window_mediation_refuses_a_treatment_with_only_invisible_edges()
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_identify() {
     let _graph_class = "TemporalPag";
     let _inferences = ("Frequentist", "Bayesian");
@@ -1370,7 +1438,7 @@ fn temporal_pag_window_mediation_posterior_accounts_for_the_atom_it_cannot_ident
     assert!(statuses.iter().all(|status| *status == Some(CellStatus::Licensed)), "{statuses:?}");
 }
 
-/// Two TemporalPag atoms: the template whose edges are visible (weight 0.7) and the template
+/// Two `TemporalPag` atoms: the template whose edges are visible (weight 0.7) and the template
 /// with nothing into the treatment (weight 0.3, not identified).
 fn pag_posterior() -> GraphPosterior {
     let n_vars = 5;
@@ -1424,6 +1492,10 @@ fn mediator_detached_series(shift: usize) -> TimeSeriesData {
 }
 
 #[test]
+#[allow(
+    clippy::no_effect_underscore_binding,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_member() {
     let _inferences = ("Frequentist", "Bayesian");
     let _graph_class = "TemporalPag";

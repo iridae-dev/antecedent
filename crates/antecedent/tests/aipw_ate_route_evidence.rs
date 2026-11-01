@@ -2,6 +2,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use antecedent::analysis::RetainedOperation;
 use antecedent::{AcceptedGraph, EstimatorId, RefuteSuite, StructureSource, Study};
 use antecedent_contract::SlotAvailability;
@@ -87,6 +89,10 @@ fn aipw_reference(data: &impl TableView, clip: f64) -> f64 {
     total / n as f64
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixture verifies the complete evidence lifecycle for one coordinate"
+)]
 fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     let ctx = ExecutionContext::for_tests(73);
     let (data, dag, query) = confounded_scm(512, 73);
@@ -197,7 +203,7 @@ fn verify_aipw_coordinate(coordinate: &str, accepted: bool, validation: &str) {
     } else {
         assert!(!consumed.acceptance.accepts_as_verified_program(), "{coordinate}");
         assert_eq!(
-            consumed.acceptance.unresolved.iter().map(|r| r.as_ref()).collect::<Vec<&str>>(),
+            consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
             ["dependencies.refutation_replay"],
             "{coordinate}"
         );
@@ -281,7 +287,7 @@ fn dag_explicit_frequentist_trimmed_aipw_lifecycle() {
     // artifact cannot discharge; the checked lowering itself leaves nothing else unresolved.
     assert!(!consumed.acceptance.accepts_as_verified_program());
     assert_eq!(
-        consumed.acceptance.unresolved.iter().map(|r| r.as_ref()).collect::<Vec<&str>>(),
+        consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["dependencies.refutation_replay"]
     );
     assert!(

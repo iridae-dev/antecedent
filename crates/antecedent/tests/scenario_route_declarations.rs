@@ -269,8 +269,11 @@ fn the_sharp_discontinuity_recovers_the_jump_and_refuses_a_declared_dependence_w
 #[test]
 fn the_sharp_discontinuity_refuses_observation_weights_instead_of_answering_unweighted() {
     assert!(sharp_weighted(0, None, None).is_ok());
-    for weights in [(0..600).map(|i| 1.0 + (i % 4) as f64).collect::<Vec<_>>(), vec![1.0; 600]] {
-        let error = sharp_weighted(0, None, Some(weights)).err().expect("weights were ignored");
+    for weights in [
+        (0..600).map(|i| 1.0 + f64::from(u32::try_from(i % 4).unwrap())).collect::<Vec<_>>(),
+        vec![1.0; 600],
+    ] {
+        let error = sharp_weighted(0, None, Some(weights)).expect_err("weights were ignored");
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
         let text = error.to_string();
         assert!(text.contains("sampling_weights.route_unsupported"), "{text}");
@@ -287,7 +290,8 @@ fn survival(
     design: Option<DeclaredSamplingDesign>,
 ) -> Result<StudyResult, CausalError> {
     // 60 subjects per arm with the same durations and events in both arms.
-    let base_duration: Vec<f64> = (0..60).map(|i| 1.0 + ((i * 7) % 11) as f64 / 3.0).collect();
+    let base_duration: Vec<f64> =
+        (0..60).map(|i| 1.0 + f64::from(u32::try_from((i * 7) % 11).unwrap()) / 3.0).collect();
     let base_event: Vec<f64> = (0..60).map(|i| f64::from(u8::from(i % 4 != 0))).collect();
     let (mut duration, mut event, mut treatment) = (vec![], vec![], vec![]);
     for arm in [0.0, 1.0] {
@@ -429,10 +433,13 @@ fn the_policy_value_matches_its_hand_score_and_refuses_weights_and_declared_depe
         );
     }
     // Observation weights on the table: uneven, and the constant one.
-    for weights in
-        [(0..POLICY_ROWS).map(|i| 1.0 + (i % 4) as f64).collect::<Vec<_>>(), vec![1.0; POLICY_ROWS]]
-    {
-        let error = policy_study(Some(weights), None).0.err().expect("weights were ignored");
+    for weights in [
+        (0..POLICY_ROWS)
+            .map(|i| 1.0 + f64::from(u32::try_from(i % 4).unwrap()))
+            .collect::<Vec<_>>(),
+        vec![1.0; POLICY_ROWS],
+    ] {
+        let error = policy_study(Some(weights), None).0.expect_err("weights were ignored");
         assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
         let text = error.to_string();
         assert!(text.contains("sampling_weights.route_unsupported"), "{text}");
@@ -504,8 +511,7 @@ fn a_three_level_treatment_is_refused_by_the_conditional_effect_instead_of_read_
     let two = conditional_levels(2).unwrap();
     assert!((two.estimate().as_effect().unwrap().ate - 1.0).abs() < 1e-9);
     let error = conditional_levels(3)
-        .err()
-        .expect("a three-level treatment was read as a dose (slope 2 against a contrast of 1)");
+        .expect_err("a three-level treatment was read as a dose (slope 2 against a contrast of 1)");
     assert_eq!(error.reason_code(), Some("treatment_level_undeclared"), "{error}");
     let text = error.to_string();
     assert!(
@@ -632,8 +638,9 @@ fn a_continuous_dose_route_refuses_declared_dependence_and_missing_values_instea
 #[test]
 fn a_randomized_survival_contrast_refuses_a_three_level_treatment_instead_of_reading_a_dose() {
     let n = 90usize;
-    let duration: Vec<f64> =
-        (0..n).map(|i| 1.0 + ((i * 7) % 11) as f64 / 3.0 + (i % 3) as f64 * 0.2).collect();
+    let duration: Vec<f64> = (0..n)
+        .map(|i| 1.0 + f64::from(u32::try_from((i * 7) % 11).unwrap()) / 3.0 + (i % 3) as f64 * 0.2)
+        .collect();
     let event: Vec<f64> = (0..n).map(|i| f64::from(u8::from(i % 4 != 0))).collect();
     let treatment: Vec<f64> = (0..n).map(|i| (i % 3) as f64).collect();
     let data = TabularData::from_f64_columns([
@@ -656,8 +663,7 @@ fn a_randomized_survival_contrast_refuses_a_three_level_treatment_instead_of_rea
         .query(query)
         .build()
         .and_then(|study| study.run(&ctx()))
-        .err()
-        .expect("a three-level treatment was read as a binary arm");
+        .expect_err("a three-level treatment was read as a binary arm");
     assert!(error.to_string().contains("treatment must be binary zero or one"), "{error}");
 }
 
@@ -703,7 +709,7 @@ fn multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_
     let fit = run(multi(rows(n))).unwrap();
     let effect = fit.randomized_effect().unwrap().effect;
     assert!((effect - 2.0).abs() < 1e-12, "{effect}");
-    let error = run(multi(units(&nested))).err().expect("nested rows were treated as independent");
+    let error = run(multi(units(&nested))).expect_err("nested rows were treated as independent");
     assert!(error.to_string().contains("distinct unit identities"), "{error}");
 
     // 2x2 factorial with two rows per assignment unit.
@@ -731,8 +737,7 @@ fn multi_arm_and_factorial_designs_refuse_outcome_rows_nested_in_one_assignment_
     let fit = run(factorial(rows(8))).unwrap();
     assert!((fit.randomized_effect().unwrap().effect - 3.0).abs() < 1e-12);
     let error = run(factorial(units(&[0, 0, 1, 1, 2, 2, 3, 3])))
-        .err()
-        .expect("nested rows were treated as independent");
+        .expect_err("nested rows were treated as independent");
     assert!(error.to_string().contains("one assignment unit per row"), "{error}");
 }
 
@@ -745,7 +750,11 @@ fn the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_o
         let z: Vec<f64> = (0..n).map(|i| ((i / 3) % 2) as f64).collect();
         // A shift of 1 at level 1 and 4 at level 2; the within-arm spread is the same pattern.
         let y: Vec<f64> = (0..n)
-            .map(|i| [0.0, 1.0, 4.0][i % levels] + 0.5 * z[i] + ((i * 7) % 11) as f64 / 11.0)
+            .map(|i| {
+                [0.0, 1.0, 4.0][i % levels]
+                    + 0.5 * z[i]
+                    + f64::from(u32::try_from((i * 7) % 11).unwrap()) / 11.0
+            })
             .collect();
         let data = TabularData::from_f64_columns([
             ("t", t.as_slice()),
@@ -772,7 +781,7 @@ fn the_quantile_effect_refuses_a_third_level_and_a_declared_dependence_instead_o
     let two = run(2, None, 99).unwrap();
     let effect = two.estimate().as_effect().unwrap();
     assert!((effect.ate - 1.0).abs() < 5e-3, "{}", effect.ate);
-    let error = run(3, None, 99).err().expect("a three-level treatment was read as a dose");
+    let error = run(3, None, 99).expect_err("a three-level treatment was read as a dose");
     assert_eq!(error.reason_code(), Some("treatment_level_undeclared"), "{error}");
     for design in DEPENDENT {
         let text = run(2, Some(design), 99)
@@ -856,6 +865,10 @@ fn a_static_structure_search_refuses_a_declared_clustered_or_serial_design_inste
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_gaussian_glm_adjustment_fits_the_complete_rows_when_an_outcome_is_missing() {
     use antecedent_estimate::GlmAdjustmentAte;
     use antecedent_stats::GlmFamily;
@@ -950,8 +963,7 @@ fn a_policy_value_refuses_a_missing_outcome_instead_of_dropping_the_row() {
         .query(CausalQuery::PolicyValue(query))
         .build()
         .and_then(|study| study.run(&ctx()))
-        .err()
-        .expect("a row with a missing outcome was scored");
+        .expect_err("a row with a missing outcome was scored");
     assert!(
         error.to_string().contains("outcomes, predictions, propensities, or costs are invalid"),
         "{error}"
@@ -1031,7 +1043,11 @@ fn prepared_quantile_score_result_keeps_its_execution_authority() {
         let t: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
         let z: Vec<f64> = (0..n).map(|i| ((i / 3) % 2) as f64).collect();
         let y: Vec<f64> = (0..n)
-            .map(|i| (1.0 + shift) * t[i] + 0.5 * z[i] + ((i * 7) % 11) as f64 / 11.0)
+            .map(|i| {
+                (1.0 + shift) * t[i]
+                    + 0.5 * z[i]
+                    + f64::from(u32::try_from((i * 7) % 11).unwrap()) / 11.0
+            })
             .collect();
         TabularData::from_f64_columns([
             ("t", t.as_slice()),

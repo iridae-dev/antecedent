@@ -79,6 +79,10 @@ fn query(pin: &Value) -> PathSpecificEffectQuery {
 }
 
 #[allow(clippy::too_many_lines, reason = "one function walks a coordinate's full lifecycle")]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn verify_path_specific_coordinate(
     coordinate: &str,
     accepted: bool,

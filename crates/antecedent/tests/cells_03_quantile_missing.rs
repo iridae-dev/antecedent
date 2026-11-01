@@ -129,8 +129,7 @@ fn cells_03_quantile_complete_case_is_row_deletion_and_the_error_policy_names_th
         plain(),
         Some(MissingDeclaration::new(MissingPolicy::ErrorOnMissing)),
     )
-    .err()
-    .expect("a missing outcome was dropped under the error policy");
+    .expect_err("a missing outcome was dropped under the error policy");
     assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
     assert!(error.to_string().contains("column `y` at row 5"), "{error}");
 
@@ -140,8 +139,7 @@ fn cells_03_quantile_complete_case_is_row_deletion_and_the_error_policy_names_th
         plain(),
         Some(MissingDeclaration::new(MissingPolicy::InverseProbabilityOfObservation)),
     )
-    .err()
-    .expect("responder weighting was run on an observational quantile");
+    .expect_err("responder weighting was run on an observational quantile");
     assert_eq!(error.reason_code(), Some("missing_policy_not_applicable"), "{error}");
     assert!(error.to_string().contains("only randomized outcomes"), "{error}");
 }
@@ -286,8 +284,7 @@ fn cells_03_sharp_rd_complete_case_is_row_deletion_and_other_policies_are_refuse
         assert!((reference.0 - 3.0).abs() < 0.01, "{}", reference.0);
     }
     let error = rd(&gapped, dag3(), Some(MissingDeclaration::new(MissingPolicy::ErrorOnMissing)))
-        .err()
-        .expect("a missing outcome was dropped under the error policy");
+        .expect_err("a missing outcome was dropped under the error policy");
     assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
     // Multiple imputation pools the discontinuity (its known-answer test is
     // build_quasi_experimental_synthetic_dependence.rs::discontinuity_imputation); responder
@@ -304,8 +301,7 @@ fn cells_03_sharp_rd_complete_case_is_row_deletion_and_other_policies_are_refuse
         dag3(),
         Some(MissingDeclaration::new(MissingPolicy::InverseProbabilityOfObservation)),
     )
-    .err()
-    .expect("a policy the discontinuity does not pool was ignored");
+    .expect_err("a policy the discontinuity does not pool was ignored");
     assert_eq!(error.reason_code(), Some("missing_policy_not_applicable"), "{error}");
     assert!(error.to_string().contains("only randomized"), "{error}");
 }
@@ -341,10 +337,10 @@ fn cells_03_sharp_rd_runs_from_a_dag_or_confounding_free_admg_and_refuses_every_
         cpdag.insert_directed(node(from), node(to)).unwrap();
         pag.insert_directed(node(from), node(to)).unwrap();
     }
-    let error = rd(&columns, cpdag, None).err().expect("a CPDAG was read as a DAG");
+    let error = rd(&columns, cpdag, None).expect_err("a CPDAG was read as a DAG");
     assert!(error.to_string().contains("generalized.adjustment"), "{error}");
     assert!(error.to_string().contains("rd.sharp"), "{error}");
-    let error = rd(&columns, pag, None).err().expect("a PAG was read as a DAG");
+    let error = rd(&columns, pag, None).expect_err("a PAG was read as a DAG");
     assert!(error.to_string().contains("PAG"), "{error}");
     assert!(error.to_string().contains("rd.sharp"), "{error}");
 }
@@ -359,7 +355,7 @@ fn cells_03_discontinuity_refuses_a_temporal_graph_and_the_time_discontinuity_re
     temporal.insert_directed(running, treatment).unwrap();
     temporal.insert_directed(treatment, outcome).unwrap();
     temporal.insert_directed(running, outcome).unwrap();
-    let error = rd(&columns, temporal.clone(), None).err().expect("a temporal graph was ignored");
+    let error = rd(&columns, temporal.clone(), None).expect_err("a temporal graph was ignored");
     assert!(error.to_string().contains("unsupported data/graph/query combination"), "{error}");
 
     // The discontinuity in calendar time is a design-based query: it carries its own
@@ -402,7 +398,7 @@ fn cells_03_discontinuity_refuses_a_temporal_graph_and_the_time_discontinuity_re
         temporal.into(),
     ];
     for graph in graphs {
-        let error = time(Some(graph)).err().expect("a graph was ignored by the design-based query");
+        let error = time(Some(graph)).expect_err("a graph was ignored by the design-based query");
         assert!(error.to_string().contains("must not be combined with graph="), "{error}");
     }
 }

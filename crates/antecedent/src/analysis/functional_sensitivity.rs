@@ -267,6 +267,10 @@ fn cross_world_range(input: &ExtraInput<'_>) -> Extras {
 
 /// The cross-world placebo: permute the mediator. The effect through it must vanish; the natural
 /// direct effect must move to the total effect of the treatment on the outcome.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     const NAME: &str = "target.cross_world_placebo";
     let mut notes = Vec::new();
@@ -381,6 +385,10 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
 
 /// The placebo of an interventional distribution: with the intervened variable permuted the
 /// interventional law is the observed marginal law of the outcome.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 fn distribution_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     const NAME: &str = "target.distribution_placebo";
     let mut notes = Vec::new();

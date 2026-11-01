@@ -124,7 +124,7 @@ fn cells_00_sustained_contrast_is_refused_on_every_static_graph_class() {
 }
 
 fn categorical_treatment_series() -> TimeSeriesData {
-    let codes: Vec<u32> = (0..N).map(|i| (i % 3) as u32).collect();
+    let codes: Vec<u32> = (0..N).map(|i| u32::try_from(i % 3).unwrap()).collect();
     let numeric: Vec<f64> = codes.iter().map(|&c| f64::from(c)).collect();
     let y = outcome_of(&numeric, 0.5);
     let mut builder = CausalSchemaBuilder::new();

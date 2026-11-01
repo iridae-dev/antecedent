@@ -111,6 +111,7 @@ pub struct CompiledMatchedPairDesign {
 /// # Errors
 /// Refuses malformed pairs, unequal or undeclared assignment probabilities, and missing
 /// preassignment information. Only independent 1:1 randomization within pairs is supported.
+#[allow(clippy::float_cmp, reason = "the design requires exactly equal assignment probabilities")]
 pub fn compile_matched_pair_design(
     design: MatchedPairDesign,
 ) -> Result<CompiledMatchedPairDesign, EvidenceRefusal> {
@@ -278,7 +279,7 @@ pub fn compile_joint_switchback(
         *counts.entry(sequence).or_default() += 1;
     }
     if counts.len() < 30
-        || counts.values().any(|c| *c < 2 || *c != *counts.values().next().unwrap())
+        || counts.values().next().is_none_or(|first| counts.values().any(|c| *c < 2 || c != first))
     {
         return Err(EvidenceRefusal::Invalid("joint switchback requires at least 30 independent equal-length sequences of two or more retained periods".into()));
     }
@@ -799,7 +800,11 @@ pub fn evidence_from_compiled_excursion(
 /// # Errors
 /// Refuses changed designs, incompatible outcomes, absent assumptions, unsupported assignment,
 /// cancellation or resource admission failure.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value,
+    reason = "the public API accepts owned outcome declarations"
+)]
 pub fn compile_and_evidence_from_joint_excursion(
     design: &CompiledJointExcursion,
     outcomes: &[&[f64]],
@@ -1045,7 +1050,11 @@ pub fn compile_and_evidence_from_joint_static_regime_bootstrap(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value,
+    reason = "the shared helper accepts owned outcome declarations"
+)]
 fn compile_static_regime_with_inference(
     design: &CompiledJointStaticRegime,
     outcomes: &[&[f64]],
@@ -1211,6 +1220,10 @@ fn experimental_exposure(
 /// Bind a retained native matched-pair or switchback source to decision evidence.
 /// # Errors
 /// Refuses a different source kind, scope or malformed joint law.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the conversion checks the full retained experiment contract"
+)]
 pub fn evidence_from_compiled_experiment(
     source: crate::analysis::joint_panel::designs::NativeJointDesignResult,
     evidence_id: &str,
@@ -1334,6 +1347,10 @@ pub fn evidence_from_compiled_experiment(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the shared helper accepts owned outcome declarations"
+)]
 fn compile_decision_experiment(
     design: antecedent_estimate::joint_design::experiment::ExperimentalDesign,
     consistency: &str,

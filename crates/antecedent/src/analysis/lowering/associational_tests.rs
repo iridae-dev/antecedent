@@ -38,7 +38,7 @@ fn table() -> TabularData {
 }
 
 fn series() -> TimeSeriesData {
-    let x: Vec<f64> = (0..60).map(|i| ((i * 13) % 11) as f64).collect();
+    let x: Vec<f64> = (0..60).map(|i| f64::from((i * 13) % 11)).collect();
     let y: Vec<f64> = x.iter().enumerate().map(|(i, x)| 2.0 * x + (i % 3) as f64).collect();
     TimeSeriesData::from_f64_columns([("x", &x[..]), ("y", &y[..])], 1_000).unwrap()
 }

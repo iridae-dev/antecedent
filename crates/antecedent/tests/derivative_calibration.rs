@@ -1198,6 +1198,10 @@ fn directional_derivative_dag_frequentist_nominal_90_coverage() {
 // additive-GAM plug-in does not yet expose (see the calibration-readiness audit).
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
     let data = point_data(400, 7);
     let graph = point_graph();

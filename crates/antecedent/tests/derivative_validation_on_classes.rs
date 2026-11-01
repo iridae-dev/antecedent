@@ -1,6 +1,6 @@
 //! Cheap and full validation of derivatives on supplied classes and front-door windows.
 //!
-//! A derivative on a Cpdag, Pag, Admg or TemporalAdmg runs a refuter state at cheap and full. The
+//! A derivative on a Cpdag, Pag, Admg or `TemporalAdmg` runs a refuter state at cheap and full. The
 //! adjustment-identified single-horizon cells are licensed (their evidence is the class derivative
 //! known-truth tests); a front-door-identified derivative and several horizons execute and report
 //! the support status `refused`, so no coverage record is implied.
@@ -252,6 +252,10 @@ fn bayesian_class_derivative_validation_adds_the_predictive_checks() {
 // Front-door-identified derivative (static Admg).
 // ---------------------------------------------------------------------------------------
 
+#[allow(
+    clippy::cast_lossless,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn front_door_columns() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = 900;
     let (mut x, mut m, mut y) = (Vec::new(), Vec::new(), Vec::new());

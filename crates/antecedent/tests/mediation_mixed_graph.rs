@@ -1,4 +1,4 @@
-//! MediationEffect over an ADMG, the projection of a TemporalAdmg and a CPDAG.
+//! `MediationEffect` over an ADMG, the projection of a `TemporalAdmg` and a CPDAG.
 //!
 //! The expected values are counted from one contingency table with the mediation formulas of
 //! a latent-free graph (Pearl 2001), not read from the engine:
@@ -41,6 +41,10 @@ fn table() -> TabularData {
         .unwrap()
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn count(t: Option<f64>, m: Option<f64>, y: Option<f64>) -> f64 {
     CELLS
         .iter()
@@ -234,6 +238,10 @@ fn an_admg_decomposition_is_the_counted_total_direct_and_indirect_effect() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn the_bayesian_bootstrap_pairs_the_component_posteriors() {
     let ctx = ExecutionContext::for_tests(62);
     let inference = InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(400));

@@ -249,6 +249,10 @@ impl PreparedStudy<JointPanelState> {
         Ok(next)
     }
 
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the caller constructs the owned refusal detail"
+    )]
     fn withdrawn(&self, position: usize, reason: String) -> Result<Self, JointPanelError> {
         let target = self.request().target.clone();
         let outcome = IdentificationOutcome::Unsupported;

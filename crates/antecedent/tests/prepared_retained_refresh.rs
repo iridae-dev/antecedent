@@ -61,6 +61,10 @@ fn regression(rows: &[RefreshObservation]) -> (f64, f64) {
     (mean_y - slope * mean_x, slope)
 }
 
+#[allow(
+    clippy::assigning_clones,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn apply_to_model(model: &mut Vec<RefreshObservation>, mutation: &RefreshMutation) {
     match mutation {
         RefreshMutation::Append { rows, .. } => model.extend(rows.iter().cloned()),

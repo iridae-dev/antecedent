@@ -67,14 +67,16 @@ fn contract() -> Contract {
             .collect()
     };
     Contract {
-        rows: document["design"]["rows"].as_u64().unwrap() as usize,
+        rows: usize::try_from(document["design"]["rows"].as_u64().unwrap()).unwrap(),
         level: document["level"]["value"].as_f64().unwrap(),
         level_tolerance: document["tolerance"]["level"].as_f64().unwrap(),
         grid_tolerance: document["tolerance"]["prior_grid_level"].as_f64().unwrap(),
         cheap: names("cheap"),
         full: names("full"),
-        predictive_checks: document["refuter_contract"]["predictive_checks"].as_u64().unwrap()
-            as usize,
+        predictive_checks: usize::try_from(
+            document["refuter_contract"]["predictive_checks"].as_u64().unwrap(),
+        )
+        .unwrap(),
     }
 }
 
@@ -194,7 +196,7 @@ fn report<'a>(
     result.refutations.iter().find(|report| report.refuter.as_ref() == name)
 }
 
-/// `InterventionResponse` x `Dag` x explicit, accepted and graph_posterior x `Bayesian` x cheap
+/// `InterventionResponse` x `Dag` x explicit, accepted and `graph_posterior` x `Bayesian` x cheap
 /// and full: on the clean law the level is the closed form and every refuter the fixture names
 /// runs and passes; a full study adds the refitted prior-grid level.
 #[test]

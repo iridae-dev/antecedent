@@ -184,6 +184,10 @@ fn pag() -> Pag {
     graph
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn posterior(
     n: usize,
     kind: GraphPosteriorAtomKind,
@@ -312,9 +316,13 @@ fn mean_outcome(data: &TabularData, outcome: u32) -> f64 {
     column.iter().sum::<f64>() / column.len() as f64
 }
 
-/// `ResponseCurve` x `Admg`, `TemporalAdmg`, `Cpdag` and `Pag` x graph_posterior x Frequentist
+/// `ResponseCurve` x `Admg`, `TemporalAdmg`, `Cpdag` and `Pag` x `graph_posterior` x Frequentist
 /// and Bayesian x cheap and full.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn response_curve_graph_posterior_cheap_and_full_match_the_identified_curves() {
     let truth = truth();
     let closed = &truth.document["closed_form"];

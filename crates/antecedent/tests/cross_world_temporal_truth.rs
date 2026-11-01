@@ -267,6 +267,10 @@ fn temporal_log_derivatives_use_the_population_mean_response() {
 }
 
 #[test]
+#[allow(
+    clippy::err_expect,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn temporal_cross_world_queries_do_not_silently_drop_requested_dimensions() {
     on_regression_stack(|| {
         let (data, graph, posterior) = confounded_series_and_graph();

@@ -271,8 +271,8 @@ fn model_bundle_preserves_facade_student_t_interval_and_block_metadata() {
     original.uncertainty.block.family = Some(CircularBlockFamily::Mediation);
     original.provenance.n_obs = Some(40);
     let before = PublishedScalarUncertainty::select(&original).interval(&original).unwrap();
-    assert!((before.0 - 1.7635375).abs() < 1e-6);
-    assert!((before.1 - 2.2364625).abs() < 1e-6);
+    assert!((before.0 - 1.763_537_5).abs() < 1e-6);
+    assert!((before.1 - 2.236_462_5).abs() < 1e-6);
     let estimate = antecedent_io::effect_estimate_to_wire(&original);
     let artifact = model_bundle_with_estimate(Some(&estimate));
     let mut bytes = Vec::new();

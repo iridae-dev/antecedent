@@ -60,6 +60,11 @@ fn weighted(data: &TabularData, weights: Vec<f64>) -> TabularData {
 }
 
 /// The table with row `i` repeated `weights[i]` times.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn replicated(columns: &[(&str, Vec<f64>)], weights: &[f64]) -> TabularData {
     let expanded: Vec<(&str, Vec<f64>)> = columns
         .iter()
@@ -350,7 +355,7 @@ fn temporal_design(name: &'static str, functional: TemporalDesignFunctional) -> 
         data: table(&[("y", outcome)]),
         query: CausalQuery::TemporalDesign(query),
         graph: Graph::None,
-        replicates: if matches!(query_is_quantile, true) { 99 } else { 0 },
+        replicates: if query_is_quantile { 99 } else { 0 },
     }
 }
 
@@ -473,7 +478,7 @@ fn estimator_declared_weights_on_the_average_effect_equal_row_replication() {
         let (got, want, plain) = (headline(&honoured), headline(&copies), headline(&unweighted));
         assert!((got - want).abs() < 1e-9, "{}: weighted {got} vs replicated {want}", route.name);
         assert!((got - plain).abs() > 1e-4, "{}: weights changed nothing ({got})", route.name);
-        let record = honoured.estimate().as_effect().unwrap().diagnostics.sampling_weights.clone();
+        let record = honoured.estimate().as_effect().unwrap().diagnostics.sampling_weights;
         assert_eq!(record.expect("a weight record").rows_used, N as u64);
     }
 }
@@ -592,6 +597,10 @@ fn cell(rows: &[(i128, i128, i128, i128)], w: i128, t: i128) -> (i128, i128) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_weighted_conditional_effect_is_the_exact_weighted_stratum_contrast_with_the_weighted_sandwich()
 {
     let rows = saturated_rows();
@@ -729,7 +738,7 @@ fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail(
     };
     // Refuters refit the unweighted rows.
     for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
-        let error = build(conditional_on(3, None), suite, Graph::Dag).err().expect("refused");
+        let error = build(conditional_on(3, None), suite, Graph::Dag).expect_err("refused");
         assert_typed_weight_refusal("conditional effect with refuters", &error);
     }
     // The quantile grid is built from unweighted cross-fitted scores.
@@ -738,8 +747,7 @@ fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail(
         RefuteSuite::None,
         Graph::Dag,
     )
-    .err()
-    .expect("refused");
+    .expect_err("refused");
     assert_typed_weight_refusal("conditional quantile", &error);
     // The general-ID functional of a bidirected ADMG fits unweighted rows.
     let mut bidirected = Admg::with_variables(4);
@@ -753,8 +761,7 @@ fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail(
         .query(conditional_on(3, None))
         .build()
         .and_then(|study| study.run(&ExecutionContext::for_tests(5)))
-        .err()
-        .expect("refused");
+        .expect_err("refused");
     assert_typed_weight_refusal("conditional effect on a bidirected ADMG", &error);
     // Weights declared on an estimator are read by nothing on this route.
     let error = run(
@@ -762,8 +769,7 @@ fn weights_the_conditional_effect_cannot_read_are_refused_with_the_typed_detail(
         table(&columns()),
         Some(linear(Some(weights))),
     )
-    .err()
-    .expect("refused");
+    .expect_err("refused");
     // The conditional route runs no `linear.adjustment.ate` fit, so the declaration is refused
     // by strategy compatibility before any weight is read.
     assert!(error.to_string().starts_with("reason=strategy_incompatible"), "{error}");

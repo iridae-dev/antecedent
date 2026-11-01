@@ -82,7 +82,7 @@ fn series_of(doc: &Json, kind: &str) -> TimeSeriesData {
     TimeSeriesData::from_f64_columns(borrowed, 1).unwrap()
 }
 
-/// z_s -> x_s, z_{s-1} -> x_s, x_{s-1} -> y_s, x_{s-2} -> y_s, z_{s-1} -> y_s, z_{s-2} -> y_s.
+/// `z_s` -> `x_s`, z_{s-1} -> `x_s`, x_{s-1} -> `y_s`, x_{s-2} -> `y_s`, z_{s-1} -> `y_s`, z_{s-2} -> `y_s`.
 fn graph() -> TemporalDag {
     let mut g = TemporalDag::empty();
     let (x, y, z) = (VariableId::from_raw(X), VariableId::from_raw(Y), VariableId::from_raw(Z));
@@ -251,6 +251,10 @@ fn the_hand_derived_design_columns_are_what_the_identified_horizons_give() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn pseudo_outcomes_weights_and_the_composed_surface_match_the_exact_reference() {
     let doc = reference();
     let query = query_for(&doc, "selected", &[X, Z]);
@@ -337,6 +341,11 @@ fn pseudo_outcomes_weights_and_the_composed_surface_match_the_exact_reference() 
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn the_outer_bootstrap_regenerates_the_library_streams_and_recomputes_the_band_exactly() {
     let doc = reference();
     let frozen = streams();
@@ -465,8 +474,10 @@ fn incomplete_conditioning_sets_and_delayed_entry_are_refused() {
 #[test]
 fn the_censoring_survival_floor_is_read_by_the_censored_route() {
     let doc = reference();
-    let mut options = ObservationEstimatorOptions::default();
-    options.censoring_survival_floor = 0.999;
+    let options = ObservationEstimatorOptions {
+        censoring_survival_floor: 0.999,
+        ..ObservationEstimatorOptions::default()
+    };
     let case = Case {
         doc: &doc,
         entry: &doc["cases"][4],
@@ -496,6 +507,11 @@ fn the_censoring_survival_floor_is_read_by_the_censored_route() {
 /// streams JSON.
 #[test]
 #[ignore = "regenerates a frozen input of the reference script"]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn print_the_library_streams() {
     let doc = reference();
     let n = usize::try_from(doc["n"].as_u64().unwrap()).unwrap();

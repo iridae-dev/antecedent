@@ -227,6 +227,11 @@ fn all_native_target_kinds_execute_full_experiment_matrix_against_independent_re
         "all seven native scientific procedures × two mappings × five translations × three decision cases"
     );
 }
+#[allow(
+    clippy::too_many_lines,
+    clippy::float_cmp,
+    reason = "one reference fixture checks the complete experiment and its exact values"
+)]
 fn exercise(
     original: &NativeJointDesignResult,
     binding: &NativeExperimentBinding,

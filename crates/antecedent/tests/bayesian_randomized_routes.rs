@@ -262,7 +262,7 @@ fn the_retained_artifact_carries_the_posterior_and_an_independent_loader_recompu
 fn the_boundaries_are_refused_with_their_next_attempt() {
     // No declared prior: a prior alone does not identify a contrast and none is defaulted.
     let (data, query) = trial();
-    let error = run(&data, query, bayes(None), None).err().expect("refused");
+    let error = run(&data, query, bayes(None), None).expect_err("refused");
     assert_eq!(error.reason_code(), Some("required_option_missing"));
     assert!(error.to_string().contains("design_model"), "{error}");
 
@@ -270,7 +270,7 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
     let (data, mut query) = trial();
     query.assignment_probabilities =
         (0..10).map(|i| if i == 3 { 0.3 } else { 0.4 }).collect::<Vec<_>>().into();
-    let error = run(&data, query, bayes(Some(uniform_arms())), None).err().expect("refused");
+    let error = run(&data, query, bayes(Some(uniform_arms())), None).expect_err("refused");
     let text = error.to_string();
     // The randomized-effect query itself refuses unit-varying assignment probabilities.
     assert!(
@@ -281,7 +281,7 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
     // A cluster design has no arm-exchangeable likelihood here.
     let (data, mut query) = trial();
     query.design = RandomizationDesign::Cluster { treated_clusters: 4 };
-    let error = run(&data, query, bayes(Some(uniform_arms())), None).err().expect("refused");
+    let error = run(&data, query, bayes(Some(uniform_arms())), None).expect_err("refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"));
     assert!(
         error
@@ -293,8 +293,7 @@ fn the_boundaries_are_refused_with_their_next_attempt() {
     // The design-based estimator does not run under Bayesian inference.
     let (data, query) = trial();
     let error = run(&data, query, bayes(Some(uniform_arms())), Some(EstimatorId::RandomizedNeyman))
-        .err()
-        .expect("refused");
+        .expect_err("refused");
     assert!(error.to_string().contains("estimator_inference_mismatch"), "{error}");
 }
 
@@ -404,8 +403,7 @@ fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals() {
         ))),
         None,
     )
-    .err()
-    .expect("refused");
+    .expect_err("refused");
     assert_eq!(error.reason_code(), Some("cell_not_licensed"));
     assert!(error.to_string().contains("switchback_posterior.carryover_unrestricted"));
     assert!(error.to_string().contains("washout"));
@@ -417,15 +415,14 @@ fn unrestricted_carryover_and_an_unspecified_dependence_are_typed_refusals() {
         bayes(Some(switchback_model(CarryoverDeclaration::None, SequenceDependence::Unspecified))),
         None,
     )
-    .err()
-    .expect("refused");
+    .expect_err("refused");
     assert_eq!(error.reason_code(), Some("cell_not_licensed"));
     assert!(error.to_string().contains("switchback_posterior.dependence_undeclared"));
     assert!(error.to_string().contains("sensitivity"));
 
     // No declaration at all.
     let (data, query) = switchback();
-    let error = run(&data, query, bayes(None), None).err().expect("refused");
+    let error = run(&data, query, bayes(None), None).expect_err("refused");
     assert_eq!(error.reason_code(), Some("required_option_missing"));
 }
 
@@ -743,6 +740,10 @@ fn run_weighted(
     builder.build()?.prepare(&ctx)?.estimate(data, &ctx)
 }
 
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "the fixture matches the optional missingness input used by its cases"
+)]
 fn inverse_probability(covariates: &[u32]) -> Option<antecedent_data::MissingDeclaration> {
     Some(
         antecedent_data::MissingDeclaration::new(
@@ -809,7 +810,7 @@ fn licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update(
                 let baseline = usize::from(unit >= 32);
                 for arm in 0..2 {
                     let count = if arm == baseline { 24 } else { 8 };
-                    let pi = count as f64 / 32.0;
+                    let pi = f64::from(count) / 32.0;
                     let seen = unit % 32 < count;
                     let centre = 1.0 + 2.0 * arm as f64 + 5.0 * baseline as f64;
                     let noise = if unit % 2 == 0 { -1.0 } else { 1.0 };
@@ -823,8 +824,8 @@ fn licensed_ipow_posterior_recovers_the_causal_target_and_declared_prior_update(
                     }
                 }
             }
-            let naive = responder_sums[1] / responder_counts[1] as f64
-                - responder_sums[0] / responder_counts[0] as f64;
+            let naive = responder_sums[1] / f64::from(responder_counts[1])
+                - responder_sums[0] / f64::from(responder_counts[0]);
             assert!((naive - 4.5).abs() < 1e-12);
             let data =
                 TabularData::from_f64_columns([("outcome", y.as_slice()), ("z", z.as_slice())])
@@ -994,9 +995,8 @@ fn licensed_ipow_posterior_replays_after_the_builder_is_dropped() {
 fn weighted_bayesian_boundaries_are_typed_refusals() {
     // No declared policy for a missing outcome: the policy is required, never defaulted.
     let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
-    let error = run_weighted(&data, query, bayes(Some(gaussian_arms())), None, None)
-        .err()
-        .expect("refused");
+    let error =
+        run_weighted(&data, query, bayes(Some(gaussian_arms())), None, None).expect_err("refused");
     assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
 
     // The finite-population estimand needs the unobserved share of every arm, which the
@@ -1004,8 +1004,7 @@ fn weighted_bayesian_boundaries_are_typed_refusals() {
     let (data, query) = ipw_trial(RandomizationDesign::Bernoulli);
     let error =
         run_weighted(&data, query, bayes(Some(gaussian_arms())), None, inverse_probability(&[]))
-            .err()
-            .expect("refused");
+            .expect_err("refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     assert!(error.to_string().contains("superpopulation"), "{error}");
 
@@ -1018,8 +1017,7 @@ fn weighted_bayesian_boundaries_are_typed_refusals() {
         Some(EstimatorId::BayesianRandomizedSuperpopulation),
         inverse_probability(&[]),
     )
-    .err()
-    .expect("refused");
+    .expect_err("refused");
     assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     assert!(error.to_string().contains("Normal-Inverse-Gamma"), "{error}");
 }
@@ -1060,8 +1058,7 @@ fn unlicensed_multi_arm_and_factorial_ipow_are_typed_refusals() {
             Some(EstimatorId::BayesianRandomizedSuperpopulation),
             inverse_probability(&[]),
         )
-        .err()
-        .expect("unsupported IPW design must refuse");
+        .expect_err("unsupported IPW design must refuse");
         assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     }
 }

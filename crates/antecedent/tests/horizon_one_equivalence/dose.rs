@@ -367,6 +367,10 @@ fn scalar_response(result: &StudyResult) -> f64 {
 /// quantile knots are not equispaced. The temporal route discloses the linear-mechanism premise
 /// it rests on.
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn horizon_one_average_derivative_is_the_least_squares_slope_where_the_static_route_is_semiparametric()
  {
     let (x, y) = derivative_series();

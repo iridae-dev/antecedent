@@ -1723,7 +1723,7 @@ impl PreparedStudy<StatisticalPreparedState> {
             &frozen,
             self.state.loaded_only,
         )?;
-        next.state.provider_retention = self.state.provider_retention.clone();
+        next.state.provider_retention.clone_from(&self.state.provider_retention);
         Ok(next)
     }
 
@@ -2856,6 +2856,7 @@ fn draw_distributions(
 }
 
 /// Equal-tail posterior intervals for every atom probability and outcome mean.
+#[allow(clippy::type_complexity, reason = "the signature describes the existing typed operation")]
 fn posterior_intervals(
     distributions: &[antecedent_expr::ExactDistribution],
     point: &antecedent_expr::ExactDistribution,

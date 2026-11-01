@@ -1129,6 +1129,12 @@ pub(super) fn push_passed_route_diagnostics(
 }
 
 impl super::Study {
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(super) fn execute_bayesian(
         &self,
         data: &TabularData,

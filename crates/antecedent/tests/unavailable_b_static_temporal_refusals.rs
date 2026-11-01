@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A pulse or sustained contrast declared on a static graph is refused with the typed
-//! not-applicable reason, never estimated as a one-shot do().
+//! not-applicable reason, never estimated as a one-shot `do()`.
 //!
 //! A pulse and a sustained contrast are indexed by a lag and a horizon, so a static `Dag` has no
 //! time index for either. The same data and graph answer a static average effect (the valid

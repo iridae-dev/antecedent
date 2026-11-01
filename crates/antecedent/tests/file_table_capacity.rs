@@ -177,6 +177,10 @@ fn resident_design(skip: Option<usize>) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 
 /// Independent weighted least squares of `y` on `[1, x1, x2]` over the generated rows (optionally
 /// leaving one row out), from the weighted normal equations solved by Gaussian elimination.
+#[allow(
+    clippy::useless_vec,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn weighted_ols_reference(skip: Option<usize>) -> Vec<f64> {
     let (design, response, weights) = resident_design(skip);
     let mut a = vec![vec![0.0_f64; 3]; 3];
@@ -216,6 +220,10 @@ fn spec() -> GaussianSummarySpec {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_table_above_the_pool_is_refused_resident_and_streamed_as_a_summary() {
     let scratch = Scratch::new("stream");
     let path = scratch.0.join("rows.parquet");

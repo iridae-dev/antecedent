@@ -67,6 +67,10 @@ enum Expect {
 }
 
 #[test]
+#[allow(
+    clippy::type_complexity,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn degenerate_treatment_outcome_and_adjustment_columns_follow_their_known_answers() {
     let varying: Vec<f64> = (0..N).map(|i| wiggle(i, 0.7)).collect();
     let confounder: Vec<f64> = (0..N).map(|i| wiggle(i, 0.31)).collect();

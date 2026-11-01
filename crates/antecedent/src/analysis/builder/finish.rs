@@ -1225,6 +1225,10 @@ fn admit_executable_route(estimand: RetargetedEstimand) -> Result<ExecutableRout
 /// declaration: the configured estimator must carry the matching standard-error kind (cluster,
 /// multiway or panel HAC for a panel, Newey-West or panel HAC for a series), which only the
 /// average effect through a configured regression, weighting or AIPW estimator reads.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 fn require_declared_dependence_read(
     carry: &Carry,
     query: &CausalQuery,
@@ -1422,22 +1426,23 @@ fn require_declared_dependence_read(
         return Ok(());
     }
     let reads = reads_estimator_dependence
-        && inference.is_some_and(|inference| match (design, inference.se_kind) {
-            (
-                Design::ClusteredPanel,
-                Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. },
-            ) => true,
-            (
-                Design::DependentTimeSeries,
-                Kind::NeweyWest { .. } | Kind::PanelClusterHac { .. },
-            ) => true,
-            _ => false,
+        && inference.is_some_and(|inference| {
+            matches!(
+                (design, inference.se_kind),
+                (
+                    Design::ClusteredPanel,
+                    Kind::Cluster | Kind::Multiway | Kind::PanelClusterHac { .. }
+                ) | (
+                    Design::DependentTimeSeries,
+                    Kind::NeweyWest { .. } | Kind::PanelClusterHac { .. }
+                )
+            )
         });
     if reads {
         return Ok(());
     }
-    Err(match design {
-        Design::ClusteredPanel => crate::unsupported_reason!(
+    Err(if design == Design::ClusteredPanel {
+        crate::unsupported_reason!(
             "option_not_applicable",
             "a clustered-panel design is declared with the bootstrap off, but the analytic error \
              this route publishes treats rows as independent and would be too small. Next \
@@ -1445,15 +1450,16 @@ fn require_declared_dependence_read(
              sandwich (for example LinearAdjustmentAte::new().with_se_kind(AnalyticSeKind::Cluster) \
              with its cluster ids), or declare independent subject trajectories if the rows are \
              independent"
-        ),
-        _ => crate::unsupported_reason!(
+        )
+    } else {
+        crate::unsupported_reason!(
             "option_not_applicable",
             "a dependent-time-series design is declared with the bootstrap off, but the analytic \
              error this route publishes treats rows as independent and would be too small. Next \
              attempt: configure an average-effect estimator whose standard error is Newey-West \
              (for example LinearAdjustmentAte::new().with_se_kind(AnalyticSeKind::NeweyWest { lag })), \
              or declare independent subject trajectories if the rows are independent"
-        ),
+        )
     })
 }
 

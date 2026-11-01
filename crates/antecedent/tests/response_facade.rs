@@ -697,6 +697,10 @@ fn graph_posterior_intervention_response_cheap_and_full_run_plugin_refuters() {
 /// The plugin-level refuters of an exceedance level refit the exceedance target, not the raw
 /// outcome mean, so every refuted value stays on the probability scale.
 #[test]
+#[allow(
+    clippy::explicit_iter_loop,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn exceedance_level_refutation_refits_the_exceedance_target() {
     let n = 240;
     let z: Vec<f64> = (0..n).map(|i| (i as f64 / 17.0).sin()).collect();

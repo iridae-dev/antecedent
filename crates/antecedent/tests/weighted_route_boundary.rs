@@ -28,6 +28,10 @@ fn units(prefix: &str, n: usize) -> Vec<Arc<str>> {
     (0..n).map(|i| Arc::<str>::from(format!("{prefix}{i}"))).collect()
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn refusal_of(study: Study, data: &TabularData) -> String {
     let error = study.prepare(&ctx()).and_then(|prepared| prepared.estimate(data, &ctx()));
     error.map(|_| ()).unwrap_err().to_string()
@@ -357,6 +361,10 @@ fn an_augmented_panel_refuses_declared_weights() {
 /// weighted combination is written out by hand gives the effect exactly 5 unweighted, and the same
 /// table with row weights (uneven or the constant one) is refused rather than answered unweighted.
 #[test]
+#[allow(
+    clippy::cast_possible_wrap,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_synthetic_control_refuses_declared_weights() {
     let donors = [
         ("a", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]),

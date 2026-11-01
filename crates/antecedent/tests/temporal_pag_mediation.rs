@@ -221,6 +221,10 @@ fn the_reference_effects_are_material() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_window_of_one_period_reproduces_the_structural_decomposition() {
     let ctx = ExecutionContext::for_tests(71);
     let series = contemporaneous_series(100_000.0);
@@ -248,6 +252,10 @@ fn a_window_of_one_period_reproduces_the_structural_decomposition() {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_lagged_window_matches_the_structural_decomposition_of_the_series() {
     let ctx = ExecutionContext::for_tests(72);
     let series = lagged_series(60_000, 17);

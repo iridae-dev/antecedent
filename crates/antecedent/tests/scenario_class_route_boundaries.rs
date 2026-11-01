@@ -230,12 +230,12 @@ fn the_effect_and_response_routes_recover_their_closed_forms_on_both_graph_class
 #[test]
 fn the_routes_with_no_latent_variable_or_class_construction_are_refused_with_their_own_detail() {
     // The latent-variable counterfactual is a discrete identification with at most four levels.
-    let error = plain("admg", &counterfactual()).err().expect("a refusal");
+    let error = plain("admg", &counterfactual()).expect_err("a refusal");
     assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     assert!(error.to_string().contains("counterfactual_id.bounds_exceeded"), "{error}");
     // Natural-direct mediation over the graph classes is a discrete functional.
     for class in CLASSES {
-        let error = plain(class, &mediation()).err().expect("a refusal");
+        let error = plain(class, &mediation()).expect_err("a refusal");
         assert!(error.to_string().contains("discrete level cap"), "{class}: {error}");
     }
 }
@@ -244,6 +244,11 @@ fn weights() -> Vec<f64> {
     (0..N).map(|i| 1.0 + ((i * 7) % 4) as f64).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn replicated(weights: &[f64]) -> TabularData {
     let expanded: Vec<(&str, Vec<f64>)> = columns()
         .iter()
@@ -595,6 +600,10 @@ fn sandwich(groups: Option<&[u32]>, lag: Option<usize>) -> (f64, f64) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn declared_cluster_and_newey_west_errors_are_the_closed_form_sandwich_on_both_graph_classes() {
     let clusters: Vec<u32> = (0..N).map(|i| (i / 10) as u32).collect();
     let fit = |class: &str, estimator: LinearAdjustmentAte| {
@@ -677,6 +686,10 @@ fn two_completion_cpdag() -> Cpdag {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn two_completions_publish_the_declared_sandwich_of_their_mixed_influence_values() {
     let clusters: Vec<u32> = (0..N).map(|i| (i / 10) as u32).collect();
     let c = columns();
@@ -774,7 +787,7 @@ fn the_class_average_effect_refuses_a_graph_that_does_not_fit_the_table_and_an_i
     }
     // A treatment that is also the outcome.
     let same = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(v(0), v(0)));
-    let error = build(cpdag(4), same).err().expect("a refusal");
+    let error = build(cpdag(4), same).expect_err("a refusal");
     assert!(error.to_string().contains("treatment and outcome are the same variable"), "{error}");
 }
 

@@ -929,6 +929,10 @@ pub(crate) struct TemporalClassEffectCompileInput<'a> {
 /// # Errors
 ///
 /// Query validation, multi-step Sustained, or incompatible identifier/estimator.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the operation accepts owned input as part of its interface"
+)]
 pub(crate) fn compile_logical_temporal_class_effect(
     input: TemporalClassEffectCompileInput<'_>,
 ) -> Result<LogicalAnalysisPlan, CausalError> {

@@ -753,6 +753,10 @@ fn quantile(sorted: &[f64], p: f64) -> f64 {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_spread() {
     use antecedent_estimate::count_fitted_posterior::{
         CountFittedModel, CountNode, NodeTable, PosteriorQuery,
@@ -874,6 +878,10 @@ fn dirichlet_table_redraw_agrees_with_the_count_fitted_posterior_and_labels_its_
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn a_redraw_after_an_intervention_and_a_gaussian_redraw_return_aligned_draws() {
     let prepared = confounded();
     // P(Y | do(S=1), Z=1) = 0.9 at the declared tables; the draws spread around it.

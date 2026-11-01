@@ -114,12 +114,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     let first_consumed = antecedent_io::consume_analysis_result(&first_bytes).unwrap();
     assert!(!first_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(
-        first_consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .map(|reason| reason.as_ref())
-            .collect::<Vec<&str>>(),
+        first_consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["dependencies.checked_estimator_operation"]
     );
     assert_eq!(first_consumed.body.estimate, Some(first.effect()));
@@ -145,12 +140,7 @@ fn prepared_frontdoor_keeps_checked_procedure_through_estimate_and_refresh() {
     let refreshed_consumed = antecedent_io::consume_analysis_result(&refreshed_bytes).unwrap();
     assert!(!refreshed_consumed.acceptance.accepts_as_verified_program());
     assert_eq!(
-        refreshed_consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .map(|reason| reason.as_ref())
-            .collect::<Vec<&str>>(),
+        refreshed_consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["dependencies.checked_estimator_operation"]
     );
     assert_eq!(refreshed_consumed.body.estimate, Some(refreshed.effect()));
@@ -187,7 +177,7 @@ fn default_frontdoor_id_exports_a_bound_but_unreplayed_checked_result() {
     let consumed = antecedent_io::consume_analysis_result(&bytes).unwrap();
     assert!(!consumed.acceptance.accepts_as_verified_program());
     assert_eq!(
-        consumed.acceptance.unresolved.iter().map(|reason| reason.as_ref()).collect::<Vec<&str>>(),
+        consumed.acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<&str>>(),
         ["dependencies.checked_estimator_operation"]
     );
 }

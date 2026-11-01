@@ -104,6 +104,10 @@ fn the_local_ratio_recovers_its_effect_and_refuses_an_invalid_bandwidth_cutoff_o
     assert!(error.to_string().contains("lacks full-rank support on the left side"), "{error}");
 }
 
+#[allow(
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn curve_data() -> (TabularData, Dag) {
     let n = 100;
     let z: Vec<f64> = (0..n).map(|i| (f64::from(i) * 0.37).sin()).collect();

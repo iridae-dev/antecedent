@@ -194,8 +194,7 @@ fn a_refused_period_leaves_the_state_unchanged() {
     ] {
         let refused = refresh
             .refresh(&win, cadence(), "law_1", &values)
-            .err()
-            .expect("an overlapping, reused or mis-sized period is refused");
+            .expect_err("an overlapping, reused or mis-sized period is refused");
         assert_eq!(refused.to_string(), message);
         assert_eq!(refresh.events().len(), events);
         assert_eq!(refresh.fit().rows(), before_rows.as_slice());
@@ -209,8 +208,7 @@ fn a_refused_period_leaves_the_state_unchanged() {
         PeriodRefresh::start(&spec, &window(0, 12, "snap_a"), &prior, &series).unwrap();
     let refused = restarting
         .refresh(&window(12, 13, "snap_b"), cadence(), "law_1", &[1.0])
-        .err()
-        .expect("a restart that leaves no row is refused");
+        .expect_err("a restart that leaves no row is refused");
     assert_eq!(refused.to_string(), "invalid state event: block holds no observations");
     assert_eq!(restarting.fit().rows(), before_rows.as_slice());
     assert_eq!(restarting.events().len(), 1);

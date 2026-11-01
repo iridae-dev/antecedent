@@ -1126,6 +1126,12 @@ impl super::Study {
     /// The series is resampled in circular blocks of consecutive periods, never shorter than
     /// the window a pulse and its outcome horizon span, so every atom reads the same resampled
     /// series and the windows its template needs stay intact inside a block.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     fn temporal_pag_shared_replicates(
         &self,
         series: &TimeSeriesData,
@@ -1237,6 +1243,12 @@ impl super::Study {
     }
 
     /// Resolve every contributing template before any shared resampling stream is drawn.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     fn temporal_pag_replicate_members(
         &self,
         gp: &GraphPosterior,

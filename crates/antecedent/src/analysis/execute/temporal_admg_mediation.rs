@@ -80,7 +80,7 @@ pub(crate) fn window_effect_query_within(
 pub(crate) struct AdmgWindowProblem {
     effect: AdmittedMediationEffect,
     plan: antecedent_identify::temporal_admg::AdmittedTemporalAdmgWindowPlan,
-    _mediator_lease: Arc<antecedent_core::execution::AdmissionLease>,
+    mediator_lease: Arc<antecedent_core::execution::AdmissionLease>,
     window: antecedent_graph::UnrolledTemporalAdmg,
     treatment: VariableId,
     outcome: VariableId,
@@ -184,12 +184,12 @@ pub(crate) fn admg_window_problem_within(
     Ok(AdmgWindowProblem {
         effect,
         plan,
+        mediator_lease,
         window,
         treatment,
         outcome,
         mediators,
         window_query,
-        _mediator_lease: mediator_lease,
     })
 }
 
@@ -246,7 +246,7 @@ impl super::Study {
             outcome,
             mediators,
             window_query,
-            _mediator_lease,
+            mediator_lease,
         } = problem;
         // The window is identified once, at compile, and the program retains the components;
         // a plan that retained none identifies here.
@@ -260,7 +260,7 @@ impl super::Study {
                 identify_components(window.admg(), &window_query, identifier_id, estimator_id)?
             };
         for (result, _) in identified.iter_mut().flatten() {
-            result.retain_temporal_lease(Arc::clone(&_mediator_lease));
+            result.retain_temporal_lease(Arc::clone(&mediator_lease));
         }
         let mut used = used_variables(template, &effect);
         used.extend(query.mediators.iter().copied());
@@ -367,7 +367,7 @@ impl super::Study {
                     Err(_) => return Ok(None),
                 };
                 for (result, _) in identified.iter_mut().flatten() {
-                    result.retain_temporal_lease(Arc::clone(&problem._mediator_lease));
+                    result.retain_temporal_lease(Arc::clone(&problem.mediator_lease));
                 }
                 Ok(Some(crate::planner::lowered::RetainedExecutionProof::Admg(identified)))
             }

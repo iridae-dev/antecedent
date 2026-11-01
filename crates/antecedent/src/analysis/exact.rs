@@ -651,7 +651,7 @@ impl PreparedStudy<ExactPreparedState> {
             ctx,
             self.state.legacy_law_identity,
         )?;
-        branch.state.provider_retention = self.state.provider_retention.clone();
+        branch.state.provider_retention.clone_from(&self.state.provider_retention);
         Ok(branch)
     }
 

@@ -9,6 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
 #![allow(
     clippy::cast_possible_truncation,
     reason = "test scaffolding compares exact constants and indexes with small literals"
@@ -443,7 +444,9 @@ fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
                     RefuteSuite::None => "none",
                     RefuteSuite::Cheap => "cheap",
                     RefuteSuite::Full => "full",
-                    _ => unreachable!("this fixture only runs these suites"),
+                    RefuteSuite::PlaceboAndRcc => {
+                        unreachable!("this fixture only runs these suites")
+                    }
                 };
                 let reported = constructions(&contract, &replay);
                 assert!(
@@ -506,7 +509,9 @@ fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinate
                     RefuteSuite::None => "none",
                     RefuteSuite::Cheap => "cheap",
                     RefuteSuite::Full => "full",
-                    _ => unreachable!("this fixture only runs these suites"),
+                    RefuteSuite::PlaceboAndRcc => {
+                        unreachable!("this fixture only runs these suites")
+                    }
                 };
                 let reported = constructions(&contract, &replay);
                 assert!(

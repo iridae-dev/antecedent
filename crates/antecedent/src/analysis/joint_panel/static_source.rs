@@ -211,7 +211,7 @@ impl PreparedStudy<JointPanelState> {
         let mut attempts = next_state.state.attempts.to_vec();
         for attempt in &mut attempts {
             if attempt.id == "joint_adjustment.observational" {
-                attempt.detail = detail.clone();
+                attempt.detail.clone_from(&detail);
                 attempt.next_attempt = Some(next.clone());
             }
         }

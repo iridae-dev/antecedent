@@ -580,7 +580,7 @@ mod tests {
         let truth = if selected.action == 1 { signal } else { 0.0 };
         let error = selected.heldout.value - truth;
         (
-            error.abs() <= 1.959963984540054 * selected.heldout.standard_error,
+            error.abs() <= 1.959_963_984_540_054 * selected.heldout.standard_error,
             selected.training_value - truth,
             error,
         )

@@ -53,7 +53,7 @@ fn thompson(outcomes: [f64; 8]) -> AdaptiveDesignDeclaration {
             available_at_look: (0..8).map(|u| Some(u32::from(u >= 4))).collect(),
             delay: DelayMechanism::Immediate,
         }),
-        outcomes: outcomes.iter().map(|&y| vec![y]).collect(),
+        outcomes: outcomes.into_iter().map(|y| vec![y]).collect(),
         interim_analyses: Some(looks(&[4, 8], 8)),
         stopping_rule: Some(StoppingRuleDeclaration {
             kind: StoppingRuleKind::Efficacy,
@@ -85,7 +85,7 @@ fn group_sequential(outcomes: Vec<f64>) -> AdaptiveDesignDeclaration {
             available_at_look: (0..total).map(|u| Some(u32::from(u >= total / 2))).collect(),
             delay: DelayMechanism::Immediate,
         }),
-        outcomes: outcomes.iter().map(|&y| vec![y]).collect(),
+        outcomes: outcomes.into_iter().map(|y| vec![y]).collect(),
         interim_analyses: Some(looks(&[total / 2, total], total)),
         stopping_rule: Some(StoppingRuleDeclaration {
             kind: StoppingRuleKind::Efficacy,

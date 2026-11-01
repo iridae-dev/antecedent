@@ -243,8 +243,8 @@ fn stops_the_run(error: &CausalError) -> bool {
     match error {
         CausalError::Cancelled { .. }
         | CausalError::Resource { .. }
-        | CausalError::Unsupported { .. } => true,
-        CausalError::Estimate(
+        | CausalError::Unsupported { .. }
+        | CausalError::Estimate(
             EstimationError::Admission(_)
             | EstimationError::Capacity(_)
             | EstimationError::TemporalMaterialization(_),
@@ -2116,16 +2116,16 @@ mod posterior_mass_tests {
                     query.clone(),
                     Vec::new(),
                     antecedent_expr::CausalExprArena::new(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
+                    antecedent_identify::DerivationTrace::default(),
+                    antecedent_core::AssumptionSet::default(),
+                    antecedent_identify::IdentificationPerformanceRecord::default(),
                 )
             } else {
                 IdentificationResult::not_identified(
                     query.clone(),
-                    Default::default(),
-                    Default::default(),
-                    Default::default(),
+                    antecedent_identify::DerivationTrace::default(),
+                    antecedent_core::AssumptionSet::default(),
+                    antecedent_identify::IdentificationPerformanceRecord::default(),
                 )
             };
             GraphIdentificationCase {
@@ -2182,7 +2182,7 @@ mod posterior_mass_tests {
                 warnings: Vec::new(),
                 point_status: None,
             },
-            assumptions: Default::default(),
+            assumptions: antecedent_core::AssumptionSet::default(),
             provenance_id: Arc::from("test"),
             horizon_identification: None,
             interaction_structurally_zero: false,

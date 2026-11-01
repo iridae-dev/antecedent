@@ -1271,11 +1271,11 @@ mod fisher_tests {
         // The former total-minus-treated calculation gives every allocation a smaller
         // absolute statistic than the separately summed observed arms (and p = 0).
         let outcomes = [
-            -7.199619291182174,
-            -6.495018842300632,
-            -9.402742742215064,
-            -7413320277575814.0,
-            -0.43013958293997245,
+            -7.199_619_291_182_174,
+            -6.495_018_842_300_632,
+            -9.402_742_742_215_064,
+            -7_413_320_277_575_814.0,
+            -0.430_139_582_939_972_45,
         ];
         let assigned = [false, false, true, true, false];
         let ctx = ExecutionContext::for_tests(42);
@@ -1288,8 +1288,8 @@ mod fisher_tests {
             mask[i] = true;
         }
         assert_eq!(
-            allocation_contrast(&outcomes, &assigned, 2, &ctx).unwrap(),
-            allocation_contrast(&outcomes, &mask, 2, &ctx).unwrap()
+            allocation_contrast(&outcomes, &assigned, 2, &ctx).unwrap().to_bits(),
+            allocation_contrast(&outcomes, &mask, 2, &ctx).unwrap().to_bits()
         );
     }
 

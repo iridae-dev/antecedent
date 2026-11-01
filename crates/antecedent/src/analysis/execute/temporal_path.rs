@@ -2166,6 +2166,10 @@ impl super::Study {
         self.execute_temporal_class_response_within(data, query, physical, &mut budget, ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the class sweep retains horizon and completion state under one budget"
+    )]
     pub(crate) fn execute_temporal_class_response_within(
         &self,
         data: &TimeSeriesData,
@@ -2310,6 +2314,10 @@ impl super::Study {
 
     /// Fits one completion's temporal response at a horizon and adds it to the
     /// class assembly as an atom, or as unevaluated when it cannot be fitted.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one completion evaluates and retains its response and validation identity"
+    )]
     fn class_response_completion(
         &self,
         sweep: &ClassResponseSweep<'_>,

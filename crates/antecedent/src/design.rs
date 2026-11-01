@@ -195,7 +195,7 @@ fn id_mass_renormalized<A, O>(
         return false;
     };
     slot.unidentified_mass > 0.0
-        && normalized_unidentified_mass(&eval.graphs) + 1e-12 < slot.unidentified_mass
+        && normalized_unidentified_mass(eval.graphs) + 1e-12 < slot.unidentified_mass
 }
 
 fn inspect_rank_binding<A, O>(
@@ -294,7 +294,7 @@ fn inspect_rank_binding<A, O>(
     DesignRankPreview {
         obligations: obligations.into(),
         unidentified_mass: (eval.graphs.n_samples > 0)
-            .then(|| normalized_unidentified_mass(&eval.graphs)),
+            .then(|| normalized_unidentified_mass(eval.graphs)),
         target: contract.identities.target,
         violations: violations.into(),
         unresolved,

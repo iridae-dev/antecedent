@@ -646,6 +646,10 @@ fn nonidentified_cross_world_queries_refuse_with_cross_world_not_identified() {
 /// interval requests, are refused with their own codes; the point survives none
 /// of them silently.
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn structures_and_inference_outside_the_cell_are_refused() {
     let data = Linear::new(60).table();
     let ctx = ExecutionContext::for_tests(5);

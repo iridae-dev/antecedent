@@ -578,6 +578,12 @@ pub(super) fn rollout_on_unfolding(
 /// # Errors
 ///
 /// As [`run_model_query`].
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    clippy::type_complexity,
+    reason = "the operation keeps its checked inputs and execution context together"
+)]
 pub(super) fn run_model_query_with_fit(
     program: &MechanismProgram,
     graph: &Dag,
@@ -610,7 +616,7 @@ pub(super) fn run_model_query_with_fit(
                 attribute,
                 fit,
                 reading,
-                run.observed.map(|input| input.runs()),
+                run.observed.map(super::temporal_attribution::CompleteWindowInput::runs),
                 run.budget,
                 ctx,
             )?;

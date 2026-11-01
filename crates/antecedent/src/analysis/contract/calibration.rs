@@ -55,6 +55,10 @@ impl StudyResult {
         Ok(self.calibration_bases_with(contract, Some(&identification)))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "basis registration enumerates each supported scientific route"
+    )]
     pub(super) fn calibration_bases_with(
         &self,
         contract: &CausalContract,

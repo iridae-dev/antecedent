@@ -171,7 +171,7 @@ fn delta_method_se() -> f64 {
     (36.0_f64 + 4.0 + 4.0 + 4.0).sqrt() / 2.0
 }
 
-/// A TemporalAdmg reads the rows as one series: the Bartlett long-run variance of the same
+/// A `TemporalAdmg` reads the rows as one series: the Bartlett long-run variance of the same
 /// influences `(+6, -2, -2, -2)` at the default lag of four rows, two. The autocovariances are
 /// `48` at lag zero, `-4` at lag one and `-8` at lag two, so the long-run variance is
 /// `48 + 2 * (2/3 * -4 + 1/3 * -8) = 112 / 3`.
@@ -425,7 +425,7 @@ fn assert_transport_suite(result: &StudyResult, suite: RefuteSuite, label: &str)
 /// probability 0.9 the four rows imply 3.6 trial rows against the two observed,
 /// `z = (2 - 3.6) / sqrt(4 * 0.9 * 0.1) = -2.667`, outside the 5% band (two-sided normal
 /// p-value 0.00766); the arm probabilities are untouched and still pass. On one dependent series
-/// (a TemporalAdmg) the variance is the batch-means one: the residuals `(0.1, 0.1, -0.9, -0.9)`
+/// (a `TemporalAdmg`) the variance is the batch-means one: the residuals `(0.1, 0.1, -0.9, -0.9)`
 /// in blocks of two sum to `(0.2, -1.8)`, so the variance is `0.04 + 3.24 = 3.28`,
 /// `z = -1.6 / sqrt(3.28) = -0.883` and the p-value is 0.37699: four rows carry too little
 /// information for the dependence-aware test to reject.
@@ -614,7 +614,7 @@ fn assert_cpdag_partial_identification(ctx: &ExecutionContext) {
 // Transport over a graph posterior.
 // ---------------------------------------------------------------------------
 
-/// The atoms of the Dag, Admg and TemporalAdmg posteriors, with the covariate `z` as the
+/// The atoms of the Dag, Admg and `TemporalAdmg` posteriors, with the covariate `z` as the
 /// selection target:
 ///
 /// * `direct`: `a -> y`; no population-varying mechanism is an ancestor of `y`.

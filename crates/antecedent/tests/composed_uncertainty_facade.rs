@@ -348,6 +348,10 @@ fn an_envelope_has_no_composed_interval_and_an_edited_artifact_is_refused() {
 // ---------------------------------------------------------------- exceedance
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_composed_exceedance_reports_the_probability_band_and_verdict() {
     // The enumerated law replicated 100 times: P(x y > 1) = 200 / 1000 = 0.2.
     let (x, y) = pair("snap-enum-large", 100);

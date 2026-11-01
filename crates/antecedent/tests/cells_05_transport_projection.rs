@@ -8,6 +8,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
 use antecedent::{
@@ -270,7 +272,9 @@ fn cells_05_transport_declared_dependence_is_honoured_or_refused() {
         // A clustered panel is read through its labels: one row per cluster is the independent
         // error times the G / (G - 1) factor, and a cluster of every four rows is wider.
         let labels = |size: usize| {
-            ScoreDependence::clusters((0..ROWS).map(|row| (row / size) as u32).collect::<Vec<_>>())
+            ScoreDependence::clusters(
+                (0..ROWS).map(|row| u32::try_from(row / size).unwrap()).collect::<Vec<_>>(),
+            )
         };
         let each = go(table(&base), |b| {
             b.sampling_design(DeclaredSamplingDesign::ClusteredPanel).score_dependence(labels(1))

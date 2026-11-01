@@ -384,6 +384,7 @@ fn gaussian_design_reuse_rebinds_rows_and_recomputes_draws() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the test checks the complete refresh lifecycle")]
 fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state() {
     use antecedent_estimate::{DmlAte, DrLearner, OverlapPolicy};
     use antecedent_learn::{LearnerSpec, LinearSpec};
@@ -399,11 +400,11 @@ fn failed_dr_configuration_refresh_preserves_estimator_identity_and_cached_state
     let overlap = OverlapPolicy::RequireDiagnostics { clip: Some(0.05), trim: None };
     let configurations: [(EstimatorSpec, EstimatorSpec); 2] = [
         (
-            DmlAte::new().with_outcome(learner.clone()).with_folds(4).into(),
-            DmlAte::new().with_outcome(learner.clone()).with_folds(3).with_overlap(overlap).into(),
+            DmlAte::new().with_outcome(learner).with_folds(4).into(),
+            DmlAte::new().with_outcome(learner).with_folds(3).with_overlap(overlap).into(),
         ),
         (
-            DrLearner::new().with_outcome(learner.clone()).with_folds(4).into(),
+            DrLearner::new().with_outcome(learner).with_folds(4).into(),
             DrLearner::new().with_outcome(learner).with_folds(3).with_overlap(overlap).into(),
         ),
     ];

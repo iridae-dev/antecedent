@@ -46,7 +46,7 @@ fn modified_effect_data() -> (TabularData, Dag) {
     for i in 0..n {
         let z = if i % 2 == 0 { -1.0 } else { 1.0 };
         let t = f64::from((i / 2) % 2 == 1);
-        let noise = ((i * 37 % 101) as f64 - 50.0) / 500.0;
+        let noise = (f64::from(i * 37 % 101) - 50.0) / 500.0;
         modifier.push(z);
         treatment.push(t);
         outcome.push(2.0 + 0.5 * t + 0.4 * z + 0.75 * t * z + noise);

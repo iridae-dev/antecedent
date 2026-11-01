@@ -17,6 +17,10 @@ use antecedent_core::{
 };
 use antecedent_data::{ImputationSpec, MissingDeclaration, MissingPolicy, TabularData};
 
+#[allow(
+    clippy::cast_possible_wrap,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn synthetic() -> (TabularData, SyntheticControlQuery) {
     let donors = [
         ("a", [0.0, 0.0, 1.0, 0.0, 1.0, 0.0]),

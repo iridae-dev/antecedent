@@ -203,6 +203,10 @@ fn the_bayesian_bootstrap_posterior_centres_on_the_identified_functional() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_temporal_admg_reads_its_contemporaneous_projection_and_resamples_in_blocks() {
     let (scm, data) = front_door();
     let truth = enumerated_effect(&scm, 0, 2);

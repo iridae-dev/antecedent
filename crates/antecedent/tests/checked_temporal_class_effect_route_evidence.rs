@@ -94,7 +94,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
     let ctx = ExecutionContext::for_tests(977);
     let suites = [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full];
     let graphs = graphs();
-    let all_data: Vec<_> = graphs.iter().map(|graph| series(graph)).collect();
+    let all_data: Vec<_> = graphs.iter().map(series).collect();
     let mut cases = Vec::new();
     for index in 0..graphs.len() {
         for multi_step in [false, true] {
@@ -108,7 +108,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
     in_parallel(&cases, |&(index, multi_step, source, suite)| {
         let (graph, data) = (&graphs[index], &all_data[index]);
         let query = query(multi_step);
-        let structure = if source == "accepted" { accepted(&graph) } else { explicit(&graph) };
+        let structure = if source == "accepted" { accepted(graph) } else { explicit(graph) };
         let builder = Study::series(data.clone())
             .graph(structure)
             .query(CausalQuery::TemporalEffect(query.clone()))
@@ -123,7 +123,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
             panic!("class effect must retain its complete execution plan")
         };
         assert_eq!(plan.query, query);
-        assert_eq!(plan.graph_class.as_str(), graph_class(&graph));
+        assert_eq!(plan.graph_class.as_str(), graph_class(graph));
         assert_eq!(plan.identifier.as_str(), "generalized.adjustment");
         assert_eq!(
             plan.estimator.as_str(),
@@ -134,9 +134,9 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
         assert!(plan.completion_count > 0);
         assert!(plan.identified_mass > 0.0);
 
-        let result = prepared.estimate_series(&data, &ctx).unwrap();
+        let result = prepared.estimate_series(data, &ctx).unwrap();
         assert!(result.estimate().as_effect().unwrap().ate.is_finite());
-        let true_effect = truth(&graph, multi_step);
+        let true_effect = truth(graph, multi_step);
         let mixture = result
             .structural_response
             .as_ref()
@@ -148,7 +148,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
         assert!(
             envelope.lower[0] - SLACK <= true_effect && true_effect <= envelope.upper[0] + SLACK,
             "class={}, source={source}, multi_step={multi_step}, suite={suite:?}, truth {true_effect} outside [{}, {}]",
-            graph_class(&graph),
+            graph_class(graph),
             envelope.lower[0],
             envelope.upper[0]
         );
@@ -166,7 +166,7 @@ fn all_frequentist_temporal_class_effect_coordinates_execute_from_retained_sourc
             .expect("shared circular-block procedure must execute");
         assert!(standard_error.is_finite() && standard_error >= 0.0);
 
-        let refreshed_data = series(&graph);
+        let refreshed_data = series(graph);
         let refreshed = prepared.refresh_series(refreshed_data, &ctx).unwrap();
         let refreshed_truth = true_effect;
         let refreshed_envelope = refreshed

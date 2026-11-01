@@ -2394,7 +2394,12 @@ pub(crate) mod checks {
                 + evidence
                     .decision()
                     .map_or(0, |decision| 1 + usize::from(decision.information_value().is_some()))
-                + usize::from(evidence.planning().and_then(|p| p.simulation()).is_some())
+                + usize::from(
+                    evidence
+                        .planning()
+                        .and_then(crate::planner::lowered::PlanningProgram::simulation)
+                        .is_some()
+                )
                 + evidence.chain().map_or(0, |chain| chain.plan().stages.len()),
             "{name}: evidence operations"
         );

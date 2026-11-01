@@ -1,5 +1,5 @@
 //! Cheap and full validation of an interventional distribution on a supplied or accepted ADMG,
-//! TemporalAdmg, CPDAG and PAG.
+//! `TemporalAdmg`, CPDAG and PAG.
 //!
 //! The expected law is read from the retained fixtures, where an independent generator derives it
 //! from the structural equations (`conformance/estimate/admg_frontdoor_distribution` for the
@@ -706,6 +706,10 @@ fn leverage_table() -> TabularData {
 }
 
 /// `P(Y=1 | do(T=1))` by the front-door formula, computed by hand from the twelve rows.
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn leverage_truth() -> f64 {
     let rows: Vec<(f64, f64, f64)> = vec![
         (0.0, 0.0, 0.0),

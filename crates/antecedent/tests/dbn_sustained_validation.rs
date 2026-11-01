@@ -13,6 +13,10 @@ use antecedent_data::{
 use antecedent_discovery::{GraphPosterior, SamplingSummary};
 use antecedent_prob::InferenceDiagnostics;
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn fixture() -> (TimeSeriesData, GraphPosterior, TemporalEffectQuery) {
     let n = 402_usize;
     // Shuffle balanced actions, interleaved with zero, so the two lag columns

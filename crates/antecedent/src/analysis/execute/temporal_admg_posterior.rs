@@ -290,6 +290,11 @@ fn window_variables(
 ///
 /// The identification names its nodes by window coordinate, so the artifact declares this map for
 /// a reader to place them; the offset is the period relative to the policy origin.
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    reason = "the bounded posterior operation retains its shared graph and execution context"
+)]
 pub(crate) fn temporal_admg_posterior_window_namespace(
     study: &super::Study,
     budget: &mut antecedent_core::TemporalBudget,
@@ -398,11 +403,10 @@ pub(crate) fn temporal_admg_posterior_window_namespace(
                 ctx,
             ) {
                 Ok(Some(nodes)) => return Ok(Some(nodes)),
-                Ok(None) => continue,
                 Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
                     return Err(e);
                 }
-                Err(_) => continue,
+                Ok(None) | Err(_) => continue,
             }
         }
         return Ok(None);
@@ -427,11 +431,10 @@ pub(crate) fn temporal_admg_posterior_window_namespace(
                 ctx,
             ) {
                 Ok(Some(nodes)) => return Ok(Some(nodes)),
-                Ok(None) => continue,
                 Err(e @ (CausalError::Cancelled { .. } | CausalError::Resource { .. })) => {
                     return Err(e);
                 }
-                Err(_) => continue,
+                Ok(None) | Err(_) => continue,
             },
             antecedent_core::CausalQuery::TemporalEffect(query) => {
                 let contrast = match identify_window_contrast_within(
@@ -879,6 +882,11 @@ impl super::Study {
     /// A validation suite or custom validator, a posterior that does not cover the series'
     /// variables, an atom that does not unroll, a series that holds a gap inside a window, or no
     /// identified atom.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded posterior operation retains its shared graph and execution context"
+    )]
     pub(super) fn execute_temporal_admg_graph_posterior(
         &self,
         series: &TimeSeriesData,
@@ -1025,6 +1033,11 @@ impl super::Study {
     ///
     /// As [`Self::execute_temporal_admg_graph_posterior`], more than one outcome horizon, or no
     /// atom that identifies the requested contrast.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded posterior operation retains its shared graph and execution context"
+    )]
     pub(super) fn execute_temporal_admg_graph_posterior_mediation(
         &self,
         series: &TimeSeriesData,
@@ -1201,6 +1214,11 @@ struct AtomComponents {
 
 /// Decompose the mediation on the unrolled window of atom `index`; `None` when the atom's
 /// template does not unroll or does not identify the requested contrast.
+#[allow(
+    clippy::too_many_lines,
+    clippy::too_many_arguments,
+    reason = "the bounded posterior operation retains its shared graph and execution context"
+)]
 fn atom_components(
     gp: &GraphPosterior,
     index: usize,

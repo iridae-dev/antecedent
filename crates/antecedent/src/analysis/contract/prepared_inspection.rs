@@ -1,5 +1,10 @@
 //! Immutable prepared metadata, captured before publication and borrowed on inspection.
-use super::*;
+use super::{
+    Arc, AssumptionSource, CausalError, GraphClass, NextAction, ObligationScope, PreparedStudy,
+    ReasoningView, SlotAvailability, StructureSource, advertised_estimator,
+    contract_identification, declared_inference, evidence_needs, identification_search_capped,
+    reasoning_view, snapshot_modality,
+};
 use serde_json::{Value, json};
 
 /// Exact identities and native reasoning retained at a preparation boundary.
@@ -200,7 +205,7 @@ impl PreparedInspection {
     /// A page requests more than 256 entries.
     pub fn obligations_page(&self, offset: usize, limit: usize) -> Result<Value, CausalError> {
         let obligations =
-            self.reasoning.assumptions.as_ref().map(|s| s.obligations.as_ref()).unwrap_or(&[]);
+            self.reasoning.assumptions.as_ref().map_or(&[][..], |s| s.obligations.as_ref());
         let end = page_end(obligations.len(), offset, limit)?;
         let items = obligations.get(offset..end).unwrap_or(&[]).iter().map(|o|json!({
             "id":o.id,"scope":o.scope.as_str(),"scope_coordinate":scope_coordinate(o.scope),
@@ -218,7 +223,7 @@ impl PreparedInspection {
     /// A page requests more than 256 entries.
     pub fn uncertainty_page(&self, offset: usize, limit: usize) -> Result<Value, CausalError> {
         let components =
-            self.reasoning.uncertainty.as_ref().map(|s| s.components.as_ref()).unwrap_or(&[]);
+            self.reasoning.uncertainty.as_ref().map_or(&[][..], |s| s.components.as_ref());
         let end = page_end(components.len(), offset, limit)?;
         let items = components
             .get(offset..end)
@@ -238,6 +243,7 @@ impl PreparedInspection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Study;
     use antecedent_core::execution_attempt::{Operation, observe_execution};
     use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
     use antecedent_data::TabularData;

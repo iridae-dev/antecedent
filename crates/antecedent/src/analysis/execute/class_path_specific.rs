@@ -330,6 +330,12 @@ impl super::Study {
     }
 
     /// Estimate every identified case of a class envelope and publish the class result.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(super) fn finish_class_path_specific<G>(
         &self,
         data: &TabularData,

@@ -201,7 +201,7 @@ fn the_dose_grid_request_has_no_weight_cluster_or_lag_field_and_no_categorical_d
     // reproduces a quadratic mean): the level is 1 + d/2 + d^2/4 at every grid dose, and the
     // weights change the standard error, not the answer.
     let mut weighted = dose_request("randomized_dose");
-    weighted.sampling_weights = Some((0..201).map(|i| 0.5 + (i % 7) as f64 * 0.4).collect());
+    weighted.sampling_weights = Some((0..201).map(|i| 0.5 + f64::from(i % 7) * 0.4).collect());
     let weighted = DoseGridFunctional::evaluate(weighted).expect("sampling weights are read");
     let accounting = weighted.result().declared_rows.as_ref().expect("accounted");
     assert_eq!((accounting.rows_used, accounting.zero_weight_rows), (201, 0));
@@ -227,7 +227,11 @@ fn the_dose_grid_request_has_no_weight_cluster_or_lag_field_and_no_categorical_d
     // Each sealed artifact replays bit for bit from its own bytes.
     for done in [&weighted, &clustered, &serial] {
         let bytes = done.export().unwrap();
-        let again = DoseGridFunctional::consume(&bytes, Default::default()).unwrap();
+        let again = DoseGridFunctional::consume(
+            &bytes,
+            antecedent_io::dose_grid_functional_artifact::DoseGridConsumeLimits::default(),
+        )
+        .unwrap();
         assert_eq!(again.result(), done.result());
     }
     // Clusters together with a lag, and declarations of the wrong length, are refused by name.
@@ -271,6 +275,10 @@ fn prepare_smoothed(input: SmoothedDoseInput, seed: u64) -> PreparedSmoothedDose
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn the_smoothed_dose_input_has_no_weight_cluster_or_lag_field() {
     let rows = dgp::draw(dgp::Design::NestedCohort, dgp::Scenario::Good, 600, 450, 31);
     let n = rows.source.len();
@@ -335,6 +343,10 @@ fn the_smoothed_dose_input_has_no_weight_cluster_or_lag_field() {
 
 #[test]
 fn a_structure_search_query_has_no_treatment_variable_and_no_intervention_regime() {
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the deterministic fixture preserves its exact values and bounded setup"
+    )]
     fn fields(query: DiscoverQuery) {
         let DiscoverQuery { variables: _, method: _, bounds: _ } = query;
     }
@@ -358,8 +370,7 @@ fn the_bayesian_synthetic_control_is_refused_on_a_single_period_table() {
         .inference(bayes())
         .build()
         .and_then(|study| study.run(&ctx))
-        .err()
-        .expect("a single period table has no pre-treatment path");
+        .expect_err("a single period table has no pre-treatment path");
     let text = error.to_string();
     assert!(text.contains("at least two pre-periods and one post-period"), "{text}");
     assert_eq!(error.reason_code(), Some("invalid_argument"), "{text}");
@@ -384,8 +395,7 @@ fn the_bayesian_staggered_event_study_is_refused_on_a_single_period_table_with_a
         .inference(bayes())
         .build()
         .and_then(|study| study.run(&ctx))
-        .err()
-        .expect("one period defines no event-time contrast");
+        .expect_err("one period defines no event-time contrast");
     let text = error.to_string();
     assert!(text.contains("balanced panel with at least two common periods"), "{text}");
     assert!(text.contains("Next attempt"), "{text}");
@@ -422,8 +432,7 @@ fn the_bayesian_augmented_panel_is_refused_when_a_subject_repeats_instead_of_pai
         .inference(bayes())
         .build()
         .and_then(|study| study.run(&ctx))
-        .err()
-        .expect("a repeated subject was paired as two periods of one unit");
+        .expect_err("a repeated subject was paired as two periods of one unit");
     let text = error.to_string();
     assert!(text.contains("one unique subject per row"), "{text}");
     assert_eq!(error.reason_code(), Some("invalid_argument"), "{text}");

@@ -697,8 +697,7 @@ fn discovery_builder_retains_typed_refusal_until_replaced() {
     let error = Study::tabular(chain_table(20, 1))
         .discovery(DiscoverySpec::pc(params, "parcorr"), three())
         .build()
-        .err()
-        .expect("invalid discovery must refuse");
+        .expect_err("invalid discovery must refuse");
     assert_eq!(
         error,
         antecedent::CausalError::from(QueryError::InvalidDiscover(

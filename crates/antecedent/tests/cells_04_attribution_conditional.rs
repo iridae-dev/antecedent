@@ -19,6 +19,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
 use antecedent::{CausalError, RefuteSuite, Study, StudyResult};
@@ -57,6 +59,10 @@ fn refused(result: Result<StudyResult, CausalError>, what: &str) -> CausalError 
 const N: usize = 100;
 
 #[derive(Clone, Copy, Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "the fixture independently toggles several fault conditions"
+)]
 struct Fault {
     constant_root: bool,
     constant_parent: bool,
@@ -131,7 +137,7 @@ fn attribute_rows(data: TabularData, rows: usize) -> Result<StudyResult, CausalE
 fn with_categorical(column: usize) -> TabularData {
     let at = |i: usize| i as f64;
     let z: Vec<f64> = (0..N).map(|i| (at(i) * 0.37).sin()).collect();
-    let code: Vec<u32> = (0..N).map(|i| (i % 3) as u32).collect();
+    let code: Vec<u32> = (0..N).map(|i| u32::try_from(i % 3).unwrap()).collect();
     let y: Vec<f64> =
         (0..N).map(|i| 1.0 + 2.0 * f64::from(code[i]) + z[i] + 0.5 * (at(i) * 1.3).sin()).collect();
     let mut builder = CausalSchemaBuilder::new();

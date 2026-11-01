@@ -71,15 +71,20 @@ impl Study {
         data: PanelData,
         request: JointPanelRequest,
         spec: ImputationSpec,
-        _ctx: &ExecutionContext,
+        ctx: &ExecutionContext,
     ) -> Result<PreparedJointPanelImputation, JointPanelError> {
-        Self::prepare_joint_panel_imputed_with_domains(data, request, spec, &[], _ctx)
+        Self::prepare_joint_panel_imputed_with_domains(data, request, spec, &[], ctx)
     }
 
     /// Prepare with explicit domains for the named panel imputation-model columns.
     ///
     /// # Errors
     /// As [`Self::prepare_joint_panel_imputed`], or an invalid domain declaration.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::float_cmp,
+        reason = "categorical codes and constant columns require exact comparisons during preparation"
+    )]
     pub fn prepare_joint_panel_imputed_with_domains(
         data: PanelData,
         request: JointPanelRequest,

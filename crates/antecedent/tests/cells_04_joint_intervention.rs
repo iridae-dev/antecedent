@@ -24,6 +24,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
 use antecedent::{
@@ -264,7 +266,7 @@ fn latent_class_body() {
     edges(&mut admg);
     let mut cpdag = Cpdag::with_variables(3);
     edges(&mut cpdag);
-    for (class, error) in [
+    for (class, error) in vec![
         (
             "admg",
             Study::tabular(table(None, false))
@@ -412,7 +414,7 @@ fn weights_body() {
             .and_then(|prepared| prepared.estimate(&data, &ctx()))
     };
     assert_eq!(batch(table(None, false)).unwrap().len(), 2);
-    check("batch", batch(weighted()).err().expect("a weighted batch was estimated"));
+    check("batch", batch(weighted()).expect_err("a weighted batch was estimated"));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -441,8 +443,7 @@ fn held_out_body() {
         .bootstrap_replicates(0)
         .prepare_cells(&[level_query(1.0, 1.0)], &ctx())
         .and_then(|prepared| prepared.estimate(&data, &ctx()))
-        .err()
-        .expect("a batch estimated an unobserved cell");
+        .expect_err("a batch estimated an unobserved cell");
     assert!(error.to_string().contains("empty joint treatment combination"), "{error}");
 }
 
@@ -833,7 +834,7 @@ fn prepared_body() {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|c| u32::try_from(c.as_u64().unwrap()).unwrap() + shift * 0)
+                .map(|c| u32::try_from(c.as_u64().unwrap()).unwrap())
                 .enumerate()
                 .map(|(row, c)| if shift == 0 || row % 7 != 0 { c } else { (c + 1) % 12 })
                 .collect::<Vec<_>>(),

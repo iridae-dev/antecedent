@@ -70,6 +70,11 @@ pub(super) fn exercise(
     assert_eq!(prepared.fits_performed(), 1);
 }
 
+#[allow(
+    clippy::assigning_clones,
+    clippy::match_wildcard_for_single_variants,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn translated_fixture(
     original: &JointPanelResult,
     functional: JointPanelResponseFunctional,
@@ -186,6 +191,10 @@ fn translated_fixture(
 /// spend than the observed experiment. It is valued through its own licensed bridge and paired
 /// mapping, the update it would cause and the decision that update changes, and each stage is
 /// checked here against arithmetic that calls no production update or ranking helper.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn verify_regime_studies(
     original: &JointPanelResult,
     updated: &PanelExperimentResult,
@@ -562,6 +571,10 @@ fn verify_next_study(
     serde_json::json!({"evsi_reference":reference,"evsi_absolute_error":(ranking[0].gross_evsi-reference).abs(),"quadrature_error_bound":error,"evsi_mcse":ranking[0].standard_error,"admissible_action_identity":ranking[0].admissible_action_identity.to_hex(),"operational_action_ids":action_ids,"terminal_cost":mean,"net_value":ranking[0].net_value})
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn verify_fitless_native_law_adapter(original: &JointPanelResult, ctx: &ExecutionContext) {
     let fixture = translated_fixture(original, JointPanelResponseFunctional::TerminalMean, true, 1);
     let source = original.project_law_source(&fixture.update.functional).unwrap();
@@ -766,6 +779,12 @@ fn exercise_native_source(
         }
     }
 }
+#[allow(
+    clippy::assigning_clones,
+    clippy::float_cmp,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn exercise_native_source_variant(
     design: &antecedent::analysis::joint_panel::designs::JointDesignResult,
     uncertain: bool,
@@ -1068,6 +1087,11 @@ fn native_randomized_designs_execute_the_experiment_to_decision_reference_chain(
 }
 
 #[test]
+#[allow(
+    clippy::cast_lossless,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn longitudinal_treatment_affected_history_executes_the_full_experiment_chain() {
     use antecedent::analysis::joint_panel::designs::{
         JointDesignArm, JointDesignProof, JointDesignWorldBinding, PreparedJointDesign,
@@ -1234,6 +1258,11 @@ fn longitudinal_treatment_affected_history_executes_the_full_experiment_chain() 
 /// implementation runs do not authorize a release calibration claim.
 #[test]
 #[ignore = "Q08/E14 stable-candidate full experiment-chain measurement"]
+#[allow(
+    clippy::map_unwrap_or,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn native_experiment_decision_full_procedure_calibration_l95() {
     use antecedent::analysis::joint_panel::designs::{
         JointDesignProof, JointDesignWorldBinding, PreparedJointDesign, joint_design_world_identity,

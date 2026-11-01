@@ -320,11 +320,15 @@ fn a_weighted_series_is_refused_rather_than_fit_unweighted() {
         .and_then(|study| {
             study.run(&ExecutionContext::for_tests(83)).map_err(|error| error.to_string())
         });
-    let error = outcome.err().expect("a weighted series cannot be fit without its weights");
+    let error = outcome.expect_err("a weighted series cannot be fit without its weights");
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_single_identified_atom_reproduces_the_window_route_of_its_template() {
     let ctx = ExecutionContext::for_tests(83);
     let series = effect_series(40_000, 17);

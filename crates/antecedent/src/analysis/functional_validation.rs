@@ -245,6 +245,10 @@ fn validate_over(
 
 // Keep set/graph-dependent point publication intact. Each report describes one
 // point-producing completion's level under full-program refits, never the set.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 fn validate_temporal_members(
     mut result: StudyResult,
     prepared: &PreparedStudy,
@@ -381,6 +385,10 @@ fn validate_temporal_members(
     Ok(result)
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 fn validate(
     study: &Study,
     prepared: &PreparedStudy,

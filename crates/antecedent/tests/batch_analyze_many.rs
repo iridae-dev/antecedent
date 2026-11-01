@@ -622,6 +622,10 @@ fn retained_batch_state_does_not_cross_admission_ownership_or_cache_policy() {
 }
 
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the test-local sink belongs to this cancellation scenario"
+)]
 fn cancelled_batch_execution_never_publishes_into_a_prepared_or_completed_branch() {
     use antecedent_core::execution::CancellationToken;
     use antecedent_core::execution_attempt::{Operation, observe_with_context};

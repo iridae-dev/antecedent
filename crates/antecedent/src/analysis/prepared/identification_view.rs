@@ -26,6 +26,9 @@ pub struct PreparedIdentificationView<'a> {
     node: Node<'a>,
 }
 
+type SelectedEstimand<'a> =
+    (&'a antecedent_expr::IdentifiedEstimand, Option<&'a antecedent_core::TemporalIndexer>, usize);
+
 #[derive(Clone, Copy)]
 enum Node<'a> {
     Root,
@@ -79,6 +82,10 @@ impl<'a> PreparedIdentificationView<'a> {
     /// Fixed-size metadata for this node. Composite products have no invented
     /// aggregate verdict, adjustment union or first-case assumption count.
     #[must_use]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "each retained identification variant has its own bounded summary"
+    )]
     pub fn summary(&self) -> Value {
         let mut value = json!({"kind": self.node.kind(), "children": self.child_count(),
             "status": null, "status_unavailable": "composite_identification"});
@@ -143,7 +150,7 @@ impl<'a> PreparedIdentificationView<'a> {
                     IdentificationLayer::NonGraphical(proof) => {
                         value["non_graphical"] = json!(proof.as_str())
                     }
-                    _ => {}
+                    IdentificationLayer::Retained(_) => {}
                 }
             }
             Node::Cache(cache) => match cache {
@@ -315,14 +322,7 @@ impl<'a> PreparedIdentificationView<'a> {
     fn select_estimand(
         &self,
         requested: Option<usize>,
-    ) -> Result<
-        Option<(
-            &'a antecedent_expr::IdentifiedEstimand,
-            Option<&'a antecedent_core::TemporalIndexer>,
-            usize,
-        )>,
-        crate::CausalError,
-    > {
+    ) -> Result<Option<SelectedEstimand<'a>>, crate::CausalError> {
         let (proof, indexer, selected) = self.selected_proof()?;
         let index = match requested {
             Some(index) => index,
@@ -366,7 +366,7 @@ impl<'a> PreparedIdentificationView<'a> {
                 "claim_basis":if proof.estimand_claims.is_empty() {"shared_native_proof"} else {"per_estimand_claim"},
                 "claim_unavailable":(!proof.estimand_claims.is_empty() && proof.estimand_claims.get(index).is_none()).then_some("estimand_claim_not_retained")})
         }).collect::<Vec<_>>();
-        Ok(accessor_page(proof.estimands.len(), offset, end, items))
+        Ok(accessor_page(proof.estimands.len(), offset, end, &items))
     }
 
     /// Named adjustment coordinates for an explicitly chosen estimand. A temporal
@@ -405,7 +405,7 @@ impl<'a> PreparedIdentificationView<'a> {
             })?.name.as_ref();
             Ok(json!({"name":name,"variable":key.variable.raw(),"offset":key.offset,"node":id.raw()}))
         }).collect::<Result<Vec<_>,crate::CausalError>>()?;
-        let mut page = accessor_page(estimand.adjustment_set.len(), offset, end, items);
+        let mut page = accessor_page(estimand.adjustment_set.len(), offset, end, &items);
         page["estimand"] = json!(index);
         page["temporal_namespace"] = indexer_value(indexer);
         Ok(page)
@@ -460,7 +460,7 @@ impl<'a> PreparedIdentificationView<'a> {
             .iter()
             .map(|entry| serde_json::to_value(entry).map_err(serialization))
             .collect::<Result<Vec<_>, _>>()?;
-        let mut page = accessor_page(assumptions.entries.len(), offset, end, items);
+        let mut page = accessor_page(assumptions.entries.len(), offset, end, &items);
         page["scope"] = json!(scope);
         page["status"] = json!(status.as_str());
         page["estimand"] = json!(estimand);
@@ -478,7 +478,7 @@ impl<'a> PreparedIdentificationView<'a> {
     ) -> Result<Value, crate::CausalError> {
         let (proof, _, _) = self.selected_proof()?;
         let end = accessor_page_end(proof.derivation.steps.len(), offset, limit)?;
-        let items = proof
+        let items: Vec<_> = proof
             .derivation
             .steps
             .get(offset..end)
@@ -486,7 +486,7 @@ impl<'a> PreparedIdentificationView<'a> {
             .iter()
             .map(|step| json!({"rule":step.rule,"detail":step.detail}))
             .collect();
-        Ok(accessor_page(proof.derivation.steps.len(), offset, end, items))
+        Ok(accessor_page(proof.derivation.steps.len(), offset, end, &items))
     }
 
     /// Complete conversion of this subtree with no caller context, for unit tests of the
@@ -617,7 +617,7 @@ fn accessor_page_end(
     }
     Ok(offset.saturating_add(limit).min(length))
 }
-fn accessor_page(total: usize, offset: usize, end: usize, items: Vec<Value>) -> Value {
+fn accessor_page(total: usize, offset: usize, end: usize, items: &[Value]) -> Value {
     json!({"available":true,"total":total,"offset":offset,"items":items,"next_offset":(end<total).then_some(end)})
 }
 fn transport_outcome_summary(
@@ -634,6 +634,7 @@ fn transport_outcome_summary(
         json!(outcome.location.as_ref().map_or(0, |l| l.graph_nodes.len()));
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "map_err passes its owned serialization error")]
 fn serialization(error: serde_json::Error) -> crate::CausalError {
     crate::CausalError::Compile { message: error.to_string() }
 }
@@ -686,7 +687,7 @@ fn temporal_graph(
                 antecedent_core::NodeRef::Static(variable) => json!({"kind":"static","variable":variable.raw()}),
                 antecedent_core::NodeRef::Lagged {variable,lag} => json!({"kind":"lagged","variable":variable.raw(),"lag":lag.raw()}),
                 antecedent_core::NodeRef::Unfolded {variable,offset} => json!({"kind":"unfolded","variable":variable.raw(),"offset":offset}),
-                antecedent_core::NodeRef::Context {variable,environment} => json!({"kind":"context","variable":variable.raw(),"environment":environment.map(|e|e.raw())}),
+                antecedent_core::NodeRef::Context {variable,environment} => json!({"kind":"context","variable":variable.raw(),"environment":environment.map(antecedent_core::EnvironmentId::raw)}),
             }).collect::<Vec<_>>();
             let endpoint = |mark| match mark {
                 antecedent_graph::Endpoint::Tail => "tail",
@@ -710,7 +711,9 @@ fn demotion(d: &crate::analysis::identification_cache::DbnIdentifyDemotion) -> V
     json!({"invalid_graph":d.invalid_graph,"identify_failed":d.identify_failed,"not_identified":d.not_identified,"no_estimand":d.no_estimand})
 }
 fn non_graphical(proof: &crate::planner::lowered::NonGraphicalIdentification) -> Value {
-    use crate::planner::lowered::NonGraphicalIdentification::*;
+    use crate::planner::lowered::NonGraphicalIdentification::{
+        CyclicIoScm, ExperimentalRecovery, SharedEvidenceContract, SpecifiedModelConditional,
+    };
     match proof {
         SpecifiedModelConditional { model } => {
             json!({"kind":"specified_model_conditional","model":model})
@@ -725,7 +728,7 @@ fn non_graphical(proof: &crate::planner::lowered::NonGraphicalIdentification) ->
     }
 }
 
-impl<'a> Node<'a> {
+impl Node<'_> {
     fn kind(self) -> &'static str {
         match self {
             Self::Root => "identification",
@@ -735,7 +738,9 @@ impl<'a> Node<'a> {
             Self::Selected(..) => "selected_proof",
             Self::Temporal(_) => "horizons",
             Self::Horizon(_) | Self::HorizonEnvelope(..) => "horizon",
-            Self::PagCase(_) | Self::DagCase(_) | Self::TemporalCase(..) => "completion_case",
+            Self::PagCase(_) | Self::DagCase(_) | Self::TemporalCase(..) | Self::ClassCase(..) => {
+                "completion_case"
+            }
             Self::Pag(_) | Self::Cpdag(_) | Self::TemporalEnvelope(_) => "completion_envelope",
             Self::Samples(_) => "posterior_samples",
             Self::Sample(..) => "posterior_sample",
@@ -744,7 +749,6 @@ impl<'a> Node<'a> {
             Self::GraphAtom(_) | Self::DbnAtom(_) => "identified_atom",
             Self::ClassAtom(_) | Self::TemporalAtom(_) => "class_atom",
             Self::ClassCases(_) => "completion_cases",
-            Self::ClassCase(..) => "completion_case",
             Self::Horizons(_) => "horizon_envelopes",
             Self::Transport(_) => "transport",
             Self::TransportCases(_) => "transport_cases",
@@ -754,7 +758,6 @@ impl<'a> Node<'a> {
     }
     fn len(self) -> usize {
         match self {
-            Self::Root => 0, // The owner-dependent root count is supplied below.
             Self::Layer(IdentificationLayer::Retained(retained)) => {
                 retained.caches().len() + usize::from(retained.execution_proof().is_some())
             }
@@ -762,17 +765,17 @@ impl<'a> Node<'a> {
                 usize::from(failure.is_some())
             }
             Self::Cache(c) => match c {
-                IdentificationCache::Static(_) => 1,
+                IdentificationCache::Static(_)
+                | IdentificationCache::Temporal(_)
+                | IdentificationCache::Transport(_) => 1,
                 IdentificationCache::Pag(c) => 2 + usize::from(c.transport.is_some()),
                 IdentificationCache::Cpdag(c) => 2 + usize::from(c.transport.is_some()),
-                IdentificationCache::Temporal(_) | IdentificationCache::Transport(_) => 1,
-                IdentificationCache::TemporalClass(_) => 2,
-                IdentificationCache::GraphPosterior(_) => 3,
-                IdentificationCache::DbnPosterior(_)
+                IdentificationCache::TemporalClass(_)
+                | IdentificationCache::DbnPosterior(_)
                 | IdentificationCache::TemporalClassPosterior(_) => 2,
+                IdentificationCache::GraphPosterior(_) => 3,
             },
             Self::Temporal(c) => c.by_horizon.len(),
-            Self::Horizon(_) => 1,
             Self::Pag(e) => e.cases.len(),
             Self::Cpdag(e) => e.cases.len(),
             Self::TemporalEnvelope(e) | Self::HorizonEnvelope(_, e) => e.envelope.cases.len(),
@@ -784,12 +787,15 @@ impl<'a> Node<'a> {
             Self::TemporalAtoms(a) => a.len(),
             Self::Horizons(h) => h.len(),
             Self::TransportCases(c) => c.len(),
-            Self::PagCase(_) | Self::DagCase(_) | Self::TemporalCase(..) => 1,
-            Self::Selected(..) | Self::ClassCase(..) => 1,
+            Self::Horizon(_)
+            | Self::PagCase(_)
+            | Self::DagCase(_)
+            | Self::TemporalCase(..)
+            | Self::Selected(..)
+            | Self::ClassCase(..) => 1,
             Self::GraphAtom(a) => 1 + usize::from(a.transport.is_some()),
-            Self::ClassAtom(_) => 2,
+            Self::ClassAtom(_) | Self::TemporalAtom(_) => 2,
             Self::DbnAtom(a) => 1 + usize::from(a.horizons.is_some()),
-            Self::TemporalAtom(_) => 2,
             Self::Execution(p) => match p {
                 RetainedExecutionProof::Admg(c) => c.len(),
                 RetainedExecutionProof::Pag { envelopes } => envelopes.len(),
@@ -798,6 +804,10 @@ impl<'a> Node<'a> {
             _ => 0,
         }
     }
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the child mapping enumerates the retained hierarchy's distinct node types"
+    )]
     fn child(self, index: usize) -> Option<Self> {
         match self {
             Self::Layer(IdentificationLayer::Retained(r)) => {

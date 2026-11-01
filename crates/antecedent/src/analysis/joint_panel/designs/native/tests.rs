@@ -201,7 +201,7 @@ fn native_cohort_compiler_preserves_joint_regime_atts_and_complete_likelihood() 
                 id: format!("{regime}/{i}"),
                 regime: regime.into(),
                 adoption: (regime != "00").then_some(2),
-                outcomes: vec![(1, i as f64), (2, i as f64 + 5.0 + effect)],
+                outcomes: vec![(1, f64::from(i)), (2, f64::from(i) + 5.0 + effect)],
             });
         }
     }
@@ -487,7 +487,7 @@ fn did_chain_fixture() -> (JointDesignRecipe, JointDesignInference, Vec<f64>) {
                 id: format!("{regime}/{i}"),
                 regime: regime.into(),
                 adoption: (regime != "00").then_some(2),
-                outcomes: vec![(1, i as f64), (2, i as f64 + 5.0 + effect)],
+                outcomes: vec![(1, f64::from(i)), (2, f64::from(i) + 5.0 + effect)],
             });
         }
     }
@@ -778,6 +778,7 @@ fn native_continuous_history_compiler_preserves_complete_refits_and_posterior_re
     prepared.consume_current(&artifact, &ctx).unwrap();
 }
 #[test]
+#[allow(clippy::float_cmp, reason = "the exact deterministic fixture pins both effects")]
 fn native_local_iv_preserves_complier_target_and_refuses_missing_monotonicity() {
     use antecedent_estimate::joint_design::local_instrument::*;
     let ctx = ExecutionContext::for_tests(560);
@@ -838,6 +839,13 @@ fn native_local_iv_preserves_complier_target_and_refuses_missing_monotonicity() 
 /// Registered Q08/E14 procedure. This reports measurements; execution grants no release license.
 #[test]
 #[ignore = "400 independent original-data repetitions per design; run only on the stable candidate"]
+#[allow(
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the bounded simulation fixture keeps its complete design-specific setup together"
+)]
 fn compiled_native_design_full_procedure_calibration() {
     use antecedent_core::execution::CausalRng;
     use antecedent_estimate::joint_design::compiled::JointDesignLaw;
@@ -1066,13 +1074,10 @@ fn compiled_native_design_full_procedure_calibration() {
                 _ => panic!("calibration fixture contains an unsupported joint design"),
             }
             let ctx = ExecutionContext::for_tests(70000 + repetition);
-            let prepared = match PreparedNativeJointDesign::compile(recipe, &ctx) {
-                Ok(p) => p,
-                Err(_) => {
-                    counts[2] += 1;
-                    counts[5] += 1;
-                    continue;
-                }
+            let Ok(prepared) = PreparedNativeJointDesign::compile(recipe, &ctx) else {
+                counts[2] += 1;
+                counts[5] += 1;
+                continue;
             };
             let fi = if cell == 3 {
                 JointDesignInference::SyntheticConformal{joint_level:0.95,residual_exchangeability:"independent Gaussian treated residuals exchangeable across all observed time periods".into()}
@@ -1104,7 +1109,7 @@ fn compiled_native_design_full_procedure_calibration() {
                             }
                             JointNativeDesignLaw::Moments(law) => {
                                 law.estimate().contrast(&contrast).ok().map(|(mean, var)| {
-                                    let radius = 1.959963984540054 * var.max(0.0).sqrt();
+                                    let radius = 1.959_963_984_540_054 * var.max(0.0).sqrt();
                                     [mean - radius, mean + radius]
                                 })
                             }

@@ -47,6 +47,10 @@ fn table() -> TabularData {
         .unwrap()
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn count(z: Option<f64>, t: f64, y: Option<f64>) -> f64 {
     CELLS
         .iter()

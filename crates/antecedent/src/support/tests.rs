@@ -1389,11 +1389,9 @@ fn functional_queries_have_licensed_or_explicitly_refused_validation() {
         }
     }
     // A graph posterior over a Dag answers a counterfactual atom by atom.
-    for query in ["Counterfactual"] {
-        let c = cell(query, "Dag", "graph_posterior", "Frequentist", "cheap");
-        assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
-        assert!(!super::executes_unlicensed(c), "{c:?}");
-    }
+    let c = cell("Counterfactual", "Dag", "graph_posterior", "Frequentist", "cheap");
+    assert_eq!(classify(c), CellStatus::Licensed, "{c:?}");
+    assert!(!super::executes_unlicensed(c), "{c:?}");
 }
 
 /// How a query kind meets the matrix query axis.

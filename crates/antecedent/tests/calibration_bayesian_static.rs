@@ -130,6 +130,10 @@ struct Replicate {
 }
 
 impl Replicate {
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the fixture owns and releases the full run after extracting bindings"
+    )]
     fn new(reported: Run, pairs: Vec<Pair>, truths: Vec<f64>) -> Self {
         let bindings = constructions(&reported.0.inspect().expect("inspect"), &reported.1);
         Self { reported: bindings, pairs, truths }

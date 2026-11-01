@@ -92,6 +92,7 @@ fn encoded_size<T: Serialize>(value: &T, ctx: &ExecutionContext) -> Result<usize
     })?;
     Ok(counter.bytes)
 }
+#[allow(clippy::too_many_lines, reason = "the summary covers each native design recipe")]
 pub(super) fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
     use JointDesignRecipe::{
         AdaptiveRegime, DecisionCluster, DecisionExperiment, DifferenceInDifferences, Excursion,
@@ -100,7 +101,7 @@ pub(super) fn summary(recipe: &JointDesignRecipe) -> NativeJointIdentification {
     };
     let (targets, population, sampling_unit, required_assumptions) = match recipe {
         AdaptiveRegime { recipe } => (
-            recipe.outcomes.iter().map(|(_, variable, units)| format!("{} [{}]", variable, units)).collect(),
+            recipe.outcomes.iter().map(|(_, variable, units)| format!("{variable} [{units}]")).collect(),
             recipe.population.clone(), "independent complete longitudinal subject".into(),
             vec![recipe.policy_prespecification.clone(), recipe.positivity.clone(), recipe.exchangeability.clone(), recipe.consistency.clone(), recipe.followup.clone(), recipe.isolation.clone(), "observed support for every reachable policy history".into()],
         ),

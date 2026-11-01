@@ -83,6 +83,10 @@ fn on_large_stack(run: impl FnOnce() + Send + 'static) {
 }
 
 #[test]
+#[allow(
+    clippy::err_expect,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn refreshed_summary_reloads_and_withdrawal_drops_permission() {
     let spec = PeriodRefreshSpec {
         series_id: "v",

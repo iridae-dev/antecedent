@@ -70,6 +70,10 @@ fn sampling() -> SamplingSummary {
         rejected_invalid: 0,
     }
 }
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn gp(n: usize, kind: GraphPosteriorAtomKind, w: &[f64], masks: Vec<u64>) -> GraphPosterior {
     let mut g = GraphPosterior::new(
         n,

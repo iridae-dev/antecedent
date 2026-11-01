@@ -100,8 +100,7 @@ fn a_temporal_graph_is_refused_by_the_interference_contrast_which_runs_on_a_stat
         .interference(InterferenceSpec { network, assignment: Arc::from([true, false]) })
         .refute(RefuteSuite::None)
         .build()
-        .err()
-        .expect("a temporal graph was read as a static structure");
+        .expect_err("a temporal graph was read as a static structure");
     let text = error.to_string();
     assert!(text.contains("typed against static graphs"), "{text}");
     assert!(text.contains("do not denote on a temporal graph class"), "{text}");
@@ -111,8 +110,7 @@ fn a_temporal_graph_is_refused_by_the_interference_contrast_which_runs_on_a_stat
 fn a_missing_outcome_or_declared_missing_policy_is_refused_by_the_interference_contrast() {
     // An outcome cell that is not observed is not dropped or imputed: the contrast is refused.
     let text = interference([1.0, f64::NAN], contrast(0.0, 1.0), NONE)
-        .err()
-        .expect("a missing outcome was averaged over")
+        .expect_err("a missing outcome was averaged over")
         .to_string();
     assert!(text.contains("non-finite outcome"), "{text}");
     // And no missing-data policy is executed: each is refused at build with the policy named.
@@ -125,8 +123,7 @@ fn a_missing_outcome_or_declared_missing_policy_is_refused_by_the_interference_c
             contrast(0.0, 1.0),
             Declared { sampling: None, missing: Some(MissingDeclaration::new(policy)) },
         )
-        .err()
-        .expect("a missing-data policy was ignored");
+        .expect_err("a missing-data policy was ignored");
         assert_eq!(error.reason_code(), Some("missing_policy_not_applicable"), "{error}");
         let text = error.to_string();
         assert!(text.contains(name), "{text}");
@@ -140,8 +137,7 @@ fn an_exposure_level_beyond_the_binary_assignment_is_refused_not_estimated() {
     // The assignment is one binary indicator per unit, so a third own-treatment level is never
     // realised by any unit and its exposure probability is zero.
     let text = interference([1.0, 4.0], contrast(0.0, 2.0), NONE)
-        .err()
-        .expect("an unrealisable exposure level was estimated")
+        .expect_err("an unrealisable exposure level was estimated")
         .to_string();
     assert!(text.contains("exposure positivity violation"), "{text}");
 }
@@ -239,13 +235,13 @@ fn synthetic() -> (TabularData, SyntheticControlQuery) {
     for (unit, trajectory) in donors {
         for (index, value) in trajectory.into_iter().enumerate() {
             units.push(Arc::<str>::from(unit));
-            periods.push(index as i64 + 1);
+            periods.push(i64::try_from(index).unwrap() + 1);
             y.push(value);
         }
     }
     for index in 0..6 {
         units.push(Arc::<str>::from("treated"));
-        periods.push(index as i64 + 1);
+        periods.push(i64::try_from(index).unwrap() + 1);
         let counterfactual =
             0.2 * donors[0].1[index] + 0.3 * donors[1].1[index] + 0.5 * donors[2].1[index];
         y.push(counterfactual + if index >= 4 { 5.0 } else { 0.0 });
@@ -279,8 +275,7 @@ fn a_single_treated_unit_synthetic_control_honours_a_clustered_design_and_refuse
     // Four pre-periods cannot reach the 5% conformal level (1 / (4 + 1) = 0.2), so a serial design
     // is refused with the next attempt instead of reporting an interval of another level.
     let error = run(Some(DeclaredSamplingDesign::DependentTimeSeries))
-        .err()
-        .expect("a serial design on four pre-periods was silently ignored");
+        .expect_err("a serial design on four pre-periods was silently ignored");
     assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
     let text = error.to_string();
     assert!(text.contains("pre-periods"), "{text}");

@@ -72,6 +72,10 @@ fn assert_refused(label: &str, result: Result<StudyResult, CausalError>, phrase:
 }
 
 #[test]
+#[allow(
+    clippy::err_expect,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn a_declared_dependence_is_refused_with_or_without_a_bootstrap_setting() {
     run(None, 0, false).unwrap();
     run(None, 20, false).unwrap();

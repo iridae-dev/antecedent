@@ -126,6 +126,10 @@ fn pag() -> TemporalPag {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the variants name the represented temporal graph families"
+)]
 enum Class {
     TemporalDag,
     TemporalCpdag,
@@ -400,7 +404,7 @@ fn posterior(kind: GraphPosteriorAtomKind) -> GraphPosterior {
 }
 
 /// `TemporalConditionalPulse` and `TemporalConditionalSustained` x `TemporalDag` (none, cheap and
-/// full), `TemporalCpdag` and `TemporalPag` (cheap and full) x graph_posterior x Frequentist and
+/// full), `TemporalCpdag` and `TemporalPag` (cheap and full) x `graph_posterior` x Frequentist and
 /// Bayesian: the mixed value is the marginal conditional effect, the refuters refit the whole
 /// graph-posterior procedure, and no mass is lost.
 #[test]

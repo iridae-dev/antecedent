@@ -38,6 +38,12 @@ struct SequentialRefitter<'a> {
     gaps: bool,
 }
 impl EffectRefit for SequentialRefitter<'_> {
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     fn refit(
         &self,
         data: &TabularData,

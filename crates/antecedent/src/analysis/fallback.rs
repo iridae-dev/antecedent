@@ -545,7 +545,7 @@ impl Study {
             // A posterior is drawn with n_draws: only a resampling spread reads replicates.
             .bootstrap_replicates(match self.settings.inference {
                 InferenceMode::Bayesian(_) => 0,
-                _ => self.settings.bootstrap_replicates,
+                InferenceMode::Frequentist => self.settings.bootstrap_replicates,
             });
         if let Some(design) = self.declared.sampling_design {
             builder = builder.sampling_design(design);

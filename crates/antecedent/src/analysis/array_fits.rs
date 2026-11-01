@@ -127,6 +127,10 @@ impl ArrayFit {
     ///
     /// # Errors
     /// Cancellation, actual byte admission, size overflow or encoding failure.
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local item stays alongside the operation it supports"
+    )]
     pub fn encoded_with_context(
         &self,
         ctx: &ExecutionContext,

@@ -90,6 +90,10 @@ fn a_request_without_resampling_is_accepted_under_the_declared_design() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_whole_cluster_bootstrap_is_accepted_under_a_clustered_panel() {
     let ctx = ExecutionContext::for_tests(11);
     let (data, dag, query) = confounded_scm(ROWS, 11);
@@ -152,6 +156,10 @@ fn run_with_labels(
         .and_then(|study| study.run(&ctx))
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn labels_of(size: usize) -> Vec<u32> {
     (0..ROWS).map(|row| (row / size) as u32).collect()
 }
@@ -189,6 +197,10 @@ fn a_dependent_series_refuses_a_whole_cluster_draw() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn the_same_design_on_the_estimator_and_the_study_is_not_a_conflict() {
     let (data, dag, query) = confounded_scm(ROWS, 11);
     // With the bootstrap off the declared panel is read by the cluster standard error.

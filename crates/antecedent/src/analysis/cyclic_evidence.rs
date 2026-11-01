@@ -548,7 +548,7 @@ impl super::cyclic::ExecutedCyclicSystem {
     }
 }
 
-/// Independently verified system source with no reconstructed PreparedStudy.
+/// Independently verified system source with no reconstructed `PreparedStudy`.
 #[derive(Clone, Debug)]
 pub struct ConsumedCyclicSystem {
     request: Arc<antecedent_io::cyclic_system_artifact::CyclicExecutionRequest>,
@@ -931,6 +931,7 @@ fn attach_fit_convergence(diagnostics: serde_json::Value, answer: &A) -> serde_j
     }
 }
 
+#[allow(clippy::unnecessary_wraps, reason = "projection diagnostics use an optional detail value")]
 fn detail<'a, T: Serialize + 'a>(value: T) -> Option<Box<dyn Detail + 'a>> {
     Some(Box::new(value))
 }
@@ -1501,6 +1502,7 @@ fn bootstrap<'a>(
 
 /// Stationary laws of the shared-mechanism family in the requested equation worlds.
 /// Trajectory OU fit: its likelihood, held-out trajectory predictions and stationary worlds.
+#[allow(clippy::too_many_lines, reason = "the projection keeps the trajectory variants together")]
 fn ou_trajectory<'a>(
     report: &'a antecedent_estimate::ou_trajectory::OuTrajectoryReport,
     selector: &CyclicEvidenceSelector,
@@ -2145,8 +2147,8 @@ impl EvidenceSource for A {
     }
 }
 fn source_order(request: &R) -> usize {
-    let request = request.recovery_recipe();
     use antecedent_io::cyclic_graph::CyclicGraphRequest as G;
+    let request = request.recovery_recipe();
     let graph_order = |graph: &G| match graph {
         G::Identify { graph, .. }
         | G::Backdoor { graph, .. }
@@ -2254,6 +2256,10 @@ impl CyclicEvidence {
         Self::build_version(request, source, artifact, schema, selectors, version, ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "artifact construction checks its complete versioned contract"
+    )]
     fn build_version(
         request: &R,
         source: &Arc<CyclicFamilyReport>,
@@ -2599,6 +2605,7 @@ impl CyclicEvidence {
     }
 
     /// Read scientific coordinates without copying or serializing any samples.
+    #[must_use]
     pub fn quantities(&self) -> impl ExactSizeIterator<Item = &ScientificQuantityWire> {
         self.report.columns.iter().map(|column| &column.quantity)
     }
@@ -2975,11 +2982,19 @@ fn recovery_distribution_provenance(
         causal_contract_id: origin.fit.clone(),
     }
 }
+#[allow(
+    clippy::too_many_lines,
+    clippy::float_cmp,
+    reason = "joint-law checks preserve exact mass and provenance semantics"
+)]
 fn cyclic_joint_columns(
     columns: &[&CyclicEvidenceColumn],
     provenance: DistributionProvenance,
     exact_recovery_weights: bool,
 ) -> Result<DistributionArtifact, CyclicArtifactError> {
+    use antecedent_io::distribution_artifact::{
+        MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
+    };
     let first = columns.first().ok_or_else(|| invalid("empty evidence"))?;
     if !matches!(first.port.as_str(), "parameter_posterior" | "interventional_law") {
         return Err(joint_refusal(
@@ -2991,9 +3006,6 @@ fn cyclic_joint_columns(
     if count == 0 {
         return Err(invalid("empty law"));
     }
-    use antecedent_io::distribution_artifact::{
-        MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
-    };
     if columns.len() > MAX_DISTRIBUTION_COORDINATES
         || count > MAX_DISTRIBUTION_DRAWS
         || count
@@ -3526,6 +3538,7 @@ mod recovery_origin_tests {
             .unwrap()
     }
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact shared draws")]
     fn world_branches_share_actual_evidence_and_draw_alignment_but_keep_targets_distinct() {
         let ctx = ExecutionContext::for_tests(19);
         let source = Study::prepare_cyclic_family(&request(19), &ctx)
@@ -3590,6 +3603,10 @@ mod recovery_origin_tests {
         );
     }
     #[test]
+    #[allow(
+        clippy::items_after_statements,
+        reason = "the local legacy wire belongs to this fixture"
+    )]
     fn historical_v2_envelope_bytes_identity_and_origin_standing_are_preserved() {
         let ctx = ExecutionContext::for_tests(19);
         let executed = Study::prepare_cyclic_family(&request(19), &ctx)

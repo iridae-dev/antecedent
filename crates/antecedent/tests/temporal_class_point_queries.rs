@@ -263,12 +263,15 @@ fn temporal_class_points_refuse_a_weighted_series_they_would_fit_unweighted() {
         .and_then(|study| {
             study.run(&ExecutionContext::for_tests(11)).map_err(|error| error.to_string())
         })
-        .err()
-        .expect("a weighted series cannot be fit without its weights");
+        .expect_err("a weighted series cannot be fit without its weights");
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
     let pin: serde_json::Value = serde_json::from_str(include_str!(
         "../../../conformance/estimate/temporal_conditional/expected.json"

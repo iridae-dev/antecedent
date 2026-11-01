@@ -596,6 +596,10 @@ struct ScannedColumn {
 /// Scan `cols` in order: a column is kept when its residual after projecting out the earlier
 /// kept columns exceeds `tol` times its own norm. Dependent columns record the relation that
 /// explains them, obtained by back-substitution in the triangular factor of the kept columns.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves the declared boundary and identity semantics"
+)]
 fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankScan, CausalError> {
     let mut basis: Vec<Vec<f64>> = Vec::new();
     // Upper-triangular factor, one column per kept column: `r_kept[k][l] = <q_l, a_k>`.
@@ -646,7 +650,9 @@ fn scan_rank(cols: &[&[f64]], tol: f64, ctx: &ExecutionContext) -> Result<RankSc
                     let (prior_scale, prior_factor) = norms[i];
                     // Preserve ordinary arithmetic; scaled cases retain the original
                     // units without first forming an unrepresentable column norm.
-                    let original = if factor == 1.0 && prior_factor == 1.0 {
+                    let original = if factor.to_bits() == 1.0_f64.to_bits()
+                        && prior_factor.to_bits() == 1.0_f64.to_bits()
+                    {
                         ck * scale / prior_scale
                     } else {
                         ((ck * factor / prior_factor) * scale) / prior_scale
@@ -720,12 +726,11 @@ fn duplicate_groups(columns: &[Vec<f64>]) -> Vec<Vec<usize>> {
             columns[first].len() == col.len()
                 && columns[first].iter().zip(col).all(|(a, b)| bits(*a) == bits(*b))
         });
-        match found {
-            Some(group) => groups[group].push(j),
-            None => {
-                bucket.push(groups.len());
-                groups.push(vec![j]);
-            }
+        if let Some(group) = found {
+            groups[group].push(j);
+        } else {
+            bucket.push(groups.len());
+            groups.push(vec![j]);
         }
     }
     groups.retain(|group| group.len() > 1);

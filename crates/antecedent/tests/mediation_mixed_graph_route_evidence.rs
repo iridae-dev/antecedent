@@ -1,5 +1,5 @@
 //! Coordinate-specific closure evidence for the mediation decomposition on a supplied ADMG, the
-//! contemporaneous projection of a TemporalAdmg, a CPDAG and a PAG.
+//! contemporaneous projection of a `TemporalAdmg`, a CPDAG and a PAG.
 //!
 //! Every expected value is read from `conformance/estimate/mediation_mixed_graphs`, where an
 //! independent generator enumerates the noise cells of the structural models and evaluates the
@@ -32,7 +32,7 @@ fn pin() -> Value {
 }
 
 /// The table's rows in a fixed interleaved order, so that consecutive rows (the blocks a
-/// TemporalAdmg draw weights together) do not follow the sorted cells of the table.
+/// `TemporalAdmg` draw weights together) do not follow the sorted cells of the table.
 fn expand(case: &Value) -> TabularData {
     let columns: Vec<&str> =
         case["columns"].as_array().unwrap().iter().map(|column| column.as_str().unwrap()).collect();

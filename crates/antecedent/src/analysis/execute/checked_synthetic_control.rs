@@ -143,6 +143,12 @@ impl CheckedSyntheticControlOperation {
         Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(crate) fn execute(
         &self,
         data: &TabularData,

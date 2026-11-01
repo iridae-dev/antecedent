@@ -659,7 +659,7 @@ impl BayesianDeclarations {
             config.predictive_replicates = self.predictive_replicates;
         }
         if config.design_model.is_none() {
-            config.design_model = self.design_model.clone();
+            config.design_model.clone_from(&self.design_model);
         }
     }
 }

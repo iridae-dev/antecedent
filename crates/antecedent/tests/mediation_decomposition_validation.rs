@@ -77,6 +77,10 @@ fn table_of(cells: &Cells) -> TabularData {
         .unwrap()
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn count(cells: &Cells, t: Option<f64>, m: Option<f64>, y: Option<f64>) -> f64 {
     cells
         .iter()
@@ -124,6 +128,10 @@ struct Sensitivity {
 }
 
 impl Sensitivity {
+    #[allow(
+        clippy::float_cmp,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn of(cells: &Cells) -> Self {
         let n: f64 = cells.iter().map(|c| c.3 as f64).sum();
         let mean = |t: f64, pick: fn(&(f64, f64, f64, usize)) -> f64| -> f64 {

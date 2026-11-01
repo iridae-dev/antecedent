@@ -177,7 +177,10 @@ impl Serialize for Node<'_> {
             NodeRef::Context { variable, environment } => {
                 wire.serialize_field("kind", "context")?;
                 wire.serialize_field("variable", &variable.raw())?;
-                wire.serialize_field("environment", &environment.map(|v| v.raw()))?;
+                wire.serialize_field(
+                    "environment",
+                    &environment.map(antecedent_core::EnvironmentId::raw),
+                )?;
             }
         }
         wire.end()

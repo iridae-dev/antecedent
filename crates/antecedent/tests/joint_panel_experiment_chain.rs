@@ -63,6 +63,12 @@ pub fn exercise_core(
     );
 }
 
+#[allow(
+    clippy::assigning_clones,
+    clippy::cast_possible_wrap,
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 pub(super) fn verify_compiled_excursion_update(
     original: &JointPanelResult,
     ctx: &ExecutionContext,

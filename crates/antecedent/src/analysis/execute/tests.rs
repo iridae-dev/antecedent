@@ -627,7 +627,7 @@ mod identify_only_tests {
             let gp = GraphPosterior::from_atoms(
                 3,
                 weights.clone(),
-                vec![direct.clone(), adjusted.clone(), unidentified.clone()],
+                vec![direct, adjusted, unidentified],
                 marginals.clone(),
                 marginals.clone(),
                 SamplingSummary {
@@ -811,7 +811,7 @@ mod identify_only_tests {
             let gp = GraphPosterior::from_atoms(
                 3,
                 weights.clone(),
-                vec![direct.clone(), adjusted.clone(), unidentified.clone()],
+                vec![direct, adjusted, unidentified],
                 marginals.clone(),
                 marginals.clone(),
                 SamplingSummary {
@@ -957,7 +957,7 @@ mod identify_only_tests {
         let mix = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.3, 0.2],
-            vec![direct.clone(), adjusted.clone(), unidentified.clone()],
+            vec![direct, adjusted, unidentified],
             vec![0.0; 9],
             vec![0.0; 9],
             SamplingSummary {
@@ -1000,7 +1000,7 @@ mod identify_only_tests {
         let mix = GraphPosterior::from_atoms(
             3,
             vec![0.5, 0.3, 0.2],
-            vec![direct.clone(), adjusted.clone(), unidentified.clone()],
+            vec![direct, adjusted, unidentified],
             vec![0.0; 9],
             vec![0.0; 9],
             SamplingSummary {

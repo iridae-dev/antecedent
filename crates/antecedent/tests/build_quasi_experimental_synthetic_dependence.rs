@@ -31,7 +31,7 @@ fn long_panel(case: &serde_json::Value) -> (TabularData, Vec<Arc<str>>, Vec<i64>
         for (t, value) in row.as_array().unwrap().iter().enumerate() {
             y.push(value.as_f64().unwrap());
             units.push(Arc::<str>::from(name.as_str().unwrap()));
-            periods.push(t as i64 + 1);
+            periods.push(i64::try_from(t).unwrap() + 1);
         }
     }
     (TabularData::from_f64_columns([("y", y.as_slice())]).unwrap(), units, periods)
@@ -125,8 +125,7 @@ fn a_declared_serial_design_with_too_short_a_pre_period_is_refused_with_the_next
     let reference = reference();
     let placebo = &reference["placebo"];
     let error = synthetic_study(placebo, Some(DeclaredSamplingDesign::DependentTimeSeries))
-        .err()
-        .expect("a 6-period pre window cannot reach the 5% conformal level");
+        .expect_err("a 6-period pre window cannot reach the 5% conformal level");
     assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
     let text = error.to_string();
     assert!(
@@ -159,7 +158,7 @@ fn a_declared_design_the_interval_cannot_be_combined_with_is_refused_not_ignored
     };
     // A unit-randomization test, a ridge augmentation and (for the serial design) the synthetic
     // difference in differences have no such interval; the Bayesian donor-weight posterior reads no lag.
-    let refused = [
+    let refused = vec![
         run(base().with_uniform_unit_randomization(), DeclaredSamplingDesign::ClusteredPanel, None),
         run(base().with_augmentation(1.0), DeclaredSamplingDesign::DependentTimeSeries, None),
         run(base().difference_in_differences(), DeclaredSamplingDesign::DependentTimeSeries, None),
@@ -443,7 +442,7 @@ fn a_one_period_switchback_is_refused_with_a_typed_reason_and_a_two_period_switc
             .and_then(|study| study.run(&ExecutionContext::for_tests(51)))
     };
     let one_period = query(["p0"; 8], ["s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
-    let error = run(one_period).err().expect("a switchback that never switches back ran");
+    let error = run(one_period).expect_err("a switchback that never switches back ran");
     assert_eq!(error.reason_code(), Some("option_not_applicable"), "{error}");
     let text = error.to_string();
     assert!(text.contains("never switches back") && text.contains("Next attempt"), "{text}");

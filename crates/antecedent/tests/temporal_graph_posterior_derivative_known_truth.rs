@@ -1,5 +1,5 @@
-//! Known-truth evidence for temporal derivatives over a graph posterior of TemporalDag, TemporalCpdag
-//! and TemporalPag atoms.
+//! Known-truth evidence for temporal derivatives over a graph posterior of `TemporalDag`, `TemporalCpdag`
+//! and `TemporalPag` atoms.
 //!
 //! The class of the lagged template has one completion, so the Pulse witness is that completion's.
 //! The series follows the lag-one linear law of
@@ -8,7 +8,7 @@
 //! semi-elasticity, average-derivative, Jacobian and directional-derivative coordinate is built
 //! under both structure routes, both inference modes and both refuter suites, then executed from
 //! the prepared study with the builder dropped. The published value and the unit-step difference of
-//! the identified levels are compared with the fixture's closed-form truth, the TemporalDag
+//! the identified levels are compared with the fixture's closed-form truth, the `TemporalDag`
 //! Pulse-native suite runs on the Pulse witness, and the planted violation the fixture declares (an
 //! evaluation point beyond the observed series) must be detected.
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -211,6 +211,10 @@ fn valid(weight: f64) -> Template {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[allow(
+    clippy::enum_variant_names,
+    reason = "the variants name the represented temporal graph families"
+)]
 enum Atoms {
     TemporalDag,
     TemporalCpdag,

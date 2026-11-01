@@ -85,6 +85,10 @@ fn temporal_attribution_frequentist_known_truth() {
     clippy::too_many_lines,
     reason = "the route-evidence body: builds, seals, executes and re-executes each frequentist temporal attribution"
 )]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn frequentist_body() {
     let ctx = ExecutionContext::for_tests(13);
     let truth = staged_attribution();
@@ -264,6 +268,10 @@ fn temporal_accepted_attribution_known_truth() {
         .expect("evidence body panicked");
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn accepted_body() {
     let ctx = ExecutionContext::for_tests(13);
     let truth = staged_attribution();
@@ -349,6 +357,10 @@ fn temporal_attribution_bayesian_known_truth() {
 #[allow(
     clippy::too_many_lines,
     reason = "the route-evidence body: builds, seals, executes and re-executes each Bayesian temporal attribution"
+)]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
 )]
 fn bayesian_body() {
     let ctx = ExecutionContext::for_tests(13);

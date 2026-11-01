@@ -37,6 +37,10 @@ use common::fixtures::confounded_scm;
 /// Independent reference for the confounded fixture: the coefficient on `t` in the ordinary
 /// least-squares fit of `y` on `[1, t, z]`, solved from the normal equations in-test. `adjusted =
 /// false` drops `z`, giving the naive difference of means that the confounding biases.
+#[allow(
+    clippy::needless_range_loop,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn ols_treatment_coefficient(data: &TabularData, adjusted: bool) -> f64 {
     use antecedent_data::TableView;
     let col = |i: u32| data.float64_slice(VariableId::from_raw(i)).unwrap().to_vec();

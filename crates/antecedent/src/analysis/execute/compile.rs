@@ -718,6 +718,12 @@ impl super::Study {
         self.compile_logical_temporal_effect_admg_within(data, q, graph, &mut budget, ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     fn compile_logical_temporal_effect_admg_within(
         &self,
         data: &TimeSeriesData,

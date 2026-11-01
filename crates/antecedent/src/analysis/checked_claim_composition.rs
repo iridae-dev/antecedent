@@ -54,30 +54,37 @@ struct CheckedStudyClaimInner {
 }
 impl CheckedStudyClaim {
     /// The internally created conditional point claim.
+    #[must_use]
     pub fn claim(&self) -> &ClaimEnvelope {
         &self.inner.claim
     }
     /// Actual parent claim IDs in canonical order.
+    #[must_use]
     pub fn parents(&self) -> &[SemanticDigest] {
         &self.inner.parents
     }
     /// Parent and child ancestry.
+    #[must_use]
     pub fn provenance(&self) -> &ProvenanceGraph {
         &self.inner.provenance
     }
     /// Explicit retention and loss report.
+    #[must_use]
     pub fn receipt(&self) -> &HandoffReceipt {
         &self.inner.receipt
     }
     /// Exact declared output target.
+    #[must_use]
     pub fn target(&self) -> &ScientificTarget {
         &self.inner.target
     }
     /// Derived finite point.
+    #[must_use]
     pub fn point(&self) -> f64 {
         self.inner.value
     }
     /// Identity of the in-process arithmetic proof.
+    #[must_use]
     pub fn proof_identity(&self) -> SemanticDigest {
         self.inner.proof
     }
@@ -85,8 +92,8 @@ impl CheckedStudyClaim {
 fn outer_action_count(world: &antecedent_core::InterventionWorld) -> usize {
     let action = world.action();
     action.at_decision_interventions().map_or_else(
-        || action.structural_actions().map_or(1, |items| items.len()),
-        |items| items.len(),
+        || action.structural_actions().map_or(1, <[antecedent_core::StructuralAction]>::len),
+        <[antecedent_core::Intervention]>::len,
     )
 }
 fn provenance_node(
@@ -109,6 +116,14 @@ fn provenance_node(
 /// No new identification, support, uncertainty or calibration is asserted. Output is in-process only.
 /// # Errors
 /// Invalid parent bindings or premises, target arithmetic, limits, or cancellation.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the checked synthesis keeps its admission and proof construction in one operation"
+)]
+#[allow(
+    clippy::missing_panics_doc,
+    reason = "parent targets are immutably checked before the admitted traversal"
+)]
 pub fn compose_checked_study_claims(
     target: &ScientificTarget,
     parents: &[PreparedClaimParent<'_>],
@@ -285,7 +300,7 @@ pub fn compose_checked_study_claims(
                     | IdentificationStatus::IdentifiedUnderParametricRestrictions
             )
             || !slot.masses_are_valid()
-            || slot.identified_mass != 1.0
+            || slot.identified_mass.to_bits() != 1.0_f64.to_bits()
             || slot.unidentified_mass != 0.0
             || slot.unevaluable_mass != 0.0
             || slot.incomplete_search_mass != 0.0
@@ -346,7 +361,7 @@ pub fn compose_checked_study_claims(
     if ctx.cancellation.is_cancelled() {
         return Err(CheckedWorldPointError::Cancelled);
     }
-    if operation == ClaimOperation::Aggregate && weight_sum != 1.0 {
+    if operation == ClaimOperation::Aggregate && weight_sum.to_bits() != 1.0_f64.to_bits() {
         return Err(CheckedWorldPointError::IncompatibleParents);
     }
     if expected != actual {

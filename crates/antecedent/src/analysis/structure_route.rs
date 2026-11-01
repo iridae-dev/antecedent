@@ -472,6 +472,27 @@ impl DiscoverySpec {
                 .opt_word(params.max_subset.map(|value| value as u64));
             knowledge(writer, &params.knowledge);
         }
+        fn uses_ges(method: &DiscoveryMethod) -> bool {
+            match method {
+                DiscoveryMethod::Ges { .. } => true,
+                DiscoveryMethod::BootstrapStability { base, .. } => uses_ges(base),
+                _ => false,
+            }
+        }
+        fn uses_dag_bic(method: &DiscoveryMethod) -> bool {
+            match method {
+                DiscoveryMethod::Ges { .. }
+                | DiscoveryMethod::ExactDagPosterior
+                | DiscoveryMethod::ExactDagMarginals
+                | DiscoveryMethod::OrderMcmc { .. }
+                | DiscoveryMethod::StructureMcmc
+                | DiscoveryMethod::CiScreenedPosterior { .. }
+                | DiscoveryMethod::DbnPosterior { .. } => true,
+                DiscoveryMethod::ClassPosterior { base }
+                | DiscoveryMethod::BootstrapStability { base, .. } => uses_dag_bic(base),
+                _ => false,
+            }
+        }
         let mut writer = CanonicalWriter::new("antecedent.discovery_configuration");
         writer.text(&self.ci_label);
         match &self.search {
@@ -497,30 +518,9 @@ impl DiscoverySpec {
                 static_params(&mut writer, screen);
             }
         }
-        fn uses_ges(method: &DiscoveryMethod) -> bool {
-            match method {
-                DiscoveryMethod::Ges { .. } => true,
-                DiscoveryMethod::BootstrapStability { base, .. } => uses_ges(base),
-                _ => false,
-            }
-        }
         // The historical Insert-Turn-Delete search is a different program.
         if uses_ges(&self.method) {
             writer.text("ges.schedule.insert-delete.v2");
-        }
-        fn uses_dag_bic(method: &DiscoveryMethod) -> bool {
-            match method {
-                DiscoveryMethod::Ges { .. }
-                | DiscoveryMethod::ExactDagPosterior
-                | DiscoveryMethod::ExactDagMarginals
-                | DiscoveryMethod::OrderMcmc { .. }
-                | DiscoveryMethod::StructureMcmc
-                | DiscoveryMethod::CiScreenedPosterior { .. }
-                | DiscoveryMethod::DbnPosterior { .. } => true,
-                DiscoveryMethod::ClassPosterior { base }
-                | DiscoveryMethod::BootstrapStability { base, .. } => uses_dag_bic(base),
-                _ => false,
-            }
         }
         let gaussian_score = match &self.search {
             SearchParams::Static(_) => uses_ges(&self.method),
@@ -1553,13 +1553,15 @@ fn noise_structure(
 /// `block` is the block length of a dependent series (the null law is then a block permutation
 /// of the residuals, not an independent-residual one); `bayesian` reads the answer as the
 /// posterior probability of a change under the prior the query declares.
+type SelectedRunPair<'a> = (&'a [std::ops::Range<usize>], &'a [std::ops::Range<usize>]);
+
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ChangeReading<'a> {
     /// Block length of a dependent series, when the populations are segments of one.
     pub(crate) block: Option<usize>,
     /// Read the answer as a posterior probability of a change.
     pub(crate) bayesian: bool,
-    pub(crate) runs: Option<(&'a [std::ops::Range<usize>], &'a [std::ops::Range<usize>])>,
+    pub(crate) runs: Option<SelectedRunPair<'a>>,
     pub(crate) budget: Option<&'a antecedent_core::TemporalBudget>,
 }
 
@@ -1635,8 +1637,7 @@ pub(crate) fn run_mechanism_change(
             let mut budget = reading.budget.cloned().ok_or_else(|| CausalError::Compile {
                 message: "temporal mechanism detection lost its shared budget".into(),
             })?;
-            return Ok(
-                antecedent_attribution::mechanism_change::detect_mechanism_changes_block_with_runs(
+            return antecedent_attribution::mechanism_change::detect_mechanism_changes_block_with_runs(
                     &fitted.model,
                     data,
                     detection,
@@ -1648,8 +1649,7 @@ pub(crate) fn run_mechanism_change(
                     &mut budget,
                     ctx,
                 )
-                .map_err(temporal_attribution_error)?,
-            );
+                .map_err(temporal_attribution_error);
         }
         return Ok(antecedent_attribution::detect_mechanism_changes_block(
             &fitted.model,
@@ -1852,6 +1852,10 @@ pub(crate) fn structure_comparison_model(
 /// runs. The mechanism-fit refits of an intrinsic-influence target are the query's own unless
 /// `fit` sets them.
 #[allow(clippy::too_many_lines, reason = "one exhaustive match over every attribution target")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the fitted attribution operation shares its graph, data and execution context"
+)]
 pub(crate) fn run_attribute_with_fit(
     fitted: &FittedGcm,
     graph: &Dag,
@@ -2619,7 +2623,7 @@ mod ges_schedule_identity_tests {
             ci: crate::discovery_defaults::resolve_ci("parcorr", None).unwrap(),
             screen_pc: false,
             max_subset: None,
-            knowledge: Default::default(),
+            knowledge: antecedent_discovery::BackgroundKnowledge::default(),
         }
     }
 

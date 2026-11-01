@@ -474,6 +474,10 @@ fn adjusted_causal_and_support_refusals_preserve_live_fit() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
     use antecedent_core::recalc::{
         RecalcCapabilities, ResumeContext, RetargetSupport, StageIdentities,
@@ -551,6 +555,10 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn adjusted_sparse_categories_and_invalid_predictions_do_no_model_work() {
     let mut request = categorical();
     let mut session = AdjustedSession::new();
@@ -609,6 +617,10 @@ fn adjusted_reuse_borrows_covariance_without_refitting_or_copying() {
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn adjusted_cancel_memory_and_numerical_refit_failures_are_transactional() {
     let original = linear();
     let mut session = AdjustedSession::new();

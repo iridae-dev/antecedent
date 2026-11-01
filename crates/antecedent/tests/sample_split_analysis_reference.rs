@@ -35,6 +35,10 @@ fn cells(column: &Value) -> Vec<f64> {
     column.as_array().unwrap().iter().map(|c| c.as_f64().unwrap_or(f64::NAN)).collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn ids(value: &Value) -> Vec<usize> {
     value.as_array().unwrap().iter().map(|r| r.as_u64().unwrap() as usize).collect()
 }

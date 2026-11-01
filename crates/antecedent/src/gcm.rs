@@ -764,7 +764,7 @@ impl NestedCounterfactualOperation {
     }
 
     pub(crate) fn matches(&self, graph: &Dag, query: &NestedCounterfactualQuery) -> bool {
-        self.query == *query && crate::graph_identity::same_dag_structure(graph, &*self.graph)
+        self.query == *query && crate::graph_identity::same_dag_structure(graph, &self.graph)
     }
 
     pub(crate) fn mediation_query(&self) -> &antecedent_core::MediationQuery {
@@ -2063,6 +2063,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves the declared boundary and identity semantics"
+    )]
     fn the_single_form_freezes_no_contrast_target_and_a_joint_query_freezes_one() {
         let (_, graph) = two_cause_data(10);
         let (x1, x2, y) =

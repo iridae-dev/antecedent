@@ -308,7 +308,7 @@ pub fn lag_zero_truth() -> LagZeroTruth {
     }
 }
 
-/// SplitMix64 stream and its Box-Muller normals: a fixed, dependency-free generator so the
+/// `SplitMix64` stream and its Box-Muller normals: a fixed, dependency-free generator so the
 /// lag-zero panel is the same panel on every platform and run.
 struct FixtureStream(u64);
 impl FixtureStream {
@@ -390,7 +390,7 @@ pub fn source_lag_zero_departing(departure: LagZeroDeparture) -> PanelData {
             let series = TimeSeriesData::from_f64_columns(
                 ["channel_a", "channel_b", "outcome", "z", "season"]
                     .into_iter()
-                    .zip([&a, &b, &y, &z, &season].map(|column| column.as_slice())),
+                    .zip([&a, &b, &y, &z, &season].map(std::vec::Vec::as_slice)),
                 604_800_000_000_000,
             )
             .unwrap();
@@ -402,6 +402,11 @@ pub fn source_lag_zero_departing(departure: LagZeroDeparture) -> PanelData {
 
 /// The lag-zero request on [`source_lag_zero`]: the four-world interaction contrast at dose 4
 /// held for 24 periods, with every group's own first 24 contexts as the future context.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 pub fn request_lag_zero(data: &PanelData, inference: PanelInference) -> JointPanelRequest {
     use antecedent_data::TableView as _;
     let selection = if matches!(&inference, PanelInference::Bayesian { .. }) {
@@ -553,7 +558,7 @@ pub fn source_confounded_varied() -> PanelData {
             let series = TimeSeriesData::from_f64_columns(
                 ["channel_a", "channel_b", "outcome", "z", "season"]
                     .into_iter()
-                    .zip([&a, &b, &y, &z, &season].map(|column| column.as_slice())),
+                    .zip([&a, &b, &y, &z, &season].map(std::vec::Vec::as_slice)),
                 604_800_000_000_000,
             )
             .unwrap();

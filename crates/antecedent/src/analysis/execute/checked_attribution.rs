@@ -438,6 +438,11 @@ impl CheckedAttributionOperation {
     /// # Errors
     ///
     /// The operation was sealed on a static DAG, or fitting and scoring fail.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     pub(crate) fn execute_series(
         &self,
         series: &TimeSeriesData,
@@ -462,16 +467,17 @@ impl CheckedAttributionOperation {
                 "temporal attribution mechanism selection and fitting do not support user observation weights"
             ));
         }
-        let mut local_budget = provenance.map(|p| p.budget().clone()).unwrap_or_else(|| {
-            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits())
-        });
-        let mut budget = shared_budget.unwrap_or(&mut local_budget);
+        let mut local_budget = provenance.map_or_else(
+            || antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()),
+            |p| p.budget().clone(),
+        );
+        let budget = shared_budget.unwrap_or(&mut local_budget);
         let input = super::temporal_attribution::CompleteWindowInput::build(
             aligned,
             series,
             common_history.unwrap_or_else(|| aligned.history()),
             provenance,
-            &mut budget,
+            budget,
             ctx,
         )?;
         if self.result_context.query != self.query()
@@ -526,7 +532,7 @@ impl CheckedAttributionOperation {
                         &selector,
                         ticks,
                         source_bound,
-                        &mut budget,
+                        budget,
                         ctx,
                     )?;
                     let antecedent_core::PopulationSelector::Rows(rows) = translated else {
@@ -535,8 +541,9 @@ impl CheckedAttributionOperation {
                     query.unit_rows = Some(rows);
                     selector_lease = lease;
                 }
-                let _selector_lease = selector_lease;
-                temporal_op.execute_anomaly(&query, input.table(), ctx, Some(ticks))
+                let result = temporal_op.execute_anomaly(&query, input.table(), ctx, Some(ticks));
+                drop(selector_lease);
+                result
             }
             AttributionTarget::Change(query) => {
                 let mut query = query.clone();
@@ -544,14 +551,14 @@ impl CheckedAttributionOperation {
                     &query.baseline,
                     ticks,
                     source_bound,
-                    &mut budget,
+                    budget,
                     ctx,
                 )?;
                 let (comparison, _comparison_lease) = Self::series_retained_selector(
                     &query.comparison,
                     ticks,
                     source_bound,
-                    &mut budget,
+                    budget,
                     ctx,
                 )?;
                 query.baseline = baseline;
@@ -578,7 +585,7 @@ impl CheckedAttributionOperation {
                         ticks,
                         common_history.unwrap_or_else(|| aligned.history()),
                         source_bound,
-                        &mut budget,
+                        budget,
                         ctx,
                     )?;
                     temporal_op.execute_model(&query, input.table(), Some(&input), ctx)
@@ -896,6 +903,11 @@ impl CheckedAttributionOperation {
 
     /// Translate original coordinates to compact positions, including every
     /// occurrence in a gathered refit. The lease remains live with the query.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     fn series_retained_selector(
         selector: &antecedent_core::PopulationSelector,
         kept: &[usize],
@@ -1019,6 +1031,11 @@ impl CheckedAttributionOperation {
     /// uncertainty its procedure carries: the posterior over the mechanisms under Bayesian
     /// inference, the mechanism-refit row (or block) bootstrap when replicates are requested,
     /// and the fitted model's point answer otherwise.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     fn execute_model(
         &self,
         query: &CausalQuery,
@@ -1359,6 +1376,11 @@ impl CheckedAttributionOperation {
     /// One replicate of a temporal rollout: the mechanisms refit under fresh block weights (or
     /// block counts), the dynamics rolled forward from the last rows of the series, and the mean
     /// of every variable at every step read off the rollout.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     fn simulate_replicate(
         &self,
         simulate: &antecedent_core::SimulateQuery,
@@ -1474,6 +1496,11 @@ impl CheckedAttributionOperation {
     }
 
     /// One replicate of a fitted-model attribution on mechanisms refit under fresh weights.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     fn attribute_replicate(
         &self,
         attribute: &antecedent_core::AttributeQuery,
@@ -1494,7 +1521,7 @@ impl CheckedAttributionOperation {
                 positions.map(|rows| op.selected_temporal_runs(rows, ctx)).transpose()?.flatten();
             let runs = partition
                 .as_ref()
-                .map(|p| p.ranges())
+                .map(super::temporal_attribution::SelectedRuns::ranges)
                 .or_else(|| if positions.is_none() { op.full_temporal_runs() } else { None });
             if bayesian {
                 op.draw_row_weights(n, rng, runs, key, ctx)
@@ -1759,7 +1786,7 @@ impl CheckedAttributionOperation {
     }
 
     fn full_temporal_runs(&self) -> Option<&[std::ops::Range<usize>]> {
-        self.temporal_input.as_ref().map(|input| input.runs())
+        self.temporal_input.as_ref().map(super::temporal_attribution::CompleteWindowInput::runs)
     }
 
     /// The bootstrap disclosure of `target` over `n` rows, recording the row-block
@@ -1826,6 +1853,11 @@ impl CheckedAttributionOperation {
     }
 
     /// Fits the GCM, scores every row against the query reference, and publishes the anomaly attribution.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     fn execute_anomaly(
         &self,
         query: &antecedent_core::AnomalyAttributionQuery,
@@ -2015,6 +2047,11 @@ impl CheckedAttributionOperation {
 
     /// Frequentist mechanism-refit bootstrap of the first target's mean anomaly score:
     /// the point is that mean and the interval its bootstrap standard error.
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        reason = "the bounded operation keeps its execution inputs and resource accounting together"
+    )]
     fn anomaly_bootstrap(
         &self,
         query: &antecedent_core::AnomalyAttributionQuery,
@@ -2176,14 +2213,14 @@ impl CheckedAttributionOperation {
             let baseline_counts = self.draw_row_counts(
                 baseline_n,
                 &mut rng,
-                baseline_runs.as_ref().map(|runs| runs.ranges()),
+                baseline_runs.as_ref().map(super::temporal_attribution::SelectedRuns::ranges),
                 antecedent_core::derive_stream(u64::from(replicate), 0),
                 ctx,
             )?;
             let comparison_counts = self.draw_row_counts(
                 comparison_n,
                 &mut rng,
-                comparison_runs.as_ref().map(|runs| runs.ranges()),
+                comparison_runs.as_ref().map(super::temporal_attribution::SelectedRuns::ranges),
                 antecedent_core::derive_stream(u64::from(replicate), 1),
                 ctx,
             )?;
@@ -2388,14 +2425,14 @@ impl CheckedAttributionOperation {
             let baseline_weights = self.draw_row_weights(
                 baseline_n,
                 &mut rng,
-                baseline_runs.as_ref().map(|runs| runs.ranges()),
+                baseline_runs.as_ref().map(super::temporal_attribution::SelectedRuns::ranges),
                 antecedent_core::derive_stream(replicate as u64, 0),
                 ctx,
             )?;
             let comparison_weights = self.draw_row_weights(
                 comparison_n,
                 &mut rng,
-                comparison_runs.as_ref().map(|runs| runs.ranges()),
+                comparison_runs.as_ref().map(super::temporal_attribution::SelectedRuns::ranges),
                 antecedent_core::derive_stream(replicate as u64, 1),
                 ctx,
             )?;
@@ -2807,7 +2844,7 @@ mod bayesian_checked_attribution_tests {
                 )
             });
         let accounting = estimate.uncertainty.bootstrap;
-        assert_eq!(estimate.ate, 7.0);
+        assert_eq!(estimate.ate.to_bits(), 7.0_f64.to_bits());
         assert_eq!(accounting.replicates_ok, Some(0));
         assert_eq!(accounting.replicates_failed, Some(4));
         assert!(accounting.se.is_none());
@@ -2865,7 +2902,7 @@ mod bayesian_checked_attribution_tests {
                     &estimate.uncertainty.bootstrap,
                 )
             });
-        assert_eq!(estimate.ate, 7.0);
+        assert_eq!(estimate.ate.to_bits(), 7.0_f64.to_bits());
         assert_eq!(estimate.uncertainty.bootstrap.se, Some(1.0));
         assert_eq!(estimate.uncertainty.bootstrap.replicates_ok, Some(3));
         assert_eq!(diagnostic.severity, DiagnosticSeverity::Info);

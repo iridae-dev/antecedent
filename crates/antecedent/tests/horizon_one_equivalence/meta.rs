@@ -549,6 +549,11 @@ fn assert_same_fit(left: &OlsRefresh, right: &OlsRefresh, label: &str) {
 /// in the next period: without it the old rows are dropped and the new period alone is fitted,
 /// which differs from the pooled static summary.
 #[test]
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::implicit_clone,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn horizon_one_period_refresh_is_the_static_least_squares_refresh_with_a_standing_declaration() {
     let values: Vec<f64> = {
         let mut v = vec![0.0; REFRESH_ROWS];

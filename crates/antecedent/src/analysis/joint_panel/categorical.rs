@@ -60,6 +60,11 @@ pub struct DummyCodedPanel {
 /// An undeclared or non-categorical column, a declared level set that differs from the
 /// column's domain, a reference outside the level set, fewer than two levels, a declared level
 /// that no unit assigns, or an irregular cadence.
+#[allow(
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    reason = "the checked dummy-coding plan keeps its local slot description with its construction"
+)]
 pub fn dummy_code_panel(
     data: &PanelData,
     columns: &JointPanelColumns,

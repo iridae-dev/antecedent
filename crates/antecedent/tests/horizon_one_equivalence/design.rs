@@ -279,6 +279,10 @@ fn a_sequential_contrast_has_no_one_decision_member_and_differs_from_the_static_
 /// that the scalar score carries the confounding. The static estimate is the history contrast
 /// minus that correction, computed here from the raw rows.
 #[test]
+#[allow(
+    clippy::useless_conversion,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn horizon_one_history_match_is_the_unadjusted_matched_difference_of_the_static_distance_matching()
 {
     let n = 160_usize;

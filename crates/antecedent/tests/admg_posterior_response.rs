@@ -429,6 +429,11 @@ fn admg_frontdoor_mask_is_not_a_dag_for_response() {
 /// Hand front-door adjustment on the enumerated table, written from the formula
 /// `E[Y | do(t)] = sum_m P(m | t) sum_t' P(t') P(Y = 1 | t', m)` over the fixture counts; it
 /// shares no code with the product.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the known-truth fixture contains bounded nonnegative categorical values"
+)]
 fn frontdoor_interventional_mean(pin: &serde_json::Value, level: f64) -> f64 {
     let mut count = std::collections::BTreeMap::<(u8, u8, u8), f64>::new();
     for cell in pin["contingency_table"].as_array().unwrap() {

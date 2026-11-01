@@ -277,6 +277,10 @@ fn independent_inverse(mut matrix: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
 fn independently_bound_prior_transfer_replays_source_and_refuses_known_double_use() {
     run_on_large_stack(independently_bound_prior_transfer_body);
 }
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn independently_bound_prior_transfer_body() {
     let ctx = ExecutionContext::for_tests(53);
     let mut source = request();

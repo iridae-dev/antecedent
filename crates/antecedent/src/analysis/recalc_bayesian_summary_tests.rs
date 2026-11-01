@@ -19,6 +19,11 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves the declared boundary and identity semantics"
+)]
+#[allow(clippy::float_cmp, reason = "the fixture pins the exact empirical proportion")]
 fn projections_equal_the_exact_rational_mean_sd_type7_quantiles_and_strict_proportion() {
     let cases: Vec<Value> = serde_json::from_str(include_str!(
         "../../tests/oracle_data/recalc_posterior_summary_reference.json"
@@ -63,7 +68,7 @@ fn projections_equal_the_exact_rational_mean_sd_type7_quantiles_and_strict_propo
 fn projections_refuse_too_few_or_non_finite_draws_and_invalid_summaries() {
     let spec = PosteriorSummarySpec::default();
     for draws in [&[1.0][..], &[1.0, f64::NAN][..], &[1.0, f64::INFINITY][..]] {
-        let refused = summarize_issued_values(draws, spec).err().expect("refused");
+        let refused = summarize_issued_values(draws, spec).expect_err("refused");
         assert!(matches!(
             refused,
             RecalcRunError::Request(RecalcRequestCode::BayesianEffectUnavailable)

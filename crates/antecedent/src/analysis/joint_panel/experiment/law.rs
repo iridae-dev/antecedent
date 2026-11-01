@@ -470,6 +470,10 @@ impl JointLawExperimentResult {
     /// [`Self::replay`] under a caller-declared byte limit.
     /// # Errors
     /// As [`Self::replay`], with `limits.max_bytes` as the size bound.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "replay validates and reconstructs the retained law together"
+    )]
     pub fn replay_with_limits(
         bytes: &[u8],
         ctx: &ExecutionContext,

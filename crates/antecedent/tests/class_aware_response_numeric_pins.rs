@@ -724,6 +724,10 @@ fn ols_first_coefficient(y: &[f64], regressors: &[&[f64]]) -> f64 {
     m[1][p]
 }
 
+#[allow(
+    clippy::ref_option,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn surface_mean(value: &Option<ResponseValue>) -> Vec<f64> {
     match value {
         Some(ResponseValue::Surface { mean, .. }) => mean.to_vec(),

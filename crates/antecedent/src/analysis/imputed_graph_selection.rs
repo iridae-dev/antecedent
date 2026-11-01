@@ -91,6 +91,10 @@ pub(crate) const RERUN_POOLING: &str = "stacked_graph_posterior_rerun";
 /// A specification out of range or declared not at random; a table whose columns are not all
 /// float columns in the searched order; a discovery failure; the effect study's own errors; an
 /// estimator other than `bayesian.gcomp`; posteriors that differ in draws or quantities.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 pub fn estimate_with_graph_selection_per_imputation<F>(
     data: &TabularData,
     spec: ImputationSpec,

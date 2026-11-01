@@ -649,6 +649,10 @@ fn rebind_estimate(
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn temporal_posterior_members_share_the_original_complete_ticks() {
     on_large_stack("temporal-posterior-common-original-ticks", || {
         use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};

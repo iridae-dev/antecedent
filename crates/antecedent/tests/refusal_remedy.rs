@@ -16,6 +16,10 @@ use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{Dag, DenseNodeId};
 
 #[test]
+#[allow(
+    clippy::match_same_arms,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn three_treatment_derivatives_are_answered_through_the_prepared_workflow() {
     let col = |k: f64| (0..400).map(|i| (f64::from(i) * k).sin()).collect::<Vec<f64>>();
     let (a, b, c) = (col(0.31), col(0.73), col(1.17));
@@ -131,7 +135,7 @@ fn multi_modifier_frequentist_conditional_effect_fits_the_vector_interaction_mod
             .prepare(&ctx)
             .and_then(|prepared| prepared.estimate(&data, &ctx))
             .expect("a prepared modifier set is fitted");
-        for result in [one_shot, prepared] {
+        for result in vec![one_shot, prepared].into_boxed_slice() {
             let effect = result.estimate().as_effect().expect("an effect payload");
             assert!((effect.ate - 3.0).abs() < 1e-8, "{}", effect.ate);
         }

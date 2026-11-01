@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Test-only evidence recorder. Records are emitted only after executable assertions pass.
+#[allow(clippy::needless_pass_by_value, reason = "the test recorder accepts an owned checks value")]
 pub fn record(
     prefix: &str,
     mapping: bool,

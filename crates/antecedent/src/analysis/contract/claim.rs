@@ -125,15 +125,15 @@ impl StudyResult {
         );
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if !reports_calibrated_effect_interval(&self.payload) {
+        let calibration = if reports_calibrated_effect_interval(&self.payload) {
+            antecedent_io::calibration::calibration_slots(
+                &self.calibration_bases_with(contract, reasoning.identification.as_ref()),
+            )
+        } else {
             // These non-effect result families report no calibrated scalar
             // effect interval. Their uncertainty semantics live in their
             // dedicated result sections.
             antecedent_io::calibration::calibration_slots(&[])
-        } else {
-            antecedent_io::calibration::calibration_slots(
-                &self.calibration_bases_with(contract, reasoning.identification.as_ref()),
-            )
         };
         let mut envelope = ClaimEnvelope::new(
             antecedent_core::SemanticDigest::from_bytes([0; 32]),
@@ -256,8 +256,8 @@ impl StudyResult {
         query: &antecedent_core::CausalQuery,
         registry: Option<&antecedent_core::PopulationRegistry>,
     ) -> Result<antecedent_io::StaticResultWire, CausalError> {
-        crate::analysis::target_validation::validate_runtime_refutation_proof(self)?;
         use antecedent_core::{CausalQuery, Intervention};
+        crate::analysis::target_validation::validate_runtime_refutation_proof(self)?;
         let compile = |message: &str| CausalError::Compile { message: message.into() };
         let hard = |intervention: &Intervention| match intervention {
             Intervention::Set { value, .. } => value.as_f64(),
@@ -282,8 +282,9 @@ impl StudyResult {
         }
         // The first contrast's per-unit effects stand for the result's single form; a
         // population-level contrast has none.
-        let primary_units =
-            set.map(|set| set.primary()).filter(|primary| !primary.unit_effects.is_empty());
+        let primary_units = set
+            .map(crate::gcm::CounterfactualContrasts::primary)
+            .filter(|primary| !primary.unit_effects.is_empty());
         let effect = self
             .estimate
             .as_effect()

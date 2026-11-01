@@ -215,6 +215,7 @@ impl Roles {
 }
 
 /// Lower one cell of this family.
+#[allow(clippy::too_many_lines, reason = "the compiler lowers the full static effect recipe")]
 pub(super) fn lower(cx: &LoweringContext<'_>) -> Result<LoweredProgram, CausalError> {
     let Some((query, data)) = cx.input.as_ref().and_then(EffectQuery::of) else {
         return Err(super::not_lowered_by("static effect", cx));

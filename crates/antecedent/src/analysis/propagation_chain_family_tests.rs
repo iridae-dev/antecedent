@@ -96,6 +96,10 @@ fn table(fixture: &Fixture) -> FamilyTable {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality preserves the declared boundary and identity semantics"
+)]
 fn shared_rows_in_the_ledger_become_the_correlation_the_pool_and_utility_see() {
     let fixture = fixture();
     let family = table(&fixture);

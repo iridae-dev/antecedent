@@ -481,7 +481,7 @@ fn the_class_band_covers_the_identified_set_bayesian() {
 }
 
 /// One study per route cell: path-specific and natural direct effect on Admg, Cpdag and the
-/// projection of a TemporalAdmg.
+/// projection of a `TemporalAdmg`.
 fn route_cases() -> Vec<(&'static str, antecedent::analysis::StudyBuilder, TabularData)> {
     let nested = || natural_direct_query();
     let mut cases = Vec::new();

@@ -50,6 +50,10 @@ fn method_tag(method: IntervalMethod) -> &'static str {
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn the_selector_matches_the_enumerated_rule_for_every_combination() {
     let fixture = fixture();
     let cases = fixture["selection"].as_array().unwrap();

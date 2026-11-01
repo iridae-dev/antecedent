@@ -317,6 +317,7 @@ fn temporal_study() -> Study {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the test enumerates the complete structural family")]
 fn every_structural_cell_lowers_completely() {
     let kinds = [
         (counterfactual(), FunctionalKind::Counterfactual),
@@ -430,6 +431,11 @@ fn every_structural_cell_lowers_completely() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    clippy::float_cmp,
+    reason = "the complete callback fixture checks distinct exact results"
+)]
 fn runtime_callback_plans_expose_declaration_scope_and_never_reuse_proofs() {
     use std::sync::Arc;
 

@@ -158,18 +158,17 @@ fn a_cpdag_and_a_pag_run_the_transport_suite_on_both_inferences() {
                     let result =
                         built.run(&ctx).unwrap_or_else(|e| panic!("{name} {suite:?}: {e}"));
                     let found = ids(&result);
-                    match suite {
-                        RefuteSuite::None => assert!(found.is_empty(), "{name}: {found:?}"),
-                        _ => {
-                            for id in TRANSPORT_CHEAP {
-                                assert!(found.iter().any(|f| f == id), "{name}: {id} in {found:?}");
-                            }
-                            assert_eq!(
-                                found.iter().any(|f| f.starts_with("transport.bootstrap_range")),
-                                suite == RefuteSuite::Full,
-                                "{name}: {found:?}"
-                            );
+                    if suite == RefuteSuite::None {
+                        assert!(found.is_empty(), "{name}: {found:?}");
+                    } else {
+                        for id in TRANSPORT_CHEAP {
+                            assert!(found.iter().any(|f| f == id), "{name}: {id} in {found:?}");
                         }
+                        assert_eq!(
+                            found.iter().any(|f| f.starts_with("transport.bootstrap_range")),
+                            suite == RefuteSuite::Full,
+                            "{name}: {found:?}"
+                        );
                     }
                     if suite != RefuteSuite::None {
                         // The pinned fixture: two trial rows where the selection
@@ -274,11 +273,12 @@ fn saturation_fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<Netwo
 fn cluster_fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
     const K: usize = 16;
     const TREATED: usize = 8;
-    let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
+    let clusters =
+        (0..K).flat_map(|cluster| [u32::try_from(cluster).unwrap(); 2]).collect::<Vec<_>>();
     let assignment = (0..K).flat_map(|cluster| [cluster < TREATED; 2]).collect::<Vec<_>>();
     let edges = (0..K)
         .flat_map(|cluster| {
-            let first = (cluster * 2) as u32;
+            let first = u32::try_from(cluster * 2).unwrap();
             [
                 NetworkEdge::new(u64::from(first), u64::from(first + 1), 1.0),
                 NetworkEdge::new(u64::from(first + 1), u64::from(first), 1.0),

@@ -8,6 +8,8 @@
 //! first prepared and fitted, so every refusal below is of a route that works.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 #[path = "../../../examples/rust/joint_panel_fixture.rs"]
 mod fixture;
 use antecedent::analysis::joint_panel::JointPanelFit;
@@ -683,6 +685,12 @@ fn rebuilt_levels(data: &PanelData, levels: &[&str]) -> PanelData {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the categorical fixture uses bounded nonnegative codes and a complete scenario"
+)]
 fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_set() {
     use antecedent::analysis::joint_panel::{PanelCategoricalChannel, dummy_code_panel};
     let data = fixture::source(false);
@@ -849,10 +857,7 @@ fn cells_03_joint_panel_dummy_codes_a_categorical_channel_with_a_declared_level_
 
     // Refusals: every one names its cause and none recodes anything silently.
     let refuse = |panel: &PanelData, categorical: Vec<PanelCategoricalChannel>| {
-        dummy_code_panel(panel, &fixture::columns(), &categorical)
-            .err()
-            .expect("refused")
-            .to_string()
+        dummy_code_panel(panel, &fixture::columns(), &categorical).expect_err("refused").to_string()
     };
     let mut wrong_set = declared.clone();
     wrong_set.levels = vec!["none".into(), "low".into()];

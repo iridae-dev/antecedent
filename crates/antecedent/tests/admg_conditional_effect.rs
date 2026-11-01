@@ -327,9 +327,9 @@ fn a_post_treatment_modifier_is_refused_and_names_the_distribution_query() {
     assert!(text.contains("InterventionalDistribution"), "{text}");
 }
 
-/// Tabular rows carry no time index, so a ConditionalEffect on a TemporalAdmg is the conditional
+/// Tabular rows carry no time index, so a `ConditionalEffect` on a `TemporalAdmg` is the conditional
 /// contrast of its contemporaneous projection: the same stratified difference the static ADMG
-/// gives, a licensed cell (the temporal conditional contrast is TemporalConditionalPulse).
+/// gives, a licensed cell (the temporal conditional contrast is `TemporalConditionalPulse`).
 #[test]
 fn a_temporal_admg_conditional_is_the_contemporaneous_projection_contrast() {
     let graph = confounded_modifier_graph();

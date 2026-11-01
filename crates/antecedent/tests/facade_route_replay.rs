@@ -243,6 +243,10 @@ fn the_sequential_contrast_replays_and_matches_the_numpy_reference() {
 // ---------------------------------------------------------------------------------------------
 
 #[test]
+#[allow(
+    clippy::unnecessary_cast,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn the_history_match_replays_and_matches_the_brute_force_donor_search() {
     type Row = (f64, [f64; 2], f64, f64, f64);
     let rows: [Row; 9] = [

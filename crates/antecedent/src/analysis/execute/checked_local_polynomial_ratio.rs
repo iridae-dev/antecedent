@@ -40,6 +40,12 @@ pub(super) fn local_polynomial_ratio_plan_ids(kink: bool) -> (String, String, St
 }
 
 impl CheckedLocalPolynomialRatioOperation {
+    #[allow(
+        clippy::too_many_lines,
+        clippy::too_many_arguments,
+        clippy::type_complexity,
+        reason = "the operation keeps its checked inputs and execution context together"
+    )]
     pub(crate) fn checked(
         study: &Study,
         data: &TabularData,

@@ -170,7 +170,7 @@ fn a_duplicated_confounder_is_refused_by_regression_routes_and_absorbed_by_penal
 #[test]
 fn an_intervention_level_far_outside_the_observed_range_is_refused_or_flagged_extrapolative() {
     // The treatment ranges over about [-2, 2]. A local curve at 10 has no data under its window.
-    let error = run(&curve(&[-0.5, 0.0, 10.0]), false, false).err().expect("refused");
+    let error = run(&curve(&[-0.5, 0.0, 10.0]), false, false).expect_err("refused");
     assert!(error.to_string().contains("too little effective weight"), "{error}");
 
     // The counterfactual extrapolates its fitted mechanism but says so, per unit and overall.

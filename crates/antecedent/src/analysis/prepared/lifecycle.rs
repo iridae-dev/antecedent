@@ -109,7 +109,7 @@ impl PreparedStudy {
             && self.plan.choice.selected() == next.plan.choice.selected()
         {
             next.execution = self.execution.clone();
-            next.score_table = self.score_table.clone();
+            next.score_table.clone_from(&self.score_table);
             next.materialized = true;
             next.program_cache = std::sync::OnceLock::new();
             next.contract_cache = std::sync::OnceLock::new();

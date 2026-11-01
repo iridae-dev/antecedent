@@ -354,6 +354,10 @@ impl super::Study {
     }
 
     /// Fits each identified atom of the graph posterior and collects the weighted responses.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the compiled route keeps its bounded response execution together"
+    )]
     fn fit_graph_posterior_response_atoms(
         &self,
         run: &GraphPosteriorResponseRun<'_>,
@@ -482,6 +486,10 @@ impl super::Study {
     }
 
     /// Pools the atom responses into the published response, estimate and mass accounting.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the compiled route keeps its bounded response execution together"
+    )]
     fn pool_graph_posterior_response(
         &self,
         run: &GraphPosteriorResponseRun<'_>,
@@ -1824,6 +1832,10 @@ impl super::Study {
     }
 
     #[allow(clippy::float_cmp)] // Exact comparison of the requested cell with the control contrast.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the compiled route keeps its bounded response execution together"
+    )]
     pub(super) fn execute_cell_aipw_response(
         &self,
         data: &TabularData,

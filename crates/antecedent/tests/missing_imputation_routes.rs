@@ -1094,6 +1094,11 @@ fn run_series(
 
 /// The completed series the route draws: the lagged model with one step on each side and
 /// contiguous blocks of the cube root of the length.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn completed_series(columns: &Columns, spec: ImputationSpec, lags: usize) -> Vec<TimeSeriesData> {
     let n = columns.values[0].len();
     let block = ((n as f64).cbrt().ceil() as usize).max(2 * lags + 1);
@@ -1273,6 +1278,10 @@ fn run_mediation_series(
 }
 
 #[test]
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn a_temporal_mediation_pools_total_direct_and_mediated_with_their_block_bootstrap_variances() {
     on_large_stack(|| {
         let columns = mediation_series_columns(700, 81);

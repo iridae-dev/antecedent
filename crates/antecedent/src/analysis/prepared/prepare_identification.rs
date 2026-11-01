@@ -187,7 +187,6 @@ pub(crate) fn identify_temporal_mediation_horizons_within(
         temporal: antecedent_identify::TemporalBackdoorIdentifier::new()
             .with_temporal_context(ctx, budget),
         allow_natural_controlled_alias: true,
-        ..TemporalMediationIdentifier::new()
     };
     let mut by_horizon = Vec::with_capacity(query.horizons.len());
     for &horizon in query.horizons.iter() {

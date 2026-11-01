@@ -44,6 +44,10 @@ impl LagAlignedScm {
         Self::unfold_within(graph, series, &mut budget, &ctx)
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
+    )]
     pub(super) fn unfold_within(
         graph: &TemporalDag,
         series: &TimeSeriesData,
@@ -215,6 +219,10 @@ impl LagAlignedScm {
     ///
     /// An empty or non-dense schema, a series too short to realize the longest lag, or a window
     /// that is not the unfolding of `history` periods over the schema.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
+    )]
     pub(super) fn unfold_mixed(
         series: &TimeSeriesData,
         history: u32,
@@ -378,6 +386,10 @@ impl LagAlignedScm {
 
     /// Construct observed initial cells and mark unavailable auxiliary lag
     /// copies. The rollout verifies each read before consulting a marked cell.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
+    )]
     pub(super) fn observed_initial_history(
         &self,
         input: &CompleteWindowInput,
@@ -667,6 +679,10 @@ impl CompleteWindowInput {
     /// Construct observed windows with a shared class-wide history boundary.
     /// Original source storage remains caller-owned; the lease covers the new
     /// table, mapping, runs and bounded construction copies, not allocator peaks.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "temporal materialization keeps admission, bounds and alignment in one operation"
+    )]
     pub(super) fn build(
         aligned: &LagAlignedScm,
         series: &TimeSeriesData,
@@ -1053,7 +1069,11 @@ mod tests {
         let lag_col =
             aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 2).unwrap();
         assert_eq!(
-            input.0.table.float64_slice(VariableId::from_raw(lag_col as u32)).unwrap(),
+            input
+                .0
+                .table
+                .float64_slice(VariableId::from_raw(u32::try_from(lag_col).unwrap()))
+                .unwrap(),
             &[5.0, 11.0, 17.0, 19.0]
         );
         assert_eq!(input.original_ticks().iter().position(|&tick| tick == 5), Some(2));
@@ -1165,8 +1185,8 @@ mod tests {
         let x_now = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 0).unwrap();
         let x_lag = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 2).unwrap();
         let width = aligned.columns.len();
-        assert_eq!(history.batches[0].values[x_now], 13.0);
-        assert_eq!(history.batches[1].values[x_now], 11.0);
+        assert_eq!(history.batches[0].values[x_now].to_bits(), 13.0_f64.to_bits());
+        assert_eq!(history.batches[1].values[x_now].to_bits(), 11.0_f64.to_bits());
         assert!(history.available[width + x_now]);
         assert!(!history.available[width + x_lag]);
         assert!(history.batches[1].values[x_lag].is_nan());
@@ -1196,7 +1216,7 @@ mod tests {
         assert_eq!(input.original_ticks(), [2, 3]);
         assert!(column.values[0].is_nan());
         assert!(!column.validity.is_valid(0));
-        assert_eq!(column.values[1], 11.0);
+        assert_eq!(column.values[1].to_bits(), 11.0_f64.to_bits());
         assert!(column.validity.is_valid(1));
     }
     #[test]
@@ -1229,7 +1249,7 @@ mod tests {
         let x_now = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 0).unwrap();
         let x_lag = aligned.columns.iter().position(|&(v, lag)| v.raw() == 0 && lag == 2).unwrap();
         let width = aligned.columns.len();
-        assert_eq!(history.batches[1].values[x_now], 6.0);
+        assert_eq!(history.batches[1].values[x_now].to_bits(), 6.0_f64.to_bits());
         assert!(history.available[width + x_now]);
         assert!(!history.available[width + x_lag]);
     }

@@ -58,11 +58,16 @@ impl PreparedStudy {
         }
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the score product shares one prepared population and missing-data policy"
+    )]
     fn treatment_score_on(
         &self,
         data: &TabularData,
         spec: &TreatmentScoreSpec,
     ) -> Result<ArrayFit, CausalError> {
+        use crate::analysis::missing_data::{MissingRoute, effective_policy};
         if self.modality != PreparedModality::Tabular {
             return Err(CausalError::Compile {
                 message: "a treatment score product needs a prepared tabular study".into(),
@@ -86,7 +91,10 @@ impl PreparedStudy {
             .estimator_spec
             .as_deref()
             .is_some_and(|estimator| estimator.sampling_weights_calibration_label().is_some())
-            || data.storage().weights().is_some_and(|weights| weights.iter().any(|&w| w != 1.0))
+            || data
+                .storage()
+                .weights()
+                .is_some_and(|weights| weights.iter().any(|&w| w.to_bits() != 1.0_f64.to_bits()))
         {
             return Err(CausalError::Estimate(
                 antecedent_estimate::sampling_weights::unsupported_route(
@@ -104,7 +112,6 @@ impl PreparedStudy {
             .collect();
         let mut variables = vec![query.treatment, query.outcome];
         variables.extend_from_slice(&predictors);
-        use crate::analysis::missing_data::{MissingRoute, effective_policy};
         let (policy, _) =
             effective_policy(MissingRoute::Static, self.analysis.declared.missing.as_ref());
         match policy {

@@ -874,6 +874,10 @@ impl BatchStudy {
 
     /// The shared cross-fit design over the adjustment sets `adjustment_set` selects for each
     /// of `queries`.
+    #[allow(
+        clippy::type_complexity,
+        reason = "the signature describes the existing typed operation"
+    )]
     fn compile_shared<Q>(
         &self,
         data: &TabularData,
@@ -1144,6 +1148,10 @@ impl PreparedBatch {
     ///
     /// # Errors
     /// Incompatible schema or screen rows, preparation admission failures, or cancellation.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
     pub fn rebind_data(
         &self,
         data: TabularData,
@@ -1215,6 +1223,10 @@ impl PreparedBatch {
         }
     }
 
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the operation accepts owned input as part of its interface"
+    )]
     fn branch_bound(&self, data: TabularData, ctx: &ExecutionContext) -> Result<Self, CausalError> {
         let shared = self
             .shared_design

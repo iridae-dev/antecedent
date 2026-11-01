@@ -1010,7 +1010,9 @@ impl PreparedStudy<TransportGridState> {
                     data.laws().iter().map(ExactLawWire::metadata).collect(),
                 )?
             }
-            _ => return Err(err("transport.reprepare_required: provider modality changed")),
+            TransportGridData::Exact(_) => {
+                return Err(err("transport.reprepare_required: provider modality changed"));
+            }
         };
         if shape != super::statistical::statistical_shape_wires(self.state.template.laws.clone())? {
             return Err(err("transport.reprepare_required"));
@@ -1132,7 +1134,7 @@ impl PreparedStudy<TransportGridState> {
                         Arc::clone(plan.as_ref().map_err(|_| err("missing compiled grid point"))?),
                         false,
                     )?;
-                    study.state.provider_retention = self.state.retention.clone();
+                    study.state.provider_retention.clone_from(&self.state.retention);
                     let result = study.result_from_evaluation(
                         evaluated_exact.next().ok_or_else(|| err("missing exact grid result"))?,
                     );
@@ -1217,7 +1219,7 @@ impl PreparedStudy<TransportGridState> {
                 ctx,
                 false,
             )?;
-            study.state.provider_retention = self.state.retention.clone();
+            study.state.provider_retention.clone_from(&self.state.retention);
             study
                 .estimate_grid_evaluated(
                     eligible,

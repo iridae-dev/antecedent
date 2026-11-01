@@ -138,6 +138,10 @@ fn expected_unresolved(validation: &str) -> Vec<&'static str> {
     expected
 }
 
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn verify_frontdoor(accepted: bool, validation: &str) {
     let coordinate = format!(
         "AverageEffect:Dag:{}:Frequentist:{}::estimator=frontdoor.linear_two_stage",
@@ -215,6 +219,10 @@ fn verify_frontdoor(accepted: bool, validation: &str) {
     assert_eq!(consumed.body.estimate, Some(refreshed.effect()), "{coordinate} artifact estimate");
 }
 
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn verify_iv(accepted: bool, validation: &str, wald: bool) {
     let estimator_name = if wald { "iv.wald" } else { "iv.2sls" };
     let coordinate = format!(

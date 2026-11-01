@@ -2,6 +2,8 @@
 //! program executes inside the temporal rollout, shares noise across policies and reaches the
 //! closed-form optimum of a quadratic tracking loss.
 
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use std::sync::Arc;
 
 use antecedent::gcm::{ModelPolicySource, ModelRolloutDesign, StageUtility};

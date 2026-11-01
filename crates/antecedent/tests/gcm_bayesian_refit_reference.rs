@@ -32,6 +32,10 @@ use antecedent_kernels::bayesian_bootstrap_weights;
 const SEED: u64 = 812;
 const DRAWS: usize = 16;
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn chain() -> (TabularData, Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = 24;
     let t: Vec<f64> = (0..n).map(|i| if i < 9 { 0.0 } else { 1.0 }).collect();
@@ -133,6 +137,10 @@ fn column_named(posterior: &antecedent::CausalPosterior, name: &str) -> Vec<f64>
 }
 
 #[test]
+#[allow(
+    clippy::needless_borrow,
+    reason = "the test keeps its existing bounded fixture and exact scientific assertions together"
+)]
 fn change_attribution_draws_use_one_weight_vector_per_population_and_stay_coupled() {
     let (data, x) = two_period();
     let mut dag = Dag::with_variables(2);

@@ -54,7 +54,7 @@ fn iv_data(y_shift: f64) -> TabularData {
     let mut outcome = Vec::with_capacity(n);
     let mut instrument = Vec::with_capacity(n);
     for i in 0..n {
-        let z = (i % 2) as f64;
+        let z = f64::from(u32::try_from(i % 2).unwrap());
         let u = ((i * 37 % 101) as f64 - 50.0) / 30.0;
         let t = 0.6 * z + u;
         instrument.push(z);
@@ -157,7 +157,7 @@ fn table_weights_are_refused_by_the_instrumental_route() {
     let data = iv_data(0.0);
     let weights: Vec<f64> = (0..data.row_count()).map(|i| 1.0 + (i % 3) as f64).collect();
     let weighted = data.with_weights(Arc::from(weights)).unwrap();
-    let error = run_dag(&weighted, None).err().expect("weights are not read by the fit");
+    let error = run_dag(&weighted, None).expect_err("weights are not read by the fit");
     let text = error.to_string();
     assert!(text.starts_with("reason=option_not_applicable"), "{text}");
     assert!(text.contains("sampling_weights.route_unsupported"), "{text}");
@@ -204,17 +204,22 @@ fn an_incomplete_outcome_defaults_to_complete_case_and_equals_the_fit_on_the_rem
     assert!(!default.missing_data().as_ref().unwrap().declared);
     assert!(declared.missing_data().as_ref().unwrap().declared);
     let error = run_dag(&incomplete, Some(MissingDeclaration::new(MissingPolicy::ErrorOnMissing)))
-        .err()
-        .expect("an explicit error policy refuses the holes");
+        .expect_err("an explicit error policy refuses the holes");
     assert_eq!(error.reason_code(), Some("missing_policy_required"), "{error}");
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn a_treatment_with_further_levels_is_refused_by_both_instrumental_estimators() {
     let n = 600;
-    let z: Vec<f64> = (0..n).map(|i| (i % 2) as f64).collect();
+    let z: Vec<f64> = (0..n).map(|i| f64::from(u32::try_from(i % 2).unwrap())).collect();
     // Three levels, each row's level driven by the instrument and a deterministic disturbance.
-    let t: Vec<f64> = (0..n).map(|i| ((i % 2) + (i * 7 % 3 + i / 2) % 2) as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| f64::from((i % 2) + (i * 7 % 3 + i / 2) % 2)).collect();
     let y: Vec<f64> = t.iter().map(|level| [0.0, 1.0, 4.0][*level as usize]).collect();
     let at = |level: f64| t.iter().filter(|&&v| v == level).count();
     let data = TabularData::from_f64_columns([

@@ -1,5 +1,5 @@
 //! Coordinate-specific closure evidence for path-specific execution on a supplied ADMG, the
-//! contemporaneous projection of a TemporalAdmg, a CPDAG and a PAG.
+//! contemporaneous projection of a `TemporalAdmg`, a CPDAG and a PAG.
 //!
 //! Every expected value is read from `conformance/estimate/path_specific_mixed_graphs`, where an
 //! independent generator enumerates the noise cells of the structural models and evaluates the

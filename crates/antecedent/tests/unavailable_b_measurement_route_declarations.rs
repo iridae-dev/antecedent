@@ -177,6 +177,10 @@ fn unavailable_b_a_categorical_misclassified_design_equals_the_hand_corrected_ar
 }
 
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn unavailable_b_the_interval_is_by_whole_unit_and_a_clustered_declaration_reads_the_same_unit() {
     let p = panel();
     let plain = run(builder(table(&p.recorded), query(&p, false))).unwrap();
@@ -385,6 +389,10 @@ fn unavailable_b_a_missing_data_policy_drops_exactly_the_pairs_it_names_and_acco
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the deterministic fixture preserves its exact values and bounded setup"
+)]
 fn unavailable_b_serial_dependence_is_a_newey_west_variance_over_the_periods() {
     let reference = reference();
     let mut serial = 0;
@@ -416,8 +424,7 @@ fn unavailable_b_weights_and_policies_the_design_cannot_read_stay_refused() {
     let mut recorded = p.recorded.clone();
     recorded[10] = f64::NAN;
     let error = run(builder(table(&recorded), query(&p, false)))
-        .err()
-        .expect("a missing recorded outcome with no policy is refused, not dropped");
+        .expect_err("a missing recorded outcome with no policy is refused, not dropped");
     assert_refusal(&error, "missing_policy_required", "missing_data.policy_required");
     assert!(error.to_string().contains("complete_case"), "{error}");
     // Inverse-probability weighting needs an observation model and multiple imputation a pooled
@@ -426,10 +433,11 @@ fn unavailable_b_weights_and_policies_the_design_cannot_read_stay_refused() {
         MissingPolicy::InverseProbabilityOfObservation,
         MissingPolicy::MultipleImputation(ImputationSpec::new()),
     ] {
-        let error = run(builder(table(&recorded), query(&p, false))
-            .missing(MissingDeclaration::new(policy.clone())))
-        .err()
-        .unwrap_or_else(|| panic!("{policy:?}: accepted"));
+        let error =
+            run(builder(table(&recorded), query(&p, false))
+                .missing(MissingDeclaration::new(policy)))
+            .err()
+            .unwrap_or_else(|| panic!("{policy:?}: accepted"));
         assert_refusal(
             &error,
             "missing_policy_not_applicable",
@@ -448,8 +456,7 @@ fn unavailable_b_weights_and_policies_the_design_cannot_read_stay_refused() {
     let error = run(builder(table(&p.recorded), query(&p, false))
         .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(50)))
         .sampling_design(DeclaredSamplingDesign::DependentTimeSeries))
-    .err()
-    .expect("a dependent series has no posterior");
+    .expect_err("a dependent series has no posterior");
     assert_refusal(&error, "option_not_applicable", "has no posterior");
 }
 
@@ -472,12 +479,10 @@ fn unavailable_b_the_dependent_series_and_policies_are_refused_by_designs_that_c
     };
     let error = run(builder(table(&p.recorded), two_arm.clone())
         .missing(MissingDeclaration::new(MissingPolicy::CompleteCase)))
-    .err()
-    .expect("the quantile design reads no missing-data policy");
+    .expect_err("the quantile design reads no missing-data policy");
     assert_refusal(&error, "missing_policy_not_applicable", "missing_data.policy_not_applicable");
     let error = run(builder(table(&p.recorded), two_arm)
         .sampling_design(DeclaredSamplingDesign::DependentTimeSeries))
-    .err()
-    .expect("the quantile design reads no dependent series");
+    .expect_err("the quantile design reads no dependent series");
     assert_refusal(&error, "option_not_applicable", "dependent time series");
 }

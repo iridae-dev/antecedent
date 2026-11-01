@@ -43,7 +43,7 @@ pub(crate) fn identify_static(
 
 /// Obtain a modifier-aware DAG backdoor certificate for a conditional query.
 /// Keep the query variant until this boundary so marginal-only strategies cannot
-/// be mistaken for conditional certificates. The returned AverageEffect result
+/// be mistaken for conditional certificates. The returned `AverageEffect` result
 /// is the backdoor certificate used by the conditional estimator, not an IDC expression.
 pub(crate) fn identify_conditional_static_in_context(
     identifier: IdentifierId,
@@ -135,6 +135,10 @@ pub fn identify_static_query_with_rd(
 ///
 /// As [`identify_static_query_with_rd`]; a pool that cannot fund the search's graph copies is a
 /// budget refusal, never a non-identification.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the complete route keeps related contract checks together"
+)]
 pub fn identify_static_query_in_context(
     identifier: IdentifierId,
     graph: &Dag,

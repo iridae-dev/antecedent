@@ -313,6 +313,10 @@ mod source_replay {
         reseal(&mut parts.contract, &parts.body);
     }
 
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn unresolved(bytes: &[u8]) -> Vec<String> {
         consume_analysis_result(bytes)
             .unwrap()
@@ -327,6 +331,10 @@ mod source_replay {
         reasons.iter().any(|candidate| candidate == reason)
     }
 
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn assert_refused_by_replay(bytes: &[u8], verdict: &str) {
         let consumed = consume_analysis_result(bytes).unwrap();
         let reasons: Vec<String> =
@@ -344,6 +352,10 @@ mod source_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn a_full_source_export_is_replayed_and_verified_while_the_compact_export_is_not() {
         let export = base();
         let compact = consume_analysis_result(&export.compact).unwrap();
@@ -421,6 +433,11 @@ mod source_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::implicit_clone,
+        clippy::redundant_closure_for_method_calls,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn a_treatment_coded_outside_zero_and_one_declares_nothing_and_stays_unresolved() {
         let (data, graph) = fixture(2.0);
         let z = data.float64_values(VariableId::from_raw(0)).unwrap().to_vec();
@@ -503,6 +520,10 @@ mod source_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::implicit_clone,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn an_unused_extra_column_is_carried_and_verified_and_a_dropped_one_is_refused() {
         let (data, _) = fixture(2.0);
         let spare: Vec<f64> = (0..data.row_count()).map(|i| (i % 7) as f64).collect();
@@ -672,6 +693,10 @@ mod source_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn an_oversize_witness_is_refused_before_any_fit() {
         let bytes = &base().sourced;
         let bounds = SourceReplayBounds {
@@ -689,6 +714,10 @@ mod source_replay {
     }
 
     #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    )]
     fn a_cancelled_replay_is_cancelled_not_verified_and_not_a_mismatch() {
         let token = CancellationToken::new();
         token.cancel();

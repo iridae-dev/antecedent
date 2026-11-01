@@ -495,6 +495,10 @@ struct Case {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+)]
 fn every_factor_change_invalidates_exactly_the_products_that_read_it_and_the_state_table_agrees() {
     use TemporalFactor as F;
     use WindowProduct as W;

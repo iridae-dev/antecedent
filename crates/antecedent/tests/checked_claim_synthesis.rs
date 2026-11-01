@@ -1,4 +1,6 @@
 //! Checked claim synthesis uses actual prepared-study envelopes and identity domains.
+#![allow(clippy::float_cmp, reason = "fixture values and categorical codes are compared exactly")]
+
 use antecedent::analysis::PreparedStudy;
 use antecedent::analysis::checked_claim_composition::{
     PreparedClaimParent, compose_checked_study_claims,
@@ -31,7 +33,7 @@ fn limits() -> CheckedWorldPointLimits {
 fn data() -> TabularData {
     // A continuous dose with observed 0, 1 and 2 supports both declared linear
     // contrasts over the same complete-case population.
-    let treatment: Vec<f64> = (0..240).map(|i| (i as f64 - 120.0) / 40.0).collect();
+    let treatment: Vec<f64> = (0..240).map(|i| (f64::from(i) - 120.0) / 40.0).collect();
     let outcome: Vec<f64> =
         treatment.iter().enumerate().map(|(i, t)| 3.0 * t + 0.1 * ((i % 5) as f64 - 2.0)).collect();
     TabularData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())]).unwrap()
@@ -84,7 +86,7 @@ fn combined(
         .into_iter()
         .enumerate()
         .map(|(i, (w, coefficient))| {
-            let id = ScientificWorldId::from_raw(i as u32);
+            let id = ScientificWorldId::from_raw(u32::try_from(i).unwrap());
             terms.push((id, coefficient));
             InterventionWorld::new(
                 id,
@@ -151,7 +153,7 @@ fn prepared_claims_synthesize_checked_contrast_and_weighted_aggregate() {
         assert!(derived.claim().identities.identification_product.is_none());
         assert!(derived.claim().execution.is_none());
         assert_eq!(derived.claim().domains.identification, DomainStatus::Unknown);
-        assert_eq!(derived.claim().calibration, Default::default());
+        assert_eq!(derived.claim().calibration, antecedent_contract::CalibrationView::default());
         assert!(derived.provenance().validate().unwrap().is_empty());
         assert_eq!(derived.receipt().output, Some(derived.claim().claim_id));
         assert!(derived.receipt().unavailable_operations.iter().any(|s| &**s == "portable_export"));
@@ -170,6 +172,7 @@ fn prepared_claims_synthesize_checked_contrast_and_weighted_aggregate() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the test groups the related claim refusal cases")]
 fn mismatched_program_target_coefficients_and_support_are_refused() {
     let ctx = ExecutionContext::for_tests(17);
     let data = data();

@@ -221,10 +221,7 @@ pub(crate) fn dbn_route_window_namespace(
     };
     let variables: Vec<VariableId> =
         data.schema().variables().iter().map(|variable| variable.id).collect();
-    let points = match DbnPoint::of_all(&study.query) {
-        Ok(points) => points,
-        Err(_) => return Ok(None),
-    };
+    let Ok(points) = DbnPoint::of_all(&study.query) else { return Ok(None) };
     let Some(point) = points.first() else {
         return Ok(None);
     };
@@ -383,6 +380,7 @@ impl super::Study {
     /// No atom identifies or evaluates the point, or a cancelled run.
     #[allow(
         clippy::too_many_lines,
+        clippy::too_many_arguments,
         reason = "one mixture: the templates, their regressions and the masses read one frozen posterior"
     )]
     fn fit_dbn_lane<'q>(
@@ -498,15 +496,7 @@ impl super::Study {
                     prior_scale,
                     false,
                 ),
-                DbnPoint::Derivative { .. } => Ok(SlopeAtom::new(
-                    data,
-                    &template.estimand,
-                    &template.indexer,
-                    offsets,
-                    ctx.kernel_policy,
-                    prior_scale,
-                )),
-                DbnPoint::CrossWorld { .. } => Ok(SlopeAtom::new(
+                DbnPoint::Derivative { .. } | DbnPoint::CrossWorld { .. } => Ok(SlopeAtom::new(
                     data,
                     &template.estimand,
                     &template.indexer,

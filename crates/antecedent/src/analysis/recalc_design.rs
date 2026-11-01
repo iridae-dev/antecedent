@@ -413,16 +413,15 @@ pub fn consume_design_with_data(
             .and_then(|program| program.commitments.resolved_estimator.as_deref())
             != Some(expected_estimator)
         || source.acceptance.unresolved.iter().any(|reason| {
-            !match (&request.model, reason.as_ref()) {
+            !matches!(
+                (&request.model, reason.as_ref()),
                 // These requests are independently rebuilt below and compared in full;
                 // the bytes-only reader still cannot replay their numerical operation.
                 (
                     DesignModel::Iv2Sls { .. } | DesignModel::Frontdoor { .. },
                     "dependencies.checked_estimator_operation",
-                ) => true,
-                (DesignModel::Rd { .. }, "dependencies.checked_rd_operation") => true,
-                _ => false,
-            }
+                ) | (DesignModel::Rd { .. }, "dependencies.checked_rd_operation")
+            )
         })
     {
         return Err(RecalcRunError::Request(RecalcRequestCode::DesignArtifactUnverified).into());
