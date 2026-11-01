@@ -1315,6 +1315,7 @@ pub fn evaluate_functional_on_input(
             .coordinates
             .iter()
             .position(|candidate| candidate.require_same_coordinate(wanted).is_ok())
+            .filter(|&column| column < mean_source.means.len())
             .ok_or_else(|| {
                 BoundaryError::Eval(DecisionEvalError::QuantityNotFound {
                     action: action.id.clone(),

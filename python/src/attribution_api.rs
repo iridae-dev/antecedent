@@ -517,6 +517,16 @@ fn json_opt_f64(params: &serde_json::Value, key: &str) -> PyResult<Option<f64>> 
     }
 }
 
+/// A seed; absent or null takes `default`, any other non-count is an error.
+fn json_seed(params: &serde_json::Value, default: u64) -> PyResult<u64> {
+    match &params["seed"] {
+        serde_json::Value::Null => Ok(default),
+        value => value.as_u64().ok_or_else(|| {
+            crate::value_err("attribution parameter \"seed\" must be a non-negative integer")
+        }),
+    }
+}
+
 /// A step index; absent or null takes `default`, any other non-integer is an error.
 fn json_i32(params: &serde_json::Value, key: &str, default: i32) -> PyResult<i32> {
     match &params[key] {
@@ -893,7 +903,7 @@ fn temporal_model_query(
                         n_steps: json_usize(&params, "n_steps", 8)?,
                         window: 0,
                         history: Arc::from([]),
-                        seed: params["seed"].as_u64().unwrap_or(seed),
+                        seed: json_seed(&params, seed)?,
                     },
                 ))
             }
