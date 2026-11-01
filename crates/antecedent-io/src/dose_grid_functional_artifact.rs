@@ -677,6 +677,14 @@ impl DoseGridRequestWire {
                 if replicates > 100_000 {
                     return Err(DoseGridArtifactError::LimitsExceeded("band replicates"));
                 }
+                // Each replicate costs rows x grid doses, so the product is bounded, not just
+                // the replicate count.
+                let work = (replicates as u128)
+                    .saturating_mul(self.dose.len() as u128)
+                    .saturating_mul(self.grid.len().max(1) as u128);
+                if work > MAX_BAND_WORK {
+                    return Err(DoseGridArtifactError::LimitsExceeded("band work"));
+                }
                 // The band is replayed from its own seed, whatever the caller's context.
                 let mut band_ctx = ctx.clone();
                 band_ctx.rng = antecedent_core::RngFactory::from_seed(declared.band_seed);
@@ -885,6 +893,9 @@ fn result_is_finite(result: &DoseGridResultWire) -> bool {
         })
 }
 
+/// Most `replicates x rows x grid doses` a declared simultaneous band may cost.
+const MAX_BAND_WORK: u128 = 10_000_000_000;
+
 impl DoseGridArtifactWire {
     /// Evaluate the row on `request` and seal the result with both digests.
     ///
@@ -892,7 +903,7 @@ impl DoseGridArtifactWire {
     /// The row's typed refusal (`dose_grid.*`), a stored collection above the default
     /// consumer bounds, or an unsupported spelling.
     pub fn seal(request: DoseGridRequestWire) -> Result<Self, DoseGridArtifactError> {
-        Self::seal_with_context(request, &antecedent_core::ExecutionContext::for_tests(0))
+        Self::seal_with_context(request, &antecedent_core::ExecutionContext::production_default(0))
     }
 
     /// Seal under execution controls without changing the artifact premises.
@@ -1023,7 +1034,7 @@ impl DoseGridArtifactWire {
         Self::consume_typed_with_context(
             bytes,
             limits,
-            &antecedent_core::ExecutionContext::for_tests(0),
+            &antecedent_core::ExecutionContext::production_default(0),
         )
     }
 

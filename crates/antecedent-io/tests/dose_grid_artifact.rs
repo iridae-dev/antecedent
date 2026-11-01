@@ -526,6 +526,21 @@ fn a_declared_curvature_bound_seals_bias_aware_intervals_and_the_band() {
 }
 
 #[test]
+fn a_band_whose_replicate_row_grid_product_is_unbounded_is_refused_before_any_fit() {
+    let mut declared = bias_aware("level", 0.1);
+    let rows = 100_000;
+    declared.dose = (0..rows).map(|i| 4.0 * i as f64 / (rows - 1) as f64).collect();
+    declared.outcome = declared.dose.iter().map(|d| truth_level(*d)).collect();
+    declared.grid = (0..1_024).map(|i| 4.0 * f64::from(i) / 1_023.0).collect();
+    declared.bias_aware.as_mut().unwrap().band_replicates = 100_000;
+    declared.claims.simultaneous_band = true;
+    assert_eq!(
+        DoseGridArtifactWire::seal(declared).unwrap_err(),
+        DoseGridArtifactError::LimitsExceeded("band work")
+    );
+}
+
+#[test]
 fn a_contrast_under_a_curvature_bound_keeps_its_band_closed() {
     let sealed = DoseGridArtifactWire::seal(bias_aware("contrast", 0.1)).unwrap();
     assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_CLOSED);

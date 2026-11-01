@@ -92,9 +92,10 @@ impl PyPreparedAnalysis {
                     super::FrameData::Series(data) => inner.rebind_series(data, &ctx),
                     super::FrameData::Panel(data) => inner.rebind_panel(data, &ctx),
                     super::FrameData::MultiEnv(data) => inner.rebind_multi_env(data, &ctx),
-                    super::FrameData::Events(data, interval, _retention) => {
-                        inner.rebind_series(data.align_to_grid(interval).map_err(py_err)?, &ctx)
-                    }
+                    super::FrameData::Events(data, interval, _retention) => inner.rebind_series(
+                        data.align_to_grid_in(interval, &ctx).map_err(py_err)?,
+                        &ctx,
+                    ),
                 },
             }
             .map_err(py_err)?;

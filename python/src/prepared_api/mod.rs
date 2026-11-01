@@ -158,9 +158,7 @@ impl PyPreparedAnalysis {
                     }
                     FrameData::Events(data, align, retention) => {
                         frame_retention = retention;
-                        let aligned = data.align_to_grid(align).map_err(|error| {
-                            crate::py_msg(format!("event align_to_grid: {error}"))
-                        })?;
+                        let aligned = data.align_to_grid_in(align, &ctx).map_err(py_err)?;
                         study.rebind_series(aligned, &ctx).map_err(py_err)?
                     }
                 },

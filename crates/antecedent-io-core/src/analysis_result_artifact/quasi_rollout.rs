@@ -227,6 +227,9 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
         if !effect.estimate.is_finite() {
             return fail("an effect estimate is not finite");
         }
+        if effect.interval.iter().chain(effect.band.iter()).flatten().any(|v| !v.is_finite()) {
+            return fail("a pointwise interval or band is not finite");
+        }
         if let Some(interval) = effect.interval {
             if interval[0] > interval[1] {
                 return fail("a pointwise interval is reversed");
