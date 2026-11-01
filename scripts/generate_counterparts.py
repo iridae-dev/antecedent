@@ -87,6 +87,7 @@ CLOSED_ROUTE_NEXT = (
 SPECS = ROOT / "parity/method_specs/specs.toml"
 TEMPORAL_MARK = re.compile(r"temporal|panel|sequential|series|period|time", re.I)
 UNCERTAINTY_RANK = {
+    "unresolved": -1,
     "none": 0,
     "enclosure": 1,
     "analytic": 2,

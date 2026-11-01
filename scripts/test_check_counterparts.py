@@ -184,6 +184,11 @@ class GeneratorChecks(unittest.TestCase):
         self.assertEqual(evidenced.route_kind("r", "bayesian"), ("posterior", "asserted_in_test"))
         self.assertEqual(evidenced.route_kind("missing", "bayesian"), ("none", "no_method_record"))
 
+    def test_unresolved_uncertainty_remains_unresolved(self) -> None:
+        record = {"child": "", "route": "r", "estimator": "e", "inference": "frequentist", "uncertainty": "unresolved", "uncertainty_basis": "no_support|x"}
+        evidenced = gen.Evidenced({"method": [record]}, [], Evidence(gen.ROOT))
+        self.assertEqual(evidenced.route_kind("r", "frequentist"), ("unresolved", "no_support"))
+
     def test_an_executing_row_needs_a_target_a_design_a_fixture_and_a_consumer(self) -> None:
         ev = Evidence(gen.ROOT)
         row = rows_for()[0] | {

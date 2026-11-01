@@ -99,148 +99,208 @@ Do not edit this block by hand.
 
 | Query | Licensed | n/a | Refused |
 |---|---:|---:|---:|
-| AnomalyAttribution | 4 | 36 | 140 |
-| AverageDerivative | 20 | 36 | 124 |
-| AverageEffect | 94 | 32 | 54 |
-| ChangeAttribution | 4 | 36 | 140 |
-| ConditionalEffect | 58 | 90 | 32 |
-| Counterfactual | 20 | 36 | 124 |
-| DirectionalDerivative | 20 | 36 | 124 |
-| Elasticity | 20 | 36 | 124 |
-| InterventionalDistribution | 36 | 36 | 108 |
-| InterventionResponse | 99 | 34 | 47 |
-| MediationEffect | 12 | 90 | 78 |
-| NestedCounterfactualEffect | 18 | 36 | 126 |
-| PathSpecificEffect | 28 | 36 | 116 |
-| PointDerivative | 20 | 36 | 124 |
-| PulseEffect | 54 | 108 | 18 |
-| ResponseCurve | 48 | 116 | 16 |
-| ResponseJacobian | 20 | 36 | 124 |
-| SemiElasticity | 20 | 36 | 124 |
-| SustainedEffect | 54 | 108 | 18 |
-| TemporalConditionalPulse | 16 | 108 | 56 |
-| TemporalConditionalSustained | 16 | 108 | 56 |
-| TemporalMediationEffect | 36 | 108 | 36 |
-| TransportQuery | 4 | 90 | 86 |
-| InterferenceQuery | 2 | 90 | 88 |
+| AnomalyAttribution | 144 | 36 | 0 |
+| AverageDerivative | 144 | 36 | 0 |
+| AverageEffect | 148 | 32 | 0 |
+| ChangeAttribution | 48 | 36 | 96 |
+| ConditionalEffect | 90 | 90 | 0 |
+| Counterfactual | 132 | 36 | 12 |
+| DirectionalDerivative | 144 | 36 | 0 |
+| Elasticity | 144 | 36 | 0 |
+| InterventionalDistribution | 144 | 36 | 0 |
+| InterventionResponse | 146 | 34 | 0 |
+| MediationEffect | 90 | 90 | 0 |
+| NestedCounterfactualEffect | 142 | 36 | 2 |
+| PathSpecificEffect | 144 | 36 | 0 |
+| PointDerivative | 144 | 36 | 0 |
+| PulseEffect | 72 | 108 | 0 |
+| ResponseCurve | 64 | 116 | 0 |
+| ResponseJacobian | 144 | 36 | 0 |
+| SemiElasticity | 144 | 36 | 0 |
+| SustainedEffect | 72 | 108 | 0 |
+| TemporalConditionalPulse | 72 | 108 | 0 |
+| TemporalConditionalSustained | 72 | 108 | 0 |
+| TemporalMediationEffect | 72 | 108 | 0 |
+| TransportQuery | 90 | 90 | 0 |
+| InterferenceQuery | 90 | 90 | 0 |
 
-723 licensed cells.
+2696 licensed cells.
 
 | Query | Graph class | Structures | Inferences | Validations | Cells |
 |---|---|---|---|---|---:|
-| AnomalyAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
-| AnomalyAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
-| AverageDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| AverageDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| AverageDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| AverageDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| AnomalyAttribution | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AnomalyAttribution | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageDerivative | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | AverageEffect | CoDetermined | explicit | Frequentist, Bayesian | none | 2 |
 | AverageEffect | Unknown | explicit | Frequentist, Bayesian | none | 2 |
-| ChangeAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
-| ChangeAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| ChangeAttribution | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ChangeAttribution | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
 | ConditionalEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| ConditionalEffect | Admg | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| ConditionalEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ConditionalEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ConditionalEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| Counterfactual | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| Counterfactual | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| Counterfactual | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| Counterfactual | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| DirectionalDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| DirectionalDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| DirectionalDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| DirectionalDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| Elasticity | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| Elasticity | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| Elasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| Elasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| InterventionalDistribution | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
-| InterventionalDistribution | Admg | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| InterventionalDistribution | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| InterventionalDistribution | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| InterventionalDistribution | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| InterventionalDistribution | TemporalAdmg | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| InterventionResponse | Dag | explicit | Frequentist | none | 1 |
-| InterventionResponse | Dag | explicit | Frequentist | cheap | 1 |
-| InterventionResponse | Dag | explicit | Frequentist | full | 1 |
-| InterventionResponse | Dag | explicit | Bayesian | none | 1 |
-| InterventionResponse | Dag | accepted | Frequentist | none | 1 |
-| InterventionResponse | Dag | accepted | Frequentist | cheap | 1 |
-| InterventionResponse | Dag | accepted | Frequentist | full | 1 |
-| InterventionResponse | Dag | accepted | Bayesian | none | 1 |
-| InterventionResponse | Dag | graph_posterior | Frequentist | none | 1 |
-| InterventionResponse | Dag | graph_posterior | Frequentist | cheap | 1 |
-| InterventionResponse | Dag | graph_posterior | Frequentist | full | 1 |
-| InterventionResponse | Dag | graph_posterior | Bayesian | none | 1 |
+| ConditionalEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Counterfactual | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| DirectionalDerivative | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Elasticity | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionalDistribution | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| InterventionResponse | Cpdag | explicit | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | Cpdag | accepted | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | Cpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| InterventionResponse | Pag | explicit | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | Pag | accepted | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | Pag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| InterventionResponse | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | TemporalDag | accepted | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | TemporalDag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| InterventionResponse | TemporalCpdag | explicit | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | TemporalCpdag | accepted | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | TemporalCpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
-| InterventionResponse | TemporalPag | explicit | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | TemporalPag | accepted | Frequentist, Bayesian | none | 2 |
-| InterventionResponse | TemporalPag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | InterventionResponse | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| InterventionResponse | CoDetermined | explicit | Frequentist | none | 1 |
-| MediationEffect | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
-| NestedCounterfactualEffect | Dag | explicit | Frequentist, Bayesian | none | 2 |
-| NestedCounterfactualEffect | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| NestedCounterfactualEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| NestedCounterfactualEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| PathSpecificEffect | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
-| PathSpecificEffect | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| PathSpecificEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| PathSpecificEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| PointDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| PointDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| PointDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| PointDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionResponse | CoDetermined | explicit | Frequentist, Bayesian | none | 2 |
+| MediationEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| MediationEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| MediationEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| MediationEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| MediationEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | Dag | explicit | Frequentist, Bayesian | none, cheap, full | 6 |
+| NestedCounterfactualEffect | Dag | accepted | Frequentist, Bayesian | none, cheap, full | 6 |
+| NestedCounterfactualEffect | Dag | graph_posterior | Frequentist, Bayesian | none, cheap | 4 |
+| NestedCounterfactualEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| NestedCounterfactualEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PathSpecificEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PointDerivative | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | PulseEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | PulseEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | PulseEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PulseEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | ResponseCurve | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Admg | explicit | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | Admg | accepted | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | Admg | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| ResponseCurve | Cpdag | explicit | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | Cpdag | accepted | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | Cpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| ResponseCurve | Pag | explicit | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | Pag | accepted | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | Pag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
 | ResponseCurve | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
 | ResponseCurve | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
 | ResponseCurve | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseCurve | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseJacobian | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| ResponseJacobian | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| ResponseJacobian | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| ResponseJacobian | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| SemiElasticity | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| SemiElasticity | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| SemiElasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| SemiElasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalAdmg | explicit | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | TemporalAdmg | accepted | Frequentist, Bayesian | none | 2 |
+| ResponseCurve | TemporalAdmg | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| ResponseJacobian | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseJacobian | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SemiElasticity | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SustainedEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SustainedEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | SustainedEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| TemporalConditionalPulse | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| TemporalConditionalPulse | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| TemporalConditionalPulse | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| TemporalConditionalSustained | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
-| TemporalConditionalSustained | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
-| TemporalConditionalSustained | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SustainedEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalPulse | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalPulse | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalPulse | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalPulse | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalSustained | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalSustained | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalSustained | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalSustained | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | TemporalMediationEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 | TemporalMediationEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
-| TransportQuery | Admg | explicit | Frequentist, Bayesian | none | 2 |
-| TransportQuery | TemporalAdmg | explicit | Frequentist, Bayesian | none | 2 |
-| InterferenceQuery | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| TemporalMediationEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalMediationEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterferenceQuery | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterferenceQuery | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterferenceQuery | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterferenceQuery | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterferenceQuery | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
 <!-- generated:query-inventory:end -->
 
 Some important distinctions when choosing a workflow:
