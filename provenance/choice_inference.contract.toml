@@ -1,0 +1,70 @@
+# Algorithm provenance for choice_inference.contract.
+
+feature_id = "choice_inference.contract"
+implementation_crate = "antecedent-contract"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+implementation_deviations = [
+ "Historical borrowing follows the power-prior idea (Ibrahim and Chen, Statistical Science 2000, doi 10.1214/ss/1009212673) and is applied to Dirichlet-multinomial counts: each retained source contributes discount times its counts to the prior shapes, with a fixed discount in [0, 1]; the paper treats regression models and an optionally random discount.",
+ "A source of another meaning or population enters only with a declared transfer rationale and a discount; the discount is a declaration, not an estimated transfer, and no transport of a distribution is claimed.",
+ "Row-level overlap between respondents and sources, and between sources, is judged by the evidence ledger; the same observation row is never counted twice.",
+ "The per-source conflict diagnostic is a prior-predictive log Bayes factor against a vague prior versus the remaining discounted evidence, screened at ln 10; calibration of the screen is unmeasured and a conflicting source is reported (or refused by policy), never re-weighted.",
+ "Every route is point-only with calibration unmeasured; the interval route refuses with cell_not_licensed until a coverage record attests the choice cell. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
+ "Stated choices do not identify behavioural or causal outcomes.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-contract/tests/choice_design.rs",
+ "crates/antecedent-io/tests/choice_inference_result_artifact.rs",
+ "crates/antecedent-estimate/src/choice_inference.rs (unit tests)",
+ "crates/antecedent-design/src/choice_evsi.rs (unit tests)",
+ "python/tests/test_choice_inference.py",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "The contract, qualification and routing layers of choice inference: the choice-study declaration with completeness and consistency refusals, scope matching and row-level overlap of retained sources through the evidence ledger, the procedure-matrix authorization of each route, the conflict screen on the discounted prior, the sealed result artifact with consumer replay, and the EVSI ranking over the pooled posterior. Each numerical step is delegated to the covered_by records."
+no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and enumeration of a closed-form predictive distribution for the study value; the posterior, hierarchical posterior and procedure law are separate method records."
+covered_by = ["adaptive_inference.dirichlet_choice", "adaptive_inference.hierarchical_choice", "adaptive_inference.choice_procedure_law", "adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix", "design.evsi"]
+inline_tests = true
+record_sha256 = "f537941f768f5f930368f214517a334e047b09e0fafb9858954c5d40190c0537"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/adaptive_design/choice.rs"
+sha256 = "cdd40883c7d4498808dfda96f307a9b32c0444c37289520f21c2d14df178f816"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/choice_inference.rs"
+sha256 = "67aa62c99acd9009674c057f75ff0f3033370bee9775629f927ecfc690c35d77"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io/src/choice_inference_result_artifact.rs"
+sha256 = "557f9f33afb920fe3617a4d5cfadd130c5dd9f253bd5a645f5820189b49a1038"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/choice_evsi.rs"
+sha256 = "e4af10e36c9a986fc3f62b874c342af9f90025ea9f771b7adbe57cb1826e441e"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/choice_inference.rs"
+sha256 = "15af1a89ee0dfb9bf633791d00382d71b7af300e868b47494254afba0b45c17d"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-contract/tests/choice_design.rs"
+sha256 = "033baee39547fda0089309d52c8adbc1dd845322f02a56544cef7909cfa2c427"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io/tests/choice_inference_result_artifact.rs"
+sha256 = "67f57e7057de649ced095c18f6a919367de84c33e0b5a5878311989ceccc12c9"

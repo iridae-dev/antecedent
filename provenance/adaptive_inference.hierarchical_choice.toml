@@ -1,0 +1,53 @@
+# Algorithm provenance for adaptive_inference.hierarchical_choice.
+
+feature_id = "adaptive_inference.hierarchical_choice"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "On the compound multinomial distribution, the multivariate beta-distribution, and correlations among proportions", doi = "10.1093/biomet/49.1-2.65", sections = ["the compound multinomial (Dirichlet-multinomial) distribution of counts whose probabilities are Dirichlet"] },
+]
+implementation_deviations = [
+ "Respondent shares are Dirichlet(kappa pi) with a Dirichlet(a) population mean and a log-normal concentration kappa; the paper derives the compound distribution and its correlation structure and does not prescribe this prior or any posterior computation. Two or three options only, with every prior shape at least one.",
+ "Every reported quantity is deterministic quadrature of the posterior of (pi, kappa): Gauss-Legendre panels cut at the tie breakpoints of the best-option region, a zoomed box around the mass, and a quadrature error bound (largest change between a coarse and a fine rule) beyond which the posterior is refused rather than reported.",
+ "The population shares and heterogeneity describe the sampled population in the declared choice set. Stated choices do not identify behavioural or causal outcomes, and no coverage or calibration claim is made about any interval built from this posterior.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/hierarchical_choice_reference.rs (mpmath tanh-sinh for two options; trapezoid in log-concentration coordinates and scipy adaptive cubature for three)",
+ "crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "HierarchicalChoicePrior, the hierarchical posterior and its quadrature in crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs: the Dirichlet-multinomial sequence likelihood of repeated choices with respondent shares Dirichlet(kappa pi), the posterior evidence, population mean shares, probability that each option has the largest population share, its expected loss, heterogeneity summaries and the population-share interval by a root of the marginal distribution function, for two or three options. Not the pooled posterior of one choice per respondent (adaptive_inference.dirichlet_choice), the contract, or any coverage claim."
+assumptions = ["Respondents are independent given (pi, kappa) and each respondent's ordered choices are exchangeable given their own share vector.", "The prior is pi ~ Dirichlet(a) with every a_k at least one and ln kappa ~ Normal(mu, sigma^2), both declared.", "Option k is best where pi_k is at least every other population share; the population shares are the target, not any respondent's own."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be established from retained artifacts. The implementation and the references were written by the same agent in one development effort, not by an independent reviewer; each reference uses a method that is not the product's panel scheme (mpmath tanh-sinh and a root solve for two options; a trapezoid rule in the coordinates ln(kappa pi_k) and scipy's adaptive vector cubature for three) and was executed to freeze its output. No upstream implementation or test source was consulted or copied. The cited paper was not retrieved."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath, numpy and scipy are not product dependencies. The cited paper is linked, not redistributed."
+limitations = "Mosimann's paper was not retrieved; the likelihood is checked against its definition, not against the paper's text. The reference script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into a gate; it takes about 85 minutes on an M1. The comparison covers the frozen two- and three-option cases only, and the posterior is refused beyond its quadrature error limit. It does not examine more than three options, more than 512 choices per respondent or concentrations outside the frozen grid, and it is not an independent human review."
+sources = ["https://doi.org/10.1093/biomet/49.1-2.65", "https://mpmath.org/doc/1.3.0/", "https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.cubature.html"]
+findings_resolved = ["No defect was found against the references. Scope finding: with two options the kernel is the beta-binomial of the participant posterior with correlation 1/(kappa+1); the family is nonetheless a separate posterior because the prior is on (pi, kappa) rather than on a per-arm Beta."]
+record_sha256 = "e0043d6ec24b888bbf3cb19c08d26867eb3863447594e6d98c7ab467a387a80e"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/hierarchical_choice.rs"
+sha256 = "6a261b38c9173f494ba13ea6b59fb4842c6ea6a4c3d1158a733f27d91e0dc2de"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/hierarchical_choice_reference.rs"
+sha256 = "451df8dd0d15b9d1fb3d3655abf0773fdf5cde428c22db750c2f40363fc6e3f0"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/hierarchical_choice_reference.py"
+sha256 = "6825c153978f5562b49432e10f5f910762ae459acebbcaabeac782228f367913"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/hierarchical_choice_reference.json"
+sha256 = "cb22927b579e53039645310b1e006ef7efe5cc47b50eccebf1816c78f5fa4f5e"

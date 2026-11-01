@@ -1,0 +1,55 @@
+# Algorithm provenance for adaptive_inference.choice_procedure_law.
+
+feature_id = "adaptive_inference.choice_procedure_law"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Exact law of a sequential categorical-choice procedure (stopping rule re-evaluated on the observed
+# choice counts at every look) by dynamic programming over those counts, under a fixed truth or a
+# Dirichlet prior predictive. Enumeration of a finite-state Markov process, the categorical sibling
+# of adaptive_inference.procedure_law; no primary paper introduces this state recursion.
+papers = []
+implementation_deviations = [
+ "Categorical choices only, at most 4 options, 24 looks and 65535 units; the state is the vector of choice counts, bounded by the same live-state and work limits as the Bernoulli procedure law, and a larger procedure is refused rather than approximated.",
+ "The stopping rule is a posterior probability-best and expected-loss criterion on the Dirichlet posterior with a minimum enrolment; every element is declared and none is defaulted. The comparison band is the Bernoulli rules' threshold tolerance.",
+ "The law is of the declared procedure under a hypothesized truth or the declared Dirichlet prior predictive only. It is not a bound over other truths, a coverage statement or a calibration claim; those stay closed until a coverage record attests the cell.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-stats/tests/choice_procedure_reference.rs (exact rational batch-convolution reference with mpmath posterior functionals)",
+ "crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "enumerate_choice_law and ChoiceStoppingRule in crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs: the exact terminal law of a declared sequential categorical-choice procedure (selection probabilities, stop probability at each look, horizon probability, expected enrolment) by dynamic programming over the observed counts, units of a batch expanded one at a time and merged by state, under a fixed truth or a Dirichlet prior predictive, and the stopping decision evaluated at each reachable count vector. Not the Dirichlet posterior functionals (adaptive_inference.dirichlet_choice), the contract that declares the procedure, or any coverage claim."
+assumptions = ["Choices are independent draws of one categorical law given the truth, or exchangeable draws of the Dirichlet prior predictive (a Polya urn).", "The stopping decision is a function of the observed counts and the look only.", "The law is exact for the declared procedure under the declared kernel and states nothing about other truths."]
+historical_exposure = "Historical author exposure to upstream implementations cannot be established from retained artifacts. The implementation and the reference were written by the same agent in one development effort, not by an independent reviewer; the reference was written from the definition of the procedure by a different algorithm (whole-batch multinomial or Dirichlet-multinomial probabilities in exact rational arithmetic, convolved batch by batch) and executed to freeze its output. No upstream implementation or test source was consulted or copied."
+redistribution = "The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is not a product dependency."
+limitations = "No primary paper is claimed. The reference is not an independent human review and is not wired into a gate; its output is frozen and compared by the test. The comparison covers the frozen procedures only (two to four options, fixed and prior-predictive kernels, one- and multi-look schedules). Larger state spaces than the bound are refused, not compared."
+sources = ["https://docs.python.org/3/library/fractions.html", "https://mpmath.org/doc/1.3.0/"]
+findings_resolved = ["No defect was found against the reference. Scope finding: the Bernoulli law enumerator cannot represent a choice state, so the categorical law is a separate enumerator over the same capacity bounds rather than a generalization of it."]
+record_sha256 = "4cd6af35d32d175fba2586d93db2daad6634191da4b187ff53e2fcccd088b92a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs"
+sha256 = "8804442cc95efd045dab16127a69907a7ce853faa60a3730c7328f96576ae0cd"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-stats/tests/choice_procedure_reference.rs"
+sha256 = "37347c937637bda66a9cff0186869e3f205e5be446a248dc474650ae4528e83d"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "crates/antecedent-stats/tests/oracle_data/choice_procedure_reference.py"
+sha256 = "fa67dc2fbed576190aa3f4afc8492c4a9e19c730889e091da3544892c5fc16de"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "crates/antecedent-stats/tests/oracle_data/choice_procedure_reference.json"
+sha256 = "d10e7ef7e968de87ba3b6202a029a889bf5988ce7446ce0149ca1bc20fa8a140"
