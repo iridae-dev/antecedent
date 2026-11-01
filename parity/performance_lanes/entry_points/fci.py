@@ -56,7 +56,7 @@ def main() -> None:
             "links_retained": result.links_retained,
             "pending_edges": result.pending_edge_count,
             "directed_edges": result.cpdag_directed_edges,
-            "undirected_edges": result.cpdag_undirected_edges,
+            "circle_edges": result.pag_circle_edges,
             "graph_edges": sorted(repr(edge) for edge in result.graph_edges),
             "links": sorted(repr(link) for link in result.links),
         }
