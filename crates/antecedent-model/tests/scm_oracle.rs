@@ -122,10 +122,9 @@ fn discrete_and_hierarchical_glm_match_their_independent_oracles() {
     };
     // The retained two-cell reference independently derives the current logistic-pilot EB
     // strength and solves the penalized score. The older reviewed fixture used an OLS pilot.
-    let logistic_eb: JsonValue = serde_json::from_str(include_str!(
-        "oracle_data/hierarchical_logit_eb_reference.json"
-    ))
-    .unwrap();
+    let logistic_eb: JsonValue =
+        serde_json::from_str(include_str!("oracle_data/hierarchical_logit_eb_reference.json"))
+            .unwrap();
     let ridge = logistic_eb["coefficients"].as_array().unwrap();
     let ridge_intercept = ridge[0].as_f64().unwrap();
     let ridge_slope = ridge[1].as_f64().unwrap();
