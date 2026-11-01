@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from pathlib import Path
 
 from _repo import REPO_ROOT
 
@@ -142,7 +143,7 @@ def python_executable() -> str:
 def has_inline_environment(path: Path) -> bool:
     """A PEP 723 header means the generator declares (and locks) its own environment."""
     with path.open(encoding="utf-8") as handle:
-        return any(line.strip() == "# /// script" for _, line in zip(range(40), handle))
+        return any(line.strip() == "# /// script" for _, line in zip(range(40), handle, strict=False))
 
 
 def main() -> int:
