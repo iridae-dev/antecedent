@@ -31,14 +31,17 @@ pub struct RetainedRecoveryProvenance(Arc<Source>);
 
 impl RetainedRecoveryInputs {
     /// Original scientific recipe, never a reconstructed live preparation.
+    #[must_use]
     pub fn recipe(&self) -> &R {
         self.0.request.recovery_recipe()
     }
     /// Exact native source report; its admission reservations remain owned.
+    #[must_use]
     pub fn report(&self) -> &CyclicFamilyReport {
         &self.0.report
     }
     /// Exact recovered law allocation, including original origin/status/failed slots.
+    #[must_use]
     pub fn law(&self) -> &Arc<RecoveredLawProduct> {
         let A::ExperimentalRecovery(report) = &self.0.report.answer else {
             unreachable!("retained recovery source is validated at construction")
@@ -46,6 +49,7 @@ impl RetainedRecoveryInputs {
         &report.law
     }
     /// Original declared scientific source, independent of the selected worlds.
+    #[must_use]
     pub fn source_id(&self) -> &str {
         let R::ExperimentalRecovery { source_id, .. } = self.recipe() else {
             unreachable!("retained recovery recipe is validated at construction")
@@ -53,6 +57,7 @@ impl RetainedRecoveryInputs {
         source_id
     }
     /// Original ordered evidence declarations for the retained recovery recipe.
+    #[must_use]
     pub fn certifying_evidence(&self) -> &[String] {
         let R::ExperimentalRecovery { certifying_evidence, .. } = self.recipe() else {
             unreachable!("retained recovery recipe is validated at construction")
@@ -89,6 +94,7 @@ impl Serialize for RetainedRecoveryProvenance {
 
 impl R {
     /// Borrow the original experiment declarations while retaining its own worlds separately.
+    #[must_use]
     pub fn recovery_recipe(&self) -> &Self {
         match self {
             Self::RetainedExperimentalRecovery { inputs, .. } => inputs.recipe(),

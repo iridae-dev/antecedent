@@ -53,6 +53,7 @@ fn protocol(message: &str) -> IoError {
     refused("measured_interval.protocol_not_measured", message)
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "used as an owned map_err callback")]
 fn estimation_error(error: antecedent_estimate::EstimationError) -> IoError {
     if error.reason_code() == Some(antecedent_core::reason_code!("transport_budget_cancel")) {
         IoError::Refused {

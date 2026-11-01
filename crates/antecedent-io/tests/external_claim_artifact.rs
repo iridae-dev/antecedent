@@ -153,6 +153,7 @@ fn lineage_records_a_merkle_digest_per_link_and_refuses_tampered_digests() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the reference fixture checks one complete round trip")]
 fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
     const PATH_ENV: &str = "ANTECEDENT_23_EXTERNAL_CLAIM_TEST_PATH";
     if let Ok(path) = std::env::var(PATH_ENV) {

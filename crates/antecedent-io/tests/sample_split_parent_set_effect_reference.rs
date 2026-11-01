@@ -54,7 +54,12 @@ fn frame() -> TabularData {
 }
 
 fn ids(value: &Value) -> Vec<u32> {
-    value.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as u32).collect()
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
+        .collect()
 }
 
 fn pairs(value: &Value) -> Vec<(u32, u32)> {
@@ -62,7 +67,12 @@ fn pairs(value: &Value) -> Vec<(u32, u32)> {
         .as_array()
         .unwrap()
         .iter()
-        .map(|p| (p[0].as_u64().unwrap() as u32, p[1].as_u64().unwrap() as u32))
+        .map(|p| {
+            (
+                u32::try_from(p[0].as_u64().unwrap()).expect("fixture value fits"),
+                u32::try_from(p[1].as_u64().unwrap()).expect("fixture value fits"),
+            )
+        })
         .collect()
 }
 
@@ -78,8 +88,10 @@ fn parent_set_and_fixed_graph_acceptance_agree_with_the_definition_on_every_patt
     let (mut accepted, mut ambiguous, mut precedes) = (0, 0, 0);
     for row in &rows {
         let pattern = row["pattern"].as_str().unwrap();
-        let (t, o) =
-            (row["treatment"].as_u64().unwrap() as u32, row["outcome"].as_u64().unwrap() as u32);
+        let (t, o) = (
+            u32::try_from(row["treatment"].as_u64().unwrap()).expect("fixture value fits"),
+            u32::try_from(row["outcome"].as_u64().unwrap()).expect("fixture value fits"),
+        );
         let s = structure(pattern);
 
         let got = treatment_parent_set(&s, &names, t, o);
@@ -104,7 +116,10 @@ fn parent_set_and_fixed_graph_acceptance_agree_with_the_definition_on_every_patt
                 assert_eq!(n.directed, pairs(&want["directed"]), "{pattern} t={t}: directed");
                 let unresolved: Vec<(u32, u32)> = n.unresolved.iter().map(|u| (u.a, u.b)).collect();
                 assert_eq!(unresolved, pairs(&want["unresolved"]), "{pattern} t={t}: unresolved");
-                assert_eq!(n.edges, want["edges"].as_u64().unwrap() as usize);
+                assert_eq!(
+                    n.edges,
+                    usize::try_from(want["edges"].as_u64().unwrap()).expect("fixture value fits")
+                );
             }
         }
 
@@ -137,6 +152,7 @@ fn parent_set_and_fixed_graph_acceptance_agree_with_the_definition_on_every_patt
 /// reports the exponential images (ordered, with the delta-method standard error) for a positive
 /// and a negative shift.
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture pins exact values")]
 fn the_parent_set_route_equals_exact_least_squares_for_both_versions_and_scales() {
     use antecedent_core::ExecutionContext;
     use antecedent_io::measured_inference::split_parent_set_effect::{
@@ -156,8 +172,10 @@ fn the_parent_set_route_equals_exact_least_squares_for_both_versions_and_scales(
             .collect()
     };
     let names: Vec<String> = (0..10).map(|i| format!("v{i}")).collect();
-    let (treatment, outcome) =
-        (case["treatment"].as_u64().unwrap() as u32, case["outcome"].as_u64().unwrap() as u32);
+    let (treatment, outcome) = (
+        u32::try_from(case["treatment"].as_u64().unwrap()).expect("fixture value fits"),
+        u32::try_from(case["outcome"].as_u64().unwrap()).expect("fixture value fits"),
+    );
     let source = |columns: Vec<Vec<f64>>, version: u32, transformation, shift| {
         let mut s = ParentSetEffectSource::new(
             names.clone(),
@@ -167,7 +185,7 @@ fn the_parent_set_route_equals_exact_least_squares_for_both_versions_and_scales(
             case["split_seed"].as_u64().unwrap(),
             case["discovery_seed"].as_u64().unwrap(),
             transformation,
-            case["max_degree"].as_u64().unwrap() as u32,
+            u32::try_from(case["max_degree"].as_u64().unwrap()).expect("fixture value fits"),
             shift,
         );
         s.version = version;
@@ -179,7 +197,8 @@ fn the_parent_set_route_equals_exact_least_squares_for_both_versions_and_scales(
     };
     let ctx = ExecutionContext::for_tests(1);
     for study in case["studies"].as_array().unwrap() {
-        let version = study["version"].as_u64().unwrap() as u32;
+        let version =
+            u32::try_from(study["version"].as_u64().unwrap()).expect("fixture value fits");
         let linear =
             run(&source(load("linear_columns"), version, Transformation::Linear, None), &ctx)
                 .unwrap_or_else(|e| panic!("v{version} linear: {e:?}"));

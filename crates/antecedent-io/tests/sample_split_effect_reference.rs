@@ -23,6 +23,7 @@ fn rel_err(got: f64, want: f64) -> f64 {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture pins exact values")]
 fn adjusted_effect_equals_exact_least_squares_including_offsets_and_near_collinearity() {
     let cases: Vec<Value> =
         serde_json::from_str(include_str!("oracle_data/sample_split_effect_reference.json"))
@@ -42,7 +43,8 @@ fn adjusted_effect_equals_exact_least_squares_including_offsets_and_near_colline
             names.iter().map(String::as_str).zip(columns.iter().map(Vec::as_slice)),
         )
         .unwrap();
-        let adjustment: Vec<u32> = (0..zs.len() as u32).map(|j| j + 2).collect();
+        let adjustment: Vec<u32> =
+            (0..u32::try_from(zs.len()).expect("fixture value fits")).map(|j| j + 2).collect();
         if case["singular"].as_bool().unwrap() {
             let refused =
                 adjusted_effect(&frame, 1, 0, &adjustment, 0.95).err().unwrap_or_else(|| {
@@ -89,6 +91,7 @@ fn adjusted_effect_equals_exact_least_squares_including_offsets_and_near_colline
 /// adjustment set is the true parents, and the interval equals exact least squares on the
 /// reference's analysis rows.
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture pins exact values")]
 fn the_split_effect_route_equals_the_split_by_definition_and_exact_least_squares() {
     use antecedent_core::{ExecutionContext, VariableId};
     use antecedent_discovery::selective::reuse::{SplitRule, split_rows};
@@ -106,8 +109,8 @@ fn the_split_effect_route_equals_the_split_by_definition_and_exact_least_squares
     let source = SplitEffectSource::new(
         names.clone(),
         columns.clone(),
-        case["treatment"].as_u64().unwrap() as u32,
-        case["outcome"].as_u64().unwrap() as u32,
+        u32::try_from(case["treatment"].as_u64().unwrap()).expect("fixture value fits"),
+        u32::try_from(case["outcome"].as_u64().unwrap()).expect("fixture value fits"),
         seed,
         case["discovery_seed"].as_u64().unwrap(),
     );
@@ -116,7 +119,9 @@ fn the_split_effect_route_equals_the_split_by_definition_and_exact_least_squares
         names.iter().map(String::as_str).zip(columns.iter().map(Vec::as_slice)),
     )
     .unwrap();
-    let variables: Vec<VariableId> = (0..columns.len() as u32).map(VariableId::from_raw).collect();
+    let variables: Vec<VariableId> = (0..u32::try_from(columns.len()).expect("fixture value fits"))
+        .map(VariableId::from_raw)
+        .collect();
     let split = split_rows(
         &frame,
         &variables,
@@ -127,7 +132,7 @@ fn the_split_effect_route_equals_the_split_by_definition_and_exact_least_squares
         .as_array()
         .unwrap()
         .iter()
-        .map(|v| v.as_u64().unwrap() as usize)
+        .map(|v| usize::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
         .collect();
     assert_eq!(
         split.analysis_row_ids, expected_rows,
@@ -141,7 +146,7 @@ fn the_split_effect_route_equals_the_split_by_definition_and_exact_least_squares
         .as_array()
         .unwrap()
         .iter()
-        .map(|v| v.as_u64().unwrap() as u32)
+        .map(|v| u32::try_from(v.as_u64().unwrap()).expect("fixture value fits"))
         .collect();
     assert_eq!(ran.effect.adjustment_set, expected_adjustment);
     let reference = &case["reference"];

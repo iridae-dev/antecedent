@@ -336,7 +336,7 @@ fn centred_least_squares(y: &[f64], columns: &[Vec<f64>]) -> Option<(f64, f64, f
             }
         }
         cols[j][j] = alpha;
-        for value in cols[j][(j + 1)..].iter_mut() {
+        for value in &mut cols[j][(j + 1)..] {
             *value = 0.0;
         }
     }

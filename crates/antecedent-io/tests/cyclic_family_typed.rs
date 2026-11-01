@@ -745,6 +745,10 @@ fn a_trajectory_fit_without_any_transition_is_a_registered_scientific_refusal() 
 
 /// A nonlinear SDE request as its wire form: `dX = theta (level(t) - X) dt + sigma dW`, whose
 /// paired worlds differ by a deterministic recursion because the noise is additive.
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the fixture preserves its owned request interface"
+)]
 fn sde_request(extra: serde_json::Value) -> CyclicFamilyRequest {
     let mut request = serde_json::json!({
         "family": "sde_analysis",

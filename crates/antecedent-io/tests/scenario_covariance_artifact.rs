@@ -430,9 +430,8 @@ fn covariance_artifact_rejects_empty_table_before_constructing_estimators() {
         let mut declared = spec(&[name], exact(0.0));
         declared.table.rows.clear();
         declared.table.unit_ids.clear();
-        let (code, message) = match declared.estimators() {
-            Err(IoError::Refused { code, message }) => (code, message),
-            _ => panic!("expected a coded refusal"),
+        let Err(IoError::Refused { code, message }) = declared.estimators() else {
+            panic!("expected a coded refusal");
         };
         assert_eq!(code, "invalid_argument");
         assert!(message.starts_with("scenario_covariance.invalid_row_table"), "{message}");

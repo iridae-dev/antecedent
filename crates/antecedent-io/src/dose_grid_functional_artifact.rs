@@ -145,15 +145,19 @@ impl From<DoseGridArtifactError> for IoError {
 impl From<EstimationError> for DoseGridArtifactError {
     fn from(error: EstimationError) -> Self {
         match error {
-            EstimationError::Stats(antecedent_stats::StatsError::Cancelled)
-            | EstimationError::Admission(antecedent_core::execution::AdmissionError::Cancelled)
-            | EstimationError::Stats(antecedent_stats::StatsError::Admission(
-                antecedent_core::execution::AdmissionError::Cancelled,
-            )) => Self::Refused {
-                code: antecedent_core::reason_code!("transport_budget_cancel"),
-                detail: "dose_grid.cancelled".into(),
-                message: "dose grid cancelled".into(),
-            },
+            EstimationError::Stats(
+                antecedent_stats::StatsError::Cancelled
+                | antecedent_stats::StatsError::Admission(
+                    antecedent_core::execution::AdmissionError::Cancelled,
+                ),
+            )
+            | EstimationError::Admission(antecedent_core::execution::AdmissionError::Cancelled) => {
+                Self::Refused {
+                    code: antecedent_core::reason_code!("transport_budget_cancel"),
+                    detail: "dose_grid.cancelled".into(),
+                    message: "dose grid cancelled".into(),
+                }
+            }
             EstimationError::Stats(error @ antecedent_stats::StatsError::ResourceLimit { .. }) => {
                 Self::Refused {
                     code: antecedent_core::reason_code!("transport_budget_cancel"),

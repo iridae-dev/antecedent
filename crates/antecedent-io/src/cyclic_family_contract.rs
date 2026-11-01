@@ -103,6 +103,10 @@ fn hex_bytes(hex: &str) -> Result<[u8; 32], CyclicArtifactError> {
 ///
 /// The request is encoded once and read as a stream: unselected fields (the
 /// data of a large experiment among them) are skipped without being built.
+#[allow(
+    clippy::items_after_statements,
+    reason = "the retained-input fast path precedes the streaming decoder"
+)]
 fn fields(request: &R, keys: &[&str]) -> Result<serde_json::Value, CyclicArtifactError> {
     if let R::RetainedExperimentalRecovery { inputs, .. } = request {
         let R::ExperimentalRecovery { options, inference, .. } = inputs.recipe() else {
@@ -157,8 +161,8 @@ fn fields(request: &R, keys: &[&str]) -> Result<serde_json::Value, CyclicArtifac
 /// The data a family reads, as a typed view: observations, rows, samples, laws or
 /// supplied draws. A specified family reads none.
 fn data_digest(request: &R) -> Result<[u8; 32], CyclicArtifactError> {
-    let request = request.recovery_recipe();
     const TAG: &str = "antecedent.cyclic_family.data";
+    let request = request.recovery_recipe();
     match request {
         R::RetainedExperimentalRecovery { inputs, .. } => data_digest(inputs.recipe()),
         R::FrequentistBootstrap { rows, .. }
@@ -842,8 +846,9 @@ fn solution_kind(request: &R) -> &'static str {
         R::RecoveredLinear { .. } | R::ExperimentalRecovery { .. } => "hard_clamp_worlds",
         R::Ode { .. } | R::OdeWorlds { .. } | R::OdeFit { .. } => "initial_value",
         R::OuStationary { .. } | R::OuFit { .. } | R::OuMechanisms { .. } => "stationary_law",
-        R::OuTrajectoryFit { .. } | R::SdeAnalysis { .. } => "stochastic_transient",
-        R::OuTransient { .. } => "stochastic_transient",
+        R::OuTrajectoryFit { .. } | R::SdeAnalysis { .. } | R::OuTransient { .. } => {
+            "stochastic_transient"
+        }
         R::EquilibriumRoots { .. }
         | R::Polynomial { .. }
         | R::PolynomialFit { .. }

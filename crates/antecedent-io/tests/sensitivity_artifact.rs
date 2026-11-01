@@ -572,6 +572,10 @@ fn the_producer_kind_is_recorded_text_and_keeps_its_own_identity() {
 }
 
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the fixture keeps its local helpers with their use"
+)]
 fn caller_intake_limits_refuse_what_the_defaults_admit() {
     use antecedent_io::sensitivity_artifact::SensitivityLimits;
     let defaults = SensitivityLimits::default();

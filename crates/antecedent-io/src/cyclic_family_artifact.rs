@@ -671,6 +671,10 @@ pub struct RecoveredInterventionWire {
 /// Distinct answer representations prevent equilibrium/dynamic/set coercions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", content = "result", rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the public wire representation retains its existing variants"
+)]
 pub enum CyclicFamilyAnswer {
     /// Continuous Gaussian plug-in evaluation, retaining density fitting and theorem premises.
     GaussianFunctional(crate::cyclic_gaussian_functional::GaussianCyclicFunctionalReport),

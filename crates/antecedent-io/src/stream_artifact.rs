@@ -1591,6 +1591,10 @@ mod tests {
         }
 
         #[test]
+        #[allow(
+            clippy::items_after_statements,
+            reason = "the fixture keeps its local helpers with their use"
+        )]
         fn the_budget_is_leased_before_anything_is_written_and_cancellation_returns_it() {
             let source = Pattern { len: 1 << 20 };
             let chunk = 4096usize;

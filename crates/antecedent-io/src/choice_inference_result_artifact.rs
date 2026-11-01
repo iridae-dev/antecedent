@@ -249,6 +249,7 @@ fn hierarchical_inputs(
 /// # Errors
 /// A refused authorization, a request outside the contract, a numerical refusal, or
 /// cancellation.
+#[allow(clippy::too_many_lines, reason = "the result preserves the complete choice computation")]
 pub fn compute_choice_result(
     contract: &ChoiceDesignContract,
     spec: &ChoiceResultSpec,

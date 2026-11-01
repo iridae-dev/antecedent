@@ -521,6 +521,7 @@ fn family_from_wire(family: BlockFamilyWire) -> antecedent_estimate::CircularBlo
 
 /// Encode effect estimate.
 #[must_use]
+#[allow(clippy::too_many_lines, reason = "the complete estimate wire fields stay together")]
 pub fn effect_estimate_to_wire(e: &EffectEstimate) -> EffectEstimateWire {
     let (overlap_policy, overlap_clip, overlap_trim) = match e.provenance.overlap.bounds() {
         None => (EstimateOverlapPolicyWire::ExplicitOverride, None, None),
@@ -723,6 +724,7 @@ pub fn effect_estimate_from_wire(w: &EffectEstimateWire) -> Result<EffectEstimat
 /// # Errors
 ///
 /// Invalid assumption labels or scopes.
+#[allow(clippy::too_many_lines, reason = "the validated wire is decoded as one estimate")]
 pub fn effect_estimate_from_owned_wire(w: EffectEstimateWire) -> Result<EffectEstimate, IoError> {
     validate_effect_estimate_wire(&w)?;
     let overlap = match w.overlap_policy {
@@ -1756,6 +1758,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the reference fixture checks one complete round trip"
+    )]
     fn effect_estimate_preserves_assumption_evidence() {
         let wire = EffectEstimateWire {
             ate: 1.0,

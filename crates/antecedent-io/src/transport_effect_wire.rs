@@ -228,10 +228,10 @@ mod tests {
             },
         };
         assert!(transport_effect_from_wire(&valid).is_ok());
-        let mut invalid = valid.clone();
+        let mut invalid = valid;
         invalid.ipw = f64::NAN;
         assert!(transport_effect_from_wire(&invalid).is_err());
-        invalid = valid.clone();
+        invalid = valid;
         invalid.aipw = Some(f64::INFINITY);
         assert!(transport_effect_from_wire(&invalid).is_err());
         for (min, max, ess) in [
@@ -241,7 +241,7 @@ mod tests {
             (0.0, 1.0, -1.0),
             (0.0, 1.0, f64::INFINITY),
         ] {
-            invalid = valid.clone();
+            invalid = valid;
             invalid.treatment_overlap.probability_min = min;
             invalid.treatment_overlap.probability_max = max;
             invalid.treatment_overlap.effective_sample_size = ess;

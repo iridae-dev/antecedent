@@ -655,7 +655,7 @@ fn reference_terms(v: &Value) -> Vec<TermSpec> {
             "linear" => TermSpec::Linear { quantity: t["quantity"].as_str().unwrap().into() },
             "power" => TermSpec::Power {
                 quantity: t["quantity"].as_str().unwrap().into(),
-                degree: t["degree"].as_u64().unwrap() as u32,
+                degree: u32::try_from(t["degree"].as_u64().unwrap()).expect("fixture value fits"),
             },
             _ => TermSpec::OneHot {
                 quantity: t["quantity"].as_str().unwrap().into(),

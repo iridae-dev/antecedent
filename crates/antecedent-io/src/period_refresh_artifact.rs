@@ -904,6 +904,7 @@ mod prior_precision_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the reference fixture pins exact values")]
     fn prior_precision_requires_symmetric_positive_definite_matrix() {
         assert!(!prior_precision_is_spd(&[1.0, 0.5, 0.0, 1.0], 2));
         assert!(!prior_precision_is_spd(&[1.0, 2.0, 2.0, 1.0], 2));

@@ -284,6 +284,10 @@ fn verified_probes() -> Value {
 /// A fresh reader retains the checks, object kind, fingerprint
 /// and the verified-extension trust scope.
 #[test]
+#[allow(
+    clippy::items_after_statements,
+    reason = "the fixture keeps its local helpers with their use"
+)]
 fn verification_checks_are_retained_and_cover_only_the_fingerprint() {
     let verified = bind(&json!(["mean"]), "req-1", &verified_probes());
     let identity = verified.metadata().identity.clone();

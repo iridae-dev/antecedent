@@ -565,7 +565,7 @@ fn declared_sampling_weights_seal_replay_and_account_for_the_deleted_row() {
     let sealed = DoseGridArtifactWire::seal(declared("level", 0.1)).unwrap();
     assert!(sealed.required_features.iter().any(|f| f == DOSE_GRID_DECLARED_ROWS_FEATURE));
     let accounting = sealed.result.declared_rows.as_ref().expect("the declaration is accounted");
-    assert_eq!(accounting.rows_used as usize, N - 1);
+    assert_eq!(usize::try_from(accounting.rows_used).expect("fixture row count fits"), N - 1);
     assert_eq!(accounting.zero_weight_rows, 1);
     assert_eq!(sealed.result.n_rows, N - 1);
     assert!(accounting.weight_effective_sample_size.unwrap() < (N - 1) as f64);
@@ -620,7 +620,8 @@ fn a_changed_weight_cluster_or_lag_is_refused_even_when_the_digests_are_resealed
     assert!(matches!(consume(&reseal(weighted)), Err(DoseGridArtifactError::ResultMismatch)));
 
     let mut clustered = declared("level", 0.1);
-    clustered.cluster = Some((0..N as u32).map(|i| i % 9).collect());
+    clustered.cluster =
+        Some((0..u32::try_from(N).expect("fixture row count fits")).map(|i| i % 9).collect());
     let sealed = DoseGridArtifactWire::seal(clustered).unwrap();
     let accounting = sealed.result.declared_rows.as_ref().unwrap();
     assert_eq!(accounting.clusters, Some(9));
@@ -690,7 +691,8 @@ fn clusters_and_a_serial_lag_together_and_malformed_declarations_are_refused_by_
 fn declared_rows_compose_with_the_curvature_bound_and_its_cluster_band() {
     let mut request = bias_aware("level", 0.1);
     request.claims.simultaneous_band = true;
-    request.cluster = Some((0..N as u32).map(|i| i % 11).collect());
+    request.cluster =
+        Some((0..u32::try_from(N).expect("fixture row count fits")).map(|i| i % 11).collect());
     request.sampling_weights = Some((0..N).map(|i| 0.4 + (i % 4) as f64 * 0.5).collect());
     let sealed = DoseGridArtifactWire::seal(request).unwrap();
     assert_eq!(sealed.result.simultaneous_band, DOSE_GRID_BAND_BIAS_AWARE);

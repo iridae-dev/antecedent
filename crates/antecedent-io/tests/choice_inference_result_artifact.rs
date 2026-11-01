@@ -209,6 +209,7 @@ fn every_route_seals_and_a_fresh_consumer_replays_it() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture pins exact values")]
 fn a_stopping_decision_is_the_contracts_rule_on_the_posterior() {
     let c = contract(categorical(true));
     let at_three =
@@ -487,6 +488,7 @@ fn retained_native_posterior_is_replayed_and_bound_to_its_original_rows() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the reference fixture pins exact values")]
 fn a_single_retained_source_is_screened_against_the_current_look() {
     let mut d = categorical(false);
     d.respondents = (0..80)

@@ -176,7 +176,7 @@ fn product_draws(case: &Json) -> Vec<Option<Vec<u64>>> {
     z_transport_bootstrap_law_draws(
         &functional(),
         &data,
-        case["replicates"].as_u64().unwrap() as u32,
+        u32::try_from(case["replicates"].as_u64().unwrap()).expect("fixture replicate count fits"),
         &ExecutionContext::for_tests(SEED),
     )
     .unwrap()
@@ -202,7 +202,8 @@ fn the_endpoint_interval_equals_the_vertex_enumeration_reference() {
                 case["kernel_fraction"].as_f64().unwrap(),
                 case["parent_fraction"].as_f64().unwrap(),
             ),
-            case["replicates"].as_u64().unwrap() as u32,
+            u32::try_from(case["replicates"].as_u64().unwrap())
+                .expect("fixture replicate count fits"),
             case["level"].as_f64().unwrap(),
             &ExecutionContext::for_tests(SEED),
         )
@@ -234,7 +235,8 @@ fn the_endpoint_interval_equals_the_vertex_enumeration_reference() {
 #[test]
 #[ignore = "regeneration helper"]
 fn emit_draws() {
-    let designs: [(&str, [u64; 8], [f64; 2], f64, f64, u32, f64); 4] = [
+    type Design = (&'static str, [u64; 8], [f64; 2], f64, f64, u32, f64);
+    let designs: [Design; 4] = [
         ("balanced 200-row table", [30, 20, 15, 35, 25, 25, 10, 40], [0.0, 1.0], 0.2, 0.3, 99, 0.9),
         (
             "16-row table with failed draws",

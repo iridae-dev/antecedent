@@ -356,7 +356,7 @@ fn serial_lag_amplification_is_refused_before_assessment() {
     let (mut meta, numbers, keys) = decode_parts_for_test(&bytes).unwrap();
     // A valid declared lag, still below the horizon, but requiring more than
     // the default 50 million serial terms across the two score differences.
-    meta.dependence.truncation_lag = Some((n - 1) as u32);
+    meta.dependence.truncation_lag = Some(u32::try_from(n - 1).expect("fixture lag fits"));
     let forged = encode_parts_for_test(&meta, &numbers, &keys, "expensive-lag").unwrap();
     let error = PredictiveAssessmentArtifact::from_bytes(&forged, None, &ctx()).unwrap_err();
     assert_eq!(error, Error::LimitsExceeded("comparison work"));
