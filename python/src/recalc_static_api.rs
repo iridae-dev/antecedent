@@ -527,12 +527,11 @@ impl PyStaticSession {
         drop(columns);
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran = execute_static_response_with_receipt(&mut session, &request, &ctx);
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = execute_static_response_with_receipt(session, &request, &ctx);
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ok(outcome) => payload(&previous, self.inner.identities(), &capabilities, outcome),
             Err(error) => Ok((None, None, Some(static_error(&error)))),
@@ -608,13 +607,12 @@ impl PyMzSession {
         let names = request.variable_names.clone();
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
-        let mut session = std::mem::take(&mut self.inner);
+        let session = &mut self.inner;
         let ctx = context(seed, threads);
-        let (session, ran) = detach_catch(py, move || {
-            let ran = execute_mz_with_receipt(&mut session, &request, &ctx);
-            Ok((session, ran))
+        let ran = detach_catch(py, move || {
+            let ran = execute_mz_with_receipt(session, &request, &ctx);
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ok(outcome) => {
                 self.names = names;

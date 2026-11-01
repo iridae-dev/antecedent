@@ -437,12 +437,11 @@ impl PyAdjustedSession {
         let previous = self.inner.identities().clone();
         let capabilities = self.capabilities();
         let planned = self.inner.plan(&request, &ctx);
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran = execute_adjusted_with_receipt(&mut session, &request, &ctx);
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = execute_adjusted_with_receipt(session, &request, &ctx);
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ok(outcome) => {
                 let counts: BTreeMap<_, _> = outcome

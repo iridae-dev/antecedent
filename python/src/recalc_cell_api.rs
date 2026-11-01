@@ -523,13 +523,11 @@ impl PyCellSession {
         let planned = self.inner.plan(&request, &ctx);
         // Move the session into the detached run and take it back afterwards. A panic or an
         // interrupt loses the live scores, so the next run recomputes every stage.
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran =
-                classify(execute_cell_with_receipt(&mut session, &request, &ctx), Some(&planned));
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = classify(execute_cell_with_receipt(session, &request, &ctx), Some(&planned));
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ran::Done(outcome) => {
                 finish_sealed(&outcome, &previous, self.inner.identities(), &capabilities)
@@ -556,7 +554,10 @@ impl PyCellSession {
 #[pyclass(name = "CrossfitSessionHandle")]
 pub struct PyCrossfitSession {
     inner: RecalcSession,
-    input_rows: u64,
+    /// The input row count of the last completed run, with the identities that run left. A
+    /// later run that fails after changing the live scores leaves other identities, and the
+    /// count is then not the scores' own.
+    input_rows: Option<(u64, antecedent_core::recalc::StageIdentities)>,
 }
 
 #[pymethods]
@@ -566,7 +567,7 @@ impl PyCrossfitSession {
     fn new() -> Self {
         let mut inner = RecalcSession::new();
         inner.set_retarget_support(RetargetSupport::Licensed);
-        Self { inner, input_rows: 0 }
+        Self { inner, input_rows: None }
     }
 
     /// Whether the session holds a live prepared study.
@@ -620,15 +621,14 @@ impl PyCrossfitSession {
         };
         let previous = self.inner.identities().clone();
         let planned = self.inner.plan(&request, &ctx);
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran = classify(execute_with_receipt(&mut session, &request, &ctx), Some(&planned));
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = classify(execute_with_receipt(session, &request, &ctx), Some(&planned));
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ran::Done(outcome) => {
-                self.input_rows = rows;
+                self.input_rows = Some((rows, self.inner.identities().clone()));
                 finish_sealed(&outcome, &previous, self.inner.identities(), &capabilities)
             }
             Ran::Refused(json) => Ok((None, None, Some(json))),
@@ -639,7 +639,15 @@ impl PyCrossfitSession {
     /// Export the live cross-fit scores as a portable `frozen_scores_v1` artifact:
     /// `((identity, bytes), refusal json)`.
     fn export_frozen_scores(&self) -> PyResult<ExportPayload> {
-        match freeze_crossfit_scores(&self.inner, self.input_rows, RetargetSupport::Licensed) {
+        let rows = match &self.input_rows {
+            Some((rows, identities)) if identities == self.inner.identities() => *rows,
+            _ => {
+                return export_refusal(RecalcRunError::NoLiveState(
+                    antecedent_core::recalc::Stage::ScoreArtifact,
+                ));
+            }
+        };
+        match freeze_crossfit_scores(&self.inner, rows, RetargetSupport::Licensed) {
             Ok(table) => export_bytes(&table),
             Err(error) => export_refusal(error),
         }

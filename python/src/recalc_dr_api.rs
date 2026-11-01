@@ -439,14 +439,13 @@ impl PyDrSession {
         drop(columns);
         let previous = self.inner.identities().clone();
         let caps = self.capabilities();
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
             Ok({
-                let ran = execute_dr_with_receipt(&mut session, &request, &ctx);
-                (session, ran)
+                let ran = execute_dr_with_receipt(session, &request, &ctx);
+                ran
             })
         })?;
-        self.inner = session;
         match ran {
             Ok(outcome) => {
                 let counts: BTreeMap<_, _> = outcome

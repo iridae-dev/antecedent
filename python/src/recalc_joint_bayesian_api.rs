@@ -265,12 +265,11 @@ impl PyJointBayesianSession {
         let request = request(specification)?;
         let previous = self.inner.identities().clone();
         let capabilities = caps(self.inner.boundary());
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = crate::detach_catch(py, move || {
-            let ran = execute_joint_bayesian_with_receipt(&mut session, &request, &ctx);
-            Ok((session, ran))
+        let session = &mut self.inner;
+        let ran = crate::detach_catch(py, move || {
+            let ran = execute_joint_bayesian_with_receipt(session, &request, &ctx);
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ok(out) => {
                 let fit = self.inner.fit().map(|fit| {

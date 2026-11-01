@@ -586,9 +586,9 @@ impl PyRecalcSession {
         let planned = self.inner.plan(&request, &ctx);
         // Move the session into the detached run and take it back afterwards. A panic or an
         // interrupt loses the live study, so the next run recomputes every stage.
-        let mut session = std::mem::take(&mut self.inner);
-        let (session, ran) = detach_catch(py, move || {
-            let ran = match execute_with_receipt(&mut session, &request, &ctx) {
+        let session = &mut self.inner;
+        let ran = detach_catch(py, move || {
+            let ran = match execute_with_receipt(session, &request, &ctx) {
                 Ok(outcome) => Ran::Done(Box::new(outcome)),
                 Err(RecalcRunError::Refused(plan)) => Ran::Refused(plan),
                 Err(RecalcRunError::NoLiveState(stage)) => Ran::NoLiveState(stage),
@@ -599,9 +599,8 @@ impl PyRecalcSession {
                 Err(RecalcRunError::Execution(error)) => Ran::Failed(py_err(error)),
                 Err(RecalcRunError::Receipt(error)) => Ran::Failed(py_msg(error)),
             };
-            Ok((session, ran))
+            Ok(ran)
         })?;
-        self.inner = session;
         match ran {
             Ran::Done(outcome) => self.finish(&outcome, &previous, &capabilities),
             Ran::Refused(plan) => Ok((None, None, Some(plan_refusal_json(&plan)))),

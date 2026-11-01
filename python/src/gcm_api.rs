@@ -209,6 +209,11 @@ pub(crate) fn value_batch_to_sample_result(
 ) -> PyResult<GcmSampleResult> {
     let n_rows = samples.n_rows;
     let n_nodes = samples.n_nodes;
+    if n_nodes.checked_mul(n_rows).is_none_or(|cells| samples.values.len() < cells) {
+        return Err(crate::value_err(
+            "the sampled batch holds fewer values than its declared nodes and rows",
+        ));
+    }
     let mut means = Vec::with_capacity(n_nodes);
     for i in 0..n_nodes {
         let start = i * n_rows;

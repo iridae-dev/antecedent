@@ -832,7 +832,7 @@ fn linear_moments_reading(
         ));
     }
     if matches!(dependence, LinearDependence::DeclaredIndependent) {
-        let cross = (0..k).any(|i| (0..k).any(|j| i != j && covariance[i * k + j].abs() > 0.0));
+        let cross = (0..k).any(|i| (0..k).any(|j| i != j && covariance[i * k + j] != 0.0));
         if cross {
             return Err(Refusal::invalid(
                 "covariance",

@@ -1377,8 +1377,7 @@ fn evaluate_linear_combination(
     if rule.dependence == "declared_independent"
         && covariance.len() == n_inputs * n_inputs
         && (0..n_inputs).any(|i| {
-            (0..n_inputs)
-                .any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]).abs() > 0.0)
+            (0..n_inputs).any(|j| i != j && f64::from_bits(covariance[i * n_inputs + j]) != 0.0)
         })
     {
         return Err(invalid_request(
