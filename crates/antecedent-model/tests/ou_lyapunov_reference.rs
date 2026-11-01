@@ -20,6 +20,10 @@ fn matrix(value: &Value) -> Vec<f64> {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn schur_lyapunov_solve_matches_the_exact_rational_solution() {
     let cases: Value =
         serde_json::from_str(include_str!("oracle_data/ou_lyapunov_reference.json")).unwrap();

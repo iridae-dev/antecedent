@@ -3,7 +3,7 @@
 //! `oracle_data/typed_mechanism_transport_reference.py` (frozen in the JSON beside it) fits a
 //! Gaussian degree-1 mechanism by ordinary least squares on parents standardized with the source
 //! sample, refits the target on the source standardization, and computes the Wald statistic
-//! d'(S_source + S_target)^-1 d and its chi-square upper tail from the definitions. The test fits
+//! d'(`S_source` + S_target)^-1 d and its chi-square upper tail from the definitions. The test fits
 //! the same samples through the product, requires the parameter vectors, covariances, statistic
 //! and p-value to agree, and checks the rejection decision on either side of the p-value, the
 //! equal-sample case (statistic zero) and the refusal when the target is not on the source design.
@@ -73,6 +73,10 @@ fn check_fit(fit: &FittedMechanism, theta: &Value, cov: &Value, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and category values"
+)]
 fn fits_and_wald_comparison_match_the_fifty_digit_reference() {
     let reference: Value =
         serde_json::from_str(include_str!("oracle_data/typed_mechanism_transport_reference.json"))

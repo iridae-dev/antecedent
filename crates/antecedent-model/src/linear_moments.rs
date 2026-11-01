@@ -157,6 +157,10 @@ impl LinearRegimeMoments {
     /// Complete Gaussian likelihood and analytic score from joint sufficient statistics.
     /// Free affine systems need a verified bijection; contraction/dynamic stability
     /// are distinct. Full covariance, intercepts and clamped means are retained.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the scientific calculation and its checks form one bounded procedure"
+    )]
     pub fn likelihood_score(
         &self,
         model: &EquilibriumModel,
@@ -292,6 +296,7 @@ mod tests {
     use super::*;
     use crate::nonlinear_equilibrium::Equation;
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn covariance_precision_and_affine_scores_are_unit_equilibrated() {
         let diagonal = inverse(vec![1e12, 0.0, 0.0, 1.0], 2).unwrap();
         assert!((diagonal[0] / 1e-12 - 1.0).abs() < 1e-14);

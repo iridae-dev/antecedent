@@ -122,6 +122,7 @@ fn compare(got: &[(String, f64)], want: &Value, what: &str) {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the reference scenario keeps its checks together")]
 fn queries_match_an_exact_rational_enumeration() {
     let models: Value =
         serde_json::from_str(include_str!("oracle_data/finite_law_conditioning_reference.json"))

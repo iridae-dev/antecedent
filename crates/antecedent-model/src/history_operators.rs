@@ -3762,6 +3762,10 @@ mod execution_tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the scientific fixture keeps its setup and assertions together"
+    )]
     fn refusals_name_their_next_attempt() {
         let (y, a) = simulate(300, 0.0, 1);
         let series = TickSeries::try_new(&y, &a).unwrap();
@@ -3928,8 +3932,8 @@ mod execution_tests {
     #[test]
     fn the_sequential_regression_fits_any_number_of_scanned_columns() {
         let program = program("final");
-        let x: Vec<f64> = (0..50).map(|t| ((t * 7) % 13) as f64).collect();
-        let z: Vec<f64> = (0..50).map(|t| ((t * 5) % 11) as f64 - 4.0).collect();
+        let x: Vec<f64> = (0..50).map(|t| f64::from((t * 7) % 13)).collect();
+        let z: Vec<f64> = (0..50).map(|t| f64::from((t * 5) % 11) - 4.0).collect();
         let ones = vec![1.0; 50];
         let y: Vec<f64> = x.iter().zip(&z).map(|(a, b)| 1.0 + 2.0 * a + 3.0 * b).collect();
         let fit = program
@@ -3976,6 +3980,7 @@ mod execution_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn the_shared_solve_is_the_backend_fit_unweighted_and_the_root_scaled_fit_weighted() {
         use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
         let rows = 60;
@@ -4048,6 +4053,7 @@ mod execution_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn window_weights_normalize_over_positive_windows_and_keep_zero_windows_in_place() {
         let program = program_with(
             InitialLaw::contemporaneous_observed(),

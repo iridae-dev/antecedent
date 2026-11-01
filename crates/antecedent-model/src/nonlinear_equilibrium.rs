@@ -781,6 +781,7 @@ impl EquilibriumModel {
     /// Estimated peak solver memory in bytes: the dense disturbance covariance and its
     /// Cholesky factor, per-variable vectors, the largest expression tape, two sparse copies
     /// of the free Jacobian and an estimate of sparse-LU fill (never above the policy bound).
+    #[allow(clippy::unused_self, reason = "the method retains its established call structure")]
     fn solve_bytes(
         &self,
         n: usize,
@@ -1480,6 +1481,7 @@ pub struct EquilibriumSolveFailure {
 /// Draw-aligned answer that never drops failed or uncertified response mass.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant, reason = "the outcome retains its established owned API")]
 pub enum EquilibriumOutcome {
     /// A solved state with its actual certificate/iteration diagnostics.
     Solved(EquilibriumResult),

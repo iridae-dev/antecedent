@@ -15,6 +15,10 @@ use antecedent_core::{ValueExpr, VariableId};
 use antecedent_model::NodeProgram;
 use serde_json::Value;
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn build(e: &Value) -> ValueExpr {
     let a = e.as_array().unwrap();
     let arg = |i: usize| build(&a[i]);
@@ -45,6 +49,7 @@ fn build(e: &Value) -> ValueExpr {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
 fn the_executor_agrees_with_an_independent_interpreter_on_awkward_inputs() {
     let cases: Value =
         serde_json::from_str(include_str!("oracle_data/program_expression_reference.json"))
@@ -59,43 +64,37 @@ fn the_executor_agrees_with_an_independent_interpreter_on_awkward_inputs() {
             let input: Vec<f64> =
                 row["in"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
             let got = program.evaluate_columns(&input, None);
-            match row["out"].as_f64() {
-                Some(want) => {
-                    let got = got.unwrap_or_else(|e| {
-                        panic!(
-                            "{} on {input:?}: refused ({e}) but the reference is {want}",
-                            case["expr"]
-                        )
-                    });
-                    assert!(got == want, "{} on {input:?}: {got} vs {want}", case["expr"]);
-                    finite += 1;
-                }
-                None => {
-                    let error = got.err().unwrap_or_else(|| {
-                        panic!(
-                            "{} on {input:?}: reference refuses but a value came back",
-                            case["expr"]
-                        )
-                    });
-                    // The program is the dense node 2 at row 0; the non-finite value is NaN or
-                    // an infinity, exactly where the reference holds no finite value.
-                    let text = error.to_string();
-                    let value = text
-                        .strip_prefix(
-                            "numerical error: intervention program for dense node 2 is not finite \
-                             at row 0 (",
-                        )
-                        .and_then(|rest| {
-                            rest.strip_suffix("); guard a division or restrict the clip bounds")
-                        })
-                        .unwrap_or_else(|| panic!("{} on {input:?}: {text}", case["expr"]));
-                    assert!(
-                        ["NaN", "inf", "-inf"].contains(&value),
-                        "{} on {input:?}: {text}",
+            if let Some(want) = row["out"].as_f64() {
+                let got = got.unwrap_or_else(|e| {
+                    panic!(
+                        "{} on {input:?}: refused ({e}) but the reference is {want}",
                         case["expr"]
-                    );
-                    refused += 1;
-                }
+                    )
+                });
+                assert!(got == want, "{} on {input:?}: {got} vs {want}", case["expr"]);
+                finite += 1;
+            } else {
+                let error = got.err().unwrap_or_else(|| {
+                    panic!("{} on {input:?}: reference refuses but a value came back", case["expr"])
+                });
+                // The program is the dense node 2 at row 0; the non-finite value is NaN or
+                // an infinity, exactly where the reference holds no finite value.
+                let text = error.to_string();
+                let value = text
+                    .strip_prefix(
+                        "numerical error: intervention program for dense node 2 is not finite \
+                         at row 0 (",
+                    )
+                    .and_then(|rest| {
+                        rest.strip_suffix("); guard a division or restrict the clip bounds")
+                    })
+                    .unwrap_or_else(|| panic!("{} on {input:?}: {text}", case["expr"]));
+                assert!(
+                    ["NaN", "inf", "-inf"].contains(&value),
+                    "{} on {input:?}: {text}",
+                    case["expr"]
+                );
+                refused += 1;
             }
         }
     }

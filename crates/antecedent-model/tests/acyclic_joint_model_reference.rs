@@ -136,7 +136,7 @@ fn linear_mechanisms(case: &Value) -> Vec<MechanismDescriptor> {
         .collect()
 }
 
-fn pairs<'a>(object: &'a Value) -> Vec<(&'a str, f64)> {
+fn pairs(object: &Value) -> Vec<(&str, f64)> {
     object.as_object().unwrap().iter().map(|(k, v)| (k.as_str(), v.as_f64().unwrap())).collect()
 }
 
@@ -149,6 +149,7 @@ fn term(value: &str) -> ParameterTerm {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the reference fixture keeps its checks together")]
 fn linear_gaussian_laws_conditioning_and_delta_method_equal_the_rational_reference() {
     let doc = doc();
     for case in doc["linear"].as_array().unwrap() {

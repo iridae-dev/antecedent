@@ -97,6 +97,10 @@ fn fit(
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn registry_linear_families_reference_penalised_and_expanded_fits_match_exact_solves() {
     let cases: Value =
         serde_json::from_str(include_str!("oracle_data/registry_linear_families_reference.json"))
@@ -122,7 +126,7 @@ fn registry_linear_families_reference_penalised_and_expanded_fits_match_exact_so
         let columns = [xs[0].clone(), xs[1].clone(), y.clone()];
         match family {
             "shrinkage" | "grouped" => {
-                let units = case.get("groups").map(|g| floats(g));
+                let units = case.get("groups").map(floats);
                 let data = table(&columns, units.as_deref());
                 if let Some(bvar) = case.get("bvar") {
                     let (store, _) = fit(&registry, &model, &data, MechanismFamily::Bvar);

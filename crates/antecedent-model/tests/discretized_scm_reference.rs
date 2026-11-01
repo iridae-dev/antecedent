@@ -86,6 +86,11 @@ fn close(got: f64, want: f64, tol: f64, ctx: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
+#[allow(clippy::too_many_lines, reason = "the reference scenario keeps its checks together")]
 fn grid_tables_contrasts_and_bound_match_the_high_precision_reference() {
     let cases: Value =
         serde_json::from_str(include_str!("oracle_data/discretized_scm_reference.json"))

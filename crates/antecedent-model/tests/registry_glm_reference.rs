@@ -29,6 +29,7 @@ fn floats(v: &Value) -> Vec<f64> {
     v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
 }
 
+#[allow(clippy::needless_pass_by_value, reason = "the fixture retains its established input shape")]
 fn table(columns: &[Vec<f64>], outcome_type: ValueType) -> TabularData {
     let mut b = CausalSchemaBuilder::new();
     for (i, name) in ["x1", "x2", "y"].into_iter().enumerate() {
@@ -71,6 +72,11 @@ fn required(family: MechanismFamily) -> NodeFamilyConstraint {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and category values"
+)]
+#[allow(clippy::too_many_lines, reason = "the reference fixture keeps its checks together")]
 fn registry_glm_reference_categorical_and_binary_logit_fits_match_exact_maximum_likelihood() {
     let cases: Value =
         serde_json::from_str(include_str!("oracle_data/registry_glm_reference.json")).unwrap();

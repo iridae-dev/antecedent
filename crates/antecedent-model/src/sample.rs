@@ -1058,6 +1058,10 @@ fn soft_gp_slot(soft: &MechanismOverride, n_parents: usize) -> Result<MechanismS
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality is required for discrete support or floating point progress"
+)]
 pub fn sample_stochastic(
     policy: &StochasticPolicy,
     n_rows: usize,
@@ -1176,6 +1180,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn stochastic_sampler_rejects_invalid_policies_and_short_output_before_mutation() {
         let invalid = [
             StochasticPolicy::bernoulli(f64::NAN),
@@ -1214,6 +1219,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn stochastic_sampler_handles_valid_degenerate_and_extreme_categorical_weights() {
         for (policy, expected) in [
             (StochasticPolicy::bernoulli(0.0), 0.0),
@@ -1278,6 +1284,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn manually_populated_overlay_rejects_bad_policy_before_any_node_is_sampled() {
         let model = fitted_chain();
         let mut overlay = InterventionOverlay::observational(model.n_nodes());

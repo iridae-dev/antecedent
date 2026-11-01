@@ -41,6 +41,7 @@ fn column_major(rows: &Value) -> (Vec<f64>, usize) {
     (values, n)
 }
 
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
 fn close(got: f64, want: f64, rel: f64, what: &str) {
     assert!(
         got == want || (got - want).abs() <= rel * want.abs().max(1.0),
@@ -49,6 +50,7 @@ fn close(got: f64, want: f64, rel: f64, what: &str) {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "the reference fixture keeps its checks together")]
 fn registry_tree_ensemble_reference_maps_densities_and_class_probabilities_match_exact_values() {
     let d: Value =
         serde_json::from_str(include_str!("oracle_data/registry_tree_ensemble_reference.json"))

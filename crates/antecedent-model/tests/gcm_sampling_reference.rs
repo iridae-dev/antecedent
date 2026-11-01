@@ -158,6 +158,7 @@ fn the_weighting_sampler_honours_cancellation_and_the_memory_limit() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
 fn the_root_matching_window_selects_exactly_the_units_the_definition_selects() {
     let ctx = ExecutionContext::for_tests(1);
     for case in reference()["root"].as_array().unwrap() {

@@ -1,5 +1,5 @@
 //! Independent references for the numerics the umbrella cyclic-systems record owns on the model
-//! side: the Dormand-Prince 5(4) integrator, the SplitMix64 / Box-Muller counter noise, the
+//! side: the Dormand-Prince 5(4) integrator, the `SplitMix64` / Box-Muller counter noise, the
 //! Euler-Maruyama and diagonal Milstein ensembles, and Krawczyk polynomial-system isolation.
 //!
 //! `oracle_data/cyclic_general_systems_reference.py` (frozen in the JSON beside it) states each
@@ -112,6 +112,7 @@ fn cyclic_general_systems_dormand_prince_matches_exact_rk_and_step_control() {
 // ---------------------------------------------------------------- counter noise
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
 fn cyclic_general_systems_splitmix_and_box_muller_match_big_integer_definition() {
     let document = document();
     for pair in document["rng"]["mixes"].as_array().unwrap() {
@@ -186,6 +187,8 @@ fn cyclic_general_systems_counter_normals_are_standard_normal_and_distinct_by_ad
 // ---------------------------------------------------------------- Euler-Maruyama / Milstein
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
+#[allow(clippy::too_many_lines, reason = "the reference fixture keeps its checks together")]
 fn cyclic_general_systems_euler_maruyama_and_milstein_replay_the_frozen_noise_exactly() {
     let document = document();
     let ctx = ExecutionContext::for_tests(0);

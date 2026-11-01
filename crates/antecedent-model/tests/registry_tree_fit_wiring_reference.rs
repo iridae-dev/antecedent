@@ -121,7 +121,7 @@ fn series() -> (Vec<f64>, Vec<f64>) {
     let y: Vec<f64> = x
         .iter()
         .enumerate()
-        .map(|(i, v)| if *v < 3.5 { 1.0 } else { 3.0 } + f64::from((i * 13 % 11) as u32) / 16.0)
+        .map(|(i, v)| if *v < 3.5 { 1.0 } else { 3.0 } + f64::from(u32::try_from(i * 13 % 11).unwrap()) / 16.0)
         .collect();
     (x, y)
 }
@@ -194,6 +194,7 @@ fn registry_tree_fit_wiring_reference_additive_fits_use_the_documented_settings_
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "categorical levels require exact equality")]
 fn registry_tree_fit_wiring_reference_classifiers_fit_the_indicator_of_each_level() {
     let (x, _) = series();
     let n = x.len();
@@ -201,13 +202,15 @@ fn registry_tree_fit_wiring_reference_classifiers_fit_the_indicator_of_each_leve
     let two: Vec<f64> = x
         .iter()
         .enumerate()
-        .map(|(i, v)| f64::from(u8::from(*v + f64::from((i % 3) as u32) / 4.0 > 3.6)))
+        .map(|(i, v)| {
+            f64::from(u8::from(*v + f64::from(u32::try_from(i % 3).unwrap()) / 4.0 > 3.6))
+        })
         .collect();
     let three: Vec<f64> = x
         .iter()
         .enumerate()
         .map(|(i, v)| {
-            let w = *v + f64::from((i % 4) as u32) / 4.0;
+            let w = *v + f64::from(u32::try_from(i % 4).unwrap()) / 4.0;
             if w < 2.4 {
                 1.0
             } else if w < 5.0 {
@@ -238,7 +241,7 @@ fn registry_tree_fit_wiring_reference_classifiers_fit_the_indicator_of_each_leve
             else {
                 panic!("{}: a categorical tree slot", family.id());
             };
-            let mut levels = y.to_vec();
+            let mut levels = y.clone();
             levels.sort_by(f64::total_cmp);
             levels.dedup();
             assert_eq!(support.to_vec(), levels, "{}", family.id());

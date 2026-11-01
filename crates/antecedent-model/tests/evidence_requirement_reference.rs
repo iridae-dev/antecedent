@@ -139,6 +139,10 @@ fn conjugate_counts_are_the_exact_rational_ceiling() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn finite_bayes_posteriors_match_the_reference_at_large_counts() {
     let reference = reference();
     for case in reference["bayes_models"].as_array().expect("models") {

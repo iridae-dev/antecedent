@@ -666,6 +666,7 @@ mod energy_tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn retained_nig_refuses_unresolvable_raw_energy() {
         let prior = RedrawPrior { coefficient_precision: 1e-20, ..RedrawPrior::default() };
         let y = [1e8 - 1.0, 1e8 + 1.0, 1e8 - 1.0, 1e8 + 1.0];

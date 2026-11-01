@@ -27,6 +27,10 @@ use antecedent_model::{
 use serde_json::Value;
 
 /// Noise scale that puts the stochastic part far below the tolerance of every magnitude here.
+#[allow(
+    clippy::unreadable_literal,
+    reason = "the fixture preserves independently calculated reference values"
+)]
 const TINY_SIGMA: f64 = 8.881784197001252e-16;
 
 fn node(i: usize) -> DenseNodeId {
@@ -48,6 +52,10 @@ fn gathered(model: &CompiledCausalModel, i: usize, by_parent: &Value) -> Vec<f64
         .collect()
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn compile(sc: &Value, sigma: f64) -> CompiledCausalModel {
     let n = sc["n"].as_u64().unwrap() as usize;
     let mut graph = Dag::with_variables(u32::try_from(n).unwrap());
@@ -109,6 +117,10 @@ fn close(got: f64, want: f64, magnitude: f64, what: &str) {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn compiled_evaluation_and_replay_match_the_structural_equations_exactly() {
     let scenarios: Value =
         serde_json::from_str(include_str!("oracle_data/scm_replay_reference.json")).unwrap();
@@ -153,6 +165,10 @@ fn compiled_evaluation_and_replay_match_the_structural_equations_exactly() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn ancestral_sampling_with_a_vanishing_noise_scale_follows_the_deterministic_part() {
     let scenarios: Value =
         serde_json::from_str(include_str!("oracle_data/scm_replay_reference.json")).unwrap();
@@ -181,6 +197,10 @@ fn ancestral_sampling_with_a_vanishing_noise_scale_follows_the_deterministic_par
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn a_node_that_is_both_hard_set_and_shifted_is_refused() {
     let scenarios: Value =
         serde_json::from_str(include_str!("oracle_data/scm_replay_reference.json")).unwrap();
@@ -197,6 +217,10 @@ fn a_node_that_is_both_hard_set_and_shifted_is_refused() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn a_declared_activation_mask_is_refused_rather_than_ignored() {
     // `InterventionOverlay::active` is documented as a per-node activation mask. No evaluation
     // path reads it, so a node declared inactive was evaluated exactly as if active; the

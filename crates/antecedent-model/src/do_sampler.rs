@@ -310,6 +310,10 @@ impl KdeDoSampler {
 /// The treatment mechanism's density cannot be evaluated at all (e.g. an unfitted slot):
 /// propagated rather than swallowed, since a bare kernel fallback would not be the
 /// requested importance-weighted estimate.
+#[allow(
+    clippy::type_complexity,
+    reason = "the return type preserves the scientific operation structure"
+)]
 fn confounded_ipw_weights(
     model: &CompiledCausalModel,
     data: &TabularData,

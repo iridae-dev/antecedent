@@ -813,6 +813,10 @@ fn constant_in_support(observed: f64, constant: f64) -> bool {
 const TREE_CLASS_PROBABILITY_FLOOR: f64 = f64::EPSILON;
 
 /// Index of the support point `value` selects, if any.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality is required for discrete support or floating point progress"
+)]
 fn support_index(support: &[f64], value: f64) -> Option<usize> {
     support.iter().position(|&s| value == s)
 }
@@ -1127,6 +1131,7 @@ fn softmax_row_probs(
 
 /// Per-category linear predictors (multinomial-logit coefficients from Fisher/IRLS,
 /// `fit_multinomial_logit`) of one row, written to `out` before normalisation.
+#[allow(clippy::needless_range_loop, reason = "the loop follows the mathematical indexing")]
 fn softmax_row_logits(
     logits: &[f64],
     k: usize,

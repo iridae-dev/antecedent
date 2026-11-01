@@ -150,6 +150,7 @@ fn counter_normals_match_the_independent_generator() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
 fn boundaries_reflect_and_clamp_and_inputs_interpolate() {
     let reflect =
         SdeBoundary { lower: Some(0.0), upper: Some(10.0), rule: SdeBoundaryRule::Reflect };
@@ -390,6 +391,7 @@ fn the_epidemic_ensemble_replays_the_independent_numpy_reference() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
 fn held_components_are_exact_and_share_noise_with_the_baseline_until_the_action() {
     let compiled = epidemic().compile().unwrap();
     let report = simulate_sde(
@@ -468,6 +470,7 @@ fn em_moments(dt: f64, steps: usize, every: usize) -> (Vec<f64>, Vec<f64>) {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
 fn action_cells_are_stable_at_large_time_origins() {
     let compiled = cir_system().compile().unwrap();
     let action = SdeWorld {
@@ -509,6 +512,7 @@ fn action_cells_are_stable_at_large_time_origins() {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
 fn square_root_diffusion_matches_the_exact_moment_odes_with_monte_carlo_tolerance() {
     let document = reference();
     let exact_mean = numbers(&document["cir"]["exact_mean"]);

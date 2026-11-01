@@ -198,6 +198,8 @@ fn relative_close(a: f64, b: f64, tolerance: f64, what: &str) {
 }
 
 #[test]
+#[allow(clippy::needless_range_loop, reason = "the fixture follows the matrix indexing")]
+#[allow(clippy::too_many_lines, reason = "the reference fixture keeps its checks together")]
 fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps() {
     let mut rng = Lcg(0x5CC);
     let mut cyclic_seen = 0;
@@ -310,6 +312,7 @@ fn compiled_equilibria_match_the_neumann_series_on_random_models_and_clamps() {
 }
 
 #[test]
+#[allow(clippy::needless_range_loop, reason = "the fixture follows the matrix indexing")]
 fn a_nearly_critical_two_cycle_keeps_its_closed_form_to_the_conditioning() {
     for product in [0.5f64, 0.9, 0.99, 0.999, 0.999_999] {
         // |K01 K10| = product < 1 with each row sum below one.

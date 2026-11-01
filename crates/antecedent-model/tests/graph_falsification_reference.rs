@@ -66,6 +66,11 @@ fn table(columns: &[Vec<f64>]) -> TabularData {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and category values"
+)]
 fn counts_p_values_equivalence_and_verdicts_match_the_definition() {
     let designs: Value =
         serde_json::from_str(include_str!("oracle_data/graph_falsification_reference.json"))
@@ -94,76 +99,69 @@ fn counts_p_values_equivalence_and_verdicts_match_the_definition() {
         assert_eq!(report.n_implications as u64, d["n_implications"].as_u64().unwrap(), "{name}");
         let outcome = d["outcome"].as_str().unwrap();
         verdicts.insert(outcome.to_owned());
-        match outcome {
-            "uninformative" => {
-                assert_eq!(report.outcome, GraphFalsificationOutcome::Uninformative, "{name}");
-                let reason = match d["reason"].as_str().unwrap() {
-                    "no_testable_implication" => GraphUninformativeReason::NoTestableImplication,
-                    _ => GraphUninformativeReason::EquivalenceClassShare,
-                };
-                assert_eq!(report.uninformative_reason, Some(reason), "{name}");
-                if let Some(share) = d["share"].as_f64() {
-                    assert!((report.equivalent_share - share).abs() < 1e-15, "{name}");
-                }
+        if outcome == "uninformative" {
+            assert_eq!(report.outcome, GraphFalsificationOutcome::Uninformative, "{name}");
+            let reason = match d["reason"].as_str().unwrap() {
+                "no_testable_implication" => GraphUninformativeReason::NoTestableImplication,
+                _ => GraphUninformativeReason::EquivalenceClassShare,
+            };
+            assert_eq!(report.uninformative_reason, Some(reason), "{name}");
+            if let Some(share) = d["share"].as_f64() {
+                assert!((report.equivalent_share - share).abs() < 1e-15, "{name}");
             }
-            _ => {
-                let want = if outcome == "rejected" {
-                    GraphFalsificationOutcome::Rejected
-                } else {
-                    GraphFalsificationOutcome::NotRejected
-                };
-                assert_eq!(report.outcome, want, "{name}");
-                assert!(report.exhaustive, "{name}");
-                assert_eq!(
-                    report.permutations_completed as u64,
-                    d["permutations"].as_u64().unwrap(),
-                    "{name}"
-                );
-                assert_eq!(
-                    report.equivalent_permutations as u64,
-                    d["equivalent"].as_u64().unwrap(),
-                    "{name}"
-                );
-                assert_eq!(
-                    report.n_violations.unwrap() as u64,
-                    d["observed_violations"].as_u64().unwrap(),
-                    "{name}"
-                );
-                let mut got: Vec<u32> = report.permutation_violations.to_vec();
-                got.sort_unstable();
-                let want_counts: Vec<u32> = d["permutation_violations"]
+        } else {
+            let want = if outcome == "rejected" {
+                GraphFalsificationOutcome::Rejected
+            } else {
+                GraphFalsificationOutcome::NotRejected
+            };
+            assert_eq!(report.outcome, want, "{name}");
+            assert!(report.exhaustive, "{name}");
+            assert_eq!(
+                report.permutations_completed as u64,
+                d["permutations"].as_u64().unwrap(),
+                "{name}"
+            );
+            assert_eq!(
+                report.equivalent_permutations as u64,
+                d["equivalent"].as_u64().unwrap(),
+                "{name}"
+            );
+            assert_eq!(
+                report.n_violations.unwrap() as u64,
+                d["observed_violations"].as_u64().unwrap(),
+                "{name}"
+            );
+            let mut got: Vec<u32> = report.permutation_violations.to_vec();
+            got.sort_unstable();
+            let want_counts: Vec<u32> = d["permutation_violations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c.as_u64().unwrap() as u32)
+                .collect();
+            assert_eq!(got, want_counts, "{name}");
+            assert_eq!(report.p_value.unwrap(), d["p_value"].as_f64().unwrap(), "{name}");
+            for (ev, want) in report.evidence.iter().zip(d["evidence"].as_array().unwrap()) {
+                assert_eq!(u64::from(ev.node.raw()), want["node"].as_u64().unwrap(), "{name}");
+                assert_eq!(u64::from(ev.other.raw()), want["other"].as_u64().unwrap(), "{name}");
+                let z: Vec<u64> = ev.conditioning.iter().map(|c| u64::from(c.raw())).collect();
+                let wz: Vec<u64> = want["conditioning"]
                     .as_array()
                     .unwrap()
                     .iter()
-                    .map(|c| c.as_u64().unwrap() as u32)
+                    .map(|c| c.as_u64().unwrap())
                     .collect();
-                assert_eq!(got, want_counts, "{name}");
-                assert_eq!(report.p_value.unwrap(), d["p_value"].as_f64().unwrap(), "{name}");
-                for (ev, want) in report.evidence.iter().zip(d["evidence"].as_array().unwrap()) {
-                    assert_eq!(ev.node.raw() as u64, want["node"].as_u64().unwrap(), "{name}");
-                    assert_eq!(ev.other.raw() as u64, want["other"].as_u64().unwrap(), "{name}");
-                    let z: Vec<u64> = ev.conditioning.iter().map(|c| u64::from(c.raw())).collect();
-                    let wz: Vec<u64> = want["conditioning"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|c| c.as_u64().unwrap())
-                        .collect();
-                    assert_eq!(z, wz, "{name}");
-                    let wp = want["p_value"].as_f64().unwrap();
-                    assert!(
-                        (ev.p_value - wp).abs() <= 1e-6 * wp + 1e-300,
-                        "{name}: p {} vs {wp}",
-                        ev.p_value
-                    );
-                    let ws = want["statistic"].as_f64().unwrap();
-                    assert!(
-                        (ev.statistic - ws).abs() <= 1e-8,
-                        "{name}: r {} vs {ws}",
-                        ev.statistic
-                    );
-                    assert_eq!(ev.violated, wp < 0.05, "{name}");
-                }
+                assert_eq!(z, wz, "{name}");
+                let wp = want["p_value"].as_f64().unwrap();
+                assert!(
+                    (ev.p_value - wp).abs() <= 1e-6 * wp + 1e-300,
+                    "{name}: p {} vs {wp}",
+                    ev.p_value
+                );
+                let ws = want["statistic"].as_f64().unwrap();
+                assert!((ev.statistic - ws).abs() <= 1e-8, "{name}: r {} vs {ws}", ev.statistic);
+                assert_eq!(ev.violated, wp < 0.05, "{name}");
             }
         }
     }

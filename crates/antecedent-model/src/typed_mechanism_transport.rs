@@ -538,7 +538,7 @@ impl FittedMechanism {
 }
 
 fn sample_poisson(lambda: f64, rng: &mut CausalRng) -> f64 {
-    if !lambda.is_finite() || lambda < 0.0 || lambda > 1.0e5 {
+    if !lambda.is_finite() || !(0.0..=1.0e5).contains(&lambda) {
         return f64::NAN;
     }
     let mut remaining = lambda;
@@ -856,6 +856,10 @@ fn column<'a>(
     columns.get(name).ok_or_else(|| TypedFitError::MissingColumn(name.to_owned()))
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality is required for discrete support or floating point progress"
+)]
 fn check_support(spec: &MechanismSpec, y: &[f64]) -> Result<(), TypedFitError> {
     let bad = |reason: &str| TypedFitError::Support {
         variable: spec.variable.clone(),
@@ -899,6 +903,10 @@ fn check_support(spec: &MechanismSpec, y: &[f64]) -> Result<(), TypedFitError> {
 /// [`TypedFitError`]: a malformed specification or data, a response outside
 /// the family's support, a singular design, or an iteration that did not
 /// converge.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific calculation and its checks form one bounded procedure"
+)]
 pub fn fit_mechanism(
     spec: &MechanismSpec,
     columns: &BTreeMap<String, Vec<f64>>,
@@ -931,27 +939,24 @@ pub fn fit_mechanism(
             "{n} rows cannot identify {total_dim} parameters"
         )));
     }
-    let scaling: Vec<(f64, f64)> = match design_from {
-        Some(source) => {
-            if source.spec.parents != spec.parents {
-                return Err(TypedFitError::Spec(
-                    "the design source has other parents than the refit".into(),
-                ));
-            }
-            source.scaling.clone()
+    let scaling: Vec<(f64, f64)> = if let Some(source) = design_from {
+        if source.spec.parents != spec.parents {
+            return Err(TypedFitError::Spec(
+                "the design source has other parents than the refit".into(),
+            ));
         }
-        None => {
-            let mut out = Vec::with_capacity(p);
-            for (name, col) in spec.parents.iter().zip(&parent_columns) {
-                let mean = col.iter().sum::<f64>() / n as f64;
-                let var = col.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / n as f64;
-                if var <= 0.0 || !var.is_finite() {
-                    return Err(TypedFitError::Singular(format!("{}:{name}", spec.variable)));
-                }
-                out.push((mean, var.sqrt()));
+        source.scaling.clone()
+    } else {
+        let mut out = Vec::with_capacity(p);
+        for (name, col) in spec.parents.iter().zip(&parent_columns) {
+            let mean = col.iter().sum::<f64>() / n as f64;
+            let var = col.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / n as f64;
+            if var <= 0.0 || !var.is_finite() {
+                return Err(TypedFitError::Singular(format!("{}:{name}", spec.variable)));
             }
-            out
+            out.push((mean, var.sqrt()));
         }
+        out
     };
     let rows: Vec<Vec<f64>> =
         (0..n).map(|i| parent_columns.iter().map(|c| c[i]).collect()).collect();
@@ -1410,6 +1415,10 @@ fn finding(
 /// a carried mechanism that is not fitted or not from the diagram's source
 /// population, a regime change without a declaration, a parent without a
 /// mechanism, a cycle, and a malformed dependence declaration.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific calculation and its checks form one bounded procedure"
+)]
 pub fn transport_typed(
     request: &TypedTransportRequest,
 ) -> Result<TransportedTypedModel, CompositionError> {
@@ -1999,6 +2008,10 @@ impl TransportedTypedModel {
         })
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the scientific calculation and its checks form one bounded procedure"
+    )]
     fn parameter_covariance(
         &self,
         involved: &BTreeSet<usize>,
@@ -2122,6 +2135,10 @@ impl TransportedTypedModel {
         Ok((sigma, label))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the scientific calculation and its checks form one bounded procedure"
+    )]
     fn run_contrast(
         &self,
         contrast: &MeanContrast,

@@ -35,6 +35,10 @@ fn floats(v: &Value) -> Vec<f64> {
     v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
 }
 
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the fixture helper retains its established input shape"
+)]
 fn table(columns: &[Vec<f64>], names: &[&str], outcome_type: ValueType) -> TabularData {
     let mut b = CausalSchemaBuilder::new();
     for (i, name) in names.iter().enumerate() {
@@ -148,6 +152,11 @@ fn registry() -> MechanismRegistry {
 }
 
 #[test]
+#[allow(clippy::cast_sign_loss, reason = "the fixture uses bounded graph and category values")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded graph and category values"
+)]
 fn registry_family_selection_reference_scores_and_ranking_match_exact_refits() {
     let d: Value =
         serde_json::from_str(include_str!("oracle_data/registry_family_selection_reference.json"))

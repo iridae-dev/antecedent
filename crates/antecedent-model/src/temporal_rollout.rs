@@ -110,6 +110,10 @@ pub fn rollout_temporal(
 /// A malformed availability mask or any failure of [`rollout_temporal`],
 /// including an active policy that reads an unavailable history cell.
 #[doc(hidden)]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific calculation and its checks form one bounded procedure"
+)]
 pub fn rollout_temporal_with_history_availability(
     model: &CompiledCausalModel,
     plan: &TemporalPlan<'_>,

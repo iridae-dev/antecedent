@@ -162,6 +162,7 @@ fn identity_normalizes_signed_zero_in_all_premise_reals() {
 }
 
 #[test]
+#[allow(clippy::unreadable_literal, reason = "the fixture retains its pinned seed")]
 fn identity_covers_dependence_and_parameter_uncertainty_premises() {
     let plan = DiscretizationPlan::uniform(
         DiscretizationMethod::EqualProbabilityQuantile,

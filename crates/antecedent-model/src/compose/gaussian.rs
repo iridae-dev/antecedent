@@ -918,6 +918,7 @@ mod conditioning_scale_tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn gaussian_conditional_mean_survives_overflow_and_refuses_unrepresentable_results() {
         let residual_overflow = JointGaussian {
             variables: vec!["x".into(), "y".into()],

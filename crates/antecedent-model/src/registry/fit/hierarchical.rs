@@ -136,6 +136,10 @@ pub(super) fn fit_hierarchical_linear(
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
 )]
 /// Hierarchical Bernoulli-logit fit.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the scientific calculation and its checks form one bounded procedure"
+)]
 pub(super) fn fit_hierarchical_glm(
     frame: &FitFrame<'_>,
     y: &[f64],

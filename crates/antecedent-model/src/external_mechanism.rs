@@ -531,6 +531,10 @@ impl ExternalFitParameter {
 /// One equation of an external-capable system.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "origin", rename_all = "snake_case", deny_unknown_fields)]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the equation representation preserves its established owned API"
+)]
 pub enum SystemEquation {
     /// A built-in, serializable library mechanism.
     Builtin {
@@ -662,6 +666,10 @@ struct ResolvedEquation {
     n: usize,
     kind: ResolvedKind,
 }
+#[allow(
+    clippy::large_enum_variant,
+    reason = "the equation representation preserves its established owned API"
+)]
 enum ResolvedKind {
     Builtin(Equation),
     External {

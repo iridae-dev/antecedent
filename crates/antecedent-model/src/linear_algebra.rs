@@ -70,6 +70,7 @@ pub(crate) fn equilibrated_general_solve(
 mod general_solve_tests {
     use super::equilibrated_general_solve;
     #[test]
+    #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
     fn mixed_scales_and_pivot_policy() {
         let mut a = [1e-100, 0.0, 0.0, 1e100];
         let mut rhs = [1e-100, 2e100];

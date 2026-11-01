@@ -49,8 +49,20 @@ const COL4: [f64; N] = [
     1.7597, 0.174, 0.6976, 0.2434, 0.8175, -0.3363, 0.1678, -1.2636, -0.1538, 0.5925, 0.3178,
     -0.1029, -1.0658, -0.1358,
 ];
+#[allow(
+    clippy::unreadable_literal,
+    reason = "the fixture preserves independently calculated reference values"
+)]
 const MEAN_LOGLIK: f64 = -1.649165982956021;
+#[allow(
+    clippy::unreadable_literal,
+    reason = "the fixture preserves independently calculated reference values"
+)]
 const MEAN_ABS_RESIDUAL: f64 = 1.0417160714285714;
+#[allow(
+    clippy::unreadable_literal,
+    reason = "the fixture preserves independently calculated reference values"
+)]
 const LOCAL_MARKOV_P: [[f64; 5]; 5] = [
     [f64::NAN, f64::NAN, 0.01641255812285868, 0.778180915310058, 0.5590191334891852],
     [0.10004983476661612, f64::NAN, 0.6933283836342682, 0.31662946657151664, f64::NAN],
@@ -58,6 +70,10 @@ const LOCAL_MARKOV_P: [[f64; 5]; 5] = [
     [f64::NAN, 0.8769010710552717, f64::NAN, f64::NAN, 0.9490312927812511],
     [0.443249039636397, 0.0068015689697342105, 0.043779878082807255, 0.17416746748226894, f64::NAN],
 ];
+#[allow(
+    clippy::unreadable_literal,
+    reason = "the fixture preserves independently calculated reference values"
+)]
 const RESIDUAL_P: [[f64; 5]; 5] = [
     [f64::NAN, f64::NAN, 0.005606795082616415, 0.7739995830898754, 0.215872417839122],
     [0.06276007847766504, f64::NAN, 0.37071324089472546, 0.1797800420426447, f64::NAN],
@@ -145,6 +161,8 @@ fn assert_close(label: &str, got: &[f64], want: &[f64]) {
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the fixture checks exact values")]
+#[allow(clippy::needless_range_loop, reason = "the fixture follows the mathematical indexing")]
 fn the_report_matches_the_high_precision_evaluation() {
     let model = model();
     let report = ModelEvaluator { alpha: 0.05, n_permutations: 5, seed: 3 }

@@ -469,6 +469,10 @@ impl SdeSystem {
     /// # Errors
     /// `Invalid` for malformed declarations; `Unsupported` (`sde.unbounded_growth`) when a
     /// Lipschitz constant over the declared box is not finite.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the scientific calculation and its checks form one bounded procedure"
+    )]
     pub fn compile(&self) -> Result<CompiledSde, SdeError> {
         let d = self.variables.len();
         let k = self.inputs.len();
@@ -788,6 +792,10 @@ impl SdeSystem {
     /// # Errors
     /// Invalid actions, unknown or out-of-envelope replacement inputs, or action times off
     /// the grid (`sde.action_time_off_grid`).
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality is required for discrete support or floating point progress"
+    )]
     pub fn plan_world(
         &self,
         world: &SdeWorld,
@@ -907,7 +915,7 @@ impl SdeBoundary {
 
 const GOLDEN: u64 = 0x9E37_79B9_7F4A_7C15;
 
-/// The SplitMix64 finalizer of `x + golden`; a bijective 64-bit mixer.
+/// The `SplitMix64` finalizer of `x + golden`; a bijective 64-bit mixer.
 #[must_use]
 pub fn splitmix_mix(x: u64) -> u64 {
     let mut z = x.wrapping_add(GOLDEN);
@@ -983,6 +991,10 @@ impl SdeSimulationPolicy {
     ///
     /// # Errors
     /// `Invalid` for non-finite or out-of-range fields.
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality is required for discrete support or floating point progress"
+    )]
     pub fn validate(&self) -> Result<(), SdeError> {
         if !self.start.is_finite()
             || !self.step.is_finite()
@@ -1268,6 +1280,10 @@ fn resolve_theta(compiled: &CompiledSde, theta: Option<&[f64]>) -> Result<Vec<f6
 
 // The regularity certificate is parameter-specific. Recompile only when an
 // override differs from the certified defaults, before running either route.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality is required for discrete support or floating point progress"
+)]
 fn effective_compiled<'a>(
     compiled: &'a CompiledSde,
     theta: &[f64],
@@ -1361,6 +1377,7 @@ fn mean_and_se(values: impl Iterator<Item = f64>, n: usize) -> (f64, f64, f64) {
     (mean, variance, (variance / count).sqrt())
 }
 
+#[allow(clippy::too_many_arguments, reason = "the inputs describe one scientific operation")]
 fn numerical_error(
     coarse: impl Fn(usize, usize, usize) -> f64,
     fine: impl Fn(usize, usize, usize) -> f64,

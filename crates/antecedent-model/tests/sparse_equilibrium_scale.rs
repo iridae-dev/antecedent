@@ -598,6 +598,10 @@ fn nearly_singular_systems_are_flagged_ill_conditioned_and_singular_ones_are_not
 // Retained NumPy/LAPACK reference -----------------------------------------------------------------
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn solutions_match_the_retained_numpy_reference_document() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),

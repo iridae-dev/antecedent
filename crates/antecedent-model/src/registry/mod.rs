@@ -1022,6 +1022,7 @@ mod tests {
 
     #[test]
     fn is_low_cardinality_matches_sort_dedup_reference() {
+        #[allow(clippy::float_cmp, reason = "the test checks exact values and boundary behavior")]
         fn reference(y: &[f64], max_levels: usize) -> bool {
             let mut vals: Vec<f64> = y.iter().copied().filter(|v| v.is_finite()).collect();
             vals.sort_by(f64::total_cmp);
@@ -1052,8 +1053,8 @@ mod tests {
     #[test]
     fn tiny_and_extreme_scale_continuous_outcomes_do_not_collapse_to_discrete_levels() {
         for values in [
-            (0..40).map(|i| (i as f64) * 1e-8).collect::<Vec<_>>(),
-            (0..40).map(|i| 1e15 + i as f64).collect::<Vec<_>>(),
+            (0..40).map(|i| f64::from(i) * 1e-8).collect::<Vec<_>>(),
+            (0..40).map(|i| 1e15 + f64::from(i)).collect::<Vec<_>>(),
         ] {
             let (data, var) = typed_table(ValueType::Continuous, &values);
             assert_eq!(classify_node(&data, var, &values), MechanismTyping::Continuous);

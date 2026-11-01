@@ -266,6 +266,10 @@ pub(super) fn fit_discrete_basis(
 }
 
 /// Weighted support and marginal probabilities of a discrete column.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality is required for discrete support or floating point progress"
+)]
 pub(super) fn discrete_support(
     y: &[f64],
     weights: Option<&[f64]>,
@@ -290,6 +294,10 @@ pub(super) fn discrete_support(
 }
 
 /// Category index per row against a fitted support.
+#[allow(
+    clippy::float_cmp,
+    reason = "exact equality is required for discrete support or floating point progress"
+)]
 pub(super) fn discrete_categories(y: &[f64], support: &[f64]) -> Result<Vec<u32>, ModelError> {
     let mut out = vec![0u32; y.len()];
     for (r, &yi) in y.iter().enumerate() {

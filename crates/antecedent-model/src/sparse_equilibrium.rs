@@ -303,6 +303,7 @@ fn minimum_degree_order(
 
 /// `target - m * pivot` over sorted sparse rows, dropping column `skip`. Columns that the
 /// pivot introduces are appended to `introduced`.
+#[allow(clippy::comparison_chain, reason = "the comparisons describe distinct numerical cases")]
 fn eliminate_row(
     target: &[(usize, f64)],
     pivot: &[(usize, f64)],
@@ -696,6 +697,7 @@ mod tests {
         (0..n).map(|i| m[i][n] / m[i][i]).collect()
     }
     /// Deterministic banded matrix with a pivoting-hostile zero diagonal stretch.
+    #[allow(clippy::needless_range_loop, reason = "the fixture follows the matrix indexing")]
     fn banded(n: usize) -> Vec<Vec<f64>> {
         let mut a = vec![vec![0.0; n]; n];
         for i in 0..n {
@@ -740,7 +742,7 @@ mod tests {
         let lut = SparseLu::factor(&t, 100, &mut never()).unwrap();
         let det = 4.0 * (3.0 * 2.0 - 1.0) - 1.0 * (1.0 * 2.0 - 0.0);
         assert!((lu.log_abs_determinant() - f64::ln(det)).abs() < 1e-12);
-        let mut inverse_rows = vec![0.0; 3];
+        let mut inverse_rows = [0.0; 3];
         for j in 0..3 {
             let mut e = vec![0.0; 3];
             e[j] = 1.0;

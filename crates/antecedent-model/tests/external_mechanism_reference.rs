@@ -140,8 +140,7 @@ fn system(
     tanh: &ExternalMechanismSpec,
     sine: &ExternalMechanismSpec,
 ) -> ExternalFeedbackSystem {
-    let covariance: Vec<f64> =
-        r["covs"][cov].as_array().unwrap().iter().flat_map(|row| floats(row)).collect();
+    let covariance: Vec<f64> = r["covs"][cov].as_array().unwrap().iter().flat_map(floats).collect();
     ExternalFeedbackSystem {
         equations: vec![
             SystemEquation::External {
@@ -178,6 +177,10 @@ fn registry(tanh: Arc<Tanh>, sine: Arc<Sine>) -> MechanismRegistry {
     registry
 }
 
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn rows(r: &Value, name: &str) -> Vec<RegimeRow> {
     r["rowsets"][name]
         .as_array()
@@ -276,6 +279,10 @@ fn a_declared_finite_difference_gives_the_same_likelihood() {
 }
 
 #[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the fixture uses bounded dimensions and indices"
+)]
 fn the_contraction_bound_is_the_largest_block_row_sum_of_the_declared_bounds() {
     let r = reference();
     let (tanh, sine) =

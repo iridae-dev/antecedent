@@ -577,8 +577,12 @@ pub fn route_linear_support(
                 && component[from] == component[into]
             {
                 let error = antecedent_graph::error::GraphError::Cycle {
-                    from: from as u32,
-                    to: into as u32,
+                    from: u32::try_from(from).map_err(|_| SccCompileError::Shape {
+                        message: "free block does not fit in a dense id",
+                    })?,
+                    to: u32::try_from(into).map_err(|_| SccCompileError::Shape {
+                        message: "free block does not fit in a dense id",
+                    })?,
                 };
                 return Ok(LinearSupportRoute::Cyclic { next_attempt: error.to_string(), blocks });
             }
