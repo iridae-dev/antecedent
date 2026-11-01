@@ -752,3 +752,199 @@ fn decision_margin_joint_cluster_delta_interval() {
 fn decision_margin_centered_cuped_cluster_delta_interval() {
     measure_decision_margin("decision_margin_centered_cuped_cluster_delta_interval", true);
 }
+
+/// Registered but unmeasured coverage design for the joint matched-pair margin.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_matched_pair_delta_interval() {
+    use antecedent::decision_evidence::*;
+    let pairs = grid_n(80);
+    let n = 2 * pairs;
+    let design = compile_matched_pair_design(MatchedPairDesign {
+        cluster_ids: (0..n).map(|i| format!("cluster-{i}")).collect(),
+        pairs: (0..pairs).map(|i| (2 * i, 2 * i + 1)).collect(),
+        matching_variables: vec!["pre".into()],
+        treatment_probabilities: vec![0.5; n],
+        cluster_sizes: vec![1; n],
+        preassignment_assumption_id: "fixed".into(),
+        independent_pairs_assumption_id: "independent".into(),
+    })
+    .unwrap();
+    let q = DerivedQuantity {
+        name: "paired_calibration_margin".into(),
+        units: "u".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![
+            InputBinding::Measured("frequency".into()),
+            InputBinding::Measured("value".into()),
+        ],
+    };
+    let req = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "t".into(),
+        control_regime_id: "c".into(),
+        horizon: 1,
+        target: Target::ExperimentalContrast,
+    };
+    let base: Vec<f64> =
+        (0..n).map(|i| ((i / 2) as f64 * 0.19).sin() + 0.1 * (i as f64 * 0.37).cos()).collect();
+    let avg = base.iter().sum::<f64>() / n as f64;
+    let truth = (2.3 + avg) * (4.5 + 0.5 * avg) - (2.0 + avg) * (4.0 + 0.5 * avg);
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "decision_margin_matched_pair_delta_interval",
+            dgp: "fixed_matched_pair_margin",
+            interval: "delta_method_student_95",
+        },
+        REPORTED_LEVEL,
+    );
+    for (interval, basis) in map_replicates(n_sim(), |rep| {
+        let mut rng = ExecutionContext::for_tests(grid_seed(0x8810_0000 + rep))
+            .rng
+            .stream_for(StreamDomain::Test, 0x8810);
+        let mut assigned = vec![false; n];
+        for i in 0..pairs {
+            assigned[2 * i] = rng.next_f64() < 0.5;
+            assigned[2 * i + 1] = !assigned[2 * i];
+        }
+        let a: Vec<f64> =
+            (0..n).map(|i| 2.0 + base[i] + if assigned[i] { 0.3 } else { 0.0 }).collect();
+        let b: Vec<f64> =
+            (0..n).map(|i| 4.0 + 0.5 * base[i] + if assigned[i] { 0.5 } else { 0.0 }).collect();
+        let components = ["frequency", "value"]
+            .into_iter()
+            .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+            .collect();
+        let ev = evidence_from_matched_pairs(
+            &design,
+            &[&a, &b],
+            &assigned,
+            "e",
+            "pop",
+            ("t", "c"),
+            1,
+            components,
+            Exposure::NoBetweenUnitInterference { assumption_id: "none".into() },
+        )
+        .unwrap();
+        let interval = derive(&ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(&ev, &req, &q).unwrap();
+        (interval, basis)
+    }) {
+        bind_decision_candidate(&mut tally, &basis);
+        tally.record(interval, truth);
+    }
+    tally.assert();
+}
+
+/// Registered but unmeasured coverage design for the joint sequence-level switchback margin.
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn decision_margin_switchback_delta_interval() {
+    use antecedent::decision_evidence::*;
+    let sequences = grid_n(80);
+    let periods = 4;
+    let n = sequences * periods;
+    let design = compile_joint_switchback(JointSwitchbackDesign {
+        sequence_ids: (0..sequences)
+            .flat_map(|s| (0..periods).map(move |_| format!("s{s}")))
+            .collect(),
+        period_ids: (0..sequences).flat_map(|_| (0..periods).map(|p| format!("p{p}"))).collect(),
+        treatment_probabilities: vec![0.5; n],
+        no_carryover_assumption_id: "none".into(),
+        washout_rule_id: "zero".into(),
+        washout_periods: 0,
+        independent_sequences_assumption_id: "independent".into(),
+    })
+    .unwrap();
+    let q = DerivedQuantity {
+        name: "switchback_calibration_margin".into(),
+        units: "u".into(),
+        expr: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
+        inputs: vec![
+            InputBinding::Measured("frequency".into()),
+            InputBinding::Measured("value".into()),
+        ],
+    };
+    let req = Request {
+        population_id: "pop".into(),
+        treated_regime_id: "t".into(),
+        control_regime_id: "c".into(),
+        horizon: 1,
+        target: Target::ExperimentalContrast,
+    };
+    let base: Vec<f64> = (0..n)
+        .map(|i| ((i / periods) as f64 * 0.19).sin() + 0.1 * (i as f64 * 0.37).cos())
+        .collect();
+    let avg = base.iter().sum::<f64>() / n as f64;
+    let truth = (2.3 + avg) * (4.5 + 0.5 * avg) - (2.0 + avg) * (4.0 + 0.5 * avg);
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "decision_margin_switchback_delta_interval",
+            dgp: "fixed_switchback_margin",
+            interval: "delta_method_student_95",
+        },
+        REPORTED_LEVEL,
+    );
+    for (interval, basis) in map_replicates(n_sim(), |rep| {
+        let mut rng = ExecutionContext::for_tests(grid_seed(0x8820_0000 + rep))
+            .rng
+            .stream_for(StreamDomain::Test, 0x8820);
+        let assigned: Vec<bool> = (0..n).map(|_| rng.next_f64() < 0.5).collect();
+        let a: Vec<f64> =
+            (0..n).map(|i| 2.0 + base[i] + if assigned[i] { 0.3 } else { 0.0 }).collect();
+        let b: Vec<f64> =
+            (0..n).map(|i| 4.0 + 0.5 * base[i] + if assigned[i] { 0.5 } else { 0.0 }).collect();
+        let components = ["frequency", "value"]
+            .into_iter()
+            .map(|v| OutcomeComponent { name: v.into(), variable_id: v.into(), units: "u".into() })
+            .collect();
+        let ev = evidence_from_joint_switchback(
+            &design,
+            &[&a, &b],
+            &assigned,
+            "e",
+            "pop",
+            ("t", "c"),
+            1,
+            components,
+            Exposure::NoBetweenUnitInterference { assumption_id: "none".into() },
+        )
+        .unwrap();
+        let interval = derive(&ev, &req, &q).unwrap().sampling.map(|s| (s.lower, s.upper));
+        let basis = decision_interval_calibration_basis(&ev, &req, &q).unwrap();
+        (interval, basis)
+    }) {
+        bind_decision_candidate(&mut tally, &basis);
+        tally.record(interval, truth);
+    }
+    tally.assert();
+}
+
+fn bind_decision_candidate(tally: &mut CoverageTally, basis: &antecedent_core::CalibrationBasis) {
+    let construction = Construction {
+        query: basis.query.to_string(),
+        graph_class: basis.graph_class.to_string(),
+        structure: basis.structure.to_string(),
+        modality: basis.modality.to_string(),
+        inference: basis.inference.to_string(),
+        estimator: basis.estimator.to_string(),
+        interval_method: basis.interval_method.to_string(),
+        se_kind: basis.se_kind.to_string(),
+        dependence: basis.dependence.to_string(),
+        posterior: basis.posterior.to_string(),
+        functional: basis.functional.to_string(),
+        identification: basis.identification.to_string(),
+        reported_level: basis.level,
+    };
+    tally.bind_validation(
+        &construction,
+        ScopeFacts {
+            row_count: basis.row_count,
+            replicates_ok: basis.replicates_ok,
+            posterior_draws: basis.posterior_draws,
+            unidentified_mass: basis.unidentified_mass,
+        },
+        &basis.validation,
+    );
+}

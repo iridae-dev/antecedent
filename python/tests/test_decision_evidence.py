@@ -19,6 +19,7 @@ from antecedent.decision_evidence import (
     Measured,
     Missing,
 )
+from antecedent.errors import CausalValueError
 
 from _refusal import assert_registered_refusal
 
@@ -182,7 +183,12 @@ def test_planning_reuse_and_withdrawal():
                 "narrowed_lower": 5.5,
                 "narrowed_upper": 6.5,
             },
-            {"kind": "more_units", "id": "double_clusters", "additional_units_per_arm": 40, "cost": 0.01},
+            {
+                "kind": "more_units",
+                "id": "double_clusters",
+                "additional_units_per_arm": 40,
+                "cost": 0.01,
+            },
         ],
     )
     assert first.plan["resolution_rows"][0]["value"]["resolves"] is False
@@ -202,16 +208,139 @@ def test_planning_reuse_and_withdrawal():
 
 
 def test_arm_spillover_bounds_support_nonlinear_margin():
-    ev = _evidence(80, exposure="bounded_arm_spillover", exposure_assumption_id="arm-bias",
-                   treated_spillover_bias_bounds=[0.1, 0.2, 0.0],
-                   control_spillover_bias_bounds=[0.1, 0.2, 0.0])
+    ev = _evidence(
+        80,
+        exposure="bounded_arm_spillover",
+        exposure_assumption_id="arm-bias",
+        treated_spillover_bias_bounds=[0.1, 0.2, 0.0],
+        control_spillover_bias_bounds=[0.1, 0.2, 0.0],
+    )
     result = de.evaluate(ev, _margin(Measured("cost"))).derived
     assert result["assumption_range"]["assumption_ids"] == ["arm-bias"]
-    assert result["assumption_range"]["lower"] < result["contrast"] < result["assumption_range"]["upper"]
+    assert (
+        result["assumption_range"]["lower"]
+        < result["contrast"]
+        < result["assumption_range"]["upper"]
+    )
 
 
 def test_centered_fixed_cuped_supports_nonlinear_margin():
     n = 80
-    ev = _evidence(n, adjustments=[{"kind": "centered_fixed_cuped", "component": "frequency", "covariate": "pre", "coefficient": 0.4}],
-                   cluster_sizes=[ROWS] * n, pretreatment_totals={"pre": [ROWS * (1 + 0.01 * c) for c in range(n)]})
+    ev = _evidence(
+        n,
+        adjustments=[
+            {
+                "kind": "centered_fixed_cuped",
+                "component": "frequency",
+                "covariate": "pre",
+                "coefficient": 0.4,
+            }
+        ],
+        cluster_sizes=[ROWS] * n,
+        pretreatment_totals={"pre": [ROWS * (1 + 0.01 * c) for c in range(n)]},
+    )
     assert de.evaluate(ev, _margin(Measured("cost"))).derived["sampling"] is not None
+
+
+def test_matched_pair_design_keeps_joint_arms_and_scope():
+    n = 40
+    design = {
+        "kind": "matched_pairs",
+        "cluster_ids": [f"geo-{i}" for i in range(2 * n)],
+        "pairs": [[2 * i, 2 * i + 1] for i in range(n)],
+        "matching_variables": ["pre"],
+        "treatment_probabilities": [0.5] * (2 * n),
+        "cluster_sizes": [1] * (2 * n),
+        "preassignment_assumption_id": "fixed-pairs",
+        "independent_pairs_assumption_id": "independent-pairs",
+    }
+    prepared = de.compile_experimental_design(design)
+    assert prepared["identity"] and prepared["obligations"]
+    assigned = [i % 2 == 0 for i in range(2 * n)]
+    values = [
+        i // 2 + (1.0 + 0.01 * math.sin(i // 2) if assigned[i] else 0.0) for i in range(2 * n)
+    ]
+    ev = de.JointEvidence.from_experimental_design(
+        design=design,
+        outcomes=[values],
+        assigned=assigned,
+        evidence_id="e",
+        population_id="pop",
+        treated_regime_id="t",
+        control_regime_id="c",
+        horizon=1,
+        components={"x": ("x", "u")},
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="no-spill",
+    )
+    q = DerivedQuantity("effect", "u", Expr.input(0), [Measured("x")])
+    expected = 1.0 + sum(0.01 * math.sin(i) for i in range(n)) / n
+    assert de.evaluate(ev, q).derived["contrast"] == pytest.approx(expected)
+    assert ev.wire["design_details"]["pairs"] == design["pairs"]
+    with pytest.raises(CausalValueError):
+        ev.marginals_only()
+
+
+def test_proxy_bridge_rejects_predictive_association():
+    ev = _evidence(80)
+    bridge = {
+        "proxy_component": "frequency",
+        "target_variable_id": "profit",
+        "target_units": "currency",
+        "population_id": "active_customers",
+        "treated_regime_id": "free_shipping",
+        "control_regime_id": "standard_shipping",
+        "horizon": 4,
+        "mapping": {
+            "kind": "causal_effect_bounds",
+            "multiplier": [1.0, 1.5],
+            "residual": [0.0, 0.0],
+            "assumption_id": "causal-map",
+            "mapping_evidence_id": "validation",
+        },
+    }
+    result = de.decide_with_proxy(ev, bridge, FRAME)
+    assert result["evidence_ids"] == ["exp-shipping-2026q3", "validation"]
+    bridge["mapping"] = {"kind": "predictive_association"}
+    with pytest.raises(DecisionEvidenceRefusal):
+        de.decide_with_proxy(ev, bridge, FRAME)
+
+
+def test_switchback_joint_evidence_uses_sequences_not_periods():
+    sequences, periods = 40, 4
+    n = sequences * periods
+    design = {
+        "kind": "switchback",
+        "sequence_ids": [f"seq-{i // periods}" for i in range(n)],
+        "period_ids": [f"p-{i % periods}" for i in range(n)],
+        "treatment_probabilities": [0.5] * n,
+        "no_carryover_assumption_id": "carryover-none",
+        "washout_rule_id": "washout-zero",
+        "washout_periods": 0,
+        "independent_sequences_assumption_id": "independent-sequences",
+    }
+    de.compile_experimental_design(design)
+    assigned = [(i + (i // periods) % 3) % 2 == 0 for i in range(n)]
+    freq = [
+        2.0 + (i // periods) * 0.02 + (0.3 + 0.02 * math.sin(i // periods) if assigned[i] else 0)
+        for i in range(n)
+    ]
+    value = [4.0 + (i // periods) * 0.01 + (0.5 if assigned[i] else 0) for i in range(n)]
+    ev = de.JointEvidence.from_experimental_design(
+        design=design,
+        outcomes=[freq, value],
+        assigned=assigned,
+        evidence_id="switchback",
+        population_id="pop",
+        treated_regime_id="t",
+        control_regime_id="c",
+        horizon=1,
+        components={"frequency": ("f", "u"), "value": ("v", "u")},
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="no-spill",
+    )
+    q = DerivedQuantity(
+        "margin", "u", Expr.input(0) * Expr.input(1), [Measured("frequency"), Measured("value")]
+    )
+    assert de.evaluate(ev, q).derived["sampling"] is not None
+    assert ev.wire["design"]["treated_units"] == sequences

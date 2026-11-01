@@ -988,6 +988,10 @@ impl core::clone::Clone for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::clone::Clone for antecedent::counterfactual_id::PreparedCounterfactualId
 impl core::clone::Clone for antecedent::cross_world::CrossWorldEffect
 impl core::clone::Clone for antecedent::cross_world::CrossWorldOptions
+impl core::clone::Clone for antecedent::decision_evidence::CompiledJointSwitchback
+impl core::clone::Clone for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::clone::Clone for antecedent::decision_evidence::JointSwitchbackDesign
+impl core::clone::Clone for antecedent::decision_evidence::MatchedPairDesign
 impl core::clone::Clone for antecedent::design::DesignRankPreview
 impl core::clone::Clone for antecedent::design::StudyDesignRanking
 impl core::clone::Clone for antecedent::discovery::BayesianDiscoverParams
@@ -1767,6 +1771,10 @@ impl core::cmp::PartialEq for antecedent::analysis::typed_transported_mechanism:
 impl core::cmp::PartialEq for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::cmp::PartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::cmp::PartialEq for antecedent::cross_world::CrossWorldOptions
+impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointSwitchback
+impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::cmp::PartialEq for antecedent::decision_evidence::JointSwitchbackDesign
+impl core::cmp::PartialEq for antecedent::decision_evidence::MatchedPairDesign
 impl core::cmp::PartialEq for antecedent::design::DesignRankPreview
 impl core::cmp::PartialEq for antecedent::discovery::GraphMcmcSchedule
 impl core::cmp::PartialEq for antecedent::error::PendingEdge
@@ -2839,6 +2847,10 @@ impl core::fmt::Debug for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::fmt::Debug for antecedent::counterfactual_id::PreparedCounterfactualId
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldEffect
 impl core::fmt::Debug for antecedent::cross_world::CrossWorldOptions
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledJointSwitchback
+impl core::fmt::Debug for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::fmt::Debug for antecedent::decision_evidence::JointSwitchbackDesign
+impl core::fmt::Debug for antecedent::decision_evidence::MatchedPairDesign
 impl core::fmt::Debug for antecedent::design::DesignRankPreview
 impl core::fmt::Debug for antecedent::design::StudyDesignRanking
 impl core::fmt::Debug for antecedent::discovery::BayesianDiscoverParams
@@ -4013,6 +4025,10 @@ impl core::marker::Freeze for antecedent::counterfactual_id::CounterfactualIdOpt
 impl core::marker::Freeze for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Freeze for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledJointSwitchback [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::JointSwitchbackDesign [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Freeze for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Freeze for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Freeze for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -4921,6 +4937,10 @@ impl core::marker::Send for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Send for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Send for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledJointSwitchback [auto]
+impl core::marker::Send for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Send for antecedent::decision_evidence::JointSwitchbackDesign [auto]
+impl core::marker::Send for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Send for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Send for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Send for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -5490,6 +5510,10 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::typed_transport
 impl core::marker::StructuralPartialEq for antecedent::analysis::vector_treatment::VectorTreatment
 impl core::marker::StructuralPartialEq for antecedent::counterfactual_id::CounterfactualIdOptions
 impl core::marker::StructuralPartialEq for antecedent::cross_world::CrossWorldOptions
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointSwitchback
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointSwitchbackDesign
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::MatchedPairDesign
 impl core::marker::StructuralPartialEq for antecedent::design::DesignRankPreview
 impl core::marker::StructuralPartialEq for antecedent::discovery::GraphMcmcSchedule
 impl core::marker::StructuralPartialEq for antecedent::error::PendingEdge
@@ -6361,6 +6385,10 @@ impl core::marker::Sync for antecedent::counterfactual_id::CounterfactualIdOptio
 impl core::marker::Sync for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Sync for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledJointSwitchback [auto]
+impl core::marker::Sync for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Sync for antecedent::decision_evidence::JointSwitchbackDesign [auto]
+impl core::marker::Sync for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Sync for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Sync for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Sync for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -7270,6 +7298,10 @@ impl core::marker::Unpin for antecedent::counterfactual_id::CounterfactualIdOpti
 impl core::marker::Unpin for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::marker::Unpin for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledJointSwitchback [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::JointSwitchbackDesign [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::marker::Unpin for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Unpin for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Unpin for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -8146,6 +8178,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledJointSwitchback [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::DesignRankPreview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -9008,6 +9044,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::Cou
 impl core::panic::unwind_safe::UnwindSafe for antecedent::counterfactual_id::PreparedCounterfactualId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::cross_world::CrossWorldOptions [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledJointSwitchback [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::DesignRankPreview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -12440,6 +12480,26 @@ pub field antecedent::cross_world::CrossWorldEffect::unit_effects: alloc::sync::
 pub field antecedent::cross_world::CrossWorldEffect::witness: antecedent_identify::cross_world::CrossWorldWitness
 pub field antecedent::cross_world::CrossWorldOptions::interval_requested: bool
 pub field antecedent::cross_world::CrossWorldOptions::mechanism: antecedent::gcm::NestedOutcomeMechanism
+pub field antecedent::decision_evidence::CompiledJointSwitchback::design: antecedent::decision_evidence::JointSwitchbackDesign
+pub field antecedent::decision_evidence::CompiledJointSwitchback::identity: alloc::string::String
+pub field antecedent::decision_evidence::CompiledJointSwitchback::obligations: alloc::vec::Vec<&'static str>
+pub field antecedent::decision_evidence::CompiledMatchedPairDesign::design: antecedent::decision_evidence::MatchedPairDesign
+pub field antecedent::decision_evidence::CompiledMatchedPairDesign::identity: alloc::string::String
+pub field antecedent::decision_evidence::CompiledMatchedPairDesign::obligations: alloc::vec::Vec<&'static str>
+pub field antecedent::decision_evidence::JointSwitchbackDesign::independent_sequences_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointSwitchbackDesign::no_carryover_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::JointSwitchbackDesign::period_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::JointSwitchbackDesign::sequence_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::JointSwitchbackDesign::treatment_probabilities: alloc::vec::Vec<f64>
+pub field antecedent::decision_evidence::JointSwitchbackDesign::washout_periods: usize
+pub field antecedent::decision_evidence::JointSwitchbackDesign::washout_rule_id: alloc::string::String
+pub field antecedent::decision_evidence::MatchedPairDesign::cluster_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::MatchedPairDesign::cluster_sizes: alloc::vec::Vec<usize>
+pub field antecedent::decision_evidence::MatchedPairDesign::independent_pairs_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::MatchedPairDesign::matching_variables: alloc::vec::Vec<alloc::string::String>
+pub field antecedent::decision_evidence::MatchedPairDesign::pairs: alloc::vec::Vec<(usize, usize)>
+pub field antecedent::decision_evidence::MatchedPairDesign::preassignment_assumption_id: alloc::string::String
+pub field antecedent::decision_evidence::MatchedPairDesign::treatment_probabilities: alloc::vec::Vec<f64>
 pub field antecedent::design::DesignRankPreview::obligations: alloc::sync::Arc<[antecedent_contract::obligation::ObligationRecord]>
 pub field antecedent::design::DesignRankPreview::target: antecedent_core::identity::SemanticDigest
 pub field antecedent::design::DesignRankPreview::unidentified_mass: core::option::Option<f64>
@@ -15693,7 +15753,11 @@ pub fn antecedent::cross_world::check(graph: &antecedent_graph::dag::Dag, query:
 pub fn antecedent::cross_world::consume_cross_world_artifact(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::consume_cross_world_artifact_for_data(bytes: &[u8], expected_data_digest: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent_io_core::cross_world_artifact::CrossWorldArtifactError>
 pub fn antecedent::cross_world::evaluate_cross_world_effect(graph: impl antecedent::IntoGraphInput, data: &antecedent_data::dataset::TabularData, query: &antecedent_core::query::cross_world::CrossWorldQuery, options: antecedent::cross_world::CrossWorldOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::cross_world::CrossWorldEffect, antecedent::CausalError>
+pub fn antecedent::decision_evidence::compile_joint_switchback(design: antecedent::decision_evidence::JointSwitchbackDesign) -> core::result::Result<antecedent::decision_evidence::CompiledJointSwitchback, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::compile_matched_pair_design(design: antecedent::decision_evidence::MatchedPairDesign) -> core::result::Result<antecedent::decision_evidence::CompiledMatchedPairDesign, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_cluster_contrast(contrast: &antecedent_estimate::randomized_joint::JointClusterContrast, evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, outcome_rows: usize, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_joint_switchback(design: &antecedent::decision_evidence::CompiledJointSwitchback, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::evidence_from_matched_pairs(design: &antecedent::decision_evidence::CompiledMatchedPairDesign, totals: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::design::preview_design_rank<A, O>(contract: &antecedent::CausalContract, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError>
 pub fn antecedent::design::rank_designs_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent_design::result::ScoredDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn antecedent::design::rank_studies_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, studies: &[antecedent_design::study_candidate::DurableStudyCandidate], report: &antecedent_design::repair::RepairReport, base_law: &[antecedent_core::ids::VariableId], query: antecedent_core::ids::QueryId, eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::StudyDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
@@ -16776,6 +16840,10 @@ pub struct antecedent::counterfactual_id::PreparedCounterfactualId has private f
 pub struct antecedent::cross_world::CrossWorldEffect
 pub struct antecedent::cross_world::CrossWorldEffect has private fields
 pub struct antecedent::cross_world::CrossWorldOptions
+pub struct antecedent::decision_evidence::CompiledJointSwitchback
+pub struct antecedent::decision_evidence::CompiledMatchedPairDesign
+pub struct antecedent::decision_evidence::JointSwitchbackDesign
+pub struct antecedent::decision_evidence::MatchedPairDesign
 pub struct antecedent::design::DesignRankPreview
 pub struct antecedent::design::StudyDesignRanking
 pub struct antecedent::discovery::BayesianDiscoverParams

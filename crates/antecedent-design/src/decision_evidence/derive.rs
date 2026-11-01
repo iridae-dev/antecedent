@@ -142,7 +142,7 @@ pub enum UnresolvedReason {
         /// Required in each arm.
         required: usize,
     },
-    /// The expression has a kink, so a delta-method interval is not defined.
+    /// A kink or numerical instability prevents a reliable delta-method interval.
     SamplingUnavailable,
     /// Sampling uncertainty alone leaves the decision threshold inside the interval for some
     /// admissible assumption values.
@@ -227,6 +227,115 @@ fn check_request(
     e: &JointExperimentEvidence,
     r: &Request,
 ) -> Result<Option<String>, EvidenceRefusal> {
+    let valid_compiled_design =
+        match (&*e.design.assignment_design, &e.design_details, &e.dependence) {
+            (
+                "matched_pairs",
+                Some(super::DesignDetails::MatchedPairs {
+                    cluster_ids,
+                    pairs,
+                    matching_variables,
+                    treatment_probabilities,
+                    cluster_sizes,
+                    realized_assignment,
+                    preassignment_assumption_id,
+                    independent_pairs_assumption_id,
+                }),
+                Dependence::JointArms { .. },
+            ) => {
+                let n = cluster_ids.len();
+                let mut seen = vec![false; n];
+                let pairs_ok = pairs.iter().all(|&(a, b)| {
+                    if a >= n || b >= n || a == b || seen[a] || seen[b] {
+                        return false;
+                    }
+                    seen[a] = true;
+                    seen[b] = true;
+                    realized_assignment
+                        .get(a)
+                        .zip(realized_assignment.get(b))
+                        .is_some_and(|(x, y)| x != y)
+                });
+                n >= 4
+                    && pairs.len().checked_mul(2) == Some(n)
+                    && pairs_ok
+                    && cluster_ids.iter().all(|s| !s.trim().is_empty())
+                    && cluster_ids.iter().collect::<std::collections::BTreeSet<_>>().len() == n
+                    && !matching_variables.is_empty()
+                    && matching_variables.iter().all(|s| !s.trim().is_empty())
+                    && !preassignment_assumption_id.trim().is_empty()
+                    && !independent_pairs_assumption_id.trim().is_empty()
+                    && treatment_probabilities.len() == n
+                    && treatment_probabilities.iter().all(|p| *p == 0.5)
+                    && cluster_sizes.len() == n
+                    && !cluster_sizes.contains(&0)
+                    && realized_assignment.len() == n
+                    && cluster_sizes.iter().try_fold(0usize, |a, b| a.checked_add(*b))
+                        == Some(e.design.outcome_rows)
+                    && e.design.treated_units == pairs.len()
+                    && e.design.control_units == pairs.len()
+            }
+            (
+                "switchback",
+                Some(super::DesignDetails::Switchback {
+                    sequence_ids,
+                    period_ids,
+                    treatment_probabilities,
+                    realized_assignment,
+                    no_carryover_assumption_id,
+                    washout_rule_id,
+                    washout_periods,
+                    independent_sequences_assumption_id,
+                }),
+                Dependence::JointArms { .. },
+            ) => {
+                let n = sequence_ids.len();
+                let mut counts = std::collections::BTreeMap::new();
+                let mut seen = std::collections::BTreeSet::new();
+                let aligned = n > 0
+                    && period_ids.len() == n
+                    && treatment_probabilities.len() == n
+                    && realized_assignment.len() == n;
+                let rows_ok = aligned
+                    && sequence_ids.iter().zip(period_ids).zip(treatment_probabilities).all(
+                        |((s, p), prob)| {
+                            if s.trim().is_empty()
+                                || p.trim().is_empty()
+                                || !prob.is_finite()
+                                || *prob < 0.2
+                                || *prob > 0.8
+                                || !seen.insert((s, p))
+                            {
+                                return false;
+                            }
+                            *counts.entry(s).or_insert(0usize) += 1;
+                            true
+                        },
+                    );
+                rows_ok
+                    && !no_carryover_assumption_id.trim().is_empty()
+                    && !washout_rule_id.trim().is_empty()
+                    && *washout_periods == 0
+                    && !independent_sequences_assumption_id.trim().is_empty()
+                    && counts
+                        .values()
+                        .next()
+                        .is_some_and(|first| *first >= 2 && counts.values().all(|v| v == first))
+                    && e.design.treated_units == counts.len()
+                    && e.design.control_units == counts.len()
+                    && e.design.outcome_rows == n
+                    && realized_assignment.iter().filter(|a| **a).count() >= 30
+                    && realized_assignment.iter().filter(|a| !**a).count() >= 30
+            }
+            ("matched_pairs" | "switchback", ..) => false,
+            _ => true,
+        };
+    if !valid_compiled_design
+        || (matches!(e.design.assignment_design.as_str(), "matched_pairs" | "switchback")
+            && e.design_contract_id.as_deref().is_none_or(|id| id.trim().is_empty()))
+    {
+        return Err(EvidenceRefusal::Invalid("experimental evidence must retain a consistent compiled design and joint arm dependence".into()));
+    }
     if r.population_id != e.population_id {
         return Err(EvidenceRefusal::IncompatiblePopulation {
             requested: r.population_id.clone(),
@@ -442,7 +551,15 @@ pub fn derive(
             standing,
             license: "none",
             calibration: "unmeasured",
-            interval_statement: DELTA_METHOD_STATEMENT,
+            interval_statement: match evidence.design.assignment_design.as_str() {
+                "matched_pairs" => {
+                    "first-order delta method through the paired-cluster covariance, with a Student reference using pairs minus one degrees of freedom; calibration is unmeasured and no component license is inherited"
+                }
+                "switchback" => {
+                    "first-order delta method through the sequence-level switchback covariance, with a Student reference using sequences minus one degrees of freedom; calibration is unmeasured and no component license is inherited"
+                }
+                _ => DELTA_METHOD_STATEMENT,
+            },
             separation: SEPARATION_STATEMENT,
             quantity_identity: identity.clone(),
         }
@@ -509,17 +626,49 @@ pub fn derive(
             Dependence::Joint { treated, control } => {
                 quad(&ht, treated, true) + quad(&hc, control, true)
             }
+            Dependence::JointArms { covariance } => {
+                let mut h = ht.clone();
+                h.extend(hc.iter().map(|v| -v));
+                let d = 2 * k;
+                let mut value = 0.0;
+                let mut magnitude = 0.0;
+                for i in 0..d {
+                    for j in 0..d {
+                        let term = h[i] * covariance[i * d + j] * h[j];
+                        value += term;
+                        magnitude += term.abs();
+                    }
+                }
+                // A near-zero residual after subtracting much larger covariance terms is
+                // numerically unreliable. Withhold the interval rather than clip a negative
+                // rounding error to zero and present spurious precision.
+                if !value.is_finite()
+                    || !magnitude.is_finite()
+                    || value < 0.0
+                    || (magnitude > 0.0 && value <= 64.0 * f64::EPSILON * magnitude)
+                {
+                    return None;
+                }
+                value
+            }
             Dependence::MarginalsOnly { treated, control } => {
                 quad(&ht, treated, false) + quad(&hc, control, false)
             }
         };
         let se = var.max(0.0).sqrt();
         let est = vt - vc;
+        let critical =
+            if matches!(evidence.design.assignment_design.as_str(), "matched_pairs" | "switchback")
+            {
+                antecedent_stats::student_t_ppf(0.975, (evidence.design.treated_units - 1) as f64)
+            } else {
+                Z95
+            };
         Some(SamplingInterval {
             estimate: est,
             standard_error: se,
-            lower: est - Z95 * se,
-            upper: est + Z95 * se,
+            lower: est - critical * se,
+            upper: est + critical * se,
         })
     };
 
@@ -568,7 +717,12 @@ pub fn derive(
                 }
             }
         }
-        (mid, vs)
+        if mid.is_none() || (!dims.is_empty() && vs.len() != (1usize << dims.len())) {
+            unresolved.push(UnresolvedReason::SamplingUnavailable);
+            (None, Vec::new())
+        } else {
+            (mid, vs)
+        }
     };
 
     let range = if dims.is_empty() {
@@ -1151,7 +1305,11 @@ pub fn decision_interval_calibration_basis(
         || result.assumption_range.is_some()
         || !matches!(request.target, Target::ExperimentalContrast)
         || !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. })
-        || !matches!(evidence.dependence, Dependence::Joint { .. })
+        || !matches!(
+            (evidence.design.assignment_design.as_str(), &evidence.dependence),
+            ("cluster" | "complete", Dependence::Joint { .. })
+                | ("matched_pairs" | "switchback", Dependence::JointArms { .. })
+        )
         || quantity.inputs.iter().any(|b| !matches!(b, InputBinding::Measured(_)))
     {
         return Err(EvidenceRefusal::Invalid(
@@ -1165,8 +1323,18 @@ pub fn decision_interval_calibration_basis(
         "tabular".to_owned(),
         "Frequentist".to_owned(),
         format!("joint_{}_{}", evidence.design.assignment_design, evidence.adjustment_identity()),
-        "delta_method_normal_95".to_owned(),
-        "joint_neyman_delta".to_owned(),
+        if matches!(evidence.design.assignment_design.as_str(), "matched_pairs" | "switchback") {
+            "delta_method_student_95"
+        } else {
+            "delta_method_normal_95"
+        }
+        .to_owned(),
+        match evidence.design.assignment_design.as_str() {
+            "matched_pairs" => "matched_pair_delta",
+            "switchback" => "switchback_sequence_delta",
+            _ => "joint_neyman_delta",
+        }
+        .to_owned(),
         "independent_assignment_units".to_owned(),
         String::new(),
         format!("derived_{}", result.quantity_identity),
@@ -1176,7 +1344,11 @@ pub fn decision_interval_calibration_basis(
         key,
         0.95,
         "point".into(),
-        (evidence.design.treated_units + evidence.design.control_units) as u64,
+        (if matches!(evidence.design.assignment_design.as_str(), "matched_pairs" | "switchback") {
+            evidence.design.treated_units
+        } else {
+            evidence.design.treated_units + evidence.design.control_units
+        }) as u64,
         None,
         None,
         0.0,

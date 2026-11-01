@@ -148,6 +148,82 @@ pub fn complete_cluster_joint_contrast(
     })
 }
 
+/// Joint arm means and paired-cluster covariance under independent 1:1 matched pairs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MatchedPairJoint {
+    /// Number of independent randomized pairs.
+    pub pairs: usize,
+    /// Per-row treated means.
+    pub treated_means: Vec<f64>,
+    /// Per-row control means.
+    pub control_means: Vec<f64>,
+    /// Covariance of the concatenated treated and control arm mean estimators.
+    pub arm_covariance: Vec<f64>,
+}
+
+/// Estimate several outcomes using fixed, disjoint pairs, independently randomized 1:1.
+/// The pair membership and cluster sizes must be fixed before assignment. Pair totals are
+/// weighted by their target row count; the sample covariance of pair contributions is a
+/// conservative covariance estimator over independent pair assignments. The estimator does
+/// not certify the design assumptions or the coverage of a nonlinear transformation.
+#[must_use]
+pub fn matched_pair_joint_contrast(
+    totals: &[&[f64]],
+    assigned: &[bool],
+    pairs: &[(usize, usize)],
+    outcome_rows: usize,
+) -> Option<MatchedPairJoint> {
+    let k = totals.len();
+    let n = assigned.len();
+    let b = pairs.len();
+    if k == 0
+        || b < 2
+        || n != b.checked_mul(2)?
+        || outcome_rows == 0
+        || totals.iter().any(|v| v.len() != n || v.iter().any(|x| !x.is_finite()))
+    {
+        return None;
+    }
+    let mut seen = vec![false; n];
+    let scale = n as f64 / outcome_rows as f64;
+    let mut values = Vec::with_capacity(b);
+    for &(a, c) in pairs {
+        if a >= n || c >= n || a == c || seen[a] || seen[c] || assigned[a] == assigned[c] {
+            return None;
+        }
+        seen[a] = true;
+        seen[c] = true;
+        let (t, u) = if assigned[a] { (a, c) } else { (c, a) };
+        let mut v: Vec<f64> = totals.iter().map(|x| x[t] * scale).collect();
+        v.extend(totals.iter().map(|x| x[u] * scale));
+        values.push(v);
+    }
+    let d = 2 * k;
+    let mut mean = vec![0.0; d];
+    for v in &values {
+        for i in 0..d {
+            mean[i] += v[i] / b as f64;
+        }
+    }
+    let mut covariance = vec![0.0; d * d];
+    for v in &values {
+        for i in 0..d {
+            for j in 0..d {
+                covariance[i * d + j] += (v[i] - mean[i]) * (v[j] - mean[j]) / (b * (b - 1)) as f64;
+            }
+        }
+    }
+    if mean.iter().chain(&covariance).any(|x| !x.is_finite()) {
+        return None;
+    }
+    Some(MatchedPairJoint {
+        pairs: b,
+        treated_means: mean[..k].to_vec(),
+        control_means: mean[k..].to_vec(),
+        arm_covariance: covariance,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +301,39 @@ mod tests {
             assert!((mean / n as f64 - 6.0).abs() < 1e-12);
         }
         assert!(centered_fixed_cuped_totals(&y, &x, &[1, 2, 3], 0.7).is_none());
+    }
+
+    #[test]
+    fn matched_pairs_exhaustive_randomization_is_unbiased_and_conservative() {
+        // Four pairs, unequal cluster sizes and heterogeneous potential effects. Enumerate
+        // all 16 assignments independently; compare the estimated covariance of the contrast
+        // with its exact randomization variance, without using the implementation as an oracle.
+        let pairs = [(0, 1), (2, 3), (4, 5), (6, 7)];
+        let control = [2.0, 5.0, 7.0, 3.0, 9.0, 6.0, 1.0, 4.0];
+        let treated = [3.0, 8.0, 6.0, 7.0, 11.0, 9.0, 2.0, 10.0];
+        let rows = 20;
+        let truth = treated.iter().zip(control).map(|(t, c)| t - c).sum::<f64>() / rows as f64;
+        let mut estimates = Vec::new();
+        let mut variances = Vec::new();
+        for mask in 0..16 {
+            let mut assigned = [false; 8];
+            for (b, (i, j)) in pairs.iter().enumerate() {
+                assigned[*i] = (mask >> b) & 1 == 1;
+                assigned[*j] = !assigned[*i];
+            }
+            let y: Vec<_> =
+                (0..8).map(|i| if assigned[i] { treated[i] } else { control[i] }).collect();
+            let fit = matched_pair_joint_contrast(&[&y], &assigned, &pairs, rows).unwrap();
+            estimates.push(fit.treated_means[0] - fit.control_means[0]);
+            let c = fit.arm_covariance;
+            variances.push(c[0] + c[3] - 2.0 * c[1]);
+        }
+        let mean = estimates.iter().sum::<f64>() / 16.0;
+        let actual = estimates.iter().map(|x| (x - truth).powi(2)).sum::<f64>() / 16.0;
+        let reported = variances.iter().sum::<f64>() / 16.0;
+        assert!((mean - truth).abs() < 1e-12);
+        assert!(reported + 1e-12 >= actual, "reported {reported}, actual {actual}");
+        assert!(matched_pair_joint_contrast(&[&control], &[true; 8], &pairs, rows).is_none());
     }
 
     #[test]

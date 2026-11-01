@@ -40,6 +40,7 @@
 mod derive;
 mod expr;
 mod plan;
+mod proxy;
 mod reuse;
 
 use antecedent_core::CanonicalWriter;
@@ -50,6 +51,7 @@ pub use derive::{
     decision_interval_calibration_basis, derive,
 };
 pub use plan::{Candidate, EvidencePlan, PlanRow, PlanValue, PlanningModel, plan_evidence};
+pub use proxy::{ProxyBridge, ProxyDecision, ProxyMapping, decide_with_proxy};
 pub use reuse::{
     EvidenceLedger, LineageStatus, ReuseReceipt, Stage, StageDigests, StageStatus, reuse_receipt,
 };
@@ -336,6 +338,12 @@ pub enum Dependence {
         /// Control arm.
         control: Vec<f64>,
     },
+    /// Full covariance of concatenated treated and control arm means, in that order.
+    /// This retains paired or repeated-assignment dependence across arms.
+    JointArms {
+        /// Row-major `2K x 2K` covariance matrix.
+        covariance: Vec<f64>,
+    },
     /// Only marginal variances exist; the covariance between components is unknown.
     MarginalsOnly {
         /// Treated-arm variances.
@@ -348,14 +356,57 @@ pub enum Dependence {
 /// The assignment design the estimates came from.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DesignRecord {
-    /// `cluster` or `complete`.
+    /// `cluster`, `complete`, `matched_pairs` or `switchback`.
     pub assignment_design: String,
-    /// Independently assigned units (clusters) in the treated arm.
+    /// Independent treated units, or independent pairs/sequences for a joint-arm design.
     pub treated_units: usize,
-    /// Independently assigned units (clusters) in the control arm.
+    /// Independent control units, or the same independent pair/sequence count.
     pub control_units: usize,
     /// Outcome rows.
     pub outcome_rows: usize,
+}
+
+/// Inspectable randomization design details retained with joint evidence.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DesignDetails {
+    /// Fixed matched pairs and their known assignment law.
+    MatchedPairs {
+        /// Cluster identities in input order.
+        cluster_ids: Vec<String>,
+        /// Cluster indices in each pair.
+        pairs: Vec<(usize, usize)>,
+        /// Pretreatment matching variables.
+        matching_variables: Vec<String>,
+        /// Treatment assignment probabilities.
+        treatment_probabilities: Vec<f64>,
+        /// Fixed cluster sizes in target rows.
+        cluster_sizes: Vec<usize>,
+        /// Realized assignment, aligned with cluster identities.
+        realized_assignment: Vec<bool>,
+        /// Preassignment design assumption.
+        preassignment_assumption_id: String,
+        /// Independent-pair assignment assumption.
+        independent_pairs_assumption_id: String,
+    },
+    /// Switchback schedule, assignment probabilities and temporal assumptions.
+    Switchback {
+        /// Sequence identity for each retained period.
+        sequence_ids: Vec<String>,
+        /// Period identity for each retained row.
+        period_ids: Vec<String>,
+        /// Treatment probability for each retained row.
+        treatment_probabilities: Vec<f64>,
+        /// Realized assignment for each retained period.
+        realized_assignment: Vec<bool>,
+        /// No-carryover assumption.
+        no_carryover_assumption_id: String,
+        /// Prespecified washout rule.
+        washout_rule_id: String,
+        /// Declared post-switch washout length.
+        washout_periods: usize,
+        /// Independent-sequence assumption.
+        independent_sequences_assumption_id: String,
+    },
 }
 
 /// Several effects of one experiment, kept together.
@@ -385,6 +436,10 @@ pub struct JointExperimentEvidence {
     pub adjustments: Vec<ComponentAdjustment>,
     /// Exposure between assignment units.
     pub exposure: Exposure,
+    /// Identity of the full design declaration, when the design requires one.
+    pub design_contract_id: Option<String>,
+    /// Inspectable design details accompanying that identity.
+    pub design_details: Option<DesignDetails>,
     /// Route license of each component's marginal effect, when one was earned; informational.
     pub marginal_licenses: Vec<Option<String>>,
 }
@@ -431,7 +486,7 @@ impl JointExperimentEvidence {
         {
             return invalid("arm means must be finite and aligned with the components");
         }
-        let check_cov = |m: &[f64], full: bool| -> bool {
+        let check_cov = |m: &[f64], full: bool, k: usize| -> bool {
             let expected = if full { k * k } else { k };
             if m.len() != expected || m.iter().any(|v| !v.is_finite()) {
                 return false;
@@ -477,16 +532,20 @@ impl JointExperimentEvidence {
         };
         let ok = match &dependence {
             Dependence::Joint { treated, control } => {
-                check_cov(treated, true) && check_cov(control, true)
+                check_cov(treated, true, k) && check_cov(control, true, k)
             }
+            Dependence::JointArms { covariance } => check_cov(covariance, true, 2 * k),
             Dependence::MarginalsOnly { treated, control } => {
-                check_cov(treated, false) && check_cov(control, false)
+                check_cov(treated, false, k) && check_cov(control, false, k)
             }
         };
         if !ok {
             return invalid("covariances must be finite, symmetric and positive semidefinite");
         }
-        if !matches!(design.assignment_design.as_str(), "cluster" | "complete") {
+        if !matches!(
+            design.assignment_design.as_str(),
+            "cluster" | "complete" | "matched_pairs" | "switchback"
+        ) {
             return Err(EvidenceRefusal::UnsupportedAssignmentDesign(design.assignment_design));
         }
         if design.treated_units < 2 || design.control_units < 2 || design.outcome_rows == 0 {
@@ -540,6 +599,8 @@ impl JointExperimentEvidence {
             design,
             adjustments,
             exposure,
+            design_contract_id: None,
+            design_details: None,
             marginal_licenses: vec![None; k],
         })
     }
@@ -574,6 +635,14 @@ impl JointExperimentEvidence {
         other: &Self,
         declared_independent: bool,
     ) -> Result<Self, EvidenceRefusal> {
+        if matches!(self.dependence, Dependence::JointArms { .. })
+            || matches!(other.dependence, Dependence::JointArms { .. })
+        {
+            return Err(EvidenceRefusal::DependenceUnknown {
+                left: self.evidence_id.clone(),
+                right: other.evidence_id.clone(),
+            });
+        }
         if self.population_id != other.population_id {
             return Err(EvidenceRefusal::IncompatiblePopulation {
                 requested: other.population_id.clone(),
@@ -621,6 +690,9 @@ impl JointExperimentEvidence {
                         } else {
                             c.clone()
                         }
+                    }
+                    Dependence::JointArms { .. } => {
+                        unreachable!("joint arm dependence is refused above")
                     }
                     Dependence::MarginalsOnly { treated: t, control: c } => {
                         let v = if treated { t } else { c };
@@ -685,6 +757,8 @@ impl JointExperimentEvidence {
             },
             adjustments: self.adjustments.iter().chain(&other.adjustments).cloned().collect(),
             exposure,
+            design_contract_id: None,
+            design_details: None,
             marginal_licenses: self
                 .marginal_licenses
                 .iter()
@@ -703,6 +777,56 @@ impl JointExperimentEvidence {
         w.word(u64::from(self.horizon)).text(&self.design.assignment_design);
         for c in &self.components {
             w.text(&c.name).text(&c.variable_id).text(&c.units);
+        }
+        if let Some(id) = &self.design_contract_id {
+            w.text(id);
+        }
+        match &self.design_details {
+            Some(DesignDetails::MatchedPairs {
+                cluster_ids,
+                pairs,
+                matching_variables,
+                treatment_probabilities,
+                cluster_sizes,
+                preassignment_assumption_id,
+                independent_pairs_assumption_id,
+                realized_assignment: _,
+            }) => {
+                w.word(1).text(preassignment_assumption_id).text(independent_pairs_assumption_id);
+                w.word(cluster_ids.len() as u64).word(matching_variables.len() as u64);
+                for v in cluster_ids.iter().chain(matching_variables) {
+                    w.text(v);
+                }
+                for (a, b) in pairs {
+                    w.word(*a as u64).word(*b as u64);
+                }
+                w.reals(treatment_probabilities);
+                for n in cluster_sizes {
+                    w.word(*n as u64);
+                }
+            }
+            Some(DesignDetails::Switchback {
+                sequence_ids,
+                period_ids,
+                treatment_probabilities,
+                no_carryover_assumption_id,
+                washout_rule_id,
+                washout_periods,
+                independent_sequences_assumption_id,
+                realized_assignment: _,
+            }) => {
+                w.word(2)
+                    .text(no_carryover_assumption_id)
+                    .text(washout_rule_id)
+                    .word(*washout_periods as u64)
+                    .text(independent_sequences_assumption_id);
+                w.word(sequence_ids.len() as u64).word(period_ids.len() as u64);
+                for s in sequence_ids.iter().chain(period_ids) {
+                    w.text(s);
+                }
+                w.reals(treatment_probabilities);
+            }
+            None => {}
         }
         match &self.exposure {
             Exposure::NoBetweenUnitInterference { assumption_id } => {
@@ -755,6 +879,16 @@ impl JointExperimentEvidence {
         w.text(&self.evidence_id)
             .text(&self.scientific_identity())
             .text(&self.adjustment_identity());
+        match &self.design_details {
+            Some(DesignDetails::MatchedPairs { realized_assignment, .. })
+            | Some(DesignDetails::Switchback { realized_assignment, .. }) => {
+                w.word(realized_assignment.len() as u64);
+                for assignment in realized_assignment {
+                    w.word(u64::from(*assignment));
+                }
+            }
+            None => {}
+        }
         w.word(self.design.treated_units as u64)
             .word(self.design.control_units as u64)
             .word(self.design.outcome_rows as u64)
@@ -763,6 +897,9 @@ impl JointExperimentEvidence {
         match &self.dependence {
             Dependence::Joint { treated, control } => {
                 w.word(0).reals(treated).reals(control);
+            }
+            Dependence::JointArms { covariance } => {
+                w.word(2).reals(covariance);
             }
             Dependence::MarginalsOnly { treated, control } => {
                 w.word(1).reals(treated).reals(control);

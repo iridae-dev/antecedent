@@ -371,6 +371,7 @@ impl core::clone::Clone for antecedent_design::decision_evidence::DecisionResult
 impl core::clone::Clone for antecedent_design::decision_evidence::Dependence
 impl core::clone::Clone for antecedent_design::decision_evidence::DerivedQuantity
 impl core::clone::Clone for antecedent_design::decision_evidence::DerivedResult
+impl core::clone::Clone for antecedent_design::decision_evidence::DesignDetails
 impl core::clone::Clone for antecedent_design::decision_evidence::DesignRecord
 impl core::clone::Clone for antecedent_design::decision_evidence::EvidenceLedger
 impl core::clone::Clone for antecedent_design::decision_evidence::EvidencePlan
@@ -384,6 +385,9 @@ impl core::clone::Clone for antecedent_design::decision_evidence::OutcomeCompone
 impl core::clone::Clone for antecedent_design::decision_evidence::PlanRow
 impl core::clone::Clone for antecedent_design::decision_evidence::PlanValue
 impl core::clone::Clone for antecedent_design::decision_evidence::PlanningModel
+impl core::clone::Clone for antecedent_design::decision_evidence::ProxyBridge
+impl core::clone::Clone for antecedent_design::decision_evidence::ProxyDecision
+impl core::clone::Clone for antecedent_design::decision_evidence::ProxyMapping
 impl core::clone::Clone for antecedent_design::decision_evidence::Request
 impl core::clone::Clone for antecedent_design::decision_evidence::ReuseReceipt
 impl core::clone::Clone for antecedent_design::decision_evidence::SamplingInterval
@@ -1400,6 +1404,7 @@ impl core::cmp::PartialEq for antecedent_design::decision_evidence::DecisionResu
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::Dependence
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::DerivedQuantity
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::DerivedResult
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::DesignDetails
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::DesignRecord
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::EvidenceLedger
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::EvidencePlan
@@ -1413,6 +1418,9 @@ impl core::cmp::PartialEq for antecedent_design::decision_evidence::OutcomeCompo
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::PlanRow
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::PlanValue
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::PlanningModel
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::ProxyBridge
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::ProxyDecision
+impl core::cmp::PartialEq for antecedent_design::decision_evidence::ProxyMapping
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::Request
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::ReuseReceipt
 impl core::cmp::PartialEq for antecedent_design::decision_evidence::SamplingInterval
@@ -2248,6 +2256,7 @@ impl core::fmt::Debug for antecedent_design::decision_evidence::DecisionResult
 impl core::fmt::Debug for antecedent_design::decision_evidence::Dependence
 impl core::fmt::Debug for antecedent_design::decision_evidence::DerivedQuantity
 impl core::fmt::Debug for antecedent_design::decision_evidence::DerivedResult
+impl core::fmt::Debug for antecedent_design::decision_evidence::DesignDetails
 impl core::fmt::Debug for antecedent_design::decision_evidence::DesignRecord
 impl core::fmt::Debug for antecedent_design::decision_evidence::EvidenceLedger
 impl core::fmt::Debug for antecedent_design::decision_evidence::EvidencePlan
@@ -2261,6 +2270,9 @@ impl core::fmt::Debug for antecedent_design::decision_evidence::OutcomeComponent
 impl core::fmt::Debug for antecedent_design::decision_evidence::PlanRow
 impl core::fmt::Debug for antecedent_design::decision_evidence::PlanValue
 impl core::fmt::Debug for antecedent_design::decision_evidence::PlanningModel
+impl core::fmt::Debug for antecedent_design::decision_evidence::ProxyBridge
+impl core::fmt::Debug for antecedent_design::decision_evidence::ProxyDecision
+impl core::fmt::Debug for antecedent_design::decision_evidence::ProxyMapping
 impl core::fmt::Debug for antecedent_design::decision_evidence::Request
 impl core::fmt::Debug for antecedent_design::decision_evidence::ReuseReceipt
 impl core::fmt::Debug for antecedent_design::decision_evidence::SamplingInterval
@@ -3302,6 +3314,7 @@ impl core::marker::Freeze for antecedent_design::decision_evidence::DecisionResu
 impl core::marker::Freeze for antecedent_design::decision_evidence::Dependence [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::DerivedQuantity [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::DesignDetails [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::DesignRecord [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::EvidenceLedger [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::EvidencePlan [auto]
@@ -3315,6 +3328,9 @@ impl core::marker::Freeze for antecedent_design::decision_evidence::OutcomeCompo
 impl core::marker::Freeze for antecedent_design::decision_evidence::PlanRow [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::PlanValue [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::ProxyBridge [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::ProxyDecision [auto]
+impl core::marker::Freeze for antecedent_design::decision_evidence::ProxyMapping [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::Request [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::ReuseReceipt [auto]
 impl core::marker::Freeze for antecedent_design::decision_evidence::SamplingInterval [auto]
@@ -4065,6 +4081,7 @@ impl core::marker::Send for antecedent_design::decision_evidence::DecisionResult
 impl core::marker::Send for antecedent_design::decision_evidence::Dependence [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::DerivedQuantity [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::DesignDetails [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::DesignRecord [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::EvidenceLedger [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::EvidencePlan [auto]
@@ -4078,6 +4095,9 @@ impl core::marker::Send for antecedent_design::decision_evidence::OutcomeCompone
 impl core::marker::Send for antecedent_design::decision_evidence::PlanRow [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::PlanValue [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::ProxyBridge [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::ProxyDecision [auto]
+impl core::marker::Send for antecedent_design::decision_evidence::ProxyMapping [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::Request [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::ReuseReceipt [auto]
 impl core::marker::Send for antecedent_design::decision_evidence::SamplingInterval [auto]
@@ -4775,6 +4795,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence:
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Dependence
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DerivedQuantity
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DerivedResult
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DesignDetails
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::DesignRecord
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::EvidenceLedger
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::EvidencePlan
@@ -4788,6 +4809,9 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence:
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::PlanRow
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::PlanValue
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::PlanningModel
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::ProxyBridge
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::ProxyDecision
+impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::ProxyMapping
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::Request
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::ReuseReceipt
 impl core::marker::StructuralPartialEq for antecedent_design::decision_evidence::SamplingInterval
@@ -5490,6 +5514,7 @@ impl core::marker::Sync for antecedent_design::decision_evidence::DecisionResult
 impl core::marker::Sync for antecedent_design::decision_evidence::Dependence [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::DerivedQuantity [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::DesignDetails [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::DesignRecord [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::EvidenceLedger [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::EvidencePlan [auto]
@@ -5503,6 +5528,9 @@ impl core::marker::Sync for antecedent_design::decision_evidence::OutcomeCompone
 impl core::marker::Sync for antecedent_design::decision_evidence::PlanRow [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::PlanValue [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::ProxyBridge [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::ProxyDecision [auto]
+impl core::marker::Sync for antecedent_design::decision_evidence::ProxyMapping [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::Request [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::ReuseReceipt [auto]
 impl core::marker::Sync for antecedent_design::decision_evidence::SamplingInterval [auto]
@@ -6254,6 +6282,7 @@ impl core::marker::Unpin for antecedent_design::decision_evidence::DecisionResul
 impl core::marker::Unpin for antecedent_design::decision_evidence::Dependence [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::DerivedQuantity [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::DesignDetails [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::DesignRecord [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::EvidenceLedger [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::EvidencePlan [auto]
@@ -6267,6 +6296,9 @@ impl core::marker::Unpin for antecedent_design::decision_evidence::OutcomeCompon
 impl core::marker::Unpin for antecedent_design::decision_evidence::PlanRow [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::PlanValue [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::ProxyBridge [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::ProxyDecision [auto]
+impl core::marker::Unpin for antecedent_design::decision_evidence::ProxyMapping [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::Request [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::ReuseReceipt [auto]
 impl core::marker::Unpin for antecedent_design::decision_evidence::SamplingInterval [auto]
@@ -7017,6 +7049,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Dependence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DerivedQuantity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DesignDetails [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::DesignRecord [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::EvidenceLedger [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::EvidencePlan [auto]
@@ -7030,6 +7063,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::PlanRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::PlanValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::ProxyBridge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::ProxyDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::ProxyMapping [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::Request [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::ReuseReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::decision_evidence::SamplingInterval [auto]
@@ -7770,6 +7806,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eviden
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Dependence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DerivedQuantity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DerivedResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DesignDetails [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::DesignRecord [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::EvidenceLedger [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::EvidencePlan [auto]
@@ -7783,6 +7820,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_eviden
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::PlanRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::PlanValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::PlanningModel [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::ProxyBridge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::ProxyDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::ProxyMapping [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::Request [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::ReuseReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::decision_evidence::SamplingInterval [auto]
@@ -9088,10 +9128,12 @@ pub enum antecedent_design::decision_evidence::AdjustmentKind
 pub enum antecedent_design::decision_evidence::Arm
 pub enum antecedent_design::decision_evidence::Candidate
 pub enum antecedent_design::decision_evidence::Dependence
+pub enum antecedent_design::decision_evidence::DesignDetails
 pub enum antecedent_design::decision_evidence::Exposure
 pub enum antecedent_design::decision_evidence::InputBinding
 pub enum antecedent_design::decision_evidence::LineageStatus
 pub enum antecedent_design::decision_evidence::PlanValue
+pub enum antecedent_design::decision_evidence::ProxyMapping
 pub enum antecedent_design::decision_evidence::Stage
 pub enum antecedent_design::decision_evidence::StageStatus
 pub enum antecedent_design::decision_evidence::Standing
@@ -10023,6 +10065,8 @@ pub field antecedent_design::decision_evidence::JointExperimentEvidence::control
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::control_regime_id: alloc::string::String
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::dependence: antecedent_design::decision_evidence::Dependence
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::design: antecedent_design::decision_evidence::DesignRecord
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::design_contract_id: core::option::Option<alloc::string::String>
+pub field antecedent_design::decision_evidence::JointExperimentEvidence::design_details: core::option::Option<antecedent_design::decision_evidence::DesignDetails>
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::evidence_id: alloc::string::String
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::exposure: antecedent_design::decision_evidence::Exposure
 pub field antecedent_design::decision_evidence::JointExperimentEvidence::horizon: u32
@@ -10045,6 +10089,22 @@ pub field antecedent_design::decision_evidence::PlanRow::id: alloc::string::Stri
 pub field antecedent_design::decision_evidence::PlanRow::kind: antecedent_contract::evidence_obligation::EvidenceObligationKind
 pub field antecedent_design::decision_evidence::PlanRow::value: antecedent_design::decision_evidence::PlanValue
 pub field antecedent_design::decision_evidence::PlanningModel::statement: &'static str
+pub field antecedent_design::decision_evidence::ProxyBridge::control_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyBridge::horizon: u32
+pub field antecedent_design::decision_evidence::ProxyBridge::mapping: antecedent_design::decision_evidence::ProxyMapping
+pub field antecedent_design::decision_evidence::ProxyBridge::population_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyBridge::proxy_component: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyBridge::target_units: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyBridge::target_variable_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyBridge::treated_regime_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyDecision::assumption_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyDecision::assumption_range: core::option::Option<(f64, f64)>
+pub field antecedent_design::decision_evidence::ProxyDecision::evidence_ids: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_design::decision_evidence::ProxyDecision::identity: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyDecision::sampling_envelope: core::option::Option<(f64, f64)>
+pub field antecedent_design::decision_evidence::ProxyDecision::target_units: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyDecision::target_variable_id: alloc::string::String
+pub field antecedent_design::decision_evidence::ProxyDecision::verdict: antecedent_design::decision_evidence::Verdict
 pub field antecedent_design::decision_evidence::Request::control_regime_id: alloc::string::String
 pub field antecedent_design::decision_evidence::Request::horizon: u32
 pub field antecedent_design::decision_evidence::Request::population_id: alloc::string::String
@@ -12001,6 +12061,7 @@ pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn merge
 pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn new(evidence_id: impl core::convert::Into<alloc::string::String>, population_id: impl core::convert::Into<alloc::string::String>, regimes: (impl core::convert::Into<alloc::string::String>, impl core::convert::Into<alloc::string::String>), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, means: (alloc::vec::Vec<f64>, alloc::vec::Vec<f64>), dependence: antecedent_design::decision_evidence::Dependence, design: antecedent_design::decision_evidence::DesignRecord, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<Self, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn scientific_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::decision_evidence::JointExperimentEvidence>::fn with_marginal_licenses(self, licenses: alloc::vec::Vec<core::option::Option<alloc::string::String>>) -> Self
+pub fn <antecedent_design::decision_evidence::ProxyDecision>::fn unsupported_evidence(&self, ledger: &antecedent_design::decision_evidence::EvidenceLedger) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn <antecedent_design::decision_evidence::ReuseReceipt>::fn reuses_any(&self) -> bool
 pub fn <antecedent_design::decision_evidence::ReuseReceipt>::fn status(&self, stage: antecedent_design::decision_evidence::Stage) -> antecedent_design::decision_evidence::StageStatus
 pub fn <antecedent_design::decision_evidence::Stage>::const fn name(self) -> &'static str
@@ -12471,6 +12532,7 @@ pub fn antecedent_design::decision_evaluation::execute_demand_admitted(contract:
 pub fn antecedent_design::decision_evidence::adjustment_verdicts(design: &str) -> alloc::vec::Vec<antecedent_design::decision_evidence::AdjustmentVerdict>
 pub fn antecedent_design::decision_evidence::compile_joint_experiment(spec: antecedent_design::decision_evidence::JointExperimentSpec) -> core::result::Result<antecedent_design::decision_evidence::CompiledJointExperiment, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::decide(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame) -> core::result::Result<antecedent_design::decision_evidence::DecisionResult, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent_design::decision_evidence::decide_with_proxy(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, bridge: &antecedent_design::decision_evidence::ProxyBridge, frame: &antecedent_design::decision_evidence::DecisionFrame) -> core::result::Result<antecedent_design::decision_evidence::ProxyDecision, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::decision_interval_calibration_basis(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity) -> core::result::Result<antecedent_core::calibration_basis::CalibrationBasis, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::derive(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity) -> core::result::Result<antecedent_design::decision_evidence::DerivedResult, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent_design::decision_evidence::plan_evidence(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, request: &antecedent_design::decision_evidence::Request, quantity: &antecedent_design::decision_evidence::DerivedQuantity, frame: &antecedent_design::decision_evidence::DecisionFrame, candidates: &[antecedent_design::decision_evidence::Candidate]) -> core::result::Result<antecedent_design::decision_evidence::EvidencePlan, antecedent_design::decision_evidence::EvidenceRefusal>
@@ -12917,6 +12979,8 @@ pub struct antecedent_design::decision_evidence::JointExperimentSpec
 pub struct antecedent_design::decision_evidence::OutcomeComponent
 pub struct antecedent_design::decision_evidence::PlanRow
 pub struct antecedent_design::decision_evidence::PlanningModel
+pub struct antecedent_design::decision_evidence::ProxyBridge
+pub struct antecedent_design::decision_evidence::ProxyDecision
 pub struct antecedent_design::decision_evidence::Request
 pub struct antecedent_design::decision_evidence::ReuseReceipt
 pub struct antecedent_design::decision_evidence::SamplingInterval
@@ -14022,7 +14086,10 @@ pub variant antecedent_design::decision_evidence::Arm::Treated
 pub variant antecedent_design::decision_evidence::Candidate::MoreUnits { id: alloc::string::String, additional_units_per_arm: u64, cost: core::option::Option<f64> }
 pub variant antecedent_design::decision_evidence::Candidate::ResolveAssumption { id: alloc::string::String, assumption_id: alloc::string::String, narrowed: (f64, f64), cost: core::option::Option<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::Joint { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
+pub variant antecedent_design::decision_evidence::Dependence::JointArms { covariance: alloc::vec::Vec<f64> }
 pub variant antecedent_design::decision_evidence::Dependence::MarginalsOnly { treated: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }
+pub variant antecedent_design::decision_evidence::DesignDetails::MatchedPairs { cluster_ids: alloc::vec::Vec<alloc::string::String>, pairs: alloc::vec::Vec<(usize, usize)>, matching_variables: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, cluster_sizes: alloc::vec::Vec<usize>, realized_assignment: alloc::vec::Vec<bool>, preassignment_assumption_id: alloc::string::String, independent_pairs_assumption_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::DesignDetails::Switchback { sequence_ids: alloc::vec::Vec<alloc::string::String>, period_ids: alloc::vec::Vec<alloc::string::String>, treatment_probabilities: alloc::vec::Vec<f64>, realized_assignment: alloc::vec::Vec<bool>, no_carryover_assumption_id: alloc::string::String, washout_rule_id: alloc::string::String, washout_periods: usize, independent_sequences_assumption_id: alloc::string::String }
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::AdjustmentNotAdmissible { strategy: alloc::string::String, design: alloc::string::String, reason: alloc::string::String }
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::DependenceUnknown { left: alloc::string::String, right: alloc::string::String }
 pub variant antecedent_design::decision_evidence::EvidenceRefusal::DeploymentBridgeMissing
@@ -14047,6 +14114,8 @@ pub variant antecedent_design::decision_evidence::LineageStatus::Withdrawn { rea
 pub variant antecedent_design::decision_evidence::PlanValue::Evsi { gross: f64, net: core::option::Option<f64> }
 pub variant antecedent_design::decision_evidence::PlanValue::Refused(alloc::string::String)
 pub variant antecedent_design::decision_evidence::PlanValue::Resolution { verdict: antecedent_design::decision_evidence::Verdict, resolves: bool }
+pub variant antecedent_design::decision_evidence::ProxyMapping::CausalEffectBounds { multiplier: (f64, f64), residual: (f64, f64), assumption_id: alloc::string::String, mapping_evidence_id: alloc::string::String }
+pub variant antecedent_design::decision_evidence::ProxyMapping::PredictiveAssociation
 pub variant antecedent_design::decision_evidence::Stage::Adjustment
 pub variant antecedent_design::decision_evidence::Stage::Decision
 pub variant antecedent_design::decision_evidence::Stage::Derived

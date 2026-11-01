@@ -9,10 +9,13 @@
 
 use antecedent::decision_evidence::{
     AdjustmentKind, Candidate, ComponentAdjustment, DecisionFrame, DecisionResult, Dependence,
-    DerivedQuantity, DerivedResult, DesignRecord, EvidenceRefusal, Exposure, InputBinding,
-    JointExperimentEvidence, JointExperimentSpec, OutcomeComponent, PlanValue, Request,
+    DerivedQuantity, DerivedResult, DesignDetails, DesignRecord, EvidenceRefusal, Exposure,
+    InputBinding, JointExperimentEvidence, JointExperimentSpec, JointSwitchbackDesign,
+    MatchedPairDesign, OutcomeComponent, PlanValue, ProxyBridge, ProxyMapping, Request,
     SamplingInterval, StageDigests, Standing, Target, UnresolvedReason, UtilityExpr, Verdict,
-    compile_joint_experiment, complete_cluster_joint_contrast, decide, derive, plan_evidence,
+    compile_joint_experiment, compile_joint_switchback, compile_matched_pair_design,
+    complete_cluster_joint_contrast, decide, decide_with_proxy, derive,
+    evidence_from_joint_switchback, evidence_from_matched_pairs, plan_evidence,
 };
 use pyo3::prelude::*;
 use serde_json::{Map, Value as Json, json};
@@ -112,13 +115,45 @@ fn exposure(map: &Map<String, Json>) -> PyResult<Exposure> {
     })
 }
 
+fn decoded<T: serde::de::DeserializeOwned>(map: &Map<String, Json>, key: &str) -> PyResult<T> {
+    serde_json::from_value(member(map, key)?.clone())
+        .map_err(|e| crate::value_err(format!("invalid `{key}`: {e}")))
+}
+fn paired_design(m: &Map<String, Json>) -> PyResult<MatchedPairDesign> {
+    Ok(MatchedPairDesign {
+        cluster_ids: decoded(m, "cluster_ids")?,
+        pairs: decoded(m, "pairs")?,
+        matching_variables: decoded(m, "matching_variables")?,
+        treatment_probabilities: decoded(m, "treatment_probabilities")?,
+        cluster_sizes: decoded(m, "cluster_sizes")?,
+        preassignment_assumption_id: text(m, "preassignment_assumption_id")?,
+        independent_pairs_assumption_id: text(m, "independent_pairs_assumption_id")?,
+    })
+}
+fn switch_design(m: &Map<String, Json>) -> PyResult<JointSwitchbackDesign> {
+    Ok(JointSwitchbackDesign {
+        sequence_ids: decoded(m, "sequence_ids")?,
+        period_ids: decoded(m, "period_ids")?,
+        treatment_probabilities: decoded(m, "treatment_probabilities")?,
+        no_carryover_assumption_id: text(m, "no_carryover_assumption_id")?,
+        washout_rule_id: text(m, "washout_rule_id")?,
+        washout_periods: count(m, "washout_periods")?,
+        independent_sequences_assumption_id: text(m, "independent_sequences_assumption_id")?,
+    })
+}
+
 fn evidence(value: &Json) -> PyResult<Result<JointExperimentEvidence, EvidenceRefusal>> {
     let map = object(value, "evidence")?;
     let dep = object(member(map, "dependence")?, "dependence")?;
-    let (treated, control) = (reals(dep, "treated")?, reals(dep, "control")?);
     let dependence = match text(dep, "kind")?.as_str() {
-        "joint" => Dependence::Joint { treated, control },
-        "marginals_only" => Dependence::MarginalsOnly { treated, control },
+        "joint" => {
+            Dependence::Joint { treated: reals(dep, "treated")?, control: reals(dep, "control")? }
+        }
+        "joint_arms" => Dependence::JointArms { covariance: reals(dep, "covariance")? },
+        "marginals_only" => Dependence::MarginalsOnly {
+            treated: reals(dep, "treated")?,
+            control: reals(dep, "control")?,
+        },
         other => return Err(crate::value_err(format!("unknown dependence kind `{other}`"))),
     };
     let design = object(member(map, "design")?, "design")?;
@@ -145,7 +180,83 @@ fn evidence(value: &Json) -> PyResult<Result<JointExperimentEvidence, EvidenceRe
         adjustments(map)?,
         exposure(map)?,
     );
-    Ok(built.map(|e| if licenses.is_empty() { e } else { e.with_marginal_licenses(licenses) }))
+    let details =
+        present(map, "design_details").map(|v| object(v, "design_details")).transpose()?;
+    let design_contract_id = opt_text(map, "design_contract_id")?;
+    let decoded_details = match details {
+        Some(m) => match text(m, "kind")?.as_str() {
+            "matched_pairs" => {
+                let d = paired_design(m)?;
+                let realized: Vec<bool> = decoded(m, "realized_assignment")?;
+                let compiled = match compile_matched_pair_design(d.clone()) {
+                    Ok(c) => c,
+                    Err(e) => return Ok(Err(e)),
+                };
+                if realized.len() != d.cluster_ids.len()
+                    || d.pairs.iter().any(|(a, b)| realized[*a] == realized[*b])
+                    || design_contract_id.as_deref() != Some(compiled.identity.as_str())
+                    || text(design, "assignment_design")? != "matched_pairs"
+                    || count(design, "treated_units")? != d.pairs.len()
+                    || count(design, "control_units")? != d.pairs.len()
+                    || Some(count(design, "outcome_rows")?)
+                        != d.cluster_sizes.iter().try_fold(0usize, |a, b| a.checked_add(*b))
+                {
+                    return Ok(Err(EvidenceRefusal::Invalid(
+                        "matched evidence does not match its declared design".into(),
+                    )));
+                }
+                Some(DesignDetails::MatchedPairs {
+                    cluster_ids: d.cluster_ids,
+                    pairs: d.pairs,
+                    matching_variables: d.matching_variables,
+                    treatment_probabilities: d.treatment_probabilities,
+                    cluster_sizes: d.cluster_sizes,
+                    realized_assignment: realized,
+                    preassignment_assumption_id: d.preassignment_assumption_id,
+                    independent_pairs_assumption_id: d.independent_pairs_assumption_id,
+                })
+            }
+            "switchback" => {
+                let d = switch_design(m)?;
+                let realized: Vec<bool> = decoded(m, "realized_assignment")?;
+                let compiled = match compile_joint_switchback(d.clone()) {
+                    Ok(c) => c,
+                    Err(e) => return Ok(Err(e)),
+                };
+                let units = d.sequence_ids.iter().collect::<std::collections::BTreeSet<_>>().len();
+                if realized.len() != d.sequence_ids.len()
+                    || !realized.contains(&true)
+                    || !realized.contains(&false)
+                    || design_contract_id.as_deref() != Some(compiled.identity.as_str())
+                    || text(design, "assignment_design")? != "switchback"
+                    || count(design, "treated_units")? != units
+                    || count(design, "control_units")? != units
+                    || count(design, "outcome_rows")? != d.sequence_ids.len()
+                {
+                    return Ok(Err(EvidenceRefusal::Invalid(
+                        "switchback evidence does not match its declared design".into(),
+                    )));
+                }
+                Some(DesignDetails::Switchback {
+                    sequence_ids: d.sequence_ids,
+                    period_ids: d.period_ids,
+                    realized_assignment: realized,
+                    treatment_probabilities: d.treatment_probabilities,
+                    no_carryover_assumption_id: d.no_carryover_assumption_id,
+                    washout_rule_id: d.washout_rule_id,
+                    washout_periods: d.washout_periods,
+                    independent_sequences_assumption_id: d.independent_sequences_assumption_id,
+                })
+            }
+            other => return Err(crate::value_err(format!("unknown design `{other}`"))),
+        },
+        None => None,
+    };
+    Ok(built.map(|mut e| {
+        e.design_contract_id = design_contract_id;
+        e.design_details = decoded_details;
+        if licenses.is_empty() { e } else { e.with_marginal_licenses(licenses) }
+    }))
 }
 
 fn request(value: &Json) -> PyResult<Request> {
@@ -466,6 +577,115 @@ fn decision_evidence_cluster_contrast(
     })
 }
 
+/// Prepare a design or execute joint estimation against a declared design.
+#[pyfunction]
+fn decision_evidence_experimental(payload_json: &str, fit: bool) -> PyResult<Refused> {
+    let payload = parse(payload_json, "experimental evidence")?;
+    let map = object(&payload, "experimental evidence")?;
+    let dm = object(member(map, "design")?, "design")?;
+    let kind = text(dm, "kind")?;
+    let (identity, obligations, paired, switchback) = match kind.as_str() {
+        "matched_pairs" => match compile_matched_pair_design(paired_design(dm)?) {
+            Ok(d) => (d.identity.clone(), d.obligations.clone(), Some(d), None),
+            Err(e) => return Ok(finish(Err(e))),
+        },
+        "switchback" => match compile_joint_switchback(switch_design(dm)?) {
+            Ok(d) => (d.identity.clone(), d.obligations.clone(), None, Some(d)),
+            Err(e) => return Ok(finish(Err(e))),
+        },
+        _ => return Ok(finish(Err(EvidenceRefusal::UnsupportedAssignmentDesign(kind)))),
+    };
+    if !fit {
+        return Ok((
+            Some(json!({"identity":identity,"obligations":obligations,"design":dm}).to_string()),
+            None,
+        ));
+    }
+    let raw: Vec<Vec<f64>> = decoded(map, "outcomes")?;
+    let slices: Vec<&[f64]> = raw.iter().map(Vec::as_slice).collect();
+    let assigned: Vec<bool> = decoded(map, "assigned")?;
+    let horizon =
+        u32::try_from(count(map, "horizon")?).map_err(|_| crate::value_err("horizon too large"))?;
+    let comps = components(map, "components")?;
+    let evidence_id = text(map, "evidence_id")?;
+    let population = text(map, "population_id")?;
+    let treated = text(map, "treated_regime_id")?;
+    let control = text(map, "control_regime_id")?;
+    let exp = exposure(map)?;
+    let result = if let Some(d) = paired {
+        evidence_from_matched_pairs(
+            &d,
+            &slices,
+            &assigned,
+            &evidence_id,
+            &population,
+            (&treated, &control),
+            horizon,
+            comps,
+            exp,
+        )
+    } else {
+        evidence_from_joint_switchback(
+            &switchback.expect("compiled design"),
+            &slices,
+            &assigned,
+            &evidence_id,
+            &population,
+            (&treated, &control),
+            horizon,
+            comps,
+            exp,
+        )
+    };
+    Ok(finish(result.map(|ev| {
+        let mut retained_design = dm.clone();
+        retained_design.insert("realized_assignment".into(), json!(assigned));
+        let Dependence::JointArms { covariance }=ev.dependence else { unreachable!() };
+        json!({"evidence_id":evidence_id,"population_id":population,"treated_regime_id":treated,"control_regime_id":control,"horizon":horizon,
+          "components":map["components"],"treated_means":ev.treated_means,"control_means":ev.control_means,
+          "dependence":{"kind":"joint_arms","covariance":covariance},
+          "design":{"assignment_design":ev.design.assignment_design,"treated_units":ev.design.treated_units,"control_units":ev.design.control_units,"outcome_rows":ev.design.outcome_rows},
+          "design_contract_id":identity,"design_details":retained_design,"adjustments":[],"exposure":map["exposure"]})
+    })))
+}
+
+/// Apply an explicitly scoped causal proxy-effect bridge.
+#[pyfunction]
+fn decision_evidence_proxy(payload_json: &str) -> PyResult<Refused> {
+    let value = parse(payload_json, "proxy evidence")?;
+    let map = object(&value, "proxy evidence")?;
+    let ev = match evidence(member(map, "evidence")?)? {
+        Ok(e) => e,
+        Err(e) => return Ok(finish(Err(e))),
+    };
+    let req = request(member(map, "request")?)?;
+    let f = frame(member(map, "frame")?)?;
+    let b = object(member(map, "bridge")?, "bridge")?;
+    let m = object(member(b, "mapping")?, "mapping")?;
+    let mapping = match text(m, "kind")?.as_str() {
+        "predictive_association" => ProxyMapping::PredictiveAssociation,
+        "causal_effect_bounds" => ProxyMapping::CausalEffectBounds {
+            multiplier: decoded(m, "multiplier")?,
+            residual: decoded(m, "residual")?,
+            assumption_id: text(m, "assumption_id")?,
+            mapping_evidence_id: text(m, "mapping_evidence_id")?,
+        },
+        other => return Err(crate::value_err(format!("unknown proxy mapping `{other}`"))),
+    };
+    let bridge = ProxyBridge {
+        proxy_component: text(b, "proxy_component")?,
+        target_variable_id: text(b, "target_variable_id")?,
+        target_units: text(b, "target_units")?,
+        population_id: text(b, "population_id")?,
+        treated_regime_id: text(b, "treated_regime_id")?,
+        control_regime_id: text(b, "control_regime_id")?,
+        horizon: u32::try_from(count(b, "horizon")?)
+            .map_err(|_| crate::value_err("horizon too large"))?,
+        mapping,
+    };
+    Ok(finish(decide_with_proxy(&ev,&req,&bridge,&f).map(|r|json!({"identity":r.identity,"assumption_range":r.assumption_range,"sampling_envelope":r.sampling_envelope,"verdict":verdict_json(&r.verdict),"evidence_ids":r.evidence_ids,"assumption_id":r.assumption_id,"target_variable_id":r.target_variable_id,"target_units":r.target_units}))))
+}
+
 /// Derive a quantity and, when a frame is given, classify the decision; with candidates, plan
 /// the next evidence. Returns the result JSON or a refusal.
 #[pyfunction]
@@ -507,6 +727,8 @@ fn decision_evidence_evaluate(payload_json: &str) -> PyResult<Refused> {
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(decision_evidence_compile, module)?)?;
     module.add_function(wrap_pyfunction!(decision_evidence_cluster_contrast, module)?)?;
+    module.add_function(wrap_pyfunction!(decision_evidence_experimental, module)?)?;
+    module.add_function(wrap_pyfunction!(decision_evidence_proxy, module)?)?;
     module.add_function(wrap_pyfunction!(decision_evidence_evaluate, module)?)?;
     Ok(())
 }
