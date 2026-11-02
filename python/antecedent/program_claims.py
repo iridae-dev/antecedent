@@ -629,16 +629,16 @@ def native_claim(
 
 @dataclass(frozen=True, slots=True)
 class CheckedClaimLimits:
-    """Caller-selected work, payload and retained-memory budgets of a checked composition.
+    """Caller-selected work and payload budgets of a checked composition.
 
-    Admission is acquired before the iterative quote and held by the result; a limit
-    exceeded refuses with :class:`~antecedent.errors.CausalResourceError`.
+    Admission is acquired before the iterative quote and held by the result. Memory is
+    bounded by ``Execution.limits.memory_bytes`` and a 64 MB per-result ceiling;
+    a limit exceeded refuses with :class:`~antecedent.errors.CausalResourceError`.
     """
 
     max_target_work: int = 200_000
     max_target_payload_bytes: int = 2_000_000
     max_target_depth: int = 64
-    max_memory_bytes: int = 64_000_000
     max_terms: int = 16
     max_comparisons: int = 128
     max_world_actions: int = 32
@@ -802,7 +802,14 @@ def compose_study_claims(
             float(parent.coefficient if parent.output_weight is None else parent.output_weight)
             for parent in parents
         ],
-        "limits": asdict(limits),
+        "limits": {
+            **asdict(limits),
+            "max_memory_bytes": (
+                64_000_000
+                if execution.limits.memory_bytes is None
+                else min(64_000_000, execution.limits.memory_bytes)
+            ),
+        },
     }
     controls = native_controls(execution, cancel="cancel", memory="max_bytes")
     native = execution._call(

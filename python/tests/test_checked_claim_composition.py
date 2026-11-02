@@ -203,10 +203,6 @@ def test_declarations_are_typed_before_any_native_work():
 def test_the_composition_runs_under_the_callers_budget_and_cancellation():
     first, second, _, _ = _pair()
     pair = [ClaimParent(first, 1.0), ClaimParent(second, -1.0)]
-    with pytest.raises(CausalResourceError):
-        compose_study_claims(
-            pair, operation="contrast", limits=CheckedClaimLimits(max_memory_bytes=1)
-        )
     tight = ant.Execution(limits=ant.ResourceLimits(memory_bytes=1))
     with pytest.raises(CausalResourceError):
         compose_study_claims(pair, operation="contrast", execution=tight)
@@ -214,6 +210,15 @@ def test_the_composition_runs_under_the_callers_budget_and_cancellation():
     token.cancel()
     with pytest.raises(CausalCancelledError):
         compose_study_claims(pair, operation="contrast", execution=ant.Execution(cancel=token))
+
+
+def test_compositions_share_execution_memory_without_reserving_the_whole_pool():
+    first, second, _, _ = _pair()
+    pair = [ClaimParent(first, 1.0), ClaimParent(second, -1.0)]
+    execution = ant.Execution(limits=ant.ResourceLimits(memory_bytes=256_000_000))
+    retained = compose_study_claims(pair, operation="contrast", execution=execution)
+    another = compose_study_claims(pair, operation="contrast", execution=execution)
+    assert retained.point == another.point
 
 
 def test_the_surface_is_exported():
