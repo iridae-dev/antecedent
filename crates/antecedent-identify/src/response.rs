@@ -3,7 +3,11 @@
 //!
 //! The response estimand remains function-valued; the synthetic unit contrasts built in the
 //! expression arena are identification witnesses for the required treatment/outcome pairs, not
-//! a claim that a continuous response is itself a binary ATE.
+//! a claim that a continuous response is itself a binary ATE. An `InterventionResponse` is the
+//! exception: its estimand states the declared intervention (a hard level's mean, or the
+//! dose-response surface a declared Shift or stochastic policy is a functional of; see
+//! [`crate::response_intervention`]), and an intervention identification cannot state is
+//! refused with a next attempt.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -20,6 +24,9 @@ use antecedent_graph::Dag;
 use crate::backdoor::{BackdoorIdentifier, PreparedIdentificationGraph};
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
+use crate::response_intervention::{
+    RESPONSE_POLICY_NEEDS_ADJUSTMENT, ResponseIntervention, classify_all,
+};
 use crate::result::{
     DerivationTrace, IdentificationPerformanceRecord, IdentificationResult, IdentificationStatus,
 };
@@ -72,6 +79,14 @@ impl ResponseIdentifier {
             ));
         }
         require_observation_claim(response)?;
+        // Every declared intervention is classified before any route runs, so no route can
+        // answer a different question than the one declared.
+        let answered = match &response.functional {
+            ResponseFunctional::InterventionResponse { interventions, .. } => {
+                classify_all(interventions)?
+            }
+            _ => Vec::new(),
+        };
 
         if let Some(result) = self.identify_multi_treatment_joint(prepared, query, response)? {
             return Ok(result);
@@ -116,7 +131,14 @@ impl ResponseIdentifier {
                 .saturating_add(result.performance.candidates_examined);
             performance.sets_returned =
                 performance.sets_returned.saturating_add(result.performance.sets_returned);
+            let target = answered
+                .iter()
+                .find(|(variable, _)| *variable == Some(treatment))
+                .map(|(_, declared)| declared);
             if result.status != IdentificationStatus::NonparametricallyIdentified {
+                if target.is_some_and(ResponseIntervention::is_policy) {
+                    return Err(IdentificationError::unsupported(RESPONSE_POLICY_NEEDS_ADJUSTMENT));
+                }
                 // Back-door failed for this pair: general ID decides it. A response naming one
                 // pair is identified as itself; a Jacobian or directional derivative names many,
                 // and each pair gets its own ID run whose functional joins the shared arena.
@@ -180,33 +202,20 @@ impl ResponseIdentifier {
                     performance,
                 ));
             };
-            let functional = match &response.functional {
-                ResponseFunctional::InterventionResponse { interventions, .. } => {
-                    let level = interventions.iter().find_map(|iv| match iv {
-                        antecedent_core::Intervention::Set { variable, value }
-                            if *variable == treatment =>
-                        {
-                            Some(value.clone())
-                        }
-                        _ => None,
-                    });
-                    match level {
-                        Some(level) => arena.backdoor_mean(
-                            treatment,
-                            outcome,
-                            first.adjustment_set.as_ref(),
-                            level,
-                        ),
-                        None => arena.backdoor_ate(
-                            treatment,
-                            outcome,
-                            first.adjustment_set.as_ref(),
-                            Value::f64(1.0),
-                            Value::f64(0.0),
-                        ),
-                    }
+            // An intervention response states its own declared intervention; only the
+            // derivative and curve functionals keep the unit contrast as the identification
+            // witness of their pair.
+            let functional = match target {
+                Some(answered) => {
+                    answered.record(treatment, &mut derivation, &mut assumptions);
+                    answered.backdoor_functional(
+                        &mut arena,
+                        treatment,
+                        outcome,
+                        first.adjustment_set.as_ref(),
+                    )
                 }
-                _ => arena.backdoor_ate(
+                None => arena.backdoor_ate(
                     treatment,
                     outcome,
                     first.adjustment_set.as_ref(),
@@ -608,6 +617,117 @@ mod tests {
         let single = identify_query(&dag, &jacobian_over(&[1], &[3], false));
         assert_eq!(single.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(single.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+    }
+
+    fn intervention_response(
+        outcome: u32,
+        intervention: antecedent_core::Intervention,
+    ) -> CausalQuery {
+        CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(outcome),
+            interventions: Arc::from([intervention]),
+        }))
+    }
+
+    /// `Z -> T`, `Z -> Y`, `T -> Y` (0 = T, 1 = Y, 2 = Z).
+    fn confounded() -> Dag {
+        let mut dag = Dag::with_variables(3);
+        for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        dag
+    }
+
+    /// A shift or a declared law is not the 1-versus-0 contrast: the result is the dose-response
+    /// surface under back-door adjustment, labelled with the policy actually answered and
+    /// carrying the positivity assumption that policy needs.
+    #[test]
+    fn non_set_interventions_are_answered_as_a_labelled_surface_not_a_contrast() {
+        let t = VariableId::from_raw(0);
+        for intervention in [
+            antecedent_core::Intervention::shift(t, Value::f64(0.5)),
+            antecedent_core::Intervention::stochastic(
+                t,
+                antecedent_core::StochasticPolicy::bernoulli(0.3),
+            ),
+            antecedent_core::Intervention::stochastic(
+                t,
+                antecedent_core::StochasticPolicy::gaussian(0.5, 0.25),
+            ),
+        ] {
+            let result = identify_query(&confounded(), &intervention_response(1, intervention));
+            assert_eq!(result.status, IdentificationStatus::NonparametricallyIdentified);
+            assert_eq!(result.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
+            assert!(
+                matches!(
+                    result.arena.node(result.estimands[0].functional),
+                    antecedent_expr::ExprNode::Expectation { .. }
+                ),
+                "a policy is not a treated-versus-control contrast"
+            );
+            let step = result
+                .derivation
+                .steps
+                .iter()
+                .find(|step| &*step.rule == "response.intervention")
+                .expect("the answered intervention is labelled");
+            assert!(step.detail.contains("answered intervention on"), "{step:?}");
+            assert!(result.required_assumptions.entries.iter().any(|record| {
+                record.assumption == Assumption::Positivity
+                    && record.scope == AssumptionScope::Identification
+            }));
+        }
+    }
+
+    /// A hard level is not a policy: no policy label, no extra assumption.
+    #[test]
+    fn a_set_level_carries_no_policy_label() {
+        let t = VariableId::from_raw(0);
+        let result = identify_query(
+            &confounded(),
+            &intervention_response(1, antecedent_core::Intervention::set(t, Value::f64(1.0))),
+        );
+        assert!(!result.derivation.steps.iter().any(|step| &*step.rule == "response.intervention"));
+        assert!(matches!(
+            result.arena.node(result.estimands[0].functional),
+            antecedent_expr::ExprNode::Expectation { .. }
+        ));
+    }
+
+    #[test]
+    fn an_inexpressible_intervention_refuses_naming_a_next_attempt() {
+        let t = VariableId::from_raw(0);
+        let identifier = ResponseIdentifier::new();
+        let dag = confounded();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        // A shift whose size is itself unbound is not a declared shift.
+        let unbound = intervention_response(
+            1,
+            antecedent_core::Intervention::shift(t, Value::symbolic_intervention()),
+        );
+        let error = identifier
+            .identify(&prepared, &unbound, &mut IdentificationWorkspace::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("next attempt"), "{error}");
+    }
+
+    /// `Y1 -> T -> Y2`: for (T, Y1) the outcome precedes the treatment, so no adjustment set
+    /// exists. A level may fall to general ID; a policy needs the surface and must refuse.
+    #[test]
+    fn a_policy_without_back_door_adjustment_refuses_instead_of_answering_a_contrast() {
+        let mut dag = Dag::with_variables(2);
+        dag.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        let t = VariableId::from_raw(0);
+        let identifier = ResponseIdentifier::new();
+        let prepared = identifier.prepare_with_assumptions(&dag, AssumptionSet::new()).unwrap();
+        let query =
+            intervention_response(1, antecedent_core::Intervention::shift(t, Value::f64(0.5)));
+        let error = identifier
+            .identify(&prepared, &query, &mut IdentificationWorkspace::default())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("next attempt"), "{error}");
     }
 
     #[test]

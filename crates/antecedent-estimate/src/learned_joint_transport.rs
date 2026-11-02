@@ -44,8 +44,9 @@
 //! * Sources are independent with disjoint units; conflicting sources are never pooled
 //!   silently: pairwise posterior disagreement of per-source target effects (each from a
 //!   learn fit of that source alone) is reported.
-//! * Target covariate rows must lie in the axis-aligned box of a source sample (declared
-//!   unsupported-mass tolerance).
+//! * Target covariate rows must lie in the estimated support of a source sample, the union of
+//!   balls of sample-size radius (not its bounding box); the unsupported mass is bounded by the
+//!   declared tolerance.
 //! * The weighted information matrix of the basis design must have full rank: a
 //!   proper prior would otherwise answer a design the data cannot identify.
 //! * Calibration is **unmeasured**; no coverage is claimed and the public interval route
@@ -59,7 +60,8 @@ use crate::joint_bayesian_transport::{
     JOINT_TRANSPORT_MAX_PARAMETERS, JointDraws, JointPriors, JointTransportCalibration,
     JointTransportOptions, JointTransportRefusal, OverlapDiagnostic, PairDisagreement, SourceData,
     SourceDependence, SourceDisagreement, SourceEffectSummary, SourceSharing, TargetData,
-    TransportGraphClass, VaryingBlock, check_prior_data_overlap,
+    TransportGraphClass, VaryingBlock, check_prior_data_overlap, support_test_refusal,
+    unsupported_mass,
 };
 use crate::util::dot;
 use antecedent_core::ExecutionContext;
@@ -116,6 +118,9 @@ pub const DETAIL_INVALID_BASIS: &str = "learned_joint_transport.invalid_basis";
 pub const DETAIL_INVALID_INPUT: &str = "learned_joint_transport.invalid_input";
 /// Detail of a cancelled fit.
 pub const DETAIL_CANCELLED: &str = "learned_joint_transport.cancelled";
+/// Detail of a target support test that exceeded its work or memory limit (never a support
+/// verdict).
+pub const DETAIL_SUPPORT_RESOURCE_LIMIT: &str = "learned_joint_transport.support_resource_limit";
 
 /// Declaration of the learned joint source-target model.
 #[derive(Clone, Debug, PartialEq)]
@@ -680,35 +685,6 @@ fn check_double_use(priors: &JointPriors, sources: &[SourceData]) -> Result<(), 
     })
 }
 
-/// Fraction of target rows outside every source covariate box.
-fn unsupported_mass(sources: &[SourceData], target: &TargetData) -> f64 {
-    let boxes: Vec<Vec<(f64, f64)>> = sources
-        .iter()
-        .map(|source| {
-            source
-                .covariates
-                .iter()
-                .map(|column| {
-                    column.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
-                        (lo.min(*v), hi.max(*v))
-                    })
-                })
-                .collect()
-        })
-        .collect();
-    let outside = (0..target.rows)
-        .filter(|&i| {
-            !boxes.iter().any(|bounds| {
-                bounds
-                    .iter()
-                    .zip(&target.covariates)
-                    .all(|((lo, hi), column)| column[i] >= *lo && column[i] <= *hi)
-            })
-        })
-        .count();
-    outside as f64 / target.rows as f64
-}
-
 /// Basis rows of `rows` units, row-major `rows * m`.
 fn expand(basis: PolynomialBasis, covariates: &[Vec<f64>], rows: usize) -> Vec<f64> {
     let mut out = Vec::with_capacity(rows * basis.width(covariates.len()));
@@ -1093,7 +1069,12 @@ fn fit_inner(
     check_prior(&model.priors.varying, layout.r)?;
     check_unit_ownership(sources, target)?;
     check_double_use(&model.priors, sources)?;
-    let mass = unsupported_mass(sources, target);
+    let mass = unsupported_mass(sources, target, ctx).map_err(|failure| {
+        Box::new(support_test_refusal(
+            failure,
+            (DETAIL_CANCELLED, DETAIL_SUPPORT_RESOURCE_LIMIT, DETAIL_INVALID_INPUT),
+        ))
+    })?;
     if mass > model.max_unsupported_mass {
         let mut refusal = refuse(
             antecedent_core::reason_code!("transport_support_failure"),

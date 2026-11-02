@@ -760,6 +760,67 @@ fn learned_joint_weak_overlap_refuses_with_retained_diagnostics() {
     assert!((ok.diagnostics.overlap.unsupported_mass - 0.5).abs() < 1e-12);
 }
 
+/// Two source clusters (`x` near 0 and near 10), treatment independent of the cluster.
+fn clustered_source() -> SourceData {
+    let mut r1 = wiggly(40, 0, 1.0, 0.09);
+    r1.x = (0..40_i32).map(|i| 10.0 * f64::from((i / 2) % 2) + 0.01 * f64::from(i)).collect();
+    to_source("s1", &r1, "snap-s1", "s1")
+}
+
+/// Half of the target sits in the gap between the clusters, inside the source bounding box.
+fn gap_target() -> TargetData {
+    let x = (0..40).map(|j| if j % 2 == 0 { 5.0 } else { 0.085 }).collect();
+    TargetData { covariates: vec![x], ..target() }
+}
+
+#[test]
+fn learned_joint_weak_overlap_is_a_support_test_not_a_bounding_box_test() {
+    let sources = [clustered_source()];
+    let gap = gap_target();
+    // Inside the source covariate box [0, 10.4], yet half of it has no source mass.
+    let refusal = refusal_of(&model(), &sources, Some(&gap));
+    assert_eq!(refusal.code, "transport_support_failure");
+    assert_eq!(refusal.detail, DETAIL_WEAK_OVERLAP);
+    assert!(refusal.failure.unsupported_mass.is_some_and(|mass| (mass - 0.5).abs() < 1e-12));
+    let mut lenient = model();
+    lenient.max_unsupported_mass = 0.6;
+    let ctx = ExecutionContext::for_tests(1);
+    let ok =
+        fit_learned_joint_transport(&identified(), &lenient, &sources, Some(&gap), &small(), &ctx)
+            .unwrap();
+    assert!((ok.diagnostics.overlap.unsupported_mass - 0.5).abs() < 1e-12);
+    // A target on the observed clusters is fully supported at zero tolerance.
+    let on_support = TargetData { covariates: vec![vec![0.085; 40]], ..target() };
+    let ok = fit_learned_joint_transport(
+        &identified(),
+        &model(),
+        &sources,
+        Some(&on_support),
+        &small(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(ok.diagnostics.overlap.unsupported_mass.abs() < 1e-12);
+}
+
+#[test]
+fn learned_joint_weak_overlap_support_test_cancellation_is_not_a_verdict() {
+    let sources = [clustered_source()];
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let refusal = fit_learned_joint_transport(
+        &identified(),
+        &model(),
+        &sources,
+        Some(&gap_target()),
+        &small(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(refusal.code, "transport_budget_cancel");
+    assert_ne!(refusal.detail, DETAIL_WEAK_OVERLAP);
+}
+
 #[test]
 fn learned_joint_rank_deficient_basis_refuses_with_failure_diagnostics() {
     // Every source covariate equals 0.5: x and x^2 are constant, so the basis columns are

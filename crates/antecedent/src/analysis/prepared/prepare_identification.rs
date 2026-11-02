@@ -1241,7 +1241,10 @@ impl Study {
             return Ok(None);
         };
         let treatments = discrete_set_treatments(interventions);
-        if treatments.len() < 2 {
+        // A non-`Set` coordinate is not a cell: scoring the `Set` coordinates alone would
+        // answer a different joint question than the one declared, so no table is built and
+        // the cell route refuses the query by name.
+        if treatments.len() < 2 || treatments.len() != interventions.len() {
             return Ok(None);
         }
         let est = CellSaturatedAipw::new().with_fold_seed(fold_seed);

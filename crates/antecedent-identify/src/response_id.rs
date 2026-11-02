@@ -58,11 +58,14 @@ use crate::envelope::IdentificationEnvelope;
 use crate::error::IdentificationError;
 use crate::generalized::{
     AdjustmentBudget, GeneralizedAdjustmentIdentifier, MagTarget, identify_on_mag_completion,
-    identify_on_mag_completion_mean, invisible_directed_edges, mag_dense_to_var,
+    identify_on_mag_completion_response, invisible_directed_edges, mag_dense_to_var,
     mag_to_confounded_admg, pag_var_to_dense,
 };
 use crate::id::IdIdentifier;
 use crate::identifier::IdentificationWorkspace;
+use crate::response_intervention::{
+    RESPONSE_POLICY_NEEDS_ADJUSTMENT, ResponseIntervention, express_on_result,
+};
 use crate::result::IdentificationResult;
 
 /// Diagnostic code on a MAG completion that neither generalized adjustment nor
@@ -86,20 +89,27 @@ pub(crate) fn response_ate_witness(
     Ok(AverageEffectQuery::binary_ate(treatment, outcome))
 }
 
-/// Requested Set level for a single-treatment `InterventionResponse`.
-pub(crate) fn intervention_response_set(
+/// The declared intervention of a single-treatment `InterventionResponse`, classified: its
+/// treatment, outcome and what it asks for (a hard level, or a declared Shift / stochastic
+/// policy). `None` for any other functional.
+///
+/// # Errors
+///
+/// An intervention identification cannot state (see [`crate::response_intervention`]).
+pub(crate) fn single_response_intervention(
     query: &ResponseQuery,
-) -> Option<(antecedent_core::VariableId, antecedent_core::VariableId, Value)> {
+) -> Result<
+    Option<(antecedent_core::VariableId, antecedent_core::VariableId, ResponseIntervention)>,
+    IdentificationError,
+> {
     match &query.functional {
         antecedent_core::ResponseFunctional::InterventionResponse { outcome, interventions }
             if interventions.len() == 1 =>
         {
-            match &interventions[0] {
-                Intervention::Set { variable, value } => Some((*variable, *outcome, value.clone())),
-                _ => None,
-            }
+            let answered = ResponseIntervention::classify(&interventions[0])?;
+            Ok(interventions[0].primary_variable().map(|variable| (variable, *outcome, answered)))
         }
-        _ => None,
+        _ => Ok(None),
     }
 }
 
@@ -111,17 +121,21 @@ pub(crate) fn identify_mag_response(
     max_examinations: u64,
     context: Option<&antecedent_core::ExecutionContext>,
 ) -> Result<IdentificationResult, IdentificationError> {
-    if let Some((t, y, level)) = intervention_response_set(query) {
+    if let Some((t, y, answered)) = single_response_intervention(query)? {
         let t_d = pag_var_to_dense(mag, t)?;
         let y_d = pag_var_to_dense(mag, y)?;
-        let mut result = identify_on_mag_completion_mean(
+        let mut result = identify_on_mag_completion_response(
             mag,
             MagTarget { t, y, t_d, y_d },
-            level,
             AdjustmentBudget { max_candidates, max_examinations, context },
             query,
+            |arena, adjustment| answered.backdoor_functional(arena, t, y, adjustment),
         )?;
-        if !is_identified(&result) {
+        if is_identified(&result) {
+            answered.record(t, &mut result.derivation, &mut result.required_assumptions);
+        } else if answered.is_policy() {
+            return Err(IdentificationError::unsupported(RESPONSE_POLICY_NEEDS_ADJUSTMENT));
+        } else {
             result = identify_admg_response(mag, query)?;
         }
         return Ok(result);
@@ -321,6 +335,7 @@ impl GeneralizedAdjustmentIdentifier {
         cpdag: &Cpdag,
         query: &ResponseQuery,
     ) -> Result<IdentificationEnvelope<Dag>, IdentificationError> {
+        let declared = single_response_intervention(query)?;
         let witness = response_ate_witness(query)?;
         let cq = CausalQuery::AverageEffect(witness.clone());
         let mut backdoor = crate::BackdoorIdentifier::new();
@@ -330,18 +345,12 @@ impl GeneralizedAdjustmentIdentifier {
             let prepared = backdoor.prepare(dag)?;
             let mut result = backdoor.identify(&prepared, &cq, &mut workspace)?;
             if !is_identified(&result) {
-                result = identify_dag_via_id(dag, query)?;
-            } else if let Some((t, y, level)) = intervention_response_set(query) {
-                for estimand in &mut result.estimands {
-                    if estimand.method.as_ref() == "backdoor.adjustment" {
-                        estimand.functional = result.arena.backdoor_mean(
-                            t,
-                            y,
-                            &estimand.adjustment_set,
-                            level.clone(),
-                        );
-                    }
+                if declared.as_ref().is_some_and(|(_, _, answered)| answered.is_policy()) {
+                    return Err(IdentificationError::unsupported(RESPONSE_POLICY_NEEDS_ADJUSTMENT));
                 }
+                result = identify_dag_via_id(dag, query)?;
+            } else if let Some((t, y, answered)) = &declared {
+                express_on_result(&mut result, *t, *y, answered)?;
             }
             result.query = CausalQuery::Response(query.clone());
             Ok(result)

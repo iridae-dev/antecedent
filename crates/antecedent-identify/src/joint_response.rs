@@ -173,14 +173,17 @@ pub(crate) fn prepare_joint_response(
             "joint adjustment requires a graph with static variable labels",
         ));
     }
-    if !matches!(
-        response.functional,
-        antecedent_core::ResponseFunctional::InterventionResponse { .. }
-    ) {
+    let antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. } =
+        &response.functional
+    else {
         return Err(IdentificationError::unsupported(
             "joint adjustment requires InterventionResponse",
         ));
-    }
+    };
+    // The joint estimand leaves every treatment coordinate free, so it holds for any hard
+    // level, Shift or stochastic policy; an intervention identification cannot state is
+    // refused here, not answered as if it were a level.
+    crate::response_intervention::classify_all(interventions)?;
     let treatments = response.functional.treatment_ids();
     if treatments.len() < 2
         || treatments.iter().enumerate().any(|(i, t)| treatments[..i].contains(t))
@@ -427,6 +430,18 @@ pub(crate) fn joint_result(
     assumptions.push(crate::assumptions::causal_markov("response.joint_adjustment"));
     if let CausalQuery::Response(response) = &query {
         crate::response::append_observation_assumptions(response, &mut assumptions);
+        if let antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. } =
+            &response.functional
+        {
+            for intervention in interventions.iter() {
+                if let (Ok(answered), Some(variable)) = (
+                    crate::response_intervention::ResponseIntervention::classify(intervention),
+                    intervention.primary_variable(),
+                ) {
+                    answered.record(variable, &mut derivation, &mut assumptions);
+                }
+            }
+        }
     }
     IdentificationResult::identified(
         query,
@@ -514,6 +529,65 @@ mod tests {
         crate::response::append_observation_assumptions(&query, &mut expected);
         assert_eq!(retained.required_assumptions, expected);
         assert_eq!(retained.required_assumptions.entries.len(), 4);
+    }
+
+    /// Confounder 0 of treatments 1 and 2 and outcome 3.
+    fn confounded_pair() -> Dag {
+        let mut dag = Dag::with_variables(4);
+        for child in [1, 2, 3] {
+            dag.insert_directed(n(0), n(child)).unwrap();
+        }
+        for parent in [1, 2] {
+            dag.insert_directed(n(parent), n(3)).unwrap();
+        }
+        dag
+    }
+
+    fn joint_with(first: Intervention) -> ResponseQuery {
+        ResponseQuery::new(ResponseFunctional::InterventionResponse {
+            outcome: VariableId::from_raw(3),
+            interventions: Arc::from([
+                first,
+                Intervention::set(VariableId::from_raw(2), Value::f64(1.0)),
+            ]),
+        })
+    }
+
+    /// The joint route used to validate nothing about the declared interventions: a shift on one
+    /// coordinate was answered as if it were a level. It now names the policy it answers.
+    #[test]
+    fn joint_route_labels_the_policy_it_answers() {
+        let query = joint_with(Intervention::shift(VariableId::from_raw(1), Value::f64(0.5)));
+        let result = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_dag_response(&confounded_pair(), &query)
+            .unwrap();
+        assert!(result.derivation.steps.iter().any(|step| &*step.rule == "response.intervention"));
+        assert!(
+            result
+                .required_assumptions
+                .entries
+                .iter()
+                .any(|record| record.assumption == antecedent_core::Assumption::Positivity)
+        );
+        let levels =
+            joint(VariableId::from_raw(1), VariableId::from_raw(2), VariableId::from_raw(3));
+        let plain = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_dag_response(&confounded_pair(), &levels)
+            .unwrap();
+        assert!(!plain.derivation.steps.iter().any(|step| &*step.rule == "response.intervention"));
+    }
+
+    #[test]
+    fn joint_route_refuses_an_inexpressible_intervention_with_a_next_attempt() {
+        let query = joint_with(Intervention::shift(
+            VariableId::from_raw(1),
+            Value::symbolic_intervention(),
+        ));
+        let error = GeneralizedAdjustmentIdentifier::new()
+            .identify_joint_dag_response(&confounded_pair(), &query)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("next attempt"), "{error}");
     }
 
     #[test]

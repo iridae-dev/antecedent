@@ -685,6 +685,87 @@ fn prior_data_overlap_weak_overlap_and_missing_law_refuse() {
     assert_eq!(refusal_of(&model(), &sources, Some(&empty)).detail, DETAIL_MISSING_LAW);
 }
 
+/// Two source clusters (`x` near 0 and near 10) with the treatment independent of the cluster.
+fn clustered_source() -> SourceData {
+    let mut r1 = raw(40, 0, 1.0, 2.0, 1.5, 0.09);
+    r1.x = (0..40_i32).map(|i| 10.0 * f64::from((i / 2) % 2) + 0.01 * f64::from(i)).collect();
+    to_source("s1", &r1, "snap-s1", "s1")
+}
+
+/// Half of the target sits in the gap between the clusters, inside the source bounding box.
+fn gap_target() -> TargetData {
+    let x = (0..40).map(|j| if j % 2 == 0 { 5.0 } else { 0.085 }).collect();
+    TargetData { covariates: vec![x], ..target() }
+}
+
+#[test]
+fn weak_overlap_is_a_support_test_not_a_bounding_box_test() {
+    let sources = [clustered_source()];
+    let gap = gap_target();
+    // The target lies inside the source covariate box [0, 10.4], but half of it sits where the
+    // source covariate law has no mass: that mass is unsupported.
+    let refusal = refusal_of(&model(), &sources, Some(&gap));
+    assert_eq!(refusal.code, "transport_support_failure");
+    assert_eq!(refusal.detail, DETAIL_WEAK_OVERLAP);
+    assert!(refusal.failure.unsupported_mass.is_some_and(|m| (m - 0.5).abs() < 1e-12));
+    // A tolerance above the unsupported mass admits the target and reports the same mass.
+    let mut lenient = model();
+    lenient.max_unsupported_mass = 0.6;
+    let ctx = ExecutionContext::for_tests(1);
+    let fit = fit_joint_bayesian_transport(
+        &identified(),
+        &lenient,
+        &sources,
+        Some(&gap),
+        &JointTransportOptions { draws: 10, seed: 1 },
+        &ctx,
+    )
+    .unwrap();
+    assert!((fit.diagnostics.overlap.unsupported_mass - 0.5).abs() < 1e-12);
+    // A target on the observed clusters is fully supported at zero tolerance.
+    let on_support = TargetData { covariates: vec![vec![0.085; 40]], ..target() };
+    let fit = fit_joint_bayesian_transport(
+        &identified(),
+        &model(),
+        &sources,
+        Some(&on_support),
+        &JointTransportOptions { draws: 10, seed: 1 },
+        &ctx,
+    )
+    .unwrap();
+    assert!(fit.diagnostics.overlap.unsupported_mass.abs() < 1e-12);
+}
+
+#[test]
+fn weak_overlap_discrete_covariate_is_supported_only_on_its_atoms() {
+    // A binary source covariate: 0.5 lies inside [0, 1] but is not an observed atom.
+    let mut r1 = raw(40, 0, 1.0, 2.0, 1.5, 0.09);
+    r1.x = (0..40_i32).map(|i| f64::from((i / 2) % 2)).collect();
+    let sources = [to_source("s1", &r1, "snap-s1", "s1")];
+    let between = TargetData { covariates: vec![vec![0.5; 40]], ..target() };
+    let refusal = refusal_of(&model(), &sources, Some(&between));
+    assert_eq!(refusal.code, "transport_support_failure");
+    assert!(refusal.failure.unsupported_mass.is_some_and(|m| (m - 1.0).abs() < 1e-12));
+}
+
+#[test]
+fn weak_overlap_support_test_polls_cancellation_not_a_verdict() {
+    let sources = [clustered_source()];
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let refusal = fit_joint_bayesian_transport(
+        &identified(),
+        &model(),
+        &sources,
+        Some(&gap_target()),
+        &options(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(refusal.code, "transport_budget_cancel");
+    assert_ne!(refusal.detail, DETAIL_WEAK_OVERLAP);
+}
+
 #[test]
 fn prior_data_overlap_bounds_and_source_dependence_refuse() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);

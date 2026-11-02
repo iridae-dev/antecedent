@@ -929,6 +929,40 @@ impl CausalExprArena {
         mean
     }
 
+    /// Build the back-door adjustment functional of the dose-response *surface*
+    /// `m(t) = E[Y | do(T=t)]` under adjustment by Z, with the level left symbolic.
+    ///
+    /// This is the identified object behind a declared Shift or stochastic policy on `T`:
+    /// the policy is a functional of the surface (a mixture of its levels, or its value at the
+    /// factual treatment plus the shift), so the surface is neither a hard level nor a
+    /// treated-versus-control contrast. The declared policy rides on the query and the
+    /// derivation; the arena has no policy node. Evaluating the surface without a binding of
+    /// the symbolic level is refused, never answered at a default level.
+    pub fn backdoor_response_surface(
+        &mut self,
+        treatment: VariableId,
+        outcome: VariableId,
+        adjustment: &[VariableId],
+    ) -> ExprId {
+        let surface = self.backdoor_potential_outcome(
+            treatment,
+            outcome,
+            adjustment,
+            Value::symbolic_intervention(),
+        );
+        self.set_derivation(
+            surface,
+            DerivationMeta::rule(
+                "backdoor.adjustment",
+                Some(Arc::from(format!(
+                    "response surface E[Y | do(T=.)], adjustment set size {}",
+                    adjustment.len()
+                ))),
+            ),
+        );
+        surface
+    }
+
     fn backdoor_potential_outcome(
         &mut self,
         treatment: VariableId,
@@ -1324,6 +1358,36 @@ mod tests {
         let pretty = a.pretty(id);
         assert!(pretty.contains("do(") && pretty.contains('0'), "{pretty}");
         assert!(!pretty.contains('−'), "{pretty}");
+    }
+
+    #[test]
+    fn backdoor_response_surface_is_a_symbolic_mean_not_a_contrast_or_a_level() {
+        let mut a = CausalExprArena::new();
+        let (t, y, z) = (VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2));
+        let surface = a.backdoor_response_surface(t, y, &[z]);
+        let at_zero = a.backdoor_mean(t, y, &[z], Value::f64(0.0));
+        let ate = a.backdoor_ate(t, y, &[z], Value::f64(1.0), Value::f64(0.0));
+        assert!(matches!(a.node(surface), ExprNode::Expectation { .. }));
+        assert_ne!(surface, at_zero, "the surface is not the mean at any one level");
+        assert_ne!(surface, ate, "the surface is not the 1-vs-0 contrast");
+        let ExprNode::Expectation { distribution, .. } = a.node(surface).clone() else {
+            unreachable!("checked above")
+        };
+        let ExprNode::SumOut { expr, .. } = a.node(distribution).clone() else {
+            panic!("the adjustment sums out the confounders");
+        };
+        let ExprNode::Product(factors) = a.node(expr).clone() else {
+            panic!("outcome law times confounder law");
+        };
+        let ExprNode::Distribution { intervention, .. } = a.node(a.list(factors)[0]).clone() else {
+            panic!("the first factor is the interventional outcome law");
+        };
+        assert!(
+            a.intervention_assignments(intervention)
+                .iter()
+                .all(InterventionAssignment::is_symbolic),
+            "the treatment level stays symbolic"
+        );
     }
 
     #[test]

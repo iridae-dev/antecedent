@@ -1148,21 +1148,22 @@ pub(crate) fn identify_on_mag_completion(
     }
 }
 
-/// Single-arm MAG adjustment mean `E[Y | do(T=level)]` at the requested Set.
-pub(crate) fn identify_on_mag_completion_mean(
+/// MAG adjustment for a single-treatment response: the functional the found adjustment set
+/// licenses is built by `functional` from the set (the mean at a hard level, or the surface a
+/// declared policy is a functional of), never a stand-in contrast.
+pub(crate) fn identify_on_mag_completion_response(
     mag: &Pag,
     target: MagTarget,
-    level: Value,
     budget: AdjustmentBudget<'_>,
     response: &ResponseQuery,
+    functional: impl FnOnce(&mut CausalExprArena, &[VariableId]) -> antecedent_expr::ExprId,
 ) -> Result<IdentificationResult, IdentificationError> {
-    let MagTarget { t, y, .. } = target;
     let query = CausalQuery::Response(response.clone());
     match mag_adjustment_search(mag, target, query.clone(), budget)? {
         MagAdjustment::Failed(result) => Ok(result),
         MagAdjustment::Found { z_vars, examined, budget_exhausted } => {
             let mut arena = CausalExprArena::new();
-            let functional = arena.backdoor_mean(t, y, &z_vars, level);
+            let functional = functional(&mut arena, &z_vars[..]);
             Ok(mag_adjustment_identified(
                 query,
                 z_vars,
