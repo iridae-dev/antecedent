@@ -75,7 +75,7 @@ pub(super) fn exercise(
     clippy::match_wildcard_for_single_variants,
     reason = "the bounded reference fixture preserves its exact calculations and local structure"
 )]
-fn translated_fixture(
+pub(super) fn translated_fixture(
     original: &JointPanelResult,
     functional: JointPanelResponseFunctional,
     uncertain: bool,

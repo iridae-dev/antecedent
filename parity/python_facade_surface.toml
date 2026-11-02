@@ -3057,6 +3057,18 @@ status = "bound"
 python = "antecedent.joint_panel.PanelResult.condition_excursion"
 
 [[entry]]
+rust = "antecedent::decision_evidence::condition_panel_jointly_on_retained_evidence"
+kind = "fn"
+status = "missing"
+reason = "joint update takes Rust-typed retained evidence and a panel result; the Python PanelResult has no joint-experiment binding yet"
+
+[[entry]]
+rust = "antecedent::decision_evidence::joint_contrast_sampling"
+kind = "fn"
+status = "missing"
+reason = "joint update takes Rust-typed retained evidence and a panel result; the Python PanelResult has no joint-experiment binding yet"
+
+[[entry]]
 rust = "antecedent::decision_evidence::evidence_from_compiled_cluster"
 kind = "fn"
 status = "internal"

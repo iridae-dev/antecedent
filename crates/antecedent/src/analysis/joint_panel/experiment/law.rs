@@ -199,6 +199,7 @@ impl JointLawExperimentResult {
             update: Arc::clone(&self.update),
             original_dependency: self.original.dependency_identity(),
             retention: Arc::clone(&self.retention),
+            companions: Vec::new(),
         })
     }
 

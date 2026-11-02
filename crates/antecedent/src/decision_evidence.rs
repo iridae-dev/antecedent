@@ -17,7 +17,10 @@ pub use antecedent_estimate::randomized_joint::{
     JointClusterContrast, centered_fixed_cuped_totals, complete_cluster_joint_contrast,
 };
 pub use panel_bridge::{
-    ExcursionPanelUpdate, compiled_excursion_quantity, condition_panel_on_compiled_excursion,
+    ExcursionPanelUpdate, JointContrastSampling, JointEvidenceComponent, RetainedExperiment,
+    RetainedJointPanelUpdate, compiled_excursion_quantity,
+    condition_panel_jointly_on_retained_evidence, condition_panel_on_compiled_excursion,
+    joint_contrast_sampling,
 };
 
 /// Wrap a historical joint cluster estimate as numerical decision evidence.

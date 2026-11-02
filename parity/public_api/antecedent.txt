@@ -161,6 +161,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_pa
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::JointPanelState [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelExperimentResult [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelExperimentState [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelJointExperimentResult [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PreparedJointPanelImputation [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_bayesian::BayesianSession [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_composite::CompositeSession [auto]
@@ -172,6 +173,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_s
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::recalc_static::StaticResponseSession [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::sample_split_analysis::SplitDiscovery [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent::gcm::FittedGcm [auto]
@@ -209,6 +211,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::JointPanelState [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelExperimentResult [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelExperimentState [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelJointExperimentResult [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PreparedJointPanelImputation [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_bayesian::BayesianSession [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_composite::CompositeSession [auto]
@@ -220,6 +223,7 @@ impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_stat
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::recalc_static::StaticResponseSession [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::analysis::sample_split_analysis::SplitDiscovery [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::DiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::discovery::StaticDiscoverParams [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent::gcm::FittedGcm [auto]
@@ -751,6 +755,7 @@ impl core::clone::Clone for antecedent::analysis::joint_panel::CheckedReferenceD
 impl core::clone::Clone for antecedent::analysis::joint_panel::DesignAdaptiveReference
 impl core::clone::Clone for antecedent::analysis::joint_panel::DesignArtifactLimits
 impl core::clone::Clone for antecedent::analysis::joint_panel::DummyCodedPanel
+impl core::clone::Clone for antecedent::analysis::joint_panel::HistoricalJointExperiment
 impl core::clone::Clone for antecedent::analysis::joint_panel::HistoricalJointLawExperiment
 impl core::clone::Clone for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment
 impl core::clone::Clone for antecedent::analysis::joint_panel::HistoricalPopulationReference
@@ -818,6 +823,11 @@ impl core::clone::Clone for antecedent::analysis::joint_panel::PanelFutureSample
 impl core::clone::Clone for antecedent::analysis::joint_panel::PanelFutureStudy
 impl core::clone::Clone for antecedent::analysis::joint_panel::PanelFutureStudyUpdate
 impl core::clone::Clone for antecedent::analysis::joint_panel::PanelFutureStudyValue
+impl core::clone::Clone for antecedent::analysis::joint_panel::PanelJointCombination
+impl core::clone::Clone for antecedent::analysis::joint_panel::PanelJointExperimentComponent
+impl core::clone::Clone for antecedent::analysis::joint_panel::PanelJointExperimentResult
+impl core::clone::Clone for antecedent::analysis::joint_panel::PanelJointExperimentUpdate
+impl core::clone::Clone for antecedent::analysis::joint_panel::PanelJointSensitivity
 impl core::clone::Clone for antecedent::analysis::joint_panel::PanelMissingPolicy
 impl core::clone::Clone for antecedent::analysis::joint_panel::PanelUnitAccounting
 impl core::clone::Clone for antecedent::analysis::joint_panel::PanelUnitDrop
@@ -1003,10 +1013,14 @@ impl core::clone::Clone for antecedent::decision_evidence::CompiledJointSwitchba
 impl core::clone::Clone for antecedent::decision_evidence::CompiledMatchedPairDesign
 impl core::clone::Clone for antecedent::decision_evidence::CompiledRegimeEvidence
 impl core::clone::Clone for antecedent::decision_evidence::ExcursionPanelUpdate
+impl core::clone::Clone for antecedent::decision_evidence::JointContrastSampling
+impl core::clone::Clone for antecedent::decision_evidence::JointEvidenceComponent
 impl core::clone::Clone for antecedent::decision_evidence::JointExcursionDesign
 impl core::clone::Clone for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::clone::Clone for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::clone::Clone for antecedent::decision_evidence::MatchedPairDesign
+impl core::clone::Clone for antecedent::decision_evidence::RetainedExperiment
+impl core::clone::Clone for antecedent::decision_evidence::RetainedJointPanelUpdate
 impl core::clone::Clone for antecedent::design::DesignRankPreview
 impl core::clone::Clone for antecedent::design::StudyDesignRanking
 impl core::clone::Clone for antecedent::discovery::BayesianDiscoverParams
@@ -1678,6 +1692,8 @@ impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelCellRole
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelDataAccounting
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelDummyChannel
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelExperimentModularPolicy
+impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelJointCombination
+impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelJointSensitivity
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelMissingPolicy
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelUnitAccounting
 impl core::cmp::PartialEq for antecedent::analysis::joint_panel::PanelUnitDrop
@@ -1793,6 +1809,7 @@ impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointExcurs
 impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointStaticRegime
 impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::cmp::PartialEq for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::cmp::PartialEq for antecedent::decision_evidence::JointContrastSampling
 impl core::cmp::PartialEq for antecedent::decision_evidence::JointExcursionDesign
 impl core::cmp::PartialEq for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::cmp::PartialEq for antecedent::decision_evidence::JointSwitchbackDesign
@@ -1909,6 +1926,11 @@ impl core::convert::From<antecedent::analysis::recalc_receipt::RecalcRunError> f
 impl core::convert::From<antecedent::analysis::recalc_receipt::RecalcRunError> for antecedent::analysis::recalc_temporal::TemporalRunError
 impl core::convert::From<antecedent::analysis::recalc_receipt::ReceiptError> for antecedent::analysis::recalc_receipt::RecalcRunError
 impl core::convert::From<antecedent::analysis::recalc_temporal::TemporalRunError> for antecedent::analysis::FlagshipError
+impl core::convert::From<antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence> for antecedent::decision_evidence::RetainedExperiment
+impl core::convert::From<antecedent::decision_evidence::CompiledClusterEvidence> for antecedent::decision_evidence::RetainedExperiment
+impl core::convert::From<antecedent::decision_evidence::CompiledExcursionEvidence> for antecedent::decision_evidence::RetainedExperiment
+impl core::convert::From<antecedent::decision_evidence::CompiledExperimentalEvidence> for antecedent::decision_evidence::RetainedExperiment
+impl core::convert::From<antecedent::decision_evidence::CompiledRegimeEvidence> for antecedent::decision_evidence::RetainedExperiment
 impl core::convert::From<antecedent::strategy_table::UnknownStrategy> for antecedent::CausalError
 impl core::convert::From<antecedent_attribution::error::AttributionError> for antecedent::CausalError
 impl core::convert::From<antecedent_attribution::error::AttributionError> for antecedent::CompileCause
@@ -2624,6 +2646,7 @@ impl core::fmt::Debug for antecedent::analysis::joint_panel::CheckedReferenceDec
 impl core::fmt::Debug for antecedent::analysis::joint_panel::DesignAdaptiveReference
 impl core::fmt::Debug for antecedent::analysis::joint_panel::DesignArtifactLimits
 impl core::fmt::Debug for antecedent::analysis::joint_panel::DummyCodedPanel
+impl core::fmt::Debug for antecedent::analysis::joint_panel::HistoricalJointExperiment
 impl core::fmt::Debug for antecedent::analysis::joint_panel::HistoricalJointLawExperiment
 impl core::fmt::Debug for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment
 impl core::fmt::Debug for antecedent::analysis::joint_panel::HistoricalPopulationReference
@@ -2692,6 +2715,11 @@ impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelFutureSampleVa
 impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelFutureStudy
 impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelFutureStudyUpdate
 impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelFutureStudyValue
+impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelJointCombination
+impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelJointExperimentComponent
+impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelJointExperimentResult
+impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelJointExperimentUpdate
+impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelJointSensitivity
 impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelMissingPolicy
 impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelUnitAccounting
 impl core::fmt::Debug for antecedent::analysis::joint_panel::PanelUnitDrop
@@ -2885,10 +2913,14 @@ impl core::fmt::Debug for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledMatchedPairDesign
 impl core::fmt::Debug for antecedent::decision_evidence::CompiledRegimeEvidence
 impl core::fmt::Debug for antecedent::decision_evidence::ExcursionPanelUpdate
+impl core::fmt::Debug for antecedent::decision_evidence::JointContrastSampling
+impl core::fmt::Debug for antecedent::decision_evidence::JointEvidenceComponent
 impl core::fmt::Debug for antecedent::decision_evidence::JointExcursionDesign
 impl core::fmt::Debug for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::fmt::Debug for antecedent::decision_evidence::JointSwitchbackDesign
 impl core::fmt::Debug for antecedent::decision_evidence::MatchedPairDesign
+impl core::fmt::Debug for antecedent::decision_evidence::RetainedExperiment
+impl core::fmt::Debug for antecedent::decision_evidence::RetainedJointPanelUpdate
 impl core::fmt::Debug for antecedent::design::DesignRankPreview
 impl core::fmt::Debug for antecedent::design::StudyDesignRanking
 impl core::fmt::Debug for antecedent::discovery::BayesianDiscoverParams
@@ -3206,6 +3238,8 @@ impl core::marker::Copy for antecedent::analysis::joint_panel::JointPanelSearchU
 impl core::marker::Copy for antecedent::analysis::joint_panel::LawExperimentLimits
 impl core::marker::Copy for antecedent::analysis::joint_panel::PanelCellRole
 impl core::marker::Copy for antecedent::analysis::joint_panel::PanelExperimentModularPolicy
+impl core::marker::Copy for antecedent::analysis::joint_panel::PanelJointCombination
+impl core::marker::Copy for antecedent::analysis::joint_panel::PanelJointSensitivity
 impl core::marker::Copy for antecedent::analysis::joint_panel::PanelMissingPolicy
 impl core::marker::Copy for antecedent::analysis::joint_panel::PanelUnitDrop
 impl core::marker::Copy for antecedent::analysis::joint_panel::ReferenceArtifactLimits
@@ -3799,6 +3833,7 @@ impl core::marker::Freeze for antecedent::analysis::joint_panel::CheckedReferenc
 impl core::marker::Freeze for antecedent::analysis::joint_panel::DesignAdaptiveReference [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::DesignArtifactLimits [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::DummyCodedPanel [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::HistoricalJointExperiment [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::HistoricalJointLawExperiment [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::HistoricalPopulationReference [auto]
@@ -3867,6 +3902,11 @@ impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelFutureSamp
 impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelFutureStudy [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelFutureStudyUpdate [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelFutureStudyValue [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelJointCombination [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelJointExperimentComponent [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelJointExperimentResult [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelJointExperimentUpdate [auto]
+impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelJointSensitivity [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelMissingPolicy [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelUnitAccounting [auto]
 impl core::marker::Freeze for antecedent::analysis::joint_panel::PanelUnitDrop [auto]
@@ -4078,10 +4118,14 @@ impl core::marker::Freeze for antecedent::decision_evidence::CompiledJointSwitch
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::JointContrastSampling [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::JointEvidenceComponent [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::JointExcursionDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Freeze for antecedent::decision_evidence::MatchedPairDesign [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::RetainedExperiment [auto]
+impl core::marker::Freeze for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
 impl core::marker::Freeze for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Freeze for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Freeze for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -4724,6 +4768,7 @@ impl core::marker::Send for antecedent::analysis::joint_panel::CheckedReferenceD
 impl core::marker::Send for antecedent::analysis::joint_panel::DesignAdaptiveReference [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::DesignArtifactLimits [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::DummyCodedPanel [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::HistoricalJointExperiment [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::HistoricalJointLawExperiment [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::HistoricalPopulationReference [auto]
@@ -4792,6 +4837,11 @@ impl core::marker::Send for antecedent::analysis::joint_panel::PanelFutureSample
 impl core::marker::Send for antecedent::analysis::joint_panel::PanelFutureStudy [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::PanelFutureStudyUpdate [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::PanelFutureStudyValue [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::PanelJointCombination [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::PanelJointExperimentComponent [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::PanelJointExperimentResult [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::PanelJointExperimentUpdate [auto]
+impl core::marker::Send for antecedent::analysis::joint_panel::PanelJointSensitivity [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::PanelMissingPolicy [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::PanelUnitAccounting [auto]
 impl core::marker::Send for antecedent::analysis::joint_panel::PanelUnitDrop [auto]
@@ -5004,10 +5054,14 @@ impl core::marker::Send for antecedent::decision_evidence::CompiledJointSwitchba
 impl core::marker::Send for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
 impl core::marker::Send for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Send for antecedent::decision_evidence::JointContrastSampling [auto]
+impl core::marker::Send for antecedent::decision_evidence::JointEvidenceComponent [auto]
 impl core::marker::Send for antecedent::decision_evidence::JointExcursionDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Send for antecedent::decision_evidence::MatchedPairDesign [auto]
+impl core::marker::Send for antecedent::decision_evidence::RetainedExperiment [auto]
+impl core::marker::Send for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
 impl core::marker::Send for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Send for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Send for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -5468,6 +5522,8 @@ impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::Pa
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelDataAccounting
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelDummyChannel
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelExperimentModularPolicy
+impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelJointCombination
+impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelJointSensitivity
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelMissingPolicy
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelUnitAccounting
 impl core::marker::StructuralPartialEq for antecedent::analysis::joint_panel::PanelUnitDrop
@@ -5583,6 +5639,7 @@ impl core::marker::StructuralPartialEq for antecedent::decision_evidence::Compil
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointStaticRegime
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledJointSwitchback
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::CompiledMatchedPairDesign
+impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointContrastSampling
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointExcursionDesign
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointStaticRegimeDesign
 impl core::marker::StructuralPartialEq for antecedent::decision_evidence::JointSwitchbackDesign
@@ -6192,6 +6249,7 @@ impl core::marker::Sync for antecedent::analysis::joint_panel::CheckedReferenceD
 impl core::marker::Sync for antecedent::analysis::joint_panel::DesignAdaptiveReference [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::DesignArtifactLimits [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::DummyCodedPanel [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::HistoricalJointExperiment [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::HistoricalJointLawExperiment [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::HistoricalPopulationReference [auto]
@@ -6260,6 +6318,11 @@ impl core::marker::Sync for antecedent::analysis::joint_panel::PanelFutureSample
 impl core::marker::Sync for antecedent::analysis::joint_panel::PanelFutureStudy [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::PanelFutureStudyUpdate [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::PanelFutureStudyValue [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::PanelJointCombination [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::PanelJointExperimentComponent [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::PanelJointExperimentResult [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::PanelJointExperimentUpdate [auto]
+impl core::marker::Sync for antecedent::analysis::joint_panel::PanelJointSensitivity [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::PanelMissingPolicy [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::PanelUnitAccounting [auto]
 impl core::marker::Sync for antecedent::analysis::joint_panel::PanelUnitDrop [auto]
@@ -6472,10 +6535,14 @@ impl core::marker::Sync for antecedent::decision_evidence::CompiledJointSwitchba
 impl core::marker::Sync for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
 impl core::marker::Sync for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Sync for antecedent::decision_evidence::JointContrastSampling [auto]
+impl core::marker::Sync for antecedent::decision_evidence::JointEvidenceComponent [auto]
 impl core::marker::Sync for antecedent::decision_evidence::JointExcursionDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Sync for antecedent::decision_evidence::MatchedPairDesign [auto]
+impl core::marker::Sync for antecedent::decision_evidence::RetainedExperiment [auto]
+impl core::marker::Sync for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
 impl core::marker::Sync for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Sync for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Sync for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -7119,6 +7186,7 @@ impl core::marker::Unpin for antecedent::analysis::joint_panel::CheckedReference
 impl core::marker::Unpin for antecedent::analysis::joint_panel::DesignAdaptiveReference [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::DesignArtifactLimits [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::DummyCodedPanel [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::HistoricalJointExperiment [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::HistoricalJointLawExperiment [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::HistoricalPopulationReference [auto]
@@ -7187,6 +7255,11 @@ impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelFutureSampl
 impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelFutureStudy [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelFutureStudyUpdate [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelFutureStudyValue [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelJointCombination [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelJointExperimentComponent [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelJointExperimentResult [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelJointExperimentUpdate [auto]
+impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelJointSensitivity [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelMissingPolicy [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelUnitAccounting [auto]
 impl core::marker::Unpin for antecedent::analysis::joint_panel::PanelUnitDrop [auto]
@@ -7399,10 +7472,14 @@ impl core::marker::Unpin for antecedent::decision_evidence::CompiledJointSwitchb
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::ExcursionPanelUpdate [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::JointContrastSampling [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::JointEvidenceComponent [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::JointExcursionDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::marker::Unpin for antecedent::decision_evidence::MatchedPairDesign [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::RetainedExperiment [auto]
+impl core::marker::Unpin for antecedent::decision_evidence::RetainedJointPanelUpdate [auto]
 impl core::marker::Unpin for antecedent::design::DesignRankPreview [auto]
 impl core::marker::Unpin for antecedent::design::StudyDesignRanking [auto]
 impl core::marker::Unpin for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -8031,6 +8108,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_s
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::CheckedReferenceDecomposition [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::DesignArtifactLimits [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::HistoricalJointExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::HistoricalJointLawExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::HistoricalPopulationReference [auto]
@@ -8091,6 +8169,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_pan
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelFutureStudy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelFutureStudyUpdate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelFutureStudyValue [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelJointCombination [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelJointExperimentComponent [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelJointExperimentUpdate [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelJointSensitivity [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelMissingPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelUnitAccounting [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_panel::PanelUnitDrop [auto]
@@ -8292,10 +8374,13 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointContrastSampling [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointEvidenceComponent [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointExcursionDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::decision_evidence::RetainedExperiment [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::DesignRankPreview [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -8910,6 +8995,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sour
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_law_composed_basis::Resolution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::CheckedReferenceDecomposition [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::DesignArtifactLimits [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::HistoricalJointExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::HistoricalJointLawExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::HistoricalNativeJointExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::HistoricalPopulationReference [auto]
@@ -8970,6 +9056,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel:
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelFutureStudy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelFutureStudyUpdate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelFutureStudyValue [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelJointCombination [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelJointExperimentComponent [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelJointExperimentUpdate [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelJointSensitivity [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelMissingPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelUnitAccounting [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_panel::PanelUnitDrop [auto]
@@ -9171,10 +9261,13 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::Com
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledJointSwitchback [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledMatchedPairDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::CompiledRegimeEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointContrastSampling [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointEvidenceComponent [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointExcursionDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointStaticRegimeDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::JointSwitchbackDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::MatchedPairDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::decision_evidence::RetainedExperiment [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::DesignRankPreview [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::design::StudyDesignRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::discovery::BayesianDiscoverParams [auto]
@@ -9921,6 +10014,7 @@ pub enum antecedent::analysis::recalc_receipt::ReceiptError
 pub enum antecedent::analysis::recalc_temporal::TemporalRunError
 pub enum antecedent::analysis::target_validation::PreparedTargetData<'a>
 pub enum antecedent::analysis::target_validation::WithinClassDistribution
+pub enum antecedent::decision_evidence::RetainedExperiment
 pub enum antecedent::gcm::NestedOutcomeMechanism
 pub enum antecedent::period_refresh::PeriodRefreshOutcome
 pub enum antecedent::planner::PlanStage
@@ -11933,6 +12027,24 @@ pub field antecedent::analysis::joint_panel::PanelFutureStudyUpdate::response_me
 pub field antecedent::analysis::joint_panel::PanelFutureStudyUpdate::study_id: alloc::string::String
 pub field antecedent::analysis::joint_panel::PanelFutureStudyValue::regime_identity: core::option::Option<antecedent_core::identity::SemanticDigest>
 pub field antecedent::analysis::joint_panel::PanelFutureStudyValue::value: antecedent::analysis::joint_panel::PanelFutureSampleValue
+pub field antecedent::analysis::joint_panel::PanelJointCombination::posterior_mean: f64
+pub field antecedent::analysis::joint_panel::PanelJointCombination::posterior_variance: f64
+pub field antecedent::analysis::joint_panel::PanelJointCombination::prior_mean: f64
+pub field antecedent::analysis::joint_panel::PanelJointCombination::prior_variance: f64
+pub field antecedent::analysis::joint_panel::PanelJointExperimentComponent::bridge: antecedent_contract::bridge::contract::BridgeContract
+pub field antecedent::analysis::joint_panel::PanelJointExperimentComponent::functional: antecedent::analysis::joint_panel::JointPanelResponseFunctional
+pub field antecedent::analysis::joint_panel::PanelJointExperimentComponent::mapping: antecedent::analysis::joint_panel::PanelExperimentMapping
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::components: alloc::vec::Vec<antecedent::analysis::joint_panel::PanelJointExperimentComponent>
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::contrast_bias_bounds: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::evidence: antecedent::analysis::joint_panel::PanelExperimentEvidence
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::modular_policy: antecedent::analysis::joint_panel::PanelExperimentModularPolicy
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::observed_means: alloc::vec::Vec<f64>
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::sample_size: u64
+pub field antecedent::analysis::joint_panel::PanelJointExperimentUpdate::sampling_covariance: alloc::vec::Vec<f64>
+pub field antecedent::analysis::joint_panel::PanelJointSensitivity::enumerated_maximum: f64
+pub field antecedent::analysis::joint_panel::PanelJointSensitivity::enumerated_minimum: f64
+pub field antecedent::analysis::joint_panel::PanelJointSensitivity::nominal: f64
+pub field antecedent::analysis::joint_panel::PanelJointSensitivity::settings: usize
 pub field antecedent::analysis::joint_panel::PanelUnitAccounting::analysed_periods: usize
 pub field antecedent::analysis::joint_panel::PanelUnitAccounting::declared_weight: f64
 pub field antecedent::analysis::joint_panel::PanelUnitAccounting::dropped: core::option::Option<antecedent::analysis::joint_panel::PanelUnitDrop>
@@ -12629,6 +12741,13 @@ pub field antecedent::decision_evidence::CompiledJointSwitchback::obligations: a
 pub field antecedent::decision_evidence::CompiledMatchedPairDesign::design: antecedent::decision_evidence::MatchedPairDesign
 pub field antecedent::decision_evidence::CompiledMatchedPairDesign::identity: alloc::string::String
 pub field antecedent::decision_evidence::CompiledMatchedPairDesign::obligations: alloc::vec::Vec<&'static str>
+pub field antecedent::decision_evidence::JointContrastSampling::contrast_bias_bounds: core::option::Option<alloc::vec::Vec<f64>>
+pub field antecedent::decision_evidence::JointContrastSampling::covariance: alloc::vec::Vec<f64>
+pub field antecedent::decision_evidence::JointContrastSampling::observed: alloc::vec::Vec<f64>
+pub field antecedent::decision_evidence::JointEvidenceComponent::bridge: antecedent_contract::bridge::contract::BridgeContract
+pub field antecedent::decision_evidence::JointEvidenceComponent::component: alloc::string::String
+pub field antecedent::decision_evidence::JointEvidenceComponent::functional: antecedent::analysis::joint_panel::JointPanelResponseFunctional
+pub field antecedent::decision_evidence::JointEvidenceComponent::mapping: antecedent::analysis::joint_panel::PanelExperimentMapping
 pub field antecedent::decision_evidence::JointExcursionDesign::administrative_followup_assumption_id: alloc::string::String
 pub field antecedent::decision_evidence::JointExcursionDesign::assignment_law_id: alloc::string::String
 pub field antecedent::decision_evidence::JointExcursionDesign::consistency_assumption_id: alloc::string::String
@@ -13174,7 +13293,7 @@ pub fn <antecedent::CostModel>::fn platform(&self) -> &str
 pub fn <antecedent::CounterfactualTransportObstructionReport>::const fn obstruction(&self) -> &antecedent_identify::sid::counterfactual_transport::CounterfactualTransportObstruction
 pub fn <antecedent::CounterfactualTransportObstructionReport>::fn export_artifact(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::CounterfactualTransportObstructionReport>::fn reason(&self) -> &str
-pub fn <antecedent::CounterfactualTransportObstructionReport>::fn verify(&self) -> core::result::Result<antecedent_identify::sid::counterfactual_transport::witness::CounterfactualTransportWitnessCheck, antecedent_io_core::error::IoError>
+pub fn <antecedent::CounterfactualTransportObstructionReport>::fn verify(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::sid::counterfactual_transport::witness::CounterfactualTransportWitnessCheck, antecedent_io_core::error::IoError>
 pub fn <antecedent::CounterfactualTransportPreparation>::fn identified(&self) -> core::option::Option<&antecedent::PreparedCounterfactualTransport>
 pub fn <antecedent::CounterfactualTransportPreparation>::fn obstruction(&self) -> core::option::Option<&antecedent::CounterfactualTransportObstructionReport>
 pub fn <antecedent::CounterfactualTransportResult>::const fn cells_read(&self) -> u64
@@ -13530,12 +13649,14 @@ pub fn <antecedent::PreparedSmoothedDose>::fn refresh(&self, input: antecedent_e
 pub fn <antecedent::PreparedSmoothedDose>::fn with_seed(&self, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn bind_snapshot(&self, data: antecedent_expr::exact::ExactTransportData, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn consume(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent::ExactStudyResult), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn consume_named(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent::ExactStudyResult, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn diagram(&self) -> &antecedent_graph::selection::SelectionDiagram
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn estimate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn estimate_checked(&self, execution: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn estimate_retained(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ExactStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn evidence_catalog(&self) -> &antecedent_core::query::transport_catalog::EvidenceCatalog
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn export(&self, result: &antecedent::ExactStudyResult) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn export_named(&self, result: &antecedent::ExactStudyResult, variable_names: &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn inspect(&self) -> antecedent::ExactStudyInspection
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::FixedGraphSensitivityError>
 pub fn <antecedent::PreparedStudy<antecedent::ExactPreparedState>>::fn mechanism_sensitivity_at_treatment_level(&self, spec: &antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivitySpec, treatment_level: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_validate::mechanism_sensitivity::FixedGraphMechanismSensitivityResult, antecedent_validate::mechanism_sensitivity::FixedGraphSensitivityError>
@@ -13562,6 +13683,7 @@ pub fn <antecedent::PreparedStudy<antecedent::LearnedTrialState>>::fn with_seed(
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::const fn options(&self) -> antecedent_estimate::empirical_table::EmpiricalTableOptions
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::const fn seed(&self) -> u64
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn consume(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent::StatisticalStudyResult), antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn consume_named(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(Self, antecedent::StatisticalStudyResult, alloc::vec::Vec<alloc::string::String>), antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn defer_execution(&self, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::DeferredStatisticalTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn defer_snapshot(&self, input: antecedent_estimate::empirical_table::StatisticalTransportInput, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::DeferredStatisticalTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn diagram(&self) -> &antecedent_graph::selection::SelectionDiagram
@@ -13571,6 +13693,7 @@ pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn est
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn estimate_retained(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StatisticalStudyResult, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn evidence_catalog(&self) -> &antecedent_core::query::transport_catalog::EvidenceCatalog
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn export(&self, result: &antecedent::StatisticalStudyResult) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn export_named(&self, result: &antecedent::StatisticalStudyResult, variable_names: &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn inspect(&self) -> antecedent::StatisticalStudyInspection
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn preview_snapshot(&self, input: &antecedent_estimate::empirical_table::StatisticalTransportInput) -> core::result::Result<bool, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy<antecedent::StatisticalPreparedState>>::fn preview_transform(&self, intent: antecedent_contract::transform::TransformIntent) -> core::result::Result<antecedent_contract::transform::TransformationReport, antecedent_io_core::error::IoError>
@@ -13893,6 +14016,7 @@ pub fn <antecedent::Study>::fn compile_for_planning(&self, request: &antecedent_
 pub fn <antecedent::Study>::fn compile_logical(&self) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_logical_within(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::LogicalAnalysisPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn events(data: &antecedent_data::event::EventData, align_interval_ns: u64) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
+pub fn <antecedent::Study>::fn events_in(data: &antecedent_data::event::EventData, align_interval_ns: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
 pub fn <antecedent::Study>::fn evidence_obligations(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(alloc::vec::Vec<antecedent_contract::evidence_obligation::EvidenceObligation>, alloc::vec::Vec<antecedent_contract::capability::NextAction>), antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::Study>::fn evidence_plan(&self, request: &antecedent::analysis::evidence_plan::EvidencePlanRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::evidence_plan::EvidencePlanResult, antecedent::analysis::evidence_plan::EvidencePlanFacadeError>
 pub fn <antecedent::Study>::fn execute(&self, physical: &antecedent::planner::PhysicalExecutionPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
@@ -13911,7 +14035,7 @@ pub fn <antecedent::Study>::fn prepare_cyclic_family(request: &antecedent_io::cy
 pub fn <antecedent::Study>::fn prepare_deferred(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy, antecedent::CausalError>
 pub fn <antecedent::Study>::fn prepare_experimental_recovery(request: &antecedent_io::cyclic_family_artifact::CyclicFamilyRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::cyclic::CyclicFamilyPreparedState>, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent::Study>::fn prepare_joint_panel(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::joint_panel::JointPanelState>, antecedent::analysis::joint_panel::JointPanelError>
-pub fn <antecedent::Study>::fn prepare_joint_panel_imputed(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, spec: antecedent_data::sample_policy::ImputationSpec, _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PreparedJointPanelImputation, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::Study>::fn prepare_joint_panel_imputed(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, spec: antecedent_data::sample_policy::ImputationSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PreparedJointPanelImputation, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::Study>::fn prepare_joint_panel_imputed_with_domains(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, spec: antecedent_data::sample_policy::ImputationSpec, domains: &[(alloc::sync::Arc<str>, antecedent_data::sample_policy::ImputationDomain)], _ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PreparedJointPanelImputation, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::Study>::fn prepare_joint_panel_with_policy(data: antecedent_data::panel::PanelData, request: antecedent::analysis::joint_panel::JointPanelRequest, missing: antecedent::analysis::joint_panel::PanelMissingPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::joint_panel::JointPanelState>, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::Study>::fn prepare_posterior_row(request: antecedent_io::bayesian_posterior_row_artifact::PosteriorRowRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::PreparedStudy<antecedent::analysis::bayesian_posterior_row::PosteriorRowPreparedState>, antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactError>
@@ -14130,6 +14254,7 @@ pub fn <antecedent::ZTransportResult>::const fn distribution(&self) -> &antecede
 pub fn <antecedent::ZTransportResult>::const fn interval_method(&self) -> core::option::Option<&'static str>
 pub fn <antecedent::ZTransportResult>::const fn interval_reason(&self) -> &'static str
 pub fn <antecedent::ZTransportResult>::fn export(&self, prepared: &antecedent::PreparedZTransport) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent::ZTransportResult>::fn export_named(&self, prepared: &antecedent::PreparedZTransport, variable_names: &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::ZTransportResult>::fn interval_type(&self) -> &'static str
 pub fn <antecedent::ZTransportResult>::fn mean_intervals(&self) -> &[(antecedent_core::ids::VariableId, f64, f64)]
 pub fn <antecedent::ZTransportSensitivityArtifactWire>::const fn regime(&self) -> antecedent_core::ids::RegimeId
@@ -14177,6 +14302,7 @@ pub fn <antecedent::analysis::ChainAuthority>::fn retired(&self, ledger: &antece
 pub fn <antecedent::analysis::ComposedInterval>::fn bounds(&self) -> core::option::Option<(f64, f64)>
 pub fn <antecedent::analysis::ComposedInterval>::fn construction(&self) -> &str
 pub fn <antecedent::analysis::ComposedInterval>::fn coordinate_id(&self) -> &str
+pub fn <antecedent::analysis::ComposedInterval>::fn declared_evidence_rows(&self) -> u64
 pub fn <antecedent::analysis::ComposedInterval>::fn label(&self) -> &'static str
 pub fn <antecedent::analysis::ComposedInterval>::fn nominal_level(&self) -> f64
 pub fn <antecedent::analysis::ComposedInterval>::fn record_id(&self) -> &str
@@ -14340,10 +14466,12 @@ pub fn <antecedent::analysis::TransportGridPoint>::fn distribution(&self) -> cor
 pub fn <antecedent::analysis::TransportGridPoint>::fn support_status(&self) -> antecedent_core::response::SupportStatus
 pub fn <antecedent::analysis::TransportGridResult>::fn contrast(&self, left: usize, right: usize, outcome: antecedent_core::ids::VariableId) -> core::result::Result<antecedent::StatisticalContrast, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::TransportGridResult>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::TransportGridResult>::fn export_named(&self, variable_names: &[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::TransportGridResult>::fn identity(&self) -> &str
 pub fn <antecedent::analysis::TransportGridResult>::fn points(&self) -> &[antecedent::analysis::TransportGridPoint]
 pub fn <antecedent::analysis::TransportGridResult>::fn reasoning(&self) -> antecedent_contract::reasoning::ReasoningView
 pub fn <antecedent::analysis::TransportGridResult>::fn scalar_projection(&self, point: usize, outcome: antecedent_core::ids::VariableId) -> core::result::Result<(f64, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::TransportGridResult>::fn variable_names(&self) -> &[alloc::string::String]
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::const fn spec(&self) -> &antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresSpec
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn cell(&self) -> antecedent_stats::adaptive_inference::procedure_repeated_measures::CellLabel
 pub fn <antecedent::analysis::adaptive_procedure_report::RepeatedMeasuresProcedure>::fn declare(declaration: antecedent_stats::adaptive_inference::procedure_repeated_measures::RepeatedMeasuresDeclaration) -> core::result::Result<Self, alloc::vec::Vec<antecedent::AdaptiveInferenceRefusal>>
@@ -14610,6 +14738,9 @@ pub fn <antecedent::analysis::inverse_sources::ComposedSourceRefusal>::fn to_ref
 pub fn <antecedent::analysis::joint_panel::CheckedReferenceDecomposition>::fn is_identified_reference(&self) -> bool
 pub fn <antecedent::analysis::joint_panel::CheckedReferenceDecomposition>::fn require_identified_reference(&self) -> core::result::Result<(), antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::DesignAdaptiveReference>::fn is_complete(&self) -> bool
+pub fn <antecedent::analysis::joint_panel::HistoricalJointExperiment>::const fn grants_current_authority(&self) -> bool
+pub fn <antecedent::analysis::joint_panel::HistoricalJointExperiment>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::joint_panel::HistoricalJointExperiment>::fn weights(&self) -> &[f64]
 pub fn <antecedent::analysis::joint_panel::HistoricalJointLawExperiment>::const fn grants_current_authority(&self) -> bool
 pub fn <antecedent::analysis::joint_panel::HistoricalJointLawExperiment>::const fn replays_original_design(&self) -> bool
 pub fn <antecedent::analysis::joint_panel::HistoricalJointLawExperiment>::fn numerical_law(&self) -> &antecedent_io_core::distribution_artifact::DistributionArtifact
@@ -14668,6 +14799,7 @@ pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn compile_certifi
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn compile_continuous_search(&self, request: antecedent::analysis::joint_panel::JointPanelContinuousSearchRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::JointPanelContinuousSearch, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn compile_search(&self, request: &antecedent::analysis::joint_panel::JointPanelSearchRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::JointPanelSearch, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn condition_experiment(&self, update: antecedent::analysis::joint_panel::PanelExperimentUpdate, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentResult, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn condition_joint_experiment(&self, update: antecedent::analysis::joint_panel::PanelJointExperimentUpdate, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PanelJointExperimentResult, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn consume_current(&self, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::joint_panel_artifact::PanelArtifactError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn decompose_compiled_components(&self, bindings: &antecedent::analysis::joint_panel::ReferenceComponentBindings, scope: antecedent_design::scientific_source::ScientificConsumptionScope, with_uncertainty: bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::ScientificReferenceDecomposition, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::JointPanelResult>::fn decompose_reference(&self, request: &antecedent_estimate::joint_panel::decomposition::PanelDecompositionRequest, periods: &antecedent_estimate::joint_panel::decomposition::MechanismPeriodMap, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::joint_panel::decomposition::PanelDecomposition, antecedent::analysis::joint_panel::JointPanelError>
@@ -14740,6 +14872,20 @@ pub fn <antecedent::analysis::joint_panel::PanelExperimentResult>::fn rank_next_
 pub fn <antecedent::analysis::joint_panel::PanelExperimentResult>::fn response_means(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<(&[f64], &[f64]), antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::PanelExperimentResult>::fn update_for_future_study(&self, study: &antecedent::analysis::joint_panel::PanelFutureStudy, observed_mean: f64, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelFutureStudyUpdate, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::analysis::joint_panel::PanelFutureSampleValue>::fn retained_admitted_bytes(&self) -> u64
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn bias_sensitivity(&self, expression: &antecedent_design::decision_contract::UtilityExpr, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelJointSensitivity, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn combination(&self, coefficients: &[f64], ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelJointCombination, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn consume_current(&self, bytes: &[u8], component: usize, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn decide(&self, component: usize, contract: &antecedent_design::decision_contract::DecisionContract, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent_design::scientific_source::ScopedDecisionResult, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn derived_quantity(&self, expression: &antecedent_design::decision_contract::UtilityExpr, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelJointCombination, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn export(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn informed_quantities(&self) -> alloc::vec::Vec<antecedent_contract::quantity::ScientificQuantity>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn law_source(&self, component: usize, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn original(&self) -> &antecedent::analysis::joint_panel::JointPanelResult
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn posterior_weights(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<&[f64], antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn rank_next_samples<A: serde_core::ser::Serialize>(&self, component: usize, problem: &antecedent_design::decision::DecisionProblem<A, antecedent::analysis::joint_panel::PanelExperimentDecisionState>, candidates: &[antecedent::analysis::joint_panel::PanelFutureSample], replicates: usize, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent::analysis::joint_panel::PanelFutureSampleValue>, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn replay(bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::joint_panel::HistoricalJointExperiment, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::analysis::joint_panel::PanelJointExperimentResult>::fn scope(&self) -> &'static str
 pub fn <antecedent::analysis::joint_panel::PopulationReferenceTransportProof>::const fn functional(&self) -> &'static str
 pub fn <antecedent::analysis::joint_panel::PopulationReferenceTransportProof>::fn diagram(&self) -> &antecedent_graph::selection::SelectionDiagram
 pub fn <antecedent::analysis::joint_panel::PopulationReferenceTransportProof>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
@@ -15264,6 +15410,13 @@ pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn excursion(&self
 pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn into_parts(self) -> (antecedent::analysis::joint_panel::PanelExperimentResult, antecedent::decision_evidence::CompiledExcursionEvidence)
 pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn law_source(&self, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
 pub fn <antecedent::decision_evidence::ExcursionPanelUpdate>::fn likelihood_assumption_id(&self) -> &str
+pub fn <antecedent::decision_evidence::RetainedExperiment>::fn component_quantity(&self, component: &str) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn <antecedent::decision_evidence::RetainedExperiment>::fn dependency_identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::decision_evidence::RetainedExperiment>::fn evidence(&self) -> &antecedent_design::decision_evidence::JointExperimentEvidence
+pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn experiment(&self) -> &antecedent::decision_evidence::RetainedExperiment
+pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn law_source(&self, component: usize, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger) -> core::result::Result<antecedent::analysis::joint_panel::PanelExperimentDecisionSource, antecedent::analysis::joint_panel::JointPanelError>
+pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn likelihood_assumption_id(&self) -> &str
+pub fn <antecedent::decision_evidence::RetainedJointPanelUpdate>::fn result(&self) -> &antecedent::analysis::joint_panel::PanelJointExperimentResult
 pub fn <antecedent::error::PendingEdge>::fn new(source: impl core::convert::Into<alloc::string::String>, target: impl core::convert::Into<alloc::string::String>, at_source: impl core::convert::Into<alloc::string::String>, at_target: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::const fn query(&self) -> &antecedent_core::query::counterfactual::CounterfactualQuery
 pub fn <antecedent::gcm::CheckedCounterfactualOperation>::fn graph(&self) -> &antecedent_graph::dag::Dag
@@ -15740,7 +15893,9 @@ pub fn antecedent::analysis::discovered_transport_estimate::estimate_discovered_
 pub fn antecedent::analysis::discovered_transport_estimate::verify_discovered_transport_estimate(bytes: &[u8], limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_estimate::VerifiedEstimate, antecedent_io_core::error::IoError>
 pub fn antecedent::analysis::discovered_transport_temporal::estimate_discovered_temporal_transport(report: &antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_estimate::DiscoveredTransportEstimate, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_temporal::transport_discovered_temporal_structure(outcome: &antecedent_discovery::selective::outcome::DiscoveryOutcome, horizon: antecedent::analysis::discovered_transport_temporal::TemporalHorizon, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize) -> core::result::Result<antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent::analysis::discovered_transport_temporal::transport_discovered_temporal_structure_with_context(outcome: &antecedent_discovery::selective::outcome::DiscoveryOutcome, horizon: antecedent::analysis::discovered_transport_temporal::TemporalHorizon, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_temporal::transport_temporal_class(class: antecedent_identify::discovered_transport_temporal::TemporalClass<'_>, exhausted_search_bounds: usize, horizon: antecedent::analysis::discovered_transport_temporal::TemporalHorizon, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize) -> core::result::Result<antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
+pub fn antecedent::analysis::discovered_transport_temporal::transport_temporal_class_with_context(class: antecedent_identify::discovered_transport_temporal::TemporalClass<'_>, exhausted_search_bounds: usize, horizon: antecedent::analysis::discovered_transport_temporal::TemporalHorizon, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_temporal::DiscoveredTemporalTransportReport, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_discovered_transport(report: &antecedent::analysis::discovered_transport::DiscoveredTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, options: antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportEstimate, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_trial::estimate_trial_compatible_transport_confidence_set(report: &antecedent::analysis::discovered_transport::DiscoveredTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, options: antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions, support: antecedent::analysis::discovered_transport_trial::TransportOutcomeSupport, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportConfidenceSet, antecedent_identify::discovered_transport::DiscoveredTransportError>
 pub fn antecedent::analysis::discovered_transport_trial::verify_trial_compatible_transport_confidence_set_against(bytes: &[u8], report: &antecedent::analysis::discovered_transport::DiscoveredTransportReport, query: &antecedent_core::query::transport::TransportQuery, evidence: &antecedent::analysis::discovered_transport_estimate::TransportEvidence<'_>, options: antecedent::analysis::discovered_transport_trial::TrialCompatibilityOptions, support: antecedent::analysis::discovered_transport_trial::TransportOutcomeSupport, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport_trial::TrialCompatibleTransportConfidenceSet, antecedent_io_core::error::IoError>
@@ -15946,8 +16101,8 @@ pub fn antecedent::analysis::transported_measurement::transport_measurement_esti
 pub fn antecedent::analysis::transported_measurement::verify_measurement_transport(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, binding: &antecedent::MeasurementAnalysisBinding, expected_identity_hex: &str) -> core::result::Result<antecedent_estimate::measurement_transport::TransportReceipt, antecedent::MeasurementModelRefusal>
 pub fn antecedent::analysis::transported_mechanism::verify_mechanism_transport(prepared: &antecedent::PreparedMechanismComposition, declaration: &antecedent::analysis::transported_mechanism::MechanismTransportDeclaration, expected_identity_hex: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_mechanism::TransportedMechanismComposition, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::typed_transported_mechanism::check_typed_invariance(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, target: &antecedent_model::typed_mechanism_transport::FittedMechanism, level: f64) -> core::result::Result<antecedent_model::typed_mechanism_transport::InvarianceCheck, antecedent::MechanismCompositionRefusal>
-pub fn antecedent::analysis::typed_transported_mechanism::fit_typed_mechanism(spec: &antecedent_model::typed_mechanism_transport::MechanismSpec, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::descriptor::MechanismContext, provenance: antecedent_model::compose::descriptor::MechanismProvenance, design_from: core::option::Option<&antecedent_model::typed_mechanism_transport::FittedMechanism>) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent::MechanismCompositionRefusal>
-pub fn antecedent::analysis::typed_transported_mechanism::refit_typed_mechanism_in_target(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::descriptor::MechanismContext, provenance: antecedent_model::compose::descriptor::MechanismProvenance) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::fit_typed_mechanism(spec: &antecedent_model::typed_mechanism_transport::MechanismSpec, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::descriptor::MechanismContext, provenance: antecedent_model::compose::descriptor::MechanismProvenance, design_from: core::option::Option<&antecedent_model::typed_mechanism_transport::FittedMechanism>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent::MechanismCompositionRefusal>
+pub fn antecedent::analysis::typed_transported_mechanism::refit_typed_mechanism_in_target(source: &antecedent_model::typed_mechanism_transport::FittedMechanism, columns: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<f64>>, context: antecedent_model::compose::descriptor::MechanismContext, provenance: antecedent_model::compose::descriptor::MechanismProvenance, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::typed_mechanism_transport::FittedMechanism, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::typed_transported_mechanism::transport_typed_mechanisms(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::typed_transported_mechanism::verify_typed_transport(request: &antecedent_model::typed_mechanism_transport::TypedTransportRequest, expected_identity_hex: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::typed_transported_mechanism::TypedTransportedComposition, antecedent::MechanismCompositionRefusal>
 pub fn antecedent::analysis::validate_temporal_dependent_interval(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig) -> core::result::Result<(), antecedent_io_core::error::IoError>
@@ -15974,6 +16129,7 @@ pub fn antecedent::decision_evidence::compile_joint_switchback(design: anteceden
 pub fn antecedent::decision_evidence::compile_matched_pair_design(design: antecedent::decision_evidence::MatchedPairDesign) -> core::result::Result<antecedent::decision_evidence::CompiledMatchedPairDesign, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::compiled_decision_refusal(error: antecedent::analysis::joint_panel::JointPanelError) -> antecedent_design::decision_evidence::EvidenceRefusal
 pub fn antecedent::decision_evidence::compiled_excursion_quantity(evidence: &antecedent::decision_evidence::CompiledExcursionEvidence, component: &str) -> core::result::Result<antecedent_contract::quantity::ScientificQuantity, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::condition_panel_jointly_on_retained_evidence(panel: &antecedent::analysis::joint_panel::JointPanelResult, experiment: impl core::convert::Into<antecedent::decision_evidence::RetainedExperiment>, components: alloc::vec::Vec<antecedent::decision_evidence::JointEvidenceComponent>, evidence: antecedent::analysis::joint_panel::PanelExperimentEvidence, likelihood_assumption_id: &str, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::RetainedJointPanelUpdate, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::decision_evidence::condition_panel_on_compiled_excursion(panel: &antecedent::analysis::joint_panel::JointPanelResult, excursion: antecedent::decision_evidence::CompiledExcursionEvidence, component: &str, update: antecedent::analysis::joint_panel::PanelExperimentUpdate, likelihood_assumption_id: &str, ledger: &antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::decision_evidence::ExcursionPanelUpdate, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::decision_evidence::evidence_from_cluster_contrast(contrast: &antecedent_estimate::randomized_joint::JointClusterContrast, evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, outcome_rows: usize, adjustments: alloc::vec::Vec<antecedent_design::decision_evidence::ComponentAdjustment>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_compiled_adaptive_regime(source: antecedent::analysis::joint_panel::designs::NativeJointDesignResult, evidence_id: &str) -> core::result::Result<antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
@@ -15985,6 +16141,7 @@ pub fn antecedent::decision_evidence::evidence_from_joint_excursion(design: &ant
 pub fn antecedent::decision_evidence::evidence_from_joint_static_regime(design: &antecedent::decision_evidence::CompiledJointStaticRegime, outcomes: &[&[f64]], confounders: &[alloc::vec::Vec<f64>], evidence_id: &str, population_id: &str, regimes: (&str, &str), components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_joint_switchback(design: &antecedent::decision_evidence::CompiledJointSwitchback, outcomes: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
 pub fn antecedent::decision_evidence::evidence_from_matched_pairs(design: &antecedent::decision_evidence::CompiledMatchedPairDesign, totals: &[&[f64]], assigned: &[bool], evidence_id: &str, population_id: &str, regimes: (&str, &str), horizon: u32, components: alloc::vec::Vec<antecedent_design::decision_evidence::OutcomeComponent>, exposure: antecedent_design::decision_evidence::Exposure) -> core::result::Result<antecedent_design::decision_evidence::JointExperimentEvidence, antecedent_design::decision_evidence::EvidenceRefusal>
+pub fn antecedent::decision_evidence::joint_contrast_sampling(evidence: &antecedent_design::decision_evidence::JointExperimentEvidence, components: &[&str]) -> core::result::Result<antecedent::decision_evidence::JointContrastSampling, antecedent::analysis::joint_panel::JointPanelError>
 pub fn antecedent::design::preview_design_rank<A, O>(contract: &antecedent::CausalContract, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::DesignRankPreview, antecedent::CausalError>
 pub fn antecedent::design::rank_designs_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, candidates: &[antecedent_design::candidate::CandidateDesign], eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent_design::result::ScoredDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
 pub fn antecedent::design::rank_studies_bound<A, O>(contract: &antecedent::CausalContract, ranker: &antecedent_design::ranker::DesignRanker, objective: &antecedent_design::objective::DesignObjective, studies: &[antecedent_design::study_candidate::DurableStudyCandidate], report: &antecedent_design::repair::RepairReport, base_law: &[antecedent_core::ids::VariableId], query: antecedent_core::ids::QueryId, eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext, decision_target: core::option::Option<antecedent_core::identity::SemanticDigest>) -> core::result::Result<antecedent::design::StudyDesignRanking, antecedent::CausalError> where A: core::clone::Clone + core::marker::Sync, O: core::clone::Clone + core::marker::Sync
@@ -16772,6 +16929,8 @@ pub struct antecedent::analysis::joint_panel::CheckedReferenceDecomposition
 pub struct antecedent::analysis::joint_panel::DesignAdaptiveReference
 pub struct antecedent::analysis::joint_panel::DesignArtifactLimits
 pub struct antecedent::analysis::joint_panel::DummyCodedPanel
+pub struct antecedent::analysis::joint_panel::HistoricalJointExperiment
+pub struct antecedent::analysis::joint_panel::HistoricalJointExperiment has private fields
 pub struct antecedent::analysis::joint_panel::HistoricalJointLawExperiment
 pub struct antecedent::analysis::joint_panel::HistoricalJointLawExperiment has private fields
 pub struct antecedent::analysis::joint_panel::HistoricalNativeJointExperiment
@@ -16843,6 +17002,12 @@ pub struct antecedent::analysis::joint_panel::PanelFutureSampleValue has private
 pub struct antecedent::analysis::joint_panel::PanelFutureStudy
 pub struct antecedent::analysis::joint_panel::PanelFutureStudyUpdate
 pub struct antecedent::analysis::joint_panel::PanelFutureStudyValue
+pub struct antecedent::analysis::joint_panel::PanelJointCombination
+pub struct antecedent::analysis::joint_panel::PanelJointExperimentComponent
+pub struct antecedent::analysis::joint_panel::PanelJointExperimentResult
+pub struct antecedent::analysis::joint_panel::PanelJointExperimentResult has private fields
+pub struct antecedent::analysis::joint_panel::PanelJointExperimentUpdate
+pub struct antecedent::analysis::joint_panel::PanelJointSensitivity
 pub struct antecedent::analysis::joint_panel::PanelUnitAccounting
 pub struct antecedent::analysis::joint_panel::PopulationReferenceBindings
 pub struct antecedent::analysis::joint_panel::PopulationReferenceDecomposition
@@ -17091,10 +17256,14 @@ pub struct antecedent::decision_evidence::CompiledRegimeEvidence
 pub struct antecedent::decision_evidence::CompiledRegimeEvidence has private fields
 pub struct antecedent::decision_evidence::ExcursionPanelUpdate
 pub struct antecedent::decision_evidence::ExcursionPanelUpdate has private fields
+pub struct antecedent::decision_evidence::JointContrastSampling
+pub struct antecedent::decision_evidence::JointEvidenceComponent
 pub struct antecedent::decision_evidence::JointExcursionDesign
 pub struct antecedent::decision_evidence::JointStaticRegimeDesign
 pub struct antecedent::decision_evidence::JointSwitchbackDesign
 pub struct antecedent::decision_evidence::MatchedPairDesign
+pub struct antecedent::decision_evidence::RetainedJointPanelUpdate
+pub struct antecedent::decision_evidence::RetainedJointPanelUpdate has private fields
 pub struct antecedent::design::DesignRankPreview
 pub struct antecedent::design::StudyDesignRanking
 pub struct antecedent::discovery::BayesianDiscoverParams
@@ -20659,10 +20828,12 @@ pub variant antecedent::EstimatorId::Iv2Sls
 pub variant antecedent::EstimatorId::IvBoundsSharp
 pub variant antecedent::EstimatorId::IvWald
 pub variant antecedent::EstimatorId::LinearAdjustmentAte
+pub variant antecedent::EstimatorId::LocalRatio
 pub variant antecedent::EstimatorId::LongitudinalGFormulaRegime
 pub variant antecedent::EstimatorId::LongitudinalIpwRegime
 pub variant antecedent::EstimatorId::LongitudinalMarginalStructuralModel
 pub variant antecedent::EstimatorId::LongitudinalSequentialDrRegime
+pub variant antecedent::EstimatorId::PanelDid
 pub variant antecedent::EstimatorId::PeriodHistoryMatching
 pub variant antecedent::EstimatorId::PropensityMatching
 pub variant antecedent::EstimatorId::PropensityStratification
@@ -20686,6 +20857,7 @@ pub variant antecedent::EstimatorId::ResponseKennedyDr
 pub variant antecedent::EstimatorId::ResponseRieszAde
 pub variant antecedent::EstimatorId::SequentialCrossfitContrastWald
 pub variant antecedent::EstimatorId::StaticMediationLinear
+pub variant antecedent::EstimatorId::SyntheticControl
 pub variant antecedent::EstimatorId::TemporalDesignExcursion
 pub variant antecedent::EstimatorId::TemporalGlmLinkContrast
 pub variant antecedent::EstimatorId::TemporalLaggedInstrument
@@ -20745,15 +20917,20 @@ pub variant antecedent::IdentifierId::Auto
 pub variant antecedent::IdentifierId::BackdoorAdjustment
 pub variant antecedent::IdentifierId::BackdoorEfficient
 pub variant antecedent::IdentifierId::ContinuousDoseExchangeability
+pub variant antecedent::IdentifierId::ConvexDonorCounterfactual
+pub variant antecedent::IdentifierId::ConvexUnitTimeTrends
 pub variant antecedent::IdentifierId::Frontdoor
+pub variant antecedent::IdentifierId::FuzzyRdLocalRatio
 pub variant antecedent::IdentifierId::GcmParametric
 pub variant antecedent::IdentifierId::GeneralId
 pub variant antecedent::IdentifierId::GeneralizedAdjustment
 pub variant antecedent::IdentifierId::InterferenceDesign
 pub variant antecedent::IdentifierId::Iv
+pub variant antecedent::IdentifierId::ParallelTrends
 pub variant antecedent::IdentifierId::PathSpecificNatural
 pub variant antecedent::IdentifierId::RandomizedDesign
 pub variant antecedent::IdentifierId::RdSharp
+pub variant antecedent::IdentifierId::RegressionKinkLocalRatio
 pub variant antecedent::IdentifierId::ResponseBackdoor
 pub variant antecedent::IdentifierId::TemporalBackdoorUnfolded
 pub variant antecedent::IdentifierId::TemporalIvUnfolded
@@ -21381,6 +21558,11 @@ pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEnt
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::LawResponse
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::Range(antecedent_design::transport_sensitivity::TransportSensitivityRefusal)
 pub variant antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal::RouteUndeclared
+pub variant antecedent::decision_evidence::RetainedExperiment::AdaptiveRegime(antecedent::decision_evidence::CompiledAdaptiveRegimeEvidence)
+pub variant antecedent::decision_evidence::RetainedExperiment::Cluster(antecedent::decision_evidence::CompiledClusterEvidence)
+pub variant antecedent::decision_evidence::RetainedExperiment::Excursion(antecedent::decision_evidence::CompiledExcursionEvidence)
+pub variant antecedent::decision_evidence::RetainedExperiment::Experiment(antecedent::decision_evidence::CompiledExperimentalEvidence)
+pub variant antecedent::decision_evidence::RetainedExperiment::StaticRegime(antecedent::decision_evidence::CompiledRegimeEvidence)
 pub variant antecedent::gcm::NestedOutcomeMechanism::LinearGaussian
 pub variant antecedent::gcm::NestedOutcomeMechanism::NonSeparableBasis
 pub variant antecedent::host::HostStatus::Partial

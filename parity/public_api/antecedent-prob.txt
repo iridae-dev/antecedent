@@ -102,6 +102,7 @@ impl core::cmp::PartialEq for antecedent_prob::TransportPolicy
 impl core::cmp::PartialEq for antecedent_prob::WeightedGraphSamples
 impl core::cmp::PartialEq for antecedent_prob::fit_counts::BayesianWorkCounts
 impl core::convert::From<alloc::vec::Vec<f64>> for antecedent_prob::CoefficientPrecision
+impl core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<antecedent_prob::metropolis::MetropolisError>> for antecedent_prob::metropolis::MetropolisError
 impl core::convert::From<antecedent_prob::TransportError> for antecedent_prob::ProbError
 impl core::default::Default for antecedent_prob::BayesFitOptions
 impl core::default::Default for antecedent_prob::ConflictSummary
@@ -518,37 +519,47 @@ impl<'a> core::clone::Clone for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::clone::Clone for antecedent_prob::PosteriorBatch<'a>
 impl<'a> core::clone::Clone for antecedent_prob::TransportContext<'a>
 impl<'a> core::clone::Clone for antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
+impl<'a> core::clone::Clone for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::PosteriorBatch<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::TransportContext<'a>
 impl<'a> core::fmt::Debug for antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
+impl<'a> core::fmt::Debug for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a>
 impl<'a> core::marker::Copy for antecedent_prob::BayesDesignRef<'a>
 impl<'a> core::marker::Copy for antecedent_prob::PosteriorBatch<'a>
 impl<'a> core::marker::Copy for antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
+impl<'a> core::marker::Copy for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a>
 impl<'a> core::marker::Freeze for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_prob::TransportContext<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::TransportContext<'a> [auto]
 impl<'a> core::marker::Send for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
+impl<'a> core::marker::Send for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::TransportContext<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::TransportContext<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::TransportContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::BayesDesignRef<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::PosteriorBatch<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::TransportContext<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::finite_belief::AffineGaussianExperiment<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a> [auto]
+impl<E> core::convert::From<antecedent_core::execution::pipeline::MapExecutionError<E>> for antecedent_prob::ProbError where Self: core::convert::From<E>
 pub const antecedent_prob::POPULATION_TAG_KEY: &str
 pub const antecedent_prob::TRANSPORT_MIN_KISH_ESS: f64
 pub enum antecedent_prob::BayesLikelihood
@@ -703,6 +714,11 @@ pub field antecedent_prob::finite_belief::AffineGaussianExperiment::observed_mea
 pub field antecedent_prob::finite_belief::AffineGaussianExperiment::sample_size: u64
 pub field antecedent_prob::finite_belief::AffineGaussianExperiment::slopes: &'a [f64]
 pub field antecedent_prob::finite_belief::AffineGaussianExperiment::target_values: &'a [f64]
+pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::intercepts: &'a [alloc::vec::Vec<f64>]
+pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::observed_means: &'a [f64]
+pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::sampling_covariance: &'a [f64]
+pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::slopes: &'a [alloc::vec::Vec<f64>]
+pub field antecedent_prob::finite_belief::JointAffineGaussianExperiment::target_values: &'a [alloc::vec::Vec<f64>]
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::model_fits: u64
 pub field antecedent_prob::fit_counts::BayesianWorkCounts::posterior_draws: u64
 pub field antecedent_prob::metropolis::MetropolisDraws::accepted: alloc::vec::Vec<usize>
@@ -818,6 +834,7 @@ pub fn <antecedent_prob::WeightedGraphSamples>::fn stratified_interactive_subsam
 pub fn <antecedent_prob::WeightedGraphSamples>::fn total_weight(&self) -> f64
 pub fn <antecedent_prob::WeightedGraphSamples>::fn unidentified_mass(&self) -> f64
 pub fn <antecedent_prob::finite_belief::AffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
+pub fn <antecedent_prob::finite_belief::JointAffineGaussianExperiment<'_>>::fn condition(&self, prior: &[f64]) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_prob::ProbError>
 pub fn antecedent_prob::all_chains_moved(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> bool
 pub fn antecedent_prob::apply_transport(sources: &[antecedent_prob::ExternalPriorSource], ctx: &antecedent_prob::TransportContext<'_>) -> core::result::Result<(alloc::vec::Vec<antecedent_prob::ExternalPriorSource>, alloc::vec::Vec<antecedent_prob::TransportOutcome>), antecedent_prob::TransportError>
 pub fn antecedent_prob::compose_external_priors(sources: &[antecedent_prob::ExternalPriorSource], baseline: &antecedent_prob::PriorSet) -> core::result::Result<antecedent_prob::ComposedPrior, antecedent_prob::ProbError>
@@ -830,14 +847,17 @@ pub fn antecedent_prob::fit_counts::count_bayesian_work<R>(work: impl core::ops:
 pub fn antecedent_prob::fit_counts::note_posterior_draw()
 pub fn antecedent_prob::fit_counts::note_posterior_fit()
 pub fn antecedent_prob::fit_hmc_glm(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, fit_opts: &antecedent_prob::BayesFitOptions, hmc: antecedent_prob::HmcOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
+pub fn antecedent_prob::fit_hmc_glm_with_context(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, fit_opts: &antecedent_prob::BayesFitOptions, hmc: antecedent_prob::HmcOptions, workspace: &mut antecedent_prob::LaplaceWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 pub fn antecedent_prob::fit_laplace_glm(likelihood: antecedent_prob::BayesLikelihood, design: antecedent_prob::BayesDesignRef<'_>, prior: &antecedent_prob::PriorSet, options: &antecedent_prob::BayesFitOptions, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<antecedent_prob::BayesFitResult, antecedent_prob::ProbError>
 pub fn antecedent_prob::laplace::sample_gaussian_mvn(mean: &[f64], cov: &[f64], n_draws: usize, seed: u64, workspace: &mut antecedent_prob::LaplaceWorkspace) -> core::result::Result<alloc::sync::Arc<[f64]>, antecedent_prob::ProbError>
 pub fn antecedent_prob::mcmc_stats::mcmc_summary(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> antecedent_prob::McmcSummary
+pub fn antecedent_prob::mcmc_stats::mcmc_summary_parallel(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_prob::McmcSummary, antecedent_core::execution::admission::AdmissionError>
 pub fn antecedent_prob::mcmc_stats::min_bulk_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::min_tail_ess(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> f64
 pub fn antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics(samples: &[f64], n_chains: usize, n_draws: usize, n_params: usize) -> alloc::vec::Vec<antecedent_prob::ParameterMcmcDiagnostics>
 pub fn antecedent_prob::metropolis::sample_metropolis<F>(initial: &[f64], options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::context::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
 pub fn antecedent_prob::metropolis::sample_metropolis_dispersed<F>(center: &[f64], spread: f64, options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::context::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64
+pub fn antecedent_prob::metropolis::sample_metropolis_dispersed_parallel<F>(center: &[f64], spread: f64, options: antecedent_prob::metropolis::MetropolisOptions, ctx: &antecedent_core::execution::context::ExecutionContext, log_density: F) -> core::result::Result<antecedent_prob::metropolis::MetropolisDraws, antecedent_prob::metropolis::MetropolisError> where F: core::ops::function::Fn(&[f64]) -> f64 + core::marker::Sync
 pub mod antecedent_prob::backend
 pub mod antecedent_prob::conjugate
 pub mod antecedent_prob::conjugate_moment_match
@@ -892,6 +912,7 @@ pub struct antecedent_prob::TransportContext<'a>
 pub struct antecedent_prob::TransportOutcome
 pub struct antecedent_prob::WeightedGraphSamples
 pub struct antecedent_prob::finite_belief::AffineGaussianExperiment<'a>
+pub struct antecedent_prob::finite_belief::JointAffineGaussianExperiment<'a>
 pub struct antecedent_prob::fit_counts::BayesianWorkCounts
 pub struct antecedent_prob::metropolis::MetropolisDraws
 pub struct antecedent_prob::metropolis::MetropolisOptions
@@ -927,6 +948,7 @@ pub use antecedent_prob::graph_samples::WeightedGraphSamples = antecedent_prob::
 pub use antecedent_prob::hmc::HmcGlmBackend = antecedent_prob::HmcGlmBackend
 pub use antecedent_prob::hmc::HmcOptions = antecedent_prob::HmcOptions
 pub use antecedent_prob::hmc::fit_hmc_glm = antecedent_prob::fit_hmc_glm
+pub use antecedent_prob::hmc::fit_hmc_glm_with_context = antecedent_prob::fit_hmc_glm_with_context
 pub use antecedent_prob::kish_ess = external_prior::kish_ess
 pub use antecedent_prob::laplace::LaplaceGlmBackend = antecedent_prob::LaplaceGlmBackend
 pub use antecedent_prob::laplace::fit_laplace_glm = antecedent_prob::fit_laplace_glm
@@ -934,6 +956,7 @@ pub use antecedent_prob::mcmc_stats::McmcSummary = antecedent_prob::McmcSummary
 pub use antecedent_prob::mcmc_stats::ParameterMcmcDiagnostics = antecedent_prob::ParameterMcmcDiagnostics
 pub use antecedent_prob::mcmc_stats::all_chains_moved = antecedent_prob::all_chains_moved
 pub use antecedent_prob::mcmc_summary = antecedent_prob::mcmc_stats::mcmc_summary
+pub use antecedent_prob::mcmc_summary_parallel = antecedent_prob::mcmc_stats::mcmc_summary_parallel
 pub use antecedent_prob::min_bulk_ess = antecedent_prob::mcmc_stats::min_bulk_ess
 pub use antecedent_prob::min_tail_ess = antecedent_prob::mcmc_stats::min_tail_ess
 pub use antecedent_prob::parameter_mcmc_diagnostics = antecedent_prob::mcmc_stats::parameter_mcmc_diagnostics
@@ -991,6 +1014,8 @@ pub variant antecedent_prob::PriorSpec::CoefficientCorrelation(antecedent_prob::
 pub variant antecedent_prob::PriorSpec::GaussianCoefficients(antecedent_prob::GaussianCoefficientPrior)
 pub variant antecedent_prob::PriorSpec::KnownResidualVariance(f64)
 pub variant antecedent_prob::PriorSpec::ResidualInvGamma(antecedent_prob::InvGammaPrior)
+pub variant antecedent_prob::ProbError::Admission(antecedent_core::execution::admission::AdmissionError)
+pub variant antecedent_prob::ProbError::Cancelled { stage: &'static str }
 pub variant antecedent_prob::ProbError::Inference { message: &'static str }
 pub variant antecedent_prob::ProbError::InvalidPrior { message: &'static str }
 pub variant antecedent_prob::ProbError::MissingDiagnostics { message: alloc::string::String }
@@ -1006,5 +1031,6 @@ pub variant antecedent_prob::TransportError::UnknownPolicy { name: alloc::sync::
 pub variant antecedent_prob::TransportPolicy::InvariantConditionalOutcome
 pub variant antecedent_prob::TransportPolicy::InvariantEffectModifiers
 pub variant antecedent_prob::TransportPolicy::InvariantPropensity
+pub variant antecedent_prob::metropolis::MetropolisError::Cancelled
 pub variant antecedent_prob::metropolis::MetropolisError::Invalid(&'static str)
 pub variant antecedent_prob::metropolis::MetropolisError::Resource(alloc::string::String)

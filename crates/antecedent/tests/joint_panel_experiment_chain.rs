@@ -10,8 +10,14 @@ use antecedent_design::decision_contract::*;
 use antecedent_design::scientific_source::{ScientificConsumptionScope, ScientificSourcePayload};
 use std::sync::Arc;
 
+#[path = "joint_panel_experiment_chain/joint.rs"]
+mod joint;
 #[path = "joint_panel_experiment_chain/matrix.rs"]
 mod matrix;
+
+pub use joint::{
+    verify_joint_conditioning, verify_joint_excursion_update, verify_joint_pairs_update,
+};
 
 struct ExperimentFixture {
     update: PanelExperimentUpdate,

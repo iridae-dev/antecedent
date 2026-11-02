@@ -15,11 +15,16 @@ use antecedent_io::distribution_artifact::{
 };
 
 mod future_regime;
+mod joint;
 mod law;
 mod matrix;
 mod native;
 pub use future_regime::{
     PanelFutureRegime, PanelFutureStudy, PanelFutureStudyUpdate, PanelFutureStudyValue,
+};
+pub use joint::{
+    HistoricalJointExperiment, PanelJointCombination, PanelJointExperimentComponent,
+    PanelJointExperimentResult, PanelJointExperimentUpdate, PanelJointSensitivity,
 };
 pub use law::{
     HistoricalJointLawExperiment, JointLawExperimentRequest, JointLawExperimentResult,
@@ -114,6 +119,8 @@ pub struct PanelExperimentDecisionSource {
     update: Arc<PanelExperimentUpdate>,
     original_dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
+    /// Other components whose evidence shaped the same joint weights; empty for a single update.
+    companions: Vec<Arc<PanelExperimentUpdate>>,
 }
 impl PanelExperimentDecisionSource {
     /// Exact prefix-world basis underlying this response functional.
@@ -160,6 +167,10 @@ impl PanelExperimentDecisionSource {
         self.retention.observe_current();
         validate_update(&self.update, ledger)?;
         validate_model_dependency(self.original_dependency, &self.update, ledger)?;
+        for companion in &self.companions {
+            validate_update(companion, ledger)?;
+            validate_model_dependency(self.original_dependency, companion, ledger)?;
+        }
         if scope
             == antecedent_design::scientific_source::ScientificConsumptionScope::IdentifiedCausal
         {
@@ -352,6 +363,7 @@ impl PanelExperimentResult {
             update: Arc::clone(&self.update),
             original_dependency: self.original.dependency_identity(),
             retention: Arc::clone(&self.retention),
+            companions: Vec::new(),
         })
     }
 

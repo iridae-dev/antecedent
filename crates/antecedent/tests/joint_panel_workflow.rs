@@ -1709,4 +1709,7 @@ fn compiled_excursion_bridge_preserves_source_and_current_authority() {
     let prepared = Study::prepare_joint_panel(data, request, &ctx).unwrap();
     let result = prepared.estimate(&ctx).unwrap();
     experiment_chain::verify_compiled_excursion_update(&result, &ctx);
+    experiment_chain::verify_joint_excursion_update(&result, &ctx);
+    experiment_chain::verify_joint_pairs_update(&result, &ctx);
+    experiment_chain::verify_joint_conditioning(&prepared, &result, &ctx);
 }
