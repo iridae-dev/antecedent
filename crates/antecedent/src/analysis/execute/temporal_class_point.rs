@@ -16,6 +16,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use super::series_weights::refuse_unread_series_weights;
 use super::temporal_path::CrossWorldContrast;
 use super::temporal_point_uncertainty::{
     self as point_uncertainty, FrozenAtom, SlopeAtom, SlopeSource,
@@ -277,22 +278,6 @@ fn collect_class_points<'a>(
         primary_identification,
         primary_indexer,
     })
-}
-
-/// Refuse a series that carries observation weights: the completions' regressions are fit on
-/// the unweighted series, so the weights would be ignored while the result is labelled as
-/// sampling-weighted.
-fn refuse_series_weights(data: &TimeSeriesData) -> Result<(), CausalError> {
-    if data.storage().weights().is_some() {
-        return Err(CausalError::Estimate(
-            antecedent_estimate::sampling_weights::unsupported_route(
-                "sampling weights are read by the frequentist temporal linear adjustment and \
-             sustained contrast; the class-aware conditional, derivative and cross-world points \
-             have no sampling-weighted construction",
-            ),
-        ));
-    }
-    Ok(())
 }
 
 /// Whether `error` is a numerical failure of one completion's own regression (a singular
@@ -568,7 +553,7 @@ fn collect_class_conditional<'a>(
     policy: antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<ClassPoints<'a>, CausalError> {
-    refuse_series_weights(data)?;
+    refuse_unread_series_weights(data, "the class-aware conditional effect")?;
     collect_class_points(bundle, |case, indexer| {
         let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
         let atom =
@@ -675,7 +660,7 @@ fn collect_class_cross_world<'a>(
     policy: antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<ClassPoints<'a>, CausalError> {
-    refuse_series_weights(data)?;
+    refuse_unread_series_weights(data, "the class-aware cross-world contrast")?;
     collect_class_points(bundle, |case, indexer| {
         if let CausalQuery::PathSpecific(path) = query {
             match &case.graph {
@@ -772,7 +757,7 @@ fn class_derivative_responses<'a>(
     offsets: (i32, i32),
     (policy, prior_scale): (antecedent_core::KernelPolicy, Option<f64>),
 ) -> Result<ClassDerivatives<'a>, CausalError> {
-    refuse_series_weights(data)?;
+    refuse_unread_series_weights(data, "the class-aware derivative")?;
     let envelope = &bundle.envelope;
     require_identified_mass(envelope)?;
     let mut atoms = Vec::new();

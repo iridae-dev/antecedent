@@ -438,6 +438,7 @@ mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_transport_trial;
 mod sequential_validation;
+mod series_weights;
 mod static_missing;
 mod static_path;
 #[cfg(test)]

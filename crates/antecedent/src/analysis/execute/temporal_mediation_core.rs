@@ -156,14 +156,7 @@ pub(super) fn fit_temporal_mediation(
     }
     // The mediation design windows are not weighted by the observation they end at, so a
     // weighted series would be fit unweighted and still labelled as sampling-weighted.
-    if inputs.data.storage().weights().is_some() {
-        return Err(CausalError::Estimate(
-            antecedent_estimate::sampling_weights::unsupported_route(
-                "sampling weights are read by the frequentist temporal linear adjustment and \
-             sustained contrast; temporal mediation has no sampling-weighted construction",
-            ),
-        ));
-    }
+    super::series_weights::refuse_unread_series_weights(inputs.data, "temporal mediation")?;
     let TemporalMediationInputs { horizons, .. } = *inputs;
     let first = horizons.first().ok_or_else(|| CausalError::Compile {
         message: "temporal mediation requires at least one horizon".into(),

@@ -156,21 +156,6 @@ impl AtomEvalView for WindowAtomEval {
     }
 }
 
-/// Refuse a series that carries observation weights: the lag-aligned window tables the atoms
-/// are fit on do not carry them, so they would be ignored under a sampling-weighted label.
-fn refuse_series_weights(series: &TimeSeriesData) -> Result<(), CausalError> {
-    if series.storage().weights().is_some() {
-        return Err(CausalError::Estimate(
-            antecedent_estimate::sampling_weights::unsupported_route(
-                "sampling weights are read by the frequentist temporal linear adjustment and \
-             sustained contrast; the temporal-ADMG graph-posterior windows have no \
-             sampling-weighted construction",
-            ),
-        ));
-    }
-    Ok(())
-}
-
 /// One fitted atom kept for the draw-wise mixture standard error.
 struct AtomFit {
     weight: f64,
@@ -897,7 +882,10 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         self.ensure_admg_posterior_window_licensed()?;
-        refuse_series_weights(series)?;
+        super::series_weights::refuse_unread_series_weights(
+            series,
+            "the temporal-ADMG graph-posterior effect",
+        )?;
         let (variables, variable_count) = window_variables(series, gp)?;
         let max_lag = gp.max_lag().unwrap_or(0);
         let (identified, identify_cached): (Arc<CachedGraphPosteriorIdentification>, bool) =
@@ -1048,7 +1036,10 @@ impl super::Study {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         self.ensure_admg_posterior_window_licensed()?;
-        refuse_series_weights(series)?;
+        super::series_weights::refuse_unread_series_weights(
+            series,
+            "the temporal-ADMG graph-posterior mediation",
+        )?;
         let mut budget =
             antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
         let effect =

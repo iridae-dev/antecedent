@@ -604,7 +604,10 @@ pub(super) fn contract_functional_label(study: &Study, resolved_estimator: Optio
         }
     }
     // Sampling weights change the estimand and the variance: an interval measured on unweighted
-    // rows must not bind to a weighted-population estimate.
+    // rows must not bind to a weighted-population estimate. A series' weights reach a result
+    // only through a route that fits them (`execute::series_weights::admit_series_weights`
+    // refuses them on every other temporal route), so this label never rides on a result that
+    // dropped them.
     let weighted_table = match &study.data {
         DataInput::Tabular(data) => data.storage().weights().is_some(),
         DataInput::Temporal(data) | DataInput::Event(data) => data.storage().weights().is_some(),

@@ -66,6 +66,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(series, "the temporal ADMG contrast")?;
         if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",

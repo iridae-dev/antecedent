@@ -37,6 +37,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the class graph-posterior response",
+        )?;
         let started = Instant::now();
         dbn_posterior_response_supported(query)?;
         query.require_licensed_temporal_observation()?;

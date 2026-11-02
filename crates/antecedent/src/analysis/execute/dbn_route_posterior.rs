@@ -729,6 +729,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(data, "the DBN graph-posterior route")?;
         let started = Instant::now();
         let points = DbnPoint::of_all(&self.query)?;
         let first_point = points.first().ok_or(CausalError::Compile {

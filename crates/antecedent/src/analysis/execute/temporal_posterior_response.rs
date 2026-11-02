@@ -98,6 +98,7 @@ pub(crate) fn dbn_posterior_response_supported(query: &ResponseQuery) -> Result<
 }
 
 impl super::Study {
+    #[allow(clippy::too_many_lines, reason = "one linear execution: admit, fit, aggregate, label")]
     pub(super) fn execute_dbn_posterior_response(
         &self,
         data: &TimeSeriesData,
@@ -106,6 +107,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the DBN graph-posterior response",
+        )?;
         let started = Instant::now();
         let temporal = self.licensed_dbn_posterior_spec(gp, query, ctx)?;
         let (treatment, outcome) = super::response_path::response_primary_pair(&query.functional)?;

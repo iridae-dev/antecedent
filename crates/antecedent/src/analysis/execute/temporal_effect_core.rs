@@ -11,6 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::sequential_validation::SequentialValidation;
+use super::series_weights::{SeriesWeightReading, admit_series_weights};
 use super::{
     Arc, BayesianConfig, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
     CausalError, CausalPosterior, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate,
@@ -153,9 +154,7 @@ pub(super) fn fit_temporal_effect(
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT });
     }
     require_identified(inputs.identification)?;
-    if inputs.data.storage().weights().is_some() {
-        require_sampling_weight_route(inputs)?;
-    }
+    require_sampling_weight_route(inputs)?;
     if inputs.query.is_multi_step_sustained() {
         fit_sustained(inputs, ctx)
     } else if !inputs.query.effect_modifiers.is_empty() {
@@ -1070,17 +1069,22 @@ pub(super) fn plan_completed_to_dag(physical: &PhysicalExecutionPlan) -> bool {
 /// Sampling weights are read by the frequentist linear adjustment on a single window and by the
 /// frequentist sustained contrast (single- or multi-step), whose lag windows are weighted by the
 /// observation they end at; every other temporal construction (conditional effects, Bayesian fits
-/// and the refuters, which refit on the unweighted series) refuses them rather than ignore them.
+/// and the refuters, which refit on the unweighted series) refuses them rather than ignore them,
+/// through the one shared admission.
 fn require_sampling_weight_route(inputs: &TemporalEffectInputs<'_>) -> Result<(), CausalError> {
-    let supported = inputs.query.effect_modifiers.is_empty()
+    let honoured = inputs.query.effect_modifiers.is_empty()
         && matches!(inputs.inference, InferenceMode::Frequentist)
         && inputs.refute == RefuteSuite::None;
-    if supported {
-        return Ok(());
-    }
-    Err(CausalError::Estimate(antecedent_estimate::sampling_weights::unsupported_route(
-        "sampling weights are read by the frequentist temporal linear adjustment and sustained \
-         contrast without refuters (refute=False); conditional effects, Bayesian fits and the \
-         refuters have no sampling-weighted construction",
-    )))
+    admit_series_weights(
+        inputs.data.storage().weights().is_some(),
+        "this temporal effect fit",
+        if honoured {
+            SeriesWeightReading::Honoured
+        } else {
+            SeriesWeightReading::unread(
+                "conditional effects, Bayesian fits and the refuters (which refit the \
+                 unweighted series) have no sampling-weighted construction",
+            )
+        },
+    )
 }

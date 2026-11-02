@@ -76,6 +76,7 @@ impl super::Study {
     }
 
     /// Mix TemporalCpdag/Pag posterior atoms through the class mediation envelope.
+    #[allow(clippy::too_many_lines, reason = "one linear execution: admit, fit, aggregate, label")]
     pub(super) fn execute_temporal_class_graph_posterior_mediation(
         &self,
         data: &TimeSeriesData,
@@ -84,6 +85,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "class graph-posterior mediation",
+        )?;
         if query.horizons.len() != 1 {
             return Err(CausalError::Unsupported {
                 message: "Frequentist TemporalCpdag/Pag graph-posterior mediation is licensed \

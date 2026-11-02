@@ -461,12 +461,14 @@ impl CheckedAttributionOperation {
             || series.storage().weights().is_some(),
             super::TemporalRowProvenance::user_sampling_weights,
         );
-        if user_weighted {
-            return Err(crate::unsupported_reason!(
-                "option_not_applicable",
-                "temporal attribution mechanism selection and fitting do not support user observation weights"
-            ));
-        }
+        // Mechanism selection and fitting are unweighted.
+        super::series_weights::admit_series_weights(
+            user_weighted,
+            "temporal attribution",
+            super::series_weights::SeriesWeightReading::unread(
+                "its mechanism selection and fitting have no sampling-weighted construction",
+            ),
+        )?;
         let mut local_budget = provenance.map_or_else(
             || antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()),
             |p| p.budget().clone(),

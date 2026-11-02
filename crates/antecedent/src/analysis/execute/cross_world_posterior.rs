@@ -1027,6 +1027,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            series,
+            "temporal PAG graph-posterior mediation",
+        )?;
         let started = Instant::now();
         query.validate()?;
         let (GraphPosteriorAtomKind::Pag, Some(lag_masks), Some(max_lag)) =

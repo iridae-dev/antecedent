@@ -206,6 +206,17 @@ impl Study {
         physical: &Arc<PhysicalExecutionPlan>,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        // An association weights its rows by the column its query names, never by the
+        // observation weights the series carries.
+        super::series_weights::admit_series_weights(
+            data.storage().weights().is_some(),
+            "the series association",
+            super::series_weights::SeriesWeightReading::Unread {
+                reason: "it reads only the weight column its query names",
+                remedy: "name the intended weight column in the association query and remove \
+                         the series' observation weights, or drop the weights",
+            },
+        )?;
         self.execute_association(data.storage(), Modality::Series, physical, ctx)
     }
 }

@@ -2598,6 +2598,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the DBN graph-posterior effect",
+        )?;
         let started = Instant::now();
         if query.is_multi_step_sustained() && self.declared.split.is_some() {
             return Err(CausalError::Unsupported {
@@ -2976,6 +2980,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the DBN graph-posterior effect",
+        )?;
         let started = Instant::now();
         let cfg = match &self.settings.inference {
             InferenceMode::Bayesian(c) => c.clone(),
@@ -3410,6 +3418,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(data, "DBN graph-posterior mediation")?;
         if query.horizons.len() > 1 && self.settings.inference.is_frequentist() {
             return Err(CausalError::Unsupported {
                 message: "Frequentist DBN-posterior mediation is licensed for one horizon; \

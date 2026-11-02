@@ -256,6 +256,7 @@ impl super::Study {
         budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(series, "temporal PAG mediation")?;
         if !self.declared.custom_validators.is_empty() {
             return Err(crate::unsupported_reason!(
                 "validators_not_applicable",

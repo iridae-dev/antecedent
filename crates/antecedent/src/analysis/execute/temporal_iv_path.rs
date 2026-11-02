@@ -46,6 +46,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the temporal instrumental-variable estimate",
+        )?;
         let started = Instant::now();
         let delta = treatment_delta(query)?;
         let (identification, estimand, indexer, certified_instrument, identify_cached) =

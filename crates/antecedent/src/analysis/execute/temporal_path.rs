@@ -48,6 +48,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(data, "temporal CPDAG mediation")?;
         let started = Instant::now();
         let estimator = TemporalMediationEstimator::new()
             .with_allow_natural_controlled_alias(true)
@@ -850,6 +851,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(data, "the temporal response")?;
         let started = Instant::now();
         let Some(temporal) = query.temporal.as_ref() else {
             return Err(CausalError::Compile {
@@ -1174,6 +1176,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(data, "the temporal ADMG derivative")?;
         let started = Instant::now();
         let Some(temporal) = query.temporal.as_ref() else {
             return Err(CausalError::Compile {
@@ -2178,6 +2181,10 @@ impl super::Study {
         budget: &mut antecedent_core::TemporalBudget,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the class-aware temporal response",
+        )?;
         if super::response_functional_is_derivative(&query.functional) {
             return self
                 .execute_temporal_class_derivative_within(data, query, physical, budget, ctx);
@@ -3229,6 +3236,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the class-aware temporal effect",
+        )?;
         if self.settings.inference.is_bayesian()
             && query.effect_modifiers.is_empty()
             && !query.is_multi_step_sustained()
@@ -3317,6 +3328,7 @@ impl super::Study {
         }
     }
 
+    #[allow(clippy::too_many_lines, reason = "one linear execution: admit, fit, aggregate, label")]
     pub(super) fn execute_temporal_class_bayesian(
         &self,
         data: &TimeSeriesData,
@@ -3324,6 +3336,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the class-aware Bayesian temporal effect",
+        )?;
         let started = Instant::now();
         let InferenceMode::Bayesian(cfg) = &self.settings.inference else {
             return Err(CausalError::unsupported_inference(
@@ -6057,6 +6073,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the temporal cross-world contrast",
+        )?;
         let started = Instant::now();
         if self.settings.refute != RefuteSuite::None {
             return Err(CausalError::Unsupported {

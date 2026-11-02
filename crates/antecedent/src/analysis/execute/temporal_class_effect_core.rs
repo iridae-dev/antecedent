@@ -144,6 +144,11 @@ pub(super) fn fit_temporal_class_effect(
     inputs: &TemporalClassEffectInputs<'_>,
     ctx: &ExecutionContext,
 ) -> Result<TemporalClassEffectFit, CausalError> {
+    // The completions' lag windows and shared bootstrap are fit on the unweighted series.
+    super::series_weights::refuse_unread_series_weights(
+        inputs.data,
+        "the class-aware temporal effect",
+    )?;
     require_identified_class_mass(&inputs.bundle.envelope.envelope)?;
     if !inputs.query.effect_modifiers.is_empty() {
         fit_class_conditional(inputs, ctx)

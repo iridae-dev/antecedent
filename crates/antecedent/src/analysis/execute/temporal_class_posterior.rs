@@ -327,6 +327,10 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::series_weights::refuse_unread_series_weights(
+            data,
+            "the class graph-posterior effect",
+        )?;
         let started = Instant::now();
         if query.is_multi_step_sustained() && self.declared.split.is_some() {
             return Err(CausalError::Unsupported {

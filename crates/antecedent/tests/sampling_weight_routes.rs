@@ -21,13 +21,17 @@
 use std::sync::Arc;
 
 use antecedent::prelude::ExecutionContext;
-use antecedent::{PanelDidQuery, RandomizedEffectQuery, Study};
+use antecedent::{
+    AssociationQuery, BayesianConfig, InferenceMode, PanelDidQuery, RandomizedEffectQuery,
+    RefuteSuite, Study,
+};
 use antecedent_core::{
-    CausalQuery, Lag, MediationContrast, MediationQuery, RandomizationDesign, StreamDomain,
-    TemporalEffectQuery, TemporalPolicy, VariableId,
+    CausalQuery, DeclaredSamplingDesign, Intervention, Lag, MechanismOverride, MediationContrast,
+    MediationQuery, RandomizationDesign, ResponseFunctional, ResponseQuery, StreamDomain,
+    TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, VariableId,
 };
 use antecedent_data::{TabularData, TimeSeriesData};
-use antecedent_graph::{TemporalDag, ensure_lagged};
+use antecedent_graph::{TemporalCpdag, TemporalDag, ensure_lagged};
 use antecedent_kernels::{kish_ess, sigmoid, standard_normal};
 
 fn ctx() -> ExecutionContext {
@@ -884,4 +888,135 @@ fn temporal_mediation_refuses_series_weights_it_cannot_read() {
         .and_then(|study| study.run(&ctx()).map_err(|e| e.to_string()))
         .unwrap_err();
     assert!(error.contains("sampling_weights.route_unsupported"), "{error}");
+}
+
+// ---------------------------------------------------------------------------------------------
+// One admission for every temporal route
+// ---------------------------------------------------------------------------------------------
+
+/// `y_i = a t_{i-1} + noise` with `a = 1` on the first half of the series and `a = 3` on the
+/// second: the population the weights select decides the coefficient.
+fn regime_series(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut rng = ExecutionContext::for_tests(92).rng.stream_for(StreamDomain::Test, 0x7a01);
+    let t: Vec<f64> = (0..n).map(|_| standard_normal(&mut rng)).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|i| {
+            let slope = if i < n / 2 { 1.0 } else { 3.0 };
+            slope * i.checked_sub(1).map_or(0.0, |j| t[j]) + 0.3 * standard_normal(&mut rng)
+        })
+        .collect();
+    (t, y)
+}
+
+/// Weight zero on the first regime, one on the second.
+fn second_regime_weights(n: usize) -> Vec<f64> {
+    (0..n).map(|i| if i < n / 2 { 0.0 } else { 1.0 }).collect()
+}
+
+fn weighted_regime_series(n: usize) -> TimeSeriesData {
+    let (t, y) = regime_series(n);
+    TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1)
+        .unwrap()
+        .with_weights(Arc::from(second_regime_weights(n)))
+        .unwrap()
+}
+
+/// A weighted series a route cannot read is refused with the typed code and a next attempt.
+fn assert_refused_with_next_attempt(outcome: Result<antecedent::StudyResult, String>, route: &str) {
+    let error = outcome.err().unwrap_or_else(|| panic!("{route} fit a weighted series"));
+    assert!(error.contains("sampling_weights.route_unsupported"), "{route}: {error}");
+    assert!(error.contains("Next attempt"), "{route}: {error}");
+}
+
+#[test]
+fn the_window_fit_that_reads_weights_differs_from_the_unweighted_fit_as_the_weights_select() {
+    let n = 600;
+    let (t, y) = regime_series(n);
+    let unweighted =
+        TimeSeriesData::from_f64_columns([("t", t.as_slice()), ("y", y.as_slice())], 1).unwrap();
+    let run = |data: TimeSeriesData| {
+        Study::series(data)
+            .graph(temporal_graph())
+            .query(CausalQuery::TemporalEffect(pulse()))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(&ctx())
+            .unwrap()
+    };
+    let plain = run(unweighted);
+    let weighted = run(weighted_regime_series(n));
+    let plain_effect = plain.estimate().as_effect().unwrap();
+    let weighted_effect = weighted.estimate().as_effect().unwrap();
+    // Unweighted: the pooled slope of both regimes; weighted: the second regime alone.
+    assert!((plain_effect.ate - 2.0).abs() < 0.2, "{}", plain_effect.ate);
+    assert!((weighted_effect.ate - 3.0).abs() < 0.2, "{}", weighted_effect.ate);
+    assert!(plain_effect.diagnostics.sampling_weights.is_none());
+    let record = weighted_effect.diagnostics.sampling_weights.expect("the weights were read");
+    // The windows start at the first row with a lag-1 value, so row 0 is no window.
+    assert_eq!(record.zero_weight_rows, (n / 2 - 1) as u64);
+}
+
+#[test]
+fn a_bayesian_temporal_effect_refuses_the_weights_it_cannot_read() {
+    let outcome = Study::series(weighted_regime_series(200))
+        .graph(temporal_graph())
+        .query(CausalQuery::TemporalEffect(pulse()))
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(8)))
+        .refute(RefuteSuite::None)
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| study.run(&ctx()).map_err(|error| error.to_string()));
+    assert_refused_with_next_attempt(outcome, "the Bayesian temporal effect");
+}
+
+#[test]
+fn a_class_aware_temporal_effect_refuses_the_weights_it_cannot_read() {
+    let outcome = Study::series(weighted_regime_series(200))
+        .graph(TemporalCpdag::from_temporal_dag(&temporal_graph()))
+        .query(CausalQuery::TemporalEffect(pulse()))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| study.run(&ctx()).map_err(|error| error.to_string()));
+    assert_refused_with_next_attempt(outcome, "the class-aware temporal effect");
+}
+
+#[test]
+fn a_temporal_response_refuses_the_weights_it_cannot_read() {
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::soft(
+            VariableId::from_raw(0),
+            MechanismOverride::additive_shift(0.5),
+        )]),
+    })
+    .with_temporal(TemporalResponseSpec::new(vec![1], TemporalPolicy::pulse(-1), None).unwrap());
+    let outcome = Study::series(weighted_regime_series(200))
+        .graph(temporal_graph())
+        .query(CausalQuery::Response(query))
+        .inference(InferenceMode::Frequentist)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(20)
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| study.run(&ctx()).map_err(|error| error.to_string()));
+    assert_refused_with_next_attempt(outcome, "the temporal response");
+}
+
+#[test]
+fn a_series_association_refuses_the_weights_it_cannot_read() {
+    let outcome = Study::series(weighted_regime_series(200))
+        .query(CausalQuery::Association(AssociationQuery::new(
+            VariableId::from_raw(1),
+            [VariableId::from_raw(0)],
+        )))
+        .bootstrap_replicates(20)
+        .sampling_design(DeclaredSamplingDesign::DependentTimeSeries)
+        .build()
+        .map_err(|error| error.to_string())
+        .and_then(|study| study.run(&ctx()).map_err(|error| error.to_string()));
+    assert_refused_with_next_attempt(outcome, "the series association");
 }
