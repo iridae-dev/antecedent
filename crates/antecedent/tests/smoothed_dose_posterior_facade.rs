@@ -120,6 +120,31 @@ fn posterior_artifact_context_controls_replay_and_preserves_results() {
 }
 
 #[test]
+fn retained_posterior_artifact_stays_charged_to_the_pool_until_dropped() {
+    let (prepared, _) = prepare(Design::IndependentSamples, 17);
+    let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(1 << 30));
+    let before = ctx.admission().available().bytes();
+    let produced = prepared.posterior_with_context(model(200), &ctx).unwrap();
+    let held = before - ctx.admission().available().bytes();
+    assert!(held > 0, "the retained rows and result are charged after the fit's leases drop");
+    let bytes = produced.export().unwrap();
+    let clone = produced.clone();
+    drop(produced);
+    assert_eq!(before - ctx.admission().available().bytes(), held, "a clone shares the lease");
+    drop(clone);
+    assert_eq!(ctx.admission().available().bytes(), before);
+    let consumed = antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context(
+        &bytes,
+        PosteriorRowConsumeLimits::default(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(ctx.admission().available().bytes() < before);
+    drop(consumed);
+    assert_eq!(ctx.admission().available().bytes(), before);
+}
+
+#[test]
 fn posterior_covers_the_closed_form_smoothed_target_under_both_designs() {
     for design in [Design::NestedCohort, Design::IndependentSamples] {
         let (prepared, target_mean) = prepare(design, 11);

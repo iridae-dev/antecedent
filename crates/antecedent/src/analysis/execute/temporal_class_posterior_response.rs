@@ -249,43 +249,28 @@ impl super::Study {
             .iter()
             .filter_map(|atom| atom.value.clone().map(|value| (atom.weight, value)))
             .collect::<Vec<_>>();
-        let conditional_refs =
-            conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
-        let mixable =
-            matches!(aggregation_policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
-                && !conditional_refs.is_empty()
-                && conditional_refs.iter().all(|(_, value)| {
-                    matches!(value, ResponseValue::Scalar(_) | ResponseValue::Surface { .. })
-                });
-        let conditional =
-            if mixable { Some(mix_response_values(&conditional_refs)?) } else { None };
-        let structural_set = union_identified_values(
-            &conditional_values.iter().map(|(_, value)| value).collect::<Vec<_>>(),
-        )
-        .or_else(|| response_envelope_from_weighted(weighted));
+        let PolicyResponseMix { status, estimate, conditional, structural_set } =
+            mix_responses_under_policy(
+                weighted,
+                &conditional_values,
+                aggregation_policy,
+                (
+                    identification.status,
+                    PosteriorMassSummary {
+                        unidentified: unidentified_mass,
+                        failed: failed_mass,
+                        ..PosteriorMassSummary::default()
+                    },
+                ),
+            )?;
+        identification.status = status;
         let first = &weighted[0].2;
-        identification.status = resolve_posterior_status(
-            identification.status,
-            aggregation_policy,
-            PosteriorMassSummary {
-                unidentified: unidentified_mass,
-                failed: failed_mass,
-                ..PosteriorMassSummary::default()
-            },
-        );
-        let graph_dependent = identification.status == IdentificationStatus::GraphDependent;
         let uncertainty =
             if weighted.len() == 1 { first.uncertainty.clone() } else { ResponseUncertainty::None };
         let mut assumptions = first.assumptions.clone();
         for (_, _, response) in weighted.iter().skip(1) {
             assumptions.extend_unique(&response.assumptions.entries);
         }
-        let estimate = class_posterior_estimate(
-            weighted,
-            aggregation_policy,
-            (graph_dependent, identification.status),
-            (structural_set.as_ref(), conditional.as_ref().filter(|_| mixable)),
-        )?;
         let response = antecedent_core::CausalResponse {
             estimand: query.functional.clone(),
             identification_status: identification.status,
@@ -313,7 +298,7 @@ impl super::Study {
             identification,
             aggregation_policy,
             structural_set,
-            conditional: conditional.filter(|_| mixable),
+            conditional,
         })
     }
 
@@ -636,6 +621,47 @@ fn fold_temporal_class_posterior_atoms(
     Ok(fold)
 }
 
+/// A frozen-weight combination of atom responses as the aggregation policy allows it.
+pub(super) struct PolicyResponseMix {
+    /// Posterior status after the mass and policy ladder; never promoted.
+    pub(super) status: IdentificationStatus,
+    pub(super) estimate: ResponseIdentification,
+    /// The weighted mean, present only under `SameEstimandWeightedMean`.
+    pub(super) conditional: Option<ResponseValue>,
+    /// Range of the atoms' identified values, whatever the policy.
+    pub(super) structural_set: Option<antecedent_core::ResponseEnvelope>,
+}
+
+/// Combine atom responses under their [`StructuralAggregationPolicy`].
+///
+/// A scalar or curve mean is formed only when every contributing estimand agrees and is
+/// point identified. Disagreeing estimands publish per-atom values (`GraphDependent`);
+/// a shared partially identified estimand publishes the identified set. `values` are the
+/// atoms' identified values with their weights; `weighted` are the atoms' responses.
+pub(super) fn mix_responses_under_policy(
+    weighted: &[(u64, f64, CausalResponse)],
+    values: &[(f64, ResponseValue)],
+    policy: StructuralAggregationPolicy,
+    (base_status, mass): (IdentificationStatus, PosteriorMassSummary),
+) -> Result<PolicyResponseMix, CausalError> {
+    let refs = values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
+    let mixable = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
+        && !refs.is_empty()
+        && refs.iter().all(|(_, value)| !matches!(value, ResponseValue::Envelope(_)));
+    let conditional = if mixable { Some(mix_response_values(&refs)?) } else { None };
+    let structural_set =
+        union_identified_values(&refs.iter().map(|(_, value)| *value).collect::<Vec<_>>())
+            .or_else(|| response_envelope_from_weighted(weighted));
+    let status = resolve_posterior_status(base_status, policy, mass);
+    let estimate = class_posterior_estimate(
+        weighted,
+        policy,
+        (status == IdentificationStatus::GraphDependent, status),
+        (structural_set.as_ref(), conditional.as_ref()),
+    )?;
+    Ok(PolicyResponseMix { status, estimate, conditional, structural_set })
+}
+
 /// The status-ladder estimate of the mixed class response: per-atom values
 /// when graph dependent, the identified set when set-identified, the mixed
 /// value when point identified.
@@ -697,8 +723,11 @@ fn collapse_singleton_envelope(value: ResponseValue) -> ResponseValue {
 
 fn determinate_response_value(response: &CausalResponse) -> Option<ResponseValue> {
     match collapse_singleton_envelope(response_identified_value(response)?) {
-        value @ (ResponseValue::Scalar(_) | ResponseValue::Surface { .. }) => Some(value),
-        _ => None,
+        value @ (ResponseValue::Scalar(_)
+        | ResponseValue::Surface { .. }
+        | ResponseValue::Vector(_)
+        | ResponseValue::Jacobian { .. }) => Some(value),
+        ResponseValue::Envelope(_) => None,
     }
 }
 
@@ -956,5 +985,96 @@ mod response_shape_tests {
             }
             other => panic!("singleton response level must retain its surface shape: {other:?}"),
         }
+    }
+
+    fn atom_response(value: ResponseValue) -> CausalResponse {
+        use antecedent_core::{SupportRegion, SupportReport, SupportStatus};
+        CausalResponse {
+            estimand: ResponseFunctional::InterventionResponse {
+                outcome: VariableId::from_raw(1),
+                interventions: Arc::from([]),
+            },
+            identification_status: IdentificationStatus::NonparametricallyIdentified,
+            estimate: ResponseIdentification::PointIdentified(value),
+            uncertainty: ResponseUncertainty::None,
+            support: SupportReport {
+                status: SupportStatus::Supported,
+                query_region: SupportRegion { minima: Arc::from([0.0]), maxima: Arc::from([1.0]) },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                point_status: None,
+            },
+            assumptions: antecedent_core::AssumptionSet::default(),
+            provenance_id: Arc::from("test"),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+        }
+    }
+
+    type TwoAtoms = (Vec<(u64, f64, CausalResponse)>, Vec<(f64, ResponseValue)>);
+
+    fn two_atoms() -> TwoAtoms {
+        let weighted = vec![
+            (1, 0.5, atom_response(ResponseValue::Scalar(2.0))),
+            (2, 0.5, atom_response(ResponseValue::Scalar(4.0))),
+        ];
+        let values = vec![(0.5, ResponseValue::Scalar(2.0)), (0.5, ResponseValue::Scalar(4.0))];
+        (weighted, values)
+    }
+
+    #[test]
+    fn agreeing_estimands_publish_the_weighted_mean() {
+        let (weighted, values) = two_atoms();
+        let mix = mix_responses_under_policy(
+            &weighted,
+            &values,
+            StructuralAggregationPolicy::SameEstimandWeightedMean,
+            (IdentificationStatus::NonparametricallyIdentified, PosteriorMassSummary::default()),
+        )
+        .unwrap();
+        assert_eq!(mix.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(mix.conditional, Some(ResponseValue::Scalar(3.0)));
+        assert_eq!(
+            mix.estimate,
+            ResponseIdentification::PointIdentified(ResponseValue::Scalar(3.0))
+        );
+    }
+
+    #[test]
+    fn disagreeing_estimands_withhold_the_mean_and_publish_per_atom_values() {
+        let (weighted, values) = two_atoms();
+        let mix = mix_responses_under_policy(
+            &weighted,
+            &values,
+            StructuralAggregationPolicy::GraphDependentAtoms,
+            (IdentificationStatus::NonparametricallyIdentified, PosteriorMassSummary::default()),
+        )
+        .unwrap();
+        assert_eq!(mix.status, IdentificationStatus::GraphDependent);
+        assert!(mix.conditional.is_none());
+        let ResponseIdentification::GraphDependent(per_atom) = &mix.estimate else {
+            panic!("a disagreeing mixture must publish per-atom values");
+        };
+        assert_eq!(per_atom.len(), 2);
+        let set = mix.structural_set.expect("the atoms' range is still reported");
+        assert_eq!((set.lower[0], set.upper[0]), (2.0, 4.0));
+    }
+
+    #[test]
+    fn a_shared_set_identified_estimand_is_demoted_and_published_as_a_set() {
+        let (weighted, values) = two_atoms();
+        let mix = mix_responses_under_policy(
+            &weighted,
+            &values,
+            StructuralAggregationPolicy::IdentifiedSetEnvelope,
+            (IdentificationStatus::NonparametricallyIdentified, PosteriorMassSummary::default()),
+        )
+        .unwrap();
+        assert_eq!(mix.status, IdentificationStatus::PartiallyIdentified);
+        assert!(mix.conditional.is_none());
+        assert!(matches!(
+            mix.estimate,
+            ResponseIdentification::PartiallyIdentified(ResponseValue::Envelope(_))
+        ));
     }
 }

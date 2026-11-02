@@ -66,12 +66,12 @@ pub use cell::{
     CellStatus, IntoGraphInput, StructureSource, SupportCell, SupportGraphClass, SupportInference,
     SupportQuery, SupportRefusal, SupportStructure, SupportValidation,
 };
-pub(crate) use matrix::executes_unlicensed;
 pub use matrix::{
     cell_coordinate, classify, classify_estimator, licensed_estimators, licensed_neighbors,
     licensed_route_estimator, licensed_support_cells, refuse_if_not_applicable, refused_message,
     support_cell_from_coordinate,
 };
+pub(crate) use matrix::{executes_unlicensed, retarget_permitted};
 
 /// The execute-side graphless license handshake: return
 /// [`CellStatus::Licensed`] when `key`/`observed` classify as licensed, and

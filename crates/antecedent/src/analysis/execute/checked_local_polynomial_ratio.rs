@@ -34,7 +34,7 @@ pub(super) fn local_polynomial_ratio_plan_ids(kink: bool) -> (String, String, St
     let label = if kink { "regression_kink" } else { "fuzzy_rd" };
     (
         format!("quasi.{label}"),
-        format!("quasi.{label}.local_ratio"),
+        IdentifierId::for_local_ratio(kink).as_str().to_string(),
         format!("quasi.{label}.bias_corrected_local_polynomial"),
     )
 }
@@ -246,7 +246,7 @@ impl CheckedLocalPolynomialRatioOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.treatment, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::for_local_ratio(self.query.kink), EstimatorId::LocalRatio), self.query.treatment, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.local_ratio.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,

@@ -8,9 +8,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    Arc, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, EstimatorId,
-    IdentifiedExecuteFinish, IdentifierId, RandomizedTrialOperation, RandomizedTrialQuery,
-    Strategy, StudyResult, TabularData, finish_identified_execute_with_context,
+    Arc, Diagnostic, DiagnosticKind, DiagnosticSeverity, EffectEstimate, IdentifiedExecuteFinish,
+    RandomizedTrialOperation, RandomizedTrialQuery, Strategy, StudyResult, TabularData,
+    finish_identified_execute_with_context,
 };
 use antecedent_core::VariableId;
 use antecedent_estimate::rollout_resampling::DesignEffect;
@@ -106,6 +106,7 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
     operation: &RandomizedTrialOperation<Q, E>,
     data: &TabularData,
     outcome: VariableId,
+    strategy: Strategy,
     report: RolloutReport,
 ) -> StudyResult {
     let overall = report.effects.first().map_or(f64::NAN, |effect| effect.estimate);
@@ -153,7 +154,7 @@ pub(super) fn finish_rollout<Q: Clone + RandomizedTrialQuery, E>(
             operation.identification.clone(),
             operation.estimand.clone(),
             estimate,
-            Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt),
+            strategy,
             outcome,
             outcome,
         )

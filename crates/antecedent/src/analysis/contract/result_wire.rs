@@ -512,9 +512,12 @@ impl From<&crate::QuasiRolloutEstimate>
             replicates_ok: fit.replicates_ok,
             replicates_failed: fit.replicates_failed,
             critical_value: fit.critical_value,
+            // The artifact carries finite numbers only; a diagnostic that is undefined for the
+            // fit (a standard error that could not be formed) stays on the in-memory result.
             diagnostics: fit
                 .diagnostics
                 .iter()
+                .filter(|(_, value)| value.is_finite())
                 .map(|(name, value)| (name.to_string(), *value))
                 .collect(),
             licensed: fit.licensed,

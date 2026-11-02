@@ -88,7 +88,7 @@ impl super::CheckedPanelDidOperation {
                 identification,
                 self.estimand.clone(),
                 estimate,
-                Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt),
+                Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid),
                 self.query.outcome,
                 self.query.outcome,
             )

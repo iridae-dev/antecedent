@@ -7,14 +7,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior,
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as,
 };
 use super::super::rollout_finish::{
     RolloutPayloadParts, RolloutReport, finish_rollout, named, rollout_payload,
 };
 use super::{
-    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StudyResult,
-    TableView, TabularData,
+    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext,
+    IdentifierId, Strategy, StudyResult, TableView, TabularData,
 };
 use antecedent_core::LocalBandwidthRule;
 use antecedent_estimate::local_ratio_design::{
@@ -39,7 +39,11 @@ pub(in crate::analysis::execute) fn local_ratio_query_plan_ids(
         (LocalBandwidthRule::Declared, true) => "declared_bandwidth_rbc_block_bootstrap",
         (LocalBandwidthRule::MseOptimal, true) => "mse_optimal_bandwidth_rbc_block_bootstrap",
     };
-    (plan, format!("quasi.{label}.local_ratio"), format!("quasi.{label}.{estimator}"))
+    (
+        plan,
+        IdentifierId::for_local_ratio(query.kink).as_str().to_string(),
+        format!("quasi.{label}.{estimator}"),
+    )
 }
 
 /// The selected bandwidth of a Bayesian local ratio that declares the MSE-optimal rule, using
@@ -107,7 +111,13 @@ impl super::CheckedLocalPolynomialRatioOperation {
             ctx,
         )
         .map_err(CausalError::Estimate)?;
-        Ok(finish_rollout(self, data, self.query.outcome, self.design_report(&fit)))
+        Ok(finish_rollout(
+            self,
+            data,
+            self.query.outcome,
+            Strategy::new(IdentifierId::for_local_ratio(self.query.kink), EstimatorId::LocalRatio),
+            self.design_report(&fit),
+        ))
     }
 
     /// The within-side block Bayesian-bootstrap posterior of a local ratio in calendar time.
@@ -195,7 +205,7 @@ impl super::CheckedLocalPolynomialRatioOperation {
             notes: vec![format!("block_length={}", posterior.block_length)],
             sampler: None,
         };
-        let mut result = finish_design_posterior(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -207,6 +217,10 @@ impl super::CheckedLocalPolynomialRatioOperation {
                 started,
             },
             design,
+            Strategy::new(
+                IdentifierId::for_local_ratio(self.query.kink),
+                EstimatorId::BayesianLocalRatio,
+            ),
         )?;
         result.payload = rollout_payload(RolloutPayloadParts {
             design: if self.query.kink { "temporal_regression_kink" } else { "temporal_fuzzy_rd" },

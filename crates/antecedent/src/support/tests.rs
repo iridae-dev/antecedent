@@ -103,6 +103,27 @@ fn classify_estimator_licenses_calibration_and_route_estimators() {
 }
 
 #[test]
+fn a_retarget_runs_on_a_licensed_cell_whatever_the_estimator_status() {
+    let licensed = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
+    let refused = cell("ChangeAttribution", "Admg", "explicit", "Frequentist", "full");
+    let n_a = cell("PulseEffect", "Dag", "explicit", "Frequentist", "none");
+    // A licensed cell retargets, and so does one whose estimator carries no coverage record
+    // (status `Refused` on a licensed cell): the result reports that status.
+    assert!(retarget_permitted(Some(CellStatus::Licensed), Some(licensed)));
+    assert!(retarget_permitted(Some(CellStatus::Refused), Some(licensed)));
+    // No matrix cell is declared: nothing claims a licence, nothing refuses the operation.
+    assert!(retarget_permitted(None, None));
+    // A cell refused or not applicable itself, and an allowlisted status, never retarget.
+    assert!(!retarget_permitted(Some(CellStatus::Refused), Some(refused)));
+    assert!(!retarget_permitted(Some(CellStatus::Refused), None));
+    assert!(!retarget_permitted(Some(classify(n_a)), Some(n_a)));
+    assert!(!retarget_permitted(
+        Some(CellStatus::Allowlisted { reason: "historical", parent: "none" }),
+        Some(licensed)
+    ));
+}
+
+#[test]
 fn classify_estimator_never_allowlists_unmeasured_estimators() {
     let c = cell("AverageEffect", "Dag", "explicit", "Frequentist", "none");
     let status = classify_estimator(c, EstimatorId::CausalForest);

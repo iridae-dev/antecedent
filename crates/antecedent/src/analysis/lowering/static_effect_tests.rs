@@ -859,3 +859,22 @@ fn signed_zero_query_drift_is_refused_before_static_family_work() {
     );
     assert_eq!(work, antecedent_expr::execution_counts::StaticWorkCounts::default());
 }
+
+#[test]
+fn a_declared_general_id_does_not_inherit_the_default_routes_license() {
+    use crate::support::CellStatus;
+    let build = |declared: Option<IdentifierId>| {
+        let mut builder = base(binary_data())
+            .graph(confounded_dag())
+            .query(AverageEffectQuery::binary_ate(v(0), v(1)))
+            .bootstrap_replicates(0);
+        if let Some(identifier) = declared {
+            builder = builder.identifier(identifier);
+        }
+        builder.build().unwrap()
+    };
+    // The default adjustment estimator is the cell's licensed route.
+    assert_eq!(build(None).support_status(), Some(CellStatus::Licensed));
+    // general.id evaluates the functional plug-in, whose evidence the cell's rows never ran.
+    assert_eq!(build(Some(IdentifierId::GeneralId)).support_status(), Some(CellStatus::Refused));
+}

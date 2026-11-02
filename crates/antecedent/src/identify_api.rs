@@ -193,6 +193,7 @@ pub(crate) fn identify_study_within(
 ) -> Result<Identification, CausalError> {
     let strategy = identifier.unwrap_or_else(|| match structure.class() {
         GraphClass::Dag => dag_default_strategy(query),
+        GraphClass::RandomizedTrial => IdentifierId::for_design_query(query),
         class => default_strategy(class),
     });
     let mut budget = antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());

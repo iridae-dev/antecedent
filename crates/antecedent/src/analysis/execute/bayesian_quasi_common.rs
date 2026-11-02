@@ -9,8 +9,8 @@
 
 use super::{
     Arc, BayesianConfig, CausalError, CausalPosterior, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, EffectEstimate, EstimatorId, IdentificationResult, IdentifiedEstimand,
-    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext, IdentifierId,
+    DiagnosticSeverity, EffectEstimate, IdentificationResult, IdentifiedEstimand,
+    IdentifiedExecuteExtras, IdentifiedExecuteFinish, IdentifiedResultContext,
     InferenceDiagnostics, Instant, OverlapPolicy, PhysicalExecutionPlan, Strategy, StudyResult,
     TabularData, VariableId, elapsed_ns, finish_identified_execute_with_context,
 };
@@ -151,19 +151,8 @@ pub(super) fn model_assumption(
 }
 
 /// Finish a Bayesian design fit into the study's result: an unlicensed posterior whose
-/// declared identifying premises stay declared.
-pub(super) fn finish_design_posterior(
-    args: DesignFinish<'_>,
-    fit: DesignPosterior,
-) -> Result<StudyResult, CausalError> {
-    finish_design_posterior_as(
-        args,
-        fit,
-        Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt),
-    )
-}
-
-/// [`finish_design_posterior`] recording the identifier and estimator the route actually ran.
+/// declared identifying premises stay declared. The caller names the identifier and estimator
+/// its route ran; there is no default, so a route cannot inherit another design's label.
 pub(super) fn finish_design_posterior_as(
     args: DesignFinish<'_>,
     fit: DesignPosterior,

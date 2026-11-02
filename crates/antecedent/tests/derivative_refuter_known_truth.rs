@@ -328,6 +328,38 @@ fn derivative_refuter_planted_violations_are_detected() {
     assert!(!check.passed, "non-Gaussian residuals not detected");
 }
 
+#[test]
+fn derivative_bootstrap_stability_runs_under_declared_independent_subjects() {
+    let pin = fixture();
+    let data = table(false);
+    let truth = numbers(&pin, "point")[0];
+    let result = study(
+        &data,
+        &point(DerivativeScale::Identity, number(&pin, "at")),
+        false,
+        false,
+        RefuteSuite::Full,
+    )
+    .sampling_design(antecedent_core::DeclaredSamplingDesign::IndependentSubjectTrajectories)
+    .build()
+    .unwrap()
+    .run(&ExecutionContext::for_tests(812))
+    .unwrap();
+    let stability = report(&result, "derivative.bootstrap_stability")
+        .expect("independent subjects resample by row");
+    assert!(stability.replicates >= 2 && stability.passed);
+    assert!(
+        (stability.refuted_ate - truth).abs()
+            <= (number(&pin, "value_relative_tolerance") * truth.abs()).max(0.1)
+    );
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "refute.derivative.bootstrap_stability_not_applicable")
+    );
+}
+
 /// `a -> v`, `b -> y`, `b -> v` and no path from `a` to `y`: whatever association the data hold
 /// between `a` and `y` (slope 2 in the fixture's law), the do-effect of `a` on `y` is exactly 0.
 fn graph_without_a_path_to_the_outcome() -> Dag {

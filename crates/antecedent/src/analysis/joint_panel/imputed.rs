@@ -23,10 +23,26 @@ use antecedent_core::ExecutionContext;
 use antecedent_data::{ImputationSpec, PanelData, PanelUnit, SamplingRegularity, TableView};
 use antecedent_estimate::joint_panel::PanelInference;
 use antecedent_estimate::multiple_imputation::{
-    self, ImputationColumn, ImputationUnits, Imputer, MultipleImputationFailure,
-    PooledVectorEstimate, VectorImputationFit,
+    self, ImputationColumn, ImputationUnits, Imputer, MultipleImputationError,
+    MultipleImputationFailure, PooledVectorEstimate, VectorImputationFit,
 };
 use std::sync::Arc;
+
+/// An imputation refusal as a joint-panel error that keeps operational stops operational.
+///
+/// The imputer names a cancellation and an unfunded admission by detail; flattening them
+/// to a compile refusal would present a resource or cancellation stop as a bad request.
+fn imputation_error(error: &MultipleImputationError) -> JointPanelError {
+    match error.detail() {
+        "multiple_imputation.cancelled" => {
+            JointPanelError::Engine(super::engine::PanelError::Cancelled)
+        }
+        "multiple_imputation.admission_refused" => {
+            JointPanelError::Engine(super::engine::PanelError::Resource(error.to_string()))
+        }
+        _ => JointPanelError::compile(error.to_string()),
+    }
+}
 
 /// A joint-panel source whose missing outcomes and confounders are multiply imputed.
 #[derive(Clone, Debug)]
@@ -197,7 +213,7 @@ impl Study {
             domains,
         )
         .and_then(|imputer| imputer.with_dynamics(1))
-        .map_err(|error| JointPanelError::compile(error.to_string()))?;
+        .map_err(|error| imputation_error(&error))?;
         Ok(PreparedJointPanelImputation { source: data, request, imputer, layout: layout.into() })
     }
 }
@@ -286,9 +302,7 @@ impl PreparedJointPanelImputation {
             Ok(VectorImputationFit::frequentist(point, covariance, None))
         })
         .map_err(|failure| match failure {
-            MultipleImputationFailure::Imputation(error) => {
-                JointPanelError::compile(error.to_string())
-            }
+            MultipleImputationFailure::Imputation(error) => imputation_error(&error),
             MultipleImputationFailure::Fit { error, .. } => error,
         })?;
         Ok(JointPanelImputedResult {

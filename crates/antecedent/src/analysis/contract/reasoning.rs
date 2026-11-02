@@ -151,7 +151,15 @@ pub(super) fn operation_report(
         _ => Vec::new(),
     };
 
-    if !operation.uses_matrix_row() && applicability != SemanticApplicability::Licensed {
+    let permitted = match operation {
+        OperationKind::Retarget => {
+            crate::support::retarget_permitted(contract.support_status, cell)
+        }
+        _ => applicability == SemanticApplicability::Licensed,
+    };
+    if operation == OperationKind::Retarget && permitted {
+        blockers.clear();
+    } else if !operation.uses_matrix_row() && !permitted {
         let reason = match operation {
             OperationKind::RankDesigns => crate::error::RANK_DESIGNS_REQUIRES_LICENSE,
             OperationKind::Retarget => crate::error::RETARGET_REQUIRES_LICENSE,

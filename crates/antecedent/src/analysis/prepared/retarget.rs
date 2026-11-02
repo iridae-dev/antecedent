@@ -13,12 +13,45 @@ use antecedent_estimate::{
 use std::sync::Arc;
 
 impl PreparedStudy {
+    /// Refuse a retarget on a study whose support cell cannot carry one.
+    ///
+    /// The rule is [`crate::support::retarget_permitted`], the one the operation report
+    /// blocks `Retarget` on. A caller-declared weighting changes the population, never the
+    /// status the handle was prepared under, which the result reports unchanged.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::error::RETARGET_REQUIRES_LICENSE`] where the cell is not applicable,
+    /// allowlisted, or refused.
+    fn require_retarget_license(&self) -> Result<(), CausalError> {
+        let cell = crate::analysis::contract::matrix_coordinate(&self.analysis)
+            .as_deref()
+            .and_then(crate::support::support_cell_from_coordinate);
+        if crate::support::retarget_permitted(self.analysis.support_status, cell) {
+            Ok(())
+        } else {
+            Err(CausalError::Unsupported { message: crate::error::RETARGET_REQUIRES_LICENSE }
+                .diagnosed(antecedent_estimate::RefusalFields {
+                    stage: Some("retarget".to_string()),
+                    reason: Some("operation_unlicensed".to_string()),
+                    remedy: Some(
+                        "next attempt: prepare the study on a licensed support cell; a refused \
+                         or not-applicable cell keeps no retargetable claim"
+                            .to_string(),
+                    ),
+                    ..antecedent_estimate::RefusalFields::default()
+                }))
+        }
+    }
+
     /// The prepared score table a retarget reweights.
     ///
     /// # Errors
     ///
+    /// The licence refusal of [`Self::require_retarget_license`], or
     /// `score_table_unavailable` when prepare built none.
     fn retarget_score_table(&self) -> Result<&antecedent_estimate::ScoreTable, CausalError> {
+        self.require_retarget_license()?;
         self.score_table.as_ref().ok_or_else(|| {
             crate::unsupported_reason!(
                 "score_table_unavailable",
@@ -154,6 +187,7 @@ impl PreparedStudy {
         weights: &[f64],
         depends_on: &[antecedent_core::VariableId],
     ) -> Result<RetargetResult, CausalError> {
+        self.require_retarget_license()?;
         let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
             .analysis
             .graph
@@ -688,4 +722,94 @@ fn declared_units(
 ) -> Option<ClusterUnits> {
     let (first, second) = units.labels(&table.row_index).ok()?;
     Some(ClusterUnits { spec: units.spec?, first: first?, second })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::analysis::{RefuteSuite, Study};
+    use crate::error::{CausalError, RETARGET_REQUIRES_LICENSE};
+    use crate::support::CellStatus;
+    use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
+    use antecedent_data::TabularData;
+    use antecedent_estimate::AipwAte;
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_kernels::standard_normal;
+
+    const N: usize = 400;
+
+    fn prepared(ctx: &ExecutionContext) -> super::PreparedStudy {
+        let mut rng = ctx.rng.stream_for(StreamDomain::Test, 0x36);
+        let n = N;
+        let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+        for i in 0..n {
+            z[i] = standard_normal(&mut rng);
+            t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-0.6 * z[i]).exp()));
+            y[i] = 2.0 * t[i] + z[i] + 0.5 * standard_normal(&mut rng);
+        }
+        let columns = [("t", t), ("y", y), ("z", z)];
+        let borrowed: Vec<(&str, &[f64])> =
+            columns.iter().map(|(name, v)| (*name, v.as_slice())).collect();
+        let data = TabularData::from_f64_columns(borrowed).unwrap();
+        let mut graph = Dag::with_variables(3);
+        for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        Study::tabular(data)
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .estimator(AipwAte::new().with_bootstrap_replicates(0))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(ctx)
+            .unwrap()
+    }
+
+    #[test]
+    fn a_retarget_follows_the_cell_and_reports_the_status_it_was_prepared_under() {
+        let ctx = ExecutionContext::for_tests(36);
+        let mut prepared = prepared(&ctx);
+        let n = prepared.score_table().expect("prepare keeps the table").n_rows;
+        let weights = vec![1.0; n];
+        assert!(matches!(prepared.analysis.support_status, Some(CellStatus::Licensed)));
+        let licensed = prepared.retarget(&weights, &[], &ctx).expect("a licensed cell retargets");
+        assert_eq!(licensed.support_status, Some(CellStatus::Licensed));
+
+        // A licensed cell whose estimator has no coverage record still retargets, reporting it.
+        prepared.analysis.support_status = Some(CellStatus::Refused);
+        let reported = prepared.retarget(&weights, &[], &ctx).expect("the cell is licensed");
+        assert_eq!(reported.support_status, Some(CellStatus::Refused));
+
+        // No matrix claim: nothing refuses the operation, and the result claims nothing.
+        prepared.analysis.support_status = None;
+        let unclaimed = prepared.retarget(&weights, &[], &ctx).expect("no claim to refuse");
+        assert_eq!(unclaimed.support_status, None);
+
+        let refused = |error: CausalError| {
+            assert!(
+                matches!(error.peeled(), CausalError::Unsupported { message } if *message == RETARGET_REQUIRES_LICENSE),
+                "{error:?}"
+            );
+            assert!(error.remedy().is_some_and(|remedy| remedy.contains("next attempt")));
+            assert_eq!(
+                error.blocker_id().map(|blocker| blocker.id.to_string()),
+                Some("operation.unlicensed".to_string()),
+                "{error:?}"
+            );
+        };
+        for status in [
+            CellStatus::NotApplicable { reason: "typed-impossible" },
+            CellStatus::Allowlisted { reason: "historical", parent: "none" },
+        ] {
+            prepared.analysis.support_status = Some(status);
+            refused(prepared.retarget(&weights, &[], &ctx).unwrap_err());
+            refused(
+                prepared
+                    .transform_capability(antecedent_contract::TransformIntent::Retarget)
+                    .unwrap_err(),
+            );
+            let table = prepared.score_table().unwrap().clone();
+            refused(prepared.retarget_table(&table, &weights, &[]).unwrap_err());
+        }
+    }
 }

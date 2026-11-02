@@ -25,7 +25,7 @@ use antecedent_core::{
     CausalQuery, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
-use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_graph::{Admg, DSeparationWorkspace, Dag, DenseNodeId};
 use antecedent_kernels::{mean, shuffle};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 use antecedent_validate::target_native::{
@@ -37,7 +37,8 @@ use antecedent_validate::{
 };
 
 use super::execute::Study;
-use super::prepared::PreparedStudy;
+use super::mediator_read::functional_never_reads;
+use super::prepared::{IdentificationCache, PreparedStudy};
 use super::target_validation::result_target_values;
 use crate::accepted::GraphRef;
 use crate::error::CausalError;
@@ -50,6 +51,13 @@ const RHO_BAR: f64 = 0.1;
 const MIN_BLOCK_REPLICATES: u32 = 8;
 /// Largest mean alignment of a permuted block's unit contributions with the original ones.
 const ALIGNMENT_BAR: f64 = 0.5;
+/// The fraction of an effect that permuting the mediator may move before the functional counts
+/// as reading the mediator column, for the numeric guard of [`mediator_placebo`]. A functional
+/// that reads the column loses essentially the whole effect; one that sums the mediator out
+/// inside a district kernel moves only by the plug-in difference between equivalent
+/// factorizations, which depends on the topological order the factors condition on and
+/// vanishes with the sample size.
+const MEDIATOR_UNREAD_FRACTION: f64 = 0.01;
 
 /// What the extra refuters read.
 pub(crate) struct ExtraInput<'a> {
@@ -316,6 +324,15 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
         },
         None => 0.0,
     };
+    // Two guards skip a placebo that says nothing about the functional. The structural one is
+    // decided by the formula and the graph: the mediator is summed out of a district kernel
+    // and cancels, whatever topological order the factors condition on, so no refit is run.
+    // The numeric one (below, after the refits) is the backstop for factorisations whose
+    // equality only shows empirically, such as a graph class the structural test does not read.
+    if mediator_structurally_unread(input, mediator, outcome) {
+        notes.push(not_applicable(NAME, MEDIATOR_UNREAD, MEDIATOR_UNREAD_NEXT));
+        return Ok((Vec::new(), notes));
+    }
     let replicates = input.replicates;
     let mut values = Vec::with_capacity(replicates as usize);
     // The permuted column is rebuilt in one scratch buffer; each replicate starts from the
@@ -335,16 +352,9 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
             values.push(value);
         }
     }
-    // A functional that sums the mediator out inside a district kernel never reads its
-    // column: permuting it cannot move the effect, so the placebo says nothing about the
-    // functional and is not run as a check.
-    if !values.is_empty() && values.iter().all(|value| (value - original).abs() <= 1e-12) {
-        notes.push(not_applicable(
-            NAME,
-            "the identified functional does not read the permuted mediator column, so \
-             permuting it cannot move the effect",
-            "a route whose functional reads the mediator (the edge g-formula)",
-        ));
+    // The numeric guard: permuting the column moves the effect only by estimator noise.
+    if mediator_unread(original, &values) {
+        notes.push(not_applicable(NAME, MEDIATOR_UNREAD, MEDIATOR_UNREAD_NEXT));
         return Ok((Vec::new(), notes));
     }
     let statistic = match joint_mahalanobis(&[expected], &values, 1) {
@@ -381,6 +391,53 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
         u32::try_from(values.len()).unwrap_or(u32::MAX),
     );
     Ok((vec![stamp(report, input.program)], notes))
+}
+
+const MEDIATOR_UNREAD: &str = "the identified functional does not read the permuted mediator \
+    column, so permuting it cannot move the effect";
+const MEDIATOR_UNREAD_NEXT: &str =
+    "a route whose functional reads the mediator (the edge g-formula)";
+
+/// Whether the identified functional the study holds provably never reads the mediator column:
+/// the district kernel sums the mediator out and the factors cancel (see
+/// [`functional_never_reads`](super::mediator_read)). `false` whenever the study holds no
+/// static identification or the graph is neither a Dag nor an Admg.
+fn mediator_structurally_unread(
+    input: &ExtraInput<'_>,
+    mediator: VariableId,
+    outcome: VariableId,
+) -> bool {
+    let Some(IdentificationCache::Static(cached)) = input.study.identification.as_ref() else {
+        return false;
+    };
+    let admg = match input.study.graph.graph_ref() {
+        GraphRef::Admg(graph) => graph.clone(),
+        GraphRef::Dag(graph) => match Admg::from_dag(graph) {
+            Ok(graph) => graph,
+            Err(_) => return false,
+        },
+        _ => return false,
+    };
+    let node = |variable: VariableId| DenseNodeId::from_raw(variable.raw());
+    let independent = |m: VariableId, others: &[VariableId], given: &[VariableId]| {
+        let others: Vec<DenseNodeId> = others.iter().copied().map(node).collect();
+        let given: Vec<DenseNodeId> = given.iter().copied().map(node).collect();
+        admg.is_m_separated_sets(&[node(m)], &others, &given, &mut DSeparationWorkspace::default())
+            .unwrap_or(false)
+    };
+    functional_never_reads(
+        &cached.identification.arena,
+        cached.estimand.functional,
+        mediator,
+        outcome,
+        &independent,
+    )
+}
+
+/// Whether every permuted refit keeps the effect to within [`MEDIATOR_UNREAD_FRACTION`] of it.
+fn mediator_unread(original: f64, permuted: &[f64]) -> bool {
+    let tolerance = (MEDIATOR_UNREAD_FRACTION * original.abs()).max(1e-12);
+    !permuted.is_empty() && permuted.iter().all(|value| (value - original).abs() <= tolerance)
 }
 
 /// The placebo of an interventional distribution: with the intervened variable permuted the
@@ -943,7 +1000,7 @@ fn distribution_placebo_replicates(
 
 #[cfg(test)]
 mod tests {
-    use super::{pearson, placebo_stream_index};
+    use super::{mediator_unread, pearson, placebo_stream_index};
 
     #[test]
     fn the_first_intervened_variable_keeps_the_replicate_stream() {
@@ -958,5 +1015,19 @@ mod tests {
         assert_eq!(pearson(&[1.0, 1.0, 1.0], &[1.0, 2.0, 3.0]), None);
         let rho = pearson(&[1.0, 2.0, 3.0], &[2.0, 4.0, 6.0]).unwrap();
         assert!((rho - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_mediator_is_unread_when_permuting_it_leaves_the_effect_but_for_estimator_noise() {
+        // The district formula's plug-in moved 0.125 to 0.1249 under order-dependent factors.
+        assert!(mediator_unread(0.125, &[0.1249, 0.12491, 0.125]));
+        // A functional that reads the mediator loses the effect.
+        assert!(!mediator_unread(0.125, &[0.003, -0.002, 0.01]));
+        // One replicate that keeps the mediator's effect does not make the others unread.
+        assert!(!mediator_unread(0.125, &[0.125, 0.0]));
+        // A null effect is unread only when the refits reproduce it.
+        assert!(mediator_unread(0.0, &[0.0, 0.0]));
+        assert!(!mediator_unread(0.0, &[0.0, 1e-6]));
+        assert!(!mediator_unread(0.125, &[]));
     }
 }

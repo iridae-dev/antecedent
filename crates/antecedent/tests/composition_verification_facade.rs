@@ -345,6 +345,34 @@ fn invalidation_log_and_claim_freshness_drive_the_classification() {
     assert_eq!(refusal.detail, "composition_verification.input_retired");
 }
 
+#[test]
+fn a_claim_older_than_the_trimmed_audit_trail_is_refused_not_reported_unchanged() {
+    let target = InvalidationTarget::QueryResult(QueryId::from_raw(7));
+    let mut log = InvalidationLog::new();
+    for version in 1..=200 {
+        log.push(StateVersion::from_raw(version), target.clone(), "new rows arrived");
+    }
+    log.trim_audit(50);
+    let through = log.pruned_through().expect("the trail was trimmed");
+    let bindings = [("query_result", target.clone())];
+
+    let refused = invalidation_effects(&log, StateVersion::from_raw(1), &bindings);
+    match refused.get("query_result") {
+        Some(ObservedEffect::Refused { detail }) => {
+            assert!(detail.contains(&log.pruned_head().to_hex()), "{detail}");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+
+    let answered = invalidation_effects(&log, through, &bindings);
+    assert!(matches!(answered.get("query_result"), Some(ObservedEffect::Recomputed { .. })));
+    assert_eq!(
+        query_revalidation(&log, QueryId::from_raw(7), StateVersion::from_raw(1)),
+        Revalidation::Recompute,
+        "the staleness index still answers for any version"
+    );
+}
+
 fn obs(range: std::ops::Range<u32>) -> Vec<ObservationId> {
     range.map(|i| ObservationId::from_key("cohort", &i.to_le_bytes())).collect()
 }

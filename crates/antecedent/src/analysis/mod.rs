@@ -183,6 +183,7 @@ pub mod measurement_model;
 pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
+mod mediator_read;
 mod missing_data;
 mod missing_imputation;
 mod missing_imputation_vector;

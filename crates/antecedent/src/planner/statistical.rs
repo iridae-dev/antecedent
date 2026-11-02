@@ -20,7 +20,10 @@ use crate::error::CausalError;
 use crate::planner::lowered::DesignShape;
 use crate::{EstimatorId, IdentifierId, InferenceMode};
 
-const STATISTICAL_PROGRAM_TAG: &str = "antecedent.lowered_program.statistical";
+/// Versioned with the identity layout: v2 writes the typed quasi-experimental identifiers of
+/// difference-in-differences, synthetic control and the local ratios, which v1 recorded as
+/// absent, and the declared posterior algorithm.
+const STATISTICAL_PROGRAM_TAG: &str = "antecedent.lowered_program.statistical.v2";
 /// Declaration name used when the route record names no estimator.
 const UNNAMED_ESTIMATOR: &str = "unnamed";
 
@@ -367,14 +370,20 @@ impl StatisticalProgram {
             InferenceMode::Bayesian(config) => {
                 let prior = Prior::new(prior_name(config)).map_err(declaration_error)?;
                 let likelihood = LikelihoodModel::new(name).map_err(declaration_error)?;
-                let algorithm = match config.backend {
-                    antecedent_estimate::BayesianBackendKind::ConjugateGaussian => {
-                        PosteriorAlgorithm::Conjugate
+                let algorithm = if estimator
+                    .is_some_and(EstimatorId::posterior_is_bayesian_bootstrap)
+                {
+                    PosteriorAlgorithm::BayesianBootstrap
+                } else {
+                    match config.backend {
+                        antecedent_estimate::BayesianBackendKind::ConjugateGaussian => {
+                            PosteriorAlgorithm::Conjugate
+                        }
+                        antecedent_estimate::BayesianBackendKind::Laplace => {
+                            PosteriorAlgorithm::Laplace
+                        }
+                        antecedent_estimate::BayesianBackendKind::Hmc => PosteriorAlgorithm::Hmc,
                     }
-                    antecedent_estimate::BayesianBackendKind::Laplace => {
-                        PosteriorAlgorithm::Laplace
-                    }
-                    antecedent_estimate::BayesianBackendKind::Hmc => PosteriorAlgorithm::Hmc,
                 };
                 (
                     Realization::Bayesian(OrdinaryBayesianLikelihood::new(
@@ -525,4 +534,40 @@ fn prior_name(config: &crate::BayesianConfig) -> String {
 
 fn declaration_error(error: antecedent_core::DeclarationError) -> CausalError {
     CausalError::Compile { message: error.to_string() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn declared_algorithm(estimator: EstimatorId) -> PosteriorAlgorithm {
+        let inference = InferenceMode::Bayesian(crate::BayesianConfig::laplace());
+        StatisticalProgram::declared(DeclaredProgram {
+            identifier: None,
+            estimator: Some(estimator),
+            inference: &inference,
+            bootstrap_replicates: 0,
+            sampling_design: None,
+            design: DesignShape::not_design_based("test"),
+            operators: Vec::new(),
+        })
+        .expect("declared program")
+        .posterior()
+        .expect("a Bayesian program plans a posterior")
+        .algorithm()
+    }
+
+    #[test]
+    fn bootstrap_estimators_declare_the_bayesian_bootstrap_whatever_the_backend() {
+        for estimator in EstimatorId::ALL {
+            let expected = if estimator.posterior_is_bayesian_bootstrap() {
+                PosteriorAlgorithm::BayesianBootstrap
+            } else {
+                PosteriorAlgorithm::Laplace
+            };
+            assert_eq!(declared_algorithm(*estimator), expected, "{}", estimator.as_str());
+        }
+        assert!(EstimatorId::BayesianRobustAte.posterior_is_bayesian_bootstrap());
+        assert!(!EstimatorId::BayesianGcomp.posterior_is_bayesian_bootstrap());
+    }
 }

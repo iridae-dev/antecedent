@@ -1011,7 +1011,7 @@ fn apply_design_contract(
             ));
         }
     }
-    if carry.declared.identifier.is_some_and(|id| id != IdentifierId::RandomizedDesign)
+    if carry.declared.identifier.is_some_and(|id| id != IdentifierId::for_design_query(query))
         || carry.declared.estimator.is_some_and(|id| {
             !matches!(
                 id,
@@ -1931,6 +1931,10 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
     Ok(SettledRefute(chosen))
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "one linear classification of the settled refute; splitting it scatters the support rules"
+)]
 fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalError> {
     let matrix_class = settled.0.classified.matrix_class;
     let structure = settled.0.classified.structure;
@@ -1975,8 +1979,20 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                     // Admg). Only a caller-selected estimator (`estimator_spec`)
                     // is classified as bound; otherwise the cell's
                     // licensed_routes default is what will actually run.
+                    //
+                    // A declared identifier that carries its own estimator (general.id
+                    // evaluates a functional) replaces the cell's default the same way.
+                    let identifier_estimator = carry
+                        .declared
+                        .identifier
+                        .and_then(IdentifierId::static_native_estimator)
+                        .filter(|_| {
+                            matches!(query, CausalQuery::AverageEffect(_)) && matrix_class == "Dag"
+                        });
                     let estimator = if carry.declared.estimator_spec.is_some() {
                         carry.declared.estimator
+                    } else if let Some(native) = identifier_estimator {
+                        Some(native)
                     } else {
                         crate::support::licensed_route_estimator(cell).or(carry.declared.estimator)
                     };

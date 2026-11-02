@@ -90,6 +90,26 @@ pub fn classify_estimator(cell: SupportCell, estimator: EstimatorId) -> CellStat
     }
 }
 
+/// Whether a score-table retarget may run on a prepared handle of `status` on `cell`.
+///
+/// A retarget reweights the scores an estimator already kept and reports the handle's own
+/// status; it makes no claim of its own. So it runs wherever the cell itself is licensed and
+/// where no matrix cell is declared (`status` is `None`), and its result carries what the
+/// handle was built under: a licensed cell whose estimator or construction has no coverage
+/// record (a `Refused` status on a licensed cell) retargets and reports `refused`. It is
+/// blocked where the cell is not applicable, allowlisted, or itself refused. The operation
+/// report and the retarget gate both read this, so they cannot disagree.
+#[must_use]
+pub(crate) fn retarget_permitted(status: Option<CellStatus>, cell: Option<SupportCell>) -> bool {
+    match status {
+        None | Some(CellStatus::Licensed) => true,
+        Some(CellStatus::NotApplicable { .. } | CellStatus::Allowlisted { .. }) => false,
+        Some(CellStatus::Refused) => {
+            cell.is_some_and(|cell| classify(cell) == CellStatus::Licensed)
+        }
+    }
+}
+
 /// Closed-rule or default refusal text for a refused cell.
 #[must_use]
 pub fn refused_message(cell: SupportCell) -> &'static str {

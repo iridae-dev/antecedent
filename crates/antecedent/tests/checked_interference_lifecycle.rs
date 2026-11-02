@@ -292,6 +292,32 @@ fn bernoulli_neighbor_count_design_route_is_sealed_refreshable_and_artifact_scop
 }
 
 #[test]
+fn a_replacement_for_other_units_of_the_same_count_is_refused_by_the_network_identity() {
+    let (data, assignment, edges, _) = design_fixture();
+    let units = antecedent_data::UnitKey::from_row_labels(["north", "south"]).unwrap();
+    let keyed = data.clone().with_unit_key(units.clone()).unwrap();
+    let builder = build(keyed.clone(), assignment, edges, false);
+    let context = ExecutionContext::for_tests(6193);
+    let mut prepared = builder.prepare(&context).unwrap();
+
+    let same_units = shifted_outcomes(&data, 0.5).with_unit_key(units).unwrap();
+    rebind_estimate(&mut prepared, same_units, &context).unwrap();
+
+    let swapped = antecedent_data::UnitKey::from_row_labels(["south", "north"]).unwrap();
+    let other_order = shifted_outcomes(&data, 0.5).with_unit_key(swapped).unwrap();
+    let refused = rebind_estimate(&mut prepared, other_order, &context).unwrap_err();
+    assert!(refused.to_string().contains("other units than the declared network"), "{refused}");
+
+    let renamed = antecedent_data::UnitKey::from_row_labels(["east", "west"]).unwrap();
+    let other_units = shifted_outcomes(&data, 0.5).with_unit_key(renamed).unwrap();
+    let refused = rebind_estimate(&mut prepared, other_units, &context).unwrap_err();
+    assert!(refused.to_string().contains("other units than the declared network"), "{refused}");
+
+    rebind_estimate(&mut prepared, shifted_outcomes(&data, 1.0), &context)
+        .expect("an unkeyed replacement inherits the declared units");
+}
+
+#[test]
 fn conjugate_gaussian_interference_route_is_sealed_refreshable_and_artifact_scoped() {
     let (data, assignment, edges, fixture) = bayesian_fixture();
     let builder = build(data.clone(), assignment, edges, true);

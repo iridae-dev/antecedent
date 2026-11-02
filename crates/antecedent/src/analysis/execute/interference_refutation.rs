@@ -397,11 +397,55 @@ fn exposure_calibration(input: &InterferenceRefutationInput<'_>) -> Vec<Refutati
     .collect()
 }
 
-/// One re-draw of the assignment from the declared design; `None` when the design is not one
-/// the re-randomization test covers or its declaration is inconsistent with the units.
+/// Bytes of working memory the prepared re-draw holds per unit: the dense cluster index of
+/// each unit and the transient sorted copy of the cluster ids it is built from.
+const REDRAW_BYTES_PER_UNIT: u64 = 16;
+
+/// Dense cluster index of every unit, built once so a draw never searches cluster ids.
+struct ClusterIndex {
+    unit_cluster: Vec<usize>,
+    cluster_count: usize,
+}
+
+/// The declared assignment design prepared for repeated re-draws. A cluster draw costs
+/// O(units + clusters), not O(units x treated clusters).
+struct AssignmentRedraw<'a> {
+    design: &'a AssignmentDesign,
+    units: usize,
+    clusters: Option<ClusterIndex>,
+}
+
+impl<'a> AssignmentRedraw<'a> {
+    fn new(design: &'a AssignmentDesign, units: usize) -> Self {
+        let clusters = match design {
+            AssignmentDesign::ClusterRandomization { clusters, .. } if clusters.len() == units => {
+                let mut ids: Vec<u32> = clusters.to_vec();
+                ids.sort_unstable();
+                ids.dedup();
+                let unit_cluster = clusters
+                    .iter()
+                    .map(|cluster| match ids.binary_search(cluster) {
+                        Ok(index) | Err(index) => index,
+                    })
+                    .collect();
+                Some(ClusterIndex { unit_cluster, cluster_count: ids.len() })
+            }
+            _ => None,
+        };
+        Self { design, units, clusters }
+    }
+
+    /// One re-draw of the assignment from the declared design; `None` when the design is not
+    /// one the re-randomization test covers or its declaration is inconsistent with the units.
+    fn draw(&self, rng: &mut antecedent_core::CausalRng) -> Option<Vec<bool>> {
+        redraw_assignment(self.design, self.units, self.clusters.as_ref(), rng)
+    }
+}
+
 fn redraw_assignment(
     design: &AssignmentDesign,
     units: usize,
+    clusters: Option<&ClusterIndex>,
     rng: &mut antecedent_core::CausalRng,
 ) -> Option<Vec<bool>> {
     let mut below = |bound: usize| -> usize {
@@ -430,22 +474,21 @@ fn redraw_assignment(
             }
             Some(assignment)
         }
-        AssignmentDesign::ClusterRandomization { clusters, treated_clusters } => {
-            if clusters.len() != units {
+        AssignmentDesign::ClusterRandomization { treated_clusters, .. } => {
+            let index = clusters?;
+            if *treated_clusters > index.cluster_count {
                 return None;
             }
-            let mut ids: Vec<u32> = clusters.to_vec();
-            ids.sort_unstable();
-            ids.dedup();
-            if *treated_clusters > ids.len() {
-                return None;
-            }
+            let mut order: Vec<usize> = (0..index.cluster_count).collect();
             for position in 0..*treated_clusters {
-                let other = position + below(ids.len() - position);
-                ids.swap(position, other);
+                let other = position + below(index.cluster_count - position);
+                order.swap(position, other);
             }
-            let chosen = &ids[..*treated_clusters];
-            Some(clusters.iter().map(|cluster| chosen.contains(cluster)).collect())
+            let mut chosen = vec![false; index.cluster_count];
+            for &cluster in &order[..*treated_clusters] {
+                chosen[cluster] = true;
+            }
+            Some(index.unit_cluster.iter().map(|&cluster| chosen[cluster]).collect())
         }
         AssignmentDesign::TwoStageSaturation { .. } | AssignmentDesign::ObservedExposure { .. } => {
             None
@@ -505,12 +548,12 @@ fn randomization_unbiasedness(
     let redraws = if input.replicates == 0 { DEFAULT_REDRAWS } else { input.replicates.max(2) };
     // Each redraw recomputes both exposure levels. Admit the whole refutation,
     // not merely one estimator invocation, before allocating or drawing.
-    // The quote deduplicates cluster IDs; account for that temporary buffer.
-    let quote_bytes =
-        u64::try_from(units).ok().and_then(|n| n.checked_mul(4)).ok_or_else(|| {
-            CausalError::Resource { message: "interference work quote size overflow".into() }
-        })?;
-    let quote_lease = ctx.acquire_admission(0, quote_bytes).map_err(|error| match error {
+    // The prepared re-draw indexes cluster ids once and keeps that index for every redraw.
+    let redraw_bytes =
+        u64::try_from(units).ok().and_then(|n| n.checked_mul(REDRAW_BYTES_PER_UNIT)).ok_or_else(
+            || CausalError::Resource { message: "interference work quote size overflow".into() },
+        )?;
+    let _redraw_lease = ctx.acquire_admission(0, redraw_bytes).map_err(|error| match error {
         antecedent_core::execution::AdmissionError::Cancelled => {
             CausalError::Cancelled { stage: crate::analysis::stage::STAGE_VALIDATE }
         }
@@ -525,8 +568,8 @@ fn randomization_unbiasedness(
         ctx.exposure_probability_work_limit(),
     )
     .map_err(|error| super::checked_interference::interference_estimation_error(error.into()))?;
-    drop(quote_lease);
     let _admitted = super::gcm_bootstrap::admit_replicates(ctx, redraws, 1, units)?;
+    let redraw = AssignmentRedraw::new(design, units);
     let mut contrasts = Vec::with_capacity(redraws as usize);
     let mut failed = 0_u32;
     for draw in 0..redraws {
@@ -542,7 +585,7 @@ fn randomization_unbiasedness(
                     .map(|unit| rng.next_f64() < bernoulli_probability(probabilities, unit))
                     .collect(),
             ),
-            other => redraw_assignment(other, units, &mut rng),
+            _ => redraw.draw(&mut rng),
         };
         let Some(assignment) = assignment else {
             failed += 1;
@@ -774,7 +817,7 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         for stream in 0..40 {
             let mut rng = ctx.rng.stream(stream);
-            let draw = redraw_assignment(&complete, 8, &mut rng).unwrap();
+            let draw = AssignmentRedraw::new(&complete, 8).draw(&mut rng).unwrap();
             assert_eq!(draw.iter().filter(|&&z| z).count(), 3);
             seen.insert(draw);
         }
@@ -786,7 +829,7 @@ mod tests {
         };
         for stream in 0..40 {
             let mut rng = ctx.rng.stream(100 + stream);
-            let draw = redraw_assignment(&clustered, 8, &mut rng).unwrap();
+            let draw = AssignmentRedraw::new(&clustered, 8).draw(&mut rng).unwrap();
             // Whole clusters only, exactly two of the four.
             let cluster_ids = [0_usize, 0, 1, 1, 1, 2, 3, 3];
             for cluster in 0..4 {
@@ -808,9 +851,48 @@ mod tests {
         // A declaration that cannot be drawn is not a draw.
         let mut rng = ctx.rng.stream(7);
         assert!(
-            redraw_assignment(&AssignmentDesign::CompleteRandomization { treated: 9 }, 8, &mut rng)
+            AssignmentRedraw::new(&AssignmentDesign::CompleteRandomization { treated: 9 }, 8)
+                .draw(&mut rng)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn a_cluster_redraw_indexes_sparse_ids_once_and_refuses_inconsistent_declarations() {
+        let ctx = ExecutionContext::for_tests(13);
+        let sparse = AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from([40, 7, 40, 900, 7, 900, 900]),
+            treated_clusters: 2,
+        };
+        let redraw = AssignmentRedraw::new(&sparse, 7);
+        for stream in 0..40 {
+            let mut rng = ctx.rng.stream(stream);
+            let draw = redraw.draw(&mut rng).unwrap();
+            let by_cluster = |id: u32| -> Vec<bool> {
+                [40_u32, 7, 40, 900, 7, 900, 900]
+                    .iter()
+                    .zip(&draw)
+                    .filter(|(cluster, _)| **cluster == id)
+                    .map(|(_, z)| *z)
+                    .collect()
+            };
+            let whole: Vec<bool> = [40, 7, 900]
+                .into_iter()
+                .map(|id| {
+                    let members = by_cluster(id);
+                    assert!(members.iter().all(|z| *z) || members.iter().all(|z| !*z));
+                    members[0]
+                })
+                .collect();
+            assert_eq!(whole.iter().filter(|z| **z).count(), 2);
+        }
+        let mut rng = ctx.rng.stream(1);
+        assert!(AssignmentRedraw::new(&sparse, 6).draw(&mut rng).is_none());
+        let too_many = AssignmentDesign::ClusterRandomization {
+            clusters: Arc::from([0, 0, 1]),
+            treated_clusters: 3,
+        };
+        assert!(AssignmentRedraw::new(&too_many, 3).draw(&mut rng).is_none());
     }
 
     /// Sixty two-unit clusters, every other one treated; the pair of a treated cluster realizes

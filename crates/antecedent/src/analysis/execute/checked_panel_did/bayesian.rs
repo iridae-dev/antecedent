@@ -8,11 +8,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior, scalar_quantity,
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as, scalar_quantity,
 };
 use super::{
-    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, Instant,
-    StudyResult, TableView, TabularData,
+    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext,
+    IdentifierId, Instant, Strategy, StudyResult, TableView, TabularData,
 };
 use antecedent_core::DidSamplingDesign;
 use antecedent_estimate::DrawSpec;
@@ -31,7 +31,7 @@ pub(in crate::analysis::execute) fn bayesian_panel_did_plan_ids(
 ) -> (&'static str, &'static str, &'static str) {
     (
         "bayesian.panel_did",
-        "quasi.parallel_trends",
+        crate::strategy_table::IdentifierId::ParallelTrends.as_str(),
         crate::strategy_table::EstimatorId::BayesianPanelDid.as_str(),
     )
 }
@@ -150,7 +150,7 @@ impl super::CheckedPanelDidOperation {
                     .to_string(),
             );
         }
-        finish_design_posterior(
+        finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -162,6 +162,7 @@ impl super::CheckedPanelDidOperation {
                 started,
             },
             fit,
+            Strategy::new(IdentifierId::ParallelTrends, EstimatorId::BayesianPanelDid),
         )
     }
 

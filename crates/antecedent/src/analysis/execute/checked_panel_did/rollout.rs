@@ -16,14 +16,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior, scalar_quantity,
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as, scalar_quantity,
 };
 use super::super::rollout_finish::{
     RolloutReport, finish_rollout, named, rollout_payload, split_report,
 };
 use super::{
-    Arc, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
-    StudyResult, TableView, TabularData,
+    Arc, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId,
+    ExecutionContext, IdentifierId, Strategy, StudyResult, TableView, TabularData,
 };
 use crate::analysis::missing_data::MissingRoute;
 use antecedent_core::{
@@ -156,7 +156,13 @@ impl super::CheckedPanelDidOperation {
             return Ok(result);
         }
         let fit = estimate_rollout_did(&panel, &spec, resampling, ctx).map_err(estimation)?;
-        let mut result = finish_rollout(self, data, self.query.outcome, self.report(&fit, n));
+        let mut result = finish_rollout(
+            self,
+            data,
+            self.query.outcome,
+            Strategy::new(IdentifierId::ParallelTrends, EstimatorId::PanelDid),
+            self.report(&fit, n),
+        );
         result.extras.missing_data = Some(self.missing_report(data, &complete, &kept)?);
         Ok(result)
     }
@@ -213,7 +219,7 @@ impl super::CheckedPanelDidOperation {
             )],
             sampler: None,
         };
-        let mut result = finish_design_posterior(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -225,6 +231,7 @@ impl super::CheckedPanelDidOperation {
                 started,
             },
             design,
+            Strategy::new(IdentifierId::ParallelTrends, EstimatorId::BayesianPanelDid),
         )?;
         result.payload = rollout_payload(parts);
         result.treatment = None;

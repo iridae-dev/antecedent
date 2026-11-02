@@ -53,6 +53,8 @@ pub(super) struct DerivativeRefutationInput<'a> {
     pub(super) latency: Option<LatencyMode>,
     /// The study's replicate count (zero: the default stability budget).
     pub(super) replicates: u32,
+    /// The study's declared sampling design; the row bootstrap needs independent subjects.
+    pub(super) sampling_design: Option<antecedent_core::DeclaredSamplingDesign>,
 }
 
 /// Whether `functional` is a derivative this state refutes.
@@ -354,6 +356,19 @@ fn finite_difference(
     })
 }
 
+/// Why the row bootstrap cannot check a derivative `value` under the declared sampling
+/// `design`: a derivative with no finite first component, or a design whose sampling unit is
+/// not the subject.
+fn stability_applies(
+    value: f64,
+    design: Option<antecedent_core::DeclaredSamplingDesign>,
+) -> Result<(), String> {
+    if !value.is_finite() {
+        return Err("the derivative has no finite first component to resample".to_owned());
+    }
+    super::gcm_bootstrap::require_subject_resampling(design).map_err(|refusal| refusal.to_string())
+}
+
 /// Whole-procedure row bootstrap of the derivative's first component. The outer error
 /// is a hard failure (cancellation, admission); the inner one names why the check does
 /// not apply.
@@ -366,8 +381,8 @@ fn bootstrap_stability(
     value: f64,
     ctx: &ExecutionContext,
 ) -> Result<Result<RefutationReport, String>, CausalError> {
-    if !value.is_finite() {
-        return Ok(Err("the derivative has no finite first component to resample".to_owned()));
+    if let Err(reason) = stability_applies(value, input.sampling_design) {
+        return Ok(Err(reason));
     }
     let replicates =
         if input.replicates == 0 { DEFAULT_STABILITY_REPLICATES } else { input.replicates };
@@ -475,4 +490,27 @@ fn bootstrap_stability(
         }),
         ok,
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::stability_applies;
+    use antecedent_core::DeclaredSamplingDesign as Design;
+
+    #[test]
+    fn bootstrap_stability_applies_only_under_a_design_that_resamples_subjects() {
+        assert!(
+            stability_applies(1.0, None).is_ok(),
+            "an undeclared table is independent subjects"
+        );
+        assert!(stability_applies(1.0, Some(Design::IndependentSubjectTrajectories)).is_ok());
+        for design in [Design::ClusteredPanel, Design::DependentTimeSeries] {
+            let reason = stability_applies(1.0, Some(design))
+                .expect_err("a design whose unit is not the subject refuses the row bootstrap");
+            assert!(reason.contains("resamples independent subjects"), "{design:?}: {reason}");
+            assert!(reason.contains("Next attempt"), "{design:?}: {reason}");
+        }
+        let reason = stability_applies(f64::NAN, None).expect_err("no finite value to resample");
+        assert!(reason.contains("no finite first component"), "{reason}");
+    }
 }

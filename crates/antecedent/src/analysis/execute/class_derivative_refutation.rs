@@ -127,6 +127,7 @@ impl super::Study {
                             suite: self.settings.refute,
                             latency: self.latency_mode,
                             replicates: self.settings.bootstrap_replicates,
+                            sampling_design: self.declared.sampling_design,
                         },
                         ctx,
                     )?;

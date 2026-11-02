@@ -87,7 +87,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_contract::bridge::{
-    BridgeContract, BridgeKind, BridgeMapping, BridgeRefusal, BridgeSource, BridgedClaim,
+    BridgeContract, BridgeKind, BridgeRefusal, BridgeSource, BridgedClaim,
     BridgedDistributionClaim, Licensing, MappingKind, NonlinearMap, PointPropagation,
     TrialLevelFit, ValueKind, derive_bridged_claim_propagating, point_propagation_unavailable,
 };
@@ -538,27 +538,6 @@ impl ScientificBridgeResult {
         &self,
         level: f64,
     ) -> Result<BridgedClaimInterval, ScientificBridgeRefusal> {
-        if let (BridgeMapping::Identity | BridgeMapping::Affine { .. }, Some(uncertainty)) =
-            (&self.bridged.contract.mapping, &self.bridged.contract.mapping_uncertainty)
-        {
-            if uncertainty.intercept_variance > 0.0 || uncertainty.slope_variance > 0.0 {
-                return Err(ScientificBridgeRefusal {
-                    code: antecedent_core::reason_code!("cell_not_licensed"),
-                    detail: "scientific_bridge.interval_scope_outside_measured".to_owned(),
-                    message: format!(
-                        "the affine map declares uncertainty `{}`: it is no exact transform of the \
-                         source interval, and its propagated variance is an uncalibrated spread \
-                         that no coverage record measured",
-                        uncertainty.id
-                    ),
-                    remedy: Some(
-                        "read the propagated variance as an uncalibrated spread, or ask for the \
-                         interval of a bridge inside a measured design"
-                            .to_owned(),
-                    ),
-                });
-            }
-        }
         antecedent_io::bridge_interval::bridged_claim_interval(
             &self.bridged,
             self.source_standard_error,

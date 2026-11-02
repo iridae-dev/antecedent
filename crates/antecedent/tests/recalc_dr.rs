@@ -735,3 +735,42 @@ fn dr_bundle_refuses_same_snapshot_scores_from_another_executed_fit() {
     ));
     assert!(consumed.require_verified().is_err());
 }
+
+/// The study fits on the columns its roles use; a column no role reads sits first, so every
+/// used column's id inside the fit differs from the id the request names.
+#[test]
+fn dr_recalc_names_the_requests_own_ids_with_an_unused_leading_column() {
+    use antecedent::analysis::recalc_dr::DrSession;
+    use antecedent::analysis::recalc_receipt::TargetWeights;
+    const T: u32 = 1;
+    const Z: u32 = 3;
+    let mut request = request(true);
+    let mut shifted = vec![(
+        "unused".to_string(),
+        (0..request.columns.n_rows()).map(|row| f64::from(u32::try_from(row).unwrap())).collect(),
+    )];
+    shifted.extend(columns());
+    request.columns = shifted.into();
+    request.edges = vec![(Z, T), (Z, 2), (T, 2)];
+    request.treatment = T;
+    request.outcome = 2;
+
+    let mut session = DrSession::new();
+    let first = run(&mut session, &request);
+    close(first.law.ate, 2.0);
+
+    let table = session.score_table().unwrap();
+    assert_eq!(table.treatment, VariableId::from_raw(T));
+    assert_eq!(&*table.adjustment_set, &[VariableId::from_raw(Z)]);
+    assert_eq!(session.fitted_effect().unwrap().features, vec![Z]);
+    assert_eq!(session.prediction_columns().unwrap(), vec!["z"]);
+    let predicted =
+        session.predict(&[VariableId::from_raw(Z)], &[&[-1.0, 1.0]], 2, &ctx()).unwrap();
+    close(predicted[0], 1.5);
+    close(predicted[1], 2.5);
+
+    let weights: Vec<f64> =
+        request.columns[3].1.iter().map(|z| if *z > 0.0 { 3.0 } else { 1.0 }).collect();
+    request.target = Some(TargetWeights { weights, depends_on: vec![VariableId::from_raw(Z)] });
+    close(run(&mut session, &request).law.ate, 2.25);
+}

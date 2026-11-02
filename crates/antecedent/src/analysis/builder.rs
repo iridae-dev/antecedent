@@ -100,8 +100,21 @@ impl InterferenceSpec {
     ///
     /// # Errors
     ///
-    /// The edges or the assignment do not fit `units`.
+    /// The edges or the assignment do not fit `units`, or `units` and the declared unit table
+    /// carry different unit keys. A unit table without a key inherits the declared one, so the
+    /// identity survives every later replacement.
     pub(crate) fn bound_to(&self, units: &TabularData) -> Result<Self, CausalError> {
+        let declared = self.network.units().unit_key();
+        if let (Some(declared), Some(supplied)) = (declared, units.unit_key()) {
+            if declared != supplied {
+                return Err(CausalError::Compile {
+                    message: "the replacement unit table belongs to other units than the \
+                              declared network (other labels, or the same labels on other \
+                              rows); the edges and the assignment describe the declared units"
+                        .into(),
+                });
+            }
+        }
         if self.network.units().storage().content_digest() == units.storage().content_digest() {
             return Ok(self.clone());
         }
@@ -111,8 +124,12 @@ impl InterferenceSpec {
                     .into(),
             });
         }
+        let units = match (declared, units.unit_key()) {
+            (Some(declared), None) => units.clone().with_unit_key(declared.clone())?,
+            _ => units.clone(),
+        };
         Ok(Self {
-            network: NetworkData::try_new(units.clone(), self.network.edges().to_vec())?,
+            network: NetworkData::try_new(units, self.network.edges().to_vec())?,
             assignment: Arc::clone(&self.assignment),
         })
     }

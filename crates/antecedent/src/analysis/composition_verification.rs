@@ -371,15 +371,28 @@ pub fn contract_effects(
 /// invalidated recomputes, and one whose premise the log shows removed (a
 /// withdrawn constraint) is withdrawn. An invalidation of every result applies
 /// to every bound node. The most severe entry per node wins and its cause
-/// names the stage input that moved.
+/// names the stage input that moved. When the log trimmed entries after `since`, it cannot
+/// show what changed, so every binding is refused with the trimmed range and chain head
+/// ([`antecedent_state::PrunedHistory`]) rather than reported as unchanged.
 #[must_use]
 pub fn invalidation_effects(
     log: &InvalidationLog,
     since: StateVersion,
     bindings: &[(&str, InvalidationTarget)],
 ) -> BTreeMap<String, ObservedEffect> {
+    let entries = match log.entries_after(since) {
+        Ok(entries) => entries,
+        Err(pruned) => {
+            return bindings
+                .iter()
+                .map(|(key, _)| {
+                    ((*key).to_owned(), ObservedEffect::Refused { detail: pruned.to_string() })
+                })
+                .collect();
+        }
+    };
     let mut classes: BTreeMap<String, (Revalidation, String)> = BTreeMap::new();
-    for entry in log.entries.iter().filter(|e| e.at_version.raw() > since.raw()) {
+    for entry in entries {
         let class = entry.revalidation();
         let source = entry.input.map_or_else(
             || "unattributed".to_owned(),

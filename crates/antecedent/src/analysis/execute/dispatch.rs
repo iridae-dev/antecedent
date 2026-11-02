@@ -469,13 +469,13 @@ impl super::Study {
     /// Resolve builder-selected identifier/estimator ids, applying static-ATE defaults.
     pub(super) fn resolve_static_ids(&self) -> (IdentifierId, EstimatorId) {
         let identifier = self.declared.identifier.unwrap_or(DEFAULT_IDENTIFIER_ID);
-        let estimator = if identifier == IdentifierId::GeneralId {
+        let estimator = if let Some(native) = identifier.static_native_estimator() {
             self.declared
                 .estimator
                 .filter(|id| {
                     *id != EstimatorId::BayesianGcomp || self.declared.estimator_spec.is_some()
                 })
-                .unwrap_or(EstimatorId::FunctionalEffect)
+                .unwrap_or(native)
         } else if self.settings.inference.is_bayesian() {
             self.declared.estimator.unwrap_or(EstimatorId::BayesianGcomp)
         } else {

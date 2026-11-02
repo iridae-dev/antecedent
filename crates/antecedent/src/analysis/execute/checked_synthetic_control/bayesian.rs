@@ -7,12 +7,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, SamplerRecord, effect_quantity, finish_design_posterior,
+    DesignFinish, DesignPosterior, SamplerRecord, effect_quantity, finish_design_posterior_as,
     unread_option,
 };
 use super::{
-    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StudyResult,
-    TabularData,
+    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext,
+    IdentifierId, Strategy, StudyResult, TabularData,
 };
 use antecedent_core::SyntheticPanelMethod;
 use antecedent_estimate::DrawSpec;
@@ -26,7 +26,7 @@ pub(in crate::analysis::execute) fn bayesian_synthetic_panel_plan_ids()
 -> (&'static str, &'static str, &'static str) {
     (
         "bayesian.synthetic_control",
-        "quasi.convex_donor_counterfactual",
+        IdentifierId::ConvexDonorCounterfactual.as_str(),
         crate::strategy_table::EstimatorId::BayesianSyntheticControl.as_str(),
     )
 }
@@ -187,7 +187,7 @@ impl super::CheckedSyntheticControlOperation {
                 acceptance_rate: fit.acceptance_rate,
             }),
         };
-        finish_design_posterior(
+        finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -199,6 +199,10 @@ impl super::CheckedSyntheticControlOperation {
                 started,
             },
             design,
+            Strategy::new(
+                IdentifierId::ConvexDonorCounterfactual,
+                EstimatorId::BayesianSyntheticControl,
+            ),
         )
     }
 }

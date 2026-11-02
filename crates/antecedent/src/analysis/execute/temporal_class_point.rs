@@ -39,10 +39,66 @@ const CONDITIONAL_PRIOR_REFUSAL: &str = "temporal conditional effect uses the is
 const DERIVATIVE_PRIOR_REFUSAL: &str = "temporal derivative uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
 const CROSS_WORLD_PRIOR_REFUSAL: &str = "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed";
 
+/// The identified completions of one envelope whose own regression could not be fit, and the
+/// first cause. Their mass is unevaluable, not lost: it stays in the structural mixture.
+#[derive(Default)]
+struct SkippedCompletions {
+    count: usize,
+    first_cause: Option<String>,
+}
+
+impl SkippedCompletions {
+    /// Count `error` as one unfittable completion, or return it when it ends the run or
+    /// describes the request rather than the completion.
+    fn record(&mut self, error: CausalError) -> Result<(), CausalError> {
+        if !completion_cannot_be_fit(&error) {
+            return Err(error);
+        }
+        self.count += 1;
+        self.first_cause.get_or_insert_with(|| error.to_string());
+        Ok(())
+    }
+
+    fn absorb(&mut self, other: &Self) {
+        self.count += other.count;
+        if self.first_cause.is_none() {
+            self.first_cause.clone_from(&other.first_cause);
+        }
+    }
+
+    /// The refusal for an envelope none of whose identified completions could be fit.
+    fn none_estimable(&self) -> CausalError {
+        let message = match &self.first_cause {
+            Some(cause) => format!(
+                "temporal class envelope had no estimable identified completions: all {} \
+                 identified completions failed to fit (first: {cause})",
+                self.count
+            ),
+            None => "temporal class envelope had no estimable identified completions".into(),
+        };
+        CausalError::Compile { message }
+    }
+
+    fn diagnostic(&self) -> Option<Diagnostic> {
+        let cause = self.first_cause.as_deref()?;
+        Some(Diagnostic::new(
+            "estimate.temporal_class.completions_skipped",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Warning,
+            format!(
+                "{} identified completion(s) could not be fit and are excluded from the \
+                 published point and its uncertainty; their mass is unevaluable (first: {cause})",
+                self.count
+            ),
+        ))
+    }
+}
+
 /// The identified completions of one class envelope, each with its recorded
 /// regressions, frozen weight and point.
 struct ClassPoints<'a> {
     atoms: Vec<SlopeAtom<'a>>,
+    skipped: SkippedCompletions,
     weights: Vec<f64>,
     points: Vec<f64>,
     /// Point by envelope case (structural mixture), `None` where not evaluated.
@@ -180,6 +236,7 @@ fn collect_class_points<'a>(
     let mut points = Vec::new();
     let mut values = vec![None; envelope.cases.len()];
     let mut primary = None;
+    let mut skipped = SkippedCompletions::default();
     for (index, (case, indexer)) in envelope.cases.iter().zip(bundle.indexers.iter()).enumerate() {
         if !identification_status_ok_for_case(case.result.status)
             || case.result.estimands.is_empty()
@@ -189,9 +246,12 @@ fn collect_class_points<'a>(
         let (atom, point) = match fit(case, indexer) {
             Ok(fitted) => fitted,
             // A completion whose own regression cannot be fit is unevaluable mass, not a
-            // reason to lose the other completions; a stop of the run itself still stops it.
-            Err(error) if !stops_the_run(&error) => continue,
-            Err(error) => return Err(error),
+            // reason to lose the other completions; a request error or a stop of the run
+            // ends the run.
+            Err(error) => {
+                skipped.record(error)?;
+                continue;
+            }
         };
         atoms.push(atom);
         weights.push(case.weight.0);
@@ -202,14 +262,13 @@ fn collect_class_points<'a>(
         }
     }
     let (primary_identification, primary_indexer) =
-        primary.ok_or_else(|| CausalError::Compile {
-            message: "temporal class envelope had no estimable identified completions".into(),
-        })?;
+        primary.ok_or_else(|| skipped.none_estimable())?;
     let estimand = primary_identification.estimands.first().cloned().ok_or_else(|| {
         CausalError::Compile { message: "temporal class completion has no estimand".into() }
     })?;
     Ok(ClassPoints {
         atoms,
+        skipped,
         weights,
         points,
         values,
@@ -236,24 +295,26 @@ fn refuse_series_weights(data: &TimeSeriesData) -> Result<(), CausalError> {
     Ok(())
 }
 
-/// Whether `error` ends the run (cancellation, a resource or admission limit, an unsupported
-/// request) rather than describing one completion that could not be fit.
-fn stops_the_run(error: &CausalError) -> bool {
+/// Whether `error` is a numerical failure of one completion's own regression (a singular
+/// design, or too few intact aligned rows for its lags). Everything else (a request error such
+/// as an unknown variable or an unsupported option, cancellation, a resource or admission
+/// limit) holds for every completion or ends the run, and is not skipped.
+fn completion_cannot_be_fit(error: &CausalError) -> bool {
+    use antecedent_data::DataError;
     use antecedent_estimate::EstimationError;
-    match error {
-        CausalError::Cancelled { .. }
-        | CausalError::Resource { .. }
-        | CausalError::Unsupported { .. }
-        | CausalError::Estimate(
-            EstimationError::Admission(_)
-            | EstimationError::Capacity(_)
-            | EstimationError::TemporalMaterialization(_),
-        ) => true,
-        _ => {
-            error.peeled().reason_code()
-                == Some(antecedent_core::reason_code!("cancelled_no_claim"))
-        }
-    }
+    use antecedent_stats::StatsError;
+    matches!(
+        error,
+        CausalError::Estimate(
+            EstimationError::Stats(
+                StatsError::RankDeficient { .. } | StatsError::NonPositiveVariance { .. }
+            ) | EstimationError::Data(
+                DataError::IncompleteSeries { .. }
+                    | DataError::EmptySelection { .. }
+                    | DataError::InvalidArgument { .. }
+            )
+        )
+    )
 }
 
 /// The structural lag span of a class envelope's completions.
@@ -556,6 +617,7 @@ pub(super) fn assemble_temporal_class_conditional(
     diagnostics.extend(super::temporal_effect_core::modifier_set_coverage_note(
         query.effect_modifiers.len(),
     ));
+    diagnostics.extend(fitted.skipped.diagnostic());
     let mut structural = super::temporal_path::temporal_class_structural_mixture(
         envelope,
         crate::result::StructuralWeightBasis::CompletionEnumeration,
@@ -698,6 +760,7 @@ struct ClassDerivatives<'a> {
     responses: Vec<(f64, CausalResponse)>,
     values: Vec<Option<ResponseValue>>,
     estimand: IdentifiedEstimand,
+    skipped: SkippedCompletions,
 }
 
 /// The linear slope of each identified completion with its weight, the
@@ -716,6 +779,7 @@ fn class_derivative_responses<'a>(
     let mut responses = Vec::new();
     let mut values = vec![None; envelope.cases.len()];
     let mut primary_estimand = None;
+    let mut skipped = SkippedCompletions::default();
     for (index, (case, indexer)) in envelope.cases.iter().zip(bundle.indexers.iter()).enumerate() {
         if !identification_status_ok_for_case(case.result.status)
             || case.result.estimands.is_empty()
@@ -731,8 +795,10 @@ fn class_derivative_responses<'a>(
             &atom,
         ) {
             Ok(response) => response,
-            Err(error) if !stops_the_run(&error) => continue,
-            Err(error) => return Err(error),
+            Err(error) => {
+                skipped.record(error)?;
+                continue;
+            }
         };
         values[index] = match &response.estimate {
             ResponseIdentification::PointIdentified(value)
@@ -748,10 +814,8 @@ fn class_derivative_responses<'a>(
         atoms.push(atom);
         responses.push((case.weight.0, response));
     }
-    let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
-        message: "temporal class envelope had no estimable identified completions".into(),
-    })?;
-    Ok(ClassDerivatives { atoms, responses, values, estimand })
+    let estimand = primary_estimand.ok_or_else(|| skipped.none_estimable())?;
+    Ok(ClassDerivatives { atoms, responses, values, estimand, skipped })
 }
 
 /// Retain each completion's actual derivative shape. The class mass accounting
@@ -913,13 +977,14 @@ impl super::Study {
             self.derivative_class_envelope(identifier_id, &probe, physical, budget, ctx)?;
         let offsets = (probe.try_treatment_offset()?, probe.outcome_offset()?);
         let envelope = &bundle.envelope;
-        let ClassDerivatives { atoms, responses, values, estimand } = class_derivative_responses(
-            data,
-            query,
-            &bundle,
-            offsets,
-            (ctx.kernel_policy, prior_scale),
-        )?;
+        let ClassDerivatives { atoms, responses, values, estimand, skipped } =
+            class_derivative_responses(
+                data,
+                query,
+                &bundle,
+                offsets,
+                (ctx.kernel_policy, prior_scale),
+            )?;
         let mut response = mix_derivative_responses(&responses)?;
         let center = response_center(&response)?;
         let weights: Vec<f64> = responses.iter().map(|(weight, _)| *weight).collect();
@@ -940,6 +1005,7 @@ impl super::Study {
         )?;
         let mut diagnostics =
             class_derivative_diagnostics(envelope, self.graph.class(), identify_cached, &response);
+        diagnostics.extend(skipped.diagnostic());
         diagnostics.extend(uncertainty_diagnostics);
         // A derivative's cheap/full suite is its refuter state on every identified
         // completion's Pulse witness at the one horizon (unlicensed).
@@ -1079,6 +1145,7 @@ impl super::Study {
             self.graph.class(),
         )];
         diagnostics.push(cross_world_note());
+        diagnostics.extend(fitted.skipped.diagnostic());
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }
@@ -1210,6 +1277,7 @@ impl super::Study {
             )?;
             let point = fitted.point()?;
             let envelope = &atom.envelope.envelope;
+            masses.skipped.absorb(&fitted.skipped);
             masses.add(
                 weight,
                 envelope.status,
@@ -1322,6 +1390,7 @@ impl super::Study {
                 (offsets, ctx.kernel_policy, prior_scale),
             )?;
             let scalar = super::response_path::response_scalar_summary(&derived.response).0;
+            masses.skipped.absorb(&derived.skipped);
             masses.add(weight, derived.status, derived.structural);
             if !derivative_response_finite(&derived.response) {
                 continue;
@@ -1458,6 +1527,7 @@ impl super::Study {
             )?;
             let point = fitted.point()?;
             let envelope = &atom.envelope.envelope;
+            masses.skipped.absorb(&fitted.skipped);
             masses.add(
                 weight,
                 envelope.status,
@@ -1548,6 +1618,7 @@ impl super::Study {
                 ),
             })?;
         let point = weighted_derivative_mean(pairs)?;
+        diagnostics.extend(masses.skipped.diagnostic());
         let (mut structural, atom_status, summary) =
             masses.finish(cache.graphs.unidentified_mass());
         identification.status = resolve_posterior_status(
@@ -1642,6 +1713,7 @@ struct PosteriorAtomMasses {
     truncated_atoms: usize,
     partial_scope: bool,
     statuses: Vec<IdentificationStatus>,
+    skipped: SkippedCompletions,
 }
 
 impl PosteriorAtomMasses {
@@ -2055,6 +2127,7 @@ struct ClassDerivative<'a> {
     diagnostics: Vec<Diagnostic>,
     structural: crate::result::StructuralResponseMixture,
     status: IdentificationStatus,
+    skipped: SkippedCompletions,
 }
 
 fn derivative_on_envelope<'a>(
@@ -2065,7 +2138,7 @@ fn derivative_on_envelope<'a>(
     (offsets, policy, prior_scale): ((i32, i32), antecedent_core::KernelPolicy, Option<f64>),
 ) -> Result<ClassDerivative<'a>, CausalError> {
     let envelope = &bundle.envelope;
-    let ClassDerivatives { atoms, responses, values, estimand } =
+    let ClassDerivatives { atoms, responses, values, estimand, skipped } =
         class_derivative_responses(data, query, bundle, offsets, (policy, prior_scale))?;
     let weights: Vec<f64> = responses.iter().map(|(weight, _)| *weight).collect();
     let response = mix_derivative_responses(&responses)?;
@@ -2085,6 +2158,7 @@ fn derivative_on_envelope<'a>(
         diagnostics,
         structural,
         status: envelope.status,
+        skipped,
     })
 }
 
@@ -2271,10 +2345,44 @@ mod posterior_mass_tests {
     }
 
     #[test]
-    fn a_completion_that_cannot_be_fit_is_not_a_stop_of_the_run() {
-        let failed = CausalError::Compile { message: "rank deficient completion".into() };
-        assert!(!stops_the_run(&failed));
-        assert!(stops_the_run(&CausalError::Cancelled { stage: "temporal class" }));
-        assert!(stops_the_run(&CausalError::Resource { message: "limit".into() }));
+    fn only_a_numerical_failure_of_one_completion_is_skipped() {
+        use antecedent_data::DataError;
+        use antecedent_estimate::EstimationError;
+        use antecedent_stats::StatsError;
+        let singular = CausalError::from(EstimationError::Stats(StatsError::RankDeficient {
+            rank: 1,
+            ncols: 3,
+        }));
+        assert!(completion_cannot_be_fit(&singular));
+        let too_few = CausalError::from(EstimationError::data_msg("too few aligned rows"));
+        assert!(completion_cannot_be_fit(&too_few));
+        let unknown = CausalError::from(EstimationError::Data(DataError::UnknownVariable {
+            id: VariableId::from_raw(9),
+        }));
+        assert!(!completion_cannot_be_fit(&unknown));
+        let unsupported = CausalError::from(EstimationError::unsupported("a request option"));
+        assert!(!completion_cannot_be_fit(&unsupported));
+        assert!(!completion_cannot_be_fit(&CausalError::Cancelled { stage: "temporal class" }));
+        assert!(!completion_cannot_be_fit(&CausalError::Resource { message: "limit".into() }));
+    }
+
+    #[test]
+    fn skipped_completions_are_counted_and_a_request_error_is_returned() {
+        use antecedent_data::DataError;
+        use antecedent_estimate::EstimationError;
+        let mut skipped = SkippedCompletions::default();
+        assert!(skipped.diagnostic().is_none());
+        skipped.record(CausalError::from(EstimationError::data_msg("too few rows"))).unwrap();
+        skipped.record(CausalError::from(EstimationError::data_msg("another"))).unwrap();
+        assert_eq!(skipped.count, 2);
+        let message = skipped.diagnostic().expect("a note for skipped completions").message;
+        assert!(message.contains("2 identified completion(s)"), "{message}");
+        assert!(skipped.none_estimable().to_string().contains("too few rows"));
+        let unknown = CausalError::from(EstimationError::Data(DataError::UnknownVariable {
+            id: VariableId::from_raw(9),
+        }));
+        let returned = skipped.record(unknown).expect_err("a request error ends the run");
+        assert!(returned.to_string().contains("unknown variable"), "{returned}");
+        assert_eq!(skipped.count, 2);
     }
 }

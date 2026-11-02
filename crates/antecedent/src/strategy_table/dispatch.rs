@@ -108,6 +108,14 @@ const fn static_identifier_refusal(identifier: IdentifierId) -> &'static str {
             "identifier \"interference.design\" requires an InterferenceQuery and \
              the staged interference path"
         }
+        IdentifierId::ParallelTrends
+        | IdentifierId::ConvexDonorCounterfactual
+        | IdentifierId::ConvexUnitTimeTrends
+        | IdentifierId::FuzzyRdLocalRatio
+        | IdentifierId::RegressionKinkLocalRatio => {
+            "a quasi-experimental design identifier belongs to its PanelDid, SyntheticControl \
+             or LocalPolynomialRatio query on a graphless design, not to a static DAG"
+        }
         _ => "identifier is not a static DAG identifier",
     }
 }
@@ -264,6 +272,11 @@ pub fn identify_static_query_in_context(
         | IdentifierId::TransportSid
         | IdentifierId::InterferenceDesign
         | IdentifierId::RandomizedDesign
+        | IdentifierId::ParallelTrends
+        | IdentifierId::ConvexDonorCounterfactual
+        | IdentifierId::ConvexUnitTimeTrends
+        | IdentifierId::FuzzyRdLocalRatio
+        | IdentifierId::RegressionKinkLocalRatio
         | IdentifierId::ContinuousDoseExchangeability => {
             return Err(CausalError::Unsupported {
                 message: static_identifier_refusal(identifier),

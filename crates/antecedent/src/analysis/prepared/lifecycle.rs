@@ -802,8 +802,45 @@ impl PreparedStudy {
         })
     }
 
+    /// Refuse replacement rows that the declared participant binding cannot label.
+    ///
+    /// The binding is the digest of one label per original row, so it is positional: a
+    /// replacement with another row count cannot be the same participants, and the retained
+    /// snapshot would otherwise keep labelling it with the original binding. A replacement that
+    /// carries its own [`antecedent_data::UnitKey`] must state the same unit assignment; one
+    /// without a key inherits the declared binding.
+    fn ensure_participants_fit(
+        &self,
+        rows: usize,
+        key: Option<&antecedent_data::UnitKey>,
+    ) -> Result<(), CausalError> {
+        let Some(binding) = &self.analysis.declared.participants else {
+            return Ok(());
+        };
+        if !usize::try_from(binding.rows).is_ok_and(|bound| bound == rows) {
+            return Err(CausalError::Compile {
+                message: format!(
+                    "prepared analysis declares participants for {} rows, but the replacement \
+                     has {rows} rows; next attempt: prepare the study again with a participant \
+                     binding for the new rows",
+                    binding.rows
+                ),
+            });
+        }
+        if key.is_some_and(|key| !binding.names(key)) {
+            return Err(CausalError::Compile {
+                message: "the replacement rows belong to other participants than the declared \
+                          binding (other labels, or the same labels on other rows); next \
+                          attempt: prepare the study again with the new participant binding"
+                    .into(),
+            });
+        }
+        Ok(())
+    }
+
     pub(super) fn ensure_schema_compatible(&self, data: &TabularData) -> Result<(), CausalError> {
         self.ensure_modality(PreparedModality::Tabular)?;
+        self.ensure_participants_fit(data.row_count(), data.unit_key())?;
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared analysis refresh requires the same schema \
@@ -818,6 +855,7 @@ impl PreparedStudy {
 
     fn ensure_series_compatible(&self, data: &TimeSeriesData) -> Result<(), CausalError> {
         self.ensure_modality(PreparedModality::Series)?;
+        self.ensure_participants_fit(data.row_count(), None)?;
         if data.schema() != &self.schema {
             return Err(CausalError::Compile {
                 message: "prepared temporal analysis requires the same schema \

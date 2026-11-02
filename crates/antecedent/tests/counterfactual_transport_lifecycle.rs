@@ -422,7 +422,7 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
         assert!(oracle.gap > 1e-6, "{name}");
-        let check = report.verify().unwrap();
+        let check = report.verify(&ctx()).unwrap();
         assert_ne!(check.first_value, check.second_value, "{name}");
         assert!(check.cells_compared > 0, "{name}");
 
@@ -448,7 +448,7 @@ fn obstructions_export_and_replay_their_two_model_witness_from_bytes() {
         else {
             panic!("{name}: expected an obstruction consumption");
         };
-        assert_eq!(again.verify().unwrap(), check, "{name}");
+        assert_eq!(again.verify(&ctx()).unwrap(), check, "{name}");
 
         // A tampered witness, resealed, is refused in the obstruction slot.
         let mut tampered = wire.clone();

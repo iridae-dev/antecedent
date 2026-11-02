@@ -9,15 +9,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, SamplerRecord, effect_quantity, finish_design_posterior,
+    DesignFinish, DesignPosterior, SamplerRecord, effect_quantity, finish_design_posterior_as,
     scalar_quantity,
 };
 use super::super::rollout_finish::{
     RolloutPayloadParts, RolloutReport, finish_rollout, named, rollout_payload,
 };
 use super::{
-    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext, StudyResult,
-    TabularData,
+    CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId, ExecutionContext,
+    IdentifierId, Strategy, StudyResult, TabularData,
 };
 use antecedent_core::{SyntheticInterval, SyntheticPanelMethod};
 use antecedent_estimate::DrawSpec;
@@ -203,7 +203,16 @@ impl super::CheckedSyntheticControlOperation {
                 }
             }
         };
-        Ok(finish_rollout(self, data, self.query.outcome, report))
+        Ok(finish_rollout(
+            self,
+            data,
+            self.query.outcome,
+            Strategy::new(
+                super::synthetic_query_identifier(&self.query),
+                EstimatorId::SyntheticControl,
+            ),
+            report,
+        ))
     }
 
     /// The Bayesian posterior of the post-weighted average effect of a multi-unit rollout.
@@ -332,7 +341,7 @@ impl super::CheckedSyntheticControlOperation {
                 acceptance_rate: acceptance,
             }),
         };
-        finish_design_posterior(
+        finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -344,6 +353,10 @@ impl super::CheckedSyntheticControlOperation {
                 started,
             },
             design,
+            Strategy::new(
+                IdentifierId::ConvexDonorCounterfactual,
+                EstimatorId::BayesianSyntheticControl,
+            ),
         )
     }
 }
@@ -466,7 +479,7 @@ impl super::CheckedSyntheticControlOperation {
                 ("max_split_rhat", fit.max_split_rhat),
             ]),
         };
-        let mut result = finish_design_posterior(
+        let mut result = finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -478,6 +491,10 @@ impl super::CheckedSyntheticControlOperation {
                 started,
             },
             design,
+            Strategy::new(
+                IdentifierId::ConvexDonorCounterfactual,
+                EstimatorId::BayesianSyntheticControl,
+            ),
         )?;
         result.payload = rollout_payload(parts);
         result.treatment = None;

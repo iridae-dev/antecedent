@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::completion_fit_memo::{CompletionFitKey, CompletionFitMemo};
+use super::temporal_class_posterior_response::{PolicyResponseMix, mix_responses_under_policy};
 use super::{
     Arc, AverageEffectQuery, BayesianConfig, CausalError, CausalQuery, CausalResponse,
     ClassEnvelopeRun, ContinuousResponseEstimator, Dag, Diagnostic, DiagnosticKind,
@@ -17,8 +18,8 @@ use super::{
     functional_cell_unevaluable, identification_from_cache_or, identification_status_ok_for_case,
     identified_set_interval_diagnostics, identify_cached_diagnostic,
     interactive_subsample_graphs_accounted, provenance_ids, report_identify_compute,
-    resolve_posterior_status, resolve_structural_aggregation, response_functional_is_derivative,
-    scalar_identified_set, support_from_functional_eval,
+    resolve_structural_aggregation, response_functional_is_derivative, scalar_identified_set,
+    support_from_functional_eval,
 };
 use crate::planner::RouteDefaults;
 
@@ -128,7 +129,7 @@ struct GraphPosteriorResponseFits {
 /// The pooled response of a graph posterior with the values its diagnostics read.
 struct GraphPosteriorPooled {
     identification: IdentificationResult,
-    conditional: ResponseValue,
+    conditional: Option<ResponseValue>,
     mixed_if_se: Option<f64>,
     response: CausalResponse,
     estimate: EffectEstimate,
@@ -216,7 +217,7 @@ impl super::Study {
         let (mut refutations, refute_diags) = self.refute_graph_posterior_response(
             &run,
             estimator_id,
-            &fits.estimand,
+            &fits,
             &pooled,
             &mut diagnostics,
         )?;
@@ -275,7 +276,7 @@ impl super::Study {
                     subsampled_out_mass: subsampled_out_mass / total_mass,
                     identified_set: structural_set,
                     identified_set_interval: None,
-                    conditional_on_identified: Some(conditional),
+                    conditional_on_identified: conditional,
                     full_mass_scope: true,
                     truncated_atoms: 0,
                     aggregation_policy: Some(aggregation_policy),
@@ -511,10 +512,6 @@ impl super::Study {
                 response_identified_value(response).map(|value| (*weight, value))
             })
             .collect::<Vec<_>>();
-        let conditional_refs =
-            conditional_values.iter().map(|(weight, value)| (*weight, value)).collect::<Vec<_>>();
-        let conditional = mix_response_values(&conditional_refs)?;
-        let structural_set = response_envelope_from_weighted(weighted);
         let first = &weighted[0].2;
         // Unevaluable and subsampled-out mass are as incomplete as unidentified
         // mass: the published value covers only the evaluated atoms.
@@ -522,30 +519,34 @@ impl super::Study {
             &fits.contributing.iter().map(|(estimand, _)| estimand).collect::<Vec<_>>(),
             fits.contributing.iter().any(|(_, partial)| *partial),
         );
-        let graph_dependent = resolve_posterior_status(
-            identification.status,
-            aggregation_policy,
-            PosteriorMassSummary {
-                unidentified: unidentified_mass,
-                failed: failed_mass,
-                subsampled: subsampled_out_mass,
-                ..PosteriorMassSummary::default()
-            },
-        ) == IdentificationStatus::GraphDependent;
-        if graph_dependent {
-            identification.status = IdentificationStatus::GraphDependent;
-        }
+        let PolicyResponseMix { status, estimate, conditional, structural_set } =
+            mix_responses_under_policy(
+                weighted,
+                &conditional_values,
+                aggregation_policy,
+                (
+                    identification.status,
+                    PosteriorMassSummary {
+                        unidentified: unidentified_mass,
+                        failed: failed_mass,
+                        subsampled: subsampled_out_mass,
+                        ..PosteriorMassSummary::default()
+                    },
+                ),
+            )?;
+        identification.status = status;
         // Only a scalar aggregate takes the joint-IF SE: for a curve the first
-        // score column is the influence of the first grid point alone.
+        // score column is the influence of the first grid point alone, and atoms that
+        // do not share one point-identified estimand have no aggregate to bound.
         let mixed_if_se = (weighted.len() > 1
             && self.settings.inference.is_frequentist()
-            && matches!(conditional, ResponseValue::Scalar(_))
+            && matches!(conditional, Some(ResponseValue::Scalar(_)))
             && atom_scores.len() == weighted.len())
         .then(|| mixed_response_scalar_se(atom_scores, data.row_count()))
         .flatten();
         let uncertainty = if weighted.len() == 1 {
             first.uncertainty.clone()
-        } else if let (Some(se), ResponseValue::Scalar(value)) = (mixed_if_se, &conditional) {
+        } else if let (Some(se), Some(ResponseValue::Scalar(value))) = (mixed_if_se, &conditional) {
             let level = options.confidence_level;
             let z = antecedent_stats::normal_ppf(0.5 + level / 2.0);
             ResponseUncertainty::Scalar {
@@ -562,18 +563,7 @@ impl super::Study {
         let response = antecedent_core::CausalResponse {
             estimand: query.functional.clone(),
             identification_status: identification.status,
-            estimate: if graph_dependent {
-                ResponseIdentification::GraphDependent(
-                    weighted
-                        .iter()
-                        .filter_map(|(key, _, response)| {
-                            response_identified_value(response).map(|value| (*key, value))
-                        })
-                        .collect(),
-                )
-            } else {
-                ResponseIdentification::PointIdentified(conditional.clone())
-            },
+            estimate,
             uncertainty,
             support: mix_support_reports(
                 &weighted.iter().map(|(_, _, response)| &response.support).collect::<Vec<_>>(),
@@ -647,7 +637,11 @@ impl super::Study {
                     "multi-atom Bayesian graph-posterior response withholds an aggregate \
                      credible interval: graph-specific dispersion and uncertainty of a \
                      frozen-weight aggregate are different objects"
-                } else if !matches!(conditional, ResponseValue::Scalar(_)) {
+                } else if conditional.is_none() {
+                    "multi-atom Frequentist graph-posterior response has no aggregate: its \
+                     atoms name different or partially identified estimands, so no mean and \
+                     no band for one is published"
+                } else if !matches!(conditional, Some(ResponseValue::Scalar(_))) {
                     "multi-atom Frequentist graph-posterior curve withholds an aggregate \
                      band: the joint-IF SE is published for scalar aggregates only, and \
                      marginal atom bands are not combined as independent"
@@ -671,61 +665,50 @@ impl super::Study {
     }
 
     /// Plugin-level refutation of a scalar graph-posterior intervention response.
+    ///
+    /// A mixed level (one estimand across the atoms) is refuted once. When the mean is
+    /// withheld because the atoms name different estimands, each evaluated atom's own
+    /// level is refuted against that atom's estimand and the reports are retained
+    /// per atom, never mixed.
     fn refute_graph_posterior_response(
         &self,
         run: &GraphPosteriorResponseRun<'_>,
         estimator_id: EstimatorId,
-        estimand: &IdentifiedEstimand,
+        fits: &GraphPosteriorResponseFits,
         pooled: &GraphPosteriorPooled,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(Vec<antecedent_validate::RefutationReport>, Vec<Diagnostic>), CausalError> {
         let GraphPosteriorResponseRun { data, query, treatment, outcome, ctx, .. } = *run;
         let GraphPosteriorPooled { conditional, scalar, standard_error, response, .. } = pooled;
-        let (scalar, standard_error) = (*scalar, *standard_error);
-        let plugin_scalar = match &conditional {
-            ResponseValue::Scalar(value) => *value,
-            _ => scalar,
+        let mixed_level = match conditional {
+            Some(ResponseValue::Scalar(value)) if value.is_finite() => Some(*value),
+            _ => scalar.is_finite().then_some(*scalar),
         };
-        let scalar_intervention = plugin_scalar.is_finite()
-            && matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        let intervention =
+            matches!(query.functional, ResponseFunctional::InterventionResponse { .. });
+        let requested = !matches!(self.settings.refute, RefuteSuite::None)
+            || (!self.declared.custom_validators.is_empty()
+                && self.settings.inference.is_frequentist());
+        // `(weight, level, standard error, estimand, assumptions)` per refuted level.
+        let mut levels: Vec<(f64, f64, f64, &IdentifiedEstimand, &antecedent_core::AssumptionSet)> =
+            Vec::new();
+        if let Some(level) = mixed_level {
+            levels.push((1.0, level, *standard_error, &fits.estimand, &response.assumptions));
+        } else {
+            for ((_, weight, atom_response), (estimand, _)) in
+                fits.weighted.iter().zip(&fits.contributing)
+            {
+                let (level, se) = response_scalar_summary(atom_response);
+                if level.is_finite() {
+                    levels.push((*weight, level, se, estimand, &atom_response.assumptions));
+                }
+            }
+        }
+        let per_atom = mixed_level.is_none();
         // A Bayesian pooled level is the posterior-mean level: the plugin-level suite reads
         // it exactly as it reads the Frequentist level; the posterior checks are added by
         // `bayesian_graph_posterior_level_state`.
-        let (refutations, refute_diags) = if scalar_intervention
-            && (!matches!(self.settings.refute, RefuteSuite::None)
-                || (!self.declared.custom_validators.is_empty()
-                    && self.settings.inference.is_frequentist()))
-        {
-            let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
-            let mut refute_ws = EstimationWorkspace::default();
-            let plugin_estimate = EffectEstimate::new(
-                plugin_scalar,
-                standard_error,
-                response.assumptions.clone(),
-                OverlapPolicy::ExplicitOverride,
-            );
-            if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
-                diagnostics.push(Diagnostic::new(
-                    "refute.evalue.not_a_contrast",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    "contrast-shaped refuters are not licensed for a plugin intervention level; \
-                     cheap runs overlap only and full runs overlap plus sampling-stability of the \
-                     g-comp level",
-                ));
-            }
-            RefutationRun {
-                data,
-                estimand,
-                query: &ate_query,
-                estimate: &plugin_estimate,
-                suite: self.settings.refute,
-                estimator: estimator_id.as_str(),
-                custom: &self.declared.custom_validators,
-                temporal: None,
-            }
-            .plugin_level(&mut refute_ws, ctx)?
-        } else {
+        if !(intervention && requested && !levels.is_empty()) {
             if !matches!(self.settings.refute, RefuteSuite::None) {
                 diagnostics.push(Diagnostic::new(
                     "refute.response.skipped",
@@ -735,9 +718,62 @@ impl super::Study {
                      graph-posterior response",
                 ));
             }
-            (Vec::new(), Vec::new())
-        };
-        Ok((refutations, refute_diags))
+            return Ok((Vec::new(), Vec::new()));
+        }
+        let ate_query = AverageEffectQuery::binary_ate(treatment, outcome);
+        let mut refute_ws = EstimationWorkspace::default();
+        if matches!(self.settings.refute, RefuteSuite::Cheap | RefuteSuite::Full) {
+            diagnostics.push(Diagnostic::new(
+                "refute.evalue.not_a_contrast",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                "contrast-shaped refuters are not licensed for a plugin intervention level; \
+                 cheap runs overlap only and full runs overlap plus sampling-stability of the \
+                 g-comp level",
+            ));
+        }
+        let mut batches = Vec::with_capacity(levels.len());
+        let mut notes = Vec::new();
+        for (weight, level, se, estimand, assumptions) in levels {
+            let plugin_estimate = EffectEstimate::new(
+                level,
+                se,
+                assumptions.clone(),
+                OverlapPolicy::ExplicitOverride,
+            );
+            let (reports, run_notes) = RefutationRun {
+                data,
+                estimand,
+                query: &ate_query,
+                estimate: &plugin_estimate,
+                suite: self.settings.refute,
+                estimator: estimator_id.as_str(),
+                custom: &self.declared.custom_validators,
+                temporal: None,
+            }
+            .plugin_level(&mut refute_ws, ctx)?;
+            notes.extend(run_notes);
+            batches.push((weight, reports));
+        }
+        if !per_atom {
+            let (_, reports) = batches.remove(0);
+            return Ok((reports, notes));
+        }
+        let summary = Diagnostic::new(
+            "refute.response.graph_posterior.per_atom",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            "the atoms name different estimands, so plugin-level refuters ran on each \
+             evaluated atom's own level and their reports are kept per atom, not mixed",
+        );
+        Ok(super::atom_mix::finish_atom_refutations(
+            batches,
+            notes,
+            false,
+            super::atom_mix::ScalarRefuterMix::Effect,
+            Some(summary),
+            false,
+        ))
     }
 
     /// Identify and estimate a continuous response, including licensed observation correction.
@@ -1045,6 +1081,7 @@ impl super::Study {
                         suite: self.settings.refute,
                         latency: self.latency_mode,
                         replicates: self.settings.bootstrap_replicates,
+                        sampling_design: self.declared.sampling_design,
                     },
                     ctx,
                 )?;

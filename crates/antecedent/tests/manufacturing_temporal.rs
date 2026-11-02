@@ -1093,12 +1093,14 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
         })
         .collect();
     assert_eq!(atom_values.len(), 2);
-    let mixed = atom_values.iter().map(|(w, v)| w * v).sum::<f64>() / 0.8;
-    assert!(
-        (result.estimate().as_effect().unwrap().ate - mixed).abs() < 1e-12,
-        "{} vs {mixed}",
-        result.estimate().as_effect().unwrap().ate
-    );
+    // The lagged-mediator atom names another S(h), so the atoms disagree on estimand
+    // identity: no frozen-weight mean, no bootstrap band for one, and a graph-dependent
+    // status. The atoms keep their own values and the range of those values is published.
+    let effect = result.estimate().as_effect().unwrap();
+    assert!(effect.ate.is_nan(), "{}", effect.ate);
+    assert!(effect.se_bootstrap().is_none());
+    assert_eq!(result.identification.status, antecedent_core::IdentificationStatus::GraphDependent);
+    assert!(structural.conditional_on_identified.is_none());
     // The known-truth atom recovers 0.44; the lagged-mediator atom is a
     // different graph with its own S(h) and its own (graph-specific) value.
     assert_close("med atom0", atom_values[0].1, effect_truth, tolerance.min(0.015));
@@ -1113,38 +1115,16 @@ fn manufacturing_dbn_posterior_frequentist_mediation_mixes_atoms_in_one_replicat
     let upper = atom_values.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
     let set = structural.identified_set.as_ref().expect("atom range");
     assert_eq!((set.lower[0], set.upper[0]), (lower, upper));
-    let se = result.estimate().as_effect().unwrap().se_bootstrap().expect("mixture SE");
-    assert!(se.is_finite() && se > 0.0);
-    // The shared-block mixture SE is a circular-block construction, not an iid bootstrap: the
-    // interval label (and the calibration record it keys) must say so.
-    assert_eq!(
-        result.estimate().as_effect().unwrap().uncertainty.block.family,
-        Some(antecedent_estimate::CircularBlockFamily::Mixture)
-    );
-    let binding = result.primary_interval_binding(false);
-    assert_eq!(binding.method, antecedent_core::IntervalMethod::CircularBlockSe);
-    assert_eq!(binding.dependence, "circular_block:mixture");
-    // The same replicate SD with no block family recorded models no serial correlation on a
-    // series; it is not the `iid` construction a calibration of exchangeable rows describes.
-    let mut unblocked = result.clone();
-    unblocked.estimate_mut().as_effect_mut().unwrap().uncertainty.block.family = None;
-    assert_eq!(unblocked.primary_interval_binding(false).dependence, "serial_unmodelled");
-    match &result.mediation_grid().unwrap().slices[0].uncertainty {
-        antecedent_estimate::TemporalMediationUncertainty::FrequentistBlockBootstrap {
-            requested,
-            block,
-        } => {
-            assert_eq!(*requested, Some(se));
-            assert!(block.total.is_some_and(|v| v > 0.0) && block.direct.is_some_and(|v| v > 0.0));
-        }
-        other => panic!("expected shared block uncertainty, got {other:?}"),
-    }
-    assert!(
-        result
-            .diagnostics
-            .iter()
-            .any(|d| d.code.as_ref() == "estimate.dbn_posterior.mediation.shared_block")
-    );
+    let slice = &result.mediation_grid().unwrap().slices[0];
+    let slice_set = slice.identified_set.as_ref().expect("the horizon's identified set");
+    assert_eq!((slice_set.lower, slice_set.upper), (lower, upper));
+    assert!(matches!(
+        slice.uncertainty,
+        antecedent_estimate::TemporalMediationUncertainty::Unavailable
+    ));
+    let codes: Vec<&str> = result.diagnostics.iter().map(|d| d.code.as_ref()).collect();
+    assert!(codes.contains(&"estimate.dbn_posterior.mediation.scalar_withheld"), "{codes:?}");
+    assert!(!codes.contains(&"estimate.dbn_posterior.mediation.shared_block"), "{codes:?}");
 }
 
 #[test]

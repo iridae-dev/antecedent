@@ -2233,3 +2233,212 @@ fn generalized_adjustment_fixture_cases_all_match_the_pag_envelope() {
         }
     }
 }
+
+/// A declared participant binding labels the rows it was declared for; a replacement with
+/// another row count is refused before any state changes.
+mod participant_binding {
+    use antecedent::{CausalError, RefuteSuite, Study};
+    use antecedent_core::{AverageEffectQuery, ExecutionContext, StreamDomain, VariableId};
+    use antecedent_data::{TabularData, UnitKey};
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_io::ParticipantBindingWire;
+    use antecedent_kernels::standard_normal;
+
+    const ROWS: usize = 120;
+
+    fn table(rows: usize, seed: u64) -> TabularData {
+        let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Test, 0x37);
+        let (mut t, mut y, mut z) = (vec![0.0; rows], vec![0.0; rows], vec![0.0; rows]);
+        for i in 0..rows {
+            z[i] = standard_normal(&mut rng);
+            t[i] = f64::from(rng.next_f64() < 1.0 / (1.0 + (-0.6 * z[i]).exp()));
+            y[i] = 2.0 * t[i] + z[i] + 0.5 * standard_normal(&mut rng);
+        }
+        let columns = [("t", t), ("y", y), ("z", z)];
+        let borrowed: Vec<(&str, &[f64])> =
+            columns.iter().map(|(name, v)| (*name, v.as_slice())).collect();
+        TabularData::from_f64_columns(borrowed).unwrap()
+    }
+
+    fn study(binding: Option<ParticipantBindingWire>) -> Study {
+        let mut graph = Dag::with_variables(3);
+        for (from, to) in [(2, 0), (2, 1), (0, 1)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        let mut builder = Study::tabular(table(ROWS, 1))
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .refute(RefuteSuite::None);
+        if let Some(binding) = binding {
+            builder = builder.participants(binding);
+        }
+        builder.build().unwrap()
+    }
+
+    fn binding(rows: usize) -> ParticipantBindingWire {
+        ParticipantBindingWire {
+            rows: u64::try_from(rows).unwrap(),
+            labels: "0".repeat(64),
+            codes: "1".repeat(64),
+        }
+    }
+
+    #[test]
+    fn a_rebind_onto_other_rows_than_the_declared_participants_is_refused() {
+        let ctx = ExecutionContext::for_tests(37);
+        let prepared = study(Some(binding(ROWS))).prepare(&ctx).unwrap();
+        assert!(prepared.rebind_data(table(ROWS, 2), &ctx).is_ok());
+        let error = prepared.rebind_data(table(ROWS - 1, 3), &ctx).unwrap_err();
+        assert!(
+            matches!(&error, CausalError::Compile { message } if message.contains("participants")),
+            "{error:?}"
+        );
+    }
+
+    fn keyed(table: TabularData, label: &str) -> TabularData {
+        let units = (0..ROWS).map(|row| format!("{label}{row}")).collect::<Vec<_>>();
+        table.with_unit_key(UnitKey::from_row_labels(units).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_replacement_of_the_same_rows_for_other_participants_is_refused() {
+        let ctx = ExecutionContext::for_tests(39);
+        let declared = UnitKey::from_row_labels((0..ROWS).map(|row| format!("p{row}"))).unwrap();
+        let prepared =
+            study(Some(ParticipantBindingWire::from_unit_key(&declared))).prepare(&ctx).unwrap();
+
+        assert!(prepared.rebind_data(keyed(table(ROWS, 2), "p"), &ctx).is_ok());
+        assert!(prepared.rebind_data(table(ROWS, 2), &ctx).is_ok(), "an unkeyed table inherits");
+
+        let error = prepared.rebind_data(keyed(table(ROWS, 2), "q"), &ctx).unwrap_err();
+        assert!(
+            matches!(&error, CausalError::Compile { message } if message.contains("other participants")),
+            "{error:?}"
+        );
+
+        let mut order = (0..ROWS).map(|row| format!("p{row}")).collect::<Vec<_>>();
+        order.swap(0, 1);
+        let reordered =
+            table(ROWS, 2).with_unit_key(UnitKey::from_row_labels(order).unwrap()).unwrap();
+        assert!(prepared.rebind_data(reordered, &ctx).is_err());
+    }
+
+    #[test]
+    fn a_study_without_participants_rebinds_onto_any_row_count() {
+        let ctx = ExecutionContext::for_tests(38);
+        let prepared = study(None).prepare(&ctx).unwrap();
+        assert!(prepared.rebind_data(table(ROWS - 1, 3), &ctx).is_ok());
+    }
+}
+
+/// Post-identification projection renumbers the used columns; every id a result, score table
+/// or portable model names is the caller's original id. The unused column sits first, so each
+/// used column's projected id differs from its own.
+mod projected_ids {
+    use antecedent::{EstimatorSpec, RefuteSuite, Study};
+    use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
+    use antecedent_data::TabularData;
+    use antecedent_estimate::{AipwAte, CausalForest, DmlAte, DrLearner};
+    use antecedent_graph::{Dag, DenseNodeId};
+    use antecedent_learn::{LearnerSpec, LinearSpec};
+
+    const UNUSED: u32 = 0;
+    const T: u32 = 1;
+    const Y: u32 = 2;
+    const Z: u32 = 3;
+
+    /// Every (T, Z) cell occurs 40 times, so the outcome regressions are exact:
+    /// `tau(Z) = 2 + 0.5 Z`. Column 0 is read by no identified role.
+    fn study(estimator: impl Into<EstimatorSpec>) -> Study {
+        let (mut unused, mut t, mut z, mut y) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for rep in 0..40_u32 {
+            for treatment in [0.0, 1.0] {
+                for confounder in [-1.0, 1.0] {
+                    unused.push(f64::from(rep) * 0.1 + treatment);
+                    t.push(treatment);
+                    z.push(confounder);
+                    y.push(1.0 + confounder + treatment * (2.0 + 0.5 * confounder));
+                }
+            }
+        }
+        let columns = [("unused", unused), ("t", t), ("y", y), ("z", z)];
+        let borrowed: Vec<(&str, &[f64])> =
+            columns.iter().map(|(name, v)| (*name, v.as_slice())).collect();
+        let data = TabularData::from_f64_columns(borrowed).unwrap();
+        let mut graph = Dag::with_variables(4);
+        for (from, to) in [(Z, T), (Z, Y), (T, Y)] {
+            graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
+        }
+        Study::tabular(data)
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(T), VariableId::from_raw(Y)))
+            .estimator(estimator)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+    }
+
+    fn linear() -> LearnerSpec {
+        LearnerSpec::Linear(LinearSpec::default())
+    }
+
+    fn assert_table_ids(table: &antecedent_estimate::ScoreTable) {
+        assert_eq!(table.treatment, VariableId::from_raw(T));
+        assert_ne!(table.treatment, VariableId::from_raw(UNUSED));
+        assert_eq!(&*table.adjustment_set, &[VariableId::from_raw(Z)]);
+        assert!(table.intervened.is_empty());
+    }
+
+    #[test]
+    fn an_aipw_score_table_names_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(11);
+        let result = study(AipwAte::new().with_bootstrap_replicates(0)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("AIPW exports its score table"));
+    }
+
+    #[test]
+    fn a_dml_score_table_names_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(12);
+        let result = study(DmlAte::new().with_outcome(linear()).with_folds(4)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("DML exports its score table"));
+    }
+
+    #[test]
+    fn a_dr_learner_table_and_portable_model_name_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(13);
+        let result =
+            study(DrLearner::new().with_outcome(linear()).with_folds(4)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("DR-learner exports its score table"));
+        let model = effect.heterogeneity.fitted_effect.as_ref().expect("a portable CATE map");
+        assert_eq!(model.features, vec![Z], "the model must name the original covariate id");
+    }
+
+    #[test]
+    fn a_causal_forest_table_and_portable_model_name_original_ids_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(15);
+        let result = study(CausalForest::new().with_n_trees(20)).run(&ctx).unwrap();
+        assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.project.columns"));
+        let effect = result.estimate().as_effect().unwrap();
+        assert_table_ids(effect.scores.table.as_ref().expect("the forest keeps its DML scores"));
+        let model = effect.heterogeneity.fitted_effect.as_ref().expect("a portable forest");
+        assert_eq!(model.features, vec![Z], "the forest must name the original covariate id");
+    }
+
+    #[test]
+    fn a_prepared_retarget_reads_the_original_treatment_column_with_an_unused_column() {
+        let ctx = ExecutionContext::for_tests(14);
+        let prepared = study(AipwAte::new().with_bootstrap_replicates(0)).prepare(&ctx).unwrap();
+        let table = prepared.score_table().expect("prepare keeps the AIPW table");
+        assert_table_ids(table);
+        let weights = vec![1.0; table.n_rows];
+        let retargeted = prepared.retarget(&weights, &[VariableId::from_raw(Z)], &ctx).unwrap();
+        let got = retargeted.estimate().as_effect().unwrap().ate;
+        assert!((got - 2.0).abs() < 0.2, "uniform retarget of the exact-structure table: {got}");
+    }
+}

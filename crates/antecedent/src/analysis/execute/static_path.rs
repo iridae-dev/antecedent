@@ -1093,7 +1093,10 @@ impl super::Study {
         let cancelled = estimate.uncertainty.bootstrap.cancelled;
         let early_stopped = estimate.uncertainty.bootstrap.early_stopped;
 
-        // An ADMG distribution only reaches here at validation none (gated above).
+        // A distribution on a supplied Dag keeps this query-native suite. On an ADMG the
+        // functional refuter state prepares the study at validation none and refutes the whole
+        // target afterwards (`functional_validation`), so a suite requested there arrives as
+        // those reports, not from this branch.
         let refutations = if self.settings.refute == RefuteSuite::None {
             Vec::new()
         } else {

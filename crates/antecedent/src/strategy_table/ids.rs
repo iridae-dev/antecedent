@@ -108,6 +108,19 @@ pub enum IdentifierId {
     InterferenceDesign,
     /// Randomized trial assignment directly identifies the ITT.
     RandomizedDesign,
+    /// Difference-in-differences: parallel untreated trends identify the treated-group effect.
+    ParallelTrends,
+    /// Synthetic control: a convex combination of donor outcomes is the untreated counterfactual.
+    ConvexDonorCounterfactual,
+    /// Synthetic difference-in-differences: convex unit and time weights reproduce the
+    /// untreated trend.
+    ConvexUnitTimeTrends,
+    /// Fuzzy regression discontinuity: the jump in outcome over the jump in treatment receipt
+    /// at the cutoff.
+    FuzzyRdLocalRatio,
+    /// Regression kink: the slope change in outcome over the slope change in treatment dose at
+    /// the cutoff.
+    RegressionKinkLocalRatio,
     /// Conditional dose response under supplied density and group exchangeability.
     ContinuousDoseExchangeability,
     /// `AutoIdentifier` — all applicable estimands, no silent estimator choice.
@@ -133,6 +146,7 @@ const fn same_step(name: &'static str) -> (&'static str, &'static str) {
     (name, name)
 }
 
+#[allow(clippy::too_many_lines, reason = "the identifier table: one arm per identifier")]
 pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
     match id {
         IdentifierId::BackdoorAdjustment => IdentifierData {
@@ -203,6 +217,31 @@ pub(super) const fn identifier_data(id: IdentifierId) -> IdentifierData {
             is_dag_only: false,
             provenance: same_step("identify.randomized.design"),
         },
+        IdentifierId::ParallelTrends => IdentifierData {
+            name: "quasi.parallel_trends",
+            is_dag_only: false,
+            provenance: same_step("identify.parallel_trends"),
+        },
+        IdentifierId::ConvexDonorCounterfactual => IdentifierData {
+            name: "quasi.convex_donor_counterfactual",
+            is_dag_only: false,
+            provenance: same_step("identify.convex_donor_counterfactual"),
+        },
+        IdentifierId::ConvexUnitTimeTrends => IdentifierData {
+            name: "quasi.convex_unit_time_trends",
+            is_dag_only: false,
+            provenance: same_step("identify.convex_unit_time_trends"),
+        },
+        IdentifierId::FuzzyRdLocalRatio => IdentifierData {
+            name: "quasi.fuzzy_rd.local_ratio",
+            is_dag_only: false,
+            provenance: ("identify.rd_design", "identify.rd_fuzzy_local_ratio"),
+        },
+        IdentifierId::RegressionKinkLocalRatio => IdentifierData {
+            name: "quasi.regression_kink.local_ratio",
+            is_dag_only: false,
+            provenance: ("identify.rd_design", "identify.regression_kink_local_ratio"),
+        },
         IdentifierId::ContinuousDoseExchangeability => IdentifierData {
             name: "policy.continuous_dose_exchangeability",
             is_dag_only: false,
@@ -232,6 +271,45 @@ impl IdentifierId {
     #[must_use]
     pub const fn is_dag_only(&self) -> bool {
         identifier_data(*self).is_dag_only
+    }
+
+    /// The estimator a static average effect runs when this identifier is declared and the
+    /// caller selected none: the complete ID algorithm yields a functional, not an adjustment
+    /// set, so only the functional plug-in evaluates it.
+    pub(crate) const fn static_native_estimator(self) -> Option<EstimatorId> {
+        match self {
+            Self::GeneralId => Some(EstimatorId::FunctionalEffect),
+            _ => None,
+        }
+    }
+
+    /// The identification strategy a synthetic panel `method` rests on.
+    pub(crate) const fn for_synthetic_panel(method: antecedent_core::SyntheticPanelMethod) -> Self {
+        match method {
+            antecedent_core::SyntheticPanelMethod::Control => Self::ConvexDonorCounterfactual,
+            antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
+                Self::ConvexUnitTimeTrends
+            }
+        }
+    }
+
+    /// The identification strategy of a local polynomial ratio: the slope ratio of a
+    /// regression kink, or the jump ratio of a fuzzy discontinuity.
+    pub(crate) const fn for_local_ratio(kink: bool) -> Self {
+        if kink { Self::RegressionKinkLocalRatio } else { Self::FuzzyRdLocalRatio }
+    }
+
+    /// The identification strategy a graphless design-based `query` declares: the quasi-
+    /// experimental designs name their own, every other design identifies by its randomized
+    /// assignment.
+    pub(crate) fn for_design_query(query: &antecedent_core::CausalQuery) -> Self {
+        use antecedent_core::CausalQuery;
+        match query {
+            CausalQuery::PanelDid(_) => Self::ParallelTrends,
+            CausalQuery::SyntheticControl(query) => Self::for_synthetic_panel(query.method),
+            CausalQuery::LocalPolynomialRatio(query) => Self::for_local_ratio(query.kink),
+            _ => Self::RandomizedDesign,
+        }
     }
 }
 
@@ -412,6 +490,13 @@ pub enum EstimatorId {
     BayesianSyntheticControl,
     /// Bayesian fuzzy-jump and kink local-ratio posterior (unlicensed, uncalibrated).
     BayesianLocalRatio,
+    /// Frequentist difference-in-differences of a declared panel design (unlicensed unless a
+    /// coverage record names the design).
+    PanelDid,
+    /// Frequentist convex-donor synthetic control and synthetic difference-in-differences.
+    SyntheticControl,
+    /// Frequentist fuzzy-jump and kink local ratio with bias-corrected local polynomials.
+    LocalRatio,
     /// Piecewise-exponential posterior of the randomized survival and restricted-mean
     /// contrast (unlicensed, uncalibrated).
     BayesianPiecewiseSurvival,
@@ -1288,6 +1373,27 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "bayesian_local_ratio.joint_local_linear",
             provenance: same_step("estimate.bayesian_local_ratio"),
         },
+        EstimatorId::PanelDid => EstimatorData {
+            compatible: NONE,
+            name: "panel_did",
+            parallel_task_dimension: "analysis",
+            kernel_label: "panel_did.design_based",
+            provenance: same_step("estimate.panel_did"),
+        },
+        EstimatorId::SyntheticControl => EstimatorData {
+            compatible: NONE,
+            name: "synthetic_control",
+            parallel_task_dimension: "analysis",
+            kernel_label: "synthetic_control.convex_donor",
+            provenance: same_step("estimate.synthetic_control"),
+        },
+        EstimatorId::LocalRatio => EstimatorData {
+            compatible: NONE,
+            name: "local_ratio",
+            parallel_task_dimension: "analysis",
+            kernel_label: "local_ratio.bias_corrected_local_polynomial",
+            provenance: same_step("estimate.local_ratio"),
+        },
         EstimatorId::BayesianRandomizedFinitePopulation => EstimatorData {
             compatible: RANDOMIZED,
             name: "bayesian.randomized_finite_population",
@@ -1329,6 +1435,27 @@ impl EstimatorId {
     #[must_use]
     pub const fn kernel_label(&self) -> &'static str {
         estimator_data(*self).kernel_label
+    }
+
+    /// Whether the estimator's posterior is a Dirichlet-weighted (Bayesian) bootstrap whatever
+    /// `BayesianConfig::backend` says: the backend selects a parametric posterior algorithm and
+    /// these estimators run none.
+    #[must_use]
+    pub(crate) const fn posterior_is_bayesian_bootstrap(self) -> bool {
+        matches!(
+            self,
+            Self::BayesianRobustAte
+                | Self::TransportTrialBayesianBootstrap
+                | Self::InterferenceClusterBayesianBootstrap
+                | Self::BayesianLocalRatio
+                | Self::BayesianRandomizedQuantile
+                | Self::BayesianComplierEffect
+                | Self::BayesianBinaryPolicyValue
+                | Self::BayesianSequentialRegimeValue
+                | Self::BayesianSequentialCrossfitContrast
+                | Self::BayesianTemporalDesignExcursion
+                | Self::BayesianIvBounds
+        )
     }
 }
 
@@ -1618,7 +1745,10 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::BayesianIvBounds
         | EstimatorId::BayesianPiecewiseSurvival
         | EstimatorId::BayesianDosePolicy
-        | EstimatorId::BayesianLocalRatio => false,
+        | EstimatorId::BayesianLocalRatio
+        | EstimatorId::PanelDid
+        | EstimatorId::SyntheticControl
+        | EstimatorId::LocalRatio => false,
         EstimatorId::RandomizedHt
         | EstimatorId::RandomizedFixedCupedHt
         | EstimatorId::RandomizedClusterFixedCuped
@@ -1831,5 +1961,64 @@ mod names {
         let estimators: std::collections::HashSet<_> =
             EstimatorId::ALL.iter().map(EstimatorId::as_str).collect();
         assert_eq!(estimators.len(), EstimatorId::ALL.len());
+    }
+
+    #[test]
+    fn quasi_experimental_designs_declare_their_own_identifier() {
+        use antecedent_core::{
+            CausalQuery, LocalPolynomialRatioQuery, PanelDidQuery, SyntheticControlQuery,
+            SyntheticPanelMethod, VariableId,
+        };
+        use std::sync::Arc;
+
+        let variable = VariableId::from_raw(0);
+        let did = PanelDidQuery::new(
+            variable,
+            Vec::<bool>::new(),
+            Vec::<bool>::new(),
+            Vec::<Arc<str>>::new(),
+            Vec::<Arc<str>>::new(),
+        );
+        assert_eq!(
+            IdentifierId::for_design_query(&CausalQuery::PanelDid(did)).as_str(),
+            "quasi.parallel_trends"
+        );
+        let mut synthetic = SyntheticControlQuery::new(
+            variable,
+            Vec::<Arc<str>>::new(),
+            Vec::<i64>::new(),
+            "unit",
+            1,
+        );
+        for (method, wire) in [
+            (SyntheticPanelMethod::Control, "quasi.convex_donor_counterfactual"),
+            (SyntheticPanelMethod::DifferenceInDifferences, "quasi.convex_unit_time_trends"),
+        ] {
+            synthetic.method = method;
+            assert_eq!(IdentifierId::for_synthetic_panel(method).as_str(), wire);
+            assert_eq!(
+                IdentifierId::for_design_query(&CausalQuery::SyntheticControl(synthetic.clone()))
+                    .as_str(),
+                wire
+            );
+        }
+        for (kink, wire) in
+            [(false, "quasi.fuzzy_rd.local_ratio"), (true, "quasi.regression_kink.local_ratio")]
+        {
+            let ratio = LocalPolynomialRatioQuery {
+                outcome: variable,
+                treatment: variable,
+                running: variable,
+                cutoff: 0.0,
+                bandwidth: 1.0,
+                kink,
+                options: None,
+            };
+            assert_eq!(IdentifierId::for_local_ratio(kink).as_str(), wire);
+            assert_eq!(
+                IdentifierId::for_design_query(&CausalQuery::LocalPolynomialRatio(ratio)).as_str(),
+                wire
+            );
+        }
     }
 }

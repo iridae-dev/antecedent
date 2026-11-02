@@ -863,6 +863,7 @@ fn prepared_body() {
     assert!(b.diagnostics.sampling_weights.is_some());
     // The prepared cell keeps no score table, so no other weights can retarget it.
     let rows = b.scores.table.as_ref().unwrap().n_rows;
+    assert!(prepared.score_table().is_none());
     let error = prepared.retarget(&vec![1.0; rows], &[], &ctx()).unwrap_err();
     assert_eq!(error.reason_code(), Some("score_table_unavailable"), "{error}");
     // Two results that differ only in the declared labels never share an identity.

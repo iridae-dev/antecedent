@@ -132,11 +132,17 @@ impl CounterfactualTransportObstructionReport {
     /// Re-verify the witness by exact rational enumeration on the report's own
     /// model class, query and catalog.
     ///
+    /// The verification is charged to `ctx`: its admission pool and cancellation.
+    ///
     /// # Errors
     /// `transport_not_certified` (`counterfactual_transport.invalid_witness`)
-    /// when the witness no longer verifies.
-    pub fn verify(&self) -> Result<CounterfactualTransportWitnessCheck, IoError> {
-        self.obstruction.verify().map_err(identification_error)
+    /// when the witness no longer verifies; `transport_budget_cancel` when the
+    /// verification was stopped.
+    pub fn verify(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CounterfactualTransportWitnessCheck, IoError> {
+        self.obstruction.verify(ctx).map_err(identification_error)
     }
 
     /// Export the obstruction as a `counterfactual_transport_v1` artifact that a

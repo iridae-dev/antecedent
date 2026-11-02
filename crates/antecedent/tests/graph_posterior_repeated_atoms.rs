@@ -226,7 +226,7 @@ fn scalar(value: &ResponseValue) -> f64 {
 }
 
 #[test]
-fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
+fn repeated_static_atom_response_keeps_each_graph_at_its_combined_mass() {
     let data = continuous_data(0x2A72);
     let query =
         CausalQuery::Response(ResponseQuery::new(ResponseFunctional::InterventionResponse {
@@ -248,15 +248,19 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
         };
         let (value_a, value_b) = (only(direct()), only(adjusted()));
         assert!((value_a - value_b).abs() > 0.1, "atoms must identify different responses");
-        let expected = (2.0 * value_a + value_b) / 3.0;
 
+        // The unadjusted and the adjusted atom name different estimands, so the response
+        // withholds the mean as the ATE route does: the atoms keep their own values and the
+        // range of those values is the identified set. Coalescing repeated listings must not
+        // change masses, per-graph weights or that set.
         let result = run(&data, repeated(), query.clone(), inference.clone());
         let structural = result.structural_response.as_ref().unwrap();
-        let mixed = scalar(structural.conditional_on_identified.as_ref().unwrap());
-        assert!(
-            (mixed - expected).abs() < 1e-10,
-            "repeated-atom response {mixed} != 2/3·{value_a} + 1/3·{value_b} = {expected}"
-        );
+        assert!(structural.conditional_on_identified.is_none());
+        let set = structural.identified_set.as_ref().unwrap();
+        assert_eq!(set.lower.len(), 1);
+        assert!((set.lower[0] - value_a.min(value_b)).abs() < 1e-10);
+        assert!((set.upper[0] - value_a.max(value_b)).abs() < 1e-10);
+        assert!(matches!(result.response().unwrap().uncertainty, ResponseUncertainty::None));
         assert!((structural.identified_mass - 0.75).abs() < 1e-12);
         assert!((structural.unidentified_mass - 0.25).abs() < 1e-12);
         assert!(structural.unevaluable_mass.abs() < 1e-12);
@@ -266,29 +270,19 @@ fn repeated_static_atom_response_is_the_mass_weighted_mixture() {
         for atom in &structural.atoms {
             assert_eq!(atom.value.is_some(), atom.graph_key != unidentified(), "{atom:?}");
         }
+        let keys = repeated().graph_keys().clone();
+        let weight_of = |key: u64| -> f64 {
+            structural.atoms.iter().filter(|atom| atom.graph_key == key).map(|a| a.weight).sum()
+        };
+        assert!((weight_of(keys[0]) - 0.5).abs() < 1e-12, "the repeated graph keeps its mass");
+        assert!((weight_of(keys[2]) - 0.25).abs() < 1e-12);
 
         let reference = run(&data, coalesced(), query.clone(), inference.clone());
-        let ref_mixed = scalar(
-            reference
-                .structural_response
-                .as_ref()
-                .unwrap()
-                .conditional_on_identified
-                .as_ref()
-                .unwrap(),
-        );
-        assert!((mixed - ref_mixed).abs() < 1e-12);
-        if matches!(inference, InferenceMode::Frequentist) {
-            let se = |r: &StudyResult| match r.response().unwrap().uncertainty {
-                ResponseUncertainty::Scalar { standard_error, .. } => standard_error,
-                ref other => panic!("joint-IF scalar interval expected, got {other:?}"),
-            };
-            let (se, reference_se) = (se(&result), se(&reference));
-            assert!(
-                se.is_finite() && (se - reference_se).abs() < 1e-12,
-                "se={se} reference={reference_se}"
-            );
-        }
+        let reference = reference.structural_response.as_ref().unwrap();
+        assert!(reference.conditional_on_identified.is_none());
+        let ref_set = reference.identified_set.as_ref().unwrap();
+        assert!((set.lower[0] - ref_set.lower[0]).abs() < 1e-12);
+        assert!((set.upper[0] - ref_set.upper[0]).abs() < 1e-12);
     }
 }
 

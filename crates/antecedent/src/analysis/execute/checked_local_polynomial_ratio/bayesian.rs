@@ -10,11 +10,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::super::bayesian_quasi_common::{
-    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior, scalar_quantity,
+    DesignFinish, DesignPosterior, effect_quantity, finish_design_posterior_as, scalar_quantity,
 };
 use super::{
-    BayesianConfig, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, ExecutionContext,
-    StudyResult, TabularData,
+    BayesianConfig, CausalError, Diagnostic, DiagnosticKind, DiagnosticSeverity, EstimatorId,
+    ExecutionContext, IdentifierId, Strategy, StudyResult, TabularData,
 };
 use antecedent_estimate::DrawSpec;
 use antecedent_estimate::bayesian_local_ratio::{
@@ -33,7 +33,7 @@ pub(in crate::analysis::execute) fn bayesian_local_polynomial_ratio_plan_ids(
     let label = if kink { "regression_kink" } else { "fuzzy_rd" };
     (
         format!("bayesian.{label}"),
-        format!("quasi.{label}.local_ratio"),
+        IdentifierId::for_local_ratio(kink).as_str().to_string(),
         crate::strategy_table::EstimatorId::BayesianLocalRatio.as_str().to_string(),
     )
 }
@@ -191,7 +191,7 @@ impl super::CheckedLocalPolynomialRatioOperation {
             ],
             sampler: None,
         };
-        finish_design_posterior(
+        finish_design_posterior_as(
             DesignFinish {
                 context: &self.result_context,
                 data,
@@ -203,6 +203,10 @@ impl super::CheckedLocalPolynomialRatioOperation {
                 started,
             },
             design,
+            Strategy::new(
+                IdentifierId::for_local_ratio(self.query.kink),
+                EstimatorId::BayesianLocalRatio,
+            ),
         )
     }
 }

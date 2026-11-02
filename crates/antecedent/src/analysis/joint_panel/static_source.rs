@@ -17,7 +17,7 @@ use antecedent_identify::panel_unrolled::{
 };
 use antecedent_identify::{
     CompiledIdentificationProduct, CompiledProductParts, IdentificationClaimClass,
-    IdentificationOutcome,
+    IdentificationError, IdentificationOutcome,
 };
 use std::sync::Arc;
 
@@ -171,8 +171,18 @@ impl PreparedStudy<JointPanelState> {
         if restricted {
             self.check_restriction_structure(graph)?;
         }
-        let verdict = identify_joint_panel_intervention(graph, outcome_periods)
-            .map_err(|error| JointPanelError::compile(error.to_string()))?;
+        let verdict = identify_joint_panel_intervention(graph, outcome_periods).map_err(
+            |error| match error {
+                // An operational stop is not a statement about the declared graph.
+                IdentificationError::Cancelled => {
+                    JointPanelError::Engine(super::engine::PanelError::Cancelled)
+                }
+                IdentificationError::Budget { .. } => {
+                    JointPanelError::Engine(super::engine::PanelError::Resource(error.to_string()))
+                }
+                other => JointPanelError::compile(other.to_string()),
+            },
+        )?;
         let (detail, next) = match &verdict {
             UnrolledPanelIdentification::Identified(result) => (
                 format!(

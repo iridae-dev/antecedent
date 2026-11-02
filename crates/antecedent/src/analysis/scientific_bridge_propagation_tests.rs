@@ -285,6 +285,24 @@ fn an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value() {
 }
 
 #[test]
+fn a_declared_dependence_on_the_mapping_is_refused_an_interval_on_every_route() {
+    let dependence =
+        SourceMappingDependence::SlopeCovariance { covariance: 0.0004, evidence: "rows".into() };
+    let contract = affine_contract(Some(dependence));
+    let result = derive(&contract, 0.5, Some(0.05), None).unwrap();
+    let refused = result.bridged_interval(0.95).unwrap_err();
+    assert_eq!(refused.code, "cell_not_licensed");
+    assert_eq!(refused.detail, "scientific_bridge.interval_scope_outside_measured");
+    let direct = antecedent_io::bridge_interval::construct_bridged_claim_interval(
+        result.bridged(),
+        Some(0.05),
+        0.95,
+    )
+    .unwrap_err();
+    assert_eq!(direct.detail, "scientific_bridge.interval_scope_outside_measured");
+}
+
+#[test]
 fn the_declared_covariance_sign_moves_the_variance_and_the_mean() {
     let with = |covariance: f64| {
         let dependence =

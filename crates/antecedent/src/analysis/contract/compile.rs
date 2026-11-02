@@ -834,8 +834,8 @@ pub(crate) fn accepted_graph_identity(
         GraphRef::Cpdag(g) => cpdag_identity(g).map_err(|err| io_err(&err)),
         GraphRef::Pag(g) => pag_identity(g).map_err(|err| io_err(&err)),
         GraphRef::TemporalDag(g) => temporal_dag_identity(g).map_err(|err| io_err(&err)),
-        GraphRef::TemporalCpdag(g) => Ok(temporal_cpdag_identity(g)),
-        GraphRef::TemporalPag(g) => Ok(temporal_pag_identity(g)),
+        GraphRef::TemporalCpdag(g) => temporal_cpdag_identity(g).map_err(|err| io_err(&err)),
+        GraphRef::TemporalPag(g) => temporal_pag_identity(g).map_err(|err| io_err(&err)),
         GraphRef::TemporalAdmg(g) => temporal_admg_identity(g).map_err(|err| io_err(&err)),
         GraphRef::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
     }

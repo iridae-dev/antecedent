@@ -206,23 +206,24 @@ fn mean_z(data: &TabularData) -> f64 {
 // ====================================================== graph-posterior level
 
 /// Atom weights of the graph posterior below, over
-/// [`common::static_dgp::response_data`]: atom A (`t -> y`, no adjustment)
-/// estimates `E[Y | T = 1] = 3 + 0.8·0.3 = 3.24`; atom B (`z -> t`, `z -> y`,
-/// `t -> y`) estimates `E[Y | do(T = 1)] = 3`; atom C (`y -> t`) is
-/// unidentified. The reported frozen-weight aggregate over identified atoms is
-/// [`GP_TRUTH`], `(0.5·3.24 + 0.3·3) / 0.8 = 3.15`, its population value.
+/// [`common::static_dgp::response_data`]: atom A (`t -> y`) and atom B (`z -> y`,
+/// `t -> y`, with `z` not a cause of `t`) both identify `E[Y | do(T = 1)]` by the same
+/// empty adjustment set, so both estimate `E[Y | T = 1] = 3 + 0.8·0.3 = 3.24`; atom C
+/// (`y -> t`) is unidentified. The atoms name one estimand, so the frozen-weight aggregate
+/// over the identified atoms is defined and its population value is [`GP_TRUTH`] `= 3.24`.
+/// Atoms that adjust differently name different estimands and publish no aggregate.
 const GP_WEIGHTS: [f64; 3] = [0.5, 0.3, 0.2];
-const GP_TRUTH: f64 = (0.5 * 3.24 + 0.3 * 3.0) / 0.8;
+const GP_TRUTH: f64 = 3.0 + 0.8 * 0.3;
 
 fn graph_posterior() -> GraphPosterior {
     use antecedent_discovery::adjacency_mask::set_edge;
     let direct = set_edge(0, 3, 0, 1, true);
-    let adjusted = set_edge(set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 0, true), 3, 2, 1, true);
+    let same_adjustment = set_edge(set_edge(0, 3, 0, 1, true), 3, 2, 1, true);
     let unidentified = set_edge(0, 3, 1, 0, true);
     GraphPosterior::from_atoms(
         3,
         GP_WEIGHTS.to_vec(),
-        vec![direct, adjusted, unidentified],
+        vec![direct, same_adjustment, unidentified],
         vec![0.0; 9],
         vec![0.0; 9],
         SamplingSummary {
@@ -357,7 +358,7 @@ const GP_CELL: Cell = Cell {
 };
 
 /// Joint-IF scalar interval of the frozen-weight graph-posterior aggregate
-/// `E[Y | do(T = 1)]` over two disagreeing identified atoms.
+/// `E[Y | do(T = 1)]` over two identified atoms that share one estimand.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn intervention_response_dag_graph_posterior_frequentist_nominal_coverage() {

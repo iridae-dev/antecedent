@@ -45,26 +45,31 @@ pub(super) fn synthetic_query_plan_ids(
     query: &antecedent_core::SyntheticControlQuery,
 ) -> (&'static str, &'static str, &'static str) {
     use antecedent_core::SyntheticInterval;
+    let identifier = synthetic_query_identifier(query).as_str();
     match (query.rollout.as_ref().map(|rollout| rollout.interval), query.method) {
-        (Some(SyntheticInterval::Conformal), _) => (
-            "quasi.synthetic_control",
-            "quasi.convex_donor_counterfactual",
-            "quasi.synthetic_control_conformal",
-        ),
-        (Some(SyntheticInterval::PlaceboVariance), SyntheticPanelMethod::Control) => (
-            "quasi.synthetic_control",
-            "quasi.convex_donor_counterfactual",
-            "quasi.multi_unit_synthetic_control_placebo",
-        ),
+        (Some(SyntheticInterval::Conformal), _) => {
+            ("quasi.synthetic_control", identifier, "quasi.synthetic_control_conformal")
+        }
+        (Some(SyntheticInterval::PlaceboVariance), SyntheticPanelMethod::Control) => {
+            ("quasi.synthetic_control", identifier, "quasi.multi_unit_synthetic_control_placebo")
+        }
         (
             Some(SyntheticInterval::PlaceboVariance),
             SyntheticPanelMethod::DifferenceInDifferences,
-        ) => (
-            "quasi.synthetic_did",
-            "quasi.convex_unit_time_trends",
-            "quasi.multi_unit_synthetic_did_placebo",
-        ),
+        ) => ("quasi.synthetic_did", identifier, "quasi.multi_unit_synthetic_did_placebo"),
         (None, method) => synthetic_panel_plan_ids(method),
+    }
+}
+
+/// The identification premise a compiled synthetic panel query rests on: the conformal
+/// interval always refits simplex donor weights, every other route follows the panel method.
+fn synthetic_query_identifier(query: &antecedent_core::SyntheticControlQuery) -> IdentifierId {
+    use antecedent_core::SyntheticInterval;
+    match query.rollout.as_ref().map(|rollout| rollout.interval) {
+        Some(SyntheticInterval::Conformal) => IdentifierId::ConvexDonorCounterfactual,
+        Some(SyntheticInterval::PlaceboVariance) | None => {
+            IdentifierId::for_synthetic_panel(query.method)
+        }
     }
 }
 
@@ -75,12 +80,14 @@ pub(super) fn synthetic_panel_plan_ids(
     match method {
         antecedent_core::SyntheticPanelMethod::Control => (
             "quasi.synthetic_control",
-            "quasi.convex_donor_counterfactual",
+            IdentifierId::for_synthetic_panel(method).as_str(),
             "quasi.synthetic_control_simplex",
         ),
-        antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => {
-            ("quasi.synthetic_did", "quasi.convex_unit_time_trends", "quasi.synthetic_did_simplex")
-        }
+        antecedent_core::SyntheticPanelMethod::DifferenceInDifferences => (
+            "quasi.synthetic_did",
+            IdentifierId::for_synthetic_panel(method).as_str(),
+            "quasi.synthetic_did_simplex",
+        ),
     }
 }
 
@@ -236,7 +243,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::for_synthetic_panel(self.query.method), EstimatorId::SyntheticControl), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_control.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
@@ -432,7 +439,7 @@ impl CheckedSyntheticControlOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedHt), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
+            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), estimate, Strategy::new(IdentifierId::for_synthetic_panel(self.query.method), EstimatorId::SyntheticControl), self.query.outcome, self.query.outcome).extra_diagnostics(vec![Diagnostic::new(
                     "estimate.quasi.synthetic_did.support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
