@@ -732,15 +732,15 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                             "sum_out": [2],
                             "factors": [
                                 {
-                                    "population": "trial",
-                                    "variables": [1],
-                                    "conditioned_on": [2],
-                                    "interventions": [0],
-                                },
-                                {
                                     "population": "target",
                                     "variables": [2],
                                     "conditioned_on": [],
+                                    "interventions": [],
+                                },
+                                {
+                                    "population": "trial",
+                                    "variables": [1],
+                                    "conditioned_on": [2],
                                     "interventions": [],
                                 },
                             ],

@@ -1,6 +1,6 @@
 """Checked synthesis of completed average-effect studies into one conditional point claim.
 
-Hand example. A dose ``t`` observed at 0, 1 and 2 with ``y = 3 t`` plus a zero-mean
+Hand example. A continuous dose ``t`` with ``y = 3 t`` plus a zero-mean
 perturbation: the dose-1 and dose-2 average effects are about 3 and 6. The contrast
 ``1 * ate(1) - 1 * ate(2)`` is about -3 and the aggregate ``0.25 * ate(1) + 0.75 * ate(2)``
 about 5.25; each is exactly the declared linear combination of the parents' points.
@@ -9,6 +9,7 @@ about 5.25; each is exactly the declared linear combination of the parents' poin
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import antecedent as ant
 import numpy as np
@@ -18,6 +19,7 @@ from antecedent.errors import (
     CausalCancelledError,
     CausalResourceError,
     CausalTypeError,
+    CausalUnsupportedError,
     CausalValueError,
 )
 from antecedent.outcomes import require_success
@@ -27,16 +29,14 @@ N = 300
 
 
 def _data():
-    t = np.tile([0.0, 1.0, 2.0], N // 3)
+    t = (np.arange(N) - N / 2) / 50.0
     y = 3.0 * t + 0.1 * ((np.arange(N) % 5) - 2.0)
     return {"t": t, "y": y}
 
 
 def _prepared(level):
-    data = _data()
-    selected = (data["t"] == 0) | (data["t"] == level)
     return ant.prepare(
-        {name: values[selected] for name, values in data.items()},
+        _data(),
         graph=[("t", "y")],
         query=ant.AverageEffect("t", "y", active_level=level),
         inference=ant.Frequentist(bootstrap=0),
@@ -62,6 +62,8 @@ def test_a_composition_is_exactly_the_declared_linear_combination_of_its_parents
     operation, weights
 ):
     first, second, a, b = _pair()
+    assert a == pytest.approx(3.0, abs=0.01)
+    assert b == pytest.approx(6.0, abs=0.01)
     parents = [ClaimParent(first, weights[0]), ClaimParent(second, weights[1])]
     derived = compose_study_claims(parents, operation=operation)
     assert derived.point == pytest.approx(weights[0] * a + weights[1] * b, abs=1e-12)
@@ -97,6 +99,21 @@ def test_a_prepared_study_that_was_estimated_is_a_parent_as_its_outcome_is():
         [ClaimParent(first.study, 1.0), ClaimParent(second.study, -1.0)], operation="contrast"
     )
     assert by_outcome.point == by_study.point
+
+
+def test_outcome_study_mismatch_is_refused_and_reestimation_preserves_the_parent():
+    first, second, _, _ = _pair()
+    forged = replace(first, _study=second.study)
+    with pytest.raises(CausalUnsupportedError, match="not the retained native result"):
+        compose_study_claims(
+            [ClaimParent(forged, 1.0), ClaimParent(second, -1.0)], operation="contrast"
+        )
+    pair = [ClaimParent(first, 1.0), ClaimParent(second, -1.0)]
+    before = compose_study_claims(pair, operation="contrast")
+    require_success(ant.estimate(first.study))
+    after = compose_study_claims(pair, operation="contrast")
+    assert after.claim_id == before.claim_id
+    assert after.point == before.point
 
 
 def test_coefficients_or_output_weights_the_parents_do_not_realize_are_refused():
@@ -150,7 +167,7 @@ def test_a_parent_that_is_not_an_average_effect_contrast_is_refused():
         )
     )
     first, _ = _completed(1.0)
-    with pytest.raises(CausalValueError, match="contrast"):
+    with pytest.raises(CausalValueError, match="scalar scientific target"):
         compose_study_claims(
             [ClaimParent(first, 1.0), ClaimParent(derivative, -1.0)], operation="contrast"
         )
