@@ -339,7 +339,7 @@ EVIDENCE_OVERRIDE = {
     ],
     "quasi.multi_unit_synthetic_placebo": [
         T
-        + "quasi_rollout_routes.rs::multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals"
+        + "quasi_rollout_routes.rs::multi_unit_synthetic_control_round_trips_and_did_refuses"
     ],
     "bayesian.synthetic_control_predictive_path": [
         T

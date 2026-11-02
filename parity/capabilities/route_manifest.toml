@@ -2216,14 +2216,14 @@ notes = "Plan id quasi.synthetic_control; estimator quasi.synthetic_control_conf
 id = "quasi.multi_unit_synthetic_placebo"
 target = "SyntheticControl"
 graph_class = "RandomizedTrial"
-design_time_model = "graphless balanced panel, staggered adoptions against never-treated donors; method=Control|DifferenceInDifferences"
+design_time_model = "graphless balanced panel, staggered adoptions against never-treated donors; method=Control"
 inference = "Frequentist"
 uncertainty = "placebo variance from refits on reassigned never-treated units; normal interval and per-unit sup-t band; calibration unmeasured"
 decision_ports = "unlisted"
 artifact_consumer = "unlisted"
 status = "execution_only"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs"
-notes = "Plan ids quasi.synthetic_control and quasi.synthetic_did; estimators quasi.multi_unit_synthetic_control_placebo and quasi.multi_unit_synthetic_did_placebo. Post-period-weighted average of per-unit effects. Needs at least two never-treated donors beyond the adopting units. The Bayesian counterpart bayesian.synthetic_control runs the per-unit simplex posteriors and averages the draws (method Control). Explicitly unlicensed."
+notes = "Plan id quasi.synthetic_control; estimator quasi.multi_unit_synthetic_control_placebo. Synthetic difference-in-differences is refused because its unit-weight intercept and ridge penalty are not implemented. Post-period-weighted average of per-unit effects. Needs at least two never-treated donors beyond the adopting units. The Bayesian counterpart bayesian.synthetic_control runs the per-unit simplex posteriors and averages the draws (method Control). Explicitly unlicensed."
 
 [[route]]
 id = "bayesian.staggered_heterogeneity_robust"
@@ -15502,7 +15502,7 @@ estimator = "unlisted"
 identifier = []
 lowering = []
 inference = "frequentist"
-design_time_model = "graphless balanced panel, staggered adoptions against never-treated donors; method=Control|DifferenceInDifferences"
+design_time_model = "graphless balanced panel, staggered adoptions against never-treated donors; method=Control"
 status = "execution_only"
 structures = []
 validations = []
@@ -15515,8 +15515,8 @@ decision_ports = "unlisted"
 owning_module = "crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs"
 implementation = ["crates/antecedent/src/analysis/execute/checked_synthetic_control/rollout.rs"]
 provenance = []
-evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs::multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals"]
-artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs::multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals"]
+evidence = ["crates/antecedent/tests/quasi_rollout_routes.rs::multi_unit_synthetic_control_round_trips_and_did_refuses"]
+artifact_consumer = ["crates/antecedent-io-core/src/analysis_result_artifact/mod.rs::decode_analysis_result_artifact", "crates/antecedent/tests/quasi_rollout_routes.rs::multi_unit_synthetic_control_round_trips_and_did_refuses"]
 
 [[method]]
 id = "method.bayesian.staggered_heterogeneity_robust"

@@ -570,7 +570,7 @@ fn conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_r
     clippy::cast_sign_loss,
     reason = "the bounded fixture preserves its exact local structure"
 )]
-fn multi_unit_synthetic_did_is_refused_until_its_weights_are_implemented() {
+fn multi_unit_synthetic_control_round_trips_and_did_refuses() {
     let mut rng = Rng(10);
     let mut trend = Vec::new();
     let mut level = 0.0;
@@ -598,14 +598,14 @@ fn multi_unit_synthetic_did_is_refused_until_its_weights_are_implemented() {
     let data = TabularData::from_f64_columns([("y", y.as_slice())]).unwrap();
     let query = SyntheticControlQuery::new(
         VariableId::from_raw(0),
-        units,
-        periods,
+        units.clone(),
+        periods.clone(),
         Arc::<str>::from("t0"),
         16,
     )
     .difference_in_differences()
-    .with_staggered_adoptions(adoptions, 199);
-    let error = Study::tabular(data)
+    .with_staggered_adoptions(adoptions.clone(), 199);
+    let error = Study::tabular(data.clone())
         .query(query)
         .build()
         .unwrap()
@@ -613,6 +613,27 @@ fn multi_unit_synthetic_did_is_refused_until_its_weights_are_implemented() {
         .expect_err("a simplex-only objective must not run synthetic difference in differences");
     assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
     assert!(error.to_string().contains("unit-weight intercept and ridge penalty"), "{error}");
+
+    let query = SyntheticControlQuery::new(
+        VariableId::from_raw(0),
+        units,
+        periods,
+        Arc::<str>::from("t0"),
+        16,
+    )
+    .with_staggered_adoptions(adoptions, 199);
+    let ctx = ExecutionContext::for_tests(4);
+    let prepared =
+        Study::tabular(data.clone()).query(query).build().unwrap().prepare(&ctx).unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let rollout = result.quasi_rollout().unwrap();
+    assert!((rollout.overall().unwrap().estimate - 2.0).abs() < 0.25);
+    let bytes = prepared.encode_contracted_result(&result, "multi-unit-control", &ctx).unwrap();
+    let (_, _, body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    let stored = body.quasi_rollout.unwrap();
+    assert_eq!(stored.design, "multi_unit_synthetic_control");
+    assert!(!stored.licensed);
+    assert_eq!(stored.calibration, "unmeasured");
 }
 
 /// Independent robust-bias-corrected fuzzy-RD reference. On each side of the cutoff it fits the
