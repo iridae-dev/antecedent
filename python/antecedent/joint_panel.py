@@ -39,11 +39,15 @@ from ._joint_panel_designs import (
     target_contrast,
 )
 from ._joint_panel_experiment import (
+    HistoricalJointExperiment,
     HistoricalPanelExperiment,
     PanelExperiment,
     PanelFutureRegime,
     PanelFutureStudy,
+    PanelJointComponent,
+    PanelJointExperiment,
     replay_design_experiment,
+    replay_joint_experiment,
     replay_native_experiment,
 )
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
@@ -59,7 +63,11 @@ __all__ = [
     "JointResponseLaw",
     "PreparedJointResponse",
     "compile_joint_response",
+    "HistoricalJointExperiment",
     "HistoricalPanelExperiment",
+    "PanelJointComponent",
+    "PanelJointExperiment",
+    "replay_joint_experiment",
     "replay_design_experiment",
     "replay_native_experiment",
     "PanelProgramCertificate",
@@ -405,6 +413,17 @@ class PanelResult:
             likelihood_assumption_id=likelihood_assumption_id,
             **declaration,
         )
+
+    def condition_joint_excursion(self, **declaration: Any) -> Any:
+        """Condition jointly on several components of one retained excursion.
+
+        Takes ``evidence``, ``components`` (``PanelJointComponent``), ``likelihood_assumption_id``,
+        ``ledger``, and the ``model``/``experiment``/``mapping`` origins. The observed contrasts
+        and their covariance come from the retained evidence.
+        """
+        from ._joint_panel_experiment import condition_joint_excursion
+
+        return condition_joint_excursion(self._handle, **declaration)
 
     @property
     def execution_facts(self) -> Any:

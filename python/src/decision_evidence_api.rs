@@ -611,7 +611,7 @@ fn request(value: &Json) -> PyResult<Request> {
     })
 }
 
-fn expr(value: &Json) -> PyResult<UtilityExpr> {
+pub(crate) fn expr(value: &Json) -> PyResult<UtilityExpr> {
     let map = object(value, "expression")?;
     if let Some(c) = map.get("const") {
         return Ok(UtilityExpr::Const(

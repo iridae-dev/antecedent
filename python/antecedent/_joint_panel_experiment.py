@@ -131,6 +131,183 @@ def condition_native(
 
 
 @dataclass(frozen=True, slots=True)
+class PanelJointComponent:
+    """One measured quantity of a retained experiment and its licensed map into the response.
+
+    ``component`` names the evidence outcome; ``bridge`` is the licensed
+    :class:`~antecedent.scientific_bridge.BridgeContract` from that outcome's retained
+    quantity to the response ``functional``; ``intercepts`` and ``slopes`` are the paired
+    per-draw affine mapping over the fitted source ``mapping_dependency``.
+    """
+
+    component: str
+    bridge: Any
+    mapping_dependency: str
+    intercepts: Sequence[float]
+    slopes: Sequence[float]
+    functional: Any = "terminal_mean"
+
+    def _wire(self) -> dict[str, Any]:
+        from .scientific_bridge import BridgeContract
+
+        if not isinstance(self.bridge, BridgeContract):
+            raise CausalTypeError("a joint component needs a BridgeContract")
+        return {
+            "component": self.component,
+            "bridge": self.bridge.to_wire(),
+            "functional": self.functional,
+            "mapping_dependency": self.mapping_dependency,
+            "intercepts": list(self.intercepts),
+            "slopes": list(self.slopes),
+        }
+
+
+def condition_joint_excursion(
+    handle: Any,
+    *,
+    evidence: Any,
+    components: Sequence[PanelJointComponent],
+    likelihood_assumption_id: str,
+    ledger: Any,
+    model: str,
+    experiment: str,
+    mapping: str,
+    prior_origins: Sequence[str] = (),
+    execution: Execution | None = None,
+) -> PanelJointExperiment:
+    """Condition a panel jointly on several components of one retained excursion.
+
+    The observed contrasts and their joint sampling covariance come from ``evidence``; the
+    caller cannot supply or replace them.
+    """
+    from .decision_evidence import JointEvidence
+    from .evidence_ledger import EvidenceLedger
+
+    if not isinstance(evidence, JointEvidence):
+        raise CausalTypeError("condition_joint_excursion needs retained JointEvidence")
+    if not isinstance(ledger, EvidenceLedger):
+        raise CausalTypeError("condition_joint_excursion needs an EvidenceLedger")
+    if not all(isinstance(c, PanelJointComponent) for c in components):
+        raise CausalTypeError("components must be PanelJointComponent declarations")
+    declaration = {
+        "components": [c._wire() for c in components],
+        "model": model,
+        "experiment": experiment,
+        "mapping": mapping,
+        "prior_origins": list(prior_origins),
+    }
+    return PanelJointExperiment(
+        run_panel(
+            execution,
+            handle.condition_joint_excursion,
+            json.dumps(declaration, allow_nan=False),
+            json.dumps(dict(evidence.wire), allow_nan=False),
+            likelihood_assumption_id,
+            ledger._handle,
+        )
+    )
+
+
+def _expression(expression: Mapping[str, Any]) -> str:
+    if not isinstance(expression, Mapping):
+        raise CausalTypeError("a derived quantity is a decision-expression mapping")
+    return json.dumps(dict(expression), allow_nan=False)
+
+
+@dataclass(frozen=True, slots=True)
+class PanelJointExperiment:
+    """A panel posterior jointly updated on several components of one experiment.
+
+    Every consumption takes the caller's current ledger. Evidence whose interference is only
+    bounded is an assumption range: it supports :meth:`bias_sensitivity` and nothing else.
+    """
+
+    _handle: Any
+
+    def report(self, ledger: Any) -> dict[str, Any]:
+        """Scope, dependency identity, informed quantities and the weights (if a likelihood)."""
+        return json.loads(self._handle.report(ledger._handle))
+
+    def derived_quantity(self, expression: Mapping[str, Any], ledger: Any) -> dict[str, Any]:
+        """Prior/posterior moments of an expression over component values, per retained draw."""
+        return json.loads(self._handle.derived_quantity(_expression(expression), ledger._handle))
+
+    def bias_sensitivity(self, expression: Mapping[str, Any], ledger: Any) -> dict[str, Any]:
+        """Enumerated posterior means over assumed biases; not a statistical interval."""
+        return json.loads(self._handle.bias_sensitivity(_expression(expression), ledger._handle))
+
+    def rank_next_samples(
+        self,
+        component: int,
+        *,
+        actions: Sequence[Mapping[str, Any]],
+        candidates: Sequence[Mapping[str, Any]],
+        ledger: Any,
+        replicates: int = 199,
+        execution: Execution | None = None,
+    ) -> dict[str, Any]:
+        """Rank independent future samples of one component, as ``PanelExperiment`` does."""
+        declaration = {"actions": list(actions), "candidates": list(candidates)}
+        return json.loads(
+            run_panel(
+                execution,
+                self._handle.rank_next_samples,
+                component,
+                json.dumps(declaration, allow_nan=False),
+                ledger._handle,
+                replicates=replicates,
+            )
+        )
+
+    @artifact_export
+    def export(self, ledger: Any, *, execution: Execution | None = None) -> ExportedArtifact:
+        """Export the declared inputs and claimed weights, with the ledger history."""
+        return artifact_from_receipt(
+            self, bytes(run_panel(execution, self._handle.export, ledger._handle))
+        )
+
+    def verify_current(
+        self,
+        artifact: bytes,
+        ledger: Any,
+        *,
+        component: int = 0,
+        execution: Execution | None = None,
+    ) -> None:
+        """Bind a replayed artifact to this update and the caller's current evidence."""
+        run_panel(
+            execution,
+            self._handle.verify_current,
+            container_bytes(artifact),
+            component,
+            ledger._handle,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalJointExperiment:
+    """A joint update replayed from its retained inputs alone (never current authority)."""
+
+    posterior_weights: tuple[float, ...]
+    dependency: str
+    grants_current_authority: bool
+
+
+def replay_joint_experiment(
+    artifact: bytes, *, execution: Execution | None = None
+) -> HistoricalJointExperiment:
+    """Historical replay of an exported joint update."""
+    raw = json.loads(
+        run_panel(execution, _native.replay_joint_panel_experiment, container_bytes(artifact))
+    )
+    return HistoricalJointExperiment(
+        posterior_weights=tuple(float(w) for w in raw["posterior_weights"]),
+        dependency=raw["dependency"],
+        grants_current_authority=bool(raw["grants_current_authority"]),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class PanelFutureRegime:
     """The setting a future study would run in and how it connects to the retained response.
 

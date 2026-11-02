@@ -6,6 +6,8 @@ use antecedent_contract::evidence_ledger::SourceId;
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 
+mod joint;
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Declaration {
@@ -185,6 +187,53 @@ impl antecedent_design::decision::Utility<Action, facade::PanelExperimentDecisio
         Ok(())
     }
 }
+type FutureProblem = (
+    antecedent_design::decision::DecisionProblem<Action, facade::PanelExperimentDecisionState>,
+    Vec<facade::PanelFutureSample>,
+);
+fn future_problem(declaration_json: &str) -> PyResult<FutureProblem> {
+    crate::bridge::check_declared_size(
+        declaration_json,
+        crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+        "future-study ranking",
+    )?;
+    let d: FutureDeclaration =
+        serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
+    if d.actions.is_empty()
+        || d.actions.len() > 512
+        || d.actions.iter().any(|a| {
+            a.id.trim().is_empty()
+                || !a.intercept.is_finite()
+                || a.coefficients.iter().any(|v| !v.is_finite())
+        })
+    {
+        return Err(crate::value_err("invalid bounded terminal action utility"));
+    }
+    if d.actions.iter().map(|a| &a.id).collect::<std::collections::BTreeSet<_>>().len()
+        != d.actions.len()
+    {
+        return Err(crate::value_err("terminal action identities must be unique"));
+    }
+    let problem = antecedent_design::decision::DecisionProblem::new(
+        d.actions,
+        std::sync::Arc::new(Utility),
+        vec![],
+    );
+    let candidates = d
+        .candidates
+        .into_iter()
+        .map(|c| facade::PanelFutureSample {
+            id: c.id,
+            sample_size: c.sample_size,
+            observation_variance: c.observation_variance,
+            cost_utility: c.cost_utility,
+        })
+        .collect::<Vec<_>>();
+    Ok((problem, candidates))
+}
+fn ranking_json(rows: &[facade::PanelFutureSampleValue]) -> String {
+    serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string()
+}
 #[pyclass(name = "_JointPanelExperiment", frozen)]
 pub(crate) struct PyPanelExperiment {
     inner: facade::PanelExperimentResult,
@@ -204,43 +253,7 @@ impl PyPanelExperiment {
         max_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<String> {
-        crate::bridge::check_declared_size(
-            declaration_json,
-            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
-            "future-study ranking",
-        )?;
-        let d: FutureDeclaration =
-            serde_json::from_str(declaration_json).map_err(|e| crate::value_err(e.to_string()))?;
-        if d.actions.is_empty()
-            || d.actions.len() > 512
-            || d.actions.iter().any(|a| {
-                a.id.trim().is_empty()
-                    || !a.intercept.is_finite()
-                    || a.coefficients.iter().any(|v| !v.is_finite())
-            })
-        {
-            return Err(crate::value_err("invalid bounded terminal action utility"));
-        }
-        if d.actions.iter().map(|a| &a.id).collect::<std::collections::BTreeSet<_>>().len()
-            != d.actions.len()
-        {
-            return Err(crate::value_err("terminal action identities must be unique"));
-        }
-        let problem = antecedent_design::decision::DecisionProblem::new(
-            d.actions,
-            std::sync::Arc::new(Utility),
-            vec![],
-        );
-        let candidates = d
-            .candidates
-            .into_iter()
-            .map(|c| facade::PanelFutureSample {
-                id: c.id,
-                sample_size: c.sample_size,
-                observation_variance: c.observation_variance,
-                cost_utility: c.cost_utility,
-            })
-            .collect::<Vec<_>>();
+        let (problem, candidates) = future_problem(declaration_json)?;
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let ledger = ledger.ledger().clone();
         let rows = crate::detach_catch(py, || {
@@ -248,7 +261,7 @@ impl PyPanelExperiment {
                 .rank_next_samples(&problem, &candidates, replicates, &ledger, &ctx)
                 .map_err(panel_error)
         })?;
-        Ok(serde_json::json!({"scope":"model_conditional","calibration":"unmeasured","candidates":rows.iter().map(|r|serde_json::json!({"id":r.id,"gross_evsi":r.gross_evsi,"standard_error":r.standard_error,"net_value":r.net_value,"dependency_identity":r.dependency_identity.to_hex(),"question_identity":r.question_identity.to_hex(),"admissible_action_identity":r.admissible_action_identity.to_hex()})).collect::<Vec<_>>()}).to_string())
+        Ok(ranking_json(&rows))
     }
     fn report(&self, py: Python<'_>, ledger: PyRef<'_, EvidenceLedgerHandle>) -> PyResult<String> {
         let ledger = ledger.ledger();
@@ -794,5 +807,6 @@ pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPanelExperiment>()?;
     module.add_class::<PyDesignExperiment>()?;
     module.add_class::<PyNativeExperiment>()?;
+    joint::register(module)?;
     Ok(())
 }

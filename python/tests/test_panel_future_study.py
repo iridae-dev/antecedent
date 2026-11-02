@@ -79,14 +79,13 @@ def _declarations():
     return groups, worlds
 
 
-def _bridge(target):
+def _bridge(target, window=("program_period:23", "program_period:23"), duration=1.0):
     setting = sb.ExposureSetting(
         target.population_id,
-        "program_period:23",
-        "program_period:23",
+        *window,
         1.0,
         "declared_joint_program",
-        1.0,
+        duration,
         "panel_period",
         target.regime_id,
     )
@@ -437,3 +436,130 @@ def test_compiled_excursion_conditions_panel_only_under_explicit_bridge():
     )
     with pytest.raises((CausalValueError, CausalUnsupportedError), match="withdrawn"):
         updated.report(ledger)
+
+
+def test_compiled_excursion_conditions_panel_jointly_with_the_retained_covariance():
+    from antecedent import decision_evidence as de
+    from antecedent._joint_panel_experiment import PanelJointComponent, replay_joint_experiment
+
+    result = _fitted()
+    report = result.report()
+    terminal = result.experiment_quantity("terminal_mean")
+    horizon = terminal.horizon
+    window = {"window_average": {"from": horizon - 3, "until": horizon - 1}}
+    functionals = ["terminal_mean", window]
+    targets = [result.experiment_quantity(f) for f in functionals]
+    units, periods = 40, 3
+    n = units * periods
+    assigned = [(i * 7 + i // periods) % 11 < 5 for i in range(n)]
+    effect = [0.2 if i % periods and assigned[i - 1] else 0.0 for i in range(n)]
+    first = [1.0 + 0.01 * (i // periods) + e + 0.03 * ((i * 13) % 7) for i, e in enumerate(effect)]
+    second = [
+        2.0 + 0.5 * e + 0.04 * ((i * 29 + 3) % 11) + 0.02 * ((i // periods * 5) % 3)
+        for i, e in enumerate(effect)
+    ]
+    evidence = de.JointEvidence.from_experimental_design(
+        design={
+            "kind": "temporal_excursion",
+            "unit_ids": [f"geo-{i // periods}" for i in range(n)],
+            "periods": [i % periods for i in range(n)],
+            "treatment_probabilities": [0.5] * n,
+            "lag": 1,
+            "min_probability": 0.1,
+            "assignment_law_id": "weekly-law",
+            "independent_units_assumption_id": "independent-geos",
+            "administrative_followup_assumption_id": "administrative",
+            "consistency_assumption_id": "consistency",
+        },
+        outcomes=[first, second],
+        assigned=assigned,
+        evidence_id="excursion",
+        population_id=terminal.population_id,
+        treated_regime_id="on",
+        control_regime_id="off",
+        horizon=horizon,
+        components={
+            "y1": (terminal.variable_id, terminal.units),
+            "y2": (terminal.variable_id, terminal.units),
+        },
+        exposure="no_between_unit_interference",
+        exposure_assumption_id="isolation",
+    )
+    ledger = EvidenceLedger()
+    dependency = report["dependency"]
+    slots = len(report["draws"])
+    model = ledger.add_source(SourceDeclaration(dependency, "fitted_model", [("model", "rows")]))
+    experiment = ledger.add_source(
+        SourceDeclaration(
+            evidence.wire["design_contract_id"], "experiment", [("excursion", "rows")]
+        )
+    )
+    mapping = ledger.add_source(SourceDeclaration("mapping", "fitted_model", [("mapping", "rows")]))
+
+    def component(name, target, functional, window, duration=1.0):
+        source = evidence.excursion_quantity(name)
+        bridge = _bridge(target, window, duration)
+        translation = replace(
+            bridge.estimand_bridge,
+            experiment_id=evidence.wire["design_contract_id"],
+            experiment=replace(bridge.estimand_bridge.experiment, exposure_regime=source.regime_id),
+        )
+        bridge = replace(
+            bridge,
+            source=source,
+            evidence_scope=sb.Scope(source.population_id, source.regime_id),
+            estimand_bridge=translation,
+            assumptions=(
+                *bridge.assumptions,
+                sb.Assumption(
+                    "gaussian-excursion", "additional", "Joint Gaussian sampling of the estimates"
+                ),
+            ),
+        )
+        return PanelJointComponent(
+            name, bridge, dependency, [0.0] * slots, [1.0] * slots, functional
+        )
+
+    args = dict(
+        evidence=evidence,
+        components=[
+            component("y1", targets[0], functionals[0], ("program_period:23",) * 2),
+            component(
+                "y2",
+                targets[1],
+                functionals[1],
+                (f"program_period:{horizon - 3}", f"program_period:{horizon - 1}"),
+                3.0,
+            ),
+        ],
+        likelihood_assumption_id="gaussian-excursion",
+        ledger=ledger,
+        model=model,
+        experiment=experiment,
+        mapping=mapping,
+    )
+    updated = result.condition_joint_excursion(**args)
+    summary = updated.report(ledger)
+    assert summary["calibration"] == "unmeasured"
+    assert len(summary["quantities"]) == 2 and summary["posterior_weights"] is not None
+    total = {"op": "add", "args": [{"input": 0}, {"input": 1}]}
+    moments = updated.derived_quantity(total, ledger)
+    assert math.isfinite(moments["posterior_mean"]) and moments["posterior_variance"] >= 0.0
+    with pytest.raises(CausalValueError):
+        updated.bias_sensitivity(total, ledger)  # a likelihood exists, so no bounds were declared
+    with pytest.raises(CausalValueError):
+        result.condition_joint_excursion(**{**args, "likelihood_assumption_id": "missing"})
+    with pytest.raises(CausalValueError):
+        result.condition_joint_excursion(**{**args, "components": args["components"][:1]})
+    artifact = updated.export(ledger)
+    historical = replay_joint_experiment(bytes(artifact))
+    assert not historical.grants_current_authority
+    assert historical.posterior_weights == tuple(summary["posterior_weights"])
+    updated.verify_current(artifact, ledger)
+    require_success(
+        ledger.revise_source(require_success(SourceRevision.withdraw(experiment, "withdrawn")))
+    )
+    with pytest.raises((CausalValueError, CausalUnsupportedError), match="withdrawn"):
+        updated.derived_quantity(total, ledger)
+    with pytest.raises((CausalValueError, CausalUnsupportedError)):
+        updated.verify_current(artifact, ledger)

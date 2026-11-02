@@ -11053,6 +11053,18 @@ class _JointPanelResult:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> _JointPanelExperiment: ...
+    def condition_joint_excursion(
+        self,
+        declaration_json: str,
+        excursion_json: str,
+        likelihood_assumption_id: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _JointPanelJointExperiment: ...
     def report(self) -> str: ...
     def scheduled_contrast(self, functional_json: str, level: float) -> str: ...
     def certify_program(
@@ -11303,6 +11315,52 @@ def select_instrumented_program(
 ) -> _InstrumentedProgramSelection: ...
 def consume_instrumented_selection(
     bytes: bytes,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+class _JointPanelJointExperiment:
+    def report(self, ledger: EvidenceLedgerHandle) -> str: ...
+    def derived_quantity(self, expression_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def bias_sensitivity(self, expression_json: str, ledger: EvidenceLedgerHandle) -> str: ...
+    def rank_next_samples(
+        self,
+        component: int,
+        declaration_json: str,
+        ledger: EvidenceLedgerHandle,
+        *,
+        replicates: int = 199,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
+    def export(
+        self,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> bytes: ...
+    def verify_current(
+        self,
+        bytes: bytes,
+        component: int,
+        ledger: EvidenceLedgerHandle,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> None: ...
+
+def replay_joint_panel_experiment(
+    artifact: bytes,
     *,
     seed: int = 0,
     threads: int = 1,
