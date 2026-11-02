@@ -1109,10 +1109,10 @@ mod tests {
             graph_parents_of(GraphRef::Dag(&dag), VariableId::from_raw(0)),
             Some(vec![VariableId::from_raw(2)])
         );
-        let context = dag
-            .add_node(NodeRef::Context { variable: VariableId::from_raw(3), environment: None })
+        let unfolded = dag
+            .add_node(NodeRef::Unfolded { variable: VariableId::from_raw(3), offset: -1 })
             .unwrap();
-        dag.insert_directed(context, DenseNodeId::from_raw(1)).unwrap();
+        dag.insert_directed(unfolded, DenseNodeId::from_raw(1)).unwrap();
         assert_eq!(graph_parents_of(GraphRef::Dag(&dag), VariableId::from_raw(0)), None);
     }
 
