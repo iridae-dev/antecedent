@@ -18,6 +18,7 @@ mod calibration;
 mod candidate;
 #[path = "common/bootstrap_precision.rs"]
 mod metrics;
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::latent_class_effects::{
     LatentClassConfig, LatentClassData, fit_latent_class_effects,
 };
@@ -58,6 +59,7 @@ fn mediation(n: usize, seed: u64) -> Option<Fit> {
         &input,
         &NonlinearMediationPremises::sequentially_ignorable(),
         &config,
+        &ExecutionContext::for_tests(1),
     )
     .ok()?;
     Some(Fit {
@@ -117,7 +119,7 @@ fn mixture(n: usize, seed: u64) -> Option<Fit> {
     let fixture = mixture_fixture(n, seed);
     let data = fixture.data();
     let config = mixture_config(seed, 300);
-    let f = fit_latent_class_effects(&data, &config).ok()?;
+    let f = fit_latent_class_effects(&data, &config, &ExecutionContext::for_tests(1)).ok()?;
     let b = f.bootstrap?;
     Some(Fit {
         estimates: vec![
@@ -182,8 +184,9 @@ fn latent_mixture_fixture_supported_design_and_independent_truth_prerequisite() 
         assert_eq!(points.len(), 6, "all declared A/X points are represented");
         let config = mixture_config(0xB44C_0001, 0); // Prerequisite only, not SE measurement.
         assert!(config.initial_labels.is_none());
-        let result = fit_latent_class_effects(&fixture.data(), &config)
-            .expect("supported fixture must reach original point fitting");
+        let result =
+            fit_latent_class_effects(&fixture.data(), &config, &ExecutionContext::for_tests(1))
+                .expect("supported fixture must reach original point fitting");
         assert!(result.bootstrap.is_none());
         let mut oracle = Vec::new();
         for class in 0..2 {
@@ -234,7 +237,9 @@ fn latent_mixture_fixture_supported_design_and_independent_truth_prerequisite() 
             outcome: &fixture.outcome,
             covariates: &[],
         };
-        let error = fit_latent_class_effects(&unsupported, &config).unwrap_err();
+        let error =
+            fit_latent_class_effects(&unsupported, &config, &ExecutionContext::for_tests(1))
+                .unwrap_err();
         assert!(error.to_string().contains("latent_class.design_support_too_small"));
     }
     // Independent finite population contrasts (noise mean zero) at each X point.

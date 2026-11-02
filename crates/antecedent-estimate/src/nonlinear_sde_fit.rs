@@ -22,11 +22,13 @@
 use crate::cyclic_gradient::CyclicGradientPolicy;
 use crate::cyclic_optim::InverseCurvature;
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution::AdmissionLease;
 use antecedent_model::nonlinear_sde::{
     CompiledSde, SdeContrast, SdeEnsembleReport, SdeError, SdeSimulationPolicy, SdeWorld,
     WorldPlan, counter_normal, simulate_sde,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 const MAX_FIT_PARAMETERS: usize = 16;
 const MAX_TRAJECTORIES: usize = 4096;
@@ -38,6 +40,8 @@ const HESSIAN_STEP: f64 = 1e-3;
 const INFORMATION_FLOOR: f64 = 1e-6;
 const FLAT_DIAGONAL: f64 = 1e-9;
 const BOUNDARY_FRACTION_FLAG: f64 = 0.05;
+/// Bytes charged for a parameter spread beyond its numbers: identities and the meaning text.
+const SPREAD_METADATA_BYTES: usize = 1024;
 
 /// Why a trajectory design cannot identify the requested parameters.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -376,22 +380,39 @@ struct Problem<'a> {
     m: usize,
 }
 
-#[allow(clippy::assigning_clones, reason = "the assignment preserves the existing owned value")]
+/// Resolve every trajectory's world, after admitting all the plans together. The returned
+/// lease funds the plans and must outlive them.
 fn prepare<'a>(
     compiled: &CompiledSde,
     trajectories: &'a [SdeTrajectory],
-) -> Result<Vec<Prepared<'a>>, SdeFitError> {
+    ctx: &ExecutionContext,
+) -> Result<(Vec<Prepared<'a>>, AdmissionLease), SdeFitError> {
+    let system = compiled.system();
+    let bytes = trajectories.iter().fold(
+        trajectories.len().saturating_mul(std::mem::size_of::<Prepared<'_>>()) as u64,
+        |total, trajectory| {
+            total
+                .saturating_add(system.world_plan_bytes(&trajectory.intervention))
+                .saturating_add(trajectory.id.len() as u64)
+        },
+    );
+    let lease =
+        ctx.acquire_admission(0, bytes).map_err(|e| SdeFitError::Resource(e.to_string()))?;
     let mut prepared = Vec::with_capacity(trajectories.len());
     for trajectory in trajectories {
-        let first = trajectory.observations[0].time;
-        let mut world = trajectory.intervention.clone();
-        if world.id.trim().is_empty() {
-            world.id = trajectory.id.clone();
+        if ctx.cancellation.is_cancelled() {
+            return Err(SdeFitError::Resource("cancelled".into()));
         }
-        let plan = compiled.system().plan_world_continuous(&world, first)?;
+        let first = trajectory.observations[0].time;
+        let id = if trajectory.intervention.id.trim().is_empty() {
+            trajectory.id.as_str()
+        } else {
+            trajectory.intervention.id.as_str()
+        };
+        let plan = system.plan_world_continuous_as(&trajectory.intervention, id, first)?;
         prepared.push(Prepared { trajectory, plan });
     }
-    Ok(prepared)
+    Ok((prepared, lease))
 }
 
 #[allow(clippy::cast_sign_loss, reason = "the value is bounded by the validated estimator input")]
@@ -1032,7 +1053,7 @@ pub fn fit_sde_quasi_likelihood(
     let _lease = ctx
         .acquire_admission(0, (64 * (d * d + m * m + p * p) + 16 * observation_total) as u64 + 4096)
         .map_err(|e| SdeFitError::Resource(e.to_string()))?;
-    let prepared = prepare(compiled, trajectories)?;
+    let (prepared, _plans) = prepare(compiled, trajectories, ctx)?;
     if !trajectories.iter().any(|t| t.observations.len() >= 2) {
         return Err(SdeFitError::Unidentified {
             failure: SdeIdentificationFailure::NoTransitionInformation,
@@ -1272,7 +1293,7 @@ pub fn sde_quasi_log_likelihood(
     if theta.len() != all.len() || theta.iter().any(|v| !v.is_finite()) {
         return Err(bad("SDE parameter vector"));
     }
-    let prepared = prepare(compiled, trajectories)?;
+    let (prepared, _plans) = prepare(compiled, trajectories, ctx)?;
     let problem = Problem {
         compiled,
         coordinates: &all,
@@ -1340,6 +1361,28 @@ pub struct SdeReport {
     pub simulation: SdeEnsembleReport,
     /// Parameter-draw spread, when requested; separate from the simulation's own error.
     pub parameter_uncertainty: Option<SdeParameterUncertainty>,
+    #[serde(skip)]
+    retention: SpreadRetention,
+}
+
+impl SdeReport {
+    /// Bytes this report holds in the shared admission pool until its last clone drops: the
+    /// simulation's own and the parameter spread's. Zero outside a pool.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        let spread = self.retention.0.as_ref().map_or(0, |lease| lease.remainder().bytes());
+        self.simulation.retained_admitted_bytes().saturating_add(spread)
+    }
+}
+
+/// Lease funding the parameter spread of a report. Equality ignores it.
+#[derive(Clone, Debug, Default)]
+struct SpreadRetention(Option<Arc<AdmissionLease>>);
+
+impl PartialEq for SpreadRetention {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
 }
 
 fn sample_variance(values: &[f64]) -> f64 {
@@ -1372,6 +1415,7 @@ pub fn sde_report(
     let theta: Option<&[f64]> = fit.as_ref().map(|f| f.theta.as_slice());
     let simulation = simulate_sde(compiled, theta, initial, policy, worlds, contrasts, ctx)?;
     let mut uncertainty = None;
+    let mut spread_lease = None;
     if parameter_draws > 0 {
         let Some(fitted) = fit.as_ref() else {
             return Err(SdeFitError::Unsupported {
@@ -1388,6 +1432,22 @@ pub fn sde_report(
             });
         };
         let p = fitted.values.len();
+        // Every draw's means are held until the spread is taken, and the spread is returned.
+        let row = |count: usize| {
+            count.saturating_mul(simulation.times.len()).saturating_mul(
+                compiled
+                    .dimension()
+                    .saturating_mul(std::mem::size_of::<f64>())
+                    .saturating_add(std::mem::size_of::<Vec<f64>>()),
+            )
+        };
+        let per_draw = row(simulation.worlds.len()).saturating_add(row(simulation.contrasts.len()));
+        let admit = |bytes: usize| {
+            ctx.acquire_admission(0, u64::try_from(bytes).unwrap_or(u64::MAX))
+                .map_err(|e| SdeFitError::Resource(e.to_string()))
+        };
+        let _draw_means = admit(per_draw.saturating_mul(parameter_draws))?;
+        spread_lease = Some(Arc::new(admit(per_draw.saturating_add(SPREAD_METADATA_BYTES))?));
         let factor = cholesky(covariance, p)
             .ok_or_else(|| numerical("parameter covariance is not positive definite"))?;
         let mut draw_policy = policy.clone();
@@ -1436,17 +1496,22 @@ pub fn sde_report(
                 "fewer than two parameter draws produced an admissible simulation".into(),
             ));
         }
-        let spread = |runs: &Vec<Vec<Vec<f64>>>| -> Vec<Vec<f64>> {
+        let spread = |runs: &Vec<Vec<Vec<f64>>>| -> Result<Vec<Vec<f64>>, SdeFitError> {
             let (t, dim) = (runs[0].len(), runs[0][0].len());
-            (0..t)
-                .map(|ti| {
+            let mut variances = Vec::with_capacity(t);
+            for ti in 0..t {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(SdeFitError::Resource("cancelled".into()));
+                }
+                variances.push(
                     (0..dim)
                         .map(|i| {
                             sample_variance(&runs.iter().map(|r| r[ti][i]).collect::<Vec<f64>>())
                         })
-                        .collect()
-                })
-                .collect()
+                        .collect(),
+                );
+            }
+            Ok(variances)
         };
         uncertainty = Some(SdeParameterUncertainty {
             draws: parameter_draws,
@@ -1456,20 +1521,24 @@ pub fn sde_report(
                 .worlds
                 .iter()
                 .zip(&world_means)
-                .map(|(w, runs)| SdeWorldParameterSpread {
-                    id: w.id.clone(),
-                    mean_between_draw_variance: spread(runs),
+                .map(|(w, runs)| {
+                    Ok::<_, SdeFitError>(SdeWorldParameterSpread {
+                        id: w.id.clone(),
+                        mean_between_draw_variance: spread(runs)?,
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, SdeFitError>>()?,
             contrasts: simulation
                 .contrasts
                 .iter()
                 .zip(&contrast_means)
-                .map(|(c, runs)| SdeContrastParameterSpread {
-                    id: c.id.clone(),
-                    mean_difference_between_draw_variance: spread(runs),
+                .map(|(c, runs)| {
+                    Ok::<_, SdeFitError>(SdeContrastParameterSpread {
+                        id: c.id.clone(),
+                        mean_difference_between_draw_variance: spread(runs)?,
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, SdeFitError>>()?,
             meaning: "variance across asymptotic-normal draws of the fitted parameters of the \
                       ensemble mean, each draw simulated with the same random numbers so that \
                       Monte Carlo noise largely cancels; it is conditional on the declared model, \
@@ -1477,7 +1546,12 @@ pub fn sde_report(
                 .into(),
         });
     }
-    Ok(SdeReport { fit, simulation, parameter_uncertainty: uncertainty })
+    Ok(SdeReport {
+        fit,
+        simulation,
+        parameter_uncertainty: uncertainty,
+        retention: SpreadRetention(spread_lease),
+    })
 }
 
 #[cfg(test)]

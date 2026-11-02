@@ -412,6 +412,21 @@ fn invalid(message: &str) -> EquilibriumError {
 fn finite(values: &[f64]) -> bool {
     values.iter().all(|v| v.is_finite())
 }
+/// Disturbance-independent solve structure of a validated model under one clamp set.
+#[derive(Clone, Debug)]
+pub(crate) struct SolveShape {
+    free: Vec<usize>,
+    reads: Vec<Vec<usize>>,
+    blocks: Vec<Vec<usize>>,
+    jacobian_nnz: usize,
+    largest_block: usize,
+    tape_nodes: usize,
+}
+impl SolveShape {
+    pub(crate) fn blocks(&self) -> &[Vec<usize>] {
+        &self.blocks
+    }
+}
 /// Cancellation and wall-clock admission, counted for resource accounting.
 struct Budget<'a> {
     ctx: &'a ExecutionContext,
@@ -572,10 +587,6 @@ impl EquilibriumModel {
     /// steps whose linear systems are solved by sparse LU. Structural nonzeros, block order,
     /// estimated memory, factor fill, iteration count and wall-clock time are admitted against
     /// the [`SolvePolicy`], each with its own [`SolverBudgetCode`].
-    #[allow(
-        clippy::too_many_lines,
-        reason = "one bounded SCC solve preserves contraction and numerical failure distinctions"
-    )]
     pub fn solve(
         &self,
         noise: &[f64],
@@ -585,9 +596,15 @@ impl EquilibriumModel {
         ctx: &ExecutionContext,
     ) -> Result<EquilibriumResult, EquilibriumError> {
         self.validate()?;
-        self.check_vector(noise)?;
-        self.check_vector(initial)?;
-        policy.validate()?;
+        let shape = self.solve_shape(clamps)?;
+        self.solve_shaped(&shape, noise, clamps, initial, policy, ctx)
+    }
+
+    /// The solve structure of the model under `clamps`: free variables, read sets, the SCC
+    /// blocks, the Jacobian's structural nonzeros and the largest expression tape. None of it
+    /// depends on the disturbance, the initial guess or the policy, so a plan that solves many
+    /// draws computes it once. The model must already have validated.
+    pub(crate) fn solve_shape(&self, clamps: &[Clamp]) -> Result<SolveShape, EquilibriumError> {
         let n = self.order();
         let free = self.free_indices(clamps)?;
         let reads = self.read_sets()?;
@@ -599,17 +616,8 @@ impl EquilibriumModel {
             .iter()
             .map(|&i| reads[i].iter().filter(|&&j| j != i && is_free[j]).count() + 1)
             .sum();
-        if jacobian_nnz > policy.max_nnz {
-            return Err(
-                SolverBudgetCode::JacobianNnz.refusal(jacobian_nnz as u64, policy.max_nnz as u64)
-            );
-        }
         let blocks = self.blocks_from_reads(&free, &reads)?;
         let largest_block = blocks.iter().map(Vec::len).max().unwrap_or(0);
-        if largest_block > policy.max_block_size {
-            return Err(SolverBudgetCode::BlockSize
-                .refusal(largest_block as u64, policy.max_block_size as u64));
-        }
         let tape_nodes = self
             .equations
             .iter()
@@ -622,6 +630,39 @@ impl EquilibriumModel {
             .into_iter()
             .max()
             .unwrap_or(0);
+        Ok(SolveShape { free, reads, blocks, jacobian_nnz, largest_block, tape_nodes })
+    }
+
+    /// [`Self::solve`] over a precomputed [`SolveShape`] of this validated model and `clamps`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one bounded SCC solve preserves contraction and numerical failure distinctions"
+    )]
+    pub(crate) fn solve_shaped(
+        &self,
+        shape: &SolveShape,
+        noise: &[f64],
+        clamps: &[Clamp],
+        initial: &[f64],
+        policy: SolvePolicy,
+        ctx: &ExecutionContext,
+    ) -> Result<EquilibriumResult, EquilibriumError> {
+        self.check_vector(noise)?;
+        self.check_vector(initial)?;
+        policy.validate()?;
+        let n = self.order();
+        let SolveShape { free, reads, blocks, jacobian_nnz, largest_block, tape_nodes } = shape;
+        let (jacobian_nnz, largest_block, tape_nodes) =
+            (*jacobian_nnz, *largest_block, *tape_nodes);
+        if jacobian_nnz > policy.max_nnz {
+            return Err(
+                SolverBudgetCode::JacobianNnz.refusal(jacobian_nnz as u64, policy.max_nnz as u64)
+            );
+        }
+        if largest_block > policy.max_block_size {
+            return Err(SolverBudgetCode::BlockSize
+                .refusal(largest_block as u64, policy.max_block_size as u64));
+        }
         let bytes =
             self.solve_bytes(n, free.len(), jacobian_nnz, largest_block, tape_nodes, policy)?;
         if bytes > policy.max_bytes {
@@ -648,9 +689,9 @@ impl EquilibriumModel {
         let mut total = 0;
         let mut globally_unique = true;
         let mut all_contractive = true;
-        for block in &blocks {
+        for block in blocks {
             budget.tick()?;
-            let certificate = self.block_certificate(block, &reads, policy.spectral_iterations);
+            let certificate = self.block_certificate(block, reads, policy.spectral_iterations);
             // Evidence is serialized, so an unbounded certificate is retained as the largest
             // finite value rather than as a non-finite number.
             let retained = |x: f64| if x.is_finite() { x } else { f64::MAX };
@@ -703,7 +744,7 @@ impl EquilibriumModel {
                 } else {
                     evidence.newton_steps += 1;
                     let local = local_positions(block);
-                    let jac = self.sparse_jacobian(&values, block, &reads, &local)?;
+                    let jac = self.sparse_jacobian(&values, block, reads, &local)?;
                     let lu = SparseLu::factor(&jac, policy.max_factor_fill, &mut || budget.tick())
                         .map_err(|e| factor_failure(e, norm, policy.max_factor_fill))?;
                     evidence.factorizations += 1;
@@ -736,12 +777,12 @@ impl EquilibriumModel {
                 return Err(EquilibriumError::Nonconvergence { residual });
             }
         }
-        let residual = max_abs(&self.residual(&values, noise, &free));
+        let residual = max_abs(&self.residual(&values, noise, free));
         if !finite(&values) || !residual.is_finite() || residual > policy.tolerance {
             return Err(EquilibriumError::Nonconvergence { residual });
         }
         let (jacobian_condition_estimate, factored) =
-            self.condition_at(&values, &free, &reads, policy, &mut budget, &mut evidence)?;
+            self.condition_at(&values, free, reads, policy, &mut budget, &mut evidence)?;
         evidence.jacobian_nonsingular_basis = if free.is_empty() {
             "not_applicable".into()
         } else if factored != "factorized" {
@@ -773,7 +814,7 @@ impl EquilibriumModel {
             numerical_converged: true,
             dynamic_stability: None,
             jacobian_condition_estimate,
-            blocks,
+            blocks: blocks.clone(),
             evidence,
         })
     }
@@ -1499,25 +1540,33 @@ impl EquilibriumModel {
         policy: SolvePolicy,
         ctx: &ExecutionContext,
     ) -> Result<EquilibriumOutcome, EquilibriumError> {
-        match self.solve(noise, clamps, initial, policy, ctx) {
-            Ok(solution) => Ok(EquilibriumOutcome::Solved(solution)),
-            Err(
-                error @ (EquilibriumError::Uncertified { .. }
-                | EquilibriumError::Nonconvergence { .. }
-                | EquilibriumError::Singular),
-            ) => {
-                let failure = match &error {
-                    EquilibriumError::Uncertified { .. } => "uncertified",
-                    EquilibriumError::Nonconvergence { .. } => "nonconvergence",
-                    _ => "singular",
-                };
-                Ok(EquilibriumOutcome::Failed(EquilibriumSolveFailure {
-                    failure: failure.into(),
-                    detail: error.to_string(),
-                }))
-            }
-            Err(error) => Err(error),
+        retain_numerical_failure(self.solve(noise, clamps, initial, policy, ctx))
+    }
+}
+
+/// Keep a numerical or certificate failure as an outcome aligned with its draw; malformed
+/// input, cancellation and resource refusals stay errors.
+pub(crate) fn retain_numerical_failure(
+    result: Result<EquilibriumResult, EquilibriumError>,
+) -> Result<EquilibriumOutcome, EquilibriumError> {
+    match result {
+        Ok(solution) => Ok(EquilibriumOutcome::Solved(solution)),
+        Err(
+            error @ (EquilibriumError::Uncertified { .. }
+            | EquilibriumError::Nonconvergence { .. }
+            | EquilibriumError::Singular),
+        ) => {
+            let failure = match &error {
+                EquilibriumError::Uncertified { .. } => "uncertified",
+                EquilibriumError::Nonconvergence { .. } => "nonconvergence",
+                _ => "singular",
+            };
+            Ok(EquilibriumOutcome::Failed(EquilibriumSolveFailure {
+                failure: failure.into(),
+                detail: error.to_string(),
+            }))
         }
+        Err(error) => Err(error),
     }
 }
 

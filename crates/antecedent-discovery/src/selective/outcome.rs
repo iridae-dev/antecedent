@@ -24,6 +24,10 @@ const RESULT_TAG: &str = "antecedent.selective_discovery.result.v1";
 /// The native result of the algorithm that ran.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[allow(
+    clippy::large_enum_variant,
+    reason = "one result is held per run and moved, never stored in bulk"
+)]
 pub enum NativeResult {
     /// Static PC.
     StaticCpdag(StaticCpdagDiscoveryResult),

@@ -27,6 +27,7 @@
 //! The residual levels are scaled so that the degrees-of-freedom corrected residual variance
 //! `RSS / (n - 3)` equals `sigma2` exactly (`mean(e^2) = sigma2 * (n - 3) / n`).
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nonlinear_mediation::{
     NonlinearMediationConfig, NonlinearMediationEstimand, NonlinearMediationEstimate,
@@ -157,7 +158,7 @@ fn run(
         outcome: &g.y,
         covariates: &covs,
     };
-    estimate_nonlinear_mediation(&input, premises, cfg)
+    estimate_nonlinear_mediation(&input, premises, cfg, &ExecutionContext::for_tests(1))
 }
 
 fn refusal_message(r: Result<NonlinearMediationEstimate, EstimationError>) -> String {
@@ -523,4 +524,26 @@ fn mediation_posterior_consumer_replays_the_design_summary() {
         panic!("expected a refusal");
     };
     assert!(message.contains("mediation_posterior.empty_design"), "{message}");
+}
+
+#[test]
+fn a_cancelled_context_stops_the_estimate_without_a_claim() {
+    let g = grid(&base_scm());
+    let covs = [g.x.as_slice()];
+    let input = NonlinearMediationInput {
+        treatment: &g.a,
+        mediator: &g.m,
+        outcome: &g.y,
+        covariates: &covs,
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let cfg = NonlinearMediationConfig { bootstrap_replicates: 50, ..config(8) };
+    let message = refusal_message(estimate_nonlinear_mediation(
+        &input,
+        &NonlinearMediationPremises::sequentially_ignorable(),
+        &cfg,
+        &ctx,
+    ));
+    assert!(message.contains("cancelled"), "{message}");
 }

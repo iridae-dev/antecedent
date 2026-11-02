@@ -8,6 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::CalibrationBasis;
@@ -25,6 +26,20 @@ pub const SAMPLED_TRANSPORT_INTERVAL_METHOD: &str = "delta_method_wald";
 pub const SAMPLED_TRANSPORT_SE_KIND: &str = "delta_method_multinomial_central_difference";
 /// Estimator name of the measured construction.
 pub const SAMPLED_TRANSPORT_ESTIMATOR: &str = "sampled_counterfactual_transport";
+
+/// Dependence structure of the evidence the interval was built from. Only independent
+/// units were measured; any other design names itself, so no coverage record attests it.
+fn design_dependence(estimate: &SampledCounterfactualTransportEstimate) -> &'static str {
+    let stratified = estimate.tables.iter().any(|t| t.stratified);
+    let datasets: BTreeSet<usize> = estimate.tables.iter().map(|t| t.dataset).collect();
+    let shared = datasets.len() < estimate.tables.len();
+    match (stratified, shared) {
+        (false, false) => "independent_units",
+        (true, false) => "stratified_fixed_totals",
+        (false, true) => "shared_dataset",
+        (true, true) => "stratified_shared_dataset",
+    }
+}
 
 /// A clamped delta Wald interval with the basis that governs its calibration.
 #[derive(Clone, Debug, PartialEq)]
@@ -102,7 +117,7 @@ pub fn sampled_transport_interval(
             SAMPLED_TRANSPORT_ESTIMATOR,
             SAMPLED_TRANSPORT_INTERVAL_METHOD,
             SAMPLED_TRANSPORT_SE_KIND,
-            "independent_units",
+            design_dependence(estimate),
             "",
             functional.as_str(),
         ]

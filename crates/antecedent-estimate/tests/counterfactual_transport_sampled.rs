@@ -1063,6 +1063,38 @@ fn sampled_two_source_joint() {
     );
 }
 
+#[test]
+fn the_calibration_basis_names_the_sampling_design_of_the_evidence() {
+    use antecedent_estimate::counterfactual_transport_sampled::sampled_transport_interval;
+    let case = chain_case();
+    let data = laws_of(&case);
+    let derivation = derive(&case, &case.targets[0]);
+    let mut rng = Rng(77);
+    let tables = cited_only(&derivation, &sample_laws(&data, 20_000, &mut rng));
+    let dependence = |tables: Vec<SampledRegimeCounts>| {
+        let result = estimate(&derivation, tables, UnseenCellRule::Refuse).unwrap();
+        sampled_transport_interval(&derivation, &result, 0.95).unwrap().basis.dependence
+    };
+    assert_eq!(&*dependence(tables.clone()), "independent_units");
+    let stratified: Vec<SampledRegimeCounts> = tables
+        .iter()
+        .map(|t| {
+            SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+                population: Arc::from(t.population()),
+                regime: t.regime(),
+                interventions: t.interventions().to_vec(),
+                axes: t.axes().to_vec(),
+                counts: t.counts().to_vec(),
+                snapshot_identity: Arc::from(t.snapshot_identity()),
+                design: SamplingDesign::Stratified { variables: vec![t.axes()[0].variable] },
+                structural_zeros: t.structural_zeros().to_vec(),
+            })
+            .unwrap()
+        })
+        .collect();
+    assert_eq!(&*dependence(stratified), "stratified_fixed_totals");
+}
+
 #[cfg(feature = "calibration-internal")]
 #[test]
 #[ignore = "calibration: final measurement only"]

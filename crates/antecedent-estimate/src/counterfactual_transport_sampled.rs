@@ -273,6 +273,8 @@ pub struct SampledTableReport {
     pub pseudo_count: Option<f64>,
     /// Dataset index (tables of one shared dataset share it).
     pub dataset: usize,
+    /// Whether the table's strata totals were fixed by design.
+    pub stratified: bool,
 }
 
 /// Tolerance repairs applied while evaluating on estimated tables.
@@ -908,6 +910,7 @@ pub fn estimate_sampled_counterfactual_transport(
             smoothed: smoothed[i],
             pseudo_count: if smoothed[i] { request.unseen_rule.parameter() } else { None },
             dataset: dataset_of[i],
+            stratified: matches!(t.design(), SamplingDesign::Stratified { .. }),
         });
     }
     let mut dataset_keys = Vec::with_capacity(groups.groups.len());

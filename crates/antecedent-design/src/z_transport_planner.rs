@@ -349,8 +349,6 @@ pub struct ZTransportArrival {
 
 /// One candidate's result when planning from a frozen z-transport failure.
 #[derive(Clone, Debug)]
-// Keep the public outcome payload inline to preserve the existing planner API.
-#[expect(clippy::large_enum_variant, reason = "preserves the public z-transport planner API")]
 pub enum ZTransportCandidateOutcome {
     /// Hypothetical catalog binds a checked formula.
     VerifiedSufficient(ZTransportProposal),

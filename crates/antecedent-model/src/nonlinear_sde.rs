@@ -29,7 +29,9 @@
 use crate::mechanism_expr::{MechanismExpression, MechanismTape};
 use crate::nonlinear_equilibrium::EquilibriumError;
 use antecedent_core::ExecutionContext;
+use antecedent_core::execution::AdmissionLease;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Largest state dimension.
 pub const MAX_SDE_STATE: usize = 16;
@@ -48,6 +50,8 @@ pub const MAX_SDE_RETAINED_CELLS: usize = 1 << 25;
 /// Largest total number of scheme steps (paths x worlds x step levels).
 pub const MAX_SDE_STEP_EVALUATIONS: u64 = 150_000_000;
 const MAX_PATH_SAMPLES: usize = 1 << 16;
+/// Iterations of a long loop between cancellation polls.
+const CANCEL_STRIDE: usize = 4096;
 const MAX_WORLDS: usize = 64;
 const ROUNDING_MARGIN: f64 = 1e-9;
 
@@ -786,7 +790,77 @@ fn action_cell(time: f64, start: f64, step: f64) -> Result<f64, SdeError> {
     Ok(rounded)
 }
 
+fn expression_nodes(expression: &MechanismExpression) -> usize {
+    match expression {
+        MechanismExpression::Constant { .. }
+        | MechanismExpression::Variable { .. }
+        | MechanismExpression::Parameter { .. } => 1,
+        MechanismExpression::Add { terms } | MechanismExpression::Multiply { factors: terms } => {
+            terms.iter().map(expression_nodes).fold(1, usize::saturating_add)
+        }
+        MechanismExpression::Tanh { argument }
+        | MechanismExpression::Sin { argument }
+        | MechanismExpression::Softplus { argument } => {
+            expression_nodes(argument).saturating_add(1)
+        }
+    }
+}
+
+fn input_bytes(input: &SdeInput) -> usize {
+    input
+        .times
+        .len()
+        .saturating_add(input.values.len())
+        .saturating_mul(std::mem::size_of::<f64>())
+        .saturating_add(input.name.len())
+        .saturating_add(std::mem::size_of::<SdeInput>())
+}
+
 impl SdeSystem {
+    /// Bytes [`Self::plan_world`] allocates for `world`: its identity and action schedules, and
+    /// one schedule per system input, a world replacement standing in for the system's own.
+    /// The plan is held for the whole run, so a caller admits this before building it.
+    #[must_use]
+    pub fn world_plan_bytes(&self, world: &SdeWorld) -> u64 {
+        let actions = world.actions.iter().fold(0usize, |total, action| {
+            let knots = action.times.len().saturating_add(action.values.len());
+            total
+                .saturating_add(knots.saturating_mul(std::mem::size_of::<f64>()))
+                .saturating_add(std::mem::size_of::<SdeAction>())
+        });
+        let inputs = self.inputs.iter().fold(0usize, |total, own| {
+            let held = world.inputs.iter().rfind(|r| r.name == own.name).unwrap_or(own);
+            total.saturating_add(input_bytes(held))
+        });
+        let bytes = std::mem::size_of::<WorldPlan>()
+            .saturating_add(world.id.len())
+            .saturating_add(actions)
+            .saturating_add(inputs);
+        u64::try_from(bytes).unwrap_or(u64::MAX)
+    }
+
+    /// Bytes recompiling this system at other parameters holds while the run lasts: the cloned
+    /// declaration, one tape node per expression node, and the interval enclosure's value and
+    /// derivative rows over every state and input.
+    fn recertification_bytes(&self) -> Result<u64, SdeError> {
+        let width = self.variables.len().saturating_add(self.inputs.len());
+        let nodes = self
+            .drift
+            .iter()
+            .chain(self.diffusion.iter().map(|g| &g.expression))
+            .map(expression_nodes)
+            .fold(0usize, usize::saturating_add);
+        let per_node = 88usize.saturating_add(width.saturating_mul(32));
+        let inputs = self.inputs.iter().map(input_bytes).fold(0usize, usize::saturating_add);
+        let names = self.variables.iter().map(String::len).fold(0usize, usize::saturating_add);
+        let bytes = nodes
+            .saturating_mul(per_node)
+            .saturating_add(inputs)
+            .saturating_add(names)
+            .saturating_add(std::mem::size_of::<SdeSystem>());
+        u64::try_from(bytes).map_err(|_| bad("SDE recertification size overflow"))
+    }
+
     /// Resolve a world against this system and a simulation grid.
     ///
     /// # Errors
@@ -805,7 +879,7 @@ impl SdeSystem {
         if !start.is_finite() || !step.is_finite() || step <= 0.0 || start + step == start {
             return Err(bad("SDE action grid is not representable"));
         }
-        self.plan_world_checked(world, Some((start, step)))
+        self.plan_world_checked(world, &world.id, Some((start, step)))
     }
 
     /// Resolve a world for a continuous-time observation schedule. Action times
@@ -821,16 +895,34 @@ impl SdeSystem {
         if !start.is_finite() {
             return Err(bad("SDE observation start is not finite"));
         }
-        self.plan_world_checked(world, None)
+        self.plan_world_checked(world, &world.id, None)
+    }
+
+    /// [`Self::plan_world_continuous`] under the identity `id` instead of `world.id`, without
+    /// copying the world to rename it.
+    ///
+    /// # Errors
+    /// As [`Self::plan_world_continuous`]; an empty `id` is an invalid identity.
+    pub fn plan_world_continuous_as(
+        &self,
+        world: &SdeWorld,
+        id: &str,
+        start: f64,
+    ) -> Result<WorldPlan, SdeError> {
+        if !start.is_finite() {
+            return Err(bad("SDE observation start is not finite"));
+        }
+        self.plan_world_checked(world, id, None)
     }
 
     fn plan_world_checked(
         &self,
         world: &SdeWorld,
+        id: &str,
         grid: Option<(f64, f64)>,
     ) -> Result<WorldPlan, SdeError> {
         let d = self.variables.len();
-        if world.id.trim().is_empty() {
+        if id.trim().is_empty() {
             return Err(bad("SDE world identity"));
         }
         let mut held = std::collections::BTreeSet::new();
@@ -878,7 +970,7 @@ impl SdeSystem {
             inputs[slot] = replacement.clone();
             inputs[slot].envelope = self.inputs[slot].envelope;
         }
-        Ok(WorldPlan { id: world.id.clone(), actions: world.actions.clone(), inputs })
+        Ok(WorldPlan { id: id.to_owned(), actions: world.actions.clone(), inputs })
     }
 }
 
@@ -1111,6 +1203,17 @@ pub struct SdeEnsembleReport {
     pub certificate: SdeCertificate,
     /// Statement of what each error field means.
     pub error_semantics: Vec<String>,
+    #[serde(skip)]
+    retention: SdeRetention,
+}
+
+impl SdeEnsembleReport {
+    /// Bytes this report holds in the shared admission pool until its last clone drops; zero
+    /// when it was not produced under a pool.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.bytes()
+    }
 }
 
 /// Raw per-path states at the declared step.
@@ -1125,6 +1228,34 @@ pub struct SdePaths {
     pub dimension: usize,
     /// `states[(path * times.len() + t) * dimension + i]`.
     pub states: Vec<f64>,
+    #[serde(skip)]
+    retention: SdeRetention,
+}
+
+impl SdePaths {
+    /// Bytes these paths hold in the shared admission pool until their last clone drops; zero
+    /// when they were not produced under a pool.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.bytes()
+    }
+}
+
+/// Lease funding a returned report or path array. Equality ignores it: two outputs are equal
+/// when their numbers are.
+#[derive(Clone, Debug, Default)]
+struct SdeRetention(Option<Arc<AdmissionLease>>);
+
+impl SdeRetention {
+    fn bytes(&self) -> u64 {
+        self.0.as_ref().map_or(0, |lease| lease.remainder().bytes())
+    }
+}
+
+impl PartialEq for SdeRetention {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
 }
 
 struct Levels {
@@ -1143,6 +1274,7 @@ fn run_path(
     path: u64,
     fine: bool,
     out: &mut [f64],
+    ctx: &ExecutionContext,
 ) -> Result<(), SdeError> {
     let d = compiled.dimension();
     let k = world.inputs.len();
@@ -1173,6 +1305,9 @@ fn run_path(
     let mut slot = 1usize;
     let sqrt_half = (policy.step / 2.0).sqrt();
     for n in 0..total {
+        if n % CANCEL_STRIDE == 0 {
+            check_cancel(ctx)?;
+        }
         let t = policy.start + n as f64 * dt;
         vars[..d].copy_from_slice(&x);
         for (j, input) in world.inputs.iter().enumerate() {
@@ -1251,9 +1386,20 @@ fn run_world(
             p as u64,
             false,
             &mut coarse[range.clone()],
+            ctx,
         )?;
         if let Some(fine) = fine.as_mut() {
-            run_path(compiled, theta, world, policy, initial, p as u64, true, &mut fine[range])?;
+            run_path(
+                compiled,
+                theta,
+                world,
+                policy,
+                initial,
+                p as u64,
+                true,
+                &mut fine[range],
+                ctx,
+            )?;
         }
     }
     Ok(Levels { coarse, fine })
@@ -1287,20 +1433,29 @@ fn resolve_theta(compiled: &CompiledSde, theta: Option<&[f64]>) -> Result<Vec<f6
 fn effective_compiled<'a>(
     compiled: &'a CompiledSde,
     theta: &[f64],
-) -> Result<std::borrow::Cow<'a, CompiledSde>, SdeError> {
+    ctx: &ExecutionContext,
+) -> Result<(std::borrow::Cow<'a, CompiledSde>, Option<AdmissionLease>), SdeError> {
     if compiled.system.parameters.iter().zip(theta).all(|(p, value)| p.value == *value) {
-        return Ok(std::borrow::Cow::Borrowed(compiled));
+        return Ok((std::borrow::Cow::Borrowed(compiled), None));
     }
+    check_cancel(ctx)?;
+    // The recertified system lives as long as the run, so its bytes are held that long.
+    let lease = ctx
+        .acquire_admission(0, compiled.system.recertification_bytes()?)
+        .map_err(|e| SdeError::Resource(e.to_string()))?;
     let mut system = compiled.system.clone();
     for (parameter, value) in system.parameters.iter_mut().zip(theta) {
         parameter.value = *value;
     }
-    Ok(std::borrow::Cow::Owned(system.compile()?))
+    Ok((std::borrow::Cow::Owned(system.compile()?), Some(lease)))
 }
 
 // Admission covers retained path arrays and, when requested, the simultaneous
 // report arrays, their row headers, final samples, and report metadata. The
-// existing cell and work limits apply to the combined execution and reporting.
+// existing cell and work limits apply to the combined execution and reporting. The
+// bytes the returned output keeps are leased apart from the run's own, so the output
+// can carry its lease after the run returns: the report arrays of a report run, the
+// coarse path array of a path run. Returns the run's own lease, then the output's.
 #[allow(clippy::too_many_arguments, reason = "one checked admission for both output routes")]
 fn admit(
     compiled: &CompiledSde,
@@ -1310,7 +1465,7 @@ fn admit(
     reports: bool,
     name_bytes: usize,
     ctx: &ExecutionContext,
-) -> Result<antecedent_core::execution::AdmissionLease, SdeError> {
+) -> Result<(AdmissionLease, AdmissionLease), SdeError> {
     let d = compiled.dimension();
     let n_out = policy.steps / policy.output_every + 1;
     let levels = if policy.check_step { 2usize } else { 1usize };
@@ -1319,6 +1474,7 @@ fn admit(
     let add = |a: usize, b: usize| a.checked_add(b).ok_or_else(overflow);
     let path_cells = mul(mul(mul(mul(worlds, policy.paths)?, n_out)?, d)?, levels)?;
     let mut bytes = add(add(mul(path_cells, 8)?, mul(n_out, 8)?)?, 4096)?;
+    let path_bytes = bytes;
     let mut report_work = 0usize;
     if reports {
         let world_rows = 4 + if policy.check_step { 4 } else { 0 };
@@ -1360,21 +1516,61 @@ fn admit(
             "SDE simulation and report need {work} work units, above the limit {MAX_SDE_STEP_EVALUATIONS}"
         )));
     }
-    ctx.acquire_admission(0, u64::try_from(bytes).map_err(|_| overflow())?)
-        .map_err(|e| SdeError::Resource(e.to_string()))
+    let lease = |bytes: usize| {
+        ctx.acquire_admission(0, u64::try_from(bytes).map_err(|_| overflow())?)
+            .map_err(|e| SdeError::Resource(e.to_string()))
+    };
+    let (transient, retained) = if reports {
+        (path_bytes, bytes - path_bytes)
+    } else {
+        let coarse = mul(mul(mul(worlds, policy.paths)?, n_out)?, d)?;
+        let kept = add(add(mul(coarse, 8)?, mul(n_out, 8)?)?, 4096)?;
+        (bytes - kept, kept)
+    };
+    Ok((lease(transient)?, lease(retained)?))
 }
 
-fn mean_and_se(values: impl Iterator<Item = f64>, n: usize) -> (f64, f64, f64) {
+/// Admit the plans of `worlds` before any is built, and hold the lease while they live.
+fn admit_world_plans<'a>(
+    system: &SdeSystem,
+    worlds: impl Iterator<Item = &'a SdeWorld>,
+    ctx: &ExecutionContext,
+) -> Result<AdmissionLease, SdeError> {
+    let bytes =
+        worlds.fold(0u64, |total, world| total.saturating_add(system.world_plan_bytes(world)));
+    ctx.acquire_admission(0, bytes).map_err(|e| SdeError::Resource(e.to_string()))
+}
+
+fn mean_and_se(
+    values: impl Iterator<Item = f64>,
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<(f64, f64, f64), SdeError> {
     // Two-pass would need storage; Welford keeps the single pass stable.
     let (mut mean, mut m2, mut count) = (0.0, 0.0, 0.0);
-    for v in values {
+    for (index, v) in values.enumerate() {
+        if index % CANCEL_STRIDE == 0 {
+            check_cancel(ctx)?;
+        }
         count += 1.0;
         let delta = v - mean;
         mean += delta / count;
         m2 += delta * (v - mean);
     }
     let variance = if n > 1 { m2 / (count - 1.0) } else { 0.0 };
-    (mean, variance, (variance / count).sqrt())
+    Ok((mean, variance, (variance / count).sqrt()))
+}
+
+/// Sum in iteration order, as [`Iterator::sum`] does, polling cancellation along the way.
+fn sum_polled(values: impl Iterator<Item = f64>, ctx: &ExecutionContext) -> Result<f64, SdeError> {
+    let mut total = -0.0;
+    for (index, v) in values.enumerate() {
+        if index % CANCEL_STRIDE == 0 {
+            check_cancel(ctx)?;
+        }
+        total += v;
+    }
+    Ok(total)
 }
 
 #[allow(clippy::too_many_arguments, reason = "the inputs describe one scientific operation")]
@@ -1397,17 +1593,17 @@ fn numerical_error(
         check_cancel(ctx)?;
         for i in 0..d {
             check_cancel(ctx)?;
-            let (mean_diff, var_diff, se) =
-                mean_and_se((0..paths).map(|p| coarse(p, t, i) - fine(p, t, i)), paths);
-            let _ = var_diff;
-            let (mean_fine, var_fine, _) = mean_and_se((0..paths).map(|p| fine(p, t, i)), paths);
-            let rms = ((0..paths)
-                .map(|p| {
+            let (mean_diff, _, se) =
+                mean_and_se((0..paths).map(|p| coarse(p, t, i) - fine(p, t, i)), paths, ctx)?;
+            let (mean_fine, var_fine, _) =
+                mean_and_se((0..paths).map(|p| fine(p, t, i)), paths, ctx)?;
+            let rms = (sum_polled(
+                (0..paths).map(|p| {
                     let e = coarse(p, t, i) - fine(p, t, i);
                     e * e
-                })
-                .sum::<f64>()
-                / paths as f64)
+                }),
+                ctx,
+            )? / paths as f64)
                 .sqrt();
             let scale = mean_fine.abs() + var_fine.sqrt() + 1e-12;
             if mean_diff.abs() - 2.0 * se > tolerance * scale {
@@ -1451,7 +1647,7 @@ pub fn simulate_sde(
     policy.validate()?;
     validate_initial(compiled, initial)?;
     let theta = resolve_theta(compiled, theta)?;
-    let effective = effective_compiled(compiled, &theta)?;
+    let (effective, _recertified) = effective_compiled(compiled, &theta, ctx)?;
     let compiled = effective.as_ref();
     if matches!(policy.scheme, SdeScheme::Milstein)
         && !compiled.certificate.diagonal_milstein_admissible
@@ -1465,11 +1661,10 @@ pub fn simulate_sde(
     if worlds.len() + 1 > MAX_WORLDS || contrasts.len() > MAX_WORLDS * MAX_WORLDS {
         return Err(bad("SDE world/contrast count"));
     }
-    let mut plans = vec![compiled.system.plan_world(
-        &SdeWorld { id: BASELINE_WORLD.into(), ..SdeWorld::default() },
-        policy.start,
-        policy.step,
-    )?];
+    let baseline = SdeWorld { id: BASELINE_WORLD.into(), ..SdeWorld::default() };
+    let _plan_lease =
+        admit_world_plans(&compiled.system, std::iter::once(&baseline).chain(worlds), ctx)?;
+    let mut plans = vec![compiled.system.plan_world(&baseline, policy.start, policy.step)?];
     let mut ids = std::collections::BTreeSet::new();
     ids.insert(BASELINE_WORLD.to_owned());
     for world in worlds {
@@ -1502,7 +1697,8 @@ pub fn simulate_sde(
             })
         })
         .ok_or_else(|| bad("SDE report name size overflow"))?;
-    let _lease = admit(compiled, policy, plans.len(), contrasts.len(), true, name_bytes, ctx)?;
+    let (_run, retained) =
+        admit(compiled, policy, plans.len(), contrasts.len(), true, name_bytes, ctx)?;
     let d = compiled.dimension();
     let n_out = policy.steps / policy.output_every + 1;
     let paths = policy.paths;
@@ -1522,7 +1718,8 @@ pub fn simulate_sde(
             check_cancel(ctx)?;
             for i in 0..d {
                 check_cancel(ctx)?;
-                let (m, v, se) = mean_and_se((0..paths).map(|p| at(&run.coarse, p, t, i)), paths);
+                let (m, v, se) =
+                    mean_and_se((0..paths).map(|p| at(&run.coarse, p, t, i)), paths, ctx)?;
                 mean[t][i] = m;
                 variance[t][i] = v;
                 mc[t][i] = se;
@@ -1530,13 +1727,13 @@ pub fn simulate_sde(
             for i in 0..d {
                 for j in 0..=i {
                     check_cancel(ctx)?;
-                    let c = (0..paths)
-                        .map(|p| {
+                    let c = sum_polled(
+                        (0..paths).map(|p| {
                             (at(&run.coarse, p, t, i) - mean[t][i])
                                 * (at(&run.coarse, p, t, j) - mean[t][j])
-                        })
-                        .sum::<f64>()
-                        / (paths as f64 - 1.0);
+                        }),
+                        ctx,
+                    )? / (paths as f64 - 1.0);
                     covariance[t][i * d + j] = c;
                     covariance[t][j * d + i] = c;
                 }
@@ -1592,7 +1789,8 @@ pub fn simulate_sde(
                 let (m, _, s) = mean_and_se(
                     (0..paths).map(|p| at(&treated.coarse, p, t, i) - at(&control.coarse, p, t, i)),
                     paths,
-                );
+                    ctx,
+                )?;
                 mean_difference[t][i] = m;
                 se[t][i] = s;
             }
@@ -1635,6 +1833,7 @@ pub fn simulate_sde(
             "neither field is statistical uncertainty of fitted parameters, which the estimation layer reports separately".into(),
             "paired contrasts share every Brownian increment across worlds, so their Monte Carlo standard error is that of the paired difference".into(),
         ],
+        retention: SdeRetention(Some(Arc::new(retained))),
     })
 }
 
@@ -1653,7 +1852,7 @@ pub fn sample_sde_paths(
     policy.validate()?;
     validate_initial(compiled, initial)?;
     let theta = resolve_theta(compiled, theta)?;
-    let effective = effective_compiled(compiled, &theta)?;
+    let (effective, _recertified) = effective_compiled(compiled, &theta, ctx)?;
     let compiled = effective.as_ref();
     if matches!(policy.scheme, SdeScheme::Milstein)
         && !compiled.certificate.diagonal_milstein_admissible
@@ -1663,16 +1862,18 @@ pub fn sample_sde_paths(
             "a diffusion depends on another state; the diagonal Milstein correction is not exact",
         ));
     }
+    let _plan_lease = admit_world_plans(&compiled.system, std::iter::once(world), ctx)?;
     let plan = compiled.system.plan_world(world, policy.start, policy.step)?;
     let mut single = policy.clone();
     single.check_step = false;
-    let _lease = admit(compiled, &single, 1, 0, false, 0, ctx)?;
+    let (_run, retained) = admit(compiled, &single, 1, 0, false, 0, ctx)?;
     let run = run_world(compiled, &theta, &plan, &single, initial, ctx)?;
     Ok(SdePaths {
         times: policy.output_times(),
         paths: policy.paths,
         dimension: compiled.dimension(),
         states: run.coarse,
+        retention: SdeRetention(Some(Arc::new(retained))),
     })
 }
 

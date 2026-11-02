@@ -115,7 +115,7 @@
 use std::cmp::Ordering;
 use std::f64::consts::TAU as TWO_PI;
 
-use antecedent_core::reason_code;
+use antecedent_core::{ExecutionContext, reason_code};
 
 use crate::effect_constancy::CalibrationStatus;
 use crate::error::EstimationError;
@@ -365,6 +365,7 @@ enum EmFailure {
     Degenerate,
     NotConverged,
     NotMonotone,
+    Cancelled,
 }
 
 struct FitState {
@@ -610,11 +611,15 @@ fn run_em(
     init: Vec<Vec<f64>>,
     config: &LatentClassConfig,
     limits: Limits,
+    ctx: &ExecutionContext,
 ) -> Result<FitState, EmFailure> {
     let mut resp = init;
     let mut params = m_step(problem, &resp, limits)?;
     let mut trace: Vec<f64> = Vec::new();
     for _ in 0..config.max_iterations {
+        if ctx.cancellation.is_cancelled() {
+            return Err(EmFailure::Cancelled);
+        }
         let ll = e_step(problem, &params, &mut resp);
         if !ll.is_finite() {
             return Err(EmFailure::NotConverged);
@@ -698,6 +703,7 @@ fn best_fit(
     problem: &Problem,
     config: &LatentClassConfig,
     limits: Limits,
+    ctx: &ExecutionContext,
 ) -> Result<(FitState, usize, usize), EstimationError> {
     let attempted = if config.initial_labels.is_some() { 1 } else { config.restarts };
     let mut best: Option<FitState> = None;
@@ -709,7 +715,7 @@ fn best_fit(
             Some(labels) => hard_responsibilities(labels, config.classes),
             None => seeded_init(problem, config.classes, restart, config.seed),
         };
-        match run_em(problem, init, config, limits) {
+        match run_em(problem, init, config, limits, ctx) {
             Ok(fit) => {
                 succeeded += 1;
                 let better = match &best {
@@ -723,6 +729,7 @@ fn best_fit(
             Err(EmFailure::Degenerate) => degenerate += 1,
             Err(EmFailure::NotMonotone) => non_monotone += 1,
             Err(EmFailure::NotConverged) => {}
+            Err(EmFailure::Cancelled) => return Err(cancelled_fit()),
         }
     }
     match best {
@@ -865,13 +872,22 @@ fn mixture_average(params: &Params) -> f64 {
 /// One aligned bootstrap replicate: (effects, weights, average effect).
 type Replicate = (Vec<f64>, Vec<f64>, f64);
 
+fn cancelled_fit() -> EstimationError {
+    refuse(
+        reason_code!("cancelled_no_claim"),
+        "latent_class.cancelled",
+        "the latent-class fit was cancelled; no estimate is reported",
+    )
+}
+
 fn bootstrap_replicate(
     problem: &Problem,
     reference: &Params,
     config: &LatentClassConfig,
     limits: Limits,
     b: usize,
-) -> Option<Replicate> {
+    ctx: &ExecutionContext,
+) -> Result<Option<Replicate>, EstimationError> {
     let n_u64 = as_u64(problem.n).max(1);
     let mut state = mix64(config.seed.wrapping_add(0xB007_57A9)) ^ mix64(as_u64(b).wrapping_add(1));
     let indices: Vec<usize> = (0..problem.n)
@@ -881,7 +897,17 @@ fn bootstrap_replicate(
     let k = reference.weights.len();
     let mut resp = vec![vec![0.0; sample.n]; k];
     e_step(&sample, reference, &mut resp);
-    let fit = run_em(&sample, resp, config, limits).ok()?;
+    let fit = match run_em(&sample, resp, config, limits, ctx) {
+        Ok(fit) => fit,
+        Err(EmFailure::Cancelled) => return Err(cancelled_fit()),
+        Err(_) => return Ok(None),
+    };
+    Ok(align_replicate(reference, &fit))
+}
+
+/// Align a converged replicate's classes to the reference fit's labels.
+fn align_replicate(reference: &Params, fit: &FitState) -> Option<Replicate> {
+    let k = reference.weights.len();
     let canonical = reorder(&fit.params, &canonical_order(&fit.params));
     let pair_cost = |c: usize, r: usize| {
         let rep = &canonical.beta[r];
@@ -925,15 +951,22 @@ fn bootstrap_se(
     reference: &Params,
     config: &LatentClassConfig,
     limits: Limits,
+    ctx: &ExecutionContext,
 ) -> Result<Option<BootstrapSe>, EstimationError> {
     let requested = config.bootstrap_replicates;
     if requested == 0 {
         return Ok(None);
     }
     let k = reference.weights.len();
-    let replicates: Vec<Replicate> = (0..requested)
-        .filter_map(|b| bootstrap_replicate(problem, reference, config, limits, b))
-        .collect();
+    let mut replicates: Vec<Replicate> = Vec::new();
+    for b in 0..requested {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled_fit());
+        }
+        if let Some(replicate) = bootstrap_replicate(problem, reference, config, limits, b, ctx)? {
+            replicates.push(replicate);
+        }
+    }
     let succeeded = replicates.len();
     if succeeded < 2 {
         return Err(refuse(
@@ -974,14 +1007,16 @@ fn premises() -> Vec<LatentClassPremise> {
 ///
 /// Refuses with the details documented on the module: invalid configuration or data, an
 /// undeclared randomization premise, a constant treatment, too little design support, a
-/// degenerate or weak class, or an EM that did not converge or was not monotone.
+/// degenerate or weak class, an EM that did not converge or was not monotone, or
+/// `latent_class.cancelled` when `ctx` is cancelled.
 pub fn fit_latent_class_effects(
     data: &LatentClassData<'_>,
     config: &LatentClassConfig,
+    ctx: &ExecutionContext,
 ) -> Result<LatentClassResult, EstimationError> {
     validate_config(config)?;
     let (problem, limits) = validate_data(data, config)?;
-    let (fit, attempted, succeeded) = best_fit(&problem, config, limits)?;
+    let (fit, attempted, succeeded) = best_fit(&problem, config, limits, ctx)?;
     let order = canonical_order(&fit.params);
     let params = reorder(&fit.params, &order);
     let k = order.len();
@@ -1004,7 +1039,7 @@ pub fn fit_latent_class_effects(
         rows.iter().map(|row| row.iter().copied().fold(0.0_f64, f64::max)).sum::<f64>()
             / count(problem.n);
     check_identification(&params, separation, config)?;
-    let boot = bootstrap_se(&problem, &params, config, limits)?;
+    let boot = bootstrap_se(&problem, &params, config, limits, ctx)?;
     let classes: Vec<LatentClassEffect> = (0..k)
         .map(|c| LatentClassEffect {
             index: c,

@@ -30,7 +30,7 @@ use super::outcome::DiscoveryOutcome;
 use super::refusal::SelectiveDiscoveryError;
 use super::stages::{DiscoveryStage, StageInputs};
 use super::store::{MAX_PORTABLE_RECEIPTS, SelectiveLimits, StatisticReceipt, StatisticStore};
-use super::structure::DiscoveredStructure;
+use super::structure::{DiscoveredStructure, Mark, StructureClass};
 use super::work::WorkUnits;
 
 /// The retained state of one discovery run in portable form.
@@ -177,9 +177,14 @@ impl PortableDiscoveryState {
                 "the receipt identity does not match the receipts",
             ));
         }
-        let mut ordered: Vec<(&str, &Digest)> =
+        if self.components.windows(2).any(|w| w[0].0 >= w[1].0) {
+            return Err(refuse(
+                "selective_discovery.components_incomplete",
+                "the declared inputs are not in strictly ascending name order",
+            ));
+        }
+        let ordered: Vec<(&str, &Digest)> =
             self.components.iter().map(|(n, d)| (n.as_str(), d)).collect();
-        ordered.sort_unstable_by_key(|(name, _)| *name);
         if super::contract::contract_identity_of(&self.route, ordered) != self.contract_identity {
             return Err(refuse(
                 "selective_discovery.contract_identity",
@@ -195,6 +200,88 @@ impl PortableDiscoveryState {
             return Err(refuse(
                 "selective_discovery.components_incomplete",
                 "the state does not declare every stage input exactly once",
+            ));
+        }
+        self.validate_semantics()
+    }
+
+    /// The parts of the state that are claims about each other: the route fixes the class
+    /// of structure it can return, the structure's nodes are searched variables, its marks
+    /// are the ones that class can hold, and the work counters are ones a run can produce.
+    fn validate_semantics(&self) -> Result<(), SelectiveDiscoveryError> {
+        let (class, node_kind) = match self.route.as_str() {
+            "static_pc" => (StructureClass::Cpdag, 0),
+            "static_fci" => (StructureClass::Pag, 0),
+            "temporal_pcmci" => (StructureClass::TemporalDag, 1),
+            "temporal_pcmci_plus" => (StructureClass::TemporalCpdag, 1),
+            _ => {
+                return Err(refuse(
+                    "selective_discovery.route_unknown",
+                    "the route is not one of the delivered discovery routes",
+                ));
+            }
+        };
+        if self.structure.class() != class {
+            return Err(refuse(
+                "selective_discovery.structure_class",
+                format!(
+                    "route `{}` returns a `{}` structure, the state holds `{}`",
+                    self.route,
+                    class.as_str(),
+                    self.structure.class().as_str()
+                ),
+            ));
+        }
+        let searched: BTreeSet<u32> = self.variables.iter().copied().collect();
+        if searched.len() != self.variables.len() {
+            return Err(refuse(
+                "selective_discovery.variables_repeated",
+                "a searched variable is listed more than once",
+            ));
+        }
+        if self
+            .structure
+            .nodes()
+            .iter()
+            .any(|node| node.kind != node_kind || !searched.contains(&node.variable))
+        {
+            return Err(refuse(
+                "selective_discovery.structure_nodes",
+                "a structure node is not an instance of a searched variable of this route's kind",
+            ));
+        }
+        if !self.receipts.is_empty() && self.rows == 0 {
+            return Err(refuse(
+                "selective_discovery.rows",
+                "statistics were retained from data with no rows",
+            ));
+        }
+        for edge in self.structure.edges() {
+            let marks = (edge.at_a, edge.at_b);
+            let conflicted = matches!(marks.0, Mark::Conflict) || matches!(marks.1, Mark::Conflict);
+            let circled = matches!(marks.0, Mark::Circle) || matches!(marks.1, Mark::Circle);
+            let admissible = match class {
+                StructureClass::Pag | StructureClass::TemporalPag => true,
+                StructureClass::Cpdag | StructureClass::TemporalCpdag => {
+                    !circled && marks != (Mark::Arrow, Mark::Arrow)
+                }
+                StructureClass::TemporalDag => edge.is_directed(),
+            };
+            if !admissible || (conflicted && !self.orientation_conflict) {
+                return Err(refuse(
+                    "selective_discovery.structure_marks",
+                    "an edge carries marks its structure class cannot hold",
+                ));
+            }
+        }
+        let work = &self.work;
+        if work.ci_tests_completed > work.ci_tests_attempted
+            || work.score_evaluations != 0
+            || work.algorithm_executions > 1
+        {
+            return Err(refuse(
+                "selective_discovery.work_inconsistent",
+                "the work counters are not ones a single constraint-based run can produce",
             ));
         }
         Ok(())

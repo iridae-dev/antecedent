@@ -52,6 +52,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use antecedent_graph::{CyclicDigraph, DenseNodeId};
 use antecedent_kernels::gauss_jordan_solve;
 use thiserror::Error;
@@ -95,15 +99,15 @@ pub struct AdmissionCost {
 }
 
 impl AdmissionCost {
-    /// Admission work for the factorization, the solves, the covariance check, and the
-    /// diagnostics.
+    /// Admission work for support routing, the factorization, the solves, the covariance
+    /// check, and the diagnostics, charged cumulatively against one budget.
     #[must_use]
     pub const fn work(self) -> u64 {
         self.work
     }
 
-    /// Byte upper bound charged for the mean, the two covariance states, and the block
-    /// workspaces.
+    /// Byte upper bound on the peak dense storage: the block workspaces and covariance
+    /// states of the solve plus the covariance the compiled result keeps.
     #[must_use]
     pub const fn bytes(self) -> u64 {
         self.bytes
@@ -222,11 +226,25 @@ pub enum SccCompileError {
 ///
 /// `covariance` is row-major, length `mean.len() * mean.len()`. Off-block entries are part of
 /// the law. Positive semidefiniteness is checked when the equilibrium is compiled, under the
-/// compile budget.
+/// compile budget, and the verdict stays with the covariance: every disturbance derived from
+/// it with another center, and every clone, is checked once between them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GaussianDisturbance {
     mean: Vec<f64>,
-    covariance: Vec<f64>,
+    covariance: Arc<[f64]>,
+    psd: PsdVerdict,
+}
+
+/// Whether the covariance shared by a family of disturbances has passed [`require_psd`].
+///
+/// Equal for every pair: it is a cache of a property of the covariance, not part of the law.
+#[derive(Clone, Debug, Default)]
+struct PsdVerdict(Arc<AtomicBool>);
+
+impl PartialEq for PsdVerdict {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
 }
 
 impl GaussianDisturbance {
@@ -277,7 +295,36 @@ impl GaussianDisturbance {
                 }
             }
         }
-        Ok(Self { mean, covariance })
+        Ok(Self { mean, covariance: covariance.into(), psd: PsdVerdict::default() })
+    }
+
+    /// This covariance under another finite `mean`, sharing the covariance and its
+    /// positive-semidefiniteness verdict.
+    pub(crate) fn with_mean(&self, mean: Vec<f64>) -> Result<Self, SccCompileError> {
+        if mean.len() != self.mean.len() {
+            return Err(SccCompileError::Shape {
+                message: "a disturbance mean must keep the covariance's order",
+            });
+        }
+        if let Some(node) = mean.iter().position(|value| !value.is_finite()) {
+            return Err(SccCompileError::NonFiniteDisturbanceMean { node });
+        }
+        Ok(Self { mean, covariance: Arc::clone(&self.covariance), psd: self.psd.clone() })
+    }
+
+    /// Whether the covariance has already passed the positive-semidefinite check.
+    pub(crate) fn psd_verified(&self) -> bool {
+        self.psd.0.load(Ordering::Acquire)
+    }
+
+    /// Check that the covariance is positive semidefinite, once for every disturbance sharing it.
+    pub(crate) fn require_psd_once(&self) -> Result<(), SccCompileError> {
+        if self.psd_verified() {
+            return Ok(());
+        }
+        require_psd(&self.covariance, self.mean.len())?;
+        self.psd.0.store(true, Ordering::Release);
+        Ok(())
     }
 
     /// Dimension of `ε`.
@@ -427,6 +474,35 @@ pub fn gaussian_equilibrium_admission(
     Ok(schedule(model, clamp)?.cost)
 }
 
+/// Byte upper bound on the peak dense storage of compiling one world of a model of `order`
+/// variables, whatever the clamp. This is the `bytes` of every [`AdmissionCost`] for that order.
+///
+/// # Errors
+///
+/// [`SccCompileError::Shape`] when the order or the bound does not fit in `u64`.
+pub fn gaussian_equilibrium_peak_bytes(order: usize) -> Result<u64, SccCompileError> {
+    plan_bytes(
+        u64::try_from(order).map_err(|_| SccCompileError::Shape {
+            message: "model dimension does not fit in u64",
+        })?,
+    )
+}
+
+/// Admission work of routing the free support of a model of `order` variables once: the
+/// part of every [`AdmissionCost::work`] spent before any factorization.
+///
+/// # Errors
+///
+/// [`SccCompileError::Shape`] when the order or the work does not fit in `u64`.
+pub fn gaussian_equilibrium_route_work(order: usize) -> Result<u64, SccCompileError> {
+    route_work(model_order_u64(order)?)
+}
+
+fn model_order_u64(order: usize) -> Result<u64, SccCompileError> {
+    u64::try_from(order)
+        .map_err(|_| SccCompileError::Shape { message: "model dimension does not fit in u64" })
+}
+
 /// Compile the Gaussian equilibrium of `component`'s linear map.
 ///
 /// `clamp_values[k]` is the constant for `clamp.indices()[k]`. An empty clamp compiles the
@@ -504,6 +580,81 @@ impl RoutedEquilibrium {
     /// Compiled equilibrium. An acyclic route is not a cyclic-block solve.
     pub fn equilibrium(&self) -> &CompiledEquilibrium {
         &self.equilibrium
+    }
+}
+
+/// Support routes of one linear map, by clamped node set, each computed once.
+///
+/// A route reads only which coefficients are nonzero and which nodes are clamped. The set is
+/// bound to the exact coefficients it was built from and answers only for a map with those
+/// coefficients, so a route is never applied to another support, however it was carried.
+/// Computing a route is the one place its routing work is charged; a compile that is handed a
+/// held route spends only its factorization work.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinearRouteSet {
+    coefficients: Vec<f64>,
+    routes: BTreeMap<Vec<usize>, LinearSupportRoute>,
+}
+
+impl LinearRouteSet {
+    /// An empty set for the coefficients of `model`.
+    #[must_use]
+    pub fn new(model: &LinearStructuralMap) -> Self {
+        Self { coefficients: model.coefficients().to_vec(), routes: BTreeMap::new() }
+    }
+
+    /// Whether `model` has exactly the coefficients this set was built for.
+    #[must_use]
+    pub fn binds(&self, model: &LinearStructuralMap) -> bool {
+        self.coefficients.as_slice() == model.coefficients()
+    }
+
+    /// The held route of `model` under `clamp`, when `model` is the map this set is bound to.
+    #[must_use]
+    pub fn get(
+        &self,
+        model: &LinearStructuralMap,
+        clamp: &HardClamp,
+    ) -> Option<&LinearSupportRoute> {
+        if clamp.dimension() != model.dimension() || !self.binds(model) {
+            return None;
+        }
+        self.routes.get(clamp.indices())
+    }
+
+    /// The route of `model` under `clamp`, and whether it was computed by this call.
+    ///
+    /// A held route is returned without any work. Otherwise the route is computed and, when
+    /// `model` is the map this set is bound to, held for the next caller.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`route_linear_support`].
+    pub fn route(
+        &mut self,
+        model: &LinearStructuralMap,
+        clamp: &HardClamp,
+    ) -> Result<(LinearSupportRoute, bool), SccCompileError> {
+        if let Some(route) = self.get(model, clamp) {
+            return Ok((route.clone(), false));
+        }
+        let route = route_linear_support(model, clamp)?;
+        if self.binds(model) {
+            self.routes.insert(clamp.indices().to_vec(), route.clone());
+        }
+        Ok((route, true))
+    }
+
+    /// Number of held routes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.routes.len()
+    }
+
+    /// Whether no route is held.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.routes.is_empty()
     }
 }
 
@@ -619,6 +770,23 @@ pub fn compile_routed_gaussian_equilibrium(
     clamp_values: &[f64],
     budget: CompileBudget,
 ) -> Result<RoutedEquilibrium, SccCompileError> {
+    compile_routed_with(component, model, disturbance, (clamp, clamp_values), budget, None)
+}
+
+/// [`compile_routed_gaussian_equilibrium`] that takes the support route from `routes` when it
+/// holds one for exactly this map and clamp set.
+///
+/// A route taken from `routes` was charged when it was computed, so the compile records and
+/// admits only the factorization work. A set built for other coefficients is never consulted:
+/// the route is computed and charged here.
+pub(crate) fn compile_routed_with(
+    component: &CyclicComponent,
+    model: &LinearStructuralMap,
+    disturbance: &GaussianDisturbance,
+    (clamp, clamp_values): (&HardClamp, &[f64]),
+    budget: CompileBudget,
+    routes: Option<&LinearRouteSet>,
+) -> Result<RoutedEquilibrium, SccCompileError> {
     let n = model.dimension();
     let binding = component.model_binding();
     if binding.dimension() != n {
@@ -636,8 +804,8 @@ pub fn compile_routed_gaussian_equilibrium(
     // Refuse an impossible budget before allocating or scanning the support graph.
     let n_u64 = u64::try_from(n)
         .map_err(|_| SccCompileError::Shape { message: "model dimension does not fit in u64" })?;
-    let route_work =
-        n_u64.checked_mul(n_u64).and_then(|v| v.checked_mul(2)).ok_or_else(work_overflow)?;
+    let shared = routes.and_then(|set| set.get(model, clamp));
+    let route_work = if shared.is_some() { 0 } else { route_work(n_u64)? };
     let bytes = plan_bytes(n_u64)?;
     if route_work > budget.max_work {
         return Err(SccCompileError::Budget {
@@ -653,7 +821,10 @@ pub fn compile_routed_gaussian_equilibrium(
             limit: budget.max_bytes,
         });
     }
-    let route = route_linear_support(model, clamp)?;
+    let route = match shared {
+        Some(route) => route.clone(),
+        None => route_linear_support(model, clamp)?,
+    };
     let equilibrium = match &route {
         LinearSupportRoute::Acyclic { order } => {
             let blocks: Vec<Vec<usize>> = order.iter().copied().map(|node| vec![node]).collect();
@@ -663,7 +834,7 @@ pub fn compile_routed_gaussian_equilibrium(
                 disturbance,
                 (clamp, clamp_values),
                 budget,
-                &blocks,
+                (&blocks, route_work),
                 DAG_EQUILIBRIUM_ATTEMPT,
             )?
         }
@@ -673,7 +844,7 @@ pub fn compile_routed_gaussian_equilibrium(
             disturbance,
             (clamp, clamp_values),
             budget,
-            blocks,
+            (blocks, route_work),
             SCC_COMPILE_ATTEMPT,
         )?,
     };
@@ -694,15 +865,27 @@ fn compile_checked(
 ) -> Result<CompiledEquilibrium, SccCompileError> {
     reject_compile_inputs(model, disturbance, clamp, clamp_values)?;
     let planned = schedule(model, clamp)?;
+    let routed_work = route_work(model_dimension_u64(model)?)?;
     finish_compile(
         component_id,
         model,
         disturbance,
         (clamp, clamp_values),
         budget,
-        &planned.blocks,
+        (&planned.blocks, routed_work),
         SCC_COMPILE_ATTEMPT,
     )
+}
+
+fn model_dimension_u64(model: &LinearStructuralMap) -> Result<u64, SccCompileError> {
+    u64::try_from(model.dimension())
+        .map_err(|_| SccCompileError::Shape { message: "model dimension does not fit in u64" })
+}
+
+/// Work the support routing spends before any factorization: one pass over the dense
+/// coefficient matrix to build the support graph and one to condense it.
+fn route_work(n: u64) -> Result<u64, SccCompileError> {
+    n.checked_mul(n).and_then(|square| square.checked_mul(2)).ok_or_else(work_overflow)
 }
 
 fn reject_compile_inputs(
@@ -738,9 +921,12 @@ fn finish_compile(
     disturbance: &GaussianDisturbance,
     clamp_binding: (&HardClamp, &[f64]),
     budget: CompileBudget,
-    blocks: &[Vec<usize>],
+    schedule: (&[Vec<usize>], u64),
     attempt: &'static str,
 ) -> Result<CompiledEquilibrium, SccCompileError> {
+    // Routing was charged before the schedule existed; the factorization work adds to it, so
+    // the budget bounds the whole compile and the recorded cost is that total.
+    let (blocks, routed_work) = schedule;
     let (clamp, clamp_values) = clamp_binding;
     let n = model.dimension();
     let sizes: Vec<u64> = blocks
@@ -752,7 +938,9 @@ fn finish_compile(
         .map_err(|_| SccCompileError::Shape { message: "model dimension does not fit in u64" })?;
     let clamps = u64::try_from(clamp.indices().len())
         .map_err(|_| SccCompileError::Shape { message: "clamp length does not fit in u64" })?;
-    let cost = AdmissionCost { work: plan_work(n_u64, clamps, &sizes)?, bytes: plan_bytes(n_u64)? };
+    let work =
+        plan_work(n_u64, clamps, &sizes)?.checked_add(routed_work).ok_or_else(work_overflow)?;
+    let cost = AdmissionCost { work, bytes: plan_bytes(n_u64)? };
     if cost.work > budget.max_work {
         return Err(SccCompileError::Budget {
             resource: "work",
@@ -767,7 +955,7 @@ fn finish_compile(
             limit: budget.max_bytes,
         });
     }
-    require_psd(disturbance.covariance(), n)?;
+    disturbance.require_psd_once()?;
     rechecked_solvability(model, clamp)?;
     let mut assigned = vec![None; n];
     for (&node, &value) in clamp.indices().iter().zip(clamp_values) {
@@ -850,7 +1038,9 @@ fn schedule(
         .map_err(|_| SccCompileError::Shape { message: "model dimension does not fit in u64" })?;
     let clamps = u64::try_from(clamp.indices().len())
         .map_err(|_| SccCompileError::Shape { message: "clamp length does not fit in u64" })?;
-    let work = plan_work(n_u64, clamps, &sizes)?;
+    let work = plan_work(n_u64, clamps, &sizes)?
+        .checked_add(route_work(n_u64)?)
+        .ok_or_else(work_overflow)?;
     let bytes = plan_bytes(n_u64)?;
     Ok(PlannedSchedule { blocks, cost: AdmissionCost { work, bytes } })
 }
@@ -908,12 +1098,13 @@ fn byte_overflow() -> SccCompileError {
 
 fn plan_bytes(n: u64) -> Result<u64, SccCompileError> {
     let square = n.checked_mul(n).ok_or_else(byte_overflow)?;
-    // `12 n² + 2 n` floats: covariance states and block workspaces, times 8 bytes.
-    let mean_and_scratch = n.checked_mul(2).ok_or_else(byte_overflow)?;
-    let floats = square
-        .checked_mul(12)
-        .and_then(|big| big.checked_add(mean_and_scratch))
-        .ok_or_else(byte_overflow)?;
+    // Peak dense storage of one n-by-n block: `14 n²` floats across the covariance states,
+    // the factor, the solve right-hand sides and the cross terms live together in
+    // `solve_block`, plus `n²` for the covariance the compiled result keeps, plus `16 n`
+    // for the mean, the diagonal scaling and the pivots; times 8 bytes.
+    let linear = n.checked_mul(16).ok_or_else(byte_overflow)?;
+    let floats =
+        square.checked_mul(15).and_then(|big| big.checked_add(linear)).ok_or_else(byte_overflow)?;
     floats.checked_mul(8).ok_or_else(byte_overflow)
 }
 
@@ -1573,9 +1764,10 @@ impl From<MatrixError> for SccCompileError {
 #[cfg(test)]
 mod tests {
     use super::{
-        CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError, block_residual,
-        compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium,
-        gaussian_equilibrium_admission, route_linear_support,
+        CompileBudget, GaussianDisturbance, LinearRouteSet, LinearSupportRoute, SccCompileError,
+        block_residual, compile_gaussian_equilibrium, compile_routed_gaussian_equilibrium,
+        compile_routed_with, gaussian_equilibrium_admission, gaussian_equilibrium_route_work,
+        plan_bytes, route_linear_support,
     };
     use crate::cyclic_component::{CyclicComponent, DAG_EQUILIBRIUM_ATTEMPT, SCC_COMPILE_ATTEMPT};
     use crate::linear_solution::{
@@ -1634,10 +1826,11 @@ mod tests {
         let clamp = HardClamp::none(2).expect("no clamp");
         let cost = gaussian_equilibrium_admission(&model, &clamp).expect("admission");
         // n = 2, one block of order 2, no clamps:
-        // PSD n³ = 8, residual n² = 4,
+        // routing 2n² = 8, PSD n³ = 8, residual n² = 4,
         // block = m³ + m²(m + n) + m = 8 + 16 + 2 = 26, condition = m² + 16 = 20.
-        assert_eq!(cost.work(), 58);
-        assert_eq!(cost.bytes(), 416);
+        assert_eq!(cost.work(), 66);
+        // 8 · (15 n² + 16 n) = 8 · 92.
+        assert_eq!(cost.bytes(), 736);
 
         let law = compile(&model, vec![1.0, 0.0], vec![1.0, 0.0, 0.0, 1.0], &clamp, &[]);
         assert_eq!(law.component_id(), "feedback");
@@ -2038,6 +2231,121 @@ mod tests {
             SccCompileError::Budget { resource: "bytes", requested, limit }
                 if requested == cost.bytes() && limit == cost.bytes() - 1
         ));
+    }
+
+    #[test]
+    fn routing_and_compilation_are_charged_against_one_work_budget() {
+        let cycle = map(vec![0.0, 0.2, 0.0, 0.2, 0.0, 0.2, 0.0, 0.2, 0.0], vec![0.0; 3]);
+        let clamp = HardClamp::none(3).unwrap();
+        let noise = GaussianDisturbance::try_new(vec![0.0; 3], identity(3)).unwrap();
+        let total = gaussian_equilibrium_admission(&cycle, &clamp).unwrap();
+        let route = 2 * 3 * 3;
+        let compile = |max_work| {
+            compile_routed_gaussian_equilibrium(
+                &component_for(&cycle),
+                &cycle,
+                &noise,
+                &clamp,
+                &[],
+                CompileBudget { max_work, max_bytes: u64::MAX },
+            )
+        };
+        // Each part fits alone; only the sum is over the budget.
+        let factorization = total.work() - route;
+        assert!(route < total.work() && factorization < total.work());
+        assert!(matches!(
+            compile(total.work() - 1),
+            Err(SccCompileError::Budget { resource: "work", requested, .. })
+                if requested == total.work()
+        ));
+        let compiled = compile(total.work()).unwrap();
+        assert_eq!(compiled.equilibrium.admission, total);
+    }
+
+    #[test]
+    fn plan_bytes_cover_the_peak_dense_storage() {
+        // 14 n² transient floats and n² retained, then 16 n linear floats, times 8 bytes.
+        for n in [1_u64, 2, 7, 64] {
+            assert_eq!(plan_bytes(n).unwrap(), 8 * (15 * n * n + 16 * n));
+        }
+        assert!(plan_bytes(u64::MAX).is_err());
+    }
+
+    #[test]
+    fn a_held_route_is_neither_routed_nor_charged_again_and_binds_to_its_map() {
+        let cycle = map(vec![0.0, 0.2, 0.0, 0.2, 0.0, 0.2, 0.0, 0.2, 0.0], vec![0.0; 3]);
+        let clamp = HardClamp::none(3).unwrap();
+        let noise = GaussianDisturbance::try_new(vec![0.0; 3], identity(3)).unwrap();
+        let mut routes = LinearRouteSet::new(&cycle);
+        assert!(routes.is_empty() && routes.get(&cycle, &clamp).is_none());
+        let (route, computed) = routes.route(&cycle, &clamp).unwrap();
+        assert!(computed);
+        let (again, computed) = routes.route(&cycle, &clamp).unwrap();
+        assert!(!computed && again == route && routes.len() == 1);
+        assert_eq!(routes.get(&cycle, &clamp), Some(&route));
+
+        let compile = |model: &LinearStructuralMap, max_work, held: Option<&LinearRouteSet>| {
+            compile_routed_with(
+                &component_for(model),
+                model,
+                &noise,
+                (&clamp, &[]),
+                CompileBudget { max_work, max_bytes: u64::MAX },
+                held,
+            )
+        };
+        let routed = compile(&cycle, u64::MAX, None).unwrap();
+        let shared = compile(&cycle, u64::MAX, Some(&routes)).unwrap();
+        assert_eq!(routed.route(), shared.route());
+        assert_eq!(routed.equilibrium().mean(), shared.equilibrium().mean());
+        assert_eq!(routed.equilibrium().covariance(), shared.equilibrium().covariance());
+        let routing = gaussian_equilibrium_route_work(3).unwrap();
+        assert_eq!(
+            routed.equilibrium().admission().work(),
+            shared.equilibrium().admission().work() + routing,
+        );
+        // The held route spends only the factorization, so a budget of exactly that admits it
+        // and refuses a compile that has to route.
+        let factorization = shared.equilibrium().admission().work();
+        assert!(compile(&cycle, factorization, Some(&routes)).is_ok());
+        assert!(matches!(
+            compile(&cycle, factorization, None),
+            Err(SccCompileError::Budget { resource: "work", .. })
+        ));
+
+        // The set answers only for the coefficients it was built for.
+        let broken = map(vec![0.0, 0.2, 0.0, 0.2, 0.0, 0.0, 0.0, 0.2, 0.0], vec![0.0; 3]);
+        assert!(!routes.binds(&broken) && routes.get(&broken, &clamp).is_none());
+        let other = compile(&broken, u64::MAX, Some(&routes)).unwrap();
+        let alone = compile(&broken, u64::MAX, None).unwrap();
+        assert_eq!(other.route(), alone.route());
+        assert_ne!(other.route(), shared.route());
+        assert_eq!(other.equilibrium().admission(), alone.equilibrium().admission());
+        let mut rebound = routes.clone();
+        let (_, computed) = rebound.route(&broken, &clamp).unwrap();
+        assert!(computed && rebound.len() == routes.len());
+    }
+
+    #[test]
+    fn a_disturbance_family_checks_its_covariance_once() {
+        let noise = GaussianDisturbance::try_new(vec![0.0; 2], identity(2)).unwrap();
+        let shifted = noise.with_mean(vec![1.0, 2.0]).unwrap();
+        assert!(!noise.psd_verified() && !shifted.psd_verified());
+        shifted.require_psd_once().unwrap();
+        assert!(noise.psd_verified() && noise.clone().psd_verified());
+        let unrelated = GaussianDisturbance::try_new(vec![0.0; 2], identity(2)).unwrap();
+        assert!(!unrelated.psd_verified());
+        assert_eq!(noise, unrelated);
+        assert!(noise.with_mean(vec![f64::NAN, 0.0]).is_err());
+        assert!(noise.with_mean(vec![0.0]).is_err());
+
+        let indefinite =
+            GaussianDisturbance::try_new(vec![0.0; 2], vec![1.0, 2.0, 2.0, 1.0]).unwrap();
+        assert!(matches!(
+            indefinite.with_mean(vec![1.0, 0.0]).unwrap().require_psd_once(),
+            Err(SccCompileError::NotPositiveSemidefinite { .. })
+        ));
+        assert!(!indefinite.psd_verified());
     }
 
     #[test]

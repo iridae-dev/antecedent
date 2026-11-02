@@ -158,7 +158,7 @@ fn a_selection_arrow_into_the_outcome_is_a_composition_refusal_and_a_verified_ob
 
     match finite_decision(selection) {
         CounterfactualTransportDecision::ProvenNonTransportable(obstruction) => {
-            let check = obstruction.verify().unwrap();
+            let check = obstruction.verify(&ExecutionContext::for_tests(1)).unwrap();
             assert_ne!(check.first_value, check.second_value);
         }
         other => panic!("expected an obstruction, got {other:?}"),

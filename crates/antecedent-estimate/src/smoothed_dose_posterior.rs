@@ -39,7 +39,10 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::Arc;
+
 use antecedent_core::SmoothedDoseTransportQuery;
+use antecedent_core::execution::AdmissionLease;
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_stats::special::gauss_legendre;
 use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
@@ -98,6 +101,26 @@ pub struct SmoothedDosePosterior {
     pub target_rows: usize,
     /// Fewest source rows in any grid window.
     pub minimum_local_rows: usize,
+    retention: PosteriorRetention,
+}
+
+/// Lease funding the returned posterior; it outlives the fit's scratch and nested leases.
+#[derive(Clone, Debug, Default)]
+struct PosteriorRetention(Option<Arc<AdmissionLease>>);
+
+impl PartialEq for PosteriorRetention {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl SmoothedDosePosterior {
+    /// Bytes this posterior holds in the shared admission pool until it is dropped; zero
+    /// outside a workflow, where nothing is charged.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.0.as_ref().map_or(0, |lease| lease.remainder().bytes())
+    }
 }
 
 /// The covariates a transport certificate standardizes over, sorted.
@@ -126,8 +149,28 @@ pub fn smoothed_dose_certified_features(
     }
 }
 
-/// Conservative live workspace: the first count is parent-owned scratch, the second
-/// includes nested regression and grid-draw leases that remain separately admitted.
+/// Byte components of one posterior, each admitted by its own lease.
+///
+/// `scratch` is parent-owned working memory released on return. `retained` is the returned
+/// posterior (draws, grid covariance, summaries) and stays leased for the result's lifetime.
+/// `nested` is what the regression fit admits itself (its precision and coefficient draw
+/// buffer); `coefficients` is the parent's lease for that buffer once ownership transfers.
+#[derive(Clone, Copy, Debug)]
+struct WorkspaceBytes {
+    scratch: u64,
+    retained: u64,
+    nested: u64,
+    coefficients: u64,
+}
+
+impl WorkspaceBytes {
+    /// Largest simultaneous lease total: the nested fit and the parent's coefficient lease
+    /// never overlap, because the nested lease is released before the parent's is taken.
+    fn peak(self) -> Option<u64> {
+        self.scratch.checked_add(self.retained)?.checked_add(self.nested.max(self.coefficients))
+    }
+}
+
 #[allow(clippy::too_many_arguments, reason = "the inputs describe one estimation procedure")]
 fn posterior_workspace_bytes(
     rows: usize,
@@ -138,7 +181,7 @@ fn posterior_workspace_bytes(
     interactions: bool,
     grid: usize,
     draws: usize,
-) -> Option<(u64, u64)> {
+) -> Option<WorkspaceBytes> {
     let terms = usize::from(degree).checked_add(knots)?;
     let width = 1usize.checked_add(terms)?.checked_add(features)?.checked_add(if interactions {
         terms.checked_mul(features)?
@@ -148,26 +191,31 @@ fn posterior_workspace_bytes(
     let quadrature = knots.checked_add(1)?.checked_mul(WINDOW_NODES)?;
     let square = width.checked_mul(width)?;
     let coefficient_draws = draws.checked_mul(width)?;
-    let grid_draws = draws.checked_mul(grid)?;
-    let mut parent = 0usize;
+    let mut scratch = 0usize;
     let mut add = |n: usize| -> Option<()> {
-        parent = parent.checked_add(n)?;
+        scratch = scratch.checked_add(n)?;
         Some(())
     };
     add(rows.checked_mul(4)?)?;
     add(source.checked_mul(width.checked_add(terms)?.checked_add(1)?)?)?;
     add(square.checked_mul(11)?)?;
-    // The nested fitter separately admits one draw buffer. This parent-owned
-    // component covers its workspace scratch, then the retained coefficient copy.
-    add(coefficient_draws)?;
     add(grid.checked_mul(width)?.checked_mul(2)?)?;
     add(quadrature.checked_mul(width.checked_add(terms)?.checked_add(4)?)?)?;
-    add(grid.checked_mul(grid)?.checked_mul(3)?)?;
+    add(grid.checked_mul(grid)?)?;
     add(draws.checked_add(width.checked_mul(12)?)?.checked_add(knots.checked_mul(4)?)?)?;
-    let nested = square.checked_add(coefficient_draws)?.checked_add(grid_draws)?;
-    let parent_bytes = parent.checked_mul(std::mem::size_of::<f64>())?;
-    let total_bytes = parent.checked_add(nested)?.checked_mul(std::mem::size_of::<f64>())?;
-    Some((u64::try_from(parent_bytes).ok()?, u64::try_from(total_bytes).ok()?))
+    let retained = draws
+        .checked_mul(grid)?
+        .checked_add(grid.checked_mul(grid)?.checked_mul(2)?)?
+        .checked_add(grid.checked_mul(5)?)?;
+    let words = |n: usize| -> Option<u64> {
+        u64::try_from(n.checked_mul(std::mem::size_of::<f64>())?).ok()
+    };
+    Some(WorkspaceBytes {
+        scratch: words(scratch)?,
+        retained: words(retained)?,
+        nested: words(square.checked_add(coefficient_draws)?)?,
+        coefficients: words(coefficient_draws)?,
+    })
 }
 
 /// Posterior of `psi_h(a)` over the query's grid under the declared outcome model.
@@ -195,7 +243,7 @@ pub fn smoothed_dose_posterior(
         )
     };
     let source_count = input.source.iter().filter(|source| **source).count();
-    let (parent_bytes, total_bytes) = posterior_workspace_bytes(
+    let bytes = posterior_workspace_bytes(
         input.source.len(),
         source_count,
         input.covariates.len(),
@@ -206,12 +254,18 @@ pub fn smoothed_dose_posterior(
         model.draws,
     )
     .ok_or_else(workspace_refusal)?;
-    if total_bytes > crate::smoothed_dose::SMOOTHED_DOSE_MAX_WORKSPACE_BYTES {
+    if bytes
+        .peak()
+        .is_none_or(|peak| peak > crate::smoothed_dose::SMOOTHED_DOSE_MAX_WORKSPACE_BYTES)
+    {
         return Err(workspace_refusal());
     }
-    let parent_bytes = usize::try_from(parent_bytes).map_err(|_| workspace_refusal())?;
-    let _workspace =
-        crate::util::admit_bound_array::<u8>(parent_bytes, 1).map_err(|_| workspace_refusal())?;
+    let admit = |bytes: u64| -> Result<Option<AdmissionLease>, EstimationError> {
+        let bytes = usize::try_from(bytes).map_err(|_| workspace_refusal())?;
+        crate::util::admit_bound_array::<u8>(bytes, 1).map_err(|_| workspace_refusal())
+    };
+    let _workspace = admit(bytes.scratch)?;
+    let retention = admit(bytes.retained)?;
     let certified = smoothed_dose_certified_features(id)?;
     if input.declares_rows() {
         return Err(crate::util::refuse(
@@ -241,10 +295,10 @@ pub fn smoothed_dose_posterior(
         model.draws,
         model.seed,
     )?;
+    let _coefficients = crate::util::admit_bound_array::<f64>(model.draws, width)?;
     let functionals = grid_functionals(query, input, model, &target);
     let minimum_local_rows = local_rows(query, input, &source, model.min_local_rows)?;
     let size = functionals.len();
-    let _admitted = crate::util::admit_bound_array::<f64>(model.draws, size)?;
     let mut draws = vec![0.0; model.draws * size];
     for (k, coefficients) in fit.coefficients.chunks(width).enumerate() {
         for (g, row) in functionals.iter().enumerate() {
@@ -306,6 +360,7 @@ pub fn smoothed_dose_posterior(
         source_rows: source.len(),
         target_rows: target.len(),
         minimum_local_rows,
+        retention: PosteriorRetention(retention.map(Arc::new)),
     })
 }
 
@@ -521,6 +576,23 @@ mod tests {
             matches!(result, Err(error) if error.reason_code() == Some("transport_budget_cancel"))
         );
         assert_eq!(ctx.admission().available().bytes(), 1);
+    }
+
+    #[test]
+    fn the_returned_posterior_keeps_its_bytes_in_the_pool_until_dropped() {
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(1 << 30));
+        let before = ctx.admission().available().bytes();
+        let basis = DoseBasis::default();
+        let posterior = antecedent_core::numerical_admission::with_context(&ctx, || {
+            smoothed_dose_posterior(&standardize(), &query(), &input(), &model(&basis))
+        })
+        .unwrap();
+        let (grid, draws) = (posterior.grid.len() as u64, posterior.n_draws as u64);
+        let retained = posterior.retained_admitted_bytes();
+        assert_eq!(retained, 8 * (draws * grid + 2 * grid * grid + 5 * grid));
+        assert_eq!(ctx.admission().available().bytes(), before - retained);
+        drop(posterior);
+        assert_eq!(ctx.admission().available().bytes(), before);
     }
 
     #[test]

@@ -9,6 +9,7 @@ use crate::{
     nonlinear_equilibrium::{Clamp, EquilibriumError, EquilibriumModel},
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Mathematical interpretation of the compiled state/equation program.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,28 +77,58 @@ pub fn compile_equilibrium(
     model: &EquilibriumModel,
     clamps: &[Clamp],
 ) -> Result<CompiledSystemPlan, EquilibriumError> {
-    let blocks = model
-        .blocks(clamps)?
-        .into_iter()
-        .map(|variables| {
-            if variables.len() == 1
-                && !model.equations[variables[0]]
-                    .reads()
-                    .unwrap_or_default()
-                    .contains(&variables[0])
-            {
-                let variable = variables[0];
-                ExecutionBlock::Mechanism {
-                    variable,
-                    mechanism: model.equations[variable].id.clone(),
+    let mut plans = compile_equilibria(model, &[clamps])?;
+    plans.pop().ok_or_else(|| EquilibriumError::Invalid("no equilibrium plan was compiled".into()))
+}
+
+/// Compile one plan per clamp set of the same model, in order.
+///
+/// The model is validated (its disturbance factored, its expressions compiled) and its read
+/// sets are built once for all of them, and clamp sets that fix the same variables share one
+/// schedule: the blocks depend on which variables are clamped, never on their levels.
+///
+/// # Errors
+///
+/// The model does not validate, or a clamp names a variable twice, outside the model, or
+/// at a non-finite level.
+pub fn compile_equilibria(
+    model: &EquilibriumModel,
+    clamp_sets: &[&[Clamp]],
+) -> Result<Vec<CompiledSystemPlan>, EquilibriumError> {
+    model.validate()?;
+    let reads = model.read_sets()?;
+    let mut by_clamped: BTreeMap<Vec<usize>, CompiledSystemPlan> = BTreeMap::new();
+    let mut plans = Vec::with_capacity(clamp_sets.len());
+    for clamps in clamp_sets {
+        let free = model.free_indices(clamps)?;
+        let mut clamped: Vec<usize> = clamps.iter().map(|clamp| clamp.variable).collect();
+        clamped.sort_unstable();
+        if let Some(plan) = by_clamped.get(&clamped) {
+            plans.push(plan.clone());
+            continue;
+        }
+        let blocks = model
+            .blocks_from_reads(&free, &reads)?
+            .into_iter()
+            .map(|variables| {
+                if variables.len() == 1 && !reads[variables[0]].contains(&variables[0]) {
+                    let variable = variables[0];
+                    ExecutionBlock::Mechanism {
+                        variable,
+                        mechanism: model.equations[variable].id.clone(),
+                    }
+                } else {
+                    let equations =
+                        variables.iter().map(|&i| model.equations[i].id.clone()).collect();
+                    ExecutionBlock::SimultaneousEquations { variables, equations }
                 }
-            } else {
-                let equations = variables.iter().map(|&i| model.equations[i].id.clone()).collect();
-                ExecutionBlock::SimultaneousEquations { variables, equations }
-            }
-        })
-        .collect();
-    Ok(CompiledSystemPlan { semantics: SystemSemantics::EquilibriumScm, blocks })
+            })
+            .collect();
+        let plan = CompiledSystemPlan { semantics: SystemSemantics::EquilibriumScm, blocks };
+        by_clamped.insert(clamped, plan.clone());
+        plans.push(plan);
+    }
+    Ok(plans)
 }
 /// Compile a deterministic continuous-time initial-value block.
 pub fn compile_ode(model: &OdeSystem) -> Result<CompiledSystemPlan, EquilibriumError> {
@@ -195,5 +226,32 @@ mod tests {
             compile_ode(&OdeSystem { equations: model.equations, decay: vec![1.0, 1.0] }).unwrap();
         assert_eq!(ode.semantics, SystemSemantics::ContinuousTime);
         assert!(matches!(ode.blocks[0], ExecutionBlock::DynamicEvolution { .. }));
+    }
+
+    #[test]
+    fn one_compile_of_many_clamp_sets_matches_a_compile_of_each_and_still_refuses_a_bad_clamp() {
+        let equation = |id: &str, weights: Vec<f64>| Equation {
+            id: id.into(),
+            intercept: 0.0,
+            weights,
+            activation: Activation::Identity,
+            expression: None,
+            parameters: vec![],
+        };
+        let model = EquilibriumModel {
+            equations: vec![equation("a", vec![0.0, 0.4]), equation("b", vec![0.5, 0.0])],
+            noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+        };
+        let at = |variable, value| Clamp { variable, value };
+        let sets: Vec<Vec<Clamp>> =
+            vec![vec![], vec![at(0, 1.0)], vec![at(0, 2.0)], vec![at(1, 0.0)]];
+        let borrowed: Vec<&[Clamp]> = sets.iter().map(Vec::as_slice).collect();
+        let together = compile_equilibria(&model, &borrowed).unwrap();
+        assert_eq!(together.len(), sets.len());
+        for (plan, clamps) in together.iter().zip(&sets) {
+            assert_eq!(plan, &compile_equilibrium(&model, clamps).unwrap());
+        }
+        assert!(compile_equilibria(&model, &[&[at(0, 1.0), at(0, 2.0)][..]]).is_err());
+        assert!(compile_equilibria(&model, &[&[at(7, 1.0)][..]]).is_err());
     }
 }

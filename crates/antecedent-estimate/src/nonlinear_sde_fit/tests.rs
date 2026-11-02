@@ -52,13 +52,14 @@ fn filter_observes_inherited_cancellation_inside_transition() {
     };
     let policy = SdeFitPolicy { filter_step: 0.05, ..policy() };
     let base = compiled.system().parameter_values();
+    let (prepared, _plans) = prepare(&compiled, &trajectories, &ctx(7)).unwrap();
     let problem = Problem {
         compiled: &compiled,
         coordinates: &[0],
         base: base.clone(),
         observation: Some(&observation),
         prior: Some(&prior),
-        prepared: prepare(&compiled, &trajectories).unwrap(),
+        prepared,
         policy: &policy,
         d: 3,
         m: 3,
@@ -567,6 +568,8 @@ fn reports_keep_monte_carlo_numerical_and_parameter_uncertainty_apart() {
     // The three sources are separate fields of one report.
     assert!(report.simulation.worlds[0].numerical.is_some());
     assert!(report.simulation.worlds[0].monte_carlo_standard_error[2][1] > 0.0);
+    // The spread is funded beside the simulation, for as long as the report lives.
+    assert!(report.retained_admitted_bytes() > report.simulation.retained_admitted_bytes());
     // Without a fit there is nothing to propagate.
     match sde_report(
         &compiled,
@@ -583,5 +586,35 @@ fn reports_keep_monte_carlo_numerical_and_parameter_uncertainty_apart() {
             assert_eq!(code, "sde_fit.parameter_uncertainty_unavailable");
         }
         other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn trajectory_worlds_are_admitted_together_before_any_is_resolved() {
+    use antecedent_core::execution::AdmissionPool;
+
+    let compiled = epidemic([0.5, 0.2, 0.3], 0).compile().unwrap();
+    let trajectories = reference_trajectories(1);
+    let tight = ctx(1).with_admission(AdmissionPool::fixed(1, 1));
+    assert!(matches!(prepare(&compiled, &trajectories, &tight), Err(SdeFitError::Resource(_))));
+    let (plans, lease) = prepare(&compiled, &trajectories, &ctx(2)).unwrap();
+    assert_eq!(plans.len(), trajectories.len());
+    assert!(lease.remainder().bytes() > 0);
+    drop(lease);
+    let cancelled = ctx(3);
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        prepare(&compiled, &trajectories, &cancelled),
+        Err(SdeFitError::Resource(reason)) if reason.contains("cancelled")
+    ));
+}
+
+#[test]
+fn a_trajectory_without_a_world_identity_is_planned_under_its_own() {
+    let compiled = epidemic([0.5, 0.2, 0.3], 0).compile().unwrap();
+    let trajectories = reference_trajectories(1);
+    let (plans, _lease) = prepare(&compiled, &trajectories, &ctx(4)).unwrap();
+    for (item, trajectory) in plans.iter().zip(&trajectories) {
+        assert_eq!(item.plan.id, trajectory.id);
     }
 }

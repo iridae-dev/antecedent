@@ -30,6 +30,7 @@
     clippy::needless_range_loop,
     reason = "dense numeric kernels index several parallel columns by row"
 )]
+use antecedent_core::ExecutionContext;
 use antecedent_stats::{FaerBackend, LeastSquaresWorkspace};
 
 use crate::EstimationError;
@@ -794,11 +795,20 @@ struct BootstrapOutcome {
     se: Option<(f64, f64, f64)>,
 }
 
+fn cancelled() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "nonlinear_mediation.cancelled",
+        "the nonlinear mediation estimate was cancelled; no estimate is reported",
+    )
+}
+
 fn run_bootstrap(
     cols: &Columns,
     config: &NonlinearMediationConfig,
     q: &Quadrature,
-) -> BootstrapOutcome {
+    ctx: &ExecutionContext,
+) -> Result<BootstrapOutcome, EstimationError> {
     let n = cols.len();
     let n64 = u64::try_from(n).unwrap_or(u64::MAX).max(1);
     let (mut d, mut i_, mut t) = (Vec::new(), Vec::new(), Vec::new());
@@ -806,6 +816,9 @@ fn run_bootstrap(
     let mut idx = vec![0usize; n];
     let mut sample = Columns { a: Vec::new(), m: Vec::new(), y: Vec::new(), x: Vec::new() };
     for r in 0..config.bootstrap_replicates {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
         let id = u64::from(r);
         let mut state = seed_mix(config.seed ^ mix64(id.wrapping_add(1)));
         for slot in &mut idx {
@@ -839,7 +852,7 @@ fn run_bootstrap(
     } else {
         None
     };
-    BootstrapOutcome {
+    Ok(BootstrapOutcome {
         record: NonlinearMediationBootstrap {
             seed: config.seed,
             replicates_requested: config.bootstrap_replicates,
@@ -848,7 +861,7 @@ fn run_bootstrap(
             id_scheme: NONLINEAR_MEDIATION_REPLICATE_SCHEME,
         },
         se,
-    }
+    })
 }
 
 /// Estimate the natural direct, indirect and total effects of a binary treatment through a
@@ -864,7 +877,8 @@ fn run_bootstrap(
 /// `nonlinear_mediation.cross_world_independence_not_declared`,
 /// `nonlinear_mediation.interventional_effects_closed`, `nonlinear_mediation.overlap`,
 /// `nonlinear_mediation.integration_error`, `nonlinear_mediation.identity_violation`,
-/// `nonlinear_mediation.rank_deficient` or an input-validation detail.
+/// `nonlinear_mediation.rank_deficient` or an input-validation detail, or with
+/// `nonlinear_mediation.cancelled` when `ctx` is cancelled before the estimate completes.
 #[allow(
     clippy::too_many_lines,
     reason = "validation, the design summaries, the fit and the integration checks of one estimate"
@@ -873,10 +887,14 @@ pub fn estimate_nonlinear_mediation(
     input: &NonlinearMediationInput<'_>,
     premises: &NonlinearMediationPremises,
     config: &NonlinearMediationConfig,
+    ctx: &ExecutionContext,
 ) -> Result<NonlinearMediationEstimate, EstimationError> {
     check_premises(premises, config)?;
     let cols = validate(input, config)?;
     let (treated_count, control_count) = check_arms(&cols, config)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
+    }
     let fit = fit_model(&cols, config.outcome_degree)?;
     let nodes = effective_nodes(config);
     let coarse_q = gauss_hermite(nodes)?;
@@ -935,7 +953,7 @@ pub fn estimate_nonlinear_mediation(
             "total effect differs from direct plus indirect",
         ));
     }
-    let boot = run_bootstrap(&cols, config, &fine_q);
+    let boot = run_bootstrap(&cols, config, &fine_q, ctx)?;
     let (mediator_design, outcome_design) = design_summaries(&cols, &fit);
     let (skew, kurt) = residual_shape(&fit);
     Ok(NonlinearMediationEstimate {

@@ -6,7 +6,7 @@
 //! belong to the continuous-time family.
 use crate::nonlinear_equilibrium::{
     Activation, Clamp, Equation, EquilibriumError, EquilibriumModel, EquilibriumOutcome,
-    SolvePolicy,
+    SolvePolicy, SolveShape, retain_numerical_failure,
 };
 use antecedent_core::ExecutionContext;
 use serde::{Deserialize, Serialize};
@@ -63,6 +63,7 @@ pub struct EquilibriumActionPlan {
     model: EquilibriumModel,
     clamps: Vec<Clamp>,
     shocks: Vec<f64>,
+    shape: SolveShape,
 }
 fn invalid(message: &str) -> EquilibriumError {
     EquilibriumError::Invalid(message.into())
@@ -139,13 +140,14 @@ impl EquilibriumModel {
             }
         }
         model.validate()?;
-        Ok(EquilibriumActionPlan { model, clamps, shocks })
+        let shape = model.solve_shape(&clamps)?;
+        Ok(EquilibriumActionPlan { model, clamps, shocks, shape })
     }
 }
 impl EquilibriumActionPlan {
     /// Inspect the actual post-action SCC schedule.
     pub fn blocks(&self) -> Result<Vec<Vec<usize>>, EquilibriumError> {
-        self.model.blocks(&self.clamps)
+        Ok(self.shape.blocks().to_vec())
     }
     /// Reuse the supplied/factually abducted disturbances, then apply shocks.
     /// Numerical failures remain aligned outcomes; resource/cancellation errors abort.
@@ -160,7 +162,14 @@ impl EquilibriumActionPlan {
             return Err(invalid("action disturbance order"));
         }
         let shifted: Vec<_> = noise.iter().zip(&self.shocks).map(|(u, shock)| u + shock).collect();
-        self.model.solve_outcome(&shifted, &self.clamps, initial, policy, ctx)
+        retain_numerical_failure(self.model.solve_shaped(
+            &self.shape,
+            &shifted,
+            &self.clamps,
+            initial,
+            policy,
+            ctx,
+        ))
     }
 }
 #[cfg(test)]
@@ -242,5 +251,33 @@ mod tests {
                 ])
                 .is_err()
         );
+    }
+
+    #[test]
+    fn a_plan_solves_every_draw_as_the_model_does_without_rebuilding_its_schedule() {
+        let equation = |id: &str, weights: Vec<f64>| Equation {
+            id: id.into(),
+            intercept: 0.0,
+            weights,
+            activation: Activation::Identity,
+            expression: None,
+            parameters: vec![],
+        };
+        let model = EquilibriumModel {
+            equations: vec![equation("a", vec![0.0, 0.4]), equation("b", vec![0.5, 0.0])],
+            noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+        };
+        let action = EquilibriumAction::AdditiveShock { mechanism: "a".into(), delta: 1.0 };
+        let plan = model.compile_actions(std::slice::from_ref(&action)).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        for draw in [[0.3, -0.2], [1.25, 0.625], [-2.0, 0.5]] {
+            let planned = plan.solve(&draw, &[0.0, 0.0], SolvePolicy::default(), &ctx).unwrap();
+            let shifted = [draw[0] + 1.0, draw[1]];
+            let direct = model
+                .solve_outcome(&shifted, &[], &[0.0, 0.0], SolvePolicy::default(), &ctx)
+                .unwrap();
+            assert_eq!(planned, direct);
+        }
+        assert_eq!(plan.blocks().unwrap(), model.blocks(&[]).unwrap());
     }
 }

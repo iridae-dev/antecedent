@@ -9,6 +9,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::nonlinear_mediation::{
     NonlinearMediationConfig, NonlinearMediationInput, NonlinearMediationPremises,
     estimate_nonlinear_mediation,
@@ -51,6 +52,7 @@ fn natural_effects_and_mediator_fit_match_the_exact_gaussian_integral() {
             &input,
             &NonlinearMediationPremises::sequentially_ignorable(),
             &config,
+            &ExecutionContext::for_tests(1),
         )
         .unwrap_or_else(|e| panic!("{name}: {e:?}"));
         // The outcome offset of 1e7 costs the least-squares fit about 1e-9 relative.

@@ -53,6 +53,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
+use antecedent_core::execution::AdmissionLease;
 use antecedent_core::intervention::{
     AdmitError, CYCLIC_SUPPORTED_OPERATION_ATTEMPT, CapabilityRefusal, CyclicFamily,
     InterventionOperation,
@@ -79,8 +80,9 @@ use crate::nonlinear_equilibrium::{
     SolvePolicy,
 };
 use crate::scc_compile::{
-    BlockDiagnostic, CompileBudget, GaussianDisturbance, LinearSupportRoute, SccCompileError,
-    compile_routed_gaussian_equilibrium, require_psd,
+    BlockDiagnostic, CompileBudget, GaussianDisturbance, LinearRouteSet, LinearSupportRoute,
+    SccCompileError, compile_routed_with, gaussian_equilibrium_admission,
+    gaussian_equilibrium_route_work,
 };
 
 /// Soft family that replaces the mechanism by a constant. Parameters: `[value]`.
@@ -158,6 +160,20 @@ pub const CERTIFYING_EVIDENCE_ATTEMPT: NextAttempt = NextAttempt::new(
     "certifying_evidence",
     "name a component id, a source id, and certifying evidence other than the source",
 );
+
+/// Work, in solver iteration units, one nonlinear world may spend across its draws: the draws,
+/// times the iterations each draw can take (the policy's total bound, or its per-block bound
+/// over every block, whichever is lower), times the squared order. A world over it is
+/// refused before any draw is solved.
+pub const NONLINEAR_WORLD_MAX_WORK: u64 = 10_000_000_000_000;
+
+/// Fixed bytes charged for one retained result besides its numbers: the request, the resolved
+/// actions, the variable ids and the certificate record.
+const RESULT_OVERHEAD_BYTES: usize = 4096;
+
+/// Fixed bytes charged for one retained draw outcome besides its state and blocks: the
+/// evidence record and its strings.
+const OUTCOME_OVERHEAD_BYTES: usize = 2048;
 
 /// Resources or cancellation stopped the evaluation.
 pub const EXECUTION_ATTEMPT: NextAttempt = NextAttempt::new(
@@ -1275,6 +1291,17 @@ impl WorldMass {
     }
 }
 
+/// Admission that funds a result's retained storage, released with its last clone. Equality
+/// ignores it: two results are equal when their numbers are.
+#[derive(Clone, Debug, Default)]
+struct WorldRetention(Option<Arc<AdmissionLease>>);
+
+impl PartialEq for WorldRetention {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
 /// One evaluated cyclic world.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CyclicWorldResult {
@@ -1288,6 +1315,7 @@ pub struct CyclicWorldResult {
     solved_by: WorldSolvedBy,
     mass: WorldMass,
     physical_stability: PhysicalStability,
+    retention: WorldRetention,
 }
 
 impl CyclicWorldResult {
@@ -1308,7 +1336,46 @@ impl CyclicWorldResult {
             solved_by,
             mass,
             physical_stability: PhysicalStability::Unclaimed,
+            retention: WorldRetention::default(),
         }
+    }
+
+    /// This result, with `lease` held until its last clone drops. The caller admits the bytes
+    /// of the retained outcome (see [`Self::retained_gaussian_estimate`]) before it builds them.
+    #[must_use]
+    pub fn retained_by(mut self, lease: AdmissionLease) -> Self {
+        self.retention = WorldRetention(Some(Arc::new(lease)));
+        self
+    }
+
+    /// Bytes the retention lease still holds in the admission pool; zero when none was attached.
+    #[must_use]
+    pub fn retained_admitted_bytes(&self) -> u64 {
+        self.retention.0.as_ref().map_or(0, |lease| lease.remainder().bytes())
+    }
+
+    /// Conservative bytes a Gaussian law over `order` variables retains: the mean and the
+    /// covariance, plus the fixed bookkeeping of the result.
+    #[must_use]
+    pub fn retained_gaussian_estimate(order: usize) -> u64 {
+        let floats = order.saturating_mul(order).saturating_add(order);
+        u64::try_from(floats.saturating_mul(8).saturating_add(RESULT_OVERHEAD_BYTES))
+            .unwrap_or(u64::MAX)
+    }
+
+    /// Conservative bytes the outcomes of a nonlinear world retain over `draws` draws of a model
+    /// of `order` variables, whatever its block structure.
+    #[must_use]
+    pub fn retained_draws_estimate(order: usize, draws: usize) -> u64 {
+        nonlinear_world_cost(order, draws, order, &SolvePolicy::default()).1.unwrap_or(u64::MAX)
+    }
+
+    /// Conservative bytes a trajectory of `samples` states of `order` variables retains.
+    #[must_use]
+    pub fn retained_trajectory_estimate(order: usize, samples: usize) -> u64 {
+        let per_state = order.saturating_mul(8).saturating_add(std::mem::size_of::<Vec<f64>>());
+        u64::try_from(per_state.saturating_mul(samples).saturating_add(RESULT_OVERHEAD_BYTES))
+            .unwrap_or(u64::MAX)
     }
 
     /// World id.
@@ -1687,7 +1754,9 @@ fn linear_world_system(
     }
     let model = LinearStructuralMap::try_new(coefficients, intercept)
         .map_err(|error| specification_refusal(family, world, error))?;
-    let disturbance = GaussianDisturbance::try_new(mean, spec.disturbance.covariance().to_vec())
+    let disturbance = spec
+        .disturbance
+        .with_mean(mean)
         .map_err(|error| specification_refusal(family, world, error))?;
     let clamp = InterventionRequest::hard_clamp(n, &nodes, &levels)
         .map_err(|error| specification_refusal(family, world, error))?;
@@ -1713,14 +1782,108 @@ pub fn evaluate_linear_world(
     demand: CertificateDemand,
     budget: CompileBudget,
 ) -> Result<CyclicWorldResult, CyclicInterventionRefusal> {
+    evaluate_charged(spec, request, demand, &mut LinearLedger::new(budget), None)
+}
+
+/// Work and bytes one linear evaluation may spend across every world it evaluates.
+///
+/// The disturbance covariance belongs to the specification, and its positive-semidefinite
+/// verdict is shared by every world's disturbance, so the check is charged and run by the
+/// first world that finds it unchecked.
+struct LinearLedger {
+    remaining_work: u64,
+    max_bytes: u64,
+}
+
+impl LinearLedger {
+    const fn new(budget: CompileBudget) -> Self {
+        Self { remaining_work: budget.max_work, max_bytes: budget.max_bytes }
+    }
+
+    const fn budget(&self) -> CompileBudget {
+        CompileBudget { max_work: self.remaining_work, max_bytes: self.max_bytes }
+    }
+
+    fn charge(&mut self, work: u64, bytes: u64) -> Result<(), SccCompileError> {
+        if bytes > self.max_bytes {
+            return Err(SccCompileError::Budget {
+                resource: "bytes",
+                requested: bytes,
+                limit: self.max_bytes,
+            });
+        }
+        if work > self.remaining_work {
+            return Err(SccCompileError::Budget {
+                resource: "work",
+                requested: work,
+                limit: self.remaining_work,
+            });
+        }
+        self.remaining_work -= work;
+        Ok(())
+    }
+}
+
+/// Admission work of the positive-semidefinite check of an `n × n` covariance, and its bytes.
+fn covariance_check_cost(n: usize) -> (u64, u64) {
+    let n = n as u64;
+    let square = n.saturating_mul(n);
+    (square.saturating_mul(n).saturating_add(square), square.saturating_mul(16))
+}
+
+/// Admission work of the solvability recheck and the family assessment of a free block of
+/// `free` nodes: one pivoted factorization and a few passes over the coefficients.
+fn solvability_check_cost(free: usize) -> u64 {
+    let free = free as u64;
+    free.saturating_mul(free)
+        .saturating_mul(free)
+        .saturating_mul(2)
+        .saturating_add(free.saturating_mul(free).saturating_mul(2))
+}
+
+/// Admission work and bytes of [`direct_free_block_moments`] over `free` of `n` nodes: two
+/// dense Gauss-Jordan solves, and the factor, right-hand sides and their copies.
+fn direct_solve_cost(n: usize, free: usize) -> (u64, u64) {
+    let (n, m) = (n as u64, free as u64);
+    let work = m
+        .saturating_mul(m)
+        .saturating_mul(m)
+        .saturating_mul(4)
+        .saturating_add(m.saturating_mul(m).saturating_mul(8));
+    let floats = m
+        .saturating_mul(m)
+        .saturating_mul(4)
+        .saturating_add(m)
+        .saturating_add(n.saturating_mul(n))
+        .saturating_add(n);
+    (work, floats.saturating_mul(8))
+}
+
+fn evaluate_charged(
+    spec: &LinearCyclicSpecification,
+    request: &CyclicWorldRequest,
+    demand: CertificateDemand,
+    ledger: &mut LinearLedger,
+    routes: Option<&LinearRouteSet>,
+) -> Result<CyclicWorldResult, CyclicInterventionRefusal> {
     let family = CyclicFamily::LinearEquilibrium;
     let resolved = resolve_cyclic_world(family, &spec.variables, &[], request)?;
     let world = resolved.world;
     let system = linear_world_system(spec, &resolved)?;
-    require_psd(system.disturbance.covariance(), system.model.dimension())
-        .map_err(|error| specification_refusal(family, Some(world), error))?;
+    let n = system.model.dimension();
+    if !system.disturbance.psd_verified() {
+        let (work, bytes) = covariance_check_cost(n);
+        ledger.charge(work, bytes).map_err(|error| execution_refusal(family, world, error))?;
+        system
+            .disturbance
+            .require_psd_once()
+            .map_err(|error| specification_refusal(family, Some(world), error))?;
+    }
     let (clamp, values) = hard_clamp_of(&system.clamp)
         .map_err(|error| specification_refusal(family, Some(world), error))?;
+    ledger
+        .charge(solvability_check_cost(n - clamp.indices().len().min(n)), 0)
+        .map_err(|error| execution_refusal(family, world, error))?;
     let assessment = assess(&system.model, clamp)
         .map_err(|error| specification_refusal(family, Some(world), error))?;
     let parts = match revalidate_solvability(&system.model, &system.clamp) {
@@ -1746,14 +1909,15 @@ pub fn evaluate_linear_world(
                     CERTIFYING_EVIDENCE_ATTEMPT,
                 )
             })?;
-            certified_linear_parts(world, &component, &system, (clamp, &values), budget)?
+            certified_linear_parts(world, &component, &system, (clamp, &values), (ledger, routes))?
         }
         Ok(_) => uncertified_linear_parts(
+            world,
             &system,
             (clamp.indices(), &values),
             assessment.family.rho_abs_upper(),
-            demand,
-        ),
+            (demand, ledger),
+        )?,
     };
     Ok(CyclicWorldResult::from_parts(resolved, &spec.variables, request, parts))
 }
@@ -1777,24 +1941,39 @@ fn certified_linear_parts(
     component: &CyclicComponent,
     system: &LinearWorldSystem,
     (clamp, values): (&HardClamp, &[f64]),
-    budget: CompileBudget,
+    (ledger, routes): (&mut LinearLedger, Option<&LinearRouteSet>),
 ) -> Result<WorldParts, CyclicInterventionRefusal> {
     let family = CyclicFamily::LinearEquilibrium;
-    let routed = match compile_routed_gaussian_equilibrium(
+    let budget = ledger.budget();
+    // A held route was charged when it was computed; the solve spends only what follows it.
+    let held = routes.is_some_and(|set| set.get(&system.model, clamp).is_some());
+    // A solve that fails after it was admitted spent the work it was admitted for.
+    let spent = || {
+        let routing = if held {
+            gaussian_equilibrium_route_work(system.model.dimension()).unwrap_or(0)
+        } else {
+            0
+        };
+        gaussian_equilibrium_admission(&system.model, clamp)
+            .map_or(budget.max_work, |cost| cost.work().saturating_sub(routing))
+    };
+    let routed = match compile_routed_with(
         component,
         &system.model,
         &system.disturbance,
-        clamp,
-        values,
+        (clamp, values),
         budget,
+        routes,
     ) {
         Ok(routed) => routed,
         Err(SccCompileError::NumericallySingularBlock { members }) => {
+            ledger.remaining_work = ledger.remaining_work.saturating_sub(spent());
             return Ok(failed_parts(WorldFailure::solvability(
                 SolvabilityRefusal::NumericallySingular { members },
             )));
         }
         Err(SccCompileError::NonFiniteEquilibrium) => {
+            ledger.remaining_work = ledger.remaining_work.saturating_sub(spent());
             return Ok(failed_parts(WorldFailure::solvability(SolvabilityRefusal::NonFinite)));
         }
         Err(error @ SccCompileError::Budget { .. }) => {
@@ -1814,6 +1993,7 @@ fn certified_linear_parts(
         }
     };
     let equilibrium = routed.equilibrium();
+    ledger.remaining_work = ledger.remaining_work.saturating_sub(equilibrium.admission().work());
     Ok((
         CyclicWorldOutcome::GaussianLaw {
             mean: equilibrium.mean().to_vec(),
@@ -1834,24 +2014,30 @@ fn certified_linear_parts(
 /// The world when `ρ(|K|) < 1` was not shown: withheld, or solved directly and
 /// marked uncertified.
 fn uncertified_linear_parts(
+    world: ScientificWorldId,
     system: &LinearWorldSystem,
     (clamp_nodes, values): (&[usize], &[f64]),
     rho_abs_upper: f64,
-    demand: CertificateDemand,
-) -> WorldParts {
+    (demand, ledger): (CertificateDemand, &mut LinearLedger),
+) -> Result<WorldParts, CyclicInterventionRefusal> {
     let certificate = WorldCertificate::NotCertified {
         gap: CertificateGap::LinearFamilyBoundInsufficient { rho_abs_upper },
         next_attempt: QUERY_SPECIFIC_CERTIFICATE_ATTEMPT,
     };
     if demand == CertificateDemand::Required {
-        return (
+        return Ok((
             CyclicWorldOutcome::Withheld,
             certificate,
             WorldSolvedBy::NotSolved,
             WorldMass::WITHHELD,
-        );
+        ));
     }
-    match direct_free_block_moments(&system.model, clamp_nodes, values, &system.disturbance) {
+    let n = system.model.dimension();
+    let (work, bytes) = direct_solve_cost(n, n - clamp_nodes.len().min(n));
+    ledger
+        .charge(work, bytes)
+        .map_err(|error| execution_refusal(CyclicFamily::LinearEquilibrium, world, error))?;
+    Ok(match direct_free_block_moments(&system.model, clamp_nodes, values, &system.disturbance) {
         Ok((mean, covariance, free)) => (
             CyclicWorldOutcome::GaussianLaw {
                 mean,
@@ -1864,10 +2050,13 @@ fn uncertified_linear_parts(
             WorldMass::SOLVED,
         ),
         Err(refused) => failed_parts(WorldFailure::solvability(refused)),
-    }
+    })
 }
 
 /// Evaluate every request against one linear specification.
+///
+/// `budget` bounds the worlds together: the work of each is charged against what the earlier
+/// worlds left, and the disturbance covariance is checked once.
 ///
 /// # Errors
 ///
@@ -1879,15 +2068,46 @@ pub fn evaluate_linear_worlds(
     demand: CertificateDemand,
     budget: CompileBudget,
 ) -> Result<CyclicWorldResults, CyclicInterventionRefusal> {
+    evaluate_worlds(spec, requests, demand, budget, None)
+}
+
+/// [`evaluate_linear_worlds`] that reuses the support routes already computed for `spec`'s map.
+///
+/// A world whose intervened map and clamp set match a route in `routes` is compiled from it,
+/// and the routing work, charged when the route was computed, is not charged again. Every
+/// other world routes itself and is charged for it. A set built for another map is ignored,
+/// so the result never depends on where `routes` came from.
+///
+/// # Errors
+///
+/// The errors of [`evaluate_linear_worlds`].
+pub fn evaluate_linear_worlds_routed(
+    spec: &LinearCyclicSpecification,
+    requests: &[CyclicWorldRequest],
+    demand: CertificateDemand,
+    budget: CompileBudget,
+    routes: &LinearRouteSet,
+) -> Result<CyclicWorldResults, CyclicInterventionRefusal> {
+    evaluate_worlds(spec, requests, demand, budget, Some(routes))
+}
+
+fn evaluate_worlds(
+    spec: &LinearCyclicSpecification,
+    requests: &[CyclicWorldRequest],
+    demand: CertificateDemand,
+    budget: CompileBudget,
+    routes: Option<&LinearRouteSet>,
+) -> Result<CyclicWorldResults, CyclicInterventionRefusal> {
     let mut seen = std::collections::BTreeSet::new();
     for request in requests {
         if !seen.insert(request.world) {
             return Err(duplicate_world(request.world, CyclicFamily::LinearEquilibrium));
         }
     }
+    let mut ledger = LinearLedger::new(budget);
     let results = requests
         .iter()
-        .map(|request| evaluate_linear_world(spec, request, demand, budget))
+        .map(|request| evaluate_charged(spec, request, demand, &mut ledger, routes))
         .collect::<Result<Vec<_>, _>>()?;
     CyclicWorldResults::try_from_results(results)
 }
@@ -2117,9 +2337,32 @@ pub fn evaluate_nonlinear_world(
     };
     let plan = spec.model.compile_actions(&actions).map_err(classify)?;
     let blocks = plan.blocks().map_err(classify)?;
-    let mut outcomes = Vec::with_capacity(noise_draws.len() / n);
+    let draw_count = noise_draws.len() / n;
+    let (work, retained) = nonlinear_world_cost(n, draw_count, blocks.len(), &policy);
+    if work.is_none_or(|work| work > NONLINEAR_WORLD_MAX_WORK) {
+        return Err(execution_refusal(
+            family,
+            world,
+            format_args!(
+                "{}{}: cyclic_world.work_limit: {draw_count} draws over {n} variables exceed \
+                 the world work limit of {NONLINEAR_WORLD_MAX_WORK}. Next attempt: fewer draws, \
+                 a smaller iteration bound, or split the draws across requests",
+                antecedent_core::reason_code::PREFIX,
+                antecedent_core::reason_code!("execution_resource_limit"),
+            ),
+        ));
+    }
+    let lease = retained
+        .ok_or_else(|| execution_refusal(family, world, "retained outcome size overflows u64"))
+        .and_then(|bytes| {
+            ctx.acquire_admission(0, bytes).map_err(|error| execution_refusal(family, world, error))
+        })?;
+    let mut outcomes = Vec::with_capacity(draw_count);
     let (mut failed, mut withheld, mut uncertified) = (0_usize, 0_usize, 0_usize);
     for draw in noise_draws.chunks_exact(n) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(execution_refusal(family, world, "execution cancelled"));
+        }
         let outcome = plan.solve(draw, initial, policy, ctx).map_err(classify)?;
         match &outcome {
             EquilibriumOutcome::Solved(solution) => {
@@ -2165,7 +2408,35 @@ pub fn evaluate_nonlinear_world(
             WorldSolvedBy::NonlinearBlocks { blocks, policy },
             WorldMass::from_counts(draws, failed, withheld),
         ),
-    ))
+    )
+    .retained_by(lease))
+}
+
+/// Upper bound on the solver work of a nonlinear world and the bytes its outcomes retain.
+/// Each is `None` when it overflows. Every draw retains its state, a copy of the block
+/// partition and the evidence record.
+fn nonlinear_world_cost(
+    order: usize,
+    draws: usize,
+    blocks: usize,
+    policy: &SolvePolicy,
+) -> (Option<u64>, Option<u64>) {
+    let order = order as u64;
+    let draws = draws as u64;
+    let iterations = (policy.max_total_iterations as u64)
+        .min((blocks as u64).saturating_mul(policy.max_iterations as u64));
+    let work = draws
+        .checked_mul(iterations)
+        .and_then(|w| w.checked_mul(order.max(1)))
+        .and_then(|w| w.checked_mul(order.max(1)));
+    let per_outcome = order
+        .checked_mul(16)
+        .and_then(|b| b.checked_add((blocks as u64).checked_mul(24)?))
+        .and_then(|b| b.checked_add(OUTCOME_OVERHEAD_BYTES as u64));
+    let retained = per_outcome
+        .and_then(|b| b.checked_mul(draws))
+        .and_then(|b| b.checked_add(RESULT_OVERHEAD_BYTES as u64));
+    (work, retained)
 }
 
 // ---------------------------------------------------------------------------
@@ -2308,6 +2579,9 @@ pub fn evaluate_continuous_time_world(
     } else {
         vec![TimedClamp { time: spec.times[0], clamps }]
     };
+    let retained = ctx
+        .acquire_admission(0, CyclicWorldResult::retained_trajectory_estimate(n, spec.times.len()))
+        .map_err(|error| execution_refusal(family, world, error))?;
     match system.trajectory(&initial, &spec.times, &schedule, policy, ctx) {
         Ok(trajectory) => {
             let solved_by = WorldSolvedBy::AdaptiveIntegration {
@@ -2328,7 +2602,8 @@ pub fn evaluate_continuous_time_world(
                     solved_by,
                     WorldMass::SOLVED,
                 ),
-            ))
+            )
+            .retained_by(retained))
         }
         Err(error) => {
             let integration_failure = match &error {
@@ -2357,5 +2632,49 @@ pub fn evaluate_continuous_time_world(
                 other => Err(specification_refusal(family, Some(world), other)),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+
+    #[test]
+    fn the_nonlinear_work_bound_counts_draws_iterations_and_order_squared() {
+        let policy = SolvePolicy {
+            max_iterations: 10,
+            max_total_iterations: 1_000,
+            ..SolvePolicy::default()
+        };
+        let (work, _) = nonlinear_world_cost(4, 100, 3, &policy);
+        assert_eq!(work, Some(100 * 30 * 16), "per-block bound over three blocks is lower");
+        let (work, _) = nonlinear_world_cost(4, 100, 500, &policy);
+        assert_eq!(work, Some(100 * 1_000 * 16), "the total bound is lower over many blocks");
+    }
+
+    #[test]
+    fn a_world_over_the_work_limit_is_refused_before_any_draw_is_solved() {
+        let policy = SolvePolicy::default();
+        let (work, _) = nonlinear_world_cost(100, usize::MAX / 4, 1, &policy);
+        assert!(work.is_none_or(|work| work > NONLINEAR_WORLD_MAX_WORK));
+    }
+
+    #[test]
+    fn retained_bytes_grow_with_draws_and_blocks() {
+        let policy = SolvePolicy::default();
+        let (_, small) = nonlinear_world_cost(3, 10, 1, &policy);
+        let (_, more_draws) = nonlinear_world_cost(3, 20, 1, &policy);
+        let (_, more_blocks) = nonlinear_world_cost(3, 10, 3, &policy);
+        assert!(more_draws > small && more_blocks > small);
+        assert!(small.is_some_and(|b| b >= 10 * OUTCOME_OVERHEAD_BYTES as u64));
+    }
+
+    #[test]
+    fn a_gaussian_law_is_charged_for_its_mean_and_covariance() {
+        let floats = 5 * 5 + 5;
+        assert_eq!(
+            CyclicWorldResult::retained_gaussian_estimate(5),
+            (floats * 8 + RESULT_OVERHEAD_BYTES) as u64
+        );
     }
 }

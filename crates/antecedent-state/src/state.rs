@@ -77,23 +77,97 @@ pub struct CausalState {
     pub invalidations: InvalidationLog,
     /// Cache budget.
     pub cache_budget: CacheBudget,
+    /// Bounds besides the cache budget.
+    pub limits: StateLimits,
     /// Sufficient statistics.
     pub suff_stats: SuffStatStore,
     /// Recorded interventions.
     pub interventions: Vec<crate::store::InterventionRecord>,
 }
 
+/// Default cache budget of a [`CausalState`]: 64 MiB.
+const DEFAULT_CACHE_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Bytes budgeted for one retained audit entry: [`InvalidationEntry`](crate::InvalidationEntry)
+/// is 88 bytes on 64-bit targets and its reason is a short shared string; 128 rounds up.
+const AUDIT_ENTRY_BYTES: u64 = 128;
+
+/// Share of the cache budget the audit trail may hold, as a divisor: one eighth.
+const AUDIT_BUDGET_DIVISOR: u64 = 8;
+
+/// Bounds a [`CausalState`] keeps besides its [`CacheBudget`].
+///
+/// # Audit window
+///
+/// [`Self::audit_window_entries`] bounds [`InvalidationLog::entries`]. It is derived from what
+/// that trail is for and from the budget it shares memory with, not chosen.
+///
+/// - Staleness queries ([`CausalState::is_stale`], [`CausalState::stale_queries`] and
+///   [`CausalState::revalidation`]) read the log's index, which has one slot per distinct class
+///   and is not trimmed. They put no lower bound on the window.
+/// - The trail serves audit and replay: a reader classifies what changed after a claim's
+///   version through [`InvalidationLog::entries_after`]. A claim older than the window is
+///   refused with [`PrunedHistory`](crate::PrunedHistory), which also carries a chain head
+///   over every trimmed entry, so the window bounds what is held, never what is committed to.
+///   A larger window serves older claims; there is no size beyond which more is needed.
+/// - The trail competes with the cached results for memory, so it is a fixed share of the
+///   same budget: one eighth, at 128 bytes per entry. The default budget of 64 MiB gives
+///   64 MiB / 8 / 128 B = 65,536 entries, 8 MiB. Trimming leaves between the window and twice
+///   the window, so the trail holds at most a quarter of the budget.
+/// - The result is clamped to 1,024 entries at least, so a tiny budget still keeps the
+///   recent versions an audit asks about first, and to 2^20 entries (128 MiB) at most, so
+///   an unlimited budget cannot make the trail unbounded.
+///
+/// A version is never split: one event with more entries than the window stays whole.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct StateLimits {
+    /// Audit entries kept before the oldest whole versions are trimmed.
+    pub audit_window_entries: usize,
+}
+
+impl StateLimits {
+    /// Fewest audit entries a window keeps.
+    pub const MIN_AUDIT_WINDOW_ENTRIES: usize = 1_024;
+    /// Most audit entries a window keeps.
+    pub const MAX_AUDIT_WINDOW_ENTRIES: usize = 1 << 20;
+
+    /// The limits derived from `budget`; see the type documentation.
+    #[must_use]
+    pub fn for_cache_budget(budget: CacheBudget) -> Self {
+        let entries = budget.max_bytes / AUDIT_BUDGET_DIVISOR / AUDIT_ENTRY_BYTES;
+        let entries = usize::try_from(entries).unwrap_or(usize::MAX);
+        Self {
+            audit_window_entries: entries
+                .clamp(Self::MIN_AUDIT_WINDOW_ENTRIES, Self::MAX_AUDIT_WINDOW_ENTRIES),
+        }
+    }
+}
+
+impl Default for StateLimits {
+    /// The limits of the default 64 MiB cache budget: a 65,536-entry audit window.
+    fn default() -> Self {
+        Self::for_cache_budget(CacheBudget::new(DEFAULT_CACHE_BYTES))
+    }
+}
+
 impl Default for CausalState {
     fn default() -> Self {
-        Self::new(CacheBudget::new(64 * 1024 * 1024))
+        Self::new(CacheBudget::new(DEFAULT_CACHE_BYTES))
     }
 }
 
 impl CausalState {
-    /// Fresh state with the given cache budget.
+    /// Fresh state with the given cache budget and the [`StateLimits`] derived from it.
     #[must_use]
     pub fn new(cache_budget: CacheBudget) -> Self {
+        Self::with_limits(cache_budget, StateLimits::for_cache_budget(cache_budget))
+    }
+
+    /// Fresh state with explicit `limits`.
+    #[must_use]
+    pub fn with_limits(cache_budget: CacheBudget, limits: StateLimits) -> Self {
         Self {
+            limits,
             version: StateVersion::ZERO,
             data_catalog: DataCatalog::new(),
             graph_evidence: GraphEvidenceStore::default(),
@@ -215,6 +289,7 @@ impl CausalState {
                 self.invalidate_all_results(v, InvalidationReason::RecordIntervention, input);
             }
         }
+        self.invalidations.trim_audit(self.limits.audit_window_entries);
         Ok(v)
     }
 
@@ -643,6 +718,65 @@ mod tests {
         state.apply(StateEvent::ReplaceData(DataVersion::default().next())).unwrap();
         assert!(state.suff_stats.mechanism_diags.is_empty());
         assert_eq!(state.cache_budget.used_bytes, 0);
+    }
+
+    #[test]
+    fn the_audit_window_is_derived_from_the_cache_budget() {
+        let window =
+            |bytes| StateLimits::for_cache_budget(CacheBudget::new(bytes)).audit_window_entries;
+        assert_eq!(StateLimits::default().audit_window_entries, 65_536);
+        assert_eq!(CausalState::default().limits, StateLimits::default());
+        assert_eq!(window(64 * 1024 * 1024), 65_536);
+        assert_eq!(window(128 * 1024 * 1024), 131_072);
+        assert_eq!(window(0), StateLimits::MIN_AUDIT_WINDOW_ENTRIES);
+        assert_eq!(window(1 << 20), StateLimits::MIN_AUDIT_WINDOW_ENTRIES);
+        assert_eq!(window(u64::MAX), StateLimits::MAX_AUDIT_WINDOW_ENTRIES);
+        assert_eq!(
+            StateLimits::for_cache_budget(CacheBudget::unlimited()).audit_window_entries,
+            StateLimits::MAX_AUDIT_WINDOW_ENTRIES
+        );
+        assert_eq!(
+            CausalState::new(CacheBudget::new(1 << 30)).limits.audit_window_entries,
+            StateLimits::MAX_AUDIT_WINDOW_ENTRIES
+        );
+    }
+
+    #[test]
+    fn the_configured_window_trims_the_audit_trail_without_changing_staleness() {
+        let run = |limits| {
+            let mut state = CausalState::with_limits(CacheBudget::new(1 << 20), limits);
+            let q = state.queries.register(CausalQuery::AverageEffect(
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)),
+            ));
+            state.refresh_results_at(state.version, &[(q, 42, 16)]).expect("cache");
+            for i in 0..12 {
+                state
+                    .apply(StateEvent::AppendData(DataBatchRef {
+                        id: Arc::from(format!("b{i}")),
+                        nrows: 4,
+                        bytes: 32,
+                    }))
+                    .expect("append");
+            }
+            (state, q)
+        };
+        let (full, _) = run(StateLimits { audit_window_entries: 1 << 16 });
+        let (small, q) = run(StateLimits { audit_window_entries: 4 });
+        assert_eq!(full.invalidations.pruned_through(), None);
+        assert!(small.invalidations.pruned_through().is_some());
+        assert!(small.invalidations.entries.len() < full.invalidations.entries.len());
+        assert_eq!(
+            usize::try_from(small.invalidations.pruned_entries()).unwrap()
+                + small.invalidations.entries.len(),
+            full.invalidations.entries.len()
+        );
+        let chain = full.invalidations.entries
+            [..usize::try_from(small.invalidations.pruned_entries()).unwrap()]
+            .iter()
+            .fold(InvalidationLog::PRUNED_GENESIS, |head, entry| entry.chained_onto(head));
+        assert_eq!(small.invalidations.pruned_head(), chain);
+        assert_eq!(small.stale_queries(), full.stale_queries());
+        assert!(small.is_stale(q) && full.is_stale(q));
     }
 
     #[test]

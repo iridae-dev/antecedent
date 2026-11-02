@@ -730,3 +730,149 @@ fn work_and_memory_budgets_are_refused_before_simulating() {
         Err(SdeError::Resource(_))
     ));
 }
+
+fn small_policy() -> SdeSimulationPolicy {
+    SdeSimulationPolicy {
+        start: 0.0,
+        step: 0.01,
+        steps: 20,
+        output_every: 5,
+        scheme: SdeScheme::EulerMaruyama,
+        paths: 64,
+        seed: 3,
+        weak_tolerance: 0.05,
+        check_step: true,
+        retain_final_samples: true,
+    }
+}
+
+fn pooled(bytes: u64) -> ExecutionContext {
+    ExecutionContext::for_tests(5)
+        .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, bytes))
+}
+
+/// The least pool, in bytes, under which `run` succeeds.
+fn least_pool<T>(run: impl Fn(&ExecutionContext) -> Result<T, SdeError>) -> u64 {
+    let (mut low, mut high) = (0_u64, 1_u64 << 40);
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        if run(&pooled(middle)).is_ok() {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+    high
+}
+
+#[test]
+fn a_report_keeps_its_bytes_in_the_pool_until_the_last_clone_drops() {
+    let compiled = cir_system().compile().unwrap();
+    let policy = small_policy();
+    let run =
+        |ctx: &ExecutionContext| simulate_sde(&compiled, None, &[10.0], &policy, &[], &[], ctx);
+    let peak = least_pool(run);
+    let measured = run(&pooled(peak)).unwrap();
+    let retained = measured.retained_admitted_bytes();
+    assert!(retained > 0 && retained < peak);
+    drop(measured);
+
+    let pool = pooled(peak + retained / 2);
+    let held = run(&pool).expect("one run fits");
+    assert_eq!(held.retained_admitted_bytes(), retained);
+    assert!(run(&pool).is_err(), "the held report leaves no room for a second run");
+    let copy = held.clone();
+    drop(held);
+    assert!(run(&pool).is_err(), "a clone still holds the lease");
+    assert_eq!(copy, run(&ctx()).unwrap(), "retention does not take part in equality");
+    drop(copy);
+    run(&pool).expect("room returns with the last clone");
+}
+
+#[test]
+fn sampled_paths_keep_their_bytes_in_the_pool_until_dropped() {
+    let compiled = cir_system().compile().unwrap();
+    let policy = SdeSimulationPolicy { check_step: false, ..small_policy() };
+    let world = SdeWorld { id: "observational".into(), actions: vec![], inputs: vec![] };
+    let run =
+        |ctx: &ExecutionContext| sample_sde_paths(&compiled, None, &[10.0], &policy, &world, ctx);
+    let peak = least_pool(run);
+    let paths = run(&pooled(peak)).unwrap();
+    let held = paths.retained_admitted_bytes();
+    assert!(held >= (policy.paths * (policy.steps / policy.output_every + 1) * 8) as u64);
+    drop(paths);
+    let pool = pooled(peak + held / 2);
+    let paths = run(&pool).expect("one run fits");
+    assert!(run(&pool).is_err());
+    drop(paths);
+    run(&pool).expect("room returns when the paths drop");
+}
+
+#[test]
+fn world_plans_are_admitted_before_they_are_built() {
+    let compiled = cir_system().compile().unwrap();
+    let mut wide = SdeWorld { id: "wide".into(), actions: vec![], inputs: vec![] };
+    wide.actions = vec![SdeAction {
+        variable: 0,
+        times: (0..MAX_SDE_KNOTS).map(|k| k as f64 * 0.01).collect(),
+        values: vec![10.0; MAX_SDE_KNOTS],
+    }];
+    let bytes = compiled.system().world_plan_bytes(&wide);
+    assert!(bytes >= (MAX_SDE_KNOTS * 16) as u64);
+    let bare = SdeWorld { id: "bare".into(), actions: vec![], inputs: vec![] };
+    assert!(compiled.system().world_plan_bytes(&bare) < bytes);
+
+    let policy = SdeSimulationPolicy { check_step: false, steps: 40, ..small_policy() };
+    let tight = pooled(bytes / 2);
+    assert!(matches!(
+        simulate_sde(&compiled, None, &[10.0], &policy, &[wide.clone()], &[], &tight),
+        Err(SdeError::Resource(_))
+    ));
+    assert!(matches!(
+        sample_sde_paths(&compiled, None, &[10.0], &policy, &wide, &tight),
+        Err(SdeError::Resource(_))
+    ));
+}
+
+#[test]
+fn recertifying_at_other_parameters_is_admitted_and_cancellable() {
+    let compiled = cir_system().compile().unwrap();
+    let policy = small_policy();
+    let theta = [1.5, 5.0, 0.5];
+    let recertify = |ctx: &ExecutionContext| {
+        simulate_sde(&compiled, Some(&theta), &[10.0], &policy, &[], &[], ctx)
+    };
+    assert!(matches!(recertify(&pooled(1)), Err(SdeError::Resource(_))));
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(
+        matches!(recertify(&cancelled), Err(SdeError::Resource(reason)) if reason == "cancelled")
+    );
+    recertify(&ctx()).expect("admitted and run");
+}
+
+#[test]
+fn long_reductions_and_path_loops_observe_cancellation() {
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    let values = || (0..10).map(f64::from);
+    assert!(mean_and_se(values(), 10, &cancelled).is_err());
+    assert!(sum_polled(values(), &cancelled).is_err());
+    let live = ctx();
+    let (mean, _, _) = mean_and_se(values(), 10, &live).unwrap();
+    assert!((mean - 4.5).abs() < 1e-12);
+    assert!((sum_polled(values(), &live).unwrap() - 45.0).abs() < 1e-12);
+
+    let compiled = cir_system().compile().unwrap();
+    let policy = SdeSimulationPolicy { paths: 1, steps: 8, output_every: 8, ..small_policy() };
+    let plan = compiled
+        .system()
+        .plan_world(&SdeWorld { id: "w".into(), actions: vec![], inputs: vec![] }, 0.0, 0.01)
+        .unwrap();
+    let mut out = vec![0.0; 2];
+    let theta = compiled.system().parameter_values();
+    assert!(
+        run_path(&compiled, &theta, &plan, &policy, &[10.0], 0, false, &mut out, &cancelled)
+            .is_err()
+    );
+}

@@ -605,9 +605,6 @@ fn resume_checks_recorded_semantics_and_retains_only_consumed_receipts() {
     edited.work.ci_tests_consumed += 1;
     variants.push(edited);
     let mut edited = state.clone();
-    edited.work.ci_tests_completed = edited.work.ci_tests_attempted + 1;
-    variants.push(edited);
-    let mut edited = state.clone();
     edited.work.algorithm_executions = 0;
     variants.push(edited);
     for edited in variants {
@@ -615,6 +612,14 @@ fn resume_checks_recorded_semantics_and_retains_only_consumed_receipts() {
             StaticSelectiveDiscovery::resume(&contract, Some(&data), &edited, &ctx()).unwrap_err();
         assert_eq!(err.detail(), Some("selective_discovery.replay_diverged"));
     }
+    let mut impossible = state.clone();
+    impossible.work.ci_tests_completed = impossible.work.ci_tests_attempted + 1;
+    assert_eq!(
+        StaticSelectiveDiscovery::resume(&contract, Some(&data), &impossible, &ctx())
+            .unwrap_err()
+            .detail(),
+        Some("selective_discovery.work_inconsistent")
+    );
     let mut wrong_rows = state.clone();
     wrong_rows.rows += 1;
     assert_eq!(

@@ -14,6 +14,7 @@
 //! The mixture-average effect is `0.6 * 1 + 0.4 * (-2) = -0.2`. Bootstrap calibration is
 //! deliberately NOT measured here.
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::effect_constancy::CalibrationStatus;
 use antecedent_estimate::latent_class_effects::{
@@ -74,6 +75,7 @@ fn fit(data: &Data, config: &LatentClassConfig) -> Result<LatentClassResult, Est
     fit_latent_class_effects(
         &LatentClassData { outcome: &data.y, treatment: &data.a, covariates: &data.x },
         config,
+        &ExecutionContext::for_tests(1),
     )
 }
 
@@ -435,4 +437,18 @@ fn latent_class_posterior_consumer_replays_the_class_design() {
         panic!("expected a refusal");
     };
     assert!(message.contains("latent_class_posterior.empty_design"), "{message}");
+}
+
+#[test]
+fn a_cancelled_context_stops_the_fit_without_a_claim() {
+    let data = build();
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let error = fit_latent_class_effects(
+        &LatentClassData { outcome: &data.y, treatment: &data.a, covariates: &data.x },
+        &config(7),
+        &ctx,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("latent_class.cancelled"), "{error}");
 }

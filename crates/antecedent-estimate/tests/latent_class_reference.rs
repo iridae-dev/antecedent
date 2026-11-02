@@ -14,6 +14,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::latent_class_effects::{
     LatentClassConfig, LatentClassData, fit_latent_class_effects,
 };
@@ -53,6 +54,7 @@ fn the_selected_fit_is_the_independent_stationary_point() {
         let result = fit_latent_class_effects(
             &LatentClassData { outcome: &outcome, treatment: &treatment, covariates: &covariates },
             &config(case),
+            &ExecutionContext::for_tests(1),
         )
         .unwrap();
         let (weights, sigma2) = (floats(&want["weights"]), floats(&want["sigma2"]));
@@ -108,17 +110,24 @@ fn premises_the_data_cannot_supply_are_refused_when_undeclared() {
     let data =
         LatentClassData { outcome: &outcome, treatment: &treatment, covariates: &covariates };
     let undeclared = LatentClassConfig::new(2, 7);
-    let error = fit_latent_class_effects(&data, &undeclared).unwrap_err().to_string();
+    let error = fit_latent_class_effects(&data, &undeclared, &ExecutionContext::for_tests(1))
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("randomization_not_declared"), "{error}");
     let single = LatentClassConfig::new(1, 7).declare_conditional_randomization();
     assert!(
-        format!("{:?}", fit_latent_class_effects(&data, &single).err())
-            .contains("latent_class.degenerate_class"),
+        format!(
+            "{:?}",
+            fit_latent_class_effects(&data, &single, &ExecutionContext::for_tests(1)).err()
+        )
+        .contains("latent_class.degenerate_class"),
         "one class is not a mixture"
     );
     let constant = vec![1.0; outcome.len()];
     let flat = LatentClassData { outcome: &outcome, treatment: &constant, covariates: &covariates };
     let declared = LatentClassConfig::new(2, 7).declare_conditional_randomization();
-    let error = fit_latent_class_effects(&flat, &declared).unwrap_err().to_string();
+    let error = fit_latent_class_effects(&flat, &declared, &ExecutionContext::for_tests(1))
+        .unwrap_err()
+        .to_string();
     assert!(error.contains("treatment_constant"), "{error}");
 }

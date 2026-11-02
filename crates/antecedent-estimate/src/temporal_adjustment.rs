@@ -18,8 +18,8 @@ use antecedent_core::{
     TargetPopulation, TemporalEffectQuery, VariableId,
 };
 use antecedent_data::{
-    DiscoveryEstimationSplit, LaggedColumn, SamplingRegularity, TemporalIndexer, TimeIndex,
-    TimeSeriesData,
+    DiscoveryEstimationSplit, LaggedColumn, SamplingRegularity, TableView, TemporalIndexer,
+    TimeIndex, TimeSeriesData,
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_model::history_operators::{
@@ -460,14 +460,17 @@ impl TemporalLinearAdjustment {
         };
 
         let split = match split {
-            Some(split) => Some(
-                split
-                    .bind_embargo(
-                        antecedent_core::DeclaredSamplingDesign::DependentTimeSeries,
-                        max_lag,
-                    )
-                    .map_err(EstimationError::from)?,
-            ),
+            Some(split) => {
+                split.ensure_series_len(data.row_count()).map_err(EstimationError::from)?;
+                Some(
+                    split
+                        .bind_embargo(
+                            antecedent_core::DeclaredSamplingDesign::DependentTimeSeries,
+                            max_lag,
+                        )
+                        .map_err(EstimationError::from)?,
+                )
+            }
             None => None,
         };
         let split = split.as_ref();
@@ -2211,6 +2214,24 @@ mod tests {
         assert_eq!(aligned.rows, 139);
         assert_eq!(aligned.first_time + aligned.rows, 240);
         assert_eq!(prep.design.nrows, 139);
+    }
+
+    #[test]
+    fn a_split_declared_for_another_series_length_is_refused() {
+        let (data, g) = series();
+        let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
+            .with_policy(TemporalPolicy::pulse(-1))
+            .with_horizon_steps(1)
+            .with_max_history_lag(Some(1));
+        let id_res = TemporalBackdoorIdentifier::new().identify_temporal(&g, &q).unwrap();
+        let estimand = id_res.result.estimands.first().unwrap();
+        let est = TemporalLinearAdjustment::new();
+        let policy = &ExecutionContext::for_tests(1).kernel_policy;
+        let stale = DiscoveryEstimationSplit::from_sizes(120, 49, 1, 70).unwrap();
+        let error = est
+            .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&stale), policy)
+            .expect_err("a split of 120 rows cannot separate a 240-row series");
+        assert!(error.to_string().contains("series_len"), "{error}");
     }
 
     #[test]

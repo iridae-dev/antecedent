@@ -35,7 +35,7 @@ pub use graph_score::{
 };
 pub use invalidation::{
     ChangedInput, InvalidationEntry, InvalidationLog, InvalidationReason, InvalidationTarget,
-    TemporalDisposition, TemporalFactor, TemporalProduct,
+    PrunedHistory, TemporalDisposition, TemporalFactor, TemporalProduct,
 };
 pub use mechanism_diag::{
     RollingMechanismDiagnostics, evict_mechanism_diag, insert_mechanism_diag,
@@ -46,7 +46,7 @@ pub use particle_filter::{
 };
 pub use refresh_contract::{RefreshChange, RefreshDisposition, RefreshRoute, route_contract};
 pub use retention::RetentionPolicy;
-pub use state::{CausalState, ResultPublication};
+pub use state::{CausalState, ResultPublication, StateLimits};
 pub use store::{
     CachedResult, ConstraintId, DataBatchRef, DataCatalog, DataVersion, GraphConstraintRecord,
     GraphEvidenceRecord, GraphEvidenceStore, InterventionRecord, ModelRecord, ModelStore,

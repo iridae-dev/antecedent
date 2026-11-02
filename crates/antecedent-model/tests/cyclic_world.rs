@@ -24,15 +24,18 @@ use antecedent_model::cyclic_world::{
     ONE_ACTION_PER_VARIABLE_ATTEMPT, QUERY_SPECIFIC_CERTIFICATE_ATTEMPT,
     SELECTION_OR_DYNAMIC_LAW_ATTEMPT, SOFT_PARAMETER_SHAPE_ATTEMPT, SUPPORTED_SOFT_FAMILY_ATTEMPT,
     WELL_FORMED_INTERVENTION_ATTEMPT, WorldFailureCause, evaluate_continuous_time_world,
-    evaluate_linear_world, evaluate_linear_worlds, evaluate_nonlinear_world, resolve_cyclic_world,
+    evaluate_linear_world, evaluate_linear_worlds, evaluate_linear_worlds_routed,
+    evaluate_nonlinear_world, resolve_cyclic_world,
 };
 use antecedent_model::linear_solution::{
-    LinearStructuralMap, PhysicalStability, SolvabilityRefusal,
+    HardClamp, LinearStructuralMap, PhysicalStability, SolvabilityRefusal,
 };
 use antecedent_model::nonlinear_equilibrium::{
     Activation, Equation, EquilibriumModel, EquilibriumOutcome, SolvePolicy,
 };
-use antecedent_model::scc_compile::{CompileBudget, GaussianDisturbance};
+use antecedent_model::scc_compile::{
+    CompileBudget, GaussianDisturbance, LinearRouteSet, gaussian_equilibrium_route_work,
+};
 
 /// The mean and covariance of one world.
 type Moments = (Vec<f64>, Vec<f64>);
@@ -697,6 +700,117 @@ fn draw_values(result: &CyclicWorldResult) -> Vec<Vec<f64>> {
         .collect()
 }
 
+/// Smallest `work` for which `admits(work)` holds, by bisection; `admits` is monotone.
+fn least_work(admits: impl Fn(u64) -> bool) -> u64 {
+    let (mut low, mut high) = (0_u64, 1_u64 << 30);
+    assert!(admits(high), "the upper bound admits");
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if admits(mid) {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    low
+}
+
+#[test]
+fn linear_worlds_share_one_work_budget() {
+    // A fresh specification per run: the covariance verdict stays with the specification.
+    let budget = |max_work| CompileBudget { max_work, max_bytes: u64::MAX };
+    let one = least_work(|max_work| {
+        evaluate_linear_world(
+            &feedback_pair(),
+            &CyclicWorldRequest::observational(world(0)),
+            CertificateDemand::Required,
+            budget(max_work),
+        )
+        .is_ok()
+    });
+    let requests: Vec<_> = (0..8).map(|id| CyclicWorldRequest::observational(world(id))).collect();
+    let batch = |max_work| {
+        let demand = CertificateDemand::Required;
+        evaluate_linear_worlds(&feedback_pair(), &requests, demand, budget(max_work))
+    };
+    assert!(batch(one).is_err(), "eight worlds do not each get the whole budget");
+    let all = least_work(|max_work| batch(max_work).is_ok());
+    // The covariance is checked once, so seven further worlds cost less than seven more runs.
+    assert!(all > one && all < 8 * one, "{one} for one world, {all} for eight");
+    assert_eq!(batch(all).expect("a budget for all eight").len(), 8);
+}
+
+#[test]
+fn an_uncertified_direct_solve_is_charged_against_the_work_budget() {
+    // `I - K = [[1, -1.2], [-1.2, 1]]` is invertible, but `|K|` has spectral radius 1.2, so
+    // no contraction certificate is earned and `ReportUncertified` solves the free block.
+    //
+    // Charged before that solve, with n = 2 variables and m = 2 free nodes:
+    //   covariance check  n³ + n² = 12 work, 16 n² = 64 bytes (the identity is PSD);
+    //   solvability check 2m³ + 2m² = 24 work, no bytes.
+    // The direct solve is two dense solves and their buffers:
+    //   4m³ + 8m² = 64 work, 8 (4m² + m + n² + n) = 192 bytes.
+    const BEFORE: u64 = 12 + 24;
+    let spec = || linear_spec(vec![0.0, 1.2, 1.2, 0.0], vec![0.0; 2], vec![0.0; 2], identity(2));
+    let request = CyclicWorldRequest::observational(world(0));
+    let run = |demand, max_work, max_bytes| {
+        evaluate_linear_world(&spec(), &request, demand, CompileBudget { max_work, max_bytes })
+    };
+    let uncertified = CertificateDemand::ReportUncertified;
+
+    let solved = run(uncertified, BEFORE + 64, 192).expect("exactly the charged work and bytes");
+    assert!(!solved.certificate().is_certified());
+    assert!(matches!(solved.outcome(), CyclicWorldOutcome::GaussianLaw { residual_inf: None, .. }));
+    // Every earlier charge passes in each refusal below; only the direct solve is short.
+    assert!(run(uncertified, BEFORE + 63, 192).is_err(), "one unit of work short");
+    assert!(run(uncertified, BEFORE, 192).is_err(), "no work left for the solve");
+    assert!(run(uncertified, BEFORE + 64, 191).is_err(), "one byte short");
+    // A world that is only withheld is never solved, so it pays for the checks alone.
+    let withheld = run(CertificateDemand::Required, BEFORE, 64)
+        .expect("the covariance and solvability checks fit");
+    assert!(matches!(withheld.outcome(), CyclicWorldOutcome::Withheld));
+}
+
+#[test]
+fn held_routes_are_reused_exactly_and_charged_once() {
+    let base = feedback_pair();
+    let mut routes = LinearRouteSet::new(base.model());
+    for nodes in [&[][..], &[0][..]] {
+        let clamp = HardClamp::try_new(2, nodes).expect("clamp");
+        let (_, computed) = routes.route(base.model(), &clamp).expect("route");
+        assert!(computed);
+    }
+    // Observational, clamped, shifted (same map and clamp set as the first), and a replaced
+    // mechanism, whose map is not the one the routes were computed for.
+    let requests = vec![
+        CyclicWorldRequest::observational(world(0)),
+        CyclicWorldRequest::new(world(1), [set(0, 1.0)]),
+        CyclicWorldRequest::new(world(2), [shift(1, 0.5)]),
+        CyclicWorldRequest::new(world(3), [soft(1, "constant", vec![1.0])]),
+    ];
+    let demand = CertificateDemand::Required;
+    let budget = |max_work| CompileBudget { max_work, max_bytes: u64::MAX };
+    let plain =
+        |max_work| evaluate_linear_worlds(&feedback_pair(), &requests, demand, budget(max_work));
+    let routed = |max_work| {
+        let spec = feedback_pair();
+        evaluate_linear_worlds_routed(&spec, &requests, demand, budget(max_work), &routes)
+    };
+
+    let (plain_results, routed_results) =
+        (plain(u64::MAX).expect("plain"), routed(u64::MAX).expect("routed"));
+    for request in &requests {
+        let (left, right) =
+            (plain_results.get(request.world()), routed_results.get(request.world()));
+        assert_eq!(left, right, "{}", request.world());
+    }
+    // Three worlds hit a held route; the fourth routes itself. Each hit saves one routing, 2n².
+    let routing = gaussian_equilibrium_route_work(2).expect("route work");
+    let (least_plain, least_routed) =
+        (least_work(|work| plain(work).is_ok()), least_work(|work| routed(work).is_ok()));
+    assert_eq!(least_plain - least_routed, 3 * routing);
+}
+
 #[test]
 fn nonlinear_worlds_share_draws_and_keep_withheld_mass() {
     let spec = nonlinear_pair(0.4, 0.5);
@@ -740,6 +854,53 @@ fn nonlinear_worlds_share_draws_and_keep_withheld_mass() {
         Some(CertificateGap::NonlinearMassLost { failed_draws: 0, withheld_draws: 2 })
     ));
     assert!(withheld.summary().means.is_none(), "withheld mass is not renormalized away");
+}
+
+#[test]
+fn nonlinear_world_outcomes_stay_charged_to_the_pool_until_the_result_drops() {
+    use antecedent_core::execution::AdmissionPool;
+
+    let spec = nonlinear_pair(0.4, 0.5);
+    let draws: Vec<f64> = (0..128).map(|i| f64::from(i % 7) * 0.1).collect();
+    let policy = SolvePolicy::default();
+    let request = || CyclicWorldRequest::observational(world(0));
+    let run = |ctx: &ExecutionContext| {
+        evaluate_nonlinear_world(&spec, &request(), &draws, &[0.0, 0.0], policy, ctx)
+    };
+
+    let measured = run(&ExecutionContext::for_tests(1)).expect("unbounded run");
+    let retained = measured.retained_admitted_bytes();
+    assert!(retained > 64 * 2048, "outcomes of 64 draws are charged: {retained}");
+
+    let ctx = ExecutionContext::for_tests(1)
+        .with_admission(AdmissionPool::fixed(1, retained + 16 * 1024));
+    let first = run(&ctx).expect("one result fits");
+    assert_eq!(first.retained_admitted_bytes(), retained);
+    assert!(run(&ctx).is_err(), "the held result leaves no room for a second");
+    drop(first);
+    run(&ctx).expect("room returns when the result drops");
+}
+
+#[test]
+fn a_cloned_world_result_keeps_its_admission_until_the_last_clone_drops() {
+    use antecedent_core::execution::AdmissionPool;
+
+    let spec = nonlinear_pair(0.4, 0.5);
+    let draws = [1.0, 0.0];
+    let ctx = ExecutionContext::for_tests(1).with_admission(AdmissionPool::fixed(1, 1 << 20));
+    let result = evaluate_nonlinear_world(
+        &spec,
+        &CyclicWorldRequest::observational(world(0)),
+        &draws,
+        &[0.0, 0.0],
+        SolvePolicy::default(),
+        &ctx,
+    )
+    .expect("world");
+    let copy = result.clone();
+    assert_eq!(copy, result, "retention does not take part in equality");
+    drop(result);
+    assert!(copy.retained_admitted_bytes() > 0);
 }
 
 #[test]

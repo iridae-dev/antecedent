@@ -265,6 +265,14 @@ struct Entry {
     generation: u64,
 }
 
+/// A file whose removal failed. Its bytes stay charged to the budget until it is gone, so the
+/// logical account never claims space the disk still holds.
+#[derive(Debug)]
+struct Orphan {
+    path: PathBuf,
+    bytes: u64,
+}
+
 #[derive(Debug, Default)]
 struct Inner {
     used: u64,
@@ -273,7 +281,15 @@ struct Inner {
     evictions: u64,
     reloads: u64,
     spills: u64,
+    recovered: u64,
     entries: BTreeMap<String, Entry>,
+    orphans: Vec<Orphan>,
+}
+
+impl Inner {
+    fn orphaned_bytes(&self) -> u64 {
+        self.orphans.iter().fold(0, |sum, orphan| sum.saturating_add(orphan.bytes))
+    }
 }
 
 /// Counters of one registry.
@@ -281,7 +297,7 @@ struct Inner {
 pub struct SpillStats {
     /// Spilled results currently on disk.
     pub entries: usize,
-    /// Bytes they hold.
+    /// Bytes they hold, including files whose removal is still pending.
     pub used_bytes: u64,
     /// Byte budget.
     pub budget_bytes: u64,
@@ -291,6 +307,104 @@ pub struct SpillStats {
     pub evictions: u64,
     /// Successful reloads.
     pub reloads: u64,
+    /// Files that could not be removed and are retried; their bytes stay in `used_bytes`.
+    pub orphaned_files: usize,
+    /// Files left by a dead process that this registry removed when it opened the directory.
+    pub recovered_files: u64,
+}
+
+fn unlink(path: &Path) -> std::io::Result<()> {
+    match fs::remove_file(path) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
+}
+
+/// Removes a file that was created but never registered if the writer unwinds. Ordinary
+/// failures are handled explicitly so a removal failure is accounted, not dropped.
+struct Unregistered(Option<PathBuf>);
+
+impl Unregistered {
+    fn release(&mut self) -> Option<PathBuf> {
+        self.0.take()
+    }
+}
+
+impl Drop for Unregistered {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            // Best effort during unwinding; the next registry on this directory recovers it.
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+/// The owning process of a spill file name `<pid>-<64 hex digits>.spill`, if it has that shape.
+fn owner_of(name: &str) -> Option<u32> {
+    let stem = name.strip_suffix(".spill")?;
+    let (pid, digest) = stem.split_once('-')?;
+    (digest.len() == DIGEST_HEX_LEN && digest.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| pid.parse().ok())
+        .flatten()
+}
+
+#[cfg(unix)]
+fn process_may_be_alive(pid: u32) -> bool {
+    use std::process::{Command, Stdio};
+    // Without a way to ask, assume the owner lives: a file is only ever removed once its
+    // owner is known to be gone. A reused pid keeps a dead process's file, never the reverse.
+    Command::new("kill")
+        .arg("-0")
+        .arg(pid.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_or(true, |status| status.success())
+}
+
+/// Remove the spill files that processes no longer running left in `directory`, and only
+/// those this user owns. Returns how many were removed.
+#[cfg(unix)]
+fn recover_directory(directory: &Path) -> u64 {
+    use std::os::unix::fs::MetadataExt;
+    let probe = directory.join(format!(".probe-{}-{}", std::process::id(), unique_nonce()));
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true).mode(0o600);
+    let Ok(file) = options.open(&probe) else { return 0 };
+    let uid = file.metadata().map(|meta| meta.uid());
+    drop(file);
+    let _ = unlink(&probe);
+    let Ok(uid) = uid else { return 0 };
+    let Ok(listing) = fs::read_dir(directory) else { return 0 };
+    let own = std::process::id();
+    let mut alive: BTreeMap<u32, bool> = BTreeMap::new();
+    let mut removed = 0;
+    for item in listing.flatten() {
+        let Some(owner) = item.file_name().to_str().and_then(owner_of) else { continue };
+        if owner == own {
+            continue;
+        }
+        let Ok(meta) = item.metadata() else { continue };
+        if !meta.file_type().is_file() || meta.uid() != uid {
+            continue;
+        }
+        if *alive.entry(owner).or_insert_with(|| process_may_be_alive(owner)) {
+            continue;
+        }
+        if unlink(&item.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+#[cfg(not(unix))]
+fn recover_directory(_directory: &Path) -> u64 {
+    0
+}
+
+fn unique_nonce() -> u64 {
+    SPILL_NONCE.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Spilled prepared results under one byte budget.
@@ -304,13 +418,19 @@ pub struct SpillRegistry {
 impl SpillRegistry {
     /// A registry writing under `directory`, which it creates, holding at most `budget_bytes`.
     ///
+    /// Spill files that a process which is no longer running left in `directory` (a crash
+    /// skips the cleanup on drop) are removed here; files of live registries, including other
+    /// registries in this process, are never touched. [`SpillStats::recovered_files`] counts
+    /// them.
+    ///
     /// # Errors
     /// The directory cannot be created.
     pub fn new(directory: impl Into<PathBuf>, budget_bytes: u64) -> Result<Arc<Self>, StateError> {
         let directory = directory.into();
         fs::create_dir_all(&directory)
             .map_err(|error| io_error("cannot create the spill directory", &error))?;
-        Ok(Arc::new(Self { directory, budget_bytes, inner: Mutex::new(Inner::default()) }))
+        let inner = Inner { recovered: recover_directory(&directory), ..Inner::default() };
+        Ok(Arc::new(Self { directory, budget_bytes, inner: Mutex::new(inner) }))
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -340,6 +460,8 @@ impl SpillRegistry {
             spills: inner.spills,
             evictions: inner.evictions,
             reloads: inner.reloads,
+            orphaned_files: inner.orphans.len(),
+            recovered_files: inner.recovered,
         }
     }
 
@@ -362,7 +484,7 @@ impl SpillRegistry {
     fn path_for(&self, key: &str, nonce: u64) -> PathBuf {
         let mut writer = CanonicalWriter::new(KEY_TAG);
         writer.text(key).word(u64::from(std::process::id())).word(nonce);
-        self.directory.join(format!("{}.spill", writer.finish_hex()))
+        self.directory.join(format!("{}-{}.spill", std::process::id(), writer.finish_hex()))
     }
 
     fn create_frame(&self, key: &str) -> Result<(PathBuf, fs::File), StateError> {
@@ -402,24 +524,40 @@ impl SpillRegistry {
         if need > self.budget_bytes {
             return Err(StateError::CacheBudget { need, remaining: self.budget_bytes });
         }
-        let mut inner = self.lock();
-        let generation = inner
-            .sequence
-            .checked_add(1)
-            .ok_or_else(|| StateError::InvalidEvent("spill generation exhausted".into()))?;
+        self.reap_orphans();
         // Do not change retained entries until the incoming frame is durable. The exclusive
-        // file is visible only to this registry until it is registered below.
+        // file is visible only to this registry until it is registered below, and the sync
+        // runs outside the registry lock so other keys keep reloading and spilling.
         let (path, mut file) = self.create_frame(key)?;
+        let mut unregistered = Unregistered(Some(path.clone()));
         if let Err(error) = file.write_all(&frame).and_then(|()| file.sync_all()) {
             drop(file);
-            let _ = fs::remove_file(&path);
+            self.discard(unregistered.release(), need);
             return Err(io_error("cannot write the spilled state", &error));
         }
         drop(file);
+        let digest = frame_digest(T::KIND, &payload);
+        let mut inner = self.lock();
+        let orphaned = inner.orphaned_bytes();
+        if orphaned.saturating_add(need) > self.budget_bytes {
+            drop(inner);
+            self.discard(unregistered.release(), need);
+            return Err(StateError::CacheBudget {
+                need,
+                remaining: self.budget_bytes.saturating_sub(orphaned),
+            });
+        }
+        let Some(generation) = inner.sequence.checked_add(1) else {
+            drop(inner);
+            self.discard(unregistered.release(), need);
+            return Err(StateError::InvalidEvent("spill generation exhausted".into()));
+        };
         inner.sequence = generation;
         let held = inner.entries.get(key).map_or(0, |entry| entry.bytes);
+        let mut projected = inner.used.saturating_sub(held);
         let mut evicted = Vec::new();
-        while inner.used.saturating_sub(held).saturating_add(need) > self.budget_bytes {
+        let mut doomed = Vec::new();
+        while projected.saturating_add(need) > self.budget_bytes {
             let oldest = inner
                 .entries
                 .iter()
@@ -428,19 +566,17 @@ impl SpillRegistry {
                 .map(|(other, _)| other.clone());
             let Some(oldest) = oldest else { break };
             if let Some(entry) = inner.entries.remove(&oldest) {
-                let _ = fs::remove_file(&entry.path);
-                inner.used = inner.used.saturating_sub(entry.bytes);
+                projected = projected.saturating_sub(entry.bytes);
                 inner.evictions = inner.evictions.saturating_add(1);
+                doomed.push(Orphan { path: entry.path, bytes: entry.bytes });
             }
             evicted.push(oldest);
         }
         if let Some(previous) = inner.entries.remove(key) {
-            let _ = fs::remove_file(&previous.path);
-            inner.used = inner.used.saturating_sub(previous.bytes);
+            doomed.push(Orphan { path: previous.path, bytes: previous.bytes });
         }
         inner.tick = inner.tick.saturating_add(1);
         let tick = inner.tick;
-        let digest = frame_digest(T::KIND, &payload);
         inner.used = inner.used.saturating_add(need);
         inner.spills = inner.spills.saturating_add(1);
         inner.entries.insert(
@@ -455,6 +591,8 @@ impl SpillRegistry {
             },
         );
         drop(inner);
+        let _registered = unregistered.release();
+        self.settle(doomed);
         Ok(SpillHandle {
             registry: Arc::clone(self),
             key: key.to_owned(),
@@ -463,6 +601,48 @@ impl SpillRegistry {
             generation,
             evicted,
         })
+    }
+
+    /// Unlink files that left the index. A file is released from the byte account only once
+    /// it is gone; one that cannot be removed stays charged and is retried.
+    fn settle(&self, doomed: Vec<Orphan>) {
+        if doomed.is_empty() {
+            return;
+        }
+        let mut released = 0_u64;
+        let mut failed = Vec::new();
+        for file in doomed {
+            match unlink(&file.path) {
+                Ok(()) => released = released.saturating_add(file.bytes),
+                Err(_) => failed.push(file),
+            }
+        }
+        let mut inner = self.lock();
+        inner.used = inner.used.saturating_sub(released);
+        inner.orphans.extend(failed);
+    }
+
+    /// Remove a file that was written but never registered. A failed removal is charged as
+    /// an orphan, because the disk holds bytes the index does not.
+    fn discard(&self, path: Option<PathBuf>, bytes: u64) {
+        let Some(path) = path else { return };
+        if unlink(&path).is_err() {
+            let mut inner = self.lock();
+            inner.used = inner.used.saturating_add(bytes);
+            inner.orphans.push(Orphan { path, bytes });
+        }
+    }
+
+    /// Retry the removal of files that earlier failed to unlink.
+    fn reap_orphans(&self) {
+        let pending = {
+            let mut inner = self.lock();
+            if inner.orphans.is_empty() {
+                return;
+            }
+            std::mem::take(&mut inner.orphans)
+        };
+        self.settle(pending);
     }
 
     /// Read `key` back and decode it.
@@ -548,24 +728,25 @@ impl SpillRegistry {
         }) {
             return false;
         }
-        match inner.entries.remove(key) {
-            Some(entry) => {
-                let _ = fs::remove_file(&entry.path);
-                inner.used = inner.used.saturating_sub(entry.bytes);
-                true
-            }
-            None => false,
-        }
+        let Some(entry) = inner.entries.remove(key) else { return false };
+        drop(inner);
+        self.settle(vec![Orphan { path: entry.path, bytes: entry.bytes }]);
+        true
     }
 }
 
 impl Drop for SpillRegistry {
     fn drop(&mut self) {
         let inner = self.inner.get_mut().unwrap_or_else(PoisonError::into_inner);
-        for entry in inner.entries.values() {
-            let _ = fs::remove_file(&entry.path);
+        let paths = std::mem::take(&mut inner.entries)
+            .into_values()
+            .map(|entry| entry.path)
+            .chain(std::mem::take(&mut inner.orphans).into_iter().map(|orphan| orphan.path));
+        for path in paths {
+            // Nothing can report from drop; a file that stays is removed by the next registry
+            // on this directory once this process has exited.
+            let _ = fs::remove_file(path);
         }
-        inner.entries.clear();
     }
 }
 
@@ -814,6 +995,89 @@ mod tests {
         assert!(matches!(error, StateError::CacheBudget { .. }));
         assert!(registry.contains("small"));
         assert_eq!(registry.stats().evictions, 0);
+        drop(registry);
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_that_cannot_be_removed_stays_charged_until_it_is_gone() {
+        let directory = scratch("orphan");
+        let blob = Blob(vec![1.0]);
+        let frame = build_frame(Blob::KIND, &blob.encode().unwrap()).len() as u64;
+        let registry = SpillRegistry::new(&directory, frame * 2).unwrap();
+        let handle = registry.spill("a", &blob).unwrap();
+        let path = registry.lock().entries["a"].path.clone();
+        // A non-empty directory at the file's path makes the unlink fail with something
+        // other than "not found".
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        fs::write(path.join("occupant"), b"x").unwrap();
+        assert!(handle.remove());
+        let stats = registry.stats();
+        assert_eq!((stats.entries, stats.orphaned_files), (0, 1));
+        assert_eq!(stats.used_bytes, frame, "the unremoved file still holds its bytes");
+        // With the orphan charged, a frame that needs the whole budget is refused.
+        let wide = Blob(vec![0.0; 3]);
+        let wide_frame = build_frame(Blob::KIND, &wide.encode().unwrap()).len() as u64;
+        assert!(wide_frame + frame > frame * 2);
+        assert!(matches!(registry.spill("wide", &wide), Err(StateError::CacheBudget { .. })));
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 1, "only the orphan remains");
+        fs::remove_dir_all(&path).unwrap();
+        let next = registry.spill("b", &blob).unwrap();
+        let stats = registry.stats();
+        assert_eq!((stats.orphaned_files, stats.used_bytes), (0, frame));
+        drop(next);
+        drop(registry);
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_new_registry_removes_files_left_by_a_dead_process_and_nothing_else() {
+        let directory = scratch("recovery");
+        fs::create_dir_all(&directory).unwrap();
+        let mut child = std::process::Command::new("true").spawn().unwrap();
+        let dead = child.id();
+        child.wait().unwrap();
+        let digest = "0".repeat(DIGEST_HEX_LEN);
+        let stale = directory.join(format!("{dead}-{digest}.spill"));
+        let live = directory.join(format!("{}-{digest}.spill", std::process::id()));
+        let foreign = directory.join(format!("{dead}-not-a-digest.spill"));
+        let caller = directory.join("notes.txt");
+        for file in [&stale, &live, &foreign, &caller] {
+            fs::write(file, b"x").unwrap();
+        }
+        let registry = SpillRegistry::new(&directory, 4096).unwrap();
+        assert_eq!(registry.stats().recovered_files, 1);
+        assert!(!stale.exists());
+        assert!(live.exists() && foreign.exists() && caller.exists());
+        drop(registry);
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn concurrent_spills_keep_the_account_equal_to_the_files_on_disk() {
+        let directory = scratch("concurrent");
+        let blob = |seed: f64| Blob((0..16).map(|i| seed + f64::from(i)).collect());
+        let frame = build_frame(Blob::KIND, &blob(0.0).encode().unwrap()).len() as u64;
+        let registry = SpillRegistry::new(&directory, frame * 3).unwrap();
+        std::thread::scope(|scope| {
+            for worker in 0..4_u32 {
+                let registry = &registry;
+                scope.spawn(move || {
+                    for round in 0..12_u32 {
+                        let key = format!("k{}", (worker + round) % 5);
+                        let _ = registry.spill(&key, &blob(f64::from(worker * 100 + round)));
+                    }
+                });
+            }
+        });
+        let stats = registry.stats();
+        assert!(stats.used_bytes <= frame * 3);
+        assert_eq!(stats.orphaned_files, 0);
+        assert_eq!(stats.used_bytes, stats.entries as u64 * frame);
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), stats.entries);
         drop(registry);
         let _ = fs::remove_dir_all(&directory);
     }
