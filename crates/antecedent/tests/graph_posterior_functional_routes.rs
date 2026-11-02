@@ -257,11 +257,13 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         }
         assert!(value_of(&result, keys[2]).is_none(), "the bow arc identifies nothing");
 
-        // `functional.effect` is a discrete plug-in with neither an analytic SE nor row
-        // influence, and the mixture of two atoms is not re-bootstrapped, so no standard error
-        // covers the weighted contrast: it is withheld, not borrowed from one atom.
+        // Neither atom supplies an analytic SE or influence. The route instead resamples the
+        // shared rows, refits every contributing atom, and computes the weighted mixture on
+        // each replicate, preserving their dependence on the same sample.
         assert!(effect.se_analytic().is_nan(), "{}", effect.se_analytic());
-        assert!(effect.se_bootstrap().is_none());
+        let se = effect.se_bootstrap().expect("shared-resample mixture standard error");
+        assert!(se.is_finite() && se > 0.0, "{se}");
+        assert!(result.diagnostics.iter().any(|d| d.message.contains("shared resampled tables")));
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
         assert!(has(&result, "estimate.graph_posterior.structural_aggregation"));
     });

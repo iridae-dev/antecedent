@@ -161,7 +161,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** temporal
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** 4acf4d8dfd12839eaff99e42c8cfcbbb8fb68f7d5cf0d6be957db5a6e9e09917
+- **Program identity:** befde9a8d2b8be181d9060432bc7c825e33453b63f8029e7c8660546b8bae06b
 - **Sealed operation:** temporal\_dag\_effect
 
 ### Scientific problem
@@ -189,7 +189,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **design.source:** not\_design\_based
 - **estimator:** temporal.linear.adjustment
 - **identifier:** temporal.backdoor.unfolded
-- **identity:** 63032769ca83000b939a652ce86ca71471aa80dc437a8ddadb069990f3a97db2
+- **identity:** b13dac8a53a5a2b3d460b675bdb2d71a20f1c8ebd33b1d7c4a556b7191416212
 - **models\[0\].family:** temporal.linear.adjustment
 - **models\[0\].inputs:** t
 - **models\[0\].output:** y

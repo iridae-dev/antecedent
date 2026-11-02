@@ -38,6 +38,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from . import _native
 from ._columns import coerce_fields
 from ._native import NativeResponseClaim as _NativeResponseClaim
 from ._native import check_external_program as _check_external_program
@@ -624,6 +625,7 @@ def native_claim(
     raise_refusal(refusal, ExternalRefusal)
     assert claim is not None
     return NativeClaim(claim)
+
 
 @dataclass(frozen=True, slots=True)
 class CheckedClaimLimits:

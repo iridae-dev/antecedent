@@ -444,7 +444,8 @@ def test_penalty_configuration_refuses_oversized_sequence_before_iteration():
         require_success(
             ant.analyze(
                 {"t": [0.0, 1.0], "y": [0.0, 1.0]},
-                graph=[("t", "y")], query=ant.AverageEffect("t", "y"),
+                graph=[("t", "y")],
+                query=ant.AverageEffect("t", "y"),
                 estimator="aipw",
                 estimator_config={"propensity_penalty": {"lambdas": range(10**30)}},
                 refute=False,

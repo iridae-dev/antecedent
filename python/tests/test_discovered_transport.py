@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
 from antecedent._artifact_protocol import ExportedArtifact
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.transport import discovered
 
 from _refusal import assert_registered_refusal
@@ -222,7 +222,7 @@ def test_an_estimate_over_columns_that_are_not_integer_codes_is_refused_precisel
 
 
 def test_a_forged_estimate_artifact_does_not_replay() -> None:
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalSerializationError):
         discovered.verify_discovered_transport_estimate(b"not an artifact")
 
 
@@ -509,7 +509,7 @@ def test_an_estimate_standardizes_the_source_response_over_the_target_mechanism_
     assert verified.report_identity == estimate.report_identity
     flipped = bytearray(artifact)
     flipped[len(flipped) // 2] ^= 0xFF
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalSerializationError):
         discovered.verify_discovered_transport_estimate(bytes(flipped))
-    with pytest.raises(CausalValueError):
+    with pytest.raises(CausalSerializationError):
         discovered.verify_discovered_transport_estimate(artifact[:-1])

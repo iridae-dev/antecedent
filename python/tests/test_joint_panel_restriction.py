@@ -10,6 +10,7 @@ from antecedent.errors import (
     CausalResourceError,
     CausalValueError,
 )
+
 from test_joint_panel import declarations
 
 RESTRICTION = "joint_adjustment.gaussian_restriction"

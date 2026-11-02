@@ -3,7 +3,8 @@
 //! Supported durable formats: `0.1`–`0.4` (migrate-from) and `0.5` (stable).
 //! Format `0.5` adds the optional identified-set interval on structural-mixture
 //! results; a `0.4` payload has no such field and decodes with it absent.
-//! Unknown versions fail explicitly.
+//! Analysis results with withheld mediation points also admit the scoped `0.6`
+//! format without migration. Unknown versions and other `0.6` kinds fail explicitly.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -26,19 +27,30 @@ pub const SUPPORTED_SOURCE_FORMATS: &[FormatVersion] = &[
     FormatVersion { major: 0, minor: 5 },
 ];
 
-/// True when `v` is a known source format.
+/// True when `v` is a generally supported source format. The scoped 0.6
+/// analysis-result extension is checked against its artifact kind separately.
 #[must_use]
 pub fn is_supported_source(v: FormatVersion) -> bool {
     SUPPORTED_SOURCE_FORMATS.iter().any(|s| *s == v)
 }
 
 /// Migrate an encoded artifact's format version toward [`STABLE_FORMAT`].
+/// The supported 0.6 analysis-result extension remains at 0.6.
 ///
 /// # Errors
 ///
 /// Unsupported source format versions.
 pub fn migrate_artifact(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, IoError> {
     let from = artifact.manifest.format_version;
+    // Format 0.6 is an analysis-result-only extension and must retain its
+    // minimum-reader requirement; it cannot be relabeled as the stable 0.5 format.
+    if from == crate::analysis_result_artifact::WITHHELD_MEDIATION_FORMAT
+        && artifact.manifest.minimum_reader_version == from
+        && artifact.manifest.artifact_kind
+            == crate::ArtifactKind::Other(crate::artifact_kinds::ANALYSIS_RESULT.into())
+    {
+        return Ok(artifact);
+    }
     if !is_supported_source(from) {
         return Err(IoError::UnsupportedFormat { major: from.major, minor: from.minor });
     }
@@ -95,7 +107,8 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
     Ok(artifact)
 }
 
-/// Read a container and migrate to [`STABLE_FORMAT`].
+/// Read a container and migrate to [`STABLE_FORMAT`], preserving a supported
+/// 0.6 analysis-result extension at its original version.
 ///
 /// # Errors
 ///

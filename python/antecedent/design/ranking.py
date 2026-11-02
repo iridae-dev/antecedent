@@ -658,7 +658,7 @@ def _ranking_inputs(
     )
     return {
         "graph_weights": list(prior.weights),
-        "identified": [int(v) for v in prior.identified],
+        "identified": bytes(prior.identified),
         "graph_keys": list(prior.keys),
         "candidates": [plan._wire(i) for i, plan in enumerate(plans)],
         **objective_options,

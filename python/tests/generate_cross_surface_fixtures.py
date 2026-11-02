@@ -33,6 +33,7 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
+from antecedent.outcomes import require_success
 
 from _repo_text import REPO_ROOT
 
@@ -194,7 +195,7 @@ def main() -> None:
     claim = external_claim()
     contract = decision_contract()
     source = decision_source()
-    result = contract.evaluate(source)
+    result = require_success(contract.evaluate(source))
     assert result.selected == ("safe",)
 
     files: dict[str, bytes] = {

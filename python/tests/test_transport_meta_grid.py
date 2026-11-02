@@ -5,7 +5,12 @@ from dataclasses import replace
 import antecedent as _ant_api
 import pytest
 from antecedent import Admg, estimate, load, prepare, rebind, reconfigure
-from antecedent.errors import CausalCancelledError, CausalResourceError, CausalUnsupportedError
+from antecedent.errors import (
+    CausalCancelledError,
+    CausalResourceError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from antecedent.outcomes import require_success
 from antecedent.transport import TransportEvaluation
 from antecedent.transport import advanced as transport
@@ -727,7 +732,7 @@ def test_consume_identification_executes_from_the_consumed_proof_after_builder_d
     # A frozen NotCertified claim is consumed as it was recorded: never upgraded
     # to a proof or to an obstruction.
     payload = (
-        Path(__file__).parent / "fixtures" / "transport" / "not_certified_v1.cbor"
+        Path(__file__).parent / "fixtures" / "transport" / "not_certified_v2.cbor"
     ).read_bytes()
     frozen = require_success(load(payload))
     assert frozen.outcome == "not_certified"
@@ -738,7 +743,7 @@ def test_frozen_rust_not_certified_consumes_without_upgrade():
     from pathlib import Path
 
     payload = (
-        Path(__file__).parent / "fixtures" / "transport" / "not_certified_v1.cbor"
+        Path(__file__).parent / "fixtures" / "transport" / "not_certified_v2.cbor"
     ).read_bytes()
     result = require_success(load(payload))
     assert result.outcome == "not_certified"
@@ -749,6 +754,16 @@ def test_frozen_rust_not_certified_consumes_without_upgrade():
     assert {name for name in ("identification", "support", "uncertainty", "assumptions")} <= set(
         report.to_dict()
     )
+
+
+def test_legacy_unbound_certificate_is_refused():
+    from pathlib import Path
+
+    payload = (
+        Path(__file__).parent / "fixtures" / "transport" / "not_certified_v1.cbor"
+    ).read_bytes()
+    with pytest.raises(CausalValueError, match="unsupported transport certificate container"):
+        load(payload)
 
 
 def test_invalid_source_coordinates_and_continuous_provider_contracts():

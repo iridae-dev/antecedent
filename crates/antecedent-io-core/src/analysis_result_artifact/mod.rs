@@ -18,6 +18,10 @@ use crate::{
 const ARTIFACT_KIND: &str = crate::artifact_kinds::ANALYSIS_RESULT;
 const HEADER_SECTION: &str = "analysis_result.header";
 const BODY_SECTION: &str = "analysis_result.body";
+// Only composite analysis results with a withheld mediation point use this
+// extension. Other artifacts retain the stable 0.5 container format.
+pub(crate) const WITHHELD_MEDIATION_FORMAT: crate::FormatVersion =
+    crate::FormatVersion { major: 0, minor: 6 };
 
 /// One posterior interval summary in a temporal mediation slice.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -71,8 +75,8 @@ pub struct TemporalMediationSliceWire {
     pub method: String,
     /// Horizon-specific adjustment set.
     pub adjustment: Vec<crate::HorizonAdjustmentNodeWire>,
-    /// Requested effect.
-    pub effect: f64,
+    /// Requested effect, absent when the horizon has only bounds or is unidentified.
+    pub effect: Option<f64>,
     /// Total effect.
     pub total: Option<f64>,
     /// Direct effect.
@@ -1458,7 +1462,8 @@ pub fn encode_analysis_result_artifact(
 ///
 /// The section is additive. Old readers ignore it; this encoder does not raise
 /// `minimum_reader_version`. A present contract is validated and bound to the
-/// body query and header names before write.
+/// body query and header names before write. A mediation grid with a withheld
+/// point independently requires analysis-result format and reader version 0.6.
 ///
 /// # Errors
 ///
@@ -1487,6 +1492,8 @@ pub fn encode_analysis_result_artifact_with_contract(
 /// checked against the default [`crate::SourceWitnessLimits`] and against the
 /// header names, and is packed after the contract section. Binding the witness
 /// to a data-snapshot digest is the verifier's step ([`crate::verify_source_witness`]).
+/// A mediation grid with a withheld point independently requires analysis-result
+/// format and reader version 0.6.
 ///
 /// # Errors
 ///
@@ -1561,10 +1568,19 @@ pub fn encode_analysis_result_artifact_with_contract_and_source(
         sections_desc.push(descriptor);
         sections.push(section);
     }
+    let format = if result
+        .mediation_grid
+        .as_ref()
+        .is_some_and(|grid| grid.slices.iter().any(|slice| slice.effect.is_none()))
+    {
+        WITHHELD_MEDIATION_FORMAT
+    } else {
+        STABLE_FORMAT
+    };
     Ok(EncodedArtifact {
         manifest: ArtifactManifest {
-            format_version: STABLE_FORMAT,
-            minimum_reader_version: STABLE_FORMAT,
+            format_version: format,
+            minimum_reader_version: format,
             artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
             library_version: SemanticVersion::from_crate_version(antecedent_core::VERSION)?,
             artifact_id: artifact_id.into(),
@@ -1599,6 +1615,16 @@ pub fn decode_analysis_result_artifact(
         .ok_or_else(|| IoError::Convert(format!("missing section `{BODY_SECTION}`")))?;
     let decoded_header: AnalysisResultHeader = from_cbor(&header.data)?;
     let decoded_body: AnalysisResultWire = from_cbor(&body.data)?;
+    if decoded_body
+        .mediation_grid
+        .as_ref()
+        .is_some_and(|grid| grid.slices.iter().any(|slice| slice.effect.is_none()))
+        && artifact.manifest.format_version != WITHHELD_MEDIATION_FORMAT
+    {
+        return Err(IoError::Convert(
+            "withheld mediation points require analysis result format 0.6".into(),
+        ));
+    }
     validate::validate_result(&decoded_body, &decoded_header.variable_names, true)?;
     Ok((artifact, decoded_header, decoded_body))
 }

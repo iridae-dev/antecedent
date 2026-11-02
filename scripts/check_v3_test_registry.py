@@ -27,7 +27,13 @@ import tomllib
 from pathlib import Path
 
 from _repo import REPO_ROOT as ROOT
-from test_evidence import mask_rust, registered_calibration_acceptance, registered_calibration_simulations, source_masked, target_files
+from test_evidence import (
+    mask_rust,
+    registered_calibration_acceptance,
+    registered_calibration_simulations,
+    source_masked,
+    target_files,
+)
 
 REGISTRY = "parity/v3_test_registry.toml"
 KNOWN_GATES = (

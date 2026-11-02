@@ -452,6 +452,7 @@ mod tests {
         incomplete.outcome =
             CertificateOutcome::NotCertified { reason: "identification_budget".into() };
         incomplete.reasoning = structural_reasoning(&incomplete.outcome);
+        incomplete.variable_names = vec!["x".into(), "y".into()];
         if let Ok(path) = std::env::var("ANTECEDENT_WRITE_NOTCERT_FIXTURE") {
             let mut framed = b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01".to_vec();
             framed.extend(crate::to_cbor(&(vec!["x", "y"], incomplete.export().unwrap())).unwrap());

@@ -82,9 +82,16 @@ def test_temporal_public_request_respects_explicit_limits():
     assert len(result.response.values) == 2
 
 
-@pytest.mark.parametrize("treatment_lag,horizon_steps", [(2_000_000_000, 1), (1, 2_000_000_000)])
+@pytest.mark.parametrize(
+    "treatment_lag,horizon_steps,error",
+    [
+        (2_000_000_000, 1, CausalResourceError),
+        (1, 999_999, CausalResourceError),
+        (1, 2_000_000_000, CausalValueError),
+    ],
+)
 def test_public_temporal_identification_refuses_huge_windows_before_materializing(
-    treatment_lag, horizon_steps
+    treatment_lag, horizon_steps, error
 ):
     from antecedent import _native
     from antecedent.execution import ResourceLimits
@@ -95,7 +102,9 @@ def test_public_temporal_identification_refuses_huge_windows_before_materializin
         temporal_materialization=TemporalMaterializationLimits(max_graph_nodes=32, max_work=10_000),
     )
     available = execution._handle.available_memory_bytes
-    with pytest.raises(CausalResourceError):
+    # The Python horizon bound is an input contract; requests within it still
+    # need to respect the caller's graph and work budgets before allocation.
+    with pytest.raises(error):
         execution._call(
             _native._identify_structure,
             graph,

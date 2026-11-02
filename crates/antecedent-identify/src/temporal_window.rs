@@ -90,6 +90,18 @@ pub(crate) fn grow_window(
     let mut depth = base_history;
     let history = loop {
         check_cancelled(Some(ctx))?;
+        let slices = u64::from(depth)
+            .checked_add(u64::from(horizon))
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+        let nodes = u64::from(variable_count)
+            .checked_mul(slices)
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+        let visits = edge_count
+            .checked_mul(slices)
+            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
+        if nodes > budget.limits().max_graph_nodes || visits > budget.limits().max_graph_edges {
+            return Err(IdentificationError::budget(IdentificationBudget::Memory));
+        }
         let indexer = TemporalIndexer::new(variable_count, depth, horizon)
             .map_err(IdentificationError::construction)?;
         budget
@@ -102,18 +114,6 @@ pub(crate) fn grow_window(
             indexer
                 .dense_id(*seed)
                 .map_err(|_| IdentificationError::UnknownVariable { id: seed.variable })?;
-        }
-        let slices = u64::from(depth)
-            .checked_add(u64::from(horizon))
-            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
-        let nodes = u64::from(variable_count)
-            .checked_mul(slices)
-            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
-        let visits = edge_count
-            .checked_mul(slices)
-            .ok_or_else(|| IdentificationError::budget(IdentificationBudget::Steps))?;
-        if nodes > budget.limits().max_graph_nodes || visits > budget.limits().max_graph_edges {
-            return Err(IdentificationError::budget(IdentificationBudget::Memory));
         }
         let work = nodes
             .checked_add(visits)

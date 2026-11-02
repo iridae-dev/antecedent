@@ -33,8 +33,10 @@ def _data():
 
 
 def _prepared(level):
+    data = _data()
+    selected = (data["t"] == 0) | (data["t"] == level)
     return ant.prepare(
-        _data(),
+        {name: values[selected] for name, values in data.items()},
         graph=[("t", "y")],
         query=ant.AverageEffect("t", "y", active_level=level),
         inference=ant.Frequentist(bootstrap=0),

@@ -166,7 +166,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** static\_effect
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** d369590e28ee05b305c1cf34926fcf086ffb0459a99a3fa21bf79f82232c9399
+- **Program identity:** 807e9765e20f9d5c611893c80785c03c98294ffde437c22ddc4681baf5341266
 - **Sealed operation:** bayesian\_gcomp
 
 ### Scientific problem
@@ -196,7 +196,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **design.source:** quoted
 - **estimator:** bayesian.gcomp
 - **identifier:** backdoor.adjustment
-- **identity:** cc40544fce7fe4b9508e1a3d3fa0cb0bbc232914779618ef7a27b99770e925fd
+- **identity:** 606f5ee87708fd8390f3257afd8c34bd31c5381fb336edb9bd762e4ee5ed144c
 - **models\[0\].family:** ols.faer
 - **models\[0\].inputs:** t, z
 - **models\[0\].output:** y

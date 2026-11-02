@@ -44,8 +44,8 @@ RUST_BUNDLE = "rust_composition_bundle.bin"
 
 PY_COMMAND = "python python/tests/generate_cross_surface_bundle_fixtures.py"
 RUST_COMMAND = (
-    "ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test cross_surface_bundle "
-    "-- --ignored regenerate_rust_fixtures"
+    "ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test suite_01 "
+    "cross_surface_bundle::regenerate_rust_fixtures -- --ignored"
 )
 
 #: Hand-derived values every consumer reads from the verified result nodes.
@@ -95,7 +95,7 @@ def bundle_parts() -> dict[str, bytes]:
     return {
         "contract": bytes(contract.export(artifact_id="contract")),
         "law": bytes(law.export("law")),
-        "result": bytes(contract.evaluate(law).export(artifact_id="result")),
+        "result": bytes(require_success(contract.evaluate(law)).export(artifact_id="result")),
         "claim": bytes(claim.export(artifact_id="claim")),
         "mean_contract": bytes(means.export(artifact_id="mean-contract")),
         "mean_result": cb.mean_decision(means, claim, artifact_id="mean-result"),

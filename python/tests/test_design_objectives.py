@@ -89,7 +89,7 @@ def test_graph_entropy_uses_original_channel_and_retains_heuristic_label() -> No
         assert not hasattr(c, "probability")
     native = _native.rank_designs(
         [1.0, 1.0],
-        [1, 0],
+        b"\x01\x00",
         [0, 1],
         [
             {"kind": "increase_sampling_rate", "additional_samples": 1, "tag": 0},

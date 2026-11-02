@@ -148,7 +148,10 @@ fn posterior_and_effect_moments_match_the_exact_reference() {
                 invariant: prior(&design["inv_mean"], &design["inv_cov"]),
                 varying: prior(&design["var_mean"], &design["var_cov"]),
             },
-            max_unsupported_mass: 0.0,
+            // The exact-reference stress case deliberately places one of five target rows
+            // outside the pooled source support. Declare that extrapolation explicitly: the
+            // oracle checks the model's numerical posterior, not an overlap guarantee.
+            max_unsupported_mass: if name == "two_covariates_extreme_noise" { 0.2 } else { 0.0 },
             conflict_z_threshold: 3.0,
         };
         let result = fit_learned_joint_transport(
@@ -165,6 +168,9 @@ fn posterior_and_effect_moments_match_the_exact_reference() {
             continue;
         }
         let fit = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
+        if name == "two_covariates_extreme_noise" {
+            assert!((fit.diagnostics.overlap.unsupported_mass - 0.2).abs() < 1e-12);
+        }
         let d = usize::try_from(design["dim"].as_u64().unwrap()).expect("fixture value fits");
         assert_eq!(fit.posterior_mean.len(), d, "{name}");
         let scale_of = |i: usize| num(&design["posterior_covariance"][i][i]["value"]).sqrt();

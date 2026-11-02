@@ -355,7 +355,7 @@ def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
     # directly; the typed surface is `antecedent.design.rank_designs`.
     ranking = _native.rank_designs(
         [1.0],
-        [1],
+        b"\x01",
         [1],
         [
             {"kind": "increase_sampling_rate", "additional_samples": 4},
@@ -414,7 +414,7 @@ def test_native_rank_designs_decision_regret_callable_utility_on_draws():
     }
     exact = _native.rank_designs(
         [1.0],
-        [1],
+        b"\x01",
         [1],
         [{"kind": "increase_sampling_rate", "additional_samples": 1}],
         decision={
@@ -439,7 +439,7 @@ def test_native_rank_designs_decision_regret_callable_utility_on_draws():
 
     mc = _native.rank_designs(
         [1.0],
-        [1],
+        b"\x01",
         [1],
         [{"kind": "increase_sampling_rate", "additional_samples": 3}],
         decision={
@@ -458,7 +458,7 @@ def test_native_rank_designs_decision_regret_requires_a_decision_model():
     with pytest.raises(antecedent.errors.CausalDesignError, match="decisions context"):
         _native.rank_designs(
             [1.0],
-            [1],
+            b"\x01",
             [1],
             [{"kind": "increase_sampling_rate", "additional_samples": 1}],
             objective="reduce_decision_regret",

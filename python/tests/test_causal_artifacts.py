@@ -715,9 +715,9 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                         }
                     },
                     "certificate": {
-                        "rule": "standardize",
+                        "rule": "transport.sid.standardize",
                         "selection_targets": [2],
-                        "premises": [],
+                        "premises": ["selection is blocked by the standardized variables"],
                     },
                 }
             },
@@ -747,9 +747,9 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                         }
                     },
                     "certificate": {
-                        "rule": "recursive",
+                        "rule": "transport.sid.target_g_formula",
                         "selection_targets": [2],
-                        "premises": [],
+                        "premises": ["the target factorization identifies the response"],
                     },
                 }
             },
@@ -768,7 +768,7 @@ def test_temporal_response_result_rejects_horizon_id_outside_name_table() -> Non
                         }
                     },
                     "certificate": {
-                        "rule": "direct",
+                        "rule": "transport.sid.direct",
                         "selection_targets": [],
                         "premises": ["same mechanism"],
                     },

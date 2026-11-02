@@ -90,7 +90,11 @@ class PanelFrame:
         # Identifiers are integers; a fractional or boolean id is refused, never truncated.
         ids = tuple(
             _count(
-                unit, f"unit_ids[{index}]", minimum=0, maximum=2**32 - 1, type_error=CausalValueError
+                unit,
+                f"unit_ids[{index}]",
+                minimum=0,
+                maximum=2**32 - 1,
+                type_error=CausalValueError,
             )
             for index, unit in enumerate(self.unit_ids)
         )

@@ -97,7 +97,7 @@
 - **Inference:** frequentist
 - **Query kind:** Unknown
 - **Rows:** 10
-- **Functional:** 
+- **Functional:** none
 
 ### Support slot
 
@@ -148,7 +148,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** design\_based
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** 00b817e75c72fa52a0fe223e18151a52abc4f45aa7f6b43732ce132a7120f4db
+- **Program identity:** 5486722a6662199bd9537ffae67c3c6b0ec8257c4b97461422e1c3df906148d1
 - **Sealed operation:** continuous\_dose\_response
 
 ### Scientific problem
@@ -179,7 +179,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **design.source:** not\_design\_based
 - **estimator:** policy.triangular\_kernel\_inverse\_density
 - **identifier:** policy.continuous\_dose\_exchangeability
-- **identity:** 6f52d2838b00dd5f4db7a21eb128527b4ac8957d145ddd8235bd7c6d93b92707
+- **identity:** 7d5363a9c0b7da6450f447ae1ca99274fbe976e15421f7d6fabb0359389b5b10
 - **models\[0\].family:** supplied\_conditional\_dose\_density
 - **models\[0\].inputs:** dose
 - **models\[0\].output:** density

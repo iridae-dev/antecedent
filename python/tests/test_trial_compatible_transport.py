@@ -16,7 +16,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from antecedent import selective_discovery as sd
-from antecedent.errors import CausalTypeError, CausalValueError
+from antecedent.errors import CausalSerializationError, CausalTypeError, CausalValueError
 from antecedent.transport import discovered
 from antecedent.transport import trial_compatible as tc
 
@@ -67,7 +67,7 @@ def test_a_real_trial_refines_an_ambiguous_class_and_replays_every_decision():
 
 def test_a_forged_or_truncated_artifact_does_not_replay():
     artifact = bytes(_estimate().export())
-    with pytest.raises(CausalValueError, match="UnexpectedEof"):
+    with pytest.raises(CausalSerializationError, match="UnexpectedEof"):
         tc.verify_trial_compatible_transport_estimate(artifact[:-1])
     with pytest.raises(CausalValueError, match="expected map"):
         tc.verify_trial_compatible_transport_estimate(b"not an artifact")

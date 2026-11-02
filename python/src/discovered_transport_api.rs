@@ -435,7 +435,7 @@ fn discovered_transport_estimate_run(
 /// Replay an exported estimate: consume every member grid and recompute the answer.
 ///
 /// Returns the recomputed answer as JSON; a malformed or forged artifact raises the shared
-/// value error.
+/// serialization error.
 #[pyfunction]
 #[pyo3(signature = (artifact, *, seed=0, threads=None, memory_bytes=None, cancel=None))]
 fn verify_discovered_transport_estimate_artifact(

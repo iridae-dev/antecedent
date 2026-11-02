@@ -535,15 +535,25 @@ impl TransportGridResult {
     /// # Errors
     /// As [`Self::export`], and a name list that is not one unique non-empty name per node.
     pub fn export_named(&self, variable_names: &[String]) -> Result<Vec<u8>, IoError> {
+        self.clone().with_variable_names(variable_names)?.export()
+    }
+    /// Bind coordinate names to the result and its identity before exposing it to a caller.
+    /// An already named result cannot be relabelled.
+    ///
+    /// # Errors
+    /// A name list is invalid or conflicts with an existing binding.
+    pub fn with_variable_names(mut self, variable_names: &[String]) -> Result<Self, IoError> {
         check_grid_variable_names(variable_names, self.wire.nodes.len())?;
-        let mut named = self.clone();
-        named.wire.variable_names = variable_names.to_vec();
-        named.identity = if variable_names.is_empty() {
+        if !self.wire.variable_names.is_empty() && self.wire.variable_names != variable_names {
+            return Err(err("grid variable names already bound"));
+        }
+        self.wire.variable_names = variable_names.to_vec();
+        self.identity = if variable_names.is_empty() {
             self.identity.clone()
         } else {
-            antecedent_io::transport_grid_wire::grid_identity(&named.wire)?
+            antecedent_io::transport_grid_wire::grid_identity(&self.wire)?
         };
-        named.export()
+        Ok(self)
     }
     /// Explicit paired mean contrast; both coordinates must be executable.
     /// # Errors
@@ -1946,6 +1956,28 @@ mod tests {
             "1 executable; 1 unavailable (1 missing evidence, 0 support failure); \
              population positivity assumed"
         );
+    }
+
+    #[test]
+    fn named_grid_identity_survives_export_and_names_cannot_be_rebound() {
+        let ctx = ExecutionContext::for_tests(0);
+        let original = fixture().estimate(&ctx).unwrap();
+        let names: Vec<String> = (0..original.wire.nodes.len()).map(|i| format!("v{i}")).collect();
+        let named = original.clone().with_variable_names(&names).unwrap();
+        assert_ne!(original.identity(), named.identity());
+        let bytes = named.export_named(&names).unwrap();
+        let (_, consumed) = PreparedStudy::<TransportGridState>::consume(
+            &bytes,
+            ExactEvaluationLimits::default(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(consumed.identity(), named.identity());
+        assert_eq!(consumed.variable_names(), names);
+        let mut renamed = names;
+        renamed[0].push_str("_other");
+        assert!(consumed.clone().with_variable_names(&renamed).is_err());
+        assert!(consumed.export_named(&renamed).is_err());
     }
 
     #[test]

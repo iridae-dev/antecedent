@@ -805,7 +805,7 @@ def rank_studies(
         _count(limits.max_operations, "max_operations"),
         _count(limits.max_depth, "max_depth"),
         list(prior.weights),
-        [int(v) for v in prior.identified],
+        bytes(prior.identified),
         list(prior.keys),
         route=route,
         query_id=_count(query_id, "query_id"),

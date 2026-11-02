@@ -590,7 +590,7 @@ fn mediation_slice() -> TemporalMediationSliceWire {
         identification_status: crate::IdentificationStatusWire::NonparametricallyIdentified,
         method: "front_door".into(),
         adjustment: vec![],
-        effect: 0.5,
+        effect: Some(0.5),
         total: Some(0.5),
         direct: Some(0.2),
         mediated: Some(0.3),
@@ -609,9 +609,55 @@ fn validate_result_refuses_malformed_mediation_grid() {
     assert!(encode_analysis_result_artifact(&ok, names.clone(), "grid-ok").is_ok());
 
     let mut bad = ok.clone();
-    bad.mediation_grid.as_mut().unwrap().slices[0].effect = f64::NAN;
+    bad.mediation_grid.as_mut().unwrap().slices[0].effect = Some(f64::NAN);
     let err = encode_analysis_result_artifact(&bad, names.clone(), "grid-nan").unwrap_err();
     assert!(err.to_string().contains("mediation grid"), "{err}");
+
+    let mut bounded = ok.clone();
+    let slice = &mut bounded.mediation_grid.as_mut().unwrap().slices[0];
+    slice.effect = None;
+    slice.total = None;
+    slice.direct = None;
+    slice.mediated = None;
+    slice.identification_status = crate::IdentificationStatusWire::GraphDependent;
+    slice.identified_set = Some([0.2, 0.7]);
+    let artifact = encode_analysis_result_artifact(&bounded, names.clone(), "grid-bounds").unwrap();
+    assert_eq!(artifact.manifest.format_version, WITHHELD_MEDIATION_FORMAT);
+    assert_eq!(artifact.manifest.minimum_reader_version, WITHHELD_MEDIATION_FORMAT);
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    let read = crate::read_and_migrate(bytes.as_slice()).unwrap();
+    assert_eq!(read.manifest.format_version, WITHHELD_MEDIATION_FORMAT);
+    assert_eq!(read.manifest.minimum_reader_version, WITHHELD_MEDIATION_FORMAT);
+    let (_, _, decoded) = decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(decoded.mediation_grid, bounded.mediation_grid);
+    assert_eq!(to_cbor(&Some(0.5)).unwrap(), to_cbor(&0.5_f64).unwrap());
+    let mut foreign = artifact.clone();
+    foreign.manifest.artifact_kind = crate::ArtifactKind::Other("other".into());
+    assert!(crate::migrate_artifact(foreign).is_err());
+    let mut inconsistent = artifact.clone();
+    inconsistent.manifest.minimum_reader_version = STABLE_FORMAT;
+    assert!(crate::migrate_artifact(inconsistent).is_err());
+    let mut mislabeled = artifact;
+    mislabeled.manifest.format_version = STABLE_FORMAT;
+    mislabeled.manifest.minimum_reader_version = STABLE_FORMAT;
+    let mut old_bytes = Vec::new();
+    mislabeled.write_to(&mut old_bytes).unwrap();
+    assert!(decode_analysis_result_artifact(&old_bytes).is_err());
+    bounded.mediation_grid.as_mut().unwrap().slices[0].total = Some(0.5);
+    assert!(encode_analysis_result_artifact(&bounded, names.clone(), "grid-bad-bounds").is_err());
+
+    let mut false_identified = ok.clone();
+    false_identified.mediation_grid.as_mut().unwrap().slices[0].effect = None;
+    assert!(
+        encode_analysis_result_artifact(&false_identified, names.clone(), "grid-missing").is_err()
+    );
+    let mut false_point = ok.clone();
+    false_point.mediation_grid.as_mut().unwrap().slices[0].identification_status =
+        crate::IdentificationStatusWire::NotIdentified;
+    assert!(
+        encode_analysis_result_artifact(&false_point, names.clone(), "grid-false-point").is_err()
+    );
 
     let mut inverted = ok;
     inverted.mediation_grid.as_mut().unwrap().slices[0].identified_set = Some([1.0, 0.0]);

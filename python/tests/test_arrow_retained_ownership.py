@@ -7,18 +7,17 @@ the bytes its recorded identity describes. Call-scoped probes may still borrow.
 
 from __future__ import annotations
 
+import gc
+
+import antecedent
+import numpy as np
 import pytest
+from antecedent.errors import CausalResourceError
 from antecedent.outcomes import require_success
 
 from _scm import confounded_scm
 
 pa = pytest.importorskip("pyarrow")
-
-import gc
-
-import antecedent
-import numpy as np
-from antecedent.errors import CausalResourceError
 
 
 def _aliased_table(data):

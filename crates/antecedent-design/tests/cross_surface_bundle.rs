@@ -4,8 +4,8 @@
 //! Fixtures live in `conformance/cross_surface/`. A missing `py_*` fixture fails the
 //! test: run `python python/tests/generate_cross_surface_bundle_fixtures.py` from the
 //! repo root. To refresh the Rust-built bundle:
-//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test
-//! cross_surface_bundle -- --ignored regenerate_rust_fixtures`.
+//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test suite_01
+//! cross_surface_bundle::regenerate_rust_fixtures -- --ignored`.
 //!
 //! The bundle holds two hand-derived decisions:
 //!
@@ -66,7 +66,7 @@ fn read_fixture(name: &str) -> Vec<u8> {
         &format!(
             "run `{PY_COMMAND}` from the repo root \
             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
-            --test cross_surface_bundle -- --ignored regenerate_rust_fixtures)"
+            --test suite_01 cross_surface_bundle::regenerate_rust_fixtures -- --ignored)"
         ),
     )
 }

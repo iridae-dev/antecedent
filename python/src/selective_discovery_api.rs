@@ -1324,12 +1324,7 @@ fn rule_of(text: &str) -> PyResult<SplitRule> {
             seed: get_u64(map, "seed")?,
             discovery_fraction: field(map, "discovery_fraction")
                 .and_then(Json::as_f64)
-                .filter(|fraction| *fraction > 0.0 && *fraction < 1.0)
-                .ok_or_else(|| {
-                    input_err(
-                        "field `discovery_fraction` must be a number strictly between 0 and 1",
-                    )
-                })?,
+                .ok_or_else(|| input_err("field `discovery_fraction` must be a number"))?,
         }),
         other => Err(input_err(format!("unknown split rule {other:?}"))),
     }

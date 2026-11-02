@@ -20,7 +20,7 @@ from ._artifact_protocol import ExportedArtifact, artifact_export, artifact_from
 from ._recalc_bounds import _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError
-from .execution import Execution
+from .execution import Execution, native_controls
 from .graph import Admg
 from .outcomes import outcome_operation
 from .recalc import (

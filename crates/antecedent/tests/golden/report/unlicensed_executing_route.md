@@ -148,7 +148,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** design\_based
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** 9146dc10af9d4475f1856a884f6f29899ed3cb2324ac12fed042ad6d4a120dc6
+- **Program identity:** 1ff4b380b7f6c225d8322c6d9e9bcf250f9305790617549ae55a8f997ed1adca
 - **Sealed operation:** sequential\_contrast
 
 ### Scientific problem
@@ -181,7 +181,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **folds.folds:** 2
 - **folds.unit:** subject
 - **identifier:** randomized.design
-- **identity:** d4b9da9d0dfb1c788a84efb45b8d9078fb7cdcae3de6c82ecb55b0014694793c
+- **identity:** cebdfa37e39b89f35094ede342cfb3054a10a7fd1e5e65b0da535fb6187f2635
 - **models\[0\].family:** crossfit\_first\_decision\_propensity
 - **models\[0\].inputs:** l0
 - **models\[0\].output:** a0

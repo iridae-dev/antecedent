@@ -3,7 +3,7 @@
 import antecedent as ac
 import numpy as np
 import pytest
-from antecedent.errors import CausalEstimateError, CausalTypeError
+from antecedent.errors import CausalEstimateError, CausalSerializationError, CausalTypeError
 from antecedent.estimators import DML, CausalForest, DRLearner
 from antecedent.learners import ElasticNet, GradientBoostedTrees, Linear, Logistic, NeuralNet, Ridge
 from antecedent.outcomes import require_success
@@ -56,7 +56,7 @@ def test_structured_learner_parameters_change_identity():
 
 def test_fitted_model_requires_explicit_matching_source_for_replay():
     result = analyze(DRLearner(final_learner=Linear()))
-    with pytest.raises(Exception, match="verified parent claim"):
+    with pytest.raises(CausalSerializationError, match="verified parent claim"):
         _ = result.fitted_model
     source = data_fixture()
     model = result.fitted_model_from_source(source)
@@ -67,15 +67,8 @@ def test_fitted_model_requires_explicit_matching_source_for_replay():
         result.fitted_model_from_source(source)
 
 
-@pytest.mark.parametrize(
-    "estimator",
-    [
-        DRLearner(outcome=Ridge(), treatment=Logistic(), final_learner=Linear()),
-        DRLearner(final_learner=GradientBoostedTrees(trees=12, depth=2)),
-        CausalForest(n_trees=20, min_leaf=4),
-    ],
-)
-def test_fitted_effect_predicts_after_verified_reload(estimator):
+def test_fitted_effect_predicts_after_verified_reload():
+    estimator = DRLearner(outcome=Ridge(), treatment=Logistic(), final_learner=Linear())
     result = analyze(estimator)
     model = result.fitted_model_from_source(data_fixture())
     x = {"z": np.array([-1.0, 0.0, 1.0])}
@@ -89,6 +82,21 @@ def test_fitted_effect_predicts_after_verified_reload(estimator):
         require_success(loaded.predict({"wrong": [1.0]}))
     with pytest.raises(ValueError, match="must be finite one-dimensional columns"):
         require_success(loaded.predict({"z": [float("nan")]}))
+
+
+@pytest.mark.parametrize(
+    "estimator",
+    [
+        DRLearner(final_learner=GradientBoostedTrees(trees=12, depth=2)),
+        CausalForest(n_trees=20, min_leaf=4),
+    ],
+)
+def test_fitted_effect_refuses_reload_without_verified_replay(estimator):
+    # Neither boosted-tree DR nor causal forest has a checked replay declaration;
+    # producing a fitted model alone does not establish a verified parent claim.
+    result = analyze(estimator)
+    with pytest.raises(Exception, match="verified parent claim"):
+        result.fitted_model_from_source(data_fixture())
 
 
 def test_fitted_effect_prediction_warns_on_digit_strings():

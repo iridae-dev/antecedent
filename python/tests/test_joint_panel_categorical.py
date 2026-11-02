@@ -13,6 +13,7 @@ from antecedent.errors import (
 )
 from antecedent.joint_panel import PanelCategoricalChannel, PanelDummyChannel
 from antecedent.outcomes import require_success
+
 from test_joint_panel import declarations
 
 INTERVAL_NS = 604_800_000_000_000

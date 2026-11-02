@@ -101,9 +101,7 @@ def test_lpcmci_reports_circle_edges_not_cpdag_undirected_edges():
     result = DISCOVERY.LPCMCI(max_lag=1, alpha=0.01, fdr=False).run(
         (names, cols), execution=antecedent.Execution(seed=3)
     )
-    circled = sum(
-        1 for edge in result.graph_edges if "circle" in {edge.at_source, edge.at_target}
-    )
+    circled = sum(1 for edge in result.graph_edges if "circle" in {edge.at_source, edge.at_target})
     assert result.pag_circle_edges == circled
     assert result.cpdag_undirected_edges == 0
 

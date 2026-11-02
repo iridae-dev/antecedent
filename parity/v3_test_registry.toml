@@ -21698,3 +21698,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_joint_panel_restriction.py"
 gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-tests-dependence-aware-estimators-rs"
+crate = "antecedent"
+cargo_target = "dependence_aware_estimators"
+path = "crates/antecedent/tests/dependence_aware_estimators.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-series-weights-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/series_weights.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-identify-src-response-intervention-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/response_intervention.rs"
+gates = ["inventory"]

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Mutation tests for the bounded penalty-grid source contract."""
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
-from check_limits_agreement import RIDGE_RESOURCE_FILES, ridge_configuration_guard_errors
+from check_limits_agreement import (
+    RIDGE_RESOURCE_FILES,
+    ridge_configuration_guard_errors,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 

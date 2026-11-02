@@ -11,11 +11,10 @@ from antecedent.errors import (
     CausalTypeError,
 )
 from antecedent.missing import ImputationSpec
+
 from test_joint_panel import declarations
 
-SPEC = ImputationSpec(
-    imputations=4, iterations=2, seed=11, domains=(("confounder", "continuous"),)
-)
+SPEC = ImputationSpec(imputations=4, iterations=2, seed=11, domains=(("confounder", "continuous"),))
 
 
 def options(draws=8):
@@ -87,7 +86,11 @@ def test_the_assumptions_record_and_the_streams_do_not_depend_on_the_call():
     second = prepared.estimate(execution=Execution(seed=2))
     assumptions = first.assumptions
     assert assumptions["model"] == "chained_equations"
-    assert (assumptions["imputations"], assumptions["iterations"], assumptions["seed"]) == (4, 2, 11)
+    assert (assumptions["imputations"], assumptions["iterations"], assumptions["seed"]) == (
+        4,
+        2,
+        11,
+    )
     assert assumptions["assumption"] == "missing_at_random"
     assert assumptions["valid_under_declared_assumption"] is True
     assert assumptions["domains"] == [["confounder", "continuous"]]

@@ -4,8 +4,8 @@
 //! Fixtures live in `conformance/cross_surface/`. A missing `py_*` fixture fails
 //! the test: run `python python/tests/generate_cross_surface_fixtures.py`.
 //! To refresh the `rust_*` fixtures:
-//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io --test
-//! cross_surface_external_claim -- --ignored regenerate_rust_fixtures`.
+//! `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io --test suite_01
+//! cross_surface_external_claim::regenerate_rust_fixtures -- --ignored`.
 //!
 //! Truth is the enumerated closed form `E[Y | do(a)] = 1 + 2a` over `a` in
 //! `0, 1, 2`, i.e. `[1, 3, 5]`, with every identity built from constants.
@@ -34,7 +34,7 @@ fn read_fixture(name: &str) -> Vec<u8> {
         "run \
             `python python/tests/generate_cross_surface_fixtures.py` from the repo root \
             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-io \
-            --test cross_surface_external_claim -- --ignored regenerate_rust_fixtures)",
+            --test suite_01 cross_surface_external_claim::regenerate_rust_fixtures -- --ignored)",
     )
 }
 

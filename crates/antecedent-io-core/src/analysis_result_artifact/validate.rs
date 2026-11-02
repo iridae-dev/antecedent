@@ -737,11 +737,33 @@ fn validate_mediation_grid(
                 ));
             }
         }
-        let optionals = [slice.total, slice.direct, slice.mediated];
-        if !slice.effect.is_finite() || optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite()))
-        {
+        let optionals = [slice.effect, slice.total, slice.direct, slice.mediated];
+        if optionals.iter().any(|v| v.is_some_and(|x| !x.is_finite())) {
             return Err(IoError::Convert(
                 "mediation grid effects must be finite when present".into(),
+            ));
+        }
+        use crate::IdentificationStatusWire as Status;
+        if slice.effect.is_none()
+            && (!matches!(
+                slice.identification_status,
+                Status::GraphDependent | Status::PartiallyIdentified | Status::NotIdentified
+            ) || slice.total.is_some()
+                || slice.direct.is_some()
+                || slice.mediated.is_some()
+                || !matches!(
+                    slice.uncertainty,
+                    super::TemporalMediationUncertaintyWire::Unavailable
+                ))
+        {
+            return Err(IoError::Convert(
+                "mediation grid without a point cannot claim a point decomposition or uncertainty"
+                    .into(),
+            ));
+        }
+        if slice.identification_status == Status::NotIdentified && slice.effect.is_some() {
+            return Err(IoError::Convert(
+                "unidentified mediation horizon cannot claim a point effect".into(),
             ));
         }
         if let Some([lower, upper]) = slice.identified_set {

@@ -153,7 +153,9 @@ impl PreparedTransportGridStage {
         let ctx = self.ctx(cancel);
         let result = crate::detach_catch(py, move || {
             inner.materialize(&ctx)?.estimate(&ctx).map_err(error)
-        })?;
+        })?
+        .with_variable_names(&self.names)
+        .map_err(error)?;
         let payload = self.payload(&result)?;
         self.last = Some(result);
         Ok(payload)

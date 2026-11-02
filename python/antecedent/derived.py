@@ -434,7 +434,9 @@ def factorized_joint_cells(
         ordering=None if ordering is None else list(ordering),
         all_orderings=all_orderings,
         nuisance=nuisance,
-        penalties=None if penalties is None else [float(p) for p in bounded_penalty_list(penalties)],
+        penalties=None
+        if penalties is None
+        else [float(p) for p in bounded_penalty_list(penalties)],
         inner_folds=inner_folds,
         folds=folds,
         clip=clip,
@@ -501,7 +503,9 @@ def estimate_joint_cell_cost(
             ordering=None if ordering is None else [int(i) for i in ordering],
             all_orderings=all_orderings,
             nuisance=nuisance,
-            penalties=None if penalties is None else [float(p) for p in bounded_penalty_list(penalties)],
+            penalties=None
+            if penalties is None
+            else [float(p) for p in bounded_penalty_list(penalties)],
             inner_folds=inner_folds,
             folds=folds,
             rows=rows,

@@ -965,17 +965,20 @@ def _rewrite_version(blob: bytes, current: int, replacement: int) -> bytes:
     raise AssertionError("the wire does not carry a small-integer version field")
 
 
-def test_z_transport_version_one_artifacts_are_refused_by_the_consumers():
-    """Every z-transport wire is version 2; version 1 bytes are refused by their
-    typed version check before any embedded field is trusted."""
+def test_z_transport_older_artifacts_are_refused_by_the_consumers():
+    """Point wire version 3 and sensitivity wire version 2 reject older versions
+    before any embedded field is trusted."""
     from antecedent import _native
 
     _, stage, catalog, prepared, _ = fixture(False)
     require_success(prepared.estimate())
     point = bytes(prepared.export())
-    assert _rewrite_version(point, 2, 2) == point
-    with pytest.raises(CausalSerializationError, match="unsupported container version 1"):
-        transport.consume_z_transport_artifact(_rewrite_version(point, 2, 1))
+    assert _rewrite_version(point, 3, 3) == point
+    for old_version in (1, 2):
+        with pytest.raises(
+            CausalSerializationError, match=f"unsupported container version {old_version}"
+        ):
+            transport.consume_z_transport_artifact(_rewrite_version(point, 3, old_version))
     sensitivity = prepared.export_sensitivity(0.2, 0.4)
     with pytest.raises(CausalSerializationError, match="unsupported container version 1"):
         transport.consume_z_transport_sensitivity_artifact(_rewrite_version(sensitivity, 2, 1))

@@ -160,7 +160,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **Family:** static\_effect
 - **Stage:** prepared
 - **Depth:** complete
-- **Program identity:** 5f95679de9c0fbdf41f81eb7a173ac770b7693f20d4aa8b2ac0e95502b601b5a
+- **Program identity:** d59c6a8a44e255ef630b671dab52be9e7c64d5b5013e67da0b5cbbb085cdaa4f
 - **Sealed operation:** linear\_adjustment
 
 ### Scientific problem
@@ -203,7 +203,7 @@ This report restates the contract. It computes no estimate, grants no licence, a
 - **design.source:** quoted
 - **estimator:** linear.adjustment.ate
 - **identifier:** backdoor.adjustment
-- **identity:** 759d8f09f71e1e62b85564ebaa320c8b8428a1520e954075920373b89bfe6251
+- **identity:** d16c7aff1c83dc4c178095ea67494564b4e0bf2d5c0cae9c1f0d3807c80e7734
 - **models\[0\].family:** ols.faer
 - **models\[0\].inputs:** t, z
 - **models\[0\].output:** y

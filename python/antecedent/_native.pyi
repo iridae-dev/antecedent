@@ -84,6 +84,7 @@ class CausalReviewError(CausalError):
 def set_review_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for review errors."""
 
+def _penalty_grid_max_items() -> int: ...
 def set_unsupported_error_class(cls: type) -> None:
     """Register the Python class native code instantiates for refusals."""
 
@@ -3209,7 +3210,6 @@ def evaluate_graph(
     permutation_seed: int | None = None,
     seed: int = 0,
     threads: int | None = None,
-    memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 def attribute_intrinsic_influence(
@@ -3231,7 +3231,6 @@ def attribute_intrinsic_influence(
     max_sources: int = 64,
     seed: int = 0,
     threads: int | None = None,
-    memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
 def sample_policy(
@@ -4152,7 +4151,7 @@ def rank_root_causes(
 ) -> list[Contribution]: ...
 def rank_designs(
     graph_weights: list[float],
-    identified: list[int],
+    identified: bytes,
     graph_keys: list[int],
     candidates: list[dict[str, Any]],
     objective: str | dict[str, Any] | None = None,
@@ -4181,7 +4180,7 @@ def rank_designs(
 def preview_design_rank(
     prepared: PreparedAnalysis,
     graph_weights: list[float],
-    identified: list[int],
+    identified: bytes,
     graph_keys: list[int],
     candidates: list[dict[str, Any]],
     objective: str | dict[str, Any] | None = None,
@@ -4206,7 +4205,7 @@ def rank_studies_bound(
     max_operations: int,
     max_depth: int,
     graph_weights: list[float],
-    identified: list[int],
+    identified: bytes,
     graph_keys: list[int],
     *,
     route: str | None = None,

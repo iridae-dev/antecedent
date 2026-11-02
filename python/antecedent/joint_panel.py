@@ -878,7 +878,8 @@ def dummy_code_panel(
     return DummyCodedPanel(
         groups={
             unit["id"]: {
-                name: tuple(column) for name, column in zip(raw["names"], unit["columns"], strict=True)
+                name: tuple(column)
+                for name, column in zip(raw["names"], unit["columns"], strict=True)
             }
             for unit in raw["groups"]
         },

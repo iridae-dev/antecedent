@@ -149,9 +149,10 @@ def test_verified_predictor_supports_point_prediction_without_becoming_score_sta
     rng = np.random.default_rng(19)
     z = np.tile(np.linspace(-1, 1, 20), 30)
     t = rng.binomial(1, 0.5, len(z)).astype(float)
+    source = {"z": z, "t": t, "y": 2 * t + z}
     result = require_success(
         ac.analyze(
-            {"z": z, "t": t, "y": 2 * t + z},
+            source,
             graph=[("z", "t"), ("z", "y"), ("t", "y")],
             query=ac.AverageEffect(treatment="t", outcome="y"),
             # Correctly specified unpenalized outcome/final regressions reproduce
@@ -162,7 +163,7 @@ def test_verified_predictor_supports_point_prediction_without_becoming_score_sta
             execution=ac.Execution(seed=3),
         )
     )
-    model = FittedEffectModel.load(bytes(result.fitted_model.export()))
+    model = FittedEffectModel.load(bytes(result.fitted_model_from_source(source).export()))
     assert retained_kind(model) == RetainedKind.PREDICTOR
     adapter = require_adapter(Family.DOUBLY_ROBUST, Operation.DATA, model)
     assert adapter.python_path == "antecedent.prediction.FittedEffectModel.predict"

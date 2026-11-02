@@ -660,7 +660,17 @@ pub(super) fn mediation_grid_wire(
                             offset: key.offset,
                         })
                         .collect(),
-                    effect: slice.estimate.effect.ate,
+                    effect: if slice.estimate.effect.ate.is_nan()
+                        && matches!(
+                            slice.identification_status,
+                            antecedent_core::IdentificationStatus::GraphDependent
+                                | antecedent_core::IdentificationStatus::PartiallyIdentified
+                                | antecedent_core::IdentificationStatus::NotIdentified
+                        ) {
+                        None
+                    } else {
+                        Some(slice.estimate.effect.ate)
+                    },
                     total: slice.estimate.total,
                     direct: slice.estimate.direct,
                     mediated: slice.estimate.mediated,
