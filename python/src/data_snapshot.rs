@@ -4,9 +4,7 @@
 use std::sync::Arc;
 
 use antecedent_core::VariableId;
-use antecedent_data::{
-    F64Buffer, Float64Column, OwnedColumn, OwnedColumnarStorage, TableView, TabularData,
-};
+use antecedent_data::{F64Buffer, OwnedColumn, OwnedColumnarStorage, TableView, TabularData};
 use pyo3::prelude::*;
 
 /// Owned nanosecond indices, shared with event preparation without another input copy.
@@ -179,50 +177,17 @@ impl TableSnapshot {
                         error => crate::CausalResourceError::new_err(error.to_string()),
                     })?,
             );
-            let (mut data, borrowed, mut copied_bytes) = if let Some(numeric) = numeric {
+            // Arrow can alias writable NumPy arrays. Default snapshots therefore take
+            // ownership too; only the explicit borrow constructor accepts that contract.
+            let (mut data, borrowed, copied_bytes) = if let Some(numeric) = numeric {
                 let loaded = crate::numeric_columns_to_batch(&names, &numeric)?.loaded()?;
                 (loaded.data, None, loaded.receipt.bytes_copied)
-            } else {
-                let (data, borrowed) = crate::tabular_from_py_columns(names, columns)?;
+            } else if borrow {
+                let (data, borrowed) = crate::borrowing_tabular_from_py_columns(names, columns)?;
                 (data, borrowed, bytes_to_retain.saturating_sub(borrowed.unwrap_or(0)))
+            } else {
+                (crate::funded_tabular_from_py_columns(names, columns)?, None, bytes_to_retain)
             };
-            let bytes = data
-                .row_count()
-                .checked_mul(data.schema().len())
-                .and_then(|n| n.checked_mul(std::mem::size_of::<f64>()))
-                .and_then(|n| u64::try_from(n).ok())
-                .ok_or_else(|| crate::value_err("snapshot size overflow"))?;
-            if !borrow && borrowed.is_some_and(|n| n > 0) {
-                copied_bytes = bytes;
-                // Arrow can alias writable NumPy arrays. Default snapshots therefore take
-                // ownership too; only the explicit borrow constructor accepts that contract.
-                let storage = data.storage();
-                let columns = storage
-                    .columns()
-                    .iter()
-                    .map(|column| match column {
-                        OwnedColumn::Float64(column) => Float64Column::new(
-                            column.id,
-                            F64Buffer::owned(Arc::<[f64]>::from(column.values.as_slice())),
-                            column.validity.clone(),
-                        )
-                        .map(OwnedColumn::Float64),
-                        _ => Err(antecedent_data::DataError::InvalidArgument {
-                            message: "table snapshots require numeric columns".into(),
-                        }),
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(crate::py_err)?;
-                data = TabularData::new(
-                    OwnedColumnarStorage::try_new(
-                        storage.schema().clone(),
-                        columns,
-                        storage.analysis_mask().cloned(),
-                        storage.weights().map(Arc::from),
-                    )
-                    .map_err(crate::py_err)?,
-                );
-            }
             let storage = data.storage();
             let columns = storage
                 .columns()
@@ -248,6 +213,9 @@ impl TableSnapshot {
                 )
                 .map_err(crate::py_err)?,
             );
+            // The columns hold the lease where a view can outlive the table; the table holds it
+            // whatever its column types.
+            let data = data.with_retention(retention);
             let borrowed_bytes = if borrow { borrowed.unwrap_or(0) } else { 0 };
             Ok(Self { data: Arc::new(data), copied_bytes, borrowed_bytes })
         })

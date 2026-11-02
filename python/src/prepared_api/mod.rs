@@ -72,7 +72,6 @@ pub struct PyPreparedAnalysis {
     pub(in crate::prepared_api) last_study: Option<Arc<PreparedStudy>>,
     pub(in crate::prepared_api) last_seed: u64,
     pub(in crate::prepared_api) last_threads: u32,
-    pub(in crate::prepared_api) borrowed_bytes: Option<u64>,
     /// When true, estimate clicks use series data (`estimate_series`).
     pub(in crate::prepared_api) series: bool,
 }
@@ -99,7 +98,6 @@ impl PyPreparedAnalysis {
             last_study: Some(study),
             last_seed: seed,
             last_threads: threads,
-            borrowed_bytes: None,
             series: false,
         }
     }
@@ -112,7 +110,6 @@ impl PyPreparedAnalysis {
             last_study: None,
             last_seed: 1,
             last_threads: 1,
-            borrowed_bytes: None,
             series: false,
         }
     }
@@ -192,7 +189,6 @@ impl PyPreparedAnalysis {
             &ExecutionContext,
         ) -> PyResult<T>,
     ) -> PyResult<T> {
-        let borrowed_bytes = self.borrowed_bytes;
         let source = Arc::clone(&self.inner);
         let names = self.names.clone();
         let (mapped, result, bound) = detach_catch(py, move || {
@@ -205,7 +201,7 @@ impl PyPreparedAnalysis {
                     ctx.cache_policy.max_bytes.unwrap_or(u64::MAX),
                 )
             });
-            let (study, mut result) =
+            let (study, result) =
                 antecedent_estimate::CrossfitNuisanceCache::run_in(cache.as_ref(), || {
                     let study = study.materialize(&ctx).map_err(py_err)?;
                     let result = crate::interrupt::bind_study_validators(&study)?
@@ -213,7 +209,6 @@ impl PyPreparedAnalysis {
                         .map_err(py_err)?;
                     Ok::<_, PyErr>((study, result))
                 })?;
-            result.set_borrowed_input_bytes(borrowed_bytes);
             let mapped = map(&names, &result, &study, &ctx)?;
             Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
@@ -290,7 +285,7 @@ fn finished_prepared(
     names: Vec<String>,
     series: bool,
 ) -> PyPreparedAnalysis {
-    finished_prepared_under(prepared, names, series, 1, 1, None)
+    finished_prepared_under(prepared, names, series, 1, 1)
 }
 
 /// A handle whose execution header names the controls its preparation ran under.
@@ -300,7 +295,6 @@ fn finished_prepared_under(
     series: bool,
     seed: u64,
     threads: u32,
-    borrowed_bytes: Option<u64>,
 ) -> PyPreparedAnalysis {
     PyPreparedAnalysis {
         inner: Arc::new(prepared),
@@ -309,7 +303,6 @@ fn finished_prepared_under(
         last_study: None,
         last_seed: seed,
         last_threads: threads,
-        borrowed_bytes,
         series,
     }
 }

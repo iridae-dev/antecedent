@@ -430,7 +430,10 @@ def analyze(
         exported buffers unchanged while a data or prepared handle retains them,
         including any writable NumPy aliases backing an Arrow array. Supply new
         buffers and call ``rebind(result.study, data=new_data)`` to bind other observations;
-        ordinary mappings of NumPy columns are copied during ingest.
+        ordinary mappings of NumPy columns are copied during ingest. Every retained copy is
+        admitted against ``Execution(limits=ResourceLimits(memory_bytes=...))`` before it is made
+        (``CausalResourceError`` when it cannot be funded) and stays charged until the retained
+        table is dropped.
         For ``discovery=JPCMCIPlus(...)``, pass a sequence of environment frames
         or a ``MultiEnvFrame``.
     query:

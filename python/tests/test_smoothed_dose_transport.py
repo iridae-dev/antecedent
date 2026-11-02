@@ -498,6 +498,32 @@ def test_posterior_artifact_is_consumed_independently_and_refuses_changes():
         )
 
 
+def test_posterior_consumer_runs_under_the_callers_execution():
+    query, data = fixture()
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(), execution=ac.Execution(seed=7)
+    )
+    artifact = bytes(require_success(study.posterior(posterior_model(draws=500))).export())
+    roomy = ac.Execution(limits=ac.ResourceLimits(memory_bytes=512 * 1024 * 1024))
+    assert advanced.consume_smoothed_dose_posterior(artifact, execution=roomy).posterior
+    # A memory limit below the replay's admitted allocation is a coded resource refusal.
+    tight = ac.Execution(limits=ac.ResourceLimits(memory_bytes=1))
+    with pytest.raises((CausalResourceError, CausalCancelledError)) as limited:
+        advanced.consume_smoothed_dose_posterior(artifact, execution=tight)
+    assert limited.value.reason_code == "transport_budget_cancel"
+    # A cancelled token reaches the replay before any work.
+    token = ac.state.CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError) as cancelled:
+        advanced.consume_smoothed_dose_posterior(artifact, execution=ac.Execution(cancel=token))
+    assert cancelled.value.reason_code == "transport_budget_cancel"
+    # The replay limits remain typed refusals, and bad limits are rejected up front.
+    with pytest.raises(CausalError):
+        advanced.consume_smoothed_dose_posterior(artifact, max_rows=1)
+    with pytest.raises(CausalValueError, match="max_points"):
+        advanced.consume_smoothed_dose_posterior(artifact, max_points=-1)
+
+
 def test_posterior_refuses_thin_windows_and_undeclared_residual_priors():
     query, data = fixture()
     study = advanced.prepare_smoothed_dose(

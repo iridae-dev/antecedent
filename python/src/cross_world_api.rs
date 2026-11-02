@@ -104,7 +104,7 @@ fn evaluate_cross_world_edge_contrast(
     seed: u64,
 ) -> PyResult<(String, Vec<u8>)> {
     let mechanism = mechanism_of(mechanism)?;
-    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
+    let data = tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let id = |name: &str| {
             data.schema()

@@ -280,3 +280,13 @@ def test_a_cancelled_search_is_a_budget_stop_with_its_receipt() -> None:
     assert stopped.value.reason_code == "transport_budget_cancel"
     assert "counterfactual_id.budget" in str(stopped.value)
     assert "receipt: stop search.cancelled" in str(stopped.value)
+
+
+def test_a_count_table_whose_total_exceeds_u64_is_refused_not_wrapped() -> None:
+    # A wrapped sum would normalise the cells against a wrong (small) denominator.
+    huge = 2**63
+    with pytest.raises(CausalError) as refused:
+        prepare().evaluate(counts=[huge, huge, 1, 0, 0, 0, 0, 0])
+    assert refused.value.reason_code == "invalid_argument"
+    assert "counterfactual_id.invalid_query" in str(refused.value)
+    assert "exceeds" in str(refused.value)

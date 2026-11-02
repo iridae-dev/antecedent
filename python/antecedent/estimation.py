@@ -1064,11 +1064,18 @@ class _PreparedEngine(Generic[ResultT]):
 
     **Re-prepare required:** any frozen field change, including schema mismatch.
 
-    Arrow CDI / stream inputs may be borrowed without copying. Keep their
-    exported buffers unchanged while this handle retains them, including any
-    writable NumPy aliases backing Arrow arrays. To bind other observations, use
-    new backing buffers and ``rebind``; ordinary mappings of NumPy
-    columns are copied during ingest.
+    The handle owns its observations. NumPy columns and Arrow CDI / stream
+    inputs are copied into library-owned, immutable storage when the study is
+    prepared, rebound or clicked, so later writes to the source arrays (including
+    writable NumPy arrays backing Arrow buffers) never change this study's
+    results, and the recorded data identity stays the identity of the bytes it
+    reads. Each copy is admitted against the execution's ``memory_bytes`` before it is made
+    and stays charged until the handle's table is dropped. To bind other observations, use
+    ``rebind``. Only a call that does not
+    retain its input (an ``antecedent.data.load_float64_arrow_c_columns`` probe)
+    or an explicit ``antecedent.data.table(..., borrow=True)`` snapshot may borrow
+    Arrow buffers; the latter makes the caller responsible for keeping them
+    unchanged.
 
     ``analyze`` is ``prepare(...).estimate()``; its result retains this handle
     as ``result.study``. For streaming append + incremental OLS, use

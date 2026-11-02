@@ -1504,7 +1504,7 @@ fn fit_gcm_py(
     splits: &str,
     purge: usize,
 ) -> PyResult<PyFittedGcm> {
-    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
     let ctx = crate::py_execution_context_cancel(0, crate::resolve_user_threads(threads), None);
     detach_catch(py, move || {
@@ -1604,7 +1604,7 @@ fn fit_gcm_accepted_py(
         .clone()
         .ok_or_else(|| crate::value_err("this discovery result has no compiled route to accept"))?;
     drop(discovery);
-    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
     let ctx = crate::py_execution_context_cancel(0, crate::resolve_user_threads(threads), None);
     detach_catch(py, move || {
@@ -1651,7 +1651,7 @@ fn attribute_paths(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<ChangeAttributionResult> {
-    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let source = ModelSource {
             dag: dag_from_edges(&data, &edges)?,
@@ -1841,7 +1841,7 @@ impl PyPreparedPolicyAnalysis {
         splits: &str,
         purge: usize,
     ) -> PyResult<Self> {
-        let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+        let data = crate::tabular_from_py_columns(names.clone(), columns)?;
         data.schema().id_of(outcome).map_err(py_err)?;
         let selection = Selection::parse(candidates, constraints.as_ref(), &data, splits, purge)?;
         // Lower expressions and their dependency ordering now, without mechanisms or samples.
@@ -1875,7 +1875,7 @@ impl PyPreparedPolicyAnalysis {
         if names.as_slice() != self.names.as_ref() {
             return Err(crate::value_err("policy observations must preserve variables and order"));
         }
-        let (data, _) = crate::tabular_from_py_columns(names, columns)?;
+        let data = crate::tabular_from_py_columns(names, columns)?;
         Ok(Self {
             data: Arc::new(data),
             names: Arc::clone(&self.names),

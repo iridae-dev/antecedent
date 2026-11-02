@@ -111,7 +111,7 @@ fn evaluate_graph_py(
     threads: Option<u32>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
-    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let g = dag_from_named_edges(data.schema(), &edges)?;
         let defaults = GraphFalsificationConfig::default();

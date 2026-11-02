@@ -40,7 +40,7 @@ impl PyPreparedAnalysis {
         threads: Option<u32>,
     ) -> PyResult<String> {
         let policy = policy_of(policy_json.as_deref())?;
-        let (data, _) = tabular_from_py_columns(names, columns)?;
+        let data = tabular_from_py_columns(names, columns)?;
         let study = std::sync::Arc::clone(&self.inner);
         detach_catch(py, move || {
             let ctx = py_execution_context(seed, resolve_user_threads(threads));
@@ -97,7 +97,7 @@ fn staleness_from_artifact(
     threads: Option<u32>,
 ) -> PyResult<String> {
     let policy = policy_of(policy_json.as_deref())?;
-    let (data, _) = tabular_from_py_columns(names, columns)?;
+    let data = tabular_from_py_columns(names, columns)?;
     detach_catch(py, move || {
         let ctx = py_execution_context(seed, resolve_user_threads(threads));
         let report = assess_artifact_staleness(artifact, &data, &policy, &ctx).map_err(py_err)?;

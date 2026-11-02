@@ -7,8 +7,16 @@ use antecedent::analysis::{
         JointPanelState, JointPanelWorld,
     },
 };
-use antecedent_core::{ExecutionContext, InferenceSelection, ScientificWorldId, VariableId};
-use antecedent_data::{PanelData, PanelUnit, TimeSeriesData};
+use antecedent_core::{
+    CategoryDomainId, CausalSchema, CausalSchemaBuilder, ExecutionContext, InferenceSelection,
+    MeasurementSpec, RoleHint, ScientificTarget, ScientificWorldId, SmallRoleSet, ValueType,
+    VariableId,
+};
+use antecedent_data::{
+    CategoricalColumn, CategoryCode, CategoryDomain, CategoryLevel, Float64Column, OwnedColumn,
+    OwnedColumnarStorage, PanelData, PanelUnit, SamplingRegularity, TableView, TimeIndex,
+    TimeSeriesData, UnknownCategoryPolicy, ValidityBitmap,
+};
 use antecedent_estimate::joint_panel::{
     self as engine, PanelChannelHistory, PanelChannelProgram, PanelFitOptions, PanelProgram,
     PanelScenario,
@@ -21,15 +29,40 @@ mod contrast_target;
 mod designs;
 mod experiment;
 mod finite_search;
+mod imputed;
 mod replay;
 mod search;
 mod selection;
+mod unrolled;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SourceGroup {
     id: u32,
-    columns: Vec<Vec<Option<f64>>>,
+    columns: Vec<SourceColumn>,
+}
+/// One source column: numbers (missing cells `null`), or category labels for a declared
+/// categorical channel (missing cells `null`).
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SourceColumn {
+    Numeric(Vec<Option<f64>>),
+    Labels(Vec<Option<String>>),
+}
+/// A categorical assignment channel and its complete declared level set.
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CategoricalDeclaration {
+    channel: String,
+    levels: Vec<String>,
+    reference: String,
+}
+/// An indicator channel the dummy coding produced, by name.
+#[derive(Clone)]
+struct Indicator {
+    name: String,
+    source: String,
+    level: String,
 }
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -148,6 +181,10 @@ struct Declaration {
     assignment: Option<antecedent_io_core::query_wire::RandomizedEffectQueryWire>,
     #[serde(default)]
     exogenous_context: bool,
+    #[serde(default)]
+    gaussian_restriction: bool,
+    #[serde(default)]
+    categorical: Vec<CategoricalDeclaration>,
 }
 pub(crate) fn context(
     seed: u64,
@@ -238,7 +275,58 @@ fn functional(declaration: Option<&Functional>) -> JointPanelFunctional {
         reference: ScientificWorldId::from_raw(value.reference),
     })
 }
-fn prepare(declaration: Declaration, ctx: &ExecutionContext) -> PyResult<PyPreparedJointPanel> {
+/// A declaration lowered to the Rust request: the source panel (dummy-coded when categorical
+/// channels were declared), its roles and the names the worlds and features refer to.
+struct Compiled {
+    data: PanelData,
+    request: JointPanelRequest,
+    names: Vec<String>,
+    functional: Option<Functional>,
+    exogenous_context: bool,
+    gaussian_restriction: bool,
+    indicators: Vec<Indicator>,
+}
+fn selection_of(options: &PanelFitOptions) -> InferenceSelection {
+    if matches!(&options.inference, engine::PanelInference::Bayesian { .. }) {
+        InferenceSelection::Bayesian
+    } else {
+        InferenceSelection::Frequentist
+    }
+}
+/// The target choices a handle retains so a declared context or restriction survives
+/// replacing the worlds.
+struct TargetChoices<'a> {
+    functional: Option<&'a Functional>,
+    selection: InferenceSelection,
+    exogenous_context: bool,
+    gaussian_restriction: bool,
+}
+/// The one assembly of the scientific target, shared by preparation and retargeting.
+fn assemble_target(
+    schema: &CausalSchema,
+    columns: &JointPanelColumns,
+    lag_order: usize,
+    worlds: &[JointPanelWorld],
+    choices: &TargetChoices<'_>,
+) -> PyResult<ScientificTarget> {
+    let mut target = facade::joint_panel_target(
+        schema,
+        columns,
+        lag_order,
+        worlds,
+        functional(choices.functional),
+        choices.selection,
+    )
+    .map_err(panel_error)?;
+    if choices.exogenous_context {
+        target = facade::declare_joint_panel_exogenous_context(&target);
+    }
+    if choices.gaussian_restriction {
+        target = facade::declare_joint_panel_gaussian_restriction(&target);
+    }
+    Ok(target)
+}
+fn compile(declaration: Declaration) -> PyResult<Compiled> {
     let mut unique = std::collections::BTreeSet::new();
     if declaration.names.iter().any(|name| !unique.insert(name)) {
         return Err(crate::value_err("duplicate source column name"));
@@ -253,28 +341,31 @@ fn prepare(declaration: Declaration, ctx: &ExecutionContext) -> PyResult<PyPrepa
         confounder: variable(&declaration.names, &declaration.confounder)?,
         season: variable(&declaration.names, &declaration.season)?,
     };
-    let data = source_data(&declaration.names, declaration.groups, declaration.interval_ns)?;
-    let interactions =
-        features(&declaration.names, &declaration.outcome, declaration.interactions)?;
-    let worlds = worlds(&declaration.names, declaration.worlds)?;
-    let selection =
-        if matches!(&declaration.options.inference, engine::PanelInference::Bayesian { .. }) {
-            InferenceSelection::Bayesian
-        } else {
-            InferenceSelection::Frequentist
-        };
-    let mut target = facade::joint_panel_target(
+    let data = source_data(
+        &declaration.names,
+        declaration.groups,
+        declaration.interval_ns,
+        &declaration.categorical,
+    )?;
+    let (data, columns, names, indicators) = if declaration.categorical.is_empty() {
+        (data, columns, declaration.names, Vec::new())
+    } else {
+        code_categorical(&data, &columns, &declaration.names, &declaration.categorical)?
+    };
+    let interactions = features(&names, &declaration.outcome, declaration.interactions)?;
+    let worlds = worlds(&names, declaration.worlds)?;
+    let target = assemble_target(
         data.schema(),
         &columns,
         declaration.lag_order,
         &worlds,
-        functional(declaration.functional.as_ref()),
-        selection,
-    )
-    .map_err(panel_error)?;
-    if declaration.exogenous_context {
-        target = facade::declare_joint_panel_exogenous_context(&target);
-    }
+        &TargetChoices {
+            functional: declaration.functional.as_ref(),
+            selection: selection_of(&declaration.options),
+            exogenous_context: declaration.exogenous_context,
+            gaussian_restriction: declaration.gaussian_restriction,
+        },
+    )?;
     let assignment = declaration
         .assignment
         .map(|wire| {
@@ -300,12 +391,27 @@ fn prepare(declaration: Declaration, ctx: &ExecutionContext) -> PyResult<PyPrepa
         assignment,
         temporal: declaration.temporal,
     };
-    let inner = antecedent::Study::prepare_joint_panel(data, request, ctx).map_err(panel_error)?;
-    Ok(PyPreparedJointPanel {
-        inner,
-        names: declaration.names,
+    Ok(Compiled {
+        data,
+        request,
+        names,
         functional: declaration.functional,
         exogenous_context: declaration.exogenous_context,
+        gaussian_restriction: declaration.gaussian_restriction,
+        indicators,
+    })
+}
+fn prepare(declaration: Declaration, ctx: &ExecutionContext) -> PyResult<PyPreparedJointPanel> {
+    let compiled = compile(declaration)?;
+    let inner = antecedent::Study::prepare_joint_panel(compiled.data, compiled.request, ctx)
+        .map_err(panel_error)?;
+    Ok(PyPreparedJointPanel {
+        inner,
+        names: compiled.names,
+        functional: compiled.functional,
+        exogenous_context: compiled.exogenous_context,
+        gaussian_restriction: compiled.gaussian_restriction,
+        indicators: compiled.indicators,
     })
 }
 
@@ -315,12 +421,14 @@ pub(crate) struct PyPreparedJointPanel {
     names: Vec<String>,
     functional: Option<Functional>,
     exogenous_context: bool,
+    gaussian_restriction: bool,
+    indicators: Vec<Indicator>,
 }
 #[pymethods]
 impl PyPreparedJointPanel {
     fn inspect(&self) -> String {
         let inspection = self.inner.inspect();
-        serde_json::json!({"fits_performed":inspection.fits_performed,"identified":inspection.identification.is_identified_claim(),"source_identity":inspection.source_identity.to_hex(),"attempts":inspection.design_attempts.iter().map(|attempt|serde_json::json!({"id":attempt.id,"outcome":format!("{:?}",attempt.outcome),"detail":attempt.detail,"next_attempt":attempt.next_attempt})).collect::<Vec<_>>()}).to_string()
+        serde_json::json!({"fits_performed":inspection.fits_performed,"identified":inspection.identification.is_identified_claim(),"source_identity":inspection.source_identity.to_hex(),"attempts":inspection.design_attempts.iter().map(|attempt|serde_json::json!({"id":attempt.id,"outcome":format!("{:?}",attempt.outcome),"detail":attempt.detail,"next_attempt":attempt.next_attempt})).collect::<Vec<_>>(),"indicators":self.indicators.iter().map(|indicator|serde_json::json!({"name":indicator.name,"source":indicator.source,"level":indicator.level})).collect::<Vec<_>>(),"gaussian_restriction_declared":self.gaussian_restriction}).to_string()
     }
     #[pyo3(signature=(*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn estimate(
@@ -360,34 +468,68 @@ impl PyPreparedJointPanel {
             .map_err(|error| crate::value_err(error.to_string()))?;
         let worlds = worlds(&self.names, declarations)?;
         let request = self.inner.request();
-        let selection =
-            if matches!(&request.options.inference, engine::PanelInference::Bayesian { .. }) {
-                InferenceSelection::Bayesian
-            } else {
-                InferenceSelection::Frequentist
-            };
-        let mut target = facade::joint_panel_target(
+        let target = assemble_target(
             self.inner.source_data().schema(),
             &request.columns,
             request.lag_order,
             &worlds,
-            functional(self.functional.as_ref()),
-            selection,
-        )
-        .map_err(panel_error)?;
-        if self.exogenous_context {
-            target = facade::declare_joint_panel_exogenous_context(&target);
-        }
+            &self.choices(selection_of(&request.options)),
+        )?;
         let ctx = context(seed, threads, max_bytes, cancel)?;
         let inner = crate::detach_catch(py, || {
             self.inner.retarget(worlds, target, &ctx).map_err(panel_error)
         })?;
-        Ok(Self {
+        Ok(self.rebound(inner))
+    }
+    /// Run general ID on a declared unrolled point graph of this panel's program.
+    ///
+    /// With the Gaussian restriction declared on the target, an identified verdict is retained
+    /// as an identification of the fit under that restriction; otherwise it is recorded as a
+    /// graph-level statement only.
+    #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+    fn with_unrolled_graph(
+        &self,
+        py: Python<'_>,
+        declaration_json: &str,
+        seed: u64,
+        threads: u32,
+        max_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<Self> {
+        crate::bridge::check_declared_size(
+            declaration_json,
+            crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+            "unrolled panel graph",
+        )?;
+        let ctx = context(seed, threads, max_bytes, cancel)?;
+        let (graph, outcome_periods, _lease) = unrolled::graph_from_json(declaration_json, &ctx)?;
+        let inner = crate::detach_catch(py, || {
+            self.inner
+                .with_unrolled_graph_attempt(&graph, &outcome_periods, &ctx)
+                .map_err(panel_error)
+        })?;
+        Ok(self.rebound(inner))
+    }
+}
+impl PyPreparedJointPanel {
+    fn choices(&self, selection: InferenceSelection) -> TargetChoices<'_> {
+        TargetChoices {
+            functional: self.functional.as_ref(),
+            selection,
+            exogenous_context: self.exogenous_context,
+            gaussian_restriction: self.gaussian_restriction,
+        }
+    }
+    /// The same declarations around a derived prepared study.
+    fn rebound(&self, inner: PreparedStudy<JointPanelState>) -> Self {
+        Self {
             inner,
             names: self.names.clone(),
             functional: self.functional.clone(),
             exogenous_context: self.exogenous_context,
-        })
+            gaussian_restriction: self.gaussian_restriction,
+            indicators: self.indicators.clone(),
+        }
     }
 }
 #[pyclass(name = "_JointPanelResult", frozen)]
@@ -665,6 +807,31 @@ impl PyPanelProgramCertificate {
         .to_string()
     }
 }
+/// Charge the declaration's own text to the caller's admission before it is parsed.
+fn admit_declaration(
+    ctx: &ExecutionContext,
+    declaration_json: &str,
+) -> PyResult<antecedent_core::execution::AdmissionLease> {
+    crate::bridge::check_declared_size(
+        declaration_json,
+        crate::bridge::MAX_SPEC_DECLARATION_BYTES,
+        "joint panel",
+    )?;
+    admit_bytes(ctx, u64::try_from(declaration_json.len()).unwrap_or(u64::MAX).saturating_mul(4))
+}
+/// Charge `bytes` to the caller's admission: a cancelled run or an unfunded request is an
+/// operational stop (`CausalCancelledError`, `CausalResourceError`), never a request error.
+fn admit_bytes(
+    ctx: &ExecutionContext,
+    bytes: u64,
+) -> PyResult<antecedent_core::execution::AdmissionLease> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            crate::CausalCancelledError::new_err(error.to_string())
+        }
+        _ => crate::CausalResourceError::new_err(error.to_string()),
+    })
+}
 #[pyfunction]
 #[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
 fn prepare_joint_panel(
@@ -675,26 +842,114 @@ fn prepare_joint_panel(
     max_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<PyPreparedJointPanel> {
-    crate::bridge::check_declared_size(
-        declaration_json,
-        crate::bridge::MAX_SPEC_DECLARATION_BYTES,
-        "joint panel",
-    )?;
     let ctx = context(seed, threads, max_bytes, cancel)?;
-    let _input = ctx
-        .acquire_admission(
-            0,
-            u64::try_from(declaration_json.len()).unwrap_or(u64::MAX).saturating_mul(4),
-        )
-        .map_err(|error| match error {
-            antecedent_core::execution::AdmissionError::Cancelled => {
-                crate::CausalCancelledError::new_err(error.to_string())
-            }
-            _ => crate::CausalResourceError::new_err(error.to_string()),
-        })?;
+    let _input = admit_declaration(&ctx, declaration_json)?;
     let declaration = serde_json::from_str(declaration_json)
         .map_err(|error| crate::value_err(error.to_string()))?;
     crate::detach_catch(py, || prepare(declaration, &ctx))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CodingDeclaration {
+    names: Vec<String>,
+    channels: Vec<String>,
+    outcome: String,
+    confounder: String,
+    season: String,
+    interval_ns: u64,
+    groups: Vec<SourceGroup>,
+    categorical: Vec<CategoricalDeclaration>,
+}
+/// Dummy-code declared categorical channels of a source panel, without fitting anything.
+///
+/// Returns the rewritten panel as named columns (a missing cell is `null`), the channel names
+/// in order, and every indicator with its source and level.
+#[pyfunction]
+#[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+fn dummy_code_joint_panel(
+    py: Python<'_>,
+    declaration_json: &str,
+    seed: u64,
+    threads: u32,
+    max_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    let ctx = context(seed, threads, max_bytes, cancel)?;
+    let _input = admit_declaration(&ctx, declaration_json)?;
+    let declaration: CodingDeclaration = serde_json::from_str(declaration_json)
+        .map_err(|error| crate::value_err(error.to_string()))?;
+    // The coding rewrites the panel: the source copy, the coded copy with one indicator per
+    // non-reference level, and the returned document, charged before any of them exists.
+    let rows: usize = declaration
+        .groups
+        .iter()
+        .map(|group| {
+            group.columns.first().map_or(0, |column| match column {
+                SourceColumn::Numeric(values) => values.len(),
+                SourceColumn::Labels(labels) => labels.len(),
+            })
+        })
+        .sum();
+    let width = declaration
+        .names
+        .len()
+        .saturating_add(declaration.categorical.iter().map(|c| c.levels.len()).sum::<usize>());
+    let _coding = admit_bytes(
+        &ctx,
+        u64::try_from(rows.saturating_mul(width).saturating_mul(64)).unwrap_or(u64::MAX),
+    )?;
+    crate::detach_catch(py, || {
+        let columns = JointPanelColumns {
+            channels: declaration
+                .channels
+                .iter()
+                .map(|name| variable(&declaration.names, name))
+                .collect::<PyResult<Vec<_>>>()?,
+            outcome: variable(&declaration.names, &declaration.outcome)?,
+            confounder: variable(&declaration.names, &declaration.confounder)?,
+            season: variable(&declaration.names, &declaration.season)?,
+        };
+        let data = source_data(
+            &declaration.names,
+            declaration.groups,
+            declaration.interval_ns,
+            &declaration.categorical,
+        )?;
+        let (coded, columns, names, indicators) =
+            code_categorical(&data, &columns, &declaration.names, &declaration.categorical)?;
+        let name = |id: VariableId| names.get(id.raw() as usize).cloned().unwrap_or_default();
+        let groups = coded
+            .units()
+            .iter()
+            .map(|unit| {
+                let cells = (0..names.len())
+                    .map(|index| {
+                        let id = VariableId::from_raw(u32::try_from(index).unwrap_or(u32::MAX));
+                        unit.series.float64_cow(id).map_err(crate::py_err).map(|values| {
+                            values
+                                .iter()
+                                .map(|value| (!value.is_nan()).then_some(*value))
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect::<PyResult<Vec<_>>>()?;
+                Ok(serde_json::json!({"id": unit.unit_id, "columns": cells}))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(serde_json::json!({
+            "names": names,
+            "channels": columns.channels.iter().map(|id| name(*id)).collect::<Vec<_>>(),
+            "outcome": name(columns.outcome),
+            "confounder": name(columns.confounder),
+            "season": name(columns.season),
+            "groups": groups,
+            "indicators": indicators.iter().map(|indicator| {
+                serde_json::json!({"name": indicator.name, "source": indicator.source,
+                    "level": indicator.level})
+            }).collect::<Vec<_>>(),
+        })
+        .to_string())
+    })
 }
 #[pyfunction]
 #[pyo3(signature=(bytes,*,seed=0,threads=1,max_bytes=None,cancel=None))]
@@ -747,40 +1002,227 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyPreparedJointPanel>()?;
     module.add_class::<PyJointPanelResult>()?;
     module.add_function(wrap_pyfunction!(prepare_joint_panel, module)?)?;
+    module.add_function(wrap_pyfunction!(dummy_code_joint_panel, module)?)?;
+    imputed::register(module)?;
     module.add_function(wrap_pyfunction!(consume_joint_panel, module)?)?;
     module.add_function(wrap_pyfunction!(consume_panel_program_certificate, module)?)?;
     Ok(())
 }
 
+fn numeric_cells(column: SourceColumn, name: &str) -> PyResult<Vec<f64>> {
+    match column {
+        SourceColumn::Numeric(cells) => {
+            Ok(cells.into_iter().map(|value| value.unwrap_or(f64::NAN)).collect())
+        }
+        SourceColumn::Labels(_) => Err(crate::value_err(format!(
+            "column {name:?} holds category labels but is not a declared categorical channel"
+        ))),
+    }
+}
+/// Labels of a declared categorical channel. A column with no value at all is every cell
+/// missing; numbers are refused rather than read as labels.
+fn label_cells(column: &SourceColumn, name: &str) -> PyResult<Vec<Option<String>>> {
+    match column {
+        SourceColumn::Labels(cells) => Ok(cells.clone()),
+        SourceColumn::Numeric(cells) if cells.iter().all(Option::is_none) => {
+            Ok(vec![None; cells.len()])
+        }
+        SourceColumn::Numeric(_) => Err(crate::value_err(format!(
+            "categorical channel {name:?} must supply category labels, not numbers"
+        ))),
+    }
+}
+fn validity_of(present: impl Iterator<Item = bool>, len: usize) -> PyResult<ValidityBitmap> {
+    let mut bytes = vec![0_u8; len.div_ceil(8)];
+    for (row, present) in present.enumerate() {
+        if present {
+            bytes[row / 8] |= 1 << (row % 8);
+        }
+    }
+    ValidityBitmap::from_bytes(bytes, len).map_err(crate::py_err)
+}
 fn source_data(
     names: &[String],
     groups: Vec<SourceGroup>,
     interval_ns: u64,
+    categorical: &[CategoricalDeclaration],
 ) -> PyResult<PanelData> {
+    for group in &groups {
+        if group.columns.len() != names.len() {
+            return Err(crate::value_err("source columns must match the declared source schema"));
+        }
+    }
+    for declared in categorical {
+        variable(names, &declared.channel)?;
+    }
+    // Every categorical column shares one domain: the labels observed in any unit, sorted. The
+    // declared level set is then checked against it by the Rust dummy coding, so a declared
+    // level nobody assigns and an assigned level nobody declared are both refused by name.
+    let mut domains: Vec<Option<std::sync::Arc<CategoryDomain>>> = vec![None; names.len()];
+    for (slot, name) in names.iter().enumerate() {
+        if !categorical.iter().any(|declared| &declared.channel == name) {
+            continue;
+        }
+        let mut observed = std::collections::BTreeSet::new();
+        for group in &groups {
+            observed.extend(label_cells(&group.columns[slot], name)?.into_iter().flatten());
+        }
+        let levels: Vec<CategoryLevel> = observed
+            .into_iter()
+            .map(|label| CategoryLevel { label: std::sync::Arc::from(label) })
+            .collect();
+        if levels.is_empty() {
+            return Err(crate::value_err(format!(
+                "categorical channel {name:?} has no observed level"
+            )));
+        }
+        let id = CategoryDomainId::from_raw(u32::try_from(slot + 1).unwrap_or(u32::MAX));
+        domains[slot] = Some(std::sync::Arc::new(
+            CategoryDomain::try_new(id, levels, false, None, UnknownCategoryPolicy::Fail)
+                .map_err(crate::py_err)?,
+        ));
+    }
     let units = groups
         .into_iter()
         .map(|group| {
-            if group.columns.len() != names.len() {
-                return Err(crate::value_err(
-                    "source columns must match the declared source schema",
-                ));
-            }
-            let values = group
-                .columns
-                .into_iter()
-                .map(|column| {
-                    column.into_iter().map(|value| value.unwrap_or(f64::NAN)).collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
-            let series = TimeSeriesData::from_f64_columns(
-                names.iter().map(String::as_str).zip(values.iter().map(Vec::as_slice)),
-                interval_ns,
-            )
-            .map_err(crate::py_err)?;
+            let series = if categorical.is_empty() {
+                let values = group
+                    .columns
+                    .into_iter()
+                    .zip(names)
+                    .map(|(column, name)| numeric_cells(column, name))
+                    .collect::<PyResult<Vec<_>>>()?;
+                TimeSeriesData::from_f64_columns(
+                    names.iter().map(String::as_str).zip(values.iter().map(Vec::as_slice)),
+                    interval_ns,
+                )
+                .map_err(crate::py_err)?
+            } else {
+                mixed_series(names, group.columns, &domains, interval_ns)?
+            };
             Ok(PanelUnit { unit_id: group.id, series })
         })
         .collect::<PyResult<Vec<_>>>()?;
     PanelData::try_new(Arc::from(units)).map_err(crate::py_err)
+}
+/// One unit's series holding numeric columns as `f64` and declared categorical channels as
+/// categorical columns over their shared domain.
+fn mixed_series(
+    names: &[String],
+    columns: Vec<SourceColumn>,
+    domains: &[Option<std::sync::Arc<CategoryDomain>>],
+    interval_ns: u64,
+) -> PyResult<TimeSeriesData> {
+    let schema_error = |error: antecedent_core::SchemaError| crate::value_err(error.to_string());
+    let mut builder = CausalSchemaBuilder::new();
+    let mut built = Vec::with_capacity(names.len());
+    let mut length = 0;
+    for (slot, ((name, column), domain)) in names.iter().zip(columns).zip(domains).enumerate() {
+        let id = VariableId::from_raw(
+            u32::try_from(slot).map_err(|_| crate::value_err("too many source columns"))?,
+        );
+        let roles = SmallRoleSet::from_hint(RoleHint::Context);
+        if let Some(domain) = domain {
+            let labels = label_cells(&column, name)?;
+            length = labels.len();
+            let codes: Vec<CategoryCode> = labels
+                .iter()
+                .map(|label| {
+                    let code = label.as_ref().and_then(|label| {
+                        domain.levels.iter().position(|level| &*level.label == label.as_str())
+                    });
+                    CategoryCode::from_raw(u32::try_from(code.unwrap_or(0)).unwrap_or(0))
+                })
+                .collect();
+            builder
+                .add_variable(
+                    name.as_str(),
+                    ValueType::Categorical,
+                    roles,
+                    None,
+                    Some(domain.id),
+                    MeasurementSpec::default(),
+                )
+                .map_err(schema_error)?;
+            built.push(OwnedColumn::Categorical(
+                CategoricalColumn::try_new(
+                    id,
+                    codes,
+                    validity_of(labels.iter().map(Option::is_some), labels.len())?,
+                    domain.clone(),
+                )
+                .map_err(crate::py_err)?,
+            ));
+        } else {
+            let values = numeric_cells(column, name)?;
+            length = values.len();
+            builder
+                .add_variable(
+                    name.as_str(),
+                    ValueType::Continuous,
+                    roles,
+                    None,
+                    None,
+                    MeasurementSpec::default(),
+                )
+                .map_err(schema_error)?;
+            let validity = validity_of(values.iter().map(|value| !value.is_nan()), values.len())?;
+            built.push(OwnedColumn::Float64(
+                Float64Column::new(id, Arc::<[f64]>::from(values), validity)
+                    .map_err(crate::py_err)?,
+            ));
+        }
+    }
+    let storage =
+        OwnedColumnarStorage::try_new(builder.build().map_err(schema_error)?, built, None, None)
+            .map_err(crate::py_err)?;
+    TimeSeriesData::try_new(
+        storage,
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns }, length },
+    )
+    .map_err(crate::py_err)
+}
+/// Replace each declared categorical channel by its indicator channels.
+///
+/// Returns the rewritten panel, its roles, the names every later declaration refers to
+/// (indicators are `"<channel>=<level>"`) and the indicators with their sources.
+fn code_categorical(
+    data: &PanelData,
+    columns: &JointPanelColumns,
+    names: &[String],
+    categorical: &[CategoricalDeclaration],
+) -> PyResult<(PanelData, JointPanelColumns, Vec<String>, Vec<Indicator>)> {
+    let declared = categorical
+        .iter()
+        .map(|declaration| {
+            Ok(facade::PanelCategoricalChannel {
+                variable: variable(names, &declaration.channel)?,
+                levels: declaration.levels.clone(),
+                reference: declaration.reference.clone(),
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let coded = facade::dummy_code_panel(data, columns, &declared).map_err(panel_error)?;
+    let coded_names: Vec<String> =
+        coded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
+    let indicators = coded
+        .indicators
+        .iter()
+        .map(|indicator| {
+            Ok(Indicator {
+                name: coded_names
+                    .get(indicator.variable.raw() as usize)
+                    .cloned()
+                    .ok_or_else(|| crate::value_err("indicator outside the coded schema"))?,
+                source: names
+                    .get(indicator.source.raw() as usize)
+                    .cloned()
+                    .ok_or_else(|| crate::value_err("indicator source outside the schema"))?,
+                level: indicator.level.clone(),
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok((coded.data, coded.columns, coded_names, indicators))
 }
 fn features(
     names: &[String],

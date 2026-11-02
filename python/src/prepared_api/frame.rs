@@ -48,7 +48,7 @@ impl FrameInput {
         frame: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         let Some(frame) = frame else {
-            return Ok(Self::Series(tabular_from_py_columns(names.to_vec(), columns)?.0));
+            return Ok(Self::Series(tabular_from_py_columns(names.to_vec(), columns)?));
         };
         let kind: String = frame
             .get_item("kind")?
@@ -64,10 +64,7 @@ impl FrameInput {
                 .get_item(key)?
                 .ok_or_else(|| crate::value_err(format!("{kind} frame requires {key}")))?
                 .extract()?;
-            parts
-                .into_iter()
-                .map(|cols| Ok(tabular_from_py_columns(names.to_vec(), cols)?.0))
-                .collect()
+            parts.into_iter().map(|cols| tabular_from_py_columns(names.to_vec(), cols)).collect()
         };
         match kind.as_str() {
             "panel" => {
@@ -105,7 +102,7 @@ impl FrameInput {
                     .get_item("align_interval_ns")?
                     .ok_or_else(|| crate::value_err("events frame requires align_interval_ns"))?
                     .extract()?;
-                let (data, _) = tabular_from_py_columns(names.to_vec(), columns)?;
+                let data = tabular_from_py_columns(names.to_vec(), columns)?;
                 Ok(Self::Events { data, event_times_ns, align_interval_ns, retention })
             }
             other => Err(crate::value_err(format!(

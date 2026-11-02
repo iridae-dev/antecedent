@@ -674,7 +674,7 @@ impl BoundDesign {
         outcome: &str,
         adjustment: &[String],
     ) -> PyResult<Self> {
-        let (data, _) = tabular_from_py_columns(names, columns)?;
+        let data = tabular_from_py_columns(names, columns)?;
         let lookup =
             |name: &str| data.schema().id_of(name).map_err(|e| py_err(CausalError::from(e)));
         let treatment = lookup(treatment)?;

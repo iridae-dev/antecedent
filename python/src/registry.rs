@@ -24,11 +24,11 @@ use super::{
     ScoreTableSection, ValidationFailureSection, ValidationSection, adaptive_inference_api,
     adaptive_participant_api, adaptive_policy_api, adaptive_procedure_api, artifact_api,
     association_api, ate_api, attribution_api, bayesian, bounds_api, candidate_screen_api,
-    categorical_treatment_api, closed_pilot_api, cohort_decision_api, compact_export_api,
-    composition_api, composition_bundle_api, composition_verification_api, counterfactual_id_api,
-    cpdag_scenario_api, cross_world_api, cross_world_execution_api, decision_api,
-    decision_reliability_api, default_user_threads, derived_treatment_api, descriptive_api,
-    design_api, design_ranking_api, discovered_transport_api, discovery_api,
+    categorical_treatment_api, checked_claim_api, closed_pilot_api, cohort_decision_api,
+    compact_export_api, composition_api, composition_bundle_api, composition_verification_api,
+    counterfactual_id_api, cpdag_scenario_api, cross_world_api, cross_world_execution_api,
+    decision_api, decision_reliability_api, default_user_threads, derived_treatment_api,
+    descriptive_api, design_api, design_ranking_api, discovered_transport_api, discovery_api,
     discretized_composition_api, distribution_api, dose_grid_api, effect_constancy_api,
     effect_constancy_review_api, evidence_ledger_api, evidence_plan_api, execution_attempt_api,
     experiment_api, external_api, factorial_api, fallback_report_api, fallback_stage_api,
@@ -157,6 +157,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recalc_design_api::register(m)?;
     recalc_bayesian_api::register(m)?;
     joint_response_api::register(m)?;
+    checked_claim_api::register(m)?;
     recalc_temporal_api::register(m)?;
     recalc_external_api::register(m)?;
     recalc_composite_api::register(m)?;

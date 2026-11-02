@@ -25,7 +25,6 @@ impl PyPreparedAnalysis {
             last_study: None,
             last_seed: self.last_seed,
             last_threads: self.last_threads,
-            borrowed_bytes: self.borrowed_bytes,
             series: self.series,
         }
     }
@@ -41,7 +40,6 @@ impl PyPreparedAnalysis {
         let inner = Arc::clone(&self.inner);
         let names = self.names.clone();
         let series = self.series;
-        let borrowed_bytes = self.borrowed_bytes;
         crate::detach_catch(py, move || {
             let resolved_threads = crate::resolve_user_threads(threads);
             let ctx = py_execution_context_ext(
@@ -52,14 +50,7 @@ impl PyPreparedAnalysis {
                 Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
             );
             let prepared = inner.reconfigure_execution(&ctx).map_err(py_err)?;
-            Ok(super::finished_prepared_under(
-                prepared,
-                names,
-                series,
-                seed,
-                resolved_threads,
-                borrowed_bytes,
-            ))
+            Ok(super::finished_prepared_under(prepared, names, series, seed, resolved_threads))
         })
     }
 
@@ -99,7 +90,7 @@ impl PyPreparedAnalysis {
                 },
             }
             .map_err(py_err)?;
-            Ok(super::finished_prepared_under(rebound, names, series, seed, resolved_threads, None))
+            Ok(super::finished_prepared_under(rebound, names, series, seed, resolved_threads))
         })
     }
 
@@ -392,7 +383,6 @@ impl PyPreparedAnalysis {
             last_study: self.last_study.clone(),
             last_seed: self.last_seed,
             last_threads: self.last_threads,
-            borrowed_bytes: self.borrowed_bytes,
             series: self.series,
         })
     }

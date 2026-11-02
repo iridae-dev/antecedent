@@ -22,8 +22,6 @@ pub(super) struct PrepareRequest {
     pub(super) seed: u64,
     /// Prepare-time thread budget; `None` is the resolver's default.
     pub(super) threads: Option<u32>,
-    /// Arrow bytes borrowed by [`Self::load_columns_recording`].
-    borrowed_bytes: Option<u64>,
 }
 
 impl PrepareRequest {
@@ -34,13 +32,7 @@ impl PrepareRequest {
         seed: u64,
         threads: Option<u32>,
     ) -> PyResult<Self> {
-        Ok(Self {
-            names,
-            opts: PrepareOptions::parse(options)?,
-            seed,
-            threads,
-            borrowed_bytes: None,
-        })
+        Ok(Self { names, opts: PrepareOptions::parse(options)?, seed, threads })
     }
 
     /// Refuse a transferred prior on a route that cannot hydrate one.
@@ -95,14 +87,14 @@ impl PrepareRequest {
         ))
     }
 
-    /// Load tabular columns. Borrowed Arrow bytes are not retained.
+    /// Load tabular columns into library-owned storage; Arrow buffers are copied, not borrowed.
     pub(super) fn load_columns(
         &self,
         _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
         self.refuse_sampling_weights()?;
-        Ok(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
+        crate::tabular_from_py_columns(self.names.clone(), columns)
     }
 
     /// Attach the declared sampling weights to `data` as its observation weights.
@@ -128,7 +120,7 @@ impl PrepareRequest {
         _py: Python<'_>,
         columns: Vec<Bound<'_, PyAny>>,
     ) -> PyResult<TabularData> {
-        self.attach_sampling_weights(crate::tabular_from_py_columns(self.names.clone(), columns)?.0)
+        self.attach_sampling_weights(crate::tabular_from_py_columns(self.names.clone(), columns)?)
     }
 
     /// Load a single series and attach the declared sampling weights to it; a panel,
@@ -154,21 +146,6 @@ impl PrepareRequest {
                 ),
             )),
         }
-    }
-
-    /// Load tabular columns and remember borrowed Arrow bytes.
-    ///
-    /// Only the static average-effect `prepare` records them; every other route
-    /// drops the count, and a later bound estimate clears `bytes_borrowed`.
-    pub(super) fn load_columns_recording(
-        &mut self,
-        _py: Python<'_>,
-        columns: Vec<Bound<'_, PyAny>>,
-    ) -> PyResult<TabularData> {
-        self.refuse_sampling_weights()?;
-        let (data, borrowed) = crate::tabular_from_py_columns(self.names.clone(), columns)?;
-        self.borrowed_bytes = borrowed;
-        Ok(data)
     }
 
     /// Load series columns, or a panel / multi-environment / event frame.
@@ -267,9 +244,7 @@ impl PrepareRequest {
                 });
             }
         };
-        let mut out = super::finished_prepared(prepared, self.names, series);
-        out.borrowed_bytes = self.borrowed_bytes;
-        Ok(out)
+        Ok(super::finished_prepared(prepared, self.names, series))
     }
 }
 

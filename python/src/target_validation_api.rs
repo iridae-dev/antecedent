@@ -1244,7 +1244,7 @@ impl PyPreparedAnalysis {
             subset_fraction,
             ..TargetRefutationConfig::default()
         };
-        let (data, _) = tabular_from_py_columns(names, columns)?;
+        let data = tabular_from_py_columns(names, columns)?;
         let study = Arc::clone(&self.inner);
         detach_catch(py, move || {
             let ctx = py_execution_context(seed, resolve_user_threads(threads));

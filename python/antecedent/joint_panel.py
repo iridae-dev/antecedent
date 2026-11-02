@@ -47,10 +47,12 @@ from ._joint_panel_experiment import (
     replay_native_experiment,
 )
 from ._joint_panel_experiment import acceptance_matrix as experiment_acceptance_matrix
+from ._joint_panel_imputation import PanelImputationResult, PreparedPanelImputation
 from ._panel_execution import run_panel
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution
 from .intervention_programs import Expr
+from .missing import ImputationSpec
 from .outcomes import outcome_operation, require_success
 
 __all__ = [
@@ -77,6 +79,13 @@ __all__ = [
     "replay_native_joint_design",
     "replay_population_reference",
     "replay_reference_decomposition",
+    "PanelCategoricalChannel",
+    "PanelDummyChannel",
+    "DummyCodedPanel",
+    "dummy_code_panel",
+    "PanelImputationResult",
+    "PreparedPanelImputation",
+    "prepare_imputed",
     "PanelResult",
     "PreparedPanel",
     "PreparedRandomizedProgramSelection",
@@ -647,6 +656,22 @@ class PanelResult:
         )
 
 
+def _graph_node(node: Sequence[Any]) -> dict[str, Any]:
+    """An unrolled-graph node: ``("context", i)``, ``("channel", c, t)`` or ``("outcome", t)``."""
+    parts = tuple(node) if isinstance(node, Sequence) and not isinstance(node, str) else ()
+    kind, rest = (parts[0], parts[1:]) if parts else (None, ())
+    if kind == "context" and len(rest) == 1:
+        return {"context": rest[0]}
+    if kind == "channel" and len(rest) == 2:
+        return {"channel": {"channel": rest[0], "period": rest[1]}}
+    if kind == "outcome" and len(rest) == 1:
+        return {"outcome": rest[0]}
+    raise CausalValueError(
+        "an unrolled graph node is ('context', i), ('channel', c, t) or ('outcome', t)",
+        reason_code="invalid_argument",
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class PreparedPanel:
     """Native checked preparation with synchronized reuse of compatible fits."""
@@ -667,9 +692,260 @@ class PreparedPanel:
         """Check replacement worlds against the same source and reuse compatible fits."""
         return PreparedPanel(run_panel(execution, self._handle.retarget, _json(list(worlds))))
 
+    def with_unrolled_graph(
+        self,
+        *,
+        periods: int,
+        channels: int,
+        outcome_periods: Sequence[int],
+        contexts: int = 0,
+        carryover_reach: int = 0,
+        outcome_persistence: bool = False,
+        channel_persistence: bool = False,
+        history_feedback: bool = False,
+        latent_confounding: Sequence[tuple[Sequence[Any], Sequence[Any]]] = (),
+        execution: Execution | None = None,
+    ) -> PreparedPanel:
+        """Run general ID on a declared unrolled graph of this panel's program.
+
+        ``periods`` and ``channels`` must equal the program's shape. Channel ``(c, t)``
+        reaches the outcomes ``t .. t + carryover_reach``; ``outcome_persistence`` makes the
+        previous outcome a parent of the next, ``history_feedback`` makes the assignment
+        respond to it, and ``latent_confounding`` lists unmeasured common causes as pairs of
+        nodes: ``("context", i)``, ``("channel", c, t)`` or ``("outcome", t)``. The verdict is
+        for ``outcome_periods``.
+
+        An identified verdict is a nonparametric statement about the observed law. It
+        identifies the fitted panel only when ``prepare(..., gaussian_restriction=True)``
+        declared that the fitted mechanism realizes it: then ``inspect()`` shows a separate
+        ``joint_adjustment.gaussian_restriction`` attempt, ``identified`` becomes true, and
+        every estimate re-checks residual normality and linearity on the fitted mechanism,
+        withdrawing the claim if they flag it. A hedge, a graph of another shape, a
+        restriction declared with a time-varying mechanism, history feedback, carryover that
+        differs from the fitted lag order or serial dependence that does not match the AR(1)
+        errors are refused. Nothing is identified without the declaration, and the claim never
+        states nonparametric identification.
+        """
+        declaration = {
+            "periods": periods,
+            "channels": channels,
+            "contexts": contexts,
+            "carryover_reach": carryover_reach,
+            "outcome_persistence": outcome_persistence,
+            "channel_persistence": channel_persistence,
+            "history_feedback": history_feedback,
+            "latent_confounding": [
+                [_graph_node(left), _graph_node(right)] for left, right in latent_confounding
+            ],
+            "outcome_periods": list(outcome_periods),
+        }
+        return PreparedPanel(
+            run_panel(execution, self._handle.with_unrolled_graph, _json(declaration))
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PanelCategoricalChannel:
+    """A categorical assignment channel with its complete declared level set.
+
+    The channel's source column holds one category label (or ``None`` for a missing cell)
+    per row. ``levels`` must equal the set of labels the units actually assign, and
+    ``reference`` (one of them) is coded as every indicator zero. Rust checks the level
+    set, the reference and that every level is assigned in some unit; each failure is a
+    refusal that names its cause, and nothing is recoded silently.
+    """
+
+    channel: str
+    levels: tuple[str, ...]
+    reference: str
+
+    def __post_init__(self) -> None:
+        levels = self.levels
+        if isinstance(levels, str | bytes) or not isinstance(levels, Sequence):
+            raise CausalTypeError(
+                "categorical levels must be a sequence of labels", reason_code="invalid_argument"
+            )
+        levels = tuple(levels)
+        if not (
+            isinstance(self.channel, str)
+            and isinstance(self.reference, str)
+            and all(isinstance(level, str) for level in levels)
+        ):
+            raise CausalTypeError(
+                "categorical channel, levels and reference must be strings",
+                reason_code="invalid_argument",
+            )
+        object.__setattr__(self, "levels", levels)
+
+    def _declaration(self) -> dict[str, Any]:
+        return {"channel": self.channel, "levels": list(self.levels), "reference": self.reference}
+
+
+@dataclass(frozen=True, slots=True)
+class PanelDummyChannel:
+    """One 0/1 indicator channel produced for a non-reference level."""
+
+    name: str
+    source: str
+    level: str
+
+
+@dataclass(frozen=True, slots=True)
+class DummyCodedPanel:
+    """A panel whose categorical channels are replaced by their indicator channels.
+
+    ``groups`` has the shape :func:`prepare` takes (``None`` marks a missing cell), and
+    ``channels`` lists the expanded channels in order: untouched channels, and for each
+    categorical channel one ``"<channel>=<level>"`` indicator per non-reference level.
+    Programs and worlds name the indicator channels.
+    """
+
+    groups: dict[int, dict[str, tuple[float | None, ...]]]
+    channels: tuple[str, ...]
+    outcome: str
+    confounder: str
+    season: str
+    indicators: tuple[PanelDummyChannel, ...]
+
+
+def _categorical_declarations(
+    categorical: Sequence[PanelCategoricalChannel],
+) -> list[dict[str, Any]]:
+    if isinstance(categorical, str | bytes | Mapping) or not all(
+        isinstance(declared, PanelCategoricalChannel) for declared in categorical
+    ):
+        raise CausalTypeError(
+            "categorical must be a sequence of PanelCategoricalChannel",
+            reason_code="invalid_argument",
+        )
+    return [declared._declaration() for declared in categorical]
+
+
+def _source(
+    groups: Mapping[int, Mapping[str, Sequence[Any]]],
+    channels: Sequence[str],
+    outcome: str,
+    confounder: str,
+    season: str,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """The declared source column names and each group's columns, in that order."""
+    names = list(dict.fromkeys([*channels, outcome, confounder, season]))
+    source = []
+    for group, columns in groups.items():
+        if set(columns) != set(names):
+            raise CausalValueError("each group must supply exactly the declared source columns")
+        source.append({"id": group, "columns": [list(columns[name]) for name in names]})
+    return names, source
+
+
+def dummy_code_panel(
+    groups: Mapping[int, Mapping[str, Sequence[Any]]],
+    *,
+    channels: Sequence[str],
+    outcome: str,
+    confounder: str,
+    season: str,
+    interval_ns: int,
+    categorical: Sequence[PanelCategoricalChannel],
+    execution: Execution | None = None,
+) -> DummyCodedPanel:
+    """Rewrite declared categorical channels as 0/1 indicator channels, fitting nothing.
+
+    A categorical assignment has no dose: its levels are alternatives. Each declared
+    channel (labels in ``groups``) becomes one indicator per non-reference level, so a
+    fitted response differs between levels by exactly the indicator coefficients. A cell
+    with no label stays missing in every indicator of its channel. The same coding runs
+    inside :func:`prepare` when ``categorical`` is passed there.
+
+    The channel's domain is the set of labels the units assign. Refused, by name: a channel
+    not among ``channels``, a level set that differs from that domain (so a declared level no
+    unit assigns, and an assigned label nobody declared), a reference outside the level set,
+    fewer than two levels, a channel declared twice, a channel with no label at all, and
+    numbers where labels are expected or labels in an undeclared channel.
+    """
+    names, source = _source(groups, channels, outcome, confounder, season)
+    declaration = {
+        "names": names,
+        "channels": list(channels),
+        "outcome": outcome,
+        "confounder": confounder,
+        "season": season,
+        "interval_ns": interval_ns,
+        "groups": source,
+        "categorical": _categorical_declarations(categorical),
+    }
+    raw = json.loads(run_panel(execution, _native.dummy_code_joint_panel, _json(declaration)))
+    return DummyCodedPanel(
+        groups={
+            unit["id"]: {
+                name: tuple(column) for name, column in zip(raw["names"], unit["columns"], strict=True)
+            }
+            for unit in raw["groups"]
+        },
+        channels=tuple(raw["channels"]),
+        outcome=raw["outcome"],
+        confounder=raw["confounder"],
+        season=raw["season"],
+        indicators=tuple(PanelDummyChannel(**indicator) for indicator in raw["indicators"]),
+    )
+
+
+def _declaration(
+    groups: Mapping[int, Mapping[str, Sequence[Any]]],
+    *,
+    channels: Sequence[str],
+    outcome: str,
+    confounder: str,
+    season: str,
+    seasons: int,
+    interval_ns: int,
+    worlds: Sequence[Mapping[str, Any]],
+    interactions: Mapping[str, Expr],
+    options: Mapping[str, Any],
+    lag_order: int,
+    temporal: Mapping[str, Any] | None,
+    functional: Mapping[str, Any] | None,
+    assignment: Mapping[str, Any] | None,
+    exogenous_context: bool,
+    family: Mapping[str, Any] | None,
+    categorical: Sequence[PanelCategoricalChannel],
+    gaussian_restriction: bool,
+) -> dict[str, Any]:
+    """The one native declaration of a panel, shared by plain and imputed preparation."""
+    names, source = _source(groups, channels, outcome, confounder, season)
+    features = []
+    for name, expression in interactions.items():
+        if not isinstance(expression, Expr):
+            raise CausalValueError("panel features require intervention_programs.Expr")
+        features.append({"id": name, "expression": expression.node})
+    declaration = {
+        "names": names,
+        "channels": list(channels),
+        "outcome": outcome,
+        "confounder": confounder,
+        "season": season,
+        "seasons": seasons,
+        "lag_order": lag_order,
+        "interval_ns": interval_ns,
+        "groups": source,
+        "worlds": list(worlds),
+        "interactions": features,
+        "options": dict(options),
+        "temporal": temporal,
+        "functional": functional,
+        "assignment": assignment,
+        "exogenous_context": exogenous_context,
+        "gaussian_restriction": gaussian_restriction,
+        "categorical": _categorical_declarations(categorical),
+    }
+    selected = _family_declaration(groups, family)
+    if selected is not None:
+        declaration["family"] = selected
+    return declaration
+
 
 def prepare(
-    groups: Mapping[int, Mapping[str, Sequence[float | None]]],
+    groups: Mapping[int, Mapping[str, Sequence[Any]]],
     *,
     channels: Sequence[str],
     outcome: str,
@@ -686,6 +962,8 @@ def prepare(
     assignment: Mapping[str, Any] | None = None,
     exogenous_context: bool = False,
     family: Mapping[str, Any] | None = None,
+    categorical: Sequence[PanelCategoricalChannel] = (),
+    gaussian_restriction: bool = False,
     execution: Execution | None = None,
 ) -> PreparedPanel:
     """Compile an explicitly declared panel through ``Study.prepare_joint_panel``.
@@ -717,42 +995,123 @@ def prepare(
     ``options["inference"]["prior"]["family"]``. A family changes the fitted
     mechanism, never the identification requirements of the target.
 
+    ``categorical`` declares :class:`PanelCategoricalChannel` assignment channels whose
+    source columns hold category labels; each is dummy-coded as :func:`dummy_code_panel`
+    describes, and worlds, scenario histories and interaction features name the
+    ``"<channel>=<level>"`` indicator channels (``inspect()["indicators"]`` lists them).
+
+    ``gaussian_restriction`` declares, on the target, that the conditional laws are the
+    panel mechanism's own (a saturated lag-weighted linear mean with Gaussian group
+    intercepts and stationary AR(1) errors independent of the program given the context).
+    This is a user assumption, not a test. It identifies nothing by itself: it is
+    consumed by :meth:`PreparedPanel.with_unrolled_graph`, which still requires general ID
+    to identify the joint intervention on the declared unrolled graph.
+
     ``execution`` owns the seed, threads, memory limit and cancellation.
     Neither ``exogenous_context`` nor a finite fit establishes a causal license.
     """
-    names = list(dict.fromkeys([*channels, outcome, confounder, season]))
-    source = []
-    for group, columns in groups.items():
-        if set(columns) != set(names):
-            raise CausalValueError("each group must supply exactly the declared source columns")
-        source.append({"id": group, "columns": [list(columns[name]) for name in names]})
-    features = []
-    for name, expression in interactions.items():
-        if not isinstance(expression, Expr):
-            raise CausalValueError("panel features require intervention_programs.Expr")
-        features.append({"id": name, "expression": expression.node})
-    declaration = {
-        "names": names,
-        "channels": list(channels),
-        "outcome": outcome,
-        "confounder": confounder,
-        "season": season,
-        "seasons": seasons,
-        "lag_order": lag_order,
-        "interval_ns": interval_ns,
-        "groups": source,
-        "worlds": list(worlds),
-        "interactions": features,
-        "options": dict(options),
-        "temporal": temporal,
-        "functional": functional,
-        "assignment": assignment,
-        "exogenous_context": exogenous_context,
-    }
-    selected = _family_declaration(groups, family)
-    if selected is not None:
-        declaration["family"] = selected
+    declaration = _declaration(
+        groups,
+        channels=channels,
+        outcome=outcome,
+        confounder=confounder,
+        season=season,
+        seasons=seasons,
+        interval_ns=interval_ns,
+        worlds=worlds,
+        interactions=interactions,
+        options=options,
+        lag_order=lag_order,
+        temporal=temporal,
+        functional=functional,
+        assignment=assignment,
+        exogenous_context=exogenous_context,
+        family=family,
+        categorical=categorical,
+        gaussian_restriction=gaussian_restriction,
+    )
     return PreparedPanel(run_panel(execution, _native.prepare_joint_panel, _json(declaration)))
+
+
+def prepare_imputed(
+    groups: Mapping[int, Mapping[str, Sequence[Any]]],
+    *,
+    imputation: ImputationSpec,
+    channels: Sequence[str],
+    outcome: str,
+    confounder: str,
+    season: str,
+    seasons: int,
+    interval_ns: int,
+    worlds: Sequence[Mapping[str, Any]],
+    interactions: Mapping[str, Expr],
+    options: Mapping[str, Any],
+    lag_order: int = 2,
+    functional: Mapping[str, Any] | None = None,
+    assignment: Mapping[str, Any] | None = None,
+    exogenous_context: bool = False,
+    family: Mapping[str, Any] | None = None,
+    categorical: Sequence[PanelCategoricalChannel] = (),
+    gaussian_restriction: bool = False,
+    execution: Execution | None = None,
+) -> PreparedPanelImputation:
+    """Prepare multiple imputation of a panel's missing outcomes and confounders.
+
+    The panel is declared as for :func:`prepare` (a ``temporal`` mechanism is refused: its
+    selection procedure is not carried through imputation). Each completed panel is
+    prepared and fitted exactly as an observed one, and the ``m`` response vectors are
+    pooled: Rubin's rules over frequentist fits (``options["inference"]`` needs at least
+    two draws, the within-imputation uncertainty), or the stacked posterior of Bayesian
+    fits. ``imputation`` is a :class:`antecedent.missing.ImputationSpec`; its ``domains``
+    name the imputation model's own columns (``"outcome"`` and ``"confounder"``).
+
+    Missing assignments and season levels are not imputed (an assignment is the
+    intervention itself, a season level a design label), and a panel with an analysis mask
+    is refused. Serial context is one neighbouring step of the stacked follow-up rows, so
+    the first and last follow-up row of a unit read a row of the adjacent unit; the fit's
+    own serial law is unchanged. Pooling grants no causal license, and a missingness
+    mechanism other than missing-at-random is refused with its next attempt named.
+    """
+    if not isinstance(imputation, ImputationSpec):
+        raise CausalTypeError(
+            "imputation must be an antecedent.missing.ImputationSpec",
+            reason_code="invalid_argument",
+        )
+    panel = _declaration(
+        groups,
+        channels=channels,
+        outcome=outcome,
+        confounder=confounder,
+        season=season,
+        seasons=seasons,
+        interval_ns=interval_ns,
+        worlds=worlds,
+        interactions=interactions,
+        options=options,
+        lag_order=lag_order,
+        temporal=None,
+        functional=functional,
+        assignment=assignment,
+        exogenous_context=exogenous_context,
+        family=family,
+        categorical=categorical,
+        gaussian_restriction=gaussian_restriction,
+    )
+    request = {
+        "panel": panel,
+        "imputation": {
+            "model": imputation.model,
+            "imputations": imputation.imputations,
+            "iterations": imputation.iterations,
+            "seed": imputation.seed,
+            "assumption": imputation.assumption,
+            "bootstrap_replicates": imputation.bootstrap_replicates,
+            "domains": [list(domain) for domain in imputation.domains],
+        },
+    }
+    return PreparedPanelImputation(
+        run_panel(execution, _native.prepare_joint_panel_imputed, _json(request))
+    )
 
 
 def consume(artifact: bytes, *, execution: Execution | None = None) -> dict[str, Any]:

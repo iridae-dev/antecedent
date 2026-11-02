@@ -637,7 +637,11 @@ def consume_smoothed_dose(
     identity=(),
 )
 def consume_smoothed_dose_posterior(
-    artifact: bytes, *, max_rows: int = 100_000, max_points: int = 1_024
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_points: int = 1_024,
+    execution: Execution | None = None,
 ) -> SmoothedDosePosterior:
     """Independently verify an exported smoothed-dose posterior and replay it.
 
@@ -645,12 +649,28 @@ def consume_smoothed_dose_posterior(
     recomputes the posterior from the stored rows and seed; only a bit-identical result is
     accepted, so a changed row, premise, certificate or stored value is refused even when the
     digests were resealed.
+
+    The replay runs under ``execution``: its memory limit caps the replay's admitted
+    allocations (refused with ``CausalResourceError``) and its cancellation token is polled
+    before the replay (``CausalCancelledError``). Both carry reason code
+    ``transport_budget_cancel``.
     """
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
+    for label, value in (("max_rows", max_rows), ("max_points", max_points)):
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise CausalValueError(f"{label} must be a non-negative integer")
     return _posterior(
-        _native.consume_smoothed_dose_posterior(artifact, max_rows=max_rows, max_points=max_points),
+        call_native(
+            execution,
+            _native.consume_smoothed_dose_posterior,
+            artifact,
+            max_rows=max_rows,
+            max_points=max_points,
+            cancel="cancel",
+            memory="max_memory_bytes",
+        ),
         artifact,
     )
 

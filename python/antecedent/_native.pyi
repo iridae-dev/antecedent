@@ -7142,7 +7142,12 @@ def smoothed_dose_estimator_menu(
     options: str | None = None,
 ) -> str: ...
 def consume_smoothed_dose_posterior(
-    artifact: bytes, *, max_rows: int = 100_000, max_points: int = 1_024
+    artifact: bytes,
+    *,
+    max_rows: int = 100_000,
+    max_points: int = 1_024,
+    max_memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def consume_smoothed_dose(
     artifact: bytes,
@@ -11142,6 +11147,25 @@ class _PreparedJointPanel:
         max_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> _PreparedJointPanel: ...
+    def with_unrolled_graph(
+        self,
+        declaration_json: str,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _PreparedJointPanel: ...
+
+class _PreparedJointPanelImputation:
+    def estimate(
+        self,
+        *,
+        seed: int = 0,
+        threads: int = 1,
+        max_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> str: ...
 
 def prepare_joint_panel(
     declaration_json: str,
@@ -11151,6 +11175,22 @@ def prepare_joint_panel(
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> _PreparedJointPanel: ...
+def prepare_joint_panel_imputed(
+    request_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _PreparedJointPanelImputation: ...
+def dummy_code_joint_panel(
+    declaration_json: str,
+    *,
+    seed: int = 0,
+    threads: int = 1,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
 def consume_joint_panel(
     bytes: bytes,
     *,
@@ -11532,6 +11572,18 @@ class _JointResponseResult:
         cancel: CancellationToken | None = None,
     ) -> bytes: ...
 
+class _CheckedStudyClaim:
+    @property
+    def point(self) -> float: ...
+    def report_json(self) -> str: ...
+
+def compose_checked_study_claims(
+    parents: Sequence[PreparedAnalysis],
+    declaration_json: str,
+    *,
+    max_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> _CheckedStudyClaim: ...
 def compile_joint_response(
     prepared: PreparedAnalysis,
     declaration_json: str,

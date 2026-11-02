@@ -149,7 +149,12 @@ fn law_of(
         )
         .map_err(invalid_query),
         (None, Some(counts)) => {
-            let total: u64 = counts.iter().sum();
+            // Counts are caller data: a total beyond u64 is a refusal, never a wrapped (or
+            // panicking) sum that would normalise against the wrong denominator.
+            let total = counts
+                .iter()
+                .try_fold(0_u64, |sum, &count| sum.checked_add(count))
+                .ok_or_else(|| invalid_query("the count table total exceeds 2**64 - 1"))?;
             if total == 0 {
                 return Err(invalid_query("the count table is empty"));
             }

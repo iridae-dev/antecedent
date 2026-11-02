@@ -223,7 +223,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<AteAnalysisResult> {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?);
         self.click(py, data, seed, threads, controls, map_ate)
     }
 
@@ -243,7 +243,7 @@ impl PyPreparedAnalysis {
     ) -> PyResult<ResponseAnalysisResult> {
         require_prepared_names(&self.names, &names, "estimate")?;
         let controls = ClickControls::parse(cancel, on_progress.as_ref(), on_stage.as_ref())?;
-        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?.0);
+        let data = FrameInput::Series(tabular_from_py_columns(names, columns)?);
         self.click(py, data, seed, threads, controls, response_from_study)
     }
 
@@ -443,7 +443,7 @@ impl PyPreparedAnalysis {
             Arc::clone(self.last.as_ref().ok_or_else(|| {
                 crate::value_err("estimate before exporting a contracted artifact")
             })?);
-        let (data, _) = tabular_from_py_columns(names, columns)?;
+        let data = tabular_from_py_columns(names, columns)?;
         let study = self.last_study.clone().unwrap_or_else(|| Arc::clone(&self.inner));
         let seed = self.last_seed;
         let threads = self.last_threads;

@@ -69,14 +69,14 @@ impl PyPreparedAnalysis {
         options: Option<Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
         crate::catch_ffi(|| {
-            let mut req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
+            let req = PrepareRequest::parse(names, options.as_ref(), seed, threads)?;
             let parsed_estimator = crate::estimator_config::parse_estimator_config(
                 estimator_config,
                 estimator.as_deref(),
                 req.opts.ambient_bootstrap(),
             )?;
             let functional = crate::ate_api::parse_outcome_functional(outcome_functional.as_ref())?;
-            let data = req.load_columns_recording(py, columns)?;
+            let data = req.load_columns(py, columns)?;
 
             req.off_gil(py, move |req| {
                 let t_id = data.schema().id_of(&treatment).map_err(py_err)?;

@@ -320,14 +320,17 @@ fn consume_smoothed_dose(
 
 /// Independently recheck a framed smoothed-dose posterior artifact: re-derive the certificate
 /// from the stored graph and query, recompute the posterior from the stored rows and seed, and
-/// accept only a bit-identical result.
+/// accept only a bit-identical result. The replay runs under the caller's memory limit and
+/// cancellation token, so a cancelled or over-budget replay is a reason-coded refusal.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, max_rows=100_000, max_points=1_024))]
+#[pyo3(signature=(artifact, *, max_rows=100_000, max_points=1_024, max_memory_bytes=None, cancel=None))]
 fn consume_smoothed_dose_posterior(
     py: Python<'_>,
     artifact: &[u8],
     max_rows: usize,
     max_points: usize,
+    max_memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let (names, bytes) =
         unframe_named_artifact(POSTERIOR_PREFIX, artifact, "smoothed dose posterior")?;
@@ -335,9 +338,12 @@ fn consume_smoothed_dose_posterior(
         max_rows,
         max_points,
     };
+    let ctx = execution_context(0, max_memory_bytes, cancel);
     crate::detach_catch(py, move || {
-        let result = antecedent::analysis::consume_smoothed_dose_posterior_artifact(&bytes, limits)
-            .map_err(error)?;
+        let result = antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context(
+            &bytes, limits, &ctx,
+        )
+        .map_err(error)?;
         if result.wire().variable_names != names {
             return Err(crate::refusal(
                 antecedent_core::reason_code!("invalid_argument"),

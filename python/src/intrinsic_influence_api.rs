@@ -257,7 +257,7 @@ fn attribute_intrinsic_influence_py(
 ) -> PyResult<String> {
     crate::bridge::check_count("replicates", replicates as u64, crate::bridge::MAX_RESAMPLES)?;
     let allocation = allocation_of(allocation, n_permutations)?;
-    let (data, _) = crate::tabular_from_py_columns(names.clone(), columns)?;
+    let data = crate::tabular_from_py_columns(names.clone(), columns)?;
     detach_catch(py, move || {
         let source = ModelSource {
             dag: crate::dag_from_named_edges(data.schema(), &edges)?,

@@ -35,17 +35,19 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from ._columns import coerce_fields
 from ._native import NativeResponseClaim as _NativeResponseClaim
 from ._native import check_external_program as _check_external_program
+from ._native import compose_checked_study_claims as _compose_checked_study_claims
 from ._native import native_response_claim as _native_response_claim
 from ._native import program_binding_identity as _program_binding_identity
 from ._refusal import raise_refusal
 from .decision import Contract, MeanSource
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .execution import Execution, native_controls
 from .extensibility import ProviderTrust
 from .external import (
     BoundExternalClaim,
@@ -623,9 +625,195 @@ def native_claim(
     assert claim is not None
     return NativeClaim(claim)
 
+@dataclass(frozen=True, slots=True)
+class CheckedClaimLimits:
+    """Caller-selected work, payload and retained-memory budgets of a checked composition.
+
+    Admission is acquired before the iterative quote and held by the result; a limit
+    exceeded refuses with :class:`~antecedent.errors.CausalResourceError`.
+    """
+
+    max_target_work: int = 200_000
+    max_target_payload_bytes: int = 2_000_000
+    max_target_depth: int = 64
+    max_memory_bytes: int = 64_000_000
+    max_terms: int = 16
+    max_comparisons: int = 128
+    max_world_actions: int = 32
+    max_assumption_records: int = 128
+    max_evidence_references: int = 32
+    max_evidence_bytes: int = 4096
+
+    def __post_init__(self) -> None:
+        for name in self.__slots__:
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise CausalValueError(f"{name} must be a non-negative integer")
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimParent:
+    """One completed average-effect study entering a checked composition.
+
+    ``source`` is the study's retained :class:`~antecedent.Outcome` or a prepared study
+    that was estimated; the claim is minted from its exact retained result, never
+    supplied. ``coefficient`` multiplies the study's point value. ``output_weight`` is the
+    weight this study carries in the *declared output target*, the sum over studies of
+    ``output_weight * (active - control)``; it defaults to ``coefficient`` (the honest
+    declaration). A declaration whose weights differ from the coefficients is refused by
+    Rust, because the output would not be the quantity the arithmetic computes.
+    """
+
+    source: Any
+    coefficient: float
+    output_weight: float | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("coefficient", "output_weight"):
+            value = getattr(self, name)
+            if value is None and name == "output_weight":
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise CausalTypeError(f"{name} must be a number")
+            if not math.isfinite(value):
+                raise CausalValueError(f"{name} must be finite")
+
+
+@dataclass(frozen=True, slots=True)
+class CheckedStudyClaim:
+    """An in-process conditional point claim checked against its parent studies.
+
+    ``point`` is ``sum(coefficient_i * point_i)``. The claim is *derived*: it carries no
+    program, identification product or execution stamp, its identification is
+    ``Unknown``, it has no calibration, and portable export is unavailable. Its
+    ``proof_identity`` is that of the in-process arithmetic proof, not a wire seal, and
+    the parents' source authenticity is that of the studies you ran, not verified here.
+    """
+
+    point: float
+    claim_id: str
+    kind: str
+    #: Parent claim ids in canonical order (independent of the order supplied).
+    parents: tuple[str, ...]
+    proof_identity: str
+    target_identity: str
+    identification: str
+    support: str
+    evaluated: str
+    calibration: str
+    unavailable_operations: tuple[str, ...]
+    #: Provenance ancestry is acyclic and every parent resolves.
+    provenance_valid: bool
+    _native: Any = field(repr=False, compare=False)
+
+    @classmethod
+    def _from_native(cls, native: Any) -> CheckedStudyClaim:
+        wire = json.loads(native.report_json())
+        return cls(
+            point=float(native.point),
+            claim_id=wire["claim_id"],
+            kind=wire["kind"],
+            parents=tuple(wire["parents"]),
+            proof_identity=wire["proof_identity"],
+            target_identity=wire["target_identity"],
+            identification=wire["domains"]["identification"],
+            support=wire["domains"]["support"],
+            evaluated=wire["domains"]["evaluated"],
+            calibration=wire["calibration"],
+            unavailable_operations=tuple(wire["receipt"]["unavailable_operations"]),
+            provenance_valid=bool(wire["provenance"]["valid"])
+            and not wire["provenance"]["unresolved_parents"],
+            _native=native,
+        )
+
+
+def _parent_handle(source: Any) -> Any:
+    """The native study behind a completed parent, as ``refute_target`` resolves it."""
+    from .estimation import _PreparedEngine as Engine
+    from .outcomes import Outcome, require_success
+    from .prepared import PreparedAnalysis
+
+    study = source
+    if isinstance(source, Outcome):
+        require_success(source)
+        study = source.study
+    if not isinstance(study, PreparedAnalysis):
+        raise CausalTypeError(
+            "a claim parent must be a completed prepared study or its retained Outcome"
+        )
+    if study._refused is not None:
+        require_success(study._refused)
+    engine = study._engine
+    if not isinstance(engine, Engine) or not isinstance(engine._native, _native.PreparedAnalysis):
+        raise CausalUnsupportedError(
+            "this preparation has no native study to compose claims from",
+            reason_code="route_not_supported",
+        )
+    if (
+        isinstance(source, Outcome)
+        and getattr(source.value, "_execution", None) is not engine._native
+    ):
+        raise CausalUnsupportedError(
+            "the supplied outcome is not the retained native result of its study",
+            reason_code="route_not_supported",
+        )
+    return engine._native
+
+
+def compose_study_claims(
+    parents: Sequence[ClaimParent],
+    *,
+    operation: Literal["contrast", "aggregate"],
+    limits: CheckedClaimLimits | None = None,
+    execution: Execution | None = None,
+) -> CheckedStudyClaim:
+    """Compose completed average-effect studies into one checked conditional point claim.
+
+    Each parent's claim is minted from its study's retained result and verified by Rust
+    against the study's program and target identities: a claim that does not belong to its
+    study, coefficients or output weights the parents do not realize, a parent whose kind,
+    identification, support or evaluation does not license a point, incompatible
+    observations or units, duplicate parents, non-finite arithmetic, or an exceeded budget
+    all refuse (:class:`~antecedent.errors.CausalValueError`, or
+    :class:`~antecedent.errors.CausalResourceError` for budgets). The operation is
+    checked against the declared output target, and the result is independent of the order
+    of ``parents``.
+    """
+    if operation not in ("contrast", "aggregate"):
+        raise CausalValueError('operation must be "contrast" or "aggregate"')
+    if isinstance(parents, (str, bytes)) or not isinstance(parents, Sequence) or not parents:
+        raise CausalTypeError("parents must be a non-empty sequence of ClaimParent")
+    if not all(isinstance(parent, ClaimParent) for parent in parents):
+        raise CausalTypeError("parents must be a non-empty sequence of ClaimParent")
+    if limits is None:
+        limits = CheckedClaimLimits()
+    elif not isinstance(limits, CheckedClaimLimits):
+        raise CausalTypeError("limits must be CheckedClaimLimits or None")
+    execution = Execution() if execution is None else execution
+    if not isinstance(execution, Execution):
+        raise CausalTypeError("execution must be an antecedent.Execution")
+    handles = [_parent_handle(parent.source) for parent in parents]
+    declaration = {
+        "operation": operation,
+        "coefficients": [float(parent.coefficient) for parent in parents],
+        "weights": [
+            float(parent.coefficient if parent.output_weight is None else parent.output_weight)
+            for parent in parents
+        ],
+        "limits": asdict(limits),
+    }
+    controls = native_controls(execution, cancel="cancel", memory="max_bytes")
+    native = execution._call(
+        _compose_checked_study_claims, handles, json.dumps(declaration), **controls
+    )
+    return CheckedStudyClaim._from_native(native)
+
 
 __all__ = [
     "Calibration",
+    "CheckedClaimLimits",
+    "CheckedStudyClaim",
+    "ClaimParent",
     "NativeClaim",
     "NativeDecisionSource",
     "ProgramBinding",
@@ -634,5 +822,6 @@ __all__ = [
     "WithheldCoordinate",
     "bind_to_program",
     "check_external_program",
+    "compose_study_claims",
     "native_claim",
 ]

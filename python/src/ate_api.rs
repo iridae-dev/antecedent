@@ -708,7 +708,7 @@ fn analyze_ate_many(
     tiers: Option<Vec<Vec<String>>>,
     within_tier: Option<String>,
 ) -> PyResult<Vec<AteAnalysisResult>> {
-    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
+    let data = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
@@ -1766,7 +1766,7 @@ impl PyPreparedBatch {
                 "prepared batch rebind requires its declared column order",
             ));
         }
-        let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
+        let data = tabular_from_py_columns(names.clone(), columns)?;
         let inner = std::sync::Arc::clone(&self.inner);
         let prepared = detach_catch(py, move || {
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
@@ -1872,7 +1872,7 @@ fn prepare_ate_batch(
     within_tier: Option<String>,
     data_diagnostics: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
-    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
+    let data = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
@@ -1957,7 +1957,7 @@ fn prepare_cells_batch(
     family_posterior_draws: Option<usize>,
     data_diagnostics: Option<String>,
 ) -> PyResult<PyPreparedBatch> {
-    let (data, _) = tabular_from_py_columns(names.clone(), columns)?;
+    let data = tabular_from_py_columns(names.clone(), columns)?;
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_cell_batch_query_specs(queries)?;

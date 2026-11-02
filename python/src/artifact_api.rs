@@ -65,7 +65,8 @@ fn parse_payload(kind: &str, payload_json: &str) -> PyResult<CausalPayloadWire> 
         }
         "transport_identification" => {
             let wire = parse::<TransportIdentificationWire>(payload_json)?;
-            let domain = antecedent_io::transport_identification_from_wire(&wire);
+            let domain = antecedent_io::transport_identification_from_wire(&wire)
+                .map_err(serialization_error)?;
             CausalPayloadWire::TransportIdentification(Box::new(
                 antecedent_io::transport_identification_to_wire(&domain),
             ))

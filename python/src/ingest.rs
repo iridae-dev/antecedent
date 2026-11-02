@@ -513,8 +513,10 @@ pub(crate) fn load_float64_panel_columns(
 ///
 /// Prefers zero-copy borrow of contiguous float64 value buffers. Borrowed buffers must remain
 /// unchanged, with no writes through writable aliases, during this call. This conversion probe
-/// returns only metadata and retains no data; analysis and prepared-study calls can retain the
-/// same kind of borrow for as long as their native data handles live.
+/// returns only metadata and retains no data. A table a prepared study, a rebind or an estimate
+/// click retains is never borrowed: [`tabular_from_py_columns`] copies Arrow buffers into
+/// library-owned storage, so the identity recorded for the data stays the identity of the
+/// bytes the study reads.
 #[pyfunction]
 pub(crate) fn load_float64_arrow_c_columns(
     names: Vec<String>,
@@ -536,6 +538,11 @@ pub(crate) fn load_float64_arrow_c_columns(
     })
 }
 
+/// Arrow CDI columns borrowed without copying, for a call that does not retain them.
+///
+/// The returned table aliases the exporter's memory, which a writable alias (a NumPy array
+/// behind a PyArrow array) can change at any time. It must not outlive the call: a handle that
+/// keeps data uses [`tabular_from_py_columns`], which owns it.
 pub(crate) fn tabular_from_arrow_c_objs(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
@@ -545,10 +552,83 @@ pub(crate) fn tabular_from_arrow_c_objs(
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
-/// NumPy float64 columns or Arrow CDI exporters → owned [`TabularData`].
-pub(crate) fn tabular_from_py_columns(
+/// Bytes the owned copy of these Arrow exporters retains, quoted from their lengths before
+/// anything is imported or copied: every supported value type is at most eight bytes wide, plus
+/// a validity bitmap. `None` when an exporter reports no length.
+fn arrow_retention_bytes(columns: &[Bound<'_, PyAny>]) -> Option<u64> {
+    columns.iter().try_fold(0_u64, |total, column| {
+        let rows = u64::try_from(column.len().ok()?).ok()?;
+        total.checked_add(rows.checked_mul(8)?.checked_add(rows.div_ceil(8))?)
+    })
+}
+
+/// Fund `bytes` of retained table from the caller's execution pool, or refuse.
+///
+/// The lease is acquired before the copy it pays for and attached to the table itself
+/// (`TabularData::with_retention`), whatever its column types, so it is released only when the
+/// last holder of the table (or of a table derived from its columns) drops.
+/// `CausalResourceError` when the pool cannot fund it; a cancelled run is cancelled.
+pub(crate) fn admit_retention(
+    bytes: u64,
+) -> PyResult<Arc<antecedent_core::execution::AdmissionLease>> {
+    let mut ctx = antecedent_core::ExecutionContext::production_default(1);
+    crate::execution_api::apply(&mut ctx);
+    ctx.acquire_admission_bounded(0, bytes, std::time::Duration::ZERO).map(Arc::new).map_err(
+        |error| match error {
+            antecedent_core::execution::AdmissionError::Cancelled => {
+                py_err(antecedent::CausalError::Cancelled { stage: "ingest" })
+            }
+            error => crate::CausalResourceError::new_err(error.to_string()),
+        },
+    )
+}
+
+/// Arrow CDI columns copied into library-owned storage.
+///
+/// Uses the data crate's freeze: every borrowed float64 buffer is copied once into an immutable
+/// owned slice, so a later write through an exporter alias is not a write to the table. With
+/// `admit`, the copy is funded from the caller's execution pool before it is made and the
+/// lease is held by the table; a caller that already funded the same bytes (a
+/// `TableSnapshot`) passes `false`.
+pub(crate) fn owned_tabular_from_arrow_c_objs(
     names: Vec<String>,
     columns: Vec<Bound<'_, PyAny>>,
+    admit: bool,
+) -> PyResult<antecedent_data::TabularData> {
+    let quoted = if admit { arrow_retention_bytes(&columns) } else { None };
+    let mut lease = quoted.map(admit_retention).transpose()?;
+    let cdi_cols = ffi::arrow_c_columns(names, columns)?;
+    let frame =
+        antecedent_data::arrow_adapter::ArrowFrameView::from_c_columns(cdi_cols).map_err(py_err)?;
+    if admit && lease.is_none() {
+        // An exporter with no length is quoted from the imported frame, still before the copy.
+        let rows = u64::try_from(frame.row_count().map_err(py_err)?).unwrap_or(u64::MAX);
+        let cells = rows.saturating_mul(u64::try_from(frame.n_columns()).unwrap_or(u64::MAX));
+        lease = Some(admit_retention(cells.saturating_mul(8).saturating_add(cells.div_ceil(8)))?);
+    }
+    let frozen = frame.freeze().map_err(py_err)?;
+    let data = frozen.data().clone();
+    Ok(match lease {
+        Some(lease) => data.with_retention(lease),
+        None => data,
+    })
+}
+
+/// How [`py_columns`] treats Arrow value buffers.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ArrowBuffers {
+    /// Borrow contiguous float64 buffers; the table must not outlive the call.
+    Borrow,
+    /// Copy them into library-owned storage, funded from the caller's execution pool.
+    Own,
+    /// Copy them into library-owned storage the caller has already funded.
+    OwnFunded,
+}
+
+fn py_columns(
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    arrow: ArrowBuffers,
 ) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
     if names.len() != columns.len() {
         // Preserve the pre-unification ValueError for NumPy callers that catch it.
@@ -560,12 +640,70 @@ pub(crate) fn tabular_from_py_columns(
     let use_arrow = !columns.is_empty()
         && columns.iter().all(|c| c.hasattr("__arrow_c_array__").is_ok_and(|ok| ok));
     if use_arrow {
-        let (data, bytes_borrowed) = tabular_from_arrow_c_objs(names, columns)?;
-        return Ok((data, Some(bytes_borrowed)));
+        return match arrow {
+            ArrowBuffers::Borrow => {
+                let (data, bytes_borrowed) = tabular_from_arrow_c_objs(names, columns)?;
+                Ok((data, Some(bytes_borrowed)))
+            }
+            ArrowBuffers::Own => Ok((owned_tabular_from_arrow_c_objs(names, columns, true)?, None)),
+            ArrowBuffers::OwnFunded => {
+                Ok((owned_tabular_from_arrow_c_objs(names, columns, false)?, None))
+            }
+        };
     }
     let mut np = Vec::with_capacity(columns.len());
+    let mut bytes = 0_u64;
     for c in &columns {
         np.push(NumericColumn::from_object(c)?);
+        let rows = u64::try_from(c.len()?).unwrap_or(u64::MAX);
+        let column = rows.saturating_mul(8).saturating_add(rows.div_ceil(8));
+        bytes = bytes.saturating_add(column);
     }
-    Ok((numeric_columns_to_batch(&names, &np)?.loaded()?.data, None))
+    // A retained table's owned copy is funded before it is made, and the lease lives with the
+    // table. A call-scoped borrow retains nothing; a snapshot funded its own copy.
+    let lease = (arrow == ArrowBuffers::Own).then(|| admit_retention(bytes)).transpose()?;
+    let data = numeric_columns_to_batch(&names, &np)?.loaded()?.data;
+    Ok((
+        match lease {
+            Some(lease) => data.with_retention(lease),
+            None => data,
+        },
+        None,
+    ))
+}
+
+/// NumPy float64 columns or Arrow CDI exporters → library-owned [`TabularData`].
+///
+/// Every route owns its values, so the table is immutable for as long as anything keeps it: a
+/// prepared study, a rebind, an estimate click or a retained result. NumPy columns are copied
+/// (a NumPy buffer is writable); Arrow buffers, which can alias a writable NumPy array, are
+/// copied too. Each copy is funded from the caller's execution pool before it is made
+/// (`CausalResourceError` when `Execution(memory_bytes=...)` cannot fund it), and the lease is
+/// held by the table for as long as any holder keeps it, whatever its column types. Only a
+/// complete snapshot column, immutable by construction, is shared.
+pub(crate) fn tabular_from_py_columns(
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<antecedent_data::TabularData> {
+    py_columns(names, columns, ArrowBuffers::Own).map(|(data, _)| data)
+}
+
+/// Like [`tabular_from_py_columns`] for a caller that has already funded the table's retained
+/// bytes from the execution pool (and holds that lease on the table), so the copy is not
+/// charged twice.
+pub(crate) fn funded_tabular_from_py_columns(
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<antecedent_data::TabularData> {
+    py_columns(names, columns, ArrowBuffers::OwnFunded).map(|(data, _)| data)
+}
+
+/// Like [`tabular_from_py_columns`], but Arrow float64 buffers are borrowed under the caller's
+/// explicit contract (`antecedent.data.table(..., borrow=True)`); the second value is the bytes
+/// borrowed.
+pub(crate) fn borrowing_tabular_from_py_columns(
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+) -> PyResult<(antecedent_data::TabularData, Option<u64>)> {
+    py_columns(names, columns, ArrowBuffers::Borrow)
 }
