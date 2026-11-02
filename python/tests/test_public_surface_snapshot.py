@@ -501,6 +501,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "sequential_contrast",
         "estimand_text",
         "fitted_model",
+        "fitted_model_from_source",
         # The five-line API (`ResultAPI`)
         "answer",
         "as_point",
@@ -620,6 +621,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "validator_names",
     },
     "LoadedResult": {
+        "fitted_model_from_source",
         "decoded_artifact",
         "fitted_model",
         "acceptance",
