@@ -423,8 +423,19 @@ fn a_series_posterior_attributes_each_template_as_a_supplied_temporal_dag() {
             (series_reference(true, &data, &query), series_reference(false, &data, &query));
         let (driven, empty) = (&driven.anomaly().unwrap()[0], &empty.anomaly().unwrap()[0]);
         assert_eq!(merged.scores, driven.scores, "the factual scores do not depend on the graph");
-        for row in 0..merged.rows.len() {
-            let expected = 0.7 * driven.baseline_scores[row] + 0.3 * empty.baseline_scores[row];
+        // Each template scores its own complete windows: the lagged template starts one row
+        // later than the empty one. The mixture scores the rows every member scores, and each
+        // member's score of a source row is found by that row's coordinate, not its position.
+        let position = |scores: &AnomalyScores, source: usize| {
+            scores
+                .rows
+                .iter()
+                .position(|&row| row == source)
+                .unwrap_or_else(|| panic!("source row {source} is a common member row"))
+        };
+        for (row, &source) in merged.rows.iter().enumerate() {
+            let expected = 0.7 * driven.baseline_scores[position(driven, source)]
+                + 0.3 * empty.baseline_scores[position(empty, source)];
             assert!((merged.baseline_scores[row] - expected).abs() < 1e-9, "row {row}");
         }
         let mixture = result.structural_response.as_ref().expect("the atom mixture");

@@ -385,16 +385,19 @@ fn completions_that_disagree_publish_the_identified_set() {
     let mixture = result.structural_response.as_ref().expect("a partially identified class");
     let set = mixture.identified_set.as_ref().expect("an identified set over the completions");
     let (lower, upper) = (set.lower[0], set.upper[0]);
-    // The identified completions are T -> A, T -> B (the generating one, effect `truth`) and
+    // The identified completions are T -> A, T -> B (the generating one, effect `truth`),
     // B -> T -> A, where B is a non-descendant of T and so adjusted:
     //   sum_b P(b) sum_a (P(a|t=1) - P(a|t=0)) E[y|a,b], with P(b=1) = 0.45 and
-    //   E[y|a=1,b] - E[y|a=0,b] = 0.3 + 0.25 b:  0.4 * (0.55 * 0.3 + 0.45 * 0.55) = 0.165.
-    // The third completion (A -> T -> B) has no directed path through A.
-    assert!((lower - truth).abs() < 1e-4, "lower {lower} against the generating effect {truth}");
+    //   E[y|a=1,b] - E[y|a=0,b] = 0.3 + 0.25 b:  0.4 * (0.55 * 0.3 + 0.45 * 0.55) = 0.165,
+    // and A -> T -> B, which has no directed path through A: the path-specific effect is
+    // structurally zero there whatever the data say, so it is identified at 0 and is the
+    // lower end of the set.
+    assert!(lower.abs() < 1e-9, "lower {lower} against the structurally zero completion");
     assert!((upper - 0.165).abs() < 1e-4, "upper {upper} against the adjusted completion 0.165");
+    assert!(truth > lower && truth < upper, "the generating effect {truth} lies inside the set");
     assert!(
-        (mixture.unidentified_mass - 1.0 / 3.0).abs() < 1e-12,
-        "the completion with no directed path through A carries one third of the mass: {}",
+        mixture.unidentified_mass.abs() < 1e-12,
+        "every completion identifies the effect: {}",
         mixture.unidentified_mass
     );
 }

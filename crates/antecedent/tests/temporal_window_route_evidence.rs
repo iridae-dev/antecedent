@@ -1039,11 +1039,17 @@ fn mediation_atom() -> TemporalAdmgAtom {
     }
 }
 
-/// The mediator does not reach the outcome: no path runs through it, so the pure natural
-/// indirect effect has nothing to identify and the atom keeps its mass as unidentified mass.
-fn inert_mediator_atom() -> TemporalAdmgAtom {
+/// The treatment also causes `w`, which causes both the mediator and the outcome: `w` starts a
+/// path through the mediator and a path around it, a recanting witness, so the pure natural
+/// indirect effect is not identified and the atom keeps its mass as unidentified mass. (A
+/// mediator that does not reach the outcome is a different atom: its indirect effect is
+/// identified and structurally zero.) The total effect is identified all the same.
+fn recanting_witness_atom() -> TemporalAdmgAtom {
     TemporalAdmgAtom {
-        contemporaneous: contemporaneous(&[(XM, MM_I), (WM, MM_I), (XM, YM)], 5),
+        contemporaneous: contemporaneous(
+            &[(XM, MM_I), (XM, WM), (WM, MM_I), (WM, YM), (MM_I, YM), (XM, YM)],
+            5,
+        ),
         lagged_directed: lagged(&[(1, CI, XM)], 5),
         lagged_bidirected: LagMask::EMPTY,
     }
@@ -1062,7 +1068,7 @@ fn recanting_atom() -> TemporalAdmgAtom {
 fn mediation_posterior() -> GraphPosterior {
     atom_posterior(
         &[0.5, 0.3, 0.2],
-        &[mediation_atom(), inert_mediator_atom(), recanting_atom()],
+        &[mediation_atom(), recanting_witness_atom(), recanting_atom()],
         5,
     )
 }
@@ -1079,7 +1085,7 @@ fn temporal_admg_window_mediation_posterior_mixes_each_component_over_the_atoms_
     let mut statuses = Vec::new();
     for (inference, tolerance) in inferences() {
         // The indirect effect: the generating atom (weight 0.5) and the latent-cause atom (0.2)
-        // identify it to the enumerated value; the inert-mediator atom's 0.3 is unidentified
+        // identify it to the enumerated value; the recanting-witness atom's 0.3 is unidentified
         // mass, never redistributed, so the mixture is the mean over the identified 0.7.
         let indirect = mediation_truth("natural_indirect_effect");
         let built = Study::series(data.clone())
@@ -1202,8 +1208,8 @@ fn temporal_admg_window_mediation_posterior_validation_mixes_the_per_atom_report
                 suite == RefuteSuite::Full,
                 "{found:?}"
             );
-            // Validation observes the mixture, it does not move it, and the recanting atom still
-            // keeps its mass as unidentified mass.
+            // Validation observes the mixture, it does not move it, and the recanting-witness
+            // atom still keeps its mass as unidentified mass.
             assert!((result.effect() - none.effect()).abs() < 1e-12);
             let mixture = result.structural_response.as_ref().expect("the atom mixture");
             assert!((mixture.unidentified_mass - 0.3).abs() < 1e-12);

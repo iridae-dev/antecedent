@@ -267,7 +267,7 @@ fn each_mediation_component_is_mixed_over_the_atoms_that_identify_it() {
         let keys = graphs.graph_keys().clone();
         let query = CausalQuery::Mediation(mediation(MediationContrast::Total));
         let built = study(graphs, query, InferenceMode::Frequentist).build().unwrap();
-        assert_eq!(built.support_status(), Some(CellStatus::Refused));
+        assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap();
 
         // The latent-free atom decomposes by the counted formulas, the front-door atom

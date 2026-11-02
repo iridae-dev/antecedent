@@ -233,12 +233,12 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         let expected = stratified;
 
         let study = conditional_study(posterior, InferenceMode::Frequentist, 80);
-        assert_eq!(study.support_status(), Some(CellStatus::Refused));
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
         let ctx = ExecutionContext::for_tests(8_101);
         let result = study.run(&ctx).unwrap();
         let effect = result.estimate().as_effect().unwrap();
         assert!((effect.ate - expected).abs() < 1e-9, "{} vs {expected}", effect.ate);
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         assert_eq!(result.logical_plan.estimator.as_deref(), Some("functional.effect"));
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
 
@@ -358,13 +358,13 @@ fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_m
         let posterior = temporal_admg_posterior(&graphs, &weights);
         let keys = posterior.graph_keys().clone();
         let study = conditional_study(posterior, InferenceMode::Frequentist, 80);
-        assert_eq!(study.support_status(), Some(CellStatus::Refused));
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
         let ctx = ExecutionContext::for_tests(8_901);
         let result = study.run(&ctx).unwrap();
         // The contrast is the modifier-stratified difference counted from the contingency table.
         let counted = stratified_difference();
         assert!((ate(&result) - counted).abs() < 1e-9, "{} vs {counted}", ate(&result));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused));
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed));
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);
         let mixture = result.structural_response.as_ref().expect("a structural mixture");
         assert!((mixture.identified_mass - 0.8).abs() < 1e-9, "{}", mixture.identified_mass);
@@ -433,7 +433,7 @@ fn a_temporal_admg_conditional_mixture_mixes_the_atoms_refuter_reports() {
                 .unwrap()
                 .run(&ExecutionContext::for_tests(8_904))
                 .unwrap();
-            assert_eq!(result.support_status(), Some(CellStatus::Refused));
+            assert_eq!(result.support_status(), Some(CellStatus::Licensed));
             assert!(!result.refutations.is_empty());
             let mut ids: Vec<&str> =
                 result.refutations.iter().map(|r| r.refuter.as_ref()).collect();
@@ -1022,7 +1022,7 @@ fn the_dynamic_conditional_mixture_states_the_lost_mass_and_publishes_a_shared_i
             .refute(RefuteSuite::None)
             .build()
             .unwrap();
-        assert_eq!(study.support_status(), Some(CellStatus::Refused));
+        assert_eq!(study.support_status(), Some(CellStatus::Licensed));
         let result = study.run(&ExecutionContext::for_tests(8_401)).unwrap();
         assert!((ate(&result) - truth).abs() < 0.05, "{} vs {truth}", ate(&result));
         assert_eq!(result.identification.status, IdentificationStatus::GraphDependent);

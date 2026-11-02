@@ -388,7 +388,12 @@ fn a_two_stage_saturation_is_checked_against_its_realized_saturations() {
 
 #[test]
 fn a_cluster_randomized_design_is_re_randomized_under_full_validation_on_every_class() {
-    let ctx = ExecutionContext::for_tests(9_203);
+    // Sixteen clusters are enumerated exactly (2^16 assignments) at both exposure levels of the
+    // initial pair and of each of the default 199 re-draws, a quote of about 1.0e10 operations;
+    // the default ceiling is 4.0e9, so this run authorizes the work explicitly.
+    const CLUSTER_ENUMERATION_WORK_LIMIT: u64 = 20_000_000_000;
+    let ctx = ExecutionContext::for_tests(9_203)
+        .with_exposure_probability_work_limit(CLUSTER_ENUMERATION_WORK_LIMIT);
     for class in CLASS_NAMES {
         let cheap = run_on_class(class, cluster_fixture(), RefuteSuite::Cheap, &ctx);
         assert!(

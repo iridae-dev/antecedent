@@ -1735,6 +1735,15 @@ const SUITE_FILES: [&str; 7] = [
     include_str!("horizon_one_equivalence/quasi.rs"),
 ];
 
+/// Whether `file` defines `test` as a test: its attribute block, which may carry lint
+/// attributes between `#[test]` and the signature, names `#[test]`.
+fn is_test_of(file: &str, test: &str) -> bool {
+    let signature = format!("\nfn {test}(");
+    file.find(&signature).is_some_and(|at| {
+        file[..at].rsplit("\n\n").next().is_some_and(|block| block.contains("#[test]"))
+    })
+}
+
 /// One method family of the inventory: its static and temporal frequentist rows.
 #[derive(Debug, Default, Clone)]
 struct InventoryFamily {
@@ -2011,7 +2020,7 @@ fn every_executing_temporal_counterpart_with_a_static_twin_owes_an_established_o
         assert!(!tests.is_empty(), "{method} names no test");
         for test in *tests {
             assert!(
-                SUITE_FILES.iter().any(|file| file.contains(&format!("#[test]\nfn {test}("))),
+                SUITE_FILES.iter().any(|file| is_test_of(file, test)),
                 "{method} names {test}, which is not a test of this suite"
             );
         }

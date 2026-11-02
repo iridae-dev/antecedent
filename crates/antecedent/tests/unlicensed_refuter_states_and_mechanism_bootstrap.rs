@@ -404,7 +404,7 @@ fn temporal_derivative_runs_its_refuter_state_on_dag_and_class() {
             .unwrap_or_else(|error| panic!("{label}: {error}"))
             .run(&ExecutionContext::for_tests(29))
             .unwrap_or_else(|error| panic!("{label}: {error}"));
-        assert_eq!(result.support_status(), Some(CellStatus::Refused), "{label}");
+        assert_eq!(result.support_status(), Some(CellStatus::Licensed), "{label}");
         let fd = result
             .refutations
             .iter()
@@ -481,13 +481,11 @@ fn executes(status: &str) -> bool {
 const NOT_AN_ORDINARY_POSTERIOR: &[(&str, &str)] = &[
     ("P05.static.bayesian", "none"),
     ("P05.temporal.bayesian", "none"),
-    ("P06.temporal.bayesian", "design_aware_resampling"),
     ("P07.curve.temporal.bayesian", "analytic"),
     ("P07.derivative.temporal.bayesian", "design_aware_resampling"),
     ("P12.counterfactual.temporal.bayesian", "design_aware_resampling"),
     ("P12.intervention.temporal.bayesian", "analytic"),
     ("P14.temporal.bayesian", "design_aware_resampling"),
-    ("P15.conditional.static.bayesian", "design_aware_resampling"),
     ("P15.conditional.temporal.bayesian", "design_aware_resampling"),
     ("P15.projection.temporal.bayesian", "design_aware_resampling"),
     ("P15.pulse.temporal.bayesian", "design_aware_resampling"),

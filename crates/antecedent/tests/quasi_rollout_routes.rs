@@ -561,102 +561,16 @@ fn conformal_synthetic_control_reports_period_intervals_and_refuses_a_bayesian_r
     assert!((predictive.overall().unwrap().estimate - 3.0).abs() < 0.25);
 }
 
-/// Simplex-constrained least squares `min_w mean (target - X w)^2` over the donor columns,
-/// by pairwise coordinate descent with exact line search from the uniform start: the largest
-/// gradient entry among positive weights hands mass to the smallest gradient entry. This is an
-/// independent solver for the product's accelerated projected gradient; the fitted values are
-/// the unique minimiser's, the weights themselves are unique only when the donors are
-/// linearly independent.
-fn simplex_least_squares(target: &[f64], donors: &[Vec<f64>]) -> Vec<f64> {
-    let k = donors.len();
-    let n = target.len() as f64;
-    let gram: Vec<Vec<f64>> = (0..k)
-        .map(|a| {
-            (0..k)
-                .map(|b| donors[a].iter().zip(&donors[b]).map(|(x, y)| x * y).sum::<f64>() / n)
-                .collect()
-        })
-        .collect();
-    let cross: Vec<f64> =
-        donors.iter().map(|d| d.iter().zip(target).map(|(x, y)| x * y).sum::<f64>() / n).collect();
-    let mut w = vec![1.0 / k as f64; k];
-    let mut grad: Vec<f64> =
-        (0..k).map(|a| 2.0 * ((0..k).map(|b| gram[a][b] * w[b]).sum::<f64>() - cross[a])).collect();
-    for _ in 0..200_000 {
-        let i = (0..k).min_by(|&a, &b| grad[a].total_cmp(&grad[b])).unwrap();
-        let j =
-            (0..k).filter(|&a| w[a] > 0.0).max_by(|&a, &b| grad[a].total_cmp(&grad[b])).unwrap();
-        let gap = grad[j] - grad[i];
-        if gap < 1e-13 {
-            break;
-        }
-        let curvature = 2.0 * (gram[i][i] - 2.0 * gram[i][j] + gram[j][j]);
-        let step = if curvature > 1e-18 { (gap / curvature).min(w[j]) } else { w[j] };
-        w[i] += step;
-        w[j] -= step;
-        for a in 0..k {
-            grad[a] += 2.0 * step * (gram[a][i] - gram[a][j]);
-        }
-    }
-    w
-}
-
-/// Independent synthetic difference in differences of a staggered rollout, following the
-/// definition: for each adopting unit, simplex unit weights fit to the pre-period outcomes of the
-/// donors, simplex time weights fit to the demeaned donor post-period means from the demeaned
-/// donor profiles of each pre-period, and the double-difference
-/// `(treated post - time-weighted treated pre) - (unit-weighted donor post - time- and unit-weighted
-/// donor pre)`; the overall effect weights the unit effects by their post-period counts.
-fn reference_synthetic_did(
-    values: &[Vec<f64>],
-    treated: &[(usize, usize)],
-    donors: &[usize],
-) -> (f64, Vec<f64>) {
-    let demean = |v: &[f64]| -> Vec<f64> {
-        let m = v.iter().sum::<f64>() / v.len() as f64;
-        v.iter().map(|x| x - m).collect()
-    };
-    let (mut effects, mut counts) = (Vec::new(), Vec::new());
-    for &(unit, adoption) in treated {
-        let periods = values[unit].len();
-        let pre: Vec<usize> = (0..adoption).collect();
-        let post: Vec<usize> = (adoption..periods).collect();
-        let donor_pre: Vec<Vec<f64>> =
-            donors.iter().map(|&u| pre.iter().map(|&t| values[u][t]).collect()).collect();
-        let target_pre: Vec<f64> = pre.iter().map(|&t| values[unit][t]).collect();
-        let unit_weights = simplex_least_squares(&target_pre, &donor_pre);
-        let post_mean =
-            |u: usize| post.iter().map(|&t| values[u][t]).sum::<f64>() / post.len() as f64;
-        let donor_post: Vec<f64> = donors.iter().map(|&u| post_mean(u)).collect();
-        let profiles: Vec<Vec<f64>> = pre
-            .iter()
-            .map(|&t| demean(&donors.iter().map(|&u| values[u][t]).collect::<Vec<_>>()))
-            .collect();
-        let time_weights = simplex_least_squares(&demean(&donor_post), &profiles);
-        let treated_pre: f64 =
-            pre.iter().zip(&time_weights).map(|(&t, l)| l * values[unit][t]).sum();
-        let donor_pre_joint: f64 = donors
-            .iter()
-            .zip(&unit_weights)
-            .map(|(&u, w)| {
-                w * pre.iter().zip(&time_weights).map(|(&t, l)| l * values[u][t]).sum::<f64>()
-            })
-            .sum();
-        let synthetic_post: f64 = donor_post.iter().zip(&unit_weights).map(|(p, w)| p * w).sum();
-        effects.push((post_mean(unit) - treated_pre) - (synthetic_post - donor_pre_joint));
-        counts.push(post.len() as f64);
-    }
-    let total: f64 = counts.iter().sum();
-    (effects.iter().zip(&counts).map(|(e, c)| e * c).sum::<f64>() / total, effects)
-}
-
+/// The estimator's weights are simplex-only. Synthetic difference in differences also needs a
+/// unit-weight intercept and a ridge penalty, so the rollout refuses it with a typed reason
+/// instead of publishing a simplex fit under the synthetic-DiD name.
 #[test]
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    reason = "the bounded reference fixture preserves its exact calculations and local structure"
+    reason = "the bounded fixture preserves its exact local structure"
 )]
-fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals() {
+fn multi_unit_synthetic_did_is_refused_until_its_weights_are_implemented() {
     let mut rng = Rng(10);
     let mut trend = Vec::new();
     let mut level = 0.0;
@@ -681,7 +595,6 @@ fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals()
             periods.push(period);
         }
     }
-    let reference_y = y.clone();
     let data = TabularData::from_f64_columns([("y", y.as_slice())]).unwrap();
     let query = SyntheticControlQuery::new(
         VariableId::from_raw(0),
@@ -692,62 +605,14 @@ fn multi_unit_synthetic_did_recovers_a_staggered_effect_with_placebo_intervals()
     )
     .difference_in_differences()
     .with_staggered_adoptions(adoptions, 199);
-    let result = Study::tabular(data)
+    let error = Study::tabular(data)
         .query(query)
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(4))
-        .unwrap();
-    let rollout = result.quasi_rollout().unwrap();
-    assert_eq!(rollout.design.as_ref(), "multi_unit_synthetic_did");
-    let overall = rollout.overall().unwrap();
-    let se = overall.standard_error.unwrap();
-    // Independent references: the point estimate from an in-test solver of the same weighting
-    // definition, and the placebo SE from an in-test placebo procedure (the three adoption dates
-    // reassigned to randomly chosen never-treated units, the whole estimator refit on the
-    // remaining donors, the population variance of the placebo overall estimates).
-    let values: Vec<Vec<f64>> =
-        (0..33).map(|u| reference_y[u * 22..(u + 1) * 22].to_vec()).collect();
-    let treated_units: Vec<(usize, usize)> = vec![(30, 15), (31, 17), (32, 19)];
-    let donor_units: Vec<usize> = (0..30).collect();
-    let (reference, unit_effects) = reference_synthetic_did(&values, &treated_units, &donor_units);
-    assert!((overall.estimate - reference).abs() < 1e-3, "{} vs {reference}", overall.estimate);
-    let reported_units: Vec<f64> = rollout
-        .effects
-        .iter()
-        .filter(|effect| effect.kind == DesignEffectKind::Unit)
-        .map(|effect| effect.estimate)
-        .collect();
-    for (reported, expected) in reported_units.iter().zip(&unit_effects) {
-        assert!((reported - expected).abs() < 1e-3, "{reported} vs {expected}");
-    }
-    let mut placebo_rng = Rng(0xfeed);
-    let mut placebo = Vec::new();
-    for _ in 0..300 {
-        let mut pool = donor_units.clone();
-        let mut assigned = Vec::new();
-        for (index, &(_, adoption)) in treated_units.iter().enumerate() {
-            let pick = index
-                + (((placebo_rng.uniform() * (pool.len() - index) as f64) as usize)
-                    .min(pool.len() - index - 1));
-            pool.swap(index, pick);
-            assigned.push((pool[index], adoption));
-        }
-        placebo.push(reference_synthetic_did(&values, &assigned, &pool[3..]).0);
-    }
-    let mean = placebo.iter().sum::<f64>() / placebo.len() as f64;
-    let reference_se =
-        (placebo.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / placebo.len() as f64).sqrt();
-    assert!(
-        (se / reference_se - 1.0).abs() < 0.25,
-        "placebo SE {se} vs independent placebo procedure {reference_se}"
-    );
-    assert!((overall.estimate - 2.0).abs() < 4.0 * se + 0.1, "{} ± {se}", overall.estimate);
-    assert_eq!(
-        rollout.effects.iter().filter(|effect| effect.kind == DesignEffectKind::Unit).count(),
-        3
-    );
-    assert!(rollout.replicates_ok >= 190);
+        .expect_err("a simplex-only objective must not run synthetic difference in differences");
+    assert_eq!(error.reason_code(), Some("route_not_supported"), "{error}");
+    assert!(error.to_string().contains("unit-weight intercept and ridge penalty"), "{error}");
 }
 
 /// Independent robust-bias-corrected fuzzy-RD reference. On each side of the cutoff it fits the

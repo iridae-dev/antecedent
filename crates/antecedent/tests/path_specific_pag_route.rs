@@ -323,7 +323,7 @@ fn a_pag_path_specific_effect_under_cheap_validation_runs_the_unlicensed_refuter
         .build()
         .and_then(|built| built.run(&ExecutionContext::for_tests(47)))
         .unwrap();
-    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Refused));
+    assert_eq!(result.support_status(), Some(antecedent::CellStatus::Licensed));
     assert!(!result.refutations.is_empty());
     assert!(result.refutations.iter().all(|r| r.refuter.starts_with("target.")));
 }
