@@ -4,6 +4,13 @@ version = 1
 default = "closed"
 
 [[routes]]
+route = "decision.experimental_margin.measured_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Candidate coverage studies are registered; no measured interval authority is allocated."
+
+[[routes]]
 route = "antecedent.transport.identify"
 stage = "identify"
 status = "licensed"

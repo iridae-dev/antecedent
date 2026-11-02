@@ -110,7 +110,11 @@ def surface_interval_findings(rel: str) -> list[tuple[int, str]]:
                     found.append((node.lineno, node.name))
             elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
                 name = node.target.id
-                if not name.startswith("_") and "interval" in name.lower():
+                interval_type = any(
+                    isinstance(part, ast.Name) and part.id.endswith("Interval")
+                    for part in ast.walk(node.annotation)
+                )
+                if not name.startswith("_") and ("interval" in name.lower() or interval_type):
                     found.append((node.lineno, name))
 
     declarations(ast.parse((ROOT / rel).read_text(encoding="utf-8")).body)
@@ -210,7 +214,15 @@ def emitted_by_a_test(coverage_id: str) -> bool:
         # replaced by `_` and lowercased (CoverageTally::labelled), so the literal
         # `"shared_rho_0.0"` emits the id component `shared_rho_0_0`.
         return (
-            lit in (comp, coverage_id) or lit.endswith("." + comp) or label_component(lit) == comp
+            lit in (comp, coverage_id)
+            or lit.endswith("." + comp)
+            or label_component(lit) == comp
+            or (
+                comp.startswith("v2_validation_")
+                and len(parts) >= 3
+                and re.fullmatch(r"l[0-9]+", parts[-3]) is not None
+                and lit == parts[-2]
+            )
         )
 
     # Some crates keep their ignored calibration tests in a #[cfg(test)]
@@ -986,7 +998,7 @@ def check() -> dict:
                 and row[0].endswith(".py")
                 and (
                     re.match(
-                        rf"\s*{re.escape(name)}\s*:\s*str\s*(?:#.*)?$",
+                        rf"\s*{re.escape(name)}\s*:\s*(?:str|bool)\s*(?:#.*)?$",
                         (ROOT / row[0]).read_text(encoding="utf-8").splitlines()[row[1] - 1],
                     )
                     or (
@@ -1013,7 +1025,9 @@ def check() -> dict:
                 )
             ]
             if not matches:
-                errors.append(f"{rid}: noninferential descriptor {name!r} is not a string field")
+                errors.append(
+                    f"{rid}: noninferential descriptor {name!r} is not a string or boolean field"
+                )
             findings = [row for row in findings if row not in matches]
         for name in record.get("internal_interval_fields") or []:
             matches = [
@@ -1663,6 +1677,20 @@ def self_test_exact_ownership() -> int:
                 return result
 
             baseline = expect("scoped candidate allocation and typed status", None)
+            write(
+                surface,
+                "class Result:\n    interval_status: bool\n"
+                "    sampling: SamplingInterval\n",
+            )
+            expect(
+                "interval-typed output remains subject to licensing",
+                "public interval-bearing output sampling",
+            )
+            write(
+                surface,
+                "class Result:\n    interval_status: str\n"
+                "    def summarize(self):\n        return result(interval=(0, 1))\n",
+            )
             if (
                 baseline["calibration"].get("synth.diagnostic_candidate", {}).get("status")
                 != "PENDING_CALIBRATION"
@@ -1752,7 +1780,9 @@ def self_test_exact_ownership() -> int:
                 f'    emit("{coverage_id}");\n}}\n',
             )
             write(surface, "class Result:\n    interval_status: float\n")
-            expect("numeric output cannot masquerade as a descriptor", "not a string field")
+            expect(
+                "numeric output cannot masquerade as a descriptor", "not a string or boolean field"
+            )
             write(
                 surface,
                 "class Result:\n    interval_status: str\n    interval: tuple[float, float]\n",
