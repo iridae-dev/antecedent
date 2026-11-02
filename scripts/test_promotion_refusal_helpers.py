@@ -928,6 +928,21 @@ class SharedNamespaceTests(unittest.TestCase):
             )
             self.assertEqual(refusal_stage_literals(other, in_crate=False), set())
 
+            cancelled = Path(directory) / "cancelled.rs"
+            cancelled.write_text(
+                'pub fn run() { let e = CausalError::Cancelled { stage: "recalc.export" };\n'
+                'let other = Refusal { detail: "recalc.refusal" }; }',
+                encoding="utf-8",
+            )
+            self.assertEqual(refusal_stage_literals(cancelled, in_crate=False), {(1, "recalc.export")})
+            cancelled.write_text(
+                'pub fn run() { let e = CausalError::Cancelled { stage: "recalc.export" }; '
+                'let detail = "recalc.export"; }',
+                encoding="utf-8",
+            )
+            self.assertEqual(refusal_stage_literals(cancelled, in_crate=False), set())
+
+
 
 class UntrustedIntervalInputTests(unittest.TestCase):
     def test_original_report_input_passes_and_authority_or_numeric_drift_refuses(self):

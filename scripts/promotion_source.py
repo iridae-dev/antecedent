@@ -531,7 +531,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
 
 
 def refusal_stage_literals(path: Path, *, in_crate: bool = True) -> set[tuple[int, str]]:
-    """Only exact RefusalFields.stage values are stage metadata, not reason details."""
+    """Recognize direct stage fields of structured refusals and cancellation errors."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     output = set()
     pattern = re.compile(
@@ -552,6 +552,23 @@ def refusal_stage_literals(path: Path, *, in_crate: bool = True) -> set[tuple[in
                     )
                     == 1
                 ):
+                    output.add((line, match[1]))
+    # A cancellation's stage identifies where work stopped, not a refusal detail.
+    for block in re.finditer(r"\bCausalError\s*::\s*Cancelled\s*\{", skel):
+        opening = block.end() - 1
+        closing = _match_bracket(skel, opening)
+        for match in re.finditer(
+            r'stage\s*:\s*"([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)"',
+            code[opening + 1 : closing],
+        ):
+            offset = opening + 1 + match.start()
+            prefix = skel[opening + 1 : offset]
+            if (skel[offset : offset + 5] == "stage"
+                    and prefix.count("{") == prefix.count("}")
+                    and prefix.count("(") == prefix.count(")")):
+                line = code.count("\n", 0, offset) + 1
+                if sum(lit.line == line and lit.value == match[1]
+                       for lit in rust_literals(path, in_crate=in_crate)) == 1:
                     output.add((line, match[1]))
     return output
 
@@ -965,13 +982,13 @@ def refusal_code_pair_problems(declared: set[str], registered: set[str],
 # The facade, dispatcher, producer, bindings and the two refusal tests were reviewed together.
 # Hashing their complete bytes makes any source or test change fail closed until re-reviewed.
 _OBSERVATION_DRAWS_PROOF_FILES = {
-    "crates/antecedent-model/src/observation_uncertainty.rs": "5e86d83476f0085f61a3b31a26569f5e7adb27ea1fbf522d0176541b8ddaf82b",
-    "crates/antecedent-io-core/src/observation_query_artifact.rs": "b445b4df8fd45b26d16586437d145cd8d0f1911c8b1cf318f29d835ca89b6b23",
+    "crates/antecedent-model/src/observation_uncertainty.rs": "e04260a01e0703c854e7799d012038ce543564483e142ce88d32ffc5bb15aa2c",
+    "crates/antecedent-io-core/src/observation_query_artifact.rs": "5cc910e484c26ae0510eab379d589f2c7ecd0b800324585910b5617c10be56f5",
     "crates/antecedent/src/analysis/observation_query.rs": "f59b27fc750bf311f5efdb00308b3234f68bd9e3b577635b6c302768c5530876",
-    "crates/antecedent/tests/observation_query_facade.rs": "24b99901b7b173382d8cd04d1d2927a3e8a0bc8022f065ea9baea892b5bbcccb",
-    "python/src/observation_query_api.rs": "211ab22c82a88cd92eecb83ab9f92391aec7b48603f67f2c1a0b40a7fdb0d7e7",
-    "python/antecedent/observation_query.py": "e82024841c481484c9d49bc498923efdc3b1e750e50fb2c05e1d1163f61cbacc",
-    "python/tests/test_observation_query.py": "9ad244fa91540c4c086b31efb9624b0f4caf69831fab921e3ee0f5ee026c092b",
+    "crates/antecedent/tests/observation_query_facade.rs": "c202e2bcaade37bd7d982dc117eae73aa20d5737d02d6e2afe0d20442f8066ad",
+    "python/src/observation_query_api.rs": "9209bf6bc9ae26d7d359195cb1494b8b0ef41beaecd321ab61810aedc2a3742d",
+    "python/antecedent/observation_query.py": "ad32f564b51d2f0ae5ed0e7d5105c462c523887b9c600f96367351bab8992ade",
+    "python/tests/test_observation_query.py": "193750a4ee72d1a490287a072aa9df84d5da04add38116193a94ae6d4127f6a8",
 }
 _OBSERVATION_DRAWS_RUST = (
     "antecedent.observation_query.ObservationClaim.parameter_interval",
