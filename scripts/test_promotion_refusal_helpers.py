@@ -942,6 +942,21 @@ class SharedNamespaceTests(unittest.TestCase):
             )
             self.assertEqual(refusal_stage_literals(cancelled, in_crate=False), set())
 
+            panel = Path(directory) / "joint_panel" / "imputed.rs"
+            panel.parent.mkdir()
+            arm = (
+                '"multiple_imputation.admission_refused" => { '
+                'JointPanelError::Engine(super::engine::PanelError::Resource(error.to_string())) }'
+            )
+            panel.write_text('fn run(error: E) { match error.detail() { ' + arm + ' } }')
+            self.assertEqual(
+                refusal_stage_literals(panel, in_crate=False),
+                {(1, "multiple_imputation.admission_refused")},
+            )
+            panel.write_text('fn run(error: E) { match error.detail() { '
+                             + arm.replace('error.to_string()', 'emit(error)') + ' } }')
+            self.assertEqual(refusal_stage_literals(panel, in_crate=False), set())
+
 
 
 class UntrustedIntervalInputTests(unittest.TestCase):

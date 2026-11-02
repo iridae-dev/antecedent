@@ -570,6 +570,20 @@ def refusal_stage_literals(path: Path, *, in_crate: bool = True) -> set[tuple[in
                 if sum(lit.line == line and lit.value == match[1]
                        for lit in rust_literals(path, in_crate=in_crate)) == 1:
                     output.add((line, match[1]))
+    # This arm reads an upstream imputation detail to select a panel resource
+    # error. It does not emit a second imputation detail. Recognize only the
+    # exact adapter and branch; a changed branch must be reviewed again.
+    if path.name == "imputed.rs" and path.parent.name == "joint_panel":
+        pattern = re.compile(
+            r'"(multiple_imputation\.admission_refused)"\s*=>\s*\{\s*'
+            r'JointPanelError::Engine\(super::engine::PanelError::Resource\('
+            r'error\.to_string\(\)\)\)\s*\}'
+        )
+        for match in pattern.finditer(code):
+            line = code.count("\n", 0, match.start()) + 1
+            if sum(lit.line == line and lit.value == match[1]
+                   for lit in rust_literals(path, in_crate=in_crate)) == 1:
+                output.add((line, match[1]))
     return output
 
 
