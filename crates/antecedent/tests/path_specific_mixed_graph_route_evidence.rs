@@ -500,7 +500,8 @@ fn scaled(case: &Value, scale: u64) -> Value {
 
 /// On the exact-law table the refuter states run and pass, and the cross-world placebo is
 /// declared not run: the district formula sums the selected child out, so permuting its column
-/// cannot move the effect. The fixed seed's bootstrap also succeeds on the unscaled table.
+/// cannot move the effect. A bootstrap refit on the unscaled table can also
+/// refuse when a required probability cell is empty.
 #[test]
 fn the_validation_states_run_on_the_exact_law_and_decline_what_they_cannot_check() {
     let fixture = pin();
@@ -508,7 +509,7 @@ fn the_validation_states_run_on_the_exact_law_and_decline_what_they_cannot_check
         result.diagnostics.iter().map(|d| d.message.to_string()).collect()
     };
     for (scale, suite, expected) in
-        [(1, RefuteSuite::Full, 5), (40, RefuteSuite::Cheap, 3), (40, RefuteSuite::Full, 5)]
+        [(1, RefuteSuite::Full, 4), (40, RefuteSuite::Cheap, 3), (40, RefuteSuite::Full, 5)]
     {
         let case = scaled(&fixture["district_admg"], scale);
         let result = Study::tabular(expand(&case))
@@ -530,6 +531,12 @@ fn the_validation_states_run_on_the_exact_law_and_decline_what_they_cannot_check
                 && note.contains("does not read the permuted mediator column")),
             "scale {scale} {suite:?}"
         );
+        if scale == 1 {
+            assert!(
+                notes(&result).iter().any(|note| note.contains("required probability cell empty")),
+                "the refused bootstrap states its reason"
+            );
+        }
     }
 }
 

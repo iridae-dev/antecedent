@@ -279,6 +279,7 @@ impl CheckedTemporalResponseExecution {
         data: &TimeSeriesData,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        super::super::series_weights::refuse_unread_series_weights(data, "the temporal response")?;
         let started = Instant::now();
         let temporal =
             self.operation.query().temporal.as_ref().ok_or_else(|| CausalError::Compile {

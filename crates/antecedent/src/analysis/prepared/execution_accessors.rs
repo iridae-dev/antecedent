@@ -96,6 +96,21 @@ typed_accessors! {
     iv -> CheckedIvOperation = Iv;
 }
 
+impl super::PreparedStudy {
+    /// The exact static identification retained by this prepared execution.
+    pub(crate) fn retained_static_identification(
+        &self,
+    ) -> Option<&super::CachedStaticIdentification> {
+        self.execution
+            .path_specific_effect_operation()
+            .map(|operation| operation.cache.as_ref())
+            .or_else(|| match self.analysis.identification.as_ref() {
+                Some(super::IdentificationCache::Static(cache)) => Some(cache.as_ref()),
+                _ => None,
+            })
+    }
+}
+
 #[cfg(test)]
 impl super::PreparedStudy {
     /// The static identification allocation the sealed static-ATE operation

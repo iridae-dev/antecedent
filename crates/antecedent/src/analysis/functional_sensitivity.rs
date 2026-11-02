@@ -38,7 +38,7 @@ use antecedent_validate::{
 
 use super::execute::Study;
 use super::mediator_read::functional_never_reads;
-use super::prepared::{IdentificationCache, PreparedStudy};
+use super::prepared::PreparedStudy;
 use super::target_validation::result_target_values;
 use crate::accepted::GraphRef;
 use crate::error::CausalError;
@@ -128,14 +128,28 @@ pub(crate) fn extra_refuters(input: &ExtraInput<'_>) -> Result<Extras, CausalErr
 
 /// Directed parents of `variable` in a supplied Dag or in the directed part of an Admg.
 fn graph_parents(study: &Study, variable: VariableId) -> Option<Vec<VariableId>> {
-    let id = DenseNodeId::from_raw(variable.raw());
-    let at = variable.raw() as usize;
-    let lift = |parents: &[DenseNodeId]| -> Vec<VariableId> {
-        parents.iter().map(|node| VariableId::from_raw(node.raw())).collect()
+    graph_parents_of(study.graph.graph_ref(), variable)
+}
+
+fn graph_parents_of(graph: GraphRef<'_>, variable: VariableId) -> Option<Vec<VariableId>> {
+    let lift = |nodes: &[antecedent_core::NodeRef], parents: &[DenseNodeId]| {
+        parents
+            .iter()
+            .map(|parent| match nodes.get(parent.as_usize())? {
+                antecedent_core::NodeRef::Static(id) => Some(*id),
+                _ => None,
+            })
+            .collect()
     };
-    match study.graph.graph_ref() {
-        GraphRef::Dag(graph) if at < graph.node_count() => Some(lift(graph.parents(id))),
-        GraphRef::Admg(graph) if at < graph.node_count() => Some(lift(graph.parents(id))),
+    match graph {
+        GraphRef::Dag(graph) => {
+            let id = static_node_in(graph.nodes(), variable)?;
+            lift(graph.nodes(), graph.parents(id))
+        }
+        GraphRef::Admg(graph) => {
+            let id = static_node_in(graph.nodes(), variable)?;
+            lift(graph.nodes(), graph.parents(id))
+        }
         _ => None,
     }
 }
@@ -425,17 +439,23 @@ fn mediator_structurally_unread(
     mediator: VariableId,
     outcome: VariableId,
 ) -> bool {
-    let Some(IdentificationCache::Static(cached)) = input.study.identification.as_ref() else {
+    let Some(cached) = input.prepared.retained_static_identification() else {
         return false;
     };
     let Some(admg) = structural_graph(input.study.graph.graph_ref()) else {
         return false;
     };
-    let node = |variable: VariableId| DenseNodeId::from_raw(variable.raw());
+    // Variable IDs name schema columns, not positions in a supplied graph's node table.
+    let node = |variable: VariableId| static_node(&admg, variable);
     let independent = |m: VariableId, others: &[VariableId], given: &[VariableId]| {
-        let others: Vec<DenseNodeId> = others.iter().copied().map(node).collect();
-        let given: Vec<DenseNodeId> = given.iter().copied().map(node).collect();
-        admg.is_m_separated_sets(&[node(m)], &others, &given, &mut DSeparationWorkspace::default())
+        let Some(m) = node(m) else { return false };
+        let Some(others) = others.iter().copied().map(node).collect::<Option<Vec<_>>>() else {
+            return false;
+        };
+        let Some(given) = given.iter().copied().map(node).collect::<Option<Vec<_>>>() else {
+            return false;
+        };
+        admg.is_m_separated_sets(&[m], &others, &given, &mut DSeparationWorkspace::default())
             .unwrap_or(false)
     };
     functional_never_reads(
@@ -445,6 +465,17 @@ fn mediator_structurally_unread(
         outcome,
         &independent,
     )
+}
+
+fn static_node(graph: &Admg, variable: VariableId) -> Option<DenseNodeId> {
+    static_node_in(graph.nodes(), variable)
+}
+
+fn static_node_in(nodes: &[antecedent_core::NodeRef], variable: VariableId) -> Option<DenseNodeId> {
+    nodes
+        .iter()
+        .position(|node| *node == antecedent_core::NodeRef::Static(variable))
+        .map(DenseNodeId::from_index)
 }
 
 /// The mixed graph whose m-separations the structural guard reads: a supplied Admg, or a supplied
@@ -1026,7 +1057,10 @@ fn distribution_placebo_replicates(
 mod tests {
     use antecedent_graph::{Admg, Dag, DenseNodeId};
 
-    use super::{mediator_unread, pearson, placebo_stream_index, structural_graph};
+    use super::{
+        graph_parents_of, mediator_unread, pearson, placebo_stream_index, static_node,
+        structural_graph,
+    };
     use crate::accepted::GraphRef;
 
     #[test]
@@ -1048,6 +1082,38 @@ mod tests {
 
         // A graph that is neither is not decided structurally: the numeric guard answers.
         assert!(structural_graph(GraphRef::RandomizedTrial).is_none());
+    }
+
+    #[test]
+    fn structural_guard_resolves_reordered_graph_nodes_by_variable_identity() {
+        use antecedent_core::{NodeRef, VariableId};
+
+        let mut graph = Admg::empty();
+        graph.add_node(NodeRef::Static(VariableId::from_raw(2))).unwrap();
+        graph.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        assert_eq!(static_node(&graph, VariableId::from_raw(0)), Some(DenseNodeId::from_raw(1)));
+        assert_eq!(static_node(&graph, VariableId::from_raw(2)), Some(DenseNodeId::from_raw(0)));
+        assert_eq!(static_node(&graph, VariableId::from_raw(1)), None);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert_eq!(
+            graph_parents_of(GraphRef::Admg(&graph), VariableId::from_raw(0)),
+            Some(vec![VariableId::from_raw(2)])
+        );
+        assert_eq!(graph_parents_of(GraphRef::Admg(&graph), VariableId::from_raw(1)), None);
+
+        let mut dag = Dag::empty();
+        dag.add_node(NodeRef::Static(VariableId::from_raw(2))).unwrap();
+        dag.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert_eq!(
+            graph_parents_of(GraphRef::Dag(&dag), VariableId::from_raw(0)),
+            Some(vec![VariableId::from_raw(2)])
+        );
+        let context = dag
+            .add_node(NodeRef::Context { variable: VariableId::from_raw(3), environment: None })
+            .unwrap();
+        dag.insert_directed(context, DenseNodeId::from_raw(1)).unwrap();
+        assert_eq!(graph_parents_of(GraphRef::Dag(&dag), VariableId::from_raw(0)), None);
     }
 
     #[test]
