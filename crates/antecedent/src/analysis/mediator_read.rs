@@ -15,6 +15,11 @@
 //! The test is sound, not complete: it answers `true` only when the variable is removed, and
 //! `false` for every shape it does not recognise (a ratio, a kernel, an integral, several
 //! factors that mention the variable, a leaf with several targets for the variable).
+//!
+//! The test is per formula and per graph. A caller holding one formula per equivalence-class
+//! completion would answer "unread" only when every completion's formula is unread against its
+//! own completion graph; an undecided completion reads the variable. Today's only caller, the
+//! mediator placebo, holds one supplied Dag or Admg and its single static formula.
 
 use std::collections::{BTreeSet, HashSet};
 

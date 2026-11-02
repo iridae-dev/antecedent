@@ -465,6 +465,19 @@ fn class_cross_world_cheap_and_full_validation_refutes_the_exact_functionals() {
                             refused_refuters(&result).contains("cross_world_sensitivity"),
                             "{label}"
                         );
+                        // The mediator placebo reads one supplied Dag or Admg too: a class or
+                        // temporal graph is refused before either of its mediator guards, never
+                        // judged by a numeric guard or run against a graph it cannot read.
+                        if case.query_name == "NestedCounterfactualEffect" {
+                            assert!(
+                                report(&result, "target.cross_world_placebo").is_none(),
+                                "{label}"
+                            );
+                            assert!(
+                                refused_refuters(&result).contains("target.cross_world_placebo"),
+                                "{label}"
+                            );
+                        }
                     }
                 }
             }

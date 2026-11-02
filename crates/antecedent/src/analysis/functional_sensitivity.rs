@@ -295,10 +295,19 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     let Some(original) = first_value(input.study, input.result) else {
         return Ok((Vec::new(), notes));
     };
+    // The placebo reads one supplied Dag or Admg: the reference total effect adjusts for the
+    // treatment's parents there, and the structural guard below reads the same graph's
+    // m-separations. A Cpdag, a Pag and every temporal graph hold no single parent set (one
+    // completion or window per member, each with its own formula), so the placebo is refused
+    // here, before either guard, rather than run against a graph it cannot read. That refusal
+    // is the class and temporal verdict of the guards: neither the structural criterion nor
+    // the numeric one is ever consulted for them.
     let Some(mut covariate_ids) = graph_parents(input.study, treatment) else {
         notes.push(not_applicable(
             NAME,
-            "the reference total effect reads the parents of the treatment",
+            "the reference total effect and the mediator guard read the parents and \
+             m-separations of one supplied Dag or Admg, and a class or temporal graph holds \
+             one completion per member",
             "supply the structure as a Dag or an Admg",
         ));
         return Ok((Vec::new(), notes));
@@ -327,8 +336,10 @@ fn mediator_placebo(input: &ExtraInput<'_>) -> Result<Extras, CausalError> {
     // Two guards skip a placebo that says nothing about the functional. The structural one is
     // decided by the formula and the graph: the mediator is summed out of a district kernel
     // and cancels, whatever topological order the factors condition on, so no refit is run.
-    // The numeric one (below, after the refits) is the backstop for factorisations whose
-    // equality only shows empirically, such as a graph class the structural test does not read.
+    // The numeric one (below, after the refits) is the backstop for a route that retains no
+    // identified formula to read (a Dag natural direct effect runs the shared-exogenous
+    // operation, whose refit is not the formula) and for factorisations whose equality only
+    // shows empirically.
     if mediator_structurally_unread(input, mediator, outcome) {
         notes.push(not_applicable(NAME, MEDIATOR_UNREAD, MEDIATOR_UNREAD_NEXT));
         return Ok((Vec::new(), notes));
@@ -400,8 +411,15 @@ const MEDIATOR_UNREAD_NEXT: &str =
 
 /// Whether the identified functional the study holds provably never reads the mediator column:
 /// the district kernel sums the mediator out and the factors cancel (see
-/// [`functional_never_reads`](super::mediator_read)). `false` whenever the study holds no
-/// static identification or the graph is neither a Dag nor an Admg.
+/// [`functional_never_reads`](super::mediator_read)). `false` (the numeric guard decides)
+/// whenever the study holds no static identification or the graph is neither a Dag nor an
+/// Admg.
+///
+/// The graphs it declines are exactly those the placebo already refuses before reaching it
+/// (see [`mediator_placebo`]): a Cpdag or Pag holds one formula per completion and a temporal
+/// graph one per window, and the placebo reads no single parent set from them. Were it
+/// extended to a class, the sound rule is the conjunction over completions of this same test,
+/// each against its own completion graph; an undecided completion reads the mediator.
 fn mediator_structurally_unread(
     input: &ExtraInput<'_>,
     mediator: VariableId,
@@ -410,13 +428,8 @@ fn mediator_structurally_unread(
     let Some(IdentificationCache::Static(cached)) = input.study.identification.as_ref() else {
         return false;
     };
-    let admg = match input.study.graph.graph_ref() {
-        GraphRef::Admg(graph) => graph.clone(),
-        GraphRef::Dag(graph) => match Admg::from_dag(graph) {
-            Ok(graph) => graph,
-            Err(_) => return false,
-        },
-        _ => return false,
+    let Some(admg) = structural_graph(input.study.graph.graph_ref()) else {
+        return false;
     };
     let node = |variable: VariableId| DenseNodeId::from_raw(variable.raw());
     let independent = |m: VariableId, others: &[VariableId], given: &[VariableId]| {
@@ -432,6 +445,17 @@ fn mediator_structurally_unread(
         outcome,
         &independent,
     )
+}
+
+/// The mixed graph whose m-separations the structural guard reads: a supplied Admg, or a supplied
+/// Dag as an Admg with no bidirected edge. `None` for every other class, which the guard leaves
+/// to the numeric test.
+fn structural_graph(graph: GraphRef<'_>) -> Option<Admg> {
+    match graph {
+        GraphRef::Admg(graph) => Some(graph.clone()),
+        GraphRef::Dag(graph) => Admg::from_dag(graph).ok(),
+        _ => None,
+    }
 }
 
 /// Whether every permuted refit keeps the effect to within [`MEDIATOR_UNREAD_FRACTION`] of it.
@@ -1000,7 +1024,31 @@ fn distribution_placebo_replicates(
 
 #[cfg(test)]
 mod tests {
-    use super::{mediator_unread, pearson, placebo_stream_index};
+    use antecedent_graph::{Admg, Dag, DenseNodeId};
+
+    use super::{mediator_unread, pearson, placebo_stream_index, structural_graph};
+    use crate::accepted::GraphRef;
+
+    #[test]
+    fn the_structural_guard_reads_a_dag_or_an_admg_and_leaves_every_other_class_numeric() {
+        let node = DenseNodeId::from_raw;
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(node(0), node(1)).unwrap();
+        dag.insert_directed(node(1), node(2)).unwrap();
+        let from_dag = structural_graph(GraphRef::Dag(&dag)).expect("a Dag is read");
+        assert_eq!(from_dag.node_count(), 3);
+        assert!(!from_dag.has_bidirected());
+
+        let mut admg = Admg::with_variables(3);
+        admg.insert_directed(node(0), node(1)).unwrap();
+        admg.insert_bidirected(node(1), node(2)).unwrap();
+        let held = structural_graph(GraphRef::Admg(&admg)).expect("an Admg is read");
+        assert_eq!(held.node_count(), 3);
+        assert!(held.has_bidirected());
+
+        // A graph that is neither is not decided structurally: the numeric guard answers.
+        assert!(structural_graph(GraphRef::RandomizedTrial).is_none());
+    }
 
     #[test]
     fn the_first_intervened_variable_keeps_the_replicate_stream() {
