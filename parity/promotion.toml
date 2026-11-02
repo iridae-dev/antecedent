@@ -7162,6 +7162,7 @@ evidence_family = "Aligned finite (dose, outcome) rows, at least three, no exter
 provider = "antecedent_estimate::dose_grid_functional (Gaussian-kernel local quadratic with a heteroskedasticity-robust sandwich standard error from the linearized influences), sealed by antecedent_io::dose_grid_functional_artifact (format version 1) and exposed through antecedent::analysis::dose_grid_functional and python/antecedent/dose_grid.py. The composed sampled provider and its intervals are not licensed."
 estimand = "Conditional quadratic mean level, derivative or named-dose contrast under caller-attested randomized design."
 inference_claim = "point_only"
+noninferential_interval_fields = [{ name = "interval_reference", why = "Names the normal or Student-t reference distribution; this string contains no interval endpoints or coverage claim." }]
 inference_notes = "Zero smoothing bias is a declared exact-quadratic model premise. Original pointwise HC0 normal candidates have three real frozen randomized-dose harness allocations in candidate_coverage_records; none is measured or publicly activated. Level, derivative and covariance-aware contrast are distinct. A simultaneous band remains an unimplemented adjacent method."
 owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent"]
 prerequisite_records = ["transport.smoothed_dose_response", "estimate.dose_grid_functional"]
