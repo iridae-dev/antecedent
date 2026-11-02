@@ -21558,3 +21558,66 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_transport_grid.py"
 gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-gcm-bootstrap-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/gcm_bootstrap.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-mediation-refutation-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/mediation_refutation.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-planning-simulation-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/planning_simulation.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-identify-src-sid-counterfactual-transport-witness-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/sid/counterfactual_transport/witness.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-identify-src-sid-scenario-invariance-rs"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/sid/scenario_invariance.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-io-src-cyclic-graph-rs"
+crate = "antecedent-io"
+cargo_target = "lib"
+path = "crates/antecedent-io/src/cyclic_graph.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-model-src-temporal-rollout-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/temporal_rollout.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-src-estimator-config-rs"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/estimator_config.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-audit-small-items-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_audit_small_items.py"
+gates = ["inventory"]

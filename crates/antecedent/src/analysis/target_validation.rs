@@ -490,6 +490,7 @@ fn temporal_response_member_values(
 fn check_static_response_contributors(
     before: &crate::result::StructuralResponseMixture,
     after: &crate::result::StructuralResponseMixture,
+    source_bound_ordered: bool,
     budget: &mut antecedent_core::TemporalBudget,
     ctx: &ExecutionContext,
 ) -> Result<(), TargetRefitError> {
@@ -523,6 +524,28 @@ fn check_static_response_contributors(
         return Err(changed());
     }
     let count = u64::try_from(before.atoms.len()).map_err(|_| changed())?;
+    if source_bound_ordered {
+        budget
+            .charge_work(count)
+            .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+        for (atom, other) in before.atoms.iter().zip(&after.atoms) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled {
+                    stage: "static response contributors",
+                }));
+            }
+            if !atom.weight.is_finite()
+                || atom.weight < 0.0
+                || atom.graph_key != other.graph_key
+                || atom.weight.to_bits() != other.weight.to_bits()
+                || atom.status != other.status
+                || !same_static_response_layout(atom, other)
+            {
+                return Err(changed());
+            }
+        }
+        return Ok(());
+    }
     let work = count.checked_mul(count).and_then(|n| n.checked_mul(2)).ok_or_else(changed)?;
     budget
         .charge_work(work)
@@ -531,16 +554,36 @@ fn check_static_response_contributors(
         if ctx.cancellation.is_cancelled() {
             return Err(failed(&CausalError::Cancelled { stage: "static response contributors" }));
         }
-        if !atom.weight.is_finite()
-            || atom.weight < 0.0
-            || before.atoms.iter().filter(|other| other.graph_key == atom.graph_key).count() != 1
-        {
+        if !atom.weight.is_finite() || atom.weight < 0.0 {
             return Err(changed());
         }
-        let mut matches = after.atoms.iter().filter(|other| other.graph_key == atom.graph_key);
-        let other = matches.next().ok_or_else(changed)?;
-        if matches.next().is_some()
-            || atom.weight.to_bits() != other.weight.to_bits()
+        let mut original_count = 0usize;
+        for other in &before.atoms {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled {
+                    stage: "static response contributors",
+                }));
+            }
+            if other.graph_key == atom.graph_key {
+                original_count += 1;
+            }
+        }
+        if original_count != 1 {
+            return Err(changed());
+        }
+        let mut matched = None;
+        for other in &after.atoms {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled {
+                    stage: "static response contributors",
+                }));
+            }
+            if other.graph_key == atom.graph_key && matched.replace(other).is_some() {
+                return Err(changed());
+            }
+        }
+        let other = matched.ok_or_else(changed)?;
+        if atom.weight.to_bits() != other.weight.to_bits()
             || atom.status != other.status
             || !same_static_response_layout(atom, other)
         {
@@ -548,6 +591,174 @@ fn check_static_response_contributors(
         }
     }
     Ok(())
+}
+
+// Both executions must retain the exact immutable posterior mask source;
+// opaque keys alone cannot prove the identity of wider adjacency masks.
+fn same_admg_posterior_source(
+    posterior: &antecedent_discovery::GraphPosterior,
+    original: Option<&crate::result::StaticPosteriorSourceWitness>,
+    refitted: Option<&crate::result::StaticPosteriorSourceWitness>,
+) -> bool {
+    original
+        .and_then(|w| w.source.upgrade())
+        .zip(refitted.and_then(|w| w.source.upgrade()))
+        .is_some_and(|(first, second)| {
+            Arc::ptr_eq(&first, posterior.atoms()) && Arc::ptr_eq(&second, posterior.atoms())
+        })
+}
+
+fn exact_admg_contributors(
+    posterior: &antecedent_discovery::GraphPosterior,
+    before: &crate::result::StructuralResponseMixture,
+    after: &crate::result::StructuralResponseMixture,
+    source_matches: bool,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<bool, TargetRefitError> {
+    if !matches!(
+        posterior.atom_kind(),
+        antecedent_discovery::GraphPosteriorAtomKind::Admg
+            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+    ) || (!source_matches && posterior.n_vars() > 8)
+        || posterior.max_lag().is_some()
+        || posterior.lag_masks().is_some()
+        || posterior.lag_bidirected_masks().is_some()
+        || posterior.mark_atoms().is_some()
+        || posterior.atoms().len() != before.atoms.len()
+        || posterior.atoms().len() != after.atoms.len()
+        || posterior.atoms().len() != posterior.weights().len()
+        || posterior.atoms().len() != posterior.graph_keys().len()
+    {
+        return Ok(false);
+    }
+    let count = u64::try_from(posterior.atoms().len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "ADMG contributor count overflow".into() })
+    })?;
+    budget
+        .charge_work(count)
+        .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+    for ((((mask, key), weight), original), refitted) in posterior
+        .atoms()
+        .iter()
+        .zip(posterior.graph_keys().iter())
+        .zip(posterior.weights().iter())
+        .zip(before.atoms.iter())
+        .zip(after.atoms.iter())
+    {
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled { stage: "ADMG response contributors" }));
+        }
+        if (!source_matches && (mask.words().len() > 4 || mask.to_word() != Some(*key)))
+            || original.graph_key != *key
+            || refitted.graph_key != *key
+            || !weight.is_finite()
+            || original.weight.to_bits() != weight.to_bits()
+            || refitted.weight.to_bits() != weight.to_bits()
+            || original.status != refitted.status
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn same_static_class_witnesses(
+    original: &StudyResult,
+    refitted: &StudyResult,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<bool, TargetRefitError> {
+    let (Some(a), Some(b)) =
+        (original.static_class_witnesses.as_ref(), refitted.static_class_witnesses.as_ref())
+    else {
+        return Ok(false);
+    };
+    compare_static_class_witnesses(a, b, budget, ctx)
+}
+
+fn compare_static_class_witnesses(
+    a: &crate::result::StaticClassWitnessSet,
+    b: &crate::result::StaticClassWitnessSet,
+    budget: &mut antecedent_core::TemporalBudget,
+    ctx: &ExecutionContext,
+) -> Result<bool, TargetRefitError> {
+    let same_cache = a
+        .identification_cache
+        .upgrade()
+        .zip(b.identification_cache.upgrade())
+        .is_some_and(|(left, right)| Arc::ptr_eq(&left, &right));
+    let same_atoms = a
+        .source_atoms
+        .upgrade()
+        .zip(b.source_atoms.upgrade())
+        .is_some_and(|(left, right)| Arc::ptr_eq(&left, &right));
+    let same_marks = match (&a.source_marks, &b.source_marks) {
+        (None, None) => true,
+        (Some(left), Some(right)) => left
+            .upgrade()
+            .zip(right.upgrade())
+            .is_some_and(|(left, right)| Arc::ptr_eq(&left, &right)),
+        _ => false,
+    };
+    if !same_cache
+        || !same_atoms
+        || !same_marks
+        || a.atom_kind != b.atom_kind
+        || a.n_vars != b.n_vars
+        || a.atoms.len() != b.atoms.len()
+        || a.samples.len() != b.samples.len()
+    {
+        return Ok(false);
+    }
+    let sample_count = u64::try_from(a.samples.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "class sample count overflow".into() })
+    })?;
+    budget
+        .charge_work(sample_count)
+        .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+    for (left, right) in a.samples.iter().zip(&b.samples) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled { stage: "class response contributors" }));
+        }
+        if left != right {
+            return Ok(false);
+        }
+    }
+    let count = u64::try_from(a.atoms.len()).map_err(|_| {
+        failed(&CausalError::Resource { message: "class witness count overflow".into() })
+    })?;
+    budget
+        .charge_work(count)
+        .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+    for (left, right) in a.atoms.iter().zip(&b.atoms) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(failed(&CausalError::Cancelled { stage: "class response contributors" }));
+        }
+        if left.graph_key != right.graph_key
+            || left.outer_weight != right.outer_weight
+            || left.completions.entries.len() != right.completions.entries.len()
+        {
+            return Ok(false);
+        }
+        let work = u64::try_from(left.completions.entries.len()).map_err(|_| {
+            failed(&CausalError::Resource { message: "class completion count overflow".into() })
+        })?;
+        budget
+            .charge_work(work)
+            .map_err(|error| failed(&CausalError::Resource { message: error.to_string() }))?;
+        for (a, b) in left.completions.entries.iter().zip(&right.completions.entries) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(failed(&CausalError::Cancelled {
+                    stage: "class response contributors",
+                }));
+            }
+            if a != b {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
 }
 
 fn same_static_response_layout(
@@ -947,6 +1158,26 @@ pub(crate) fn refuse_scalar_refutations_for_result(
             next_attempt: antecedent_validate::target_native::TARGET_NATIVE_NEXT_ATTEMPT,
         })?;
     refuse_scalar_reports_for_target(&claim, &foreign)
+}
+
+/// Identify engine-issued structural route reports that may be exported only
+/// as descriptive evidence with an unresolved replay dependency.
+pub(super) fn descriptive_route_report_source(result: &StudyResult) -> Option<[u8; 32]> {
+    use crate::result::{RuntimeRefutationAuthority, RuntimeRefutationOrigin};
+    if !matches!(
+        &result.authority,
+        RuntimeRefutationAuthority::Sealed {
+            origin: RuntimeRefutationOrigin::Route | RuntimeRefutationOrigin::ScopedCompletion,
+            ..
+        }
+    ) || result.response().is_none()
+        || result.structural_response.is_none()
+        || result.refutations.is_empty()
+    {
+        return None;
+    }
+    let program = *result.lowered_identity?.as_bytes();
+    result.refutations.iter().all(|report| report.stamped_by(&program)).then_some(program)
 }
 
 /// Bind target-native `reports` to `result`'s claim.
@@ -2624,6 +2855,10 @@ impl PreparedRefit<'_> {
     }
 
     /// The refitted target vector, in the original coordinate order.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "source, contributor and coordinate checks share one bounded refit"
+    )]
     fn read_back(
         &self,
         refitted: &StudyResult,
@@ -2637,44 +2872,101 @@ impl PreparedRefit<'_> {
                     // Graph keys are opaque, not globally collision-resistant. They
                     // identify masks only within this exact retained DAG posterior:
                     // construction rejects collisions between distinct adjacency masks.
+                    let class_witnesses_match =
+                        same_static_class_witnesses(self.result, refitted, &mut budget, ctx)?;
+                    let program =
+                        self.prepared.plan().lowered().and_then(LoweredProgram::semantic_identity);
+                    let same_program = program.is_some()
+                        && program == self.result.lowered_program_identity()
+                        && program == refitted.lowered_program_identity();
+                    let mut admg_source_matches = false;
+                    let admg_match = if same_prepared && same_program {
+                        if let Some(posterior) = self.study().graph_posterior.as_ref() {
+                            admg_source_matches = same_admg_posterior_source(
+                                posterior,
+                                self.result.static_posterior_source.as_deref(),
+                                refitted.static_posterior_source.as_deref(),
+                            );
+                            exact_admg_contributors(
+                                posterior,
+                                before,
+                                after,
+                                admg_source_matches,
+                                &mut budget,
+                                ctx,
+                            )?
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
                     let posterior = self.study().graph_posterior.as_ref().filter(|posterior| {
-                        same_prepared
-                            && posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag
+                        same_prepared && (posterior.atom_kind() == antecedent_discovery::GraphPosteriorAtomKind::Dag
+                            || admg_match
+                            || (same_program && matches!(posterior.atom_kind(), antecedent_discovery::GraphPosteriorAtomKind::Cpdag | antecedent_discovery::GraphPosteriorAtomKind::Pag) && class_witnesses_match))
                     }).ok_or_else(|| unsupported(
                         "structural contributor identities cannot be verified for this refit",
                         "retain full completion identities for the refitted structure",
                     ))?;
-                    let lookup_work = u64::try_from(before.atoms.len())
-                        .ok()
-                        .and_then(|n| {
-                            u64::try_from(posterior.graph_keys().len())
-                                .ok()
-                                .and_then(|m| n.checked_mul(m))
-                        })
-                        .ok_or_else(|| {
-                            failed(&CausalError::Resource {
-                                message: "static contributor lookup overflow".into(),
+                    let class_proven = same_prepared
+                        && same_program
+                        && class_witnesses_match
+                        && matches!(
+                            posterior.atom_kind(),
+                            antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                                | antecedent_discovery::GraphPosteriorAtomKind::Pag
+                        );
+                    let source_bound_ordered = admg_match && admg_source_matches;
+                    if !source_bound_ordered {
+                        let lookup_work = u64::try_from(before.atoms.len())
+                            .ok()
+                            .and_then(|n| {
+                                u64::try_from(posterior.graph_keys().len())
+                                    .ok()
+                                    .and_then(|m| n.checked_mul(m))
                             })
+                            .ok_or_else(|| {
+                                failed(&CausalError::Resource {
+                                    message: "static contributor lookup overflow".into(),
+                                })
+                            })?;
+                        budget.charge_work(lookup_work).map_err(|error| {
+                            failed(&CausalError::Resource { message: error.to_string() })
                         })?;
-                    budget.charge_work(lookup_work).map_err(|error| {
-                        failed(&CausalError::Resource { message: error.to_string() })
-                    })?;
-                    if before.atoms.len() != posterior.graph_keys().len()
-                        || before.atoms.iter().any(|atom| {
-                            posterior
-                                .graph_keys()
-                                .iter()
-                                .filter(|key| **key == atom.graph_key)
-                                .count()
-                                != 1
-                        })
-                    {
-                        return Err(unsupported(
-                            "structural contributor key is absent or ambiguous in the retained posterior",
-                            "retain unique semantic graph identities",
-                        ));
+                        if !class_proven && before.atoms.len() != posterior.graph_keys().len() {
+                            return Err(unsupported(
+                                "structural contributor key is absent or ambiguous in the retained posterior",
+                                "retain unique semantic graph identities",
+                            ));
+                        }
+                        for atom in &before.atoms {
+                            let mut matches = 0usize;
+                            for key in posterior.graph_keys().iter() {
+                                if ctx.cancellation.is_cancelled() {
+                                    return Err(failed(&CausalError::Cancelled {
+                                        stage: "static contributor lookup",
+                                    }));
+                                }
+                                if *key == atom.graph_key {
+                                    matches += 1;
+                                }
+                            }
+                            if matches == 0 || (!class_proven && matches != 1) {
+                                return Err(unsupported(
+                                    "structural contributor key is absent or ambiguous in the retained posterior",
+                                    "retain unique semantic graph identities",
+                                ));
+                            }
+                        }
                     }
-                    check_static_response_contributors(before, after, &mut budget, ctx)?;
+                    check_static_response_contributors(
+                        before,
+                        after,
+                        source_bound_ordered,
+                        &mut budget,
+                        ctx,
+                    )?;
                 }
                 (None, None) => {}
                 _ => {
@@ -5442,13 +5734,160 @@ mod static_contributor_tests {
     }
 
     #[test]
+    fn wide_admg_sources_require_the_exact_immutable_posterior_allocation() {
+        use antecedent_discovery::{
+            AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let posterior = GraphPosterior::from_atoms(
+            9,
+            vec![0.4, 0.6],
+            vec![AdjacencyMask::from_words(&[7, 1]), AdjacencyMask::from_words(&[9, 1])],
+            vec![0.0; 81],
+            vec![0.0; 81],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("wide_admg_source"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Admg);
+        let witness = |source: &Arc<[AdjacencyMask]>| crate::result::StaticPosteriorSourceWitness {
+            source: Arc::downgrade(source),
+            _lease: ctx.acquire_admission(0, 1024).unwrap(),
+        };
+        let first = witness(posterior.atoms());
+        let second = witness(posterior.atoms());
+        assert!(same_admg_posterior_source(&posterior, Some(&first), Some(&second)));
+        let foreign: Arc<[AdjacencyMask]> = Arc::from(posterior.atoms().to_vec());
+        let foreign_witness = witness(&foreign);
+        assert!(!same_admg_posterior_source(&posterior, Some(&first), Some(&foreign_witness)));
+        assert!(!same_admg_posterior_source(&posterior, Some(&first), None));
+        let mut original = mixture();
+        for (atom, key) in original.atoms.iter_mut().zip(posterior.graph_keys().iter()) {
+            atom.graph_key = *key;
+        }
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        assert!(
+            exact_admg_contributors(&posterior, &original, &original, true, &mut budget, &ctx)
+                .unwrap()
+        );
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        assert!(
+            !exact_admg_contributors(&posterior, &original, &original, false, &mut budget, &ctx)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn unbound_small_admg_refuses_oversized_mask_storage() {
+        use antecedent_discovery::{
+            AdjacencyMask, GraphPosterior, GraphPosteriorAtomKind, SamplingSummary,
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let posterior = GraphPosterior::from_atoms(
+            3,
+            vec![0.4, 0.6],
+            vec![AdjacencyMask::from_words(&[0, 0, 0, 0, 1]), AdjacencyMask::from_word(9)],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic("oversized_admg_mask"),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Admg);
+        let mut original = mixture();
+        for (atom, key) in original.atoms.iter_mut().zip(posterior.graph_keys().iter()) {
+            atom.graph_key = *key;
+        }
+        let mut budget =
+            antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+        assert!(
+            !exact_admg_contributors(&posterior, &original, &original, false, &mut budget, &ctx)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn admg_contributors_bind_every_ordered_word_weight_and_disposition() {
+        use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSummary};
+        let ctx = ExecutionContext::for_tests(1);
+        let posterior = GraphPosterior::new(
+            3,
+            vec![0.4, 0.6],
+            vec![7, 9],
+            vec![0.0; 9],
+            vec![0.0; 9],
+            SamplingSummary {
+                ess: 1.0,
+                diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+                    "exact_admg_contributors",
+                ),
+                rejected_invalid: 0,
+            },
+        )
+        .unwrap()
+        .with_atom_kind(GraphPosteriorAtomKind::Admg);
+        let mut original = mixture();
+        original.atoms[1].status = IdentificationStatus::NotIdentified;
+        let check = |candidate: &StructuralResponseMixture| {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            exact_admg_contributors(&posterior, &original, candidate, false, &mut budget, &ctx)
+                .unwrap()
+        };
+        assert!(check(&original));
+        let mut changed = original.clone();
+        changed.atoms[1].graph_key = 10;
+        assert!(!check(&changed));
+        changed = original.clone();
+        changed.atoms[1].weight = 0.5;
+        assert!(!check(&changed));
+        changed = original.clone();
+        changed.atoms[1].status = IdentificationStatus::NonparametricallyIdentified;
+        assert!(!check(&changed));
+        changed = original.clone();
+        changed.atoms.reverse();
+        assert!(!check(&changed));
+    }
+
+    #[test]
+    fn source_bound_ordered_samples_allow_repeats_but_preserve_each_sample() {
+        let ctx = ExecutionContext::for_tests(1);
+        let mut original = mixture();
+        original.atoms[1].graph_key = original.atoms[0].graph_key;
+        let check = |candidate: &StructuralResponseMixture, ordered| {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            check_static_response_contributors(&original, candidate, ordered, &mut budget, &ctx)
+        };
+        assert!(check(&original, true).is_ok());
+        assert!(check(&original, false).is_err());
+        let mut changed = original.clone();
+        changed.atoms.swap(0, 1);
+        assert!(check(&changed, true).is_err());
+        changed = original.clone();
+        changed.atoms[1].status = IdentificationStatus::NotIdentified;
+        assert!(check(&changed, true).is_err());
+        changed = original.clone();
+        changed.atoms[1].value = None;
+        assert!(check(&changed, true).is_err());
+    }
+
+    #[test]
     fn static_contributors_require_unique_stable_identities_mass_and_coordinates() {
         let ctx = ExecutionContext::for_tests(1);
         let original = mixture();
         let check = |candidate: &StructuralResponseMixture| {
             let mut budget =
                 antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
-            check_static_response_contributors(&original, candidate, &mut budget, &ctx)
+            check_static_response_contributors(&original, candidate, false, &mut budget, &ctx)
         };
         let mut reordered = original.clone();
         reordered.atoms.reverse();
@@ -5475,5 +5914,51 @@ mod static_contributor_tests {
         let mut changed_status = original.clone();
         changed_status.atoms[0].status = IdentificationStatus::NotIdentified;
         assert!(check(&changed_status).is_err());
+    }
+    #[test]
+    fn class_witness_refuses_changed_source_completion_and_mass() {
+        let ctx = ExecutionContext::for_tests(1);
+        let cache: Arc<dyn std::fmt::Debug + Send + Sync + std::panic::RefUnwindSafe> =
+            Arc::new(());
+        let atoms: Arc<[antecedent_discovery::AdjacencyMask]> = Arc::from([1_u64.into()]);
+        let marks: Arc<[antecedent_discovery::AdjacencyMask]> = Arc::from([0_u64.into()]);
+        let make = || crate::result::StaticClassWitnessSet {
+            atom_kind: antecedent_discovery::GraphPosteriorAtomKind::Pag,
+            n_vars: 3,
+            identification_cache: Arc::downgrade(&cache),
+            source_atoms: Arc::downgrade(&atoms),
+            source_marks: Some(Arc::downgrade(&marks)),
+            samples: vec![(1, 1.0_f64.to_bits())],
+            atoms: vec![crate::result::StaticClassAtomWitness {
+                graph_key: 1,
+                outer_weight: 1.0_f64.to_bits(),
+                completions: crate::result::StaticFittedCompletions {
+                    entries: vec![(
+                        [1; 32],
+                        1.0_f64.to_bits(),
+                        IdentificationStatus::NonparametricallyIdentified,
+                    )],
+                    _lease: ctx.acquire_admission(0, 256).unwrap(),
+                },
+            }],
+            _lease: ctx.acquire_admission(0, 256).unwrap(),
+        };
+        let original = make();
+        let mut candidate = make();
+        let compare = |candidate: &crate::result::StaticClassWitnessSet| {
+            let mut budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            compare_static_class_witnesses(&original, candidate, &mut budget, &ctx).unwrap()
+        };
+        assert!(compare(&candidate));
+        candidate.atoms[0].completions.entries[0].0 = [2; 32];
+        assert!(!compare(&candidate));
+        candidate.atoms[0].completions.entries[0].0 = [1; 32];
+        candidate.atoms[0].outer_weight = 0.5_f64.to_bits();
+        assert!(!compare(&candidate));
+        candidate.atoms[0].outer_weight = 1.0_f64.to_bits();
+        let foreign: Arc<[antecedent_discovery::AdjacencyMask]> = Arc::from([1_u64.into()]);
+        candidate.source_atoms = Arc::downgrade(&foreign);
+        assert!(!compare(&candidate));
     }
 }

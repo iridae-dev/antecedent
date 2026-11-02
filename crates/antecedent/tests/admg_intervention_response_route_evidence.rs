@@ -412,15 +412,29 @@ fn graph_posterior_admg_intervention_response_is_sealed_across_refuters() {
             assert!((refreshed_mass.identified_mass - (1.0 - expected_unidentified)).abs() < 1e-12);
             assert!((refreshed_mass.unidentified_mass - expected_unidentified).abs() < 1e-12);
             if suite != RefuteSuite::None {
-                // The route's checks describe the mixture's completions, not one whole-result
-                // target, so a claim over this response refuses to carry them as a verdict.
-                let error = prepared
+                // The mixed route checks are descriptive and require independent replay;
+                // they must not establish a whole-result support verdict.
+                let artifact = prepared
                     .encode_contracted_result(&refreshed, "admg-gp-response", &context)
-                    .expect_err("route checks over a mixture are not a whole-result verdict");
+                    .unwrap();
+                let consumed = consume_analysis_result(&artifact).unwrap();
+                assert!(!consumed.body.refutations.is_empty());
+                assert!(consumed.body.refutations.iter().all(|report| report.scope.is_some()));
                 assert!(
-                    error.to_string().contains("was computed on target"),
-                    "{suite:?}: unexpected refusal: {error}"
+                    antecedent_io::support_empirical(
+                        &consumed.body.refutations,
+                        &consumed.body.diagnostics
+                    )
+                    .is_none()
                 );
+                assert!(
+                    consumed
+                        .acceptance
+                        .unresolved
+                        .iter()
+                        .any(|reason| reason.as_ref() == "dependencies.scoped_refutation_replay")
+                );
+                assert!(!consumed.acceptance.accepts_as_claim());
                 continue;
             }
             let artifact = prepared

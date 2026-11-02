@@ -216,6 +216,25 @@ pub struct RefutationTargetWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum RefutationScopeWire {
+    /// A descriptive summary of route-level reports, with no whole-target verdict.
+    RouteSummary {
+        /// Identity stamped by the actual producing program.
+        produced_by: [u8; 32],
+    },
+    /// Full-vector diagnostic from an existing target-native run; not replay authority.
+    WholeTargetDiagnostic {
+        /// Identity stamped by the actual producing program.
+        produced_by: [u8; 32],
+        /// The exact target-native report. Floating-point fields use IEEE 754 bits.
+        report: Box<WholeTargetDiagnosticWire>,
+    },
+    /// An original scope and its actual producer, retained as descriptive metadata.
+    ScopedReport {
+        /// The original, non-wrapper scope.
+        scope: Box<OriginalRefutationScopeWire>,
+        /// Identity stamped by the actual producing program.
+        produced_by: [u8; 32],
+    },
     /// A whole target, subject to independent authority checks.
     WholeTarget {
         /// Descriptive target metadata.
@@ -241,6 +260,73 @@ pub enum RefutationScopeWire {
         /// Full canonical completion digest.
         completion_digest: [u8; 32],
         /// Descriptive target metadata.
+        target: RefutationTargetWire,
+    },
+}
+
+/// A descriptive full-vector target-native report; no execution authority is implied.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct WholeTargetDiagnosticWire {
+    /// Target descriptor.
+    pub target: RefutationTargetWire,
+    /// Refuter kind.
+    pub refuter: String,
+    /// Original vector, as IEEE 754 bits.
+    pub original: Vec<u64>,
+    /// Refuted vector, as IEEE 754 bits.
+    pub refuted: Vec<u64>,
+    /// Joint statistic kind.
+    pub statistic_kind: String,
+    /// Joint statistic value, as IEEE 754 bits.
+    pub statistic_value: u64,
+    /// Joint statistic degrees of freedom.
+    pub statistic_df: u64,
+    /// Optional joint statistic tail, as IEEE 754 bits.
+    pub statistic_p_value: Option<u64>,
+    /// Standardised bias vector, as IEEE 754 bits.
+    pub standardised_bias: Vec<u64>,
+    /// Optional standardised bias norm, as IEEE 754 bits.
+    pub standardised_bias_norm: Option<u64>,
+    /// Whether the configured check passed.
+    pub passed: bool,
+    /// Whether the check was informative.
+    pub informative: bool,
+    /// Successful refits.
+    pub replicates: u32,
+    /// Optional failure description.
+    pub failure: Option<String>,
+}
+
+/// An original, non-recursive refutation scope carried by a descriptive wrapper.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum OriginalRefutationScopeWire {
+    /// A whole-target descriptor.
+    WholeTarget {
+        /// Descriptive target.
+        target: RefutationTargetWire,
+    },
+    /// A temporal completion descriptor.
+    TemporalClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Horizon position.
+        horizon_index: u64,
+        /// Horizon in steps.
+        horizon: u32,
+        /// Completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target.
+        target: RefutationTargetWire,
+    },
+    /// A static completion descriptor.
+    StaticClassCompletion {
+        /// Posterior atom key.
+        outer_atom: u64,
+        /// Completion digest.
+        completion_digest: [u8; 32],
+        /// Descriptive target.
         target: RefutationTargetWire,
     },
 }
@@ -274,50 +360,111 @@ pub struct RefutationReportWire {
 ///
 /// # Errors
 /// The target descriptor is malformed, inconsistent with its scope, or has an invalid identity.
+#[allow(clippy::too_many_lines)] // Keep the exhaustive wire cases and their shared checks together.
 pub fn validate_refutation_scope(scope: &RefutationScopeWire) -> Result<(), IoError> {
-    let target = match scope {
-        RefutationScopeWire::WholeTarget { target }
-        | RefutationScopeWire::TemporalClassCompletion { target, .. }
-        | RefutationScopeWire::StaticClassCompletion { target, .. } => target,
-    };
-    match scope {
-        RefutationScopeWire::TemporalClassCompletion { .. } if !target.temporal => {
-            return Err(IoError::Convert(
-                "temporal completion scope requires a temporal target".into(),
-            ));
-        }
-        RefutationScopeWire::StaticClassCompletion { .. } if target.temporal => {
-            return Err(IoError::Convert(
-                "static completion scope requires a static target".into(),
-            ));
-        }
-        _ => {}
+    enum ScopeView<'a> {
+        Whole(&'a RefutationTargetWire),
+        Temporal(&'a RefutationTargetWire, u64, u64, u32, &'a [u8; 32]),
+        Static(&'a RefutationTargetWire, u64, &'a [u8; 32]),
     }
-    if !matches!(scope, RefutationScopeWire::WholeTarget { .. }) {
+    let view = match scope {
+        RefutationScopeWire::RouteSummary { .. } => return Ok(()),
+        RefutationScopeWire::WholeTargetDiagnostic { produced_by, report } => {
+            let len = report.target.labels.len();
+            if report.target.source != *produced_by
+                || report.refuter.is_empty()
+                || report.statistic_kind.is_empty()
+                || report.original.len() != len
+                || report.refuted.len() != len
+                || (!report.standardised_bias.is_empty()
+                    && report.standardised_bias.len() != len
+                    && !(report.target.family == "world_valued"
+                        && len > 1
+                        && report.standardised_bias.len() == len - 1))
+                || report
+                    .original
+                    .iter()
+                    .chain(&report.refuted)
+                    .chain(&report.standardised_bias)
+                    .any(|bits| f64::from_bits(*bits).is_nan())
+                || f64::from_bits(report.statistic_value).is_nan()
+                || report.statistic_p_value.is_some_and(|bits| f64::from_bits(bits).is_nan())
+                || report.standardised_bias_norm.is_some_and(|bits| f64::from_bits(bits).is_nan())
+            {
+                return Err(IoError::Convert("invalid whole-target diagnostic shape".into()));
+            }
+            ScopeView::Whole(&report.target)
+        }
+        RefutationScopeWire::ScopedReport { scope, .. } => match scope.as_ref() {
+            OriginalRefutationScopeWire::WholeTarget { target } => ScopeView::Whole(target),
+            OriginalRefutationScopeWire::TemporalClassCompletion {
+                target,
+                outer_atom,
+                horizon_index,
+                horizon,
+                completion_digest,
+            } => ScopeView::Temporal(
+                target,
+                *outer_atom,
+                *horizon_index,
+                *horizon,
+                completion_digest,
+            ),
+            OriginalRefutationScopeWire::StaticClassCompletion {
+                target,
+                outer_atom,
+                completion_digest,
+            } => ScopeView::Static(target, *outer_atom, completion_digest),
+        },
+        RefutationScopeWire::WholeTarget { target } => ScopeView::Whole(target),
+        RefutationScopeWire::TemporalClassCompletion {
+            target,
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+        } => ScopeView::Temporal(target, *outer_atom, *horizon_index, *horizon, completion_digest),
+        RefutationScopeWire::StaticClassCompletion { target, outer_atom, completion_digest } => {
+            ScopeView::Static(target, *outer_atom, completion_digest)
+        }
+    };
+    let (target, expected_scope) = match view {
+        ScopeView::Whole(target) => (target, None),
+        ScopeView::Temporal(target, outer_atom, horizon_index, horizon, digest) => {
+            if !target.temporal {
+                return Err(IoError::Convert(
+                    "temporal completion scope requires a temporal target".into(),
+                ));
+            }
+            (
+                target,
+                Some(format!(
+                    "scope:v1:temporal_class_completion:{outer_atom}:{horizon_index}:{horizon}:{}",
+                    antecedent_core::identity::to_hex(digest)
+                )),
+            )
+        }
+        ScopeView::Static(target, outer_atom, digest) => {
+            if target.temporal {
+                return Err(IoError::Convert(
+                    "static completion scope requires a static target".into(),
+                ));
+            }
+            (
+                target,
+                Some(format!(
+                    "scope:v1:static_class_completion:{outer_atom}:{}",
+                    antecedent_core::identity::to_hex(digest)
+                )),
+            )
+        }
+    };
+    if expected_scope.is_some() {
         let mut labels = std::collections::HashSet::with_capacity(target.labels.len());
         if target.labels.iter().any(|label| !labels.insert(label.as_str())) {
             return Err(IoError::Convert("refutation target repeats a coordinate label".into()));
         }
     }
-    let expected_scope = match scope {
-        RefutationScopeWire::WholeTarget { .. } => None,
-        RefutationScopeWire::TemporalClassCompletion {
-            outer_atom,
-            horizon_index,
-            horizon,
-            completion_digest,
-            ..
-        } => Some(format!(
-            "scope:v1:temporal_class_completion:{outer_atom}:{horizon_index}:{horizon}:{}",
-            antecedent_core::identity::to_hex(completion_digest)
-        )),
-        RefutationScopeWire::StaticClassCompletion { outer_atom, completion_digest, .. } => {
-            Some(format!(
-                "scope:v1:static_class_completion:{outer_atom}:{}",
-                antecedent_core::identity::to_hex(completion_digest)
-            ))
-        }
-    };
     if let Some(selector) = expected_scope {
         let prefix = format!("{selector}|");
         if target.labels.iter().any(|label| label.strip_prefix(&prefix).is_none_or(str::is_empty)) {

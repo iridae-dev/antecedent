@@ -14,13 +14,16 @@ use antecedent_estimate::{
     BootstrapAccounting, ClipSensitivity, EffectEstimate, FirstStageDiagnostics, OverlapPolicy,
     OverlapReport, PropensityInterval,
 };
-use antecedent_validate::target_native::{RefutationTarget, TargetFamily, TargetQuadrant};
+use antecedent_validate::target_native::{
+    RefutationTarget, TargetFamily, TargetQuadrant, TargetRefutationReport,
+};
 use antecedent_validate::{RefutationReport, RefutationScope};
 use serde::{Deserialize, Serialize};
 
 pub use antecedent_io_core::analysis_wire::JointCovarianceWire;
 use antecedent_io_core::analysis_wire::{
-    RefutationReportWire, RefutationScopeWire, RefutationTargetWire,
+    OriginalRefutationScopeWire, RefutationReportWire, RefutationScopeWire, RefutationTargetWire,
+    WholeTargetDiagnosticWire,
 };
 
 use crate::error::IoError;
@@ -1138,6 +1141,13 @@ fn scope_from_wire(scope: &RefutationScopeWire) -> Result<RefutationScope, IoErr
         _ => {}
     }
     Ok(match scope {
+        RefutationScopeWire::RouteSummary { .. }
+        | RefutationScopeWire::ScopedReport { .. }
+        | RefutationScopeWire::WholeTargetDiagnostic { .. } => {
+            return Err(IoError::Convert(
+                "descriptive route summary has no native refutation scope".into(),
+            ));
+        }
         RefutationScopeWire::WholeTarget { target } => {
             RefutationScope::WholeTarget { target: target_from_wire(target)? }
         }
@@ -1162,6 +1172,81 @@ fn scope_from_wire(scope: &RefutationScopeWire) -> Result<RefutationScope, IoErr
             }
         }
     })
+}
+
+/// Wrap an original scope with the actual producing-program identity.
+///
+/// # Errors
+/// Refuses descriptive wrappers, summaries, and malformed original scopes.
+pub fn descriptive_scope(
+    scope: RefutationScopeWire,
+    produced_by: [u8; 32],
+) -> Result<RefutationScopeWire, IoError> {
+    antecedent_io_core::analysis_wire::validate_refutation_scope(&scope)?;
+    let scope = match scope {
+        RefutationScopeWire::WholeTarget { target } => {
+            OriginalRefutationScopeWire::WholeTarget { target }
+        }
+        RefutationScopeWire::TemporalClassCompletion {
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+            target,
+        } => OriginalRefutationScopeWire::TemporalClassCompletion {
+            outer_atom,
+            horizon_index,
+            horizon,
+            completion_digest,
+            target,
+        },
+        RefutationScopeWire::StaticClassCompletion { outer_atom, completion_digest, target } => {
+            OriginalRefutationScopeWire::StaticClassCompletion {
+                outer_atom,
+                completion_digest,
+                target,
+            }
+        }
+        _ => return Err(IoError::Convert("scope is already descriptive".into())),
+    };
+    Ok(RefutationScopeWire::ScopedReport { scope: Box::new(scope), produced_by })
+}
+
+/// Encode an existing full-target report as descriptive metadata.
+///
+/// This never creates execution authority or a replay verdict.
+///
+/// # Errors
+/// The report's source is not the producing program, its shape is invalid,
+/// or its degrees of freedom cannot be represented.
+pub fn whole_target_diagnostic_scope(
+    report: &TargetRefutationReport,
+    produced_by: [u8; 32],
+) -> Result<RefutationScopeWire, IoError> {
+    if report.target.source() != &produced_by {
+        return Err(IoError::Convert("target report source differs from producing program".into()));
+    }
+    let scope = RefutationScopeWire::WholeTargetDiagnostic {
+        produced_by,
+        report: Box::new(WholeTargetDiagnosticWire {
+            target: target_to_wire(&report.target),
+            refuter: report.refuter().to_owned(),
+            original: report.original.iter().map(|v| v.to_bits()).collect(),
+            refuted: report.refuted.iter().map(|v| v.to_bits()).collect(),
+            statistic_kind: report.statistic.kind.as_str().to_owned(),
+            statistic_value: report.statistic.value.to_bits(),
+            statistic_df: u64::try_from(report.statistic.df).map_err(|_| IoError::TooLarge)?,
+            statistic_p_value: report.statistic.p_value.map(f64::to_bits),
+            standardised_bias: report.standardised_bias.iter().map(|v| v.to_bits()).collect(),
+            standardised_bias_norm: report.standardised_bias_norm.map(f64::to_bits),
+            passed: report.passed,
+            informative: report.informative,
+            replicates: report.replicates,
+            failure: report.failure.as_deref().map(str::to_owned),
+        }),
+    };
+    antecedent_io_core::analysis_wire::validate_refutation_scope(&scope)?;
+    Ok(scope)
 }
 
 /// Encode a report's descriptive scope; this does not serialize runtime authority.

@@ -18,6 +18,7 @@ pub use crate::estimate_wire::{
     ClipSensitivityWire, EffectEstimateWire, EstimateOverlapPolicyWire, FirstStageDiagnosticsWire,
     JointCovarianceWire, OverlapReportWire, PreparationWire, PropensityIntervalWire,
     ScoreColumnWire, ScoreInferenceWire, ScoreTableWire, UncertaintyWithheldWire,
-    effect_estimate_from_owned_wire, effect_estimate_from_wire, effect_estimate_to_wire,
-    refutation_from_wire, refutation_to_wire,
+    descriptive_scope, effect_estimate_from_owned_wire, effect_estimate_from_wire,
+    effect_estimate_to_wire, refutation_from_wire, refutation_to_wire,
+    whole_target_diagnostic_scope,
 };

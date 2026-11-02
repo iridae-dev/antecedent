@@ -86,6 +86,9 @@ pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
         executed_input: None,
         temporal_response_witnesses: None,
         temporal_posterior_witnesses: None,
+        static_class_witnesses: None,
+        static_posterior_source: None,
+        full_target_diagnostics: None,
         authority: crate::result::RuntimeRefutationAuthority::Fresh,
         view: crate::result::StudyResultView {
             performance: ExecutionPerformanceRecord {

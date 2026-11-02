@@ -69,6 +69,31 @@ fn temporal_class_posterior_level(study: &Study) -> bool {
             if matches!(&query.functional, ResponseFunctional::InterventionResponse { interventions, .. } if interventions.len() == 1))
 }
 
+/// A static class-posterior curve needs its fitted completion identities on
+/// each same-prepared refit. Other response paths keep their existing behavior.
+fn static_class_posterior_curve(study: &Study) -> bool {
+    use antecedent_discovery::GraphPosteriorAtomKind;
+    study.graph_posterior.as_ref().is_some_and(|posterior| {
+        posterior.max_lag().is_none()
+            && matches!(
+                posterior.atom_kind(),
+                GraphPosteriorAtomKind::Cpdag | GraphPosteriorAtomKind::Pag
+            )
+    }) && matches!(&study.query, CausalQuery::Response(query)
+        if matches!(&query.functional, ResponseFunctional::MeanCurve { .. }))
+}
+
+fn static_admg_posterior_response(study: &Study) -> bool {
+    use antecedent_discovery::GraphPosteriorAtomKind;
+    study.graph_posterior.as_ref().is_some_and(|posterior| {
+        posterior.max_lag().is_none()
+            && matches!(
+                posterior.atom_kind(),
+                GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg
+            )
+    }) && matches!(&study.query, CausalQuery::Response(_))
+}
+
 /// Whether `study` requests a validation suite whose native suite is the functional one.
 ///
 /// A path-specific effect and an interventional distribution on a supplied Dag keep their
@@ -179,7 +204,9 @@ pub(crate) fn validate_data(
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
     base.settings.refute = RefuteSuite::None;
-    base.retain_response_witnesses = temporal_class_posterior_level(study);
+    base.retain_response_witnesses = temporal_class_posterior_level(study)
+        || static_class_posterior_curve(study)
+        || static_admg_posterior_response(study);
     if base.retain_response_witnesses {
         base.temporal_validation_budget =
             Some(antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()));
@@ -204,7 +231,9 @@ pub(crate) fn run_validated(
 ) -> Result<StudyResult, CausalError> {
     let mut base = study.clone();
     base.settings.refute = RefuteSuite::None;
-    base.retain_response_witnesses = temporal_class_posterior_level(study);
+    base.retain_response_witnesses = temporal_class_posterior_level(study)
+        || static_class_posterior_curve(study)
+        || static_admg_posterior_response(study);
     if base.retain_response_witnesses {
         base.temporal_validation_budget =
             Some(antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits()));
@@ -447,6 +476,14 @@ fn validate(
         });
     }
     let program = result.lowered_identity.as_ref().map(|identity| *identity.as_bytes());
+    // Preserve the complete vector reports before the legacy scalar projection.
+    // They remain descriptive and cannot by themselves certify a claim.
+    if static_class_posterior_curve(study) {
+        let reports =
+            antecedent_validate::target_native::retain_target_reports(&outcome.run.reports, ctx)
+                .map_err(CausalError::from)?;
+        result.full_target_diagnostics = Some(std::sync::Arc::new(reports));
+    }
     let (extra_reports, extra_notes) = match data {
         PreparedTargetData::Tabular(table) => super::functional_sensitivity::extra_refuters(
             &super::functional_sensitivity::ExtraInput {
@@ -493,7 +530,9 @@ fn validate(
              The verdicts are diagnostics, not a calibration claim.",
             values.len(),
             config.replicates,
-            if licensed {
+            if static_class_posterior_curve(study) {
+                "These retained refutation reports are descriptive and require independent replay."
+            } else if licensed {
                 "The validated cell is licensed on known-truth refuter evidence."
             } else {
                 "It executes unlicensed: no coverage or evidence record names it."
@@ -509,10 +548,14 @@ fn validate(
         crate::support::CellStatus::Refused
     });
     result.executed_contract = None;
-    super::target_validation::seal_runtime_refutations(
-        &mut result,
-        crate::result::RuntimeRefutationOrigin::WholeTarget,
-    )?;
+    let origin = if static_class_posterior_curve(study) {
+        // The wire carries the full report but replay is unresolved; the scalar
+        // summary must not be promoted to whole-target authority.
+        crate::result::RuntimeRefutationOrigin::Route
+    } else {
+        crate::result::RuntimeRefutationOrigin::WholeTarget
+    };
+    super::target_validation::seal_runtime_refutations(&mut result, origin)?;
     Ok(result)
 }
 

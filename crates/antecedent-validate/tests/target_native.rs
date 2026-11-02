@@ -576,3 +576,47 @@ fn an_unstable_law_procedure_fails_subset_stability_on_the_whole_vector() {
     let ok = run_target_plan(&full, &sound, &config, &ExecutionContext::for_tests(42)).unwrap();
     assert!(ok.reports.iter().all(|r| r.passed));
 }
+
+#[test]
+fn retaining_target_reports_preserves_values_and_holds_admission() {
+    use antecedent_validate::target_native::{
+        JointStatistic, JointStatisticKind, TargetRefutationReport, retain_target_reports,
+    };
+    let report = TargetRefutationReport {
+        target: world_target(),
+        kind: TargetRefuterKind::SubsetStability,
+        original: Arc::from([1.0, 2.0, 3.0]),
+        refuted: Arc::from([3.0, 2.0, 1.0]),
+        statistic: JointStatistic {
+            kind: JointStatisticKind::PosteriorShift,
+            value: 1.5,
+            df: 3,
+            p_value: Some(0.25),
+        },
+        standardised_bias: Arc::from([0.1, 0.2, 0.3]),
+        standardised_bias_norm: Some(0.4),
+        passed: false,
+        informative: true,
+        replicates: 7,
+        failure: Some(Arc::from("diagnostic")),
+    };
+    let pool = AdmissionPool::fixed(1, 16_384);
+    let before = pool.available();
+    let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+    let retained = retain_target_reports(std::slice::from_ref(&report), &ctx).unwrap();
+    assert_eq!(retained.reports(), &[report]);
+    assert!(pool.available().bytes() < before.bytes());
+    drop(retained);
+    assert_eq!(pool.available(), before);
+}
+
+#[test]
+fn retaining_target_reports_refuses_resource_limits_and_cancellation() {
+    use antecedent_validate::target_native::retain_target_reports;
+    let pool = AdmissionPool::fixed(1, 1);
+    let ctx = ExecutionContext::for_tests(1).with_admission(pool);
+    assert!(matches!(retain_target_reports(&[], &ctx), Err(ValidationError::Resource { .. })));
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    assert!(matches!(retain_target_reports(&[], &ctx), Err(ValidationError::Cancelled)));
+}

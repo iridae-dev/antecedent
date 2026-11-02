@@ -680,6 +680,19 @@ status = "bound"
 python = "antecedent.transport.discovered.transport_temporal_graph"
 
 [[entry]]
+rust = "antecedent::analysis::discovered_transport_temporal::transport_discovered_temporal_structure_with_context"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.discovered.estimate_discovered_temporal_transport"
+detail = "The temporal discovery-and-estimation workflow executes this structural stage with its shared caller context; the standalone retained-outcome wrapper uses its default context."
+
+[[entry]]
+rust = "antecedent::analysis::discovered_transport_temporal::transport_temporal_class_with_context"
+kind = "fn"
+status = "missing"
+reason = "Python exposes the context-free temporal graph transport entry but does not expose a caller execution context for the standalone structural verdict."
+
+[[entry]]
 rust = "antecedent::analysis::discretized_composition::consume_discretized_composition"
 kind = "fn"
 status = "bound"

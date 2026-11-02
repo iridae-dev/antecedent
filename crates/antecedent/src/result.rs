@@ -1515,6 +1515,40 @@ pub(crate) struct TemporalPosteriorWitnessSet {
     pub(crate) _lease: antecedent_core::execution::AdmissionLease,
 }
 
+/// The immutable graph source used by an executed posterior response.
+#[derive(Debug)]
+pub(crate) struct StaticPosteriorSourceWitness {
+    pub(crate) source: std::sync::Weak<[antecedent_discovery::AdjacencyMask]>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+/// Actual fitted completions retained for same-prepared class refits.
+#[derive(Debug)]
+pub(crate) struct StaticFittedCompletions {
+    pub(crate) entries: Vec<([u8; 32], u64, antecedent_core::IdentificationStatus)>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
+#[derive(Debug)]
+pub(crate) struct StaticClassAtomWitness {
+    pub(crate) graph_key: u64,
+    pub(crate) outer_weight: u64,
+    pub(crate) completions: StaticFittedCompletions,
+}
+
+#[derive(Debug)]
+pub(crate) struct StaticClassWitnessSet {
+    pub(crate) atom_kind: antecedent_discovery::GraphPosteriorAtomKind,
+    pub(crate) n_vars: usize,
+    pub(crate) identification_cache:
+        std::sync::Weak<dyn std::fmt::Debug + Send + Sync + std::panic::RefUnwindSafe>,
+    pub(crate) source_atoms: std::sync::Weak<[antecedent_discovery::AdjacencyMask]>,
+    pub(crate) source_marks: Option<std::sync::Weak<[antecedent_discovery::AdjacencyMask]>>,
+    pub(crate) atoms: Vec<StaticClassAtomWitness>,
+    pub(crate) samples: Vec<(u64, u64)>,
+    pub(crate) _lease: antecedent_core::execution::AdmissionLease,
+}
+
 // Private runtime evidence, installed only by the scoped target operation after it
 // has completed its own refits. The selector and original result binding are part
 // of the digest, so editing a public report invalidates the marker.
@@ -1592,6 +1626,11 @@ pub struct StudyResult {
     pub(crate) executed_input: Option<crate::analysis::target_validation::ExecutedInputIdentity>,
     pub(crate) temporal_response_witnesses: Option<Arc<TemporalResponseWitnessSet>>,
     pub(crate) temporal_posterior_witnesses: Option<Arc<TemporalPosteriorWitnessSet>>,
+    pub(crate) static_class_witnesses: Option<Arc<StaticClassWitnessSet>>,
+    pub(crate) static_posterior_source: Option<Arc<StaticPosteriorSourceWitness>>,
+    /// Complete target-native reports retained as descriptive diagnostics only.
+    pub(crate) full_target_diagnostics:
+        Option<Arc<antecedent_validate::target_native::RetainedTargetReports>>,
     // An operation-issued digest of the checked scope, target and report body. This
     // private marker must never be reconstructed from portable descriptors.
     pub(crate) authority: RuntimeRefutationAuthority,

@@ -548,6 +548,94 @@ pub struct TargetRefutationReport {
     pub failure: Option<Arc<str>>,
 }
 
+/// Exact target-native reports retained with a resource admission.
+#[derive(Debug)]
+pub struct RetainedTargetReports {
+    reports: Vec<TargetRefutationReport>,
+    _lease: antecedent_core::execution::AdmissionLease,
+}
+
+impl RetainedTargetReports {
+    /// The original reports, in their original order.
+    #[must_use]
+    pub fn reports(&self) -> &[TargetRefutationReport] {
+        &self.reports
+    }
+}
+
+/// Retain exact existing reports under an admission lease. This does not fund their execution.
+///
+/// # Errors
+/// Refuses cancellation, size overflow, or insufficient admission.
+pub fn retain_target_reports(
+    reports: &[TargetRefutationReport],
+    ctx: &antecedent_core::execution::ExecutionContext,
+) -> Result<RetainedTargetReports, crate::ValidationError> {
+    let resource = || crate::ValidationError::Resource {
+        message: "target report retention size overflow".into(),
+    };
+    let mut bytes = reports
+        .len()
+        .checked_mul(std::mem::size_of::<TargetRefutationReport>())
+        .and_then(|v| v.checked_add(std::mem::size_of::<RetainedTargetReports>()))
+        .and_then(|v| v.checked_add(4 * std::mem::size_of::<usize>()))
+        .ok_or_else(resource)?;
+    let arc_overhead = 4 * std::mem::size_of::<usize>();
+    for report in reports {
+        if ctx.cancellation.is_cancelled() {
+            return Err(crate::ValidationError::Cancelled);
+        }
+        let TargetRefutationReport {
+            target,
+            kind: _,
+            original,
+            refuted,
+            statistic: _,
+            standardised_bias,
+            standardised_bias_norm: _,
+            passed: _,
+            informative: _,
+            replicates: _,
+            failure,
+        } = report;
+        let RefutationTarget { family: _, quadrant: _, labels, source: _, identity: _ } = target;
+        bytes = bytes
+            .checked_add(arc_overhead)
+            .and_then(|v| v.checked_add(labels.len().checked_mul(std::mem::size_of::<Arc<str>>())?))
+            .ok_or_else(resource)?;
+        for label in labels.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(crate::ValidationError::Cancelled);
+            }
+            bytes = bytes
+                .checked_add(arc_overhead)
+                .and_then(|v| v.checked_add(label.len()))
+                .ok_or_else(resource)?;
+        }
+        for len in [original.len(), refuted.len(), standardised_bias.len()] {
+            bytes = bytes
+                .checked_add(arc_overhead)
+                .and_then(|v| v.checked_add(len.checked_mul(std::mem::size_of::<f64>())?))
+                .ok_or_else(resource)?;
+        }
+        if let Some(failure) = failure {
+            bytes = bytes
+                .checked_add(arc_overhead)
+                .and_then(|v| v.checked_add(failure.len()))
+                .ok_or_else(resource)?;
+        }
+    }
+    let bytes = u64::try_from(bytes).map_err(|_| resource())?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => crate::ValidationError::Cancelled,
+        other => crate::ValidationError::Resource {
+            message: format!("target report retention admission failed: {other}"),
+        },
+    })?;
+    let reports = reports.to_vec();
+    Ok(RetainedTargetReports { reports, _lease: lease })
+}
+
 impl TargetRefutationReport {
     /// Refuter id.
     #[must_use]

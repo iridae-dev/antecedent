@@ -38,6 +38,7 @@ struct ClassAtomResponseEval {
     atom_scores: Vec<(f64, antecedent_estimate::ResponseInfluence)>,
     point_weights: Vec<f64>,
     scores_expected: bool,
+    point_completions: Option<crate::result::StaticFittedCompletions>,
     plugin_levels: Vec<(
         f64,
         [u8; 32],
@@ -70,7 +71,7 @@ impl super::Study {
         let (identified, identify_cached) =
             self.class_graph_posterior_response_identification(gp, &witness, ctx)?;
         let options = self.response_options.clone().unwrap_or_default();
-        let evals = self.evaluate_class_posterior_response_atoms(
+        let mut evals = self.evaluate_class_posterior_response_atoms(
             data,
             query,
             outcome,
@@ -138,12 +139,30 @@ impl super::Study {
         }
         diagnostics.extend(mixed.response.support.warnings.iter().cloned());
 
+        // Witness retention is optional: a resource refusal leaves normal
+        // estimation intact and the later refit check fails closed.
+        let class_witnesses = if self.retain_response_witnesses {
+            match retain_static_class_witnesses(
+                gp,
+                &identified,
+                &mut evals,
+                self.temporal_validation_budget.as_ref(),
+                ctx,
+            ) {
+                Ok(witnesses) => witnesses,
+                Err(CausalError::Resource { .. }) => None,
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
         let MixedClassPosteriorResponse {
             policy, identification, estimand, response, mixture, ..
         } = mixed;
-        Ok(self.finish_identified_execute(
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -167,7 +186,9 @@ impl super::Study {
                 diagnostics: Some(diagnostics),
                 ..Default::default()
             }),
-        ))
+        );
+        result.static_class_witnesses = class_witnesses;
+        Ok(result)
     }
 
     /// The prepared class posterior identification cache, or a live build for the witness query.
@@ -363,6 +384,248 @@ impl super::Study {
     }
 }
 
+fn admit_fitted_completions(
+    count: usize,
+    ctx: &ExecutionContext,
+) -> Result<Option<crate::result::StaticFittedCompletions>, CausalError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "static fitted-completion witnesses" });
+    }
+    let Some(bytes) = count
+        .checked_mul(std::mem::size_of::<([u8; 32], u64, IdentificationStatus)>())
+        .and_then(|bytes| u64::try_from(bytes).ok())
+    else {
+        return Ok(None);
+    };
+    let lease = match ctx.acquire_admission(0, bytes) {
+        Ok(lease) => lease,
+        Err(antecedent_core::execution::AdmissionError::Cancelled) => {
+            return Err(CausalError::Cancelled { stage: "static fitted-completion witnesses" });
+        }
+        Err(_) => return Ok(None),
+    };
+    if ctx.cancellation.is_cancelled() {
+        return Err(CausalError::Cancelled { stage: "static fitted-completion witnesses" });
+    }
+    let mut entries = Vec::new();
+    if entries.try_reserve_exact(count).is_err() {
+        return Ok(None);
+    }
+    Ok(Some(crate::result::StaticFittedCompletions { entries, _lease: lease }))
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "admission and capture must check the same complete fitted contributor set"
+)]
+fn retain_static_class_witnesses(
+    gp: &GraphPosterior,
+    identified: &Arc<CachedGraphPosteriorIdentification>,
+    evals: &mut [ClassAtomResponseEval],
+    shared_budget: Option<&antecedent_core::TemporalBudget>,
+    ctx: &ExecutionContext,
+) -> Result<Option<Arc<crate::result::StaticClassWitnessSet>>, CausalError> {
+    let n = gp.atoms().len();
+    if n == 0
+        || gp.max_lag().is_some()
+        || gp.lag_masks().is_some()
+        || gp.lag_bidirected_masks().is_some()
+        || identified.class_atoms.len() > n
+        || evals.len() != identified.class_atoms.len()
+        || gp.graph_keys().len() != n
+        || gp.weights().len() != n
+        || gp.mark_atoms().is_some_and(|marks| marks.len() != n)
+    {
+        return Ok(None);
+    }
+    let Some(mut budget) = shared_budget.cloned() else { return Ok(None) };
+    let work = u64::try_from(n)
+        .ok()
+        .and_then(|n| n.checked_mul(n))
+        .and_then(|n| n.checked_mul(3))
+        .ok_or_else(|| CausalError::Resource {
+            message: "static class witness lookup work overflow".into(),
+        })?;
+    budget
+        .charge_work(work)
+        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+    // Cache grouping uses adjacency keys; a PAG with equal adjacency but
+    // different endpoint marks is not one class and cannot use this witness.
+    if let Some(marks) = gp.mark_atoms() {
+        for i in 0..n {
+            for j in i + 1..n {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "static class witnesses" });
+                }
+                if gp.graph_keys()[i] != gp.graph_keys()[j] {
+                    continue;
+                }
+                let left = marks[i].words();
+                let right = marks[j].words();
+                if left.len() != right.len() {
+                    return Ok(None);
+                }
+                for (a, b) in left.chunks(256).zip(right.chunks(256)) {
+                    if ctx.cancellation.is_cancelled() {
+                        return Err(CausalError::Cancelled { stage: "static class witnesses" });
+                    }
+                    budget
+                        .charge_work(u64::try_from(a.len()).map_err(|_| CausalError::Resource {
+                            message: "class mark comparison work overflow".into(),
+                        })?)
+                        .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+                    if a != b {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+    }
+    for (atom, eval) in identified.class_atoms.iter().zip(evals.iter()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "static class witnesses" });
+        }
+        let mut index = None;
+        for (sample, key) in gp.graph_keys().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if *key != atom.key {
+                continue;
+            }
+            index.get_or_insert(sample);
+        }
+        let Some(index) = index else { return Ok(None) };
+        let mut matching_atoms = 0usize;
+        for candidate in identified.class_atoms.iter() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if candidate.key == atom.key {
+                matching_atoms += 1;
+            }
+        }
+        if matching_atoms != 1
+            || eval.key != atom.key
+            || atom.truncated_completions != 0
+            || !gp.weights()[index].is_finite()
+            || gp.weights()[index] < 0.0
+        {
+            return Ok(None);
+        }
+        let Some(fitted) = &eval.point_completions else { return Ok(None) };
+        let entry_work = u64::try_from(fitted.entries.len()).map_err(|_| {
+            CausalError::Resource { message: "static class completion work overflow".into() }
+        })?;
+        budget
+            .charge_work(entry_work)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        if fitted.entries.len() != eval.point_weights.len()
+            || eval.response.is_some() == fitted.entries.is_empty()
+        {
+            return Ok(None);
+        }
+        let duplicate_work =
+            entry_work.checked_mul(entry_work).ok_or_else(|| CausalError::Resource {
+                message: "static completion identity comparison overflow".into(),
+            })?;
+        budget
+            .charge_work(duplicate_work)
+            .map_err(|error| CausalError::Resource { message: error.to_string() })?;
+        for (index, entry) in fitted.entries.iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            for other in &fitted.entries[index + 1..] {
+                if ctx.cancellation.is_cancelled() {
+                    return Err(CausalError::Cancelled { stage: "static class witnesses" });
+                }
+                if other.0 == entry.0 {
+                    return Ok(None);
+                }
+            }
+        }
+        for (entry, weight) in fitted.entries.iter().zip(&eval.point_weights) {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if !weight.is_finite() || *weight <= 0.0 || entry.1 != weight.to_bits() {
+                return Ok(None);
+            }
+        }
+    }
+    let bytes = n
+        .checked_mul(std::mem::size_of::<(u64, u64)>())
+        .and_then(|bytes| {
+            identified
+                .class_atoms
+                .len()
+                .checked_mul(std::mem::size_of::<crate::result::StaticClassAtomWitness>())
+                .and_then(|atoms| bytes.checked_add(atoms))
+        })
+        .and_then(|n| n.checked_add(std::mem::size_of::<crate::result::StaticClassWitnessSet>()))
+        .and_then(|n| n.checked_add(std::mem::size_of::<CachedGraphPosteriorIdentification>()))
+        .and_then(|n| n.checked_add(4 * std::mem::size_of::<usize>()))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| CausalError::Resource {
+            message: "static class witness allocation size overflow".into(),
+        })?;
+    let lease = ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: "static class witnesses" }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })?;
+    let mut atoms = Vec::new();
+    atoms.try_reserve_exact(identified.class_atoms.len()).map_err(|_| CausalError::Resource {
+        message: "static class witness allocation failed".into(),
+    })?;
+    for (atom, eval) in identified.class_atoms.iter().zip(evals.iter_mut()) {
+        let mut index = None;
+        for (sample, key) in gp.graph_keys().iter().enumerate() {
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "static class witnesses" });
+            }
+            if *key == atom.key {
+                index = Some(sample);
+                break;
+            }
+        }
+        let Some(index) = index else { return Ok(None) };
+        let Some(completions) = eval.point_completions.take() else { return Ok(None) };
+        atoms.push(crate::result::StaticClassAtomWitness {
+            graph_key: atom.key,
+            outer_weight: gp.weights()[index].to_bits(),
+            completions,
+        });
+    }
+    let mut samples = Vec::new();
+    samples.try_reserve_exact(n).map_err(|_| CausalError::Resource {
+        message: "static class sample witness allocation failed".into(),
+    })?;
+    for (&key, &weight) in gp.graph_keys().iter().zip(gp.weights().iter()) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: "static class witnesses" });
+        }
+        if !weight.is_finite() || weight < 0.0 {
+            return Ok(None);
+        }
+        samples.push((key, weight.to_bits()));
+    }
+    let cache: Arc<dyn std::fmt::Debug + Send + Sync + std::panic::RefUnwindSafe> =
+        identified.clone();
+    Ok(Some(Arc::new(crate::result::StaticClassWitnessSet {
+        atom_kind: gp.atom_kind(),
+        n_vars: gp.n_vars(),
+        identification_cache: Arc::downgrade(&cache),
+        source_atoms: Arc::downgrade(gp.atoms()),
+        source_marks: gp.mark_atoms().map(Arc::downgrade),
+        samples,
+        atoms,
+        _lease: lease,
+    })))
+}
+
 /// Borrowed inputs of the plugin-level refutation of a class graph-posterior response.
 #[derive(Clone, Copy)]
 struct ClassResponseRefuteInput<'a> {
@@ -391,7 +654,7 @@ struct MixedClassPosteriorResponse {
 }
 
 fn evaluate_class_atom_response_frequentist(
-    _study: &Study,
+    study: &Study,
     data: &TabularData,
     query: &ResponseQuery,
     atom: &CachedClassPosteriorAtomIdentification,
@@ -404,6 +667,11 @@ fn evaluate_class_atom_response_frequentist(
         level_refit_masked_data(data, ctx).map_err(CausalError::from)?;
     let data = selected.as_ref().unwrap_or(data);
     let mut weighted = Vec::new();
+    let mut point_completions = if study.retain_response_witnesses {
+        admit_fitted_completions(atom.cases.len(), ctx)?
+    } else {
+        None
+    };
     let mut atom_scores = Vec::new();
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
@@ -461,6 +729,9 @@ fn evaluate_class_atom_response_frequentist(
                 response.assumptions.clone(),
             ));
         }
+        if let Some(records) = &mut point_completions {
+            records.entries.push((case.completion_digest, case.weight.to_bits(), case.status));
+        }
         weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), case.weight, response));
     }
     let point_weights = weighted.iter().map(|(_, weight, _)| *weight).collect();
@@ -480,6 +751,7 @@ fn evaluate_class_atom_response_frequentist(
         point_weights,
         scores_expected: true,
         plugin_levels,
+        point_completions,
     })
 }
 
@@ -503,6 +775,11 @@ fn evaluate_class_atom_response_bayesian(
         level_refit_masked_data(data, ctx).map_err(CausalError::from)?;
     let data = selected.as_ref().unwrap_or(data);
     let mut weighted = Vec::new();
+    let mut point_completions = if study.retain_response_witnesses {
+        admit_fitted_completions(atom.cases.len(), ctx)?
+    } else {
+        None
+    };
     let mut primary_estimand = None;
     let mut plugin_levels = Vec::new();
     let mut completion_fits: CompletionFitMemo<CausalResponse> = CompletionFitMemo::default();
@@ -557,6 +834,9 @@ fn evaluate_class_atom_response_bayesian(
                 response.assumptions.clone(),
             ));
         }
+        if let Some(records) = &mut point_completions {
+            records.entries.push((case.completion_digest, case.weight.to_bits(), case.status));
+        }
         weighted.push((u64::try_from(case_index).unwrap_or(u64::MAX), case.weight, response));
     }
     let point_weights = weighted.iter().map(|(_, weight, _)| *weight).collect();
@@ -576,6 +856,7 @@ fn evaluate_class_atom_response_bayesian(
         point_weights,
         scores_expected: false,
         plugin_levels,
+        point_completions,
     })
 }
 
@@ -1541,6 +1822,17 @@ mod nested_weight_tests {
     use antecedent_graph::{Dag, DenseNodeId};
     use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
+    #[test]
+    fn completion_witness_admission_propagates_cancellation() {
+        let ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation.cancel();
+        assert!(matches!(admit_fitted_completions(1, &ctx), Err(CausalError::Cancelled { .. })));
+        assert!(matches!(
+            admit_fitted_completions(usize::MAX, &ctx),
+            Err(CausalError::Cancelled { .. })
+        ));
+    }
+
     fn fixture()
     -> (CachedGraphPosteriorIdentification, Vec<ClassAtomResponseEval>, ResponseQuery, Dag) {
         let t = VariableId::from_raw(0);
@@ -1592,6 +1884,7 @@ mod nested_weight_tests {
                 atom_scores: weights.iter().copied().zip(columns.into_iter().map(scores)).collect(),
                 point_weights: weights,
                 scores_expected: true,
+                point_completions: None,
                 plugin_levels: Vec::new(),
             }
         };
@@ -1622,6 +1915,53 @@ mod nested_weight_tests {
             class_atoms: class_atoms.into(),
         };
         (cache, evals, query, dag)
+    }
+
+    #[test]
+    fn witness_keeps_duplicate_samples_and_refuses_different_pag_marks() {
+        use antecedent_discovery::{GraphPosteriorAtomKind, SamplingSummary};
+        let ctx = ExecutionContext::for_tests(1);
+        let posterior = |marks: [u64; 2]| {
+            GraphPosterior::new(
+                2,
+                vec![0.2, 0.8],
+                vec![3, 3],
+                vec![0.0; 4],
+                vec![0.0; 4],
+                SamplingSummary {
+                    ess: 1.0,
+                    diagnostics: antecedent_prob::InferenceDiagnostics::analytic(
+                        "duplicate witness",
+                    ),
+                    rejected_invalid: 0,
+                },
+            )
+            .unwrap()
+            .with_atom_kind(GraphPosteriorAtomKind::Pag)
+            .with_mark_masks(marks)
+            .unwrap()
+        };
+        let run = |gp: &GraphPosterior| {
+            let (mut cache, mut evals, _, _) = fixture();
+            cache.class_atoms = Arc::from([cache.class_atoms[0].clone()]);
+            let mut eval = evals.remove(1);
+            let mut entries = admit_fitted_completions(1, &ctx).unwrap().unwrap();
+            entries.entries.push((
+                [7; 32],
+                1.0_f64.to_bits(),
+                IdentificationStatus::NonparametricallyIdentified,
+            ));
+            eval.point_completions = Some(entries);
+            let cache = Arc::new(cache);
+            let budget =
+                antecedent_core::TemporalBudget::new(ctx.temporal_materialization_limits());
+            retain_static_class_witnesses(gp, &cache, &mut [eval], Some(&budget), &ctx).unwrap()
+        };
+        let same = posterior([0, 0]);
+        let witness = run(&same).expect("identical PAG samples are supported");
+        assert_eq!(witness.samples, [(3, 0.2_f64.to_bits()), (3, 0.8_f64.to_bits())]);
+        assert_eq!(witness.atoms.len(), 1);
+        assert!(run(&posterior([0, 1])).is_none());
     }
 
     #[test]

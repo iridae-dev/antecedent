@@ -704,8 +704,8 @@ mod tests {
 
     /// A pair allowance of `work` candidate pairs under the default per-graph pair ceiling.
     fn pair_budget(work: u64) -> antecedent_core::TemporalBudget {
-        let mut limits = antecedent_core::TemporalMaterializationLimits::default();
-        limits.max_work = work;
+        let limits =
+            antecedent_core::TemporalMaterializationLimits { max_work: work, ..Default::default() };
         antecedent_core::TemporalBudget::new(limits)
     }
 
@@ -747,8 +747,10 @@ mod tests {
     fn a_window_over_the_induced_pair_ceiling_is_refused_before_any_pair_is_tested() {
         let (graph, inner, seeds) = isolated_window(5);
         let ctx = antecedent_core::ExecutionContext::for_tests(1);
-        let mut limits = antecedent_core::TemporalMaterializationLimits::default();
-        limits.max_graph_edges = 9;
+        let limits = antecedent_core::TemporalMaterializationLimits {
+            max_graph_edges: 9,
+            ..Default::default()
+        };
         let mut budget = antecedent_core::TemporalBudget::new(limits);
         assert!(matches!(
             window_mag(&graph, &inner, 0, &seeds, &mut budget, &ctx),

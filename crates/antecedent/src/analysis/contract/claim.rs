@@ -49,6 +49,55 @@ impl StudyResult {
         Ok(self.claim_with_body(contract, ctx, None)?.0)
     }
 
+    fn apply_descriptive_refutation_scopes(
+        &self,
+        body: &mut AnalysisResultWire,
+        program: [u8; 32],
+    ) -> Result<(), CausalError> {
+        let full: &[antecedent_validate::TargetRefutationReport] =
+            self.full_target_diagnostics.as_ref().map_or(&[], |reports| reports.reports());
+        if full.len() > body.refutations.len() {
+            return Err(CausalError::Conflict {
+                what: "refutations",
+                detail: "full target diagnostics do not match the route summaries",
+            });
+        }
+        for (index, report) in body.refutations.iter_mut().enumerate() {
+            report.scope = Some(if let Some(diagnostic) = full.get(index) {
+                let projection_matches = diagnostic.kind.as_str() == report.refuter
+                    && diagnostic
+                        .original
+                        .first()
+                        .is_some_and(|value| value.to_bits() == report.original_ate.to_bits())
+                    && diagnostic
+                        .refuted
+                        .first()
+                        .is_some_and(|value| value.to_bits() == report.refuted_ate.to_bits())
+                    && diagnostic.statistic.p_value.unwrap_or(diagnostic.statistic.value).to_bits()
+                        == report.comparison.to_bits()
+                    && diagnostic.informative == report.informative
+                    && diagnostic.passed == report.passed
+                    && diagnostic.replicates == report.replicates
+                    && diagnostic.failure.as_deref() == report.failure_condition.as_deref();
+                if !projection_matches {
+                    return Err(CausalError::Conflict {
+                        what: "refutations",
+                        detail: "full target diagnostic differs from its scalar summary",
+                    });
+                }
+                antecedent_io::whole_target_diagnostic_scope(diagnostic, program)
+                    .map_err(|error| io_err(&error))?
+            } else if let Some(scope) = report.scope.take() {
+                antecedent_io::descriptive_scope(scope, program).map_err(|error| io_err(&error))?
+            } else {
+                antecedent_io_core::analysis_wire::RefutationScopeWire::RouteSummary {
+                    produced_by: program,
+                }
+            });
+        }
+        Ok(())
+    }
+
     /// Claim plus the exact result body its id digests.
     ///
     /// The claim id binds the contract seal (every identity, the four slots,
@@ -91,9 +140,16 @@ impl StudyResult {
         // conditional, derivative, temporal-vector, mediation, world-valued or joint target
         // refuses one, naming the target-native suite as the next attempt. Route-native
         // reports carry the producing program's stamp and pass.
-        crate::analysis::target_validation::refuse_scalar_refutations_for_result(self)
-            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        let descriptive_source =
+            crate::analysis::target_validation::descriptive_route_report_source(self);
+        if descriptive_source.is_none() {
+            crate::analysis::target_validation::refuse_scalar_refutations_for_result(self)
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+        }
         let mut body = body_for(&contract.body, self)?;
+        if let Some(program) = descriptive_source {
+            self.apply_descriptive_refutation_scopes(&mut body, program)?;
+        }
         if let Some(quantities) = quantities {
             let response = body.response.as_mut().ok_or_else(|| CausalError::Compile {
                 message: "scientific coordinates require an exported response".into(),

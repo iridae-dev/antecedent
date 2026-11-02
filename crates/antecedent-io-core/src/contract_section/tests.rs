@@ -3115,3 +3115,111 @@ mod dr_replay {
         );
     }
 }
+
+#[test]
+fn descriptive_route_summary_is_bound_but_requires_scoped_replay() {
+    use crate::analysis_wire::RefutationScopeWire;
+    let (mut body, target, names) = fixture_body();
+    let mut report = refutation("overlap.assessment", true);
+    report.scope = Some(RefutationScopeWire::RouteSummary { produced_by: [3; 32] });
+    body.refutations.push(report);
+    assert_eq!(support_empirical(&body.refutations, &[]), None);
+    let contract = contract_for(target, &body);
+    let unresolved = unresolved_after(&body, &names, &contract);
+    assert!(unresolved.iter().any(|reason| reason == "dependencies.scoped_refutation_replay"));
+}
+
+#[test]
+fn old_scope_decoder_rejects_descriptive_route_summary() {
+    #[allow(dead_code)]
+    #[derive(serde::Deserialize)]
+    #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+    enum OldScope {
+        WholeTarget { target: crate::analysis_wire::RefutationTargetWire },
+        TemporalClassCompletion { outer_atom: u64 },
+        StaticClassCompletion { outer_atom: u64 },
+    }
+    let scope = crate::analysis_wire::RefutationScopeWire::RouteSummary { produced_by: [3; 32] };
+    let encoded = crate::to_cbor(&scope).unwrap();
+    assert!(crate::from_cbor::<OldScope>(&encoded).is_err());
+    let decoded = crate::from_cbor::<crate::analysis_wire::RefutationScopeWire>(&encoded).unwrap();
+    assert_eq!(scope, decoded);
+}
+
+#[test]
+fn descriptive_scope_rejects_nested_wrappers() {
+    let nested = serde_json::json!({"kind":"scoped_report", "produced_by":vec![0u8; 32], "scope":{"kind":"route_summary", "produced_by":vec![0u8; 32]}});
+    assert!(serde_json::from_value::<crate::analysis_wire::RefutationScopeWire>(nested).is_err());
+}
+
+#[test]
+fn whole_target_diagnostic_preserves_vectors_and_requires_replay() {
+    use crate::analysis_wire::{
+        RefutationScopeWire, RefutationTargetWire, WholeTargetDiagnosticWire,
+    };
+    let (mut body, target, names) = fixture_body();
+    let labels = vec!["x".to_owned(), "y".to_owned()];
+    let source = [7; 32];
+    let mut writer =
+        antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+    writer.text("response_derivative").text("static.frequentist").texts(&labels).bytes(&source);
+    let diagnostic = WholeTargetDiagnosticWire {
+        target: RefutationTargetWire {
+            version: 1,
+            family: "response_derivative".into(),
+            temporal: false,
+            bayesian: false,
+            labels,
+            source,
+            identity: writer.finish(),
+        },
+        refuter: "placebo".into(),
+        original: vec![1f64.to_bits(), 2f64.to_bits()],
+        refuted: vec![3f64.to_bits(), 4f64.to_bits()],
+        statistic_kind: "posterior_shift".into(),
+        statistic_value: 5f64.to_bits(),
+        statistic_df: 2,
+        statistic_p_value: None,
+        standardised_bias: vec![],
+        standardised_bias_norm: None,
+        passed: false,
+        informative: true,
+        replicates: 3,
+        failure: Some("difference".into()),
+    };
+    let scope = RefutationScopeWire::WholeTargetDiagnostic {
+        produced_by: source,
+        report: Box::new(diagnostic),
+    };
+    crate::analysis_wire::validate_refutation_scope(&scope).unwrap();
+    let mut contrast = scope.clone();
+    if let RefutationScopeWire::WholeTargetDiagnostic { report, .. } = &mut contrast {
+        report.target.family = "world_valued".into();
+        let mut writer =
+            antecedent_core::identity::CanonicalWriter::new("antecedent.refutation_target");
+        writer
+            .text("world_valued")
+            .text("static.frequentist")
+            .texts(&report.target.labels)
+            .bytes(&report.target.source);
+        report.target.identity = writer.finish();
+        report.standardised_bias = vec![f64::INFINITY.to_bits()];
+    }
+    crate::analysis_wire::validate_refutation_scope(&contrast).unwrap();
+    if let RefutationScopeWire::WholeTargetDiagnostic { report, .. } = &mut contrast {
+        report.standardised_bias[0] = f64::NAN.to_bits();
+    }
+    assert!(crate::analysis_wire::validate_refutation_scope(&contrast).is_err());
+    let encoded = crate::to_cbor(&scope).unwrap();
+    assert_eq!(crate::from_cbor::<RefutationScopeWire>(&encoded).unwrap(), scope);
+    let mut report = refutation("placebo", false);
+    report.scope = Some(scope);
+    body.refutations.push(report);
+    assert_eq!(support_empirical(&body.refutations, &[]), None);
+    let contract = contract_for(target, &body);
+    assert!(
+        unresolved_after(&body, &names, &contract)
+            .iter()
+            .any(|reason| reason == "dependencies.scoped_refutation_replay")
+    );
+}

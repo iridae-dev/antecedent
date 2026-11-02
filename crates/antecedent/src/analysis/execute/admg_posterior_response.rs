@@ -95,6 +95,10 @@ impl super::Study {
     }
 
     /// Mix ADMG posterior atoms through `identify_admg_query` + `functional.effect`.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the mixed response and its retained source witness share one execution"
+    )]
     pub(super) fn execute_admg_graph_posterior_response(
         &self,
         data: &TabularData,
@@ -160,7 +164,7 @@ impl super::Study {
 
         let algo =
             physical.logical.record.discovery_algorithm.as_deref().unwrap_or("graph_posterior");
-        Ok(self.finish_identified_execute(
+        let mut result = self.finish_identified_execute(
             IdentifiedExecuteFinish::new(
                 physical,
                 identification,
@@ -202,7 +206,44 @@ impl super::Study {
                 bootstrap_replicates_requested: Some(None),
                 ..Default::default()
             }),
-        ))
+        );
+        if self.retain_response_witnesses
+            && matches!(
+                gp.atom_kind(),
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                    | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+            )
+        {
+            let count = gp.atoms().len();
+            let bytes = count
+                .checked_mul(std::mem::size_of::<antecedent_discovery::AdjacencyMask>())
+                .and_then(|v| {
+                    v.checked_add(std::mem::size_of::<
+                            crate::result::StaticPosteriorSourceWitness,
+                        >())
+                })
+                .and_then(|v| v.checked_add(8 * std::mem::size_of::<usize>()))
+                .and_then(|v| u64::try_from(v).ok());
+            if ctx.cancellation.is_cancelled() {
+                return Err(CausalError::Cancelled { stage: "posterior source witness" });
+            }
+            if let Some(bytes) = bytes {
+                match ctx.acquire_admission(0, bytes) {
+                    Ok(lease) => {
+                        result.static_posterior_source =
+                            Some(Arc::new(crate::result::StaticPosteriorSourceWitness {
+                                source: Arc::downgrade(gp.atoms()),
+                                _lease: lease,
+                            }))
+                    }
+                    Err(antecedent_core::execution::AdmissionError::Cancelled) => {
+                        return Err(CausalError::Cancelled { stage: "posterior source witness" });
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        Ok(result)
     }
 
     /// The prepared ADMG posterior identification cache, the product the plan's lowered

@@ -415,22 +415,31 @@ fn all_temporal_graph_posterior_response_coordinates_execute_from_retained_atoms
                     };
                     assert_eq!(retained.query, query);
                     if !refreshed.refutations.is_empty() {
-                        // The route's checks describe the mixture's completions, not one
-                        // whole-result target, so a claim over this response refuses to carry
-                        // them as a verdict.
-                        let error = prepared
+                        // These route checks remain descriptive and cannot establish
+                        // a whole-result verdict without independent replay.
+                        let artifact = prepared
                             .encode_contracted_result(
                                 &refreshed,
                                 "checked-temporal-graph-posterior-response",
                                 &ctx,
                             )
-                            .expect_err(
-                                "route checks over a mixture are not a whole-result verdict",
-                            );
+                            .unwrap();
+                        let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+                        assert!(!consumed.body.refutations.is_empty());
                         assert!(
-                            error.to_string().contains("was computed on target"),
-                            "{label}: unexpected refusal: {error}"
+                            consumed.body.refutations.iter().all(|report| report.scope.is_some())
                         );
+                        assert!(
+                            antecedent_io::support_empirical(
+                                &consumed.body.refutations,
+                                &consumed.body.diagnostics
+                            )
+                            .is_none()
+                        );
+                        assert!(consumed.acceptance.unresolved.iter().any(
+                            |reason| reason.as_ref() == "dependencies.scoped_refutation_replay"
+                        ));
+                        assert!(!consumed.acceptance.accepts_as_claim());
                         continue;
                     }
                     let artifact = prepared

@@ -1259,7 +1259,7 @@ fn a_mixed_response_curve_is_refuted_by_refitting_the_whole_procedure() {
         let plain = run(RefuteSuite::None);
         for suite in [RefuteSuite::Cheap, RefuteSuite::Full] {
             let result = run(suite);
-            assert_eq!(result.support_status(), Some(CellStatus::Refused));
+            assert_eq!(result.support_status(), Some(CellStatus::Licensed));
             // The refuted curve is the curve the study publishes.
             let (a, b) = (result.response().unwrap(), plain.response().unwrap());
             assert_eq!(a.estimate, b.estimate);

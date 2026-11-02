@@ -212,8 +212,22 @@ fn completion_refutations_do_not_certify_the_whole_class_response() {
     let result = prepared.estimate(&data, &ctx).unwrap();
     assert!(result.structural_response.is_some());
     assert!(!result.refutations.is_empty());
-    let error = result.claim(&prepared.contract().unwrap(), &ctx).unwrap_err();
-    assert!(error.to_string().contains("was computed on target"), "{error}");
+    let artifact = prepared.encode_contracted_result(&result, "class-response", &ctx).unwrap();
+    let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
+    assert!(!consumed.body.refutations.is_empty());
+    assert!(consumed.body.refutations.iter().all(|report| report.scope.is_some()));
+    assert!(
+        antecedent_io::support_empirical(&consumed.body.refutations, &consumed.body.diagnostics)
+            .is_none()
+    );
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.scoped_refutation_replay")
+    );
+    assert!(!consumed.acceptance.accepts_as_claim());
 }
 
 #[test]

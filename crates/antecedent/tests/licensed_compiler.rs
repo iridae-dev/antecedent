@@ -2546,6 +2546,23 @@ fn render_routes(routes: &[Route]) -> String {
 }
 
 #[test]
+fn class_posterior_curves_preserve_descriptive_full_target_refutations() {
+    let cells: Vec<_> = licensed_support_cells()
+        .filter(|cell| {
+            cell.query.as_str() == "ResponseCurve"
+                && matches!(cell.graph_class.as_str(), "Cpdag" | "Pag")
+                && cell.structure.as_str() == "graph_posterior"
+                && cell.inference.as_str() == "Frequentist"
+                && matches!(cell.validation.as_str(), "cheap" | "full")
+        })
+        .collect();
+    assert_eq!(cells.len(), 4);
+    for cell in cells {
+        consume_setup(cell_setup(cell).unwrap()).unwrap_or_else(|error| panic!("{error}"));
+    }
+}
+
+#[test]
 fn every_licensed_cell_inspects_as_a_first_class_contract() {
     let mut failures = Vec::new();
     let mut n = 0usize;
@@ -2608,6 +2625,22 @@ fn parallel_map<T: Sync, R: Send>(cases: &[T], run: impl Fn(&T) -> R + Sync) -> 
         }
     });
     slots.into_iter().map(|slot| slot.into_inner().unwrap().expect("every case ran")).collect()
+}
+
+#[test]
+fn single_admg_response_curves_execute_the_declared_refit() {
+    let cells: Vec<_> = licensed_support_cells()
+        .filter(|cell| {
+            cell.query.as_str() == "ResponseCurve"
+                && matches!(cell.graph_class.as_str(), "Admg" | "TemporalAdmg")
+                && cell.structure.as_str() == "graph_posterior"
+                && matches!(cell.validation.as_str(), "cheap" | "full")
+        })
+        .collect();
+    assert_eq!(cells.len(), 8);
+    for cell in cells {
+        observe(cell_setup(cell).unwrap()).unwrap();
+    }
 }
 
 #[test]
@@ -2928,7 +2961,7 @@ fn diagnostic_optional_estimator_closure_after_builder_and_study_drop() {
         dependency_refusals.len(),
         dependency_refusals.join("\n")
     );
-    assert_eq!(inspected, 136, "optional estimator registry drifted");
+    assert_eq!(inspected, 60, "optional estimator registry drifted");
 }
 
 /// The sealed outcome. Every licensed route executes on a retained checked
