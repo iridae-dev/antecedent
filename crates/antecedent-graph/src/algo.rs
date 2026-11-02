@@ -8,10 +8,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeSet;
+use std::cmp::Reverse;
+use std::collections::{BTreeSet, BinaryHeap};
+use std::convert::Infallible;
 use std::ops::{BitAnd, BitOr, Not};
 
-use crate::types::DenseNodeId;
+use crate::types::{DenseNodeId, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
 
 /// Insert `value` into the ascending `list`, keeping it sorted. Returns `false`, leaving the
@@ -204,35 +206,63 @@ pub fn components_by<I: IntoIterator<Item = usize>>(
     components
 }
 
-/// Kahn topological order. Returns `None` if a directed cycle exists.
+/// Kahn topological order that takes, among the ready nodes, the one with the smallest label
+/// (then the smallest id), so the order is a function of the labelled graph: neither the order
+/// its edges were inserted in nor the order its nodes were added in changes it. Returns `None`
+/// if a directed cycle exists.
 #[must_use]
 pub(crate) fn kahn_order(
     parents: &[Vec<DenseNodeId>],
     children: &[Vec<DenseNodeId>],
+    labels: &[NodeRef],
 ) -> Option<Vec<DenseNodeId>> {
+    kahn_order_polled(parents, children, labels, || Ok::<(), Infallible>(()))
+        .unwrap_or_else(|never| match never {})
+}
+
+/// [`kahn_order`] polling `poll` at every node and every edge it visits, so a caller that must
+/// stay cancellable stops at the first `Err`.
+///
+/// # Errors
+///
+/// The first error `poll` returns.
+pub(crate) fn kahn_order_polled<E>(
+    parents: &[Vec<DenseNodeId>],
+    children: &[Vec<DenseNodeId>],
+    labels: &[NodeRef],
+    mut poll: impl FnMut() -> Result<(), E>,
+) -> Result<Option<Vec<DenseNodeId>>, E> {
     let n = parents.len();
     debug_assert_eq!(n, children.len());
+    debug_assert_eq!(n, labels.len());
     let mut indeg = vec![0u32; n];
     for (i, p) in parents.iter().enumerate() {
-        indeg[i] = u32::try_from(p.len()).ok()?;
+        poll()?;
+        let Ok(degree) = u32::try_from(p.len()) else {
+            return Ok(None);
+        };
+        indeg[i] = degree;
     }
-    let mut q: Vec<DenseNodeId> = indeg
+    let key = |id: DenseNodeId| Reverse((labels[id.as_usize()], id));
+    let mut ready: BinaryHeap<Reverse<(NodeRef, DenseNodeId)>> = indeg
         .iter()
         .enumerate()
         .filter(|&(_, &d)| d == 0)
-        .map(|(i, _)| DenseNodeId::from_index(i))
+        .map(|(i, _)| key(DenseNodeId::from_index(i)))
         .collect();
     let mut order = Vec::with_capacity(n);
-    while let Some(u) = q.pop() {
+    while let Some(Reverse((_, u))) = ready.pop() {
+        poll()?;
         order.push(u);
         for &v in &children[u.as_usize()] {
+            poll()?;
             indeg[v.as_usize()] -= 1;
             if indeg[v.as_usize()] == 0 {
-                q.push(v);
+                ready.push(key(v));
             }
         }
     }
-    (order.len() == n).then_some(order)
+    Ok((order.len() == n).then_some(order))
 }
 
 /// Whether the directed graph is acyclic (Kahn count, without retaining the order).

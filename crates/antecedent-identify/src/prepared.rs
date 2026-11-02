@@ -149,48 +149,21 @@ impl PreparedAdmg {
             antecedent_core::execution::AdmissionError::Cancelled => IdentificationError::Cancelled,
             _ => IdentificationError::budget(IdentificationBudget::Memory),
         })?;
-        // Reproduce the graph's Kahn order, polling cancellation inside both
-        // node and edge loops. The window was built by checked insertions.
+        // The graph's own Kahn order, polling cancellation at every node and edge. The window
+        // was built by checked insertions, so a cycle here is an invariant failure.
         let graph = window.admg();
-        let mut indegree = Vec::with_capacity(graph.node_count());
-        let mut ready = Vec::new();
-        for i in 0..graph.node_count() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::Cancelled);
-            }
-            let id = DenseNodeId::from_index(i);
-            let count = u32::try_from(graph.parents(id).len())
-                .map_err(|_| IdentificationError::budget(IdentificationBudget::Memory))?;
-            indegree.push(count);
-            if count == 0 {
-                ready.push(id);
-            }
-        }
-        let mut topo = Vec::with_capacity(graph.node_count());
-        while let Some(node) = ready.pop() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::Cancelled);
-            }
-            topo.push(node);
-            for &child in graph.children(node) {
+        let topo = graph
+            .topological_order_polled(|| {
                 if ctx.cancellation.is_cancelled() {
-                    return Err(IdentificationError::Cancelled);
+                    Err(IdentificationError::Cancelled)
+                } else {
+                    Ok(())
                 }
-                let degree = &mut indegree[child.as_usize()];
-                *degree = degree.checked_sub(1).ok_or(IdentificationError::InvariantViolated {
-                    message: "temporal graph indegree underflow",
-                })?;
-                if *degree == 0 {
-                    ready.push(child);
-                }
-            }
-        }
-        if topo.len() != graph.node_count() {
-            return Err(IdentificationError::Graph(antecedent_graph::GraphError::Cycle {
+            })?
+            .ok_or(IdentificationError::Graph(antecedent_graph::GraphError::Cycle {
                 from: 0,
                 to: 0,
-            }));
-        }
+            }))?;
         let var_index = NodeMap::new_with_cancel(graph.nodes(), ctx)?;
         if ctx.cancellation.is_cancelled() {
             return Err(IdentificationError::Cancelled);
@@ -210,7 +183,6 @@ impl PreparedAdmg {
         lease: Option<Arc<antecedent_core::execution::AdmissionLease>>,
     ) -> Result<Self, IdentificationError> {
         admg.validate().map_err(IdentificationError::from)?;
-        reject_duplicate_static_labels(admg.nodes())?;
         let topo: Arc<[DenseNodeId]> = Arc::from(admg.topological_order().ok_or_else(|| {
             IdentificationError::construction(
                 antecedent_graph::error::CyclicDagRefusal::unlicensed(
@@ -266,7 +238,8 @@ impl PreparedAdmg {
         &self.declared_assumptions
     }
 
-    /// Topological order over all nodes.
+    /// Topological order over all nodes: smallest label first among the ready nodes, so it is a
+    /// function of the labelled graph.
     #[must_use]
     pub fn topo(&self) -> &[DenseNodeId] {
         &self.topo
@@ -427,32 +400,19 @@ pub fn dag_to_admg(dag: &Dag) -> Result<Admg, IdentificationError> {
     Admg::from_dag(dag).map_err(IdentificationError::from)
 }
 
-/// A variable names one node: a second node with the same `Static` label would be unreachable
-/// by variable id.
-fn reject_duplicate_static_labels(nodes: &[NodeRef]) -> Result<(), IdentificationError> {
-    let mut seen = std::collections::HashSet::with_capacity(nodes.len());
-    for node in nodes {
-        if let NodeRef::Static(variable) = node {
-            if !seen.insert(*variable) {
-                return Err(IdentificationError::construction(format!(
-                    "variable {variable} labels more than one node"
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn prepared_admg_rejects_duplicate_static_labels() {
+    fn a_graph_refuses_a_second_node_with_the_same_static_label() {
         let mut g = Admg::empty();
         g.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
-        g.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
-        assert!(matches!(PreparedAdmg::new(g), Err(IdentificationError::Construction { .. })));
+        assert!(g.add_node(NodeRef::Static(VariableId::from_raw(0))).is_err());
+        assert_eq!(g.node_count(), 1);
+        let mut dag = Dag::empty();
+        dag.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        assert!(dag.add_node(NodeRef::Static(VariableId::from_raw(0))).is_err());
     }
 
     #[test]

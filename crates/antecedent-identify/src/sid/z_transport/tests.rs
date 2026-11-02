@@ -1382,3 +1382,79 @@ fn family_validation_requires_each_joint_intervention_law() {
         Err(ZExperimentFamilyError::MissingJointLaw { .. })
     ));
 }
+
+fn recorded_terminal(active_interventions: Vec<(u32, Option<f64>)>) -> search::TrzTerminalFailure {
+    search::TrzTerminalFailure {
+        outcomes: vec![3],
+        treatments: vec![0],
+        vertices: vec![0, 3],
+        c0: Vec::new(),
+        remaining_controllable: vec![1],
+        candidate_active: Vec::new(),
+        active_interventions,
+        selection_separated: false,
+        rules: Vec::new(),
+        sources: Vec::new(),
+    }
+}
+
+#[test]
+fn a_terminal_settles_one_source_whatever_experiments_are_active_and_many_only_without_any() {
+    let idle = recorded_terminal(Vec::new());
+    let active = recorded_terminal(vec![(1, None)]);
+    assert!(!search::terminal_is_settled(1, None));
+    assert!(search::terminal_is_settled(1, Some(&idle)));
+    assert!(search::terminal_is_settled(1, Some(&active)));
+    assert!(!search::terminal_is_settled(2, None));
+    assert!(search::terminal_is_settled(2, Some(&idle)));
+    assert!(!search::terminal_is_settled(2, Some(&active)));
+    assert!(search::terminal_is_settled(0, Some(&idle)));
+    assert!(!search::terminal_is_settled(0, Some(&active)));
+}
+
+#[test]
+fn rule_four_visits_a_later_district_after_a_failure_that_settles_nothing() {
+    // District 0 fails with no terminal recorded (an unassigned level, or an unidentified
+    // C-factor); district 1 then reaches a forced terminal. The loop must reach district 1,
+    // so the recorded terminal decides ProvenNonTransportable rather than NotCertified.
+    let mut terminal: Option<search::TrzTerminalFailure> = None;
+    let mut factors = search::DistrictFactors::<u32>::with_capacity(2);
+    let mut visited = Vec::new();
+    let outcomes: [(Option<u32>, bool); 2] = [(None, false), (None, true)];
+    for (district, (child, forces_terminal)) in outcomes.into_iter().enumerate() {
+        visited.push(district);
+        if forces_terminal {
+            terminal = Some(recorded_terminal(Vec::new()));
+        }
+        let settled = search::terminal_is_settled(2, terminal.as_ref());
+        if factors.record(child, settled) {
+            break;
+        }
+    }
+    assert_eq!(visited, [0, 1]);
+    assert!(factors.finish().is_none());
+    assert!(terminal.is_some());
+}
+
+#[test]
+fn rule_four_stops_at_the_first_failure_that_settles_the_search() {
+    let mut factors = search::DistrictFactors::<u32>::with_capacity(3);
+    assert!(!factors.record(Some(10), false));
+    assert!(factors.record(None, true));
+    assert!(factors.finish().is_none());
+}
+
+#[test]
+fn rule_four_keeps_every_child_only_when_every_district_succeeds() {
+    let mut all = search::DistrictFactors::<u32>::with_capacity(3);
+    for child in [10, 20, 30] {
+        assert!(!all.record(Some(child), false));
+    }
+    assert_eq!(all.finish(), Some(vec![10, 20, 30]));
+
+    let mut one_failed = search::DistrictFactors::<u32>::with_capacity(3);
+    assert!(!one_failed.record(Some(10), false));
+    assert!(!one_failed.record(None, false));
+    assert!(!one_failed.record(Some(30), false));
+    assert!(one_failed.finish().is_none(), "a later success does not repair an earlier failure");
+}

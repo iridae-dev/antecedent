@@ -268,12 +268,6 @@ pub(super) fn derive_z_transport(
         steps_explored,
         depth_reached,
     };
-    if let Some(variable) = searched.unassigned {
-        return Ok(ZDerivation::Unassigned {
-            variable,
-            inspection: inspection(ZTransportNotCertifiedKind::ExperimentAssignmentRequired),
-        });
-    }
     if let Some((arena, root, trace)) = searched.identified {
         // The recursive formula is the search's own output: re-running the
         // search would recheck nothing. Replay verifies untrusted records.
@@ -292,6 +286,12 @@ pub(super) fn derive_z_transport(
         return Ok(ZDerivation::Line11 {
             terminal,
             inspection: inspection(ZTransportNotCertifiedKind::CheckedLine11Terminal),
+        });
+    }
+    if let Some(unassigned) = searched.unassigned {
+        return Ok(ZDerivation::Unassigned {
+            variable: unassigned.variable,
+            inspection: inspection(ZTransportNotCertifiedKind::ExperimentAssignmentRequired),
         });
     }
     let kind = if explored_rules.iter().any(|rule| rule == "ztr.line10.c_factor_not_identified") {

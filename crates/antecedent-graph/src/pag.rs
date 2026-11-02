@@ -7,6 +7,7 @@ use std::sync::{Arc, OnceLock};
 use antecedent_core::VariableId;
 
 use crate::admg::Admg;
+use crate::directed::StaticLabels;
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
 use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
@@ -50,6 +51,7 @@ pub(crate) struct DescendantMemo {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pag {
     nodes: Vec<NodeRef>,
+    static_labels: StaticLabels,
     adj: Vec<Vec<AdjEntry>>,
     members: ClassMembersCache,
 }
@@ -58,7 +60,12 @@ impl Pag {
     /// Empty PAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Vec::new(), adj: Vec::new(), members: ClassMembersCache::default() }
+        Self {
+            nodes: Vec::new(),
+            static_labels: StaticLabels::default(),
+            adj: Vec::new(),
+            members: ClassMembersCache::default(),
+        }
     }
 
     /// One [`NodeRef::Unfolded`] node per slot of `indexer`, in dense order.
@@ -158,7 +165,7 @@ impl Pag {
     ///
     /// # Errors
     ///
-    /// Non-static or capacity.
+    /// Non-static, a `Static` label an earlier node carries, or capacity.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -166,6 +173,7 @@ impl Pag {
             });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        self.static_labels.claim(node)?;
         self.nodes.push(node);
         self.adj.push(Vec::new());
         self.members.0.take();
@@ -682,6 +690,22 @@ impl Pag {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pag_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Pag::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
 
     #[test]
     fn dead_end_partial_paths_consume_the_derived_visit_budget() {

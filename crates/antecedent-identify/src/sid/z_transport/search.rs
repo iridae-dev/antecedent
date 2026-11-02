@@ -745,6 +745,44 @@ impl<'q> TrzCall<'q> {
     }
 }
 
+/// Whether a recorded line-11 terminal settles the search: with one source every recorded
+/// terminal is the first on a path with no alternative, and with several (or none) only a
+/// terminal reached with no active experiment is forced on every path.
+pub(super) fn terminal_is_settled(sources: usize, terminal: Option<&TrzTerminalFailure>) -> bool {
+    terminal.is_some_and(|recorded| sources == 1 || recorded.active_interventions.is_empty())
+}
+
+/// The districts' children of `TRz` rule 4. A district the search could not identify does not
+/// excuse the others: a later district may still reach a forced line-11 terminal, which proves
+/// the product non-transportable, so only a failure that settles the search ends the loop.
+pub(super) struct DistrictFactors<T> {
+    children: Vec<T>,
+    failed: bool,
+}
+
+impl<T> DistrictFactors<T> {
+    pub(super) fn with_capacity(districts: usize) -> Self {
+        Self { children: Vec::with_capacity(districts), failed: false }
+    }
+
+    /// Record one district's result; `settled` says whether the search is settled after it.
+    /// `true` when the loop must stop.
+    pub(super) fn record(&mut self, child: Option<T>, settled: bool) -> bool {
+        if let Some(child) = child {
+            self.children.push(child);
+            false
+        } else {
+            self.failed = true;
+            settled
+        }
+    }
+
+    /// Every district's child, or `None` when any district failed.
+    pub(super) fn finish(self) -> Option<Vec<T>> {
+        (!self.failed).then_some(self.children)
+    }
+}
+
 /// One source's line-11 premises at a multi-source terminal.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TrzSourceTerminal {
@@ -770,11 +808,19 @@ pub(crate) struct TrzTerminalFailure {
     pub(crate) sources: Vec<TrzSourceTerminal>,
 }
 
+/// A coordinate a source line-10 exchange must fix at a declared level that the source's
+/// experiment assignment does not name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct TrzUnassigned {
+    pub(crate) population: Arc<str>,
+    pub(crate) variable: VariableId,
+}
+
 #[derive(Debug)]
 pub(crate) struct TrzSearchResult {
     pub(crate) identified: Option<(CausalExprArena, ExprId, Vec<String>)>,
     pub(crate) terminal_failure: Option<TrzTerminalFailure>,
-    pub(crate) unassigned: Option<VariableId>,
+    pub(crate) unassigned: Option<TrzUnassigned>,
     /// Every recursive rule the search applied, in order, whatever the outcome.
     pub(crate) explored_rules: Vec<String>,
     /// Recursive subproblems the search charged.
@@ -932,7 +978,7 @@ fn search_trz_state(
     depth: usize,
     trace: &mut Vec<String>,
     terminal_failure: &mut Option<TrzTerminalFailure>,
-    unassigned: &mut Option<VariableId>,
+    unassigned: &mut Option<TrzUnassigned>,
 ) -> Result<Option<ExprId>, IdentificationError> {
     engine.charge(depth)?;
     let mut ws = antecedent_graph::GraphWorkspace::default();
@@ -1012,14 +1058,14 @@ fn search_trz_state(
     // `TRz` rule 4: factor over multiple districts in D \ X.
     if districts.len() > 1 {
         trace.push("ztr.line4.districts".into());
-        let mut expressions = Vec::with_capacity(districts.len());
+        let mut factors = DistrictFactors::with_capacity(districts.len());
         for district in districts {
             let next = super::super::State {
                 y: district.clone(),
                 x: super::super::difference(&state.v, &district),
                 ..state.clone()
             };
-            let Some(child) = search_trz_state(
+            let child = search_trz_state(
                 engine,
                 &next,
                 call,
@@ -1031,12 +1077,15 @@ fn search_trz_state(
                 trace,
                 terminal_failure,
                 unassigned,
-            )?
-            else {
-                return Ok(None);
-            };
-            expressions.push(child);
+            )?;
+            let settled = terminal_is_settled(call.domains.len(), terminal_failure.as_ref());
+            if factors.record(child, settled) {
+                break;
+            }
         }
+        let Some(expressions) = factors.finish() else {
+            return Ok(None);
+        };
         let product = engine.product(expressions);
         return Ok(Some(engine.marginal(
             product,
@@ -1229,7 +1278,7 @@ fn exchange_trz_source(
     depth: usize,
     trace: &mut Vec<String>,
     terminal_failure: &mut Option<TrzTerminalFailure>,
-    unassigned: &mut Option<VariableId>,
+    unassigned: &mut Option<TrzUnassigned>,
 ) -> Result<Option<ExprId>, IdentificationError> {
     let domain = &call.domains[index];
     let active_vars = engine.vars(activated)?;
@@ -1249,7 +1298,8 @@ fn exchange_trz_source(
                 .iter()
                 .find(|assignment| assignment.variable == variable)
             else {
-                *unassigned = Some(variable);
+                *unassigned =
+                    Some(TrzUnassigned { population: Arc::clone(domain.population), variable });
                 return Ok(None);
             };
             exchanged.push(antecedent_expr::InterventionAssignment::concrete(

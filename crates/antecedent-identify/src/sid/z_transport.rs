@@ -774,8 +774,8 @@ pub use search::bind_z_transport_catalog;
 use search::search_trz;
 
 pub(crate) use search::{
-    TrzCall, TrzDomain, TrzTerminalFailure, bind_recursive_expression, cited_regimes,
-    search_trz_call,
+    TrzCall, TrzDomain, TrzTerminalFailure, TrzUnassigned, bind_recursive_expression,
+    cited_regimes, search_trz_call,
 };
 
 use search::inspect_z_expression;

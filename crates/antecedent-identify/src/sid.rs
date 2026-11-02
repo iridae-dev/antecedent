@@ -975,6 +975,14 @@ pub(crate) trait SearchCharge {
     fn defer(&mut self, region: String);
 }
 
+/// The operation ceiling of one decision on a shared budget: the absolute operation count it
+/// may reach, where its deferred regions start, and whether it was crossed.
+struct DecisionCeiling {
+    limit: usize,
+    deferred_from: usize,
+    crossed: bool,
+}
+
 /// One [`SearchBudget`] charged by every search stage of a decision, with the
 /// bound that stopped it and the regions the stop left unevaluated.
 ///
@@ -1001,6 +1009,8 @@ pub(crate) struct SharedSearch<'c> {
     stages_retained: u64,
     /// Deepest level charged since [`Self::mark_decision`].
     decision_depth: usize,
+    /// The per-decision operation ceiling in force, if any (see [`Self::cap_decision`]).
+    ceiling: Option<DecisionCeiling>,
     /// Test hook: cancel the token once this many operations were charged,
     /// so a test observes cancellation in the middle of a decision.
     #[cfg(test)]
@@ -1019,8 +1029,31 @@ impl<'c> SharedSearch<'c> {
             stage_peak: 0,
             stages_retained: 0,
             decision_depth: 0,
+            ceiling: None,
             #[cfg(test)]
             cancel_after: None,
+        }
+    }
+    /// Let the next decision charge at most `operations` more operations: the charge that
+    /// would cross the ceiling is counted and refused as an operations stop that the shared
+    /// budget itself does not record, so [`Self::release_decision`] tells a decision that
+    /// exhausted its own cap from one that exhausted the budget.
+    pub(crate) fn cap_decision(&mut self, operations: usize) {
+        self.ceiling = Some(DecisionCeiling {
+            limit: self.budget.operations().saturating_add(operations),
+            deferred_from: self.unevaluated.len(),
+            crossed: false,
+        });
+    }
+    /// End the ceiling set by [`Self::cap_decision`]. Returns whether the decision crossed it,
+    /// in which case the regions the aborted decision deferred are dropped.
+    pub(crate) fn release_decision(&mut self) -> bool {
+        match self.ceiling.take() {
+            Some(ceiling) if ceiling.crossed => {
+                self.unevaluated.truncate(ceiling.deferred_from);
+                true
+            }
+            _ => false,
         }
     }
     /// Start a unit of work on top of `retained` live bytes of finished work.
@@ -1124,7 +1157,14 @@ impl SearchCharge for SharedSearch<'_> {
         self.decision_depth = self.decision_depth.max(depth);
         self.budget.charge(depth, bytes.saturating_add(self.base_bytes)).inspect_err(|stop| {
             self.stop.get_or_insert(*stop);
-        })
+        })?;
+        if let Some(ceiling) = &mut self.ceiling {
+            if self.budget.operations() > ceiling.limit {
+                ceiling.crossed = true;
+                return Err(SearchStop::Operations);
+            }
+        }
+        Ok(())
     }
     fn limits(&self) -> SearchLimits {
         self.budget.limits()

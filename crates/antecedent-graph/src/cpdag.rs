@@ -11,6 +11,7 @@ use std::sync::Arc;
 use antecedent_core::{Lag, TemporalNodeKey, VariableId};
 
 use crate::dag::Dag;
+use crate::directed::StaticLabels;
 use crate::error::GraphError;
 use crate::marked_storage::{self, AdjEntry};
 use crate::temporal::TemporalDag;
@@ -26,6 +27,7 @@ use crate::workspace::GraphWorkspace;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cpdag {
     nodes: Arc<Vec<NodeRef>>,
+    static_labels: StaticLabels,
     adj: Arc<Vec<Vec<AdjEntry>>>,
 }
 
@@ -35,7 +37,7 @@ impl Cpdag {
     /// Empty static CPDAG.
     #[must_use]
     pub fn empty() -> Self {
-        Self { nodes: Arc::default(), adj: Arc::default() }
+        Self { nodes: Arc::default(), static_labels: StaticLabels::default(), adj: Arc::default() }
     }
 
     /// One static node per variable `0..n`.
@@ -70,7 +72,7 @@ impl Cpdag {
     ///
     /// # Errors
     ///
-    /// Non-static refs or capacity overflow.
+    /// Non-static refs, a `Static` label an earlier node carries, or capacity overflow.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -78,6 +80,7 @@ impl Cpdag {
             });
         }
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        self.static_labels.claim(node)?;
         Arc::make_mut(&mut self.nodes).push(node);
         Arc::make_mut(&mut self.adj).push(Vec::new());
         Ok(DenseNodeId::from_raw(id))
@@ -638,6 +641,22 @@ impl TemporalCpdag {
 mod tests {
     use super::*;
     use crate::types::Endpoint;
+
+    #[test]
+    fn cpdag_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Cpdag::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
 
     #[test]
     fn static_undirected_then_orient() {

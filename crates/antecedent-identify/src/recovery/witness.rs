@@ -9,7 +9,7 @@ use super::{
     RecoveredEffectQuery, RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation,
     RecoveryDerivationRecord, RecoveryDetail, RecoveryError, RecoveryLimits, RecoveryWitness, Role,
     SearchLimits, SelectionDiagram, SharedSearch, VariableId, WITNESS_SCALE, WitnessCheck,
-    WitnessMechanism, budget_error, check_formula, decide_observation_recovery,
+    WitnessMechanism, WitnessResidency, budget_error, check_formula, decide_observation_recovery,
     identify_classical_transport_metered, ids, observed_distribution, refuse, resolve_roles, var,
 };
 
@@ -82,23 +82,32 @@ pub(super) fn self_censoring_witness(
         first.push(WitnessMechanism { node: v.raw(), parents: raw.clone(), numerators: a });
         second.push(WitnessMechanism { node: v.raw(), parents: raw, numerators: b });
     }
-    Ok(RecoveryWitness { edge: (x.raw(), r.raw()), first, second })
+    Ok(RecoveryWitness {
+        edge: (x.raw(), r.raw()),
+        first,
+        second,
+        residency: WitnessResidency::default(),
+    })
 }
 
-/// Verify a witness against an m-graph by exact enumeration: both models are
-/// positive and Markov to the graph, agree on every observed-law cell, and
-/// differ on the target `P(X, O)`. No theorem is trusted. A verified witness
-/// shows non-recoverability over every model Markov to the m-graph, not under
-/// faithful or generic parameters.
+/// Verify a witness against an m-graph: both models are positive and Markov to
+/// the graph, agree on every observed-law cell, and differ on the target
+/// `P(X, O)`. A witness of the self-censoring family (every node but the edge's
+/// endpoints a fair coin, the endpoints' mechanisms constant in the other
+/// variables) is proven in closed form; any other is enumerated exactly. A
+/// verified witness shows non-recoverability over every model Markov to the
+/// m-graph, not under faithful or generic parameters.
 ///
-/// Run under the default operation limit (one operation per enumerated
-/// configuration); a witness needing more is refused with a budget detail, never
-/// accepted or rejected as a theorem.
+/// Run under the default operation limit (one operation per mechanism in closed
+/// form, per enumerated configuration otherwise); a witness needing more is
+/// refused with a budget detail, never accepted or rejected as a theorem.
 ///
 /// # Errors
 ///
-/// [`RecoveryDetail::InvalidQuery`] for a malformed role declaration, or
-/// [`RecoveryDetail::InvalidDerivation`] when the witness does not verify.
+/// [`RecoveryDetail::InvalidQuery`] for a malformed role declaration,
+/// [`RecoveryDetail::InvalidDerivation`] when the witness does not verify, or
+/// [`RecoveryDetail::BoundsExceeded`] when a proven witness's exact masses do
+/// not fit 128-bit integers.
 pub fn verify_recovery_witness(
     graph: &Admg,
     query: &ObservationRecoveryQuery,
@@ -122,19 +131,262 @@ pub fn verify_recovery_witness(
     })
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "One linear pass per stage; splitting it would scatter the checks"
-)]
 pub(super) fn verify_witness_charged(
     m: &MGraph<'_>,
     witness: &RecoveryWitness,
     charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>,
 ) -> Result<WitnessCheck, RecoveryError> {
-    let bad = |why: &str| refuse(RecoveryDetail::InvalidDerivation, format!("witness: {why}"));
-    // Nodes with a mechanism: every non-proxy node, in variable order.
-    let nodes: Vec<VariableId> =
-        m.roles.iter().filter(|(_, r)| !matches!(r, Role::Proxy(_))).map(|(v, _)| *v).collect();
+    match prove_witness(m, witness, charge_step)? {
+        WitnessProof::ClosedForm(form) => form.check(m),
+        WitnessProof::Enumerated(check) => Ok(check),
+    }
+}
+
+/// How a witness was shown to hold.
+pub(super) enum WitnessProof {
+    /// The witness is of the self-censoring family and its conditions hold; the
+    /// proof costs the size of the mechanism tables, not `2^n` configurations.
+    ClosedForm(ClosedForm),
+    /// Every configuration was enumerated.
+    Enumerated(WitnessCheck),
+}
+
+/// Show that a witness holds: both models are positive and Markov to the graph,
+/// agree on the observed law and differ on the target. A witness of the
+/// self-censoring family is proven in closed form; any other is enumerated, and a
+/// witness of the family whose conditions fail is enumerated too, so a closed-form
+/// refusal is never a verdict.
+pub(super) fn prove_witness(
+    m: &MGraph<'_>,
+    witness: &RecoveryWitness,
+    charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>,
+) -> Result<WitnessProof, RecoveryError> {
+    let nodes = mechanism_nodes(m);
+    check_models(m, witness, &nodes)?;
+    if let Some(form) = ClosedForm::recognize(m, witness, charge_step)? {
+        return Ok(WitnessProof::ClosedForm(form));
+    }
+    enumerate_witness(m, witness, &nodes, charge_step).map(WitnessProof::Enumerated)
+}
+
+/// Nodes with a mechanism: every non-proxy node, in variable order.
+pub(super) fn mechanism_nodes(m: &MGraph<'_>) -> Vec<VariableId> {
+    m.roles.iter().filter(|(_, r)| !matches!(r, Role::Proxy(_))).map(|(v, _)| *v).collect()
+}
+
+fn invalid_witness(why: &str) -> RecoveryError {
+    refuse(RecoveryDetail::InvalidDerivation, format!("witness: {why}"))
+}
+
+/// Both models give one positive mechanism per non-proxy node, Markov to the m-graph.
+fn check_models(
+    m: &MGraph<'_>,
+    witness: &RecoveryWitness,
+    nodes: &[VariableId],
+) -> Result<(), RecoveryError> {
+    let check_model = |model: &[WitnessMechanism]| -> Result<(), RecoveryError> {
+        if model.len() != nodes.len() {
+            return Err(invalid_witness("a model must give one mechanism per non-proxy node"));
+        }
+        for mechanism in model {
+            let v = VariableId::from_raw(mechanism.node);
+            if nodes.binary_search(&v).is_err() {
+                return Err(invalid_witness("a mechanism names a proxy or an unknown node"));
+            }
+            let graph_parents = m
+                .graph
+                .parents(m.dense[&v])
+                .iter()
+                .map(|p| var(m.graph, *p).raw())
+                .collect::<Vec<_>>();
+            if mechanism.parents != graph_parents {
+                return Err(invalid_witness(
+                    "a mechanism's parents are not the node's graph parents (not Markov to the m-graph)",
+                ));
+            }
+            if crate::pow2::checked_pow2(graph_parents.len())
+                .is_none_or(|configs| mechanism.numerators.len() != configs)
+            {
+                return Err(invalid_witness(
+                    "a mechanism must give one probability per parent configuration",
+                ));
+            }
+            if mechanism.numerators.iter().any(|k| *k == 0 || *k >= WITNESS_SCALE) {
+                return Err(invalid_witness(
+                    "a mechanism probability is not strictly between 0 and 1 (positivity)",
+                ));
+            }
+        }
+        let distinct: BTreeSet<u32> = model.iter().map(|m| m.node).collect();
+        if distinct.len() != nodes.len() {
+            return Err(invalid_witness("a node has two mechanisms"));
+        }
+        Ok(())
+    };
+    check_model(&witness.first)?;
+    check_model(&witness.second)
+}
+
+/// The self-censoring family: in both models every node other than `x` and `r` is
+/// an independent fair coin, `x` has a constant mechanism and `r` depends on `x`
+/// alone. The joint law is then `2^-(n-2) P(x) P(r | x)`, the observed law is
+/// that of independent fair coins times the law of `(r, x if r = 1)`, and the
+/// target law differs exactly when `P(x)` does. So the models agree on the observed
+/// law when `P(r = 1, x)` is equal for both values of `x`, and differ on the
+/// target when `P(x = 1)` differs.
+pub(super) struct ClosedForm {
+    /// Partially observed variables (each with its response and proxy).
+    partials: usize,
+    /// Fully observed variables.
+    fulls: usize,
+    /// `60 P(x = 0)` in each model.
+    zero_numerators: (u32, u32),
+}
+
+/// Constant `60 P(x = 1)`, and `60 P(r = 1 | x = 1)`, `60 P(r = 1 | x = 0)`.
+type SelfCensoringShape = (u32, u32, u32);
+
+impl ClosedForm {
+    fn recognize(
+        m: &MGraph<'_>,
+        witness: &RecoveryWitness,
+        charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>,
+    ) -> Result<Option<Self>, RecoveryError> {
+        let x = VariableId::from_raw(witness.edge.0);
+        let r = VariableId::from_raw(witness.edge.1);
+        let (Some(Role::Partial(i)), Some(Role::Response(j))) = (m.roles.get(&x), m.roles.get(&r))
+        else {
+            return Ok(None);
+        };
+        if i != j {
+            return Ok(None);
+        }
+        let Some(first) = Self::shape(&witness.first, x, r, charge_step)? else {
+            return Ok(None);
+        };
+        let Some(second) = Self::shape(&witness.second, x, r, charge_step)? else {
+            return Ok(None);
+        };
+        let scale = WITNESS_SCALE;
+        let (x_a, r1_a, r0_a) = first;
+        let (x_b, r1_b, r0_b) = second;
+        let agrees = x_a * r1_a == x_b * r1_b && (scale - x_a) * r0_a == (scale - x_b) * r0_b;
+        if !agrees || x_a == x_b {
+            return Ok(None);
+        }
+        let count =
+            |wanted: fn(&Role) -> bool| m.roles.values().filter(|role| wanted(role)).count();
+        Ok(Some(Self {
+            partials: count(|role| matches!(role, Role::Partial(_))),
+            fulls: count(|role| matches!(role, Role::Full)),
+            zero_numerators: (scale - x_a, scale - x_b),
+        }))
+    }
+
+    /// The model's `(P(x), P(r | x = 1), P(r | x = 0))` when it is of the family.
+    fn shape(
+        model: &[WitnessMechanism],
+        x: VariableId,
+        r: VariableId,
+        charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>,
+    ) -> Result<Option<SelfCensoringShape>, RecoveryError> {
+        let half = WITNESS_SCALE / 2;
+        let (mut x_numerator, mut r_one, mut r_zero) = (None, None, None);
+        for mechanism in model {
+            charge_step(0)?;
+            let v = VariableId::from_raw(mechanism.node);
+            if v == x {
+                let first = mechanism.numerators[0];
+                if mechanism.numerators.iter().any(|k| *k != first) {
+                    return Ok(None);
+                }
+                x_numerator = Some(first);
+            } else if v == r {
+                let Some(at) = mechanism.parents.iter().position(|p| *p == x.raw()) else {
+                    return Ok(None);
+                };
+                let width = mechanism.parents.len();
+                for (config, k) in mechanism.numerators.iter().enumerate() {
+                    let slot = if (config >> (width - 1 - at)) & 1 == 1 {
+                        &mut r_one
+                    } else {
+                        &mut r_zero
+                    };
+                    if slot.is_some_and(|previous| previous != *k) {
+                        return Ok(None);
+                    }
+                    *slot = Some(*k);
+                }
+            } else if mechanism.numerators.iter().any(|k| *k != half) {
+                return Ok(None);
+            }
+        }
+        Ok(x_numerator.zip(r_one).zip(r_zero).map(|((x, one), zero)| (x, one, zero)))
+    }
+
+    /// The check enumeration would report: all `3^partials 2^fulls` observed cells
+    /// are reached, every target cell differs, and the first (all levels zero) has
+    /// masses `60 P(x = 0)` times `30^(s-1) 60^(n-s)` over `60^n`, which reduces to
+    /// `60 P(x = 0)` over `60 2^(s-1)` before the common factor is removed.
+    pub(super) fn check(&self, m: &MGraph<'_>) -> Result<WitnessCheck, RecoveryError> {
+        let too_large = || {
+            refuse(
+                RecoveryDetail::BoundsExceeded,
+                "the exact witness masses exceed 128-bit integers",
+            )
+        };
+        let substantive: Vec<VariableId> = m
+            .roles
+            .iter()
+            .filter(|(_, r)| matches!(r, Role::Partial(_) | Role::Full))
+            .map(|(v, _)| *v)
+            .collect();
+        let observed_cells = u32::try_from(self.partials)
+            .ok()
+            .and_then(|k| 3usize.checked_pow(k))
+            .zip(u32::try_from(self.fulls).ok().and_then(|f| 1usize.checked_shl(f)))
+            .and_then(|(partial, full)| partial.checked_mul(full))
+            .ok_or_else(too_large)?;
+        let denominator = u32::try_from(substantive.len().saturating_sub(1))
+            .ok()
+            .and_then(|shift| 1u128.checked_shl(shift))
+            .and_then(|power| power.checked_mul(u128::from(WITNESS_SCALE)))
+            .ok_or_else(too_large)?;
+        let masses = (u128::from(self.zero_numerators.0), u128::from(self.zero_numerators.1));
+        Ok(lowest_terms(WitnessCheck {
+            observed_cells,
+            differing_cell: substantive.into_iter().map(|v| (v, 0)).collect(),
+            masses,
+            denominator,
+        }))
+    }
+}
+
+fn gcd(mut a: u128, mut b: u128) -> u128 {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
+}
+
+/// Divide both masses and the denominator by their greatest common divisor.
+fn lowest_terms(mut check: WitnessCheck) -> WitnessCheck {
+    let divisor = gcd(gcd(check.masses.0, check.masses.1), check.denominator).max(1);
+    check.masses = (check.masses.0 / divisor, check.masses.1 / divisor);
+    check.denominator /= divisor;
+    check
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "One linear pass per stage; splitting it would scatter the checks"
+)]
+pub(super) fn enumerate_witness(
+    m: &MGraph<'_>,
+    witness: &RecoveryWitness,
+    nodes: &[VariableId],
+    charge_step: &mut dyn FnMut(u64) -> Result<(), RecoveryError>,
+) -> Result<WitnessCheck, RecoveryError> {
     let index: BTreeMap<VariableId, usize> =
         nodes.iter().enumerate().map(|(i, v)| (*v, i)).collect();
     let n = nodes.len();
@@ -146,45 +398,6 @@ pub(super) fn verify_witness_charged(
             "the witness enumeration is not addressable within a 64-bit configuration index",
         ));
     }
-    let check_model = |model: &[WitnessMechanism]| -> Result<(), RecoveryError> {
-        if model.len() != n {
-            return Err(bad("a model must give one mechanism per non-proxy node"));
-        }
-        for mechanism in model {
-            let v = VariableId::from_raw(mechanism.node);
-            if !index.contains_key(&v) {
-                return Err(bad("a mechanism names a proxy or an unknown node"));
-            }
-            let graph_parents = m
-                .graph
-                .parents(m.dense[&v])
-                .iter()
-                .map(|p| var(m.graph, *p).raw())
-                .collect::<Vec<_>>();
-            if mechanism.parents != graph_parents {
-                return Err(bad(
-                    "a mechanism's parents are not the node's graph parents (not Markov to the m-graph)",
-                ));
-            }
-            if crate::pow2::checked_pow2(graph_parents.len())
-                .is_none_or(|configs| mechanism.numerators.len() != configs)
-            {
-                return Err(bad("a mechanism must give one probability per parent configuration"));
-            }
-            if mechanism.numerators.iter().any(|k| *k == 0 || *k >= WITNESS_SCALE) {
-                return Err(bad(
-                    "a mechanism probability is not strictly between 0 and 1 (positivity)",
-                ));
-            }
-        }
-        let distinct: BTreeSet<u32> = model.iter().map(|m| m.node).collect();
-        if distinct.len() != n {
-            return Err(bad("a node has two mechanisms"));
-        }
-        Ok(())
-    };
-    check_model(&witness.first)?;
-    check_model(&witness.second)?;
     let substantive: Vec<VariableId> = m
         .roles
         .iter()
@@ -206,7 +419,7 @@ pub(super) fn verify_witness_charged(
             )?;
             let value = |v: VariableId| u8::from((config >> index[&v]) & 1 == 1);
             let mut mass: u128 = 1;
-            for v in &nodes {
+            for v in nodes {
                 let mechanism = by_node[&v.raw()];
                 let parent_config = mechanism.parents.iter().fold(0usize, |acc, p| {
                     (acc << 1) | usize::from(value(VariableId::from_raw(*p)))
@@ -234,20 +447,20 @@ pub(super) fn verify_witness_charged(
     let (observed_a, target_a) = enumerate(&witness.first, charge_step)?;
     let (observed_b, target_b) = enumerate(&witness.second, charge_step)?;
     if observed_a != observed_b {
-        return Err(bad("the two models disagree on the observed law"));
+        return Err(invalid_witness("the two models disagree on the observed law"));
     }
     let Some((cell, mass_a)) =
         target_a.iter().find(|(cell, mass)| target_b.get(*cell) != Some(mass))
     else {
-        return Err(bad("the two models agree on the target"));
+        return Err(invalid_witness("the two models agree on the target"));
     };
     let denominator = u128::from(WITNESS_SCALE).pow(u32::try_from(n).unwrap_or(u32::MAX));
-    Ok(WitnessCheck {
+    Ok(lowest_terms(WitnessCheck {
         observed_cells: observed_a.len(),
         differing_cell: substantive.iter().copied().zip(cell.iter().copied()).collect(),
         masses: (*mass_a, target_b.get(cell).copied().unwrap_or(0)),
         denominator,
-    })
+    }))
 }
 
 /// Exact integer masses per cell (observed or target levels).

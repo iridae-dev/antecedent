@@ -9,13 +9,56 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
-use crate::algo::{bfs_reaches, insert_sorted, kahn_order};
+use antecedent_core::VariableId;
+
+use crate::algo::{bfs_reaches, insert_sorted, kahn_order, kahn_order_polled};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
+
+/// The variables that label a `Static` node of a graph. A variable names at most one such node,
+/// because a lookup of a node by its variable would otherwise alias two of them.
+///
+/// Every graph that stores `Static` labels claims them here when it adds a node, so the refusal
+/// is one rule. The set is derived from the node table, so it never takes part in equality.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct StaticLabels(Option<Arc<BTreeSet<VariableId>>>);
+
+impl StaticLabels {
+    /// No labels claimed; usable in `const` constructors.
+    pub(crate) const fn new() -> Self {
+        Self(None)
+    }
+
+    /// Record `node`'s variable when it is a `Static` label; other kinds carry no variable label.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::InvalidEndpoints`] when an earlier node already carries the label.
+    pub(crate) fn claim(&mut self, node: NodeRef) -> Result<(), GraphError> {
+        let NodeRef::Static(variable) = node else {
+            return Ok(());
+        };
+        if self.0.as_ref().is_some_and(|claimed| claimed.contains(&variable)) {
+            return Err(GraphError::InvalidEndpoints {
+                message: "a variable labels at most one static node",
+            });
+        }
+        Arc::make_mut(self.0.get_or_insert_with(Default::default)).insert(variable);
+        Ok(())
+    }
+}
+
+impl PartialEq for StaticLabels {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for StaticLabels {}
 
 /// Node labels plus outgoing and incoming directed adjacency.
 ///
@@ -24,6 +67,9 @@ use crate::workspace::GraphWorkspace;
 #[derive(Clone)]
 pub(crate) struct DirectedCore {
     nodes: Arc<Vec<NodeRef>>,
+    /// Variables labelling a `Static` node: a variable names at most one node, so a lookup by
+    /// variable never aliases two nodes.
+    static_labels: StaticLabels,
     children: Arc<Vec<Vec<DenseNodeId>>>,
     parents: Arc<Vec<Vec<DenseNodeId>>>,
     /// Every directed edge, keyed `(parent, child)`: the duplicate check is one lookup rather
@@ -56,6 +102,7 @@ impl DirectedCore {
     pub(crate) fn new() -> Self {
         Self {
             nodes: Arc::new(Vec::new()),
+            static_labels: StaticLabels::new(),
             children: Arc::new(Vec::new()),
             parents: Arc::new(Vec::new()),
             edge_index: Arc::new(HashSet::new()),
@@ -88,11 +135,12 @@ impl DirectedCore {
     ///
     /// # Errors
     ///
-    /// [`GraphError::TooManyNodes`] when the dense id would not fit in `u32`.
+    /// [`GraphError::TooManyNodes`] when the dense id would not fit in `u32`, and
+    /// [`GraphError::InvalidEndpoints`] when `node` is a `Static` label an earlier node carries.
     pub(crate) fn push_labeled(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
-        let nodes = Arc::make_mut(&mut self.nodes);
-        let id = u32::try_from(nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
-        nodes.push(node);
+        let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        self.static_labels.claim(node)?;
+        Arc::make_mut(&mut self.nodes).push(node);
         self.push_node();
         Ok(DenseNodeId::from_raw(id))
     }
@@ -160,9 +208,17 @@ impl DirectedCore {
         bfs_reaches(&self.children, from, to, ws)
     }
 
-    /// Kahn order, or `None` when the directed edges contain a cycle.
+    /// Kahn order by smallest label, or `None` when the directed edges contain a cycle.
     pub(crate) fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
-        kahn_order(&self.parents, &self.children)
+        kahn_order(&self.parents, &self.children, &self.nodes)
+    }
+
+    /// [`Self::topological_order`] polling `poll` at every node and edge it visits.
+    pub(crate) fn topological_order_polled<E>(
+        &self,
+        poll: impl FnMut() -> Result<(), E>,
+    ) -> Result<Option<Vec<DenseNodeId>>, E> {
+        kahn_order_polled(&self.parents, &self.children, &self.nodes, poll)
     }
 
     /// Duplicate, then a cycle through `to` back to `from`, then the edge.
@@ -309,6 +365,7 @@ impl DirectedCore {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct DirectedStore {
     nodes: Vec<NodeRef>,
+    static_labels: StaticLabels,
     children: Vec<Vec<DenseNodeId>>,
     parents: Vec<Vec<DenseNodeId>>,
 }
@@ -316,7 +373,12 @@ pub(crate) struct DirectedStore {
 impl DirectedStore {
     /// Empty node table and adjacency.
     pub(crate) const fn empty() -> Self {
-        Self { nodes: Vec::new(), children: Vec::new(), parents: Vec::new() }
+        Self {
+            nodes: Vec::new(),
+            static_labels: StaticLabels::new(),
+            children: Vec::new(),
+            parents: Vec::new(),
+        }
     }
 
     /// Node labels in dense order.
@@ -367,9 +429,11 @@ impl DirectedStore {
     ///
     /// # Errors
     ///
-    /// [`GraphError::TooManyNodes`] when the dense id would not fit in `u32`.
+    /// [`GraphError::TooManyNodes`] when the dense id would not fit in `u32`, and
+    /// [`GraphError::InvalidEndpoints`] when `node` is a `Static` label an earlier node carries.
     pub(crate) fn push_labeled(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         let id = u32::try_from(self.nodes.len()).map_err(|_| GraphError::TooManyNodes)?;
+        self.static_labels.claim(node)?;
         self.nodes.push(node);
         self.children.push(Vec::new());
         self.parents.push(Vec::new());

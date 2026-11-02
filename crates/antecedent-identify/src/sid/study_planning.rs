@@ -72,8 +72,9 @@ use super::{
     bind_z_transport_catalog, identify_catalog_transport_metered,
 };
 
-/// Candidate studies in one universe under the earlier fixed ceiling. Not enforced: the
-/// universe is bounded by the plan's search budget.
+/// Candidate studies a plan accepts whatever its operation budget (the floor of
+/// [`StudyPlanLimits::max_candidates`]); a larger budget admits as many candidates as it has
+/// operations.
 pub const STUDY_PLAN_MAX_CANDIDATES: usize = 16;
 /// Regimes one candidate study could propose under the earlier fixed ceiling. Not enforced.
 pub const STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE: usize = 8;
@@ -283,15 +284,16 @@ impl StudyPlanLimits {
     /// Check a request against the declared bounds before any work: these
     /// limits against the route's maxima (at most
     /// [`STUDY_PLAN_DEFAULT_LIMITS`] operations, the route's depth and
-    /// [`STUDY_PLAN_MEMORY_BYTES`]). The number of candidates and of regimes per
-    /// candidate is not bounded here: the plan charges them to its budget.
+    /// [`STUDY_PLAN_MEMORY_BYTES`]), and the number of candidates against
+    /// [`Self::max_candidates`], the universe the operation budget can enter. The regimes per
+    /// candidate are not bounded here: the plan charges their preview bytes to its budget.
     ///
     /// # Errors
     /// `study_plan.bounds_exceeded` naming the first bound exceeded.
     pub fn check_bounds(
         &self,
         route: &StudyPlanRoute,
-        _regimes_per_candidate: &[usize],
+        regimes_per_candidate: &[usize],
     ) -> Result<(), StudyPlanRefusal> {
         if self.search.operations > STUDY_PLAN_DEFAULT_LIMITS.operations
             || self.search.depth > route.max_depth()
@@ -304,7 +306,29 @@ impl StudyPlanLimits {
                 route.max_depth()
             )));
         }
+        if regimes_per_candidate.len() > self.max_candidates() {
+            return Err(StudyPlanRefusal::bounds_exceeded(format!(
+                "a plan under {} operations admits at most {} candidates, got {}: every subset \
+                 entered charges an operation, and validation and enumeration run before the \
+                 budget is entered",
+                self.search.operations,
+                self.max_candidates(),
+                regimes_per_candidate.len()
+            )));
+        }
         Ok(())
+    }
+
+    /// The most candidates a plan under these limits accepts: as many as its operations (each
+    /// singleton subset charges one), and never fewer than [`STUDY_PLAN_MAX_CANDIDATES`], so a
+    /// small budget still names the subsets it could not afford in its receipt.
+    #[must_use]
+    pub const fn max_candidates(&self) -> usize {
+        if self.search.operations > STUDY_PLAN_MAX_CANDIDATES {
+            self.search.operations
+        } else {
+            STUDY_PLAN_MAX_CANDIDATES
+        }
     }
 }
 
@@ -340,10 +364,10 @@ pub enum StudySubsetOutcome {
         /// The route's refusal.
         message: String,
     },
-    /// The decision spent more than the route's public per-decision cap:
-    /// inconclusive, never sufficient.
+    /// The decision spent more than the route's public per-decision cap and was cut off
+    /// at the charge that crossed it: inconclusive, never sufficient.
     OverDecisionCap {
-        /// Operations the decision charged.
+        /// Operations the decision charged, the crossing charge included.
         operations: usize,
     },
     /// A superset of a sufficient subset; not evaluated (ranking only).
@@ -942,8 +966,11 @@ fn plan_with_caps(
             continue;
         }
         let decision_cap = (caps.decision_cap)(&label, route.decision_operations());
-        let before = search.operations();
-        let outcome = match decide_preview(graph, &route, &preview, &mut search, ctx, before) {
+        let outcome = match decide_preview(graph, &route, &preview, &mut search, ctx, decision_cap)
+        {
+            Ok(Preview::OverCap { operations }) => {
+                StudySubsetOutcome::OverDecisionCap { operations }
+            }
             Ok(Preview::Identified(found)) => {
                 let operations = found.operations;
                 let proposed = delta.proposed_regimes.iter().map(|r| r.id).collect::<BTreeSet<_>>();
@@ -967,12 +994,8 @@ fn plan_with_caps(
                     },
                 }
             }
-            Ok(Preview::NotIdentified { code, detail, operations }) => {
-                if operations > decision_cap {
-                    StudySubsetOutcome::OverDecisionCap { operations }
-                } else {
-                    StudySubsetOutcome::Insufficient { code, detail }
-                }
+            Ok(Preview::NotIdentified { code, detail, .. }) => {
+                StudySubsetOutcome::Insufficient { code, detail }
             }
             Ok(Preview::Exhausted(inner)) => {
                 stop = Some(StudyPlanStop::Budget(search.receipt(
@@ -1228,24 +1251,40 @@ struct Found {
 
 enum Preview {
     Identified(Box<Found>),
-    NotIdentified { code: &'static str, detail: &'static str, operations: usize },
+    NotIdentified {
+        code: &'static str,
+        detail: &'static str,
+    },
+    /// The decision was cut off at its per-decision cap after charging `operations`.
+    OverCap {
+        operations: usize,
+    },
     Exhausted(SearchReceipt),
 }
 
 /// Re-run the route's decision on a preview catalog and re-check a derivation
-/// against it.
+/// against it. The decision itself charges at most `decision_cap` operations: the charge that
+/// crosses the cap ends it as [`Preview::OverCap`], so one subset cannot spend the plan's
+/// budget on a decision that could never be sufficient. A derivation is re-checked only for a
+/// decision that finished within its cap, so the unmetered re-check is bounded by the cap.
 fn decide_preview(
     graph: &Admg,
     route: &StudyPlanRoute,
     preview: &EvidenceCatalog,
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
-    before: usize,
+    decision_cap: usize,
 ) -> Result<Preview, IdentificationError> {
+    let before = search.operations();
+    search.cap_decision(decision_cap);
     match route {
         StudyPlanRoute::Mz(query) => {
-            let decision = decide_mz_transport_shared(graph, query, preview, search, ctx)?;
+            let decision = decide_mz_transport_shared(graph, query, preview, search, ctx);
             let operations = search.operations() - before;
+            if search.release_decision() {
+                return Ok(Preview::OverCap { operations });
+            }
+            let decision = decision?;
             match decision {
                 MzTransportDecision::Identified { derivation, cited } => {
                     let bound = bind_mz_transport_catalog(graph, &derivation, preview)?;
@@ -1271,13 +1310,16 @@ fn decide_preview(
                 other => Ok(Preview::NotIdentified {
                     code: other.reason_code().unwrap_or_default(),
                     detail: other.detail_code().unwrap_or_default(),
-                    operations,
                 }),
             }
         }
         StudyPlanRoute::Mixed(query) => {
-            let decision = decide_mixed_source_shared(graph, query, preview, search, ctx)?;
+            let decision = decide_mixed_source_shared(graph, query, preview, search, ctx);
             let operations = search.operations() - before;
+            if search.release_decision() {
+                return Ok(Preview::OverCap { operations });
+            }
+            let decision = decision?;
             match decision {
                 MixedSourceDecision::Identified { derivation, cited, .. } => {
                     // Binding replays every step through the independent checker.
@@ -1311,7 +1353,6 @@ fn decide_preview(
                         None => Ok(Preview::NotIdentified {
                             code: reason_code!("transport_not_certified"),
                             detail: "mixed_search.invalid_derivation",
-                            operations,
                         }),
                     }
                 }
@@ -1319,7 +1360,6 @@ fn decide_preview(
                 other => Ok(Preview::NotIdentified {
                     code: other.reason_code().unwrap_or_default(),
                     detail: other.detail_code().unwrap_or_default(),
-                    operations,
                 }),
             }
         }
@@ -2013,6 +2053,47 @@ mod tests {
         assert_eq!(record.cost_units, top.cost_units);
         assert!(matches!(record.outcome, StudySubsetOutcome::OverDecisionCap { .. }));
         assert!(tie.minimal);
+    }
+
+    #[test]
+    fn a_decision_is_cut_off_at_its_cap_instead_of_running_on_the_plan_budget() {
+        let public = fig1_plan(PUBLIC);
+        let capped = fig1_plan(PlanCaps { decision_cap: |_, _| 1, ..PUBLIC });
+        assert!(capped.proposals.is_empty());
+        assert!(capped.stop.is_none(), "an over-cap decision is not a plan budget stop");
+        let cut = capped
+            .subsets
+            .iter()
+            .filter_map(|s| match s.outcome {
+                StudySubsetOutcome::OverDecisionCap { operations } => Some(operations),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(!cut.is_empty());
+        assert!(cut.iter().all(|&operations| operations == 2), "{cut:?}");
+        assert!(
+            capped.operations_consumed < public.operations_consumed,
+            "{} < {}",
+            capped.operations_consumed,
+            public.operations_consumed
+        );
+    }
+
+    #[test]
+    fn the_candidate_universe_is_bounded_by_the_operation_budget() {
+        let route = fig1::route();
+        let limits = |operations| StudyPlanLimits {
+            search: SearchLimits { operations, depth: 24 },
+            ..StudyPlanLimits::default()
+        };
+        let counts = |n: usize| vec![1; n];
+        assert!(limits(1).check_bounds(&route, &counts(STUDY_PLAN_MAX_CANDIDATES)).is_ok());
+        assert!(limits(1).check_bounds(&route, &counts(STUDY_PLAN_MAX_CANDIDATES + 1)).is_err());
+        assert!(limits(100).check_bounds(&route, &counts(100)).is_ok());
+        let refused = limits(100).check_bounds(&route, &counts(101)).unwrap_err();
+        assert_eq!(refused.detail, BOUNDS_EXCEEDED);
+        assert_eq!(limits(100).max_candidates(), 100);
+        assert_eq!(limits(1).max_candidates(), STUDY_PLAN_MAX_CANDIDATES);
     }
 
     #[test]

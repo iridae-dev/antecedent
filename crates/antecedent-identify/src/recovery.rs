@@ -71,12 +71,15 @@
 //! variables, factorization and support are matched.
 //!
 //! Every stage of a decision (class check, formula lowering and its independent
-//! check, witness enumeration, downstream identification) charges one
+//! check, witness verification, downstream identification) charges one
 //! [`SearchBudget`]; a stop is a receipt naming the stages completed
 //! (`explored`) and the stage it stopped in followed by the ones left
-//! (`unevaluated`), never a verdict. The standalone [`verify_recovery_witness`]
-//! runs the same enumeration under the default operation limit and refuses with
-//! a budget detail, never a verdict, when the witness needs more configurations.
+//! (`unevaluated`), never a verdict. The constructed self-censoring witness is
+//! verified in closed form (its cost is the size of its mechanism tables, not
+//! `2^n` configurations), so a large graph is still decided; a witness outside
+//! that family is enumerated, and the standalone [`verify_recovery_witness`]
+//! refuses with a budget detail, never a verdict, when the enumeration exceeds
+//! the default operation limit.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -648,9 +651,32 @@ pub struct RecoveryWitness {
     pub first: Vec<WitnessMechanism>,
     /// Mechanisms of the second model.
     pub second: Vec<WitnessMechanism>,
+    /// Admission of the tables for as long as the witness lives; clones share it.
+    #[serde(skip)]
+    residency: WitnessResidency,
 }
 
-/// What a verified witness shows, in exact integer masses over `60^n`.
+/// The admission lease covering a constructed witness's tables. It is not part of
+/// the witness's value: it neither compares nor serializes.
+#[derive(Clone, Default)]
+struct WitnessResidency(Option<Arc<antecedent_core::execution::AdmissionLease>>);
+
+impl fmt::Debug for WitnessResidency {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("WitnessResidency").field(&self.0.is_some()).finish()
+    }
+}
+
+impl PartialEq for WitnessResidency {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for WitnessResidency {}
+
+/// What a verified witness shows, in exact integer masses in lowest terms over
+/// the `60^n` scale of the witness probabilities.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WitnessCheck {
     /// Number of observed-law cells compared (all equal).
@@ -659,7 +685,8 @@ pub struct WitnessCheck {
     pub differing_cell: Vec<(VariableId, u8)>,
     /// The two target masses at that cell, over [`Self::denominator`].
     pub masses: (u128, u128),
-    /// Common denominator `60^n`.
+    /// Common denominator: `60^n` divided by the greatest common divisor of it and
+    /// both masses.
     pub denominator: u128,
 }
 
@@ -1047,8 +1074,7 @@ pub fn decide_observation_recovery(
     charge(&mut search, at, 1, base)?;
     if let Some(&(x, r)) = violations.first() {
         let witness_at = at.with(Stage::Witness);
-        let (witness, _lease) =
-            construct_self_censoring_witness(&m, x, r, &mut search, witness_at, base)?;
+        let witness = construct_self_censoring_witness(&m, x, r, &mut search, witness_at, base)?;
         return nonrecoverable(&m, witness, &mut search, witness_at, base);
     }
     let formula = at.with(Stage::Formula);
@@ -1086,7 +1112,8 @@ pub fn decide_observation_recovery(
     })))
 }
 
-/// Fund the witness's actual table construction before allocating any exponential table.
+/// Fund the witness's actual table construction before allocating any exponential
+/// table; the lease stays with the returned witness.
 fn construct_self_censoring_witness(
     m: &MGraph<'_>,
     x: VariableId,
@@ -1094,14 +1121,16 @@ fn construct_self_censoring_witness(
     search: &mut SharedSearch<'_>,
     at: At,
     base: u64,
-) -> Result<(RecoveryWitness, Option<antecedent_core::execution::AdmissionLease>), RecoveryError> {
+) -> Result<RecoveryWitness, RecoveryError> {
     let bytes = witness::self_censoring_witness_bytes(m)
         .ok_or_else(|| budget_error(search, at, SearchStop::Memory))?;
     let total =
         base.checked_add(bytes).ok_or_else(|| budget_error(search, at, SearchStop::Memory))?;
     let lease =
         search.charge_leasing(2, total, bytes).map_err(|stop| budget_error(search, at, stop))?;
-    Ok((self_censoring_witness(m, x, r)?, lease))
+    let mut witness = self_censoring_witness(m, x, r)?;
+    witness.residency = WitnessResidency(lease.map(Arc::new));
+    Ok(witness)
 }
 
 /// A violation is a nonrecoverability claim only with a verified witness;
@@ -1113,9 +1142,8 @@ fn nonrecoverable(
     at: At,
     base: u64,
 ) -> Result<RecoveryDecision, RecoveryError> {
-    match verify_witness_charged(m, &witness, &mut |bytes| {
-        charge(search, at, 3, base.saturating_add(bytes))
-    }) {
+    match prove_witness(m, &witness, &mut |bytes| charge(search, at, 3, base.saturating_add(bytes)))
+    {
         Ok(_) => Ok(RecoveryDecision::NonRecoverable(Box::new(witness))),
         Err(error) if error.detail == RecoveryDetail::Budget => Err(error),
         Err(error) => Err(refuse(
@@ -1432,7 +1460,7 @@ fn check_formula(
 
 mod witness;
 pub use witness::{StoredRecovery, verify_observation_recovery, verify_recovery_witness};
-use witness::{identify_effect, self_censoring_witness, verify_witness_charged};
+use witness::{identify_effect, prove_witness, self_censoring_witness};
 
 #[cfg(test)]
 mod tests {
@@ -1732,7 +1760,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(1);
         let mut search =
             SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
-        let (witness, _lease) =
+        let witness =
             construct_self_censoring_witness(&m, v(0), v(1), &mut search, WITNESS_AT, 0).unwrap();
         assert!(matches!(
             nonrecoverable(&m, witness, &mut search, WITNESS_AT, 0),
@@ -1765,6 +1793,81 @@ mod tests {
         let error = nonrecoverable(&m, broken, &mut search, WITNESS_AT, 0).unwrap_err();
         assert_eq!(error.detail, RecoveryDetail::WitnessUnavailable);
         assert_eq!(error.reason_code(), "transport_not_certified");
+    }
+
+    fn many_node_graph(extra: u32) -> (Admg, ObservationRecoveryQuery) {
+        let (mut graph, mut query, _) = k1();
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let mut observed = vec![v(3)];
+        for id in 4..4 + extra {
+            graph.add_node(NodeRef::Static(v(id))).unwrap();
+            observed.push(v(id));
+        }
+        query.fully_observed = observed.into();
+        (graph, query)
+    }
+
+    #[test]
+    fn a_witness_over_many_nodes_is_proven_in_closed_form_not_refused_for_budget() {
+        // 23 mechanisms: enumerating 2^23 configurations per model is far beyond the
+        // default 50000 operations; the closed form costs the table sizes.
+        let (graph, query) = many_node_graph(20);
+        let canonical = query.canonical();
+        let m = resolve_roles(&graph, &canonical).unwrap();
+        let ctx = ExecutionContext::for_tests(1);
+        let mut search =
+            SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
+        let witness =
+            construct_self_censoring_witness(&m, v(0), v(1), &mut search, WITNESS_AT, 0).unwrap();
+        assert!(matches!(
+            nonrecoverable(&m, witness.clone(), &mut search, WITNESS_AT, 0),
+            Ok(RecoveryDecision::NonRecoverable(_))
+        ));
+        assert!(search.operations() < 1_000, "{}", search.operations());
+        // 22 substantive variables (X and 21 fully observed), 21 of them fully observed.
+        let check = verify_recovery_witness(&graph, &query, &witness).unwrap();
+        assert_eq!(check.masses, (5, 6));
+        assert_eq!(check.denominator, 5u128 << 22);
+        assert_eq!(check.observed_cells, 3 << 21);
+        assert!(check.differing_cell.iter().all(|(_, level)| *level == 0));
+    }
+
+    #[test]
+    fn the_closed_form_check_equals_the_enumerated_check() {
+        for extra in [0, 3] {
+            let (graph, query) = many_node_graph(extra);
+            let canonical = query.canonical();
+            let m = resolve_roles(&graph, &canonical).unwrap();
+            let witness = self_censoring_witness(&m, v(0), v(1)).unwrap();
+            let nodes = super::witness::mechanism_nodes(&m);
+            let enumerated =
+                super::witness::enumerate_witness(&m, &witness, &nodes, &mut |_| Ok(())).unwrap();
+            let proof = super::witness::prove_witness(&m, &witness, &mut |_| Ok(())).unwrap();
+            let super::witness::WitnessProof::ClosedForm(form) = proof else {
+                panic!("the constructed witness is of the self-censoring family");
+            };
+            assert_eq!(form.check(&m).unwrap(), enumerated);
+        }
+    }
+
+    #[test]
+    fn a_constructed_witness_keeps_its_admission_for_as_long_as_it_lives() {
+        let (mut graph, query, _) = k1();
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let canonical = query.canonical();
+        let m = resolve_roles(&graph, &canonical).unwrap();
+        let ctx = ExecutionContext::for_tests(1).with_memory_limit(Some(1 << 20));
+        let mut search =
+            SharedSearch::new(SearchBudget::new(RECOVERY_DEFAULT_LIMITS.search, &ctx).unwrap());
+        let witness =
+            construct_self_censoring_witness(&m, v(0), v(1), &mut search, WITNESS_AT, 0).unwrap();
+        let held = ctx.admission().available().bytes();
+        assert!(held < 1 << 20, "the witness tables are admitted");
+        let clone = witness.clone();
+        drop(witness);
+        assert_eq!(ctx.admission().available().bytes(), held, "a clone shares the admission");
+        drop(clone);
+        assert_eq!(ctx.admission().available().bytes(), 1 << 20);
     }
 
     #[test]

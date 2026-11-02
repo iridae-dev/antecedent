@@ -172,7 +172,8 @@ impl Dag {
     ///
     /// # Errors
     ///
-    /// [`GraphError::TooManyNodes`] on overflow.
+    /// [`GraphError::TooManyNodes`] on overflow, or [`GraphError::InvalidEndpoints`] for a
+    /// non-static node or a `Static` label an earlier node carries.
     pub fn add_node(&mut self, node: NodeRef) -> Result<DenseNodeId, GraphError> {
         if !node.is_static_graph_node() {
             return Err(GraphError::InvalidEndpoints {
@@ -262,7 +263,8 @@ impl Dag {
         self.directed.reaches_with(from, to, ws)
     }
 
-    /// Topological order (Kahn). Returns `None` if a cycle slipped in.
+    /// Topological order (Kahn, smallest label first among the ready nodes). Returns `None` if
+    /// a cycle slipped in.
     #[must_use]
     pub fn topological_order(&self) -> Option<Vec<DenseNodeId>> {
         self.directed.topological_order()
@@ -465,6 +467,22 @@ impl Dag {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dag_refuses_a_second_node_with_the_same_static_label() {
+        let label = |raw: u32| NodeRef::Static(antecedent_core::VariableId::from_raw(raw));
+        let mut g = Dag::empty();
+        let first = g.add_node(label(7)).unwrap();
+        assert!(matches!(g.add_node(label(7)), Err(GraphError::InvalidEndpoints { .. })));
+        assert_eq!(g.node_count(), 1, "a refused node leaves no trace");
+        let other = g.add_node(label(8)).unwrap();
+        assert_eq!((first.raw(), other.raw()), (0, 1));
+        // A copy claims independently of the graph it came from.
+        let mut copy = g.clone();
+        assert!(copy.add_node(label(7)).is_err());
+        copy.add_node(label(9)).unwrap();
+        g.add_node(label(9)).unwrap();
+    }
 
     #[test]
     fn filtered_copy_preserves_semantic_node_labels() {

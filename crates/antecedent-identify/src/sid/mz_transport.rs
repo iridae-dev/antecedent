@@ -56,9 +56,9 @@ use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::SelectionDiagram;
 
 use super::z_transport::{
-    TrzCall, TrzDomain, TrzTerminalFailure, ZTransportDecision, ZTransportDerivation,
-    ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportQuery, ZTransportSourceSpec,
-    bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
+    TrzCall, TrzDomain, TrzTerminalFailure, TrzUnassigned, ZTransportDecision,
+    ZTransportDerivation, ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportQuery,
+    ZTransportSourceSpec, bind_recursive_expression, bind_z_transport_catalog, cited_regimes,
     decide_z_transport_reporting, search_trz_call, validate_z_transport_query,
 };
 use super::{IdentificationError, SearchCharge, SharedSearch, SidLimits, SidMeter};
@@ -233,7 +233,8 @@ pub struct ValidatedMzTransportQuery {
 ///
 /// [`IdentificationError::UnsupportedInput`] `mz_transport.bounds_exceeded` for
 /// any exceeded bound; [`IdentificationError::InvalidInput`]
-/// `mz_transport.invalid_query` for a malformed query; and
+/// `mz_transport.invalid_query` for a malformed query (including a source count or
+/// controllable set below the minimum shape); and
 /// [`IdentificationError::InvalidCatalog`] `mz_transport.invalid_catalog` for a
 /// catalog that contradicts the declarations. The message names the violation.
 #[doc(hidden)]
@@ -243,12 +244,18 @@ pub fn validate_mz_transport_query(
     catalog: &EvidenceCatalog,
 ) -> Result<ValidatedMzTransportQuery, IdentificationError> {
     let query = query.canonical();
-    if query.sources.len() < 2 || query.sources.iter().any(|s| s.controllable.is_empty()) {
-        return Err(bounds_exceeded());
-    }
     let invalid_query = |detail: &dyn std::fmt::Display| {
         IdentificationError::invalid_input(format!("mz_transport.invalid_query: {detail}"))
     };
+    if query.sources.len() < 2 {
+        return Err(invalid_query(
+            &"at least two sources are required; one source is the \
+                                   single-source z route",
+        ));
+    }
+    if query.sources.iter().any(|s| s.controllable.is_empty()) {
+        return Err(invalid_query(&"every source declares at least one controllable variable"));
+    }
     let populations = query.sources.iter().map(|s| s.population.as_ref()).collect::<BTreeSet<_>>();
     if populations.len() != query.sources.len() || populations.contains(query.target.as_ref()) {
         return Err(invalid_query(&"source populations must be distinct and not the target"));
@@ -879,11 +886,9 @@ fn decide_charged(
             ZTransportDecision::MissingEvidence { missing: gap } => {
                 stages.push(MzStageRecord { stage, outcome: "missing_evidence" });
                 let detail = match gap {
-                    ZTransportMissingEvidence::UnassignedControllable { variable } => format!(
-                        "{MISSING_JOINT_REGIME}: source {} names no experiment level for controllable {}",
-                        source.population,
-                        variable.raw()
-                    ),
+                    ZTransportMissingEvidence::UnassignedControllable { variable } => {
+                        unassigned_detail(&source.population, variable)
+                    }
                     ZTransportMissingEvidence::CitedFactor { detail } => detail,
                 };
                 missing.get_or_insert((None, detail));
@@ -937,7 +942,11 @@ fn decide_charged(
     if let Some((derivation, detail)) = missing {
         return Ok(MzTransportDecision::MissingEvidence { derivation, detail });
     }
-    if let Some(terminal) = result.terminal_failure.filter(forced_terminal) {
+    let forced = result.terminal_failure.filter(forced_terminal);
+    if let Some(detail) = missing_experiment_level(forced.is_some(), result.unassigned.as_ref()) {
+        return Ok(MzTransportDecision::MissingEvidence { derivation: None, detail });
+    }
+    if let Some(terminal) = forced {
         // Only a replayed line-11 terminal with no active experiment certifies;
         // a stop during the replay is exhaustion, never a verdict.
         stages.push(MzStageRecord { stage: STAGE_MULTI.into(), outcome: "obstruction" });
@@ -1073,12 +1082,16 @@ fn leaves(arena: &CausalExprArena, root: ExprId) -> Vec<(&str, Vec<VariableId>, 
                     *domain == DomainRef::Observational,
                 ));
             }
+            ExprNode::Kernel { body, .. } => pending.push(*body),
             ExprNode::Product(list) => pending.extend(arena.list(*list).iter().copied()),
-            ExprNode::SumOut { expr, .. } => pending.push(*expr),
-            ExprNode::Ratio { numerator, denominator } => {
-                pending.extend([*numerator, *denominator])
+            ExprNode::SumOut { expr, .. } | ExprNode::IntegralOut { expr, .. } => {
+                pending.push(*expr);
             }
-            _ => {}
+            ExprNode::Ratio { numerator, denominator } => {
+                pending.extend([*numerator, *denominator]);
+            }
+            ExprNode::Expectation { distribution, .. } => pending.push(*distribution),
+            ExprNode::Contrast { left, right, .. } => pending.extend([*left, *right]),
         }
     }
     out
@@ -1252,6 +1265,23 @@ pub fn bind_mz_transport_catalog(
             })
         },
     )
+}
+
+/// The refusal of a source that names no level for a controllable the search must fix.
+fn unassigned_detail(population: &str, variable: VariableId) -> String {
+    format!(
+        "{MISSING_JOINT_REGIME}: source {population} names no experiment level for controllable {}",
+        variable.raw()
+    )
+}
+
+/// What the combined search reports when a branch needed an experiment level some source does
+/// not declare: the missing level, unless a forced obstruction was found, which holds whatever
+/// level a source declares and so outranks it.
+fn missing_experiment_level(forced: bool, unassigned: Option<&TrzUnassigned>) -> Option<String> {
+    unassigned
+        .filter(|_| !forced)
+        .map(|unassigned| unassigned_detail(&unassigned.population, unassigned.variable))
 }
 
 /// A terminal reached with no active experiment is forced on every search
@@ -1430,9 +1460,6 @@ mod tests {
         assert_eq!(forward.diagrams.len(), 2);
     }
 
-    const EXCEEDED: IdentificationError =
-        IdentificationError::UnsupportedInput { code: "mz_transport.bounds_exceeded" };
-
     fn invalid_query(result: Result<ValidatedMzTransportQuery, IdentificationError>) -> bool {
         matches!(result, Err(IdentificationError::InvalidInput { message }) if message.starts_with("mz_transport.invalid_query: "))
     }
@@ -1442,7 +1469,7 @@ mod tests {
         let evidence = catalog(vec![]);
         let one =
             validate_mz_transport_query(&graph(), &query(vec![source("a", &[2], &[])]), &evidence);
-        assert_eq!(one.unwrap_err(), EXCEEDED);
+        assert!(invalid_query(one));
         // The source count has no ceiling; five distinct sources are admitted.
         let five = (0..5).map(|i| source(&format!("s{i}"), &[2], &[])).collect();
         assert!(validate_mz_transport_query(&graph(), &query(five), &evidence).is_ok());
@@ -1452,10 +1479,7 @@ mod tests {
         assert!(invalid_query(validate_mz_transport_query(&graph(), &as_target, &evidence)));
         // Every source declares at least one controllable.
         let no_controllable = query(vec![source("a", &[], &[]), source("b", &[0], &[])]);
-        assert_eq!(
-            validate_mz_transport_query(&graph(), &no_controllable, &evidence).unwrap_err(),
-            EXCEEDED
-        );
+        assert!(invalid_query(validate_mz_transport_query(&graph(), &no_controllable, &evidence)));
         // Each source still passes the single-source contract, reported as mz.
         let overlap = query(vec![source("a", &[2, 2], &[]), source("b", &[0], &[])]);
         assert!(invalid_query(validate_mz_transport_query(&graph(), &overlap, &evidence)));
@@ -1558,6 +1582,62 @@ mod tests {
             one_leaf("a", &[2], MzTransportRoute::TargetOnly),
         ] {
             assert_eq!(check_leaves(&derivation).unwrap_err(), invalid);
+        }
+    }
+
+    #[test]
+    fn an_unassigned_level_is_missing_evidence_only_without_a_forced_obstruction() {
+        let unassigned = TrzUnassigned { population: Arc::from("a"), variable: v(2) };
+        assert_eq!(
+            missing_experiment_level(false, Some(&unassigned)).as_deref(),
+            Some(
+                "mz_transport.missing_joint_regime: source a names no experiment level for \
+                 controllable 2"
+            )
+        );
+        assert_eq!(missing_experiment_level(true, Some(&unassigned)), None);
+        assert_eq!(missing_experiment_level(false, None), None);
+        assert_eq!(missing_experiment_level(true, None), None);
+    }
+
+    #[test]
+    fn leaves_are_read_through_every_wrapper_node() {
+        type Wrap = fn(&mut CausalExprArena, ExprId) -> ExprId;
+        let wrappers: [Wrap; 4] = [
+            |arena, body| {
+                let bound = arena.empty_var_set();
+                let population = arena.intern_population(Arc::from("a"));
+                arena.intern(ExprNode::Kernel { body, bound, population, regime: None })
+            },
+            |arena, expr| {
+                let variables = arena.intern_var_set([v(3)]);
+                arena.intern(ExprNode::IntegralOut { variables, expr })
+            },
+            |arena, distribution| {
+                arena.intern(ExprNode::Expectation {
+                    function: antecedent_expr::OutcomeExprId::identity(v(3)),
+                    distribution,
+                })
+            },
+            |arena, id| {
+                arena.intern(ExprNode::Contrast {
+                    left: id,
+                    right: id,
+                    op: antecedent_expr::ContrastOp::Difference,
+                })
+            },
+        ];
+        for wrap in wrappers {
+            let mut derivation = one_leaf(
+                "a",
+                &[0],
+                MzTransportRoute::Combined { populations: Arc::from([Arc::from("a")]) },
+            );
+            derivation.root = wrap(&mut derivation.arena, derivation.root);
+            assert_eq!(
+                check_leaves(&derivation).unwrap_err(),
+                IdentificationError::invalid_derivation("mz_transport.fabricated_joint")
+            );
         }
     }
 

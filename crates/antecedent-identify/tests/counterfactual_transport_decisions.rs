@@ -92,7 +92,9 @@ fn named_cases_decide_as_the_theory_says() {
                     else {
                         panic!("{label}: expected an obstruction, got {decision:?}");
                     };
-                    let check = obstruction.verify().unwrap_or_else(|e| panic!("{label}: {e}"));
+                    let check = obstruction
+                        .verify(&ExecutionContext::for_tests(1))
+                        .unwrap_or_else(|e| panic!("{label}: {e}"));
                     assert_ne!(check.first_value, check.second_value, "{label}");
                     assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
                 }
@@ -289,30 +291,56 @@ fn a_mutated_derivation_or_witness_does_not_replay() {
     let CounterfactualTransportDecision::ProvenNonTransportable(obstruction) = decision else {
         panic!("expected an obstruction");
     };
-    obstruction.verify().unwrap();
+    obstruction.verify(&ctx).unwrap();
     // A witness whose law is changed no longer agrees on the declared family.
     let mut tampered = (*obstruction).clone();
     tampered.witness.second = tampered.witness.first.clone();
-    assert!(tampered.verify().is_err(), "two equal models do not separate the query");
+    assert!(tampered.verify(&ctx).is_err(), "two equal models do not separate the query");
     let mut tampered = (*obstruction).clone();
     tampered.witness.second_value = tampered.witness.first_value.clone();
-    assert!(tampered.verify().is_err(), "equal recorded values do not separate the query");
+    assert!(tampered.verify(&ctx).is_err(), "equal recorded values do not separate the query");
     let mut tampered = (*obstruction).clone();
     tampered.witness.clique.reverse();
     if tampered.witness.clique.len() > 1 {
-        assert!(tampered.verify().is_err());
+        assert!(tampered.verify(&ctx).is_err());
     }
-    let error = tampered_error_code(&obstruction);
+    let error = tampered_error_code(&obstruction, &ctx);
     assert_eq!(error, ("transport_not_certified", "counterfactual_transport.invalid_witness"));
 }
 
 fn tampered_error_code(
     obstruction: &antecedent_identify::CounterfactualTransportObstruction,
+    ctx: &ExecutionContext,
 ) -> (&'static str, &'static str) {
     let mut tampered = obstruction.clone();
     "not_a_baseline".clone_into(&mut tampered.witness.baseline);
-    let error = tampered.verify().unwrap_err();
+    let error = tampered.verify(ctx).unwrap_err();
     counterfactual_transport_refusal(&error).expect("an owned refusal")
+}
+
+#[test]
+fn a_stopped_witness_verification_is_a_budget_stop_never_an_invalid_witness() {
+    let cases = all_cases();
+    let case = cases.iter().find(|c| c.name == "selection_on_outcome_mechanism").unwrap();
+    let decision = decide(case, &case.targets[0]);
+    let CounterfactualTransportDecision::ProvenNonTransportable(obstruction) = decision else {
+        panic!("expected an obstruction");
+    };
+    obstruction.verify(&ExecutionContext::for_tests(1)).unwrap();
+
+    let cancelled = ExecutionContext::for_tests(1);
+    cancelled.cancellation.cancel();
+    let error = obstruction.verify(&cancelled).unwrap_err();
+    assert!(error.is_budget_or_cancel(), "{error}");
+    assert_eq!(
+        counterfactual_transport_refusal(&error).map(|(code, _)| code),
+        Some("transport_budget_cancel")
+    );
+
+    // A pool that cannot fund the verification's storage refuses it as a memory stop.
+    let starved = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+    let error = obstruction.verify(&starved).unwrap_err();
+    assert!(error.is_budget_or_cancel(), "{error}");
 }
 
 #[test]

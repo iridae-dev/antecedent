@@ -105,7 +105,23 @@ fn self_censoring_is_nonrecoverable_with_a_verified_witness() {
     // Every observed-law cell agrees exactly (integer masses) and the targets differ.
     assert!(check.observed_cells >= 8, "{}", check.observed_cells);
     assert_ne!(check.masses.0, check.masses.1);
-    assert_eq!(check.denominator, 60u128.pow(5));
+    // The masses are `60 P(X0 = 0)` times `30^(s-1) 60^(n-s)` over `60^n` for the `s = 3`
+    // substantive variables among `n = 5` mechanisms, which is `60 P(X0 = 0)` over
+    // `60 * 2^(s-1)`; the check reports them in lowest terms.
+    let zero = |model: &[antecedent_identify::WitnessMechanism]| {
+        u128::from(60 - model.iter().find(|m| m.node == 0).unwrap().numerators[0])
+    };
+    let (first, second, unreduced) = (zero(&witness.first), zero(&witness.second), 60 * 4);
+    assert_eq!(check.masses.0 * unreduced, first * check.denominator);
+    assert_eq!(check.masses.1 * unreduced, second * check.denominator);
+    assert_eq!(unreduced % check.denominator, 0);
+    let gcd = |mut a: u128, mut b: u128| {
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        a
+    };
+    assert_eq!(gcd(gcd(check.masses.0, check.masses.1), check.denominator), 1);
     assert_eq!(
         antecedent_identify::RecoveryDetail::NonrecoverableWitness.reason_code(),
         "transport_proven_non_transportable"

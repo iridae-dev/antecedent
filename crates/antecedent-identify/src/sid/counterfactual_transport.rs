@@ -84,7 +84,10 @@ use crate::error::IdentificationError;
 use closure::{Closure, ItemSource, Seed, close, reachable, regime_measured_is_factor};
 use network::{Built, Conflict, Factored, Level, WorldIdx, build_network, factorize, separated};
 pub use witness::{CounterfactualTransportWitness, CounterfactualTransportWitnessCheck};
-use witness::{WitnessMeter, WitnessOutcome, WitnessProblem, search_witness, verify_witness};
+use witness::{
+    VerifyFailure, WitnessMeter, WitnessOutcome, WitnessProblem, search_witness, verify_witness,
+    verify_witness_metered,
+};
 
 /// The contract a derivation attests.
 pub const COUNTERFACTUAL_TRANSPORT_CONTRACT: &str =
@@ -1217,18 +1220,23 @@ pub struct CounterfactualTransportObstruction {
 }
 
 impl CounterfactualTransportObstruction {
-    /// Re-verify the witness on the obstruction's own inputs.
+    /// Re-verify the witness on the obstruction's own inputs, under the context's
+    /// admission pool and cancellation (see [`verify_counterfactual_transport_witness`]).
     ///
     /// # Errors
     ///
     /// `counterfactual_transport.invalid_witness` when the witness no longer
-    /// verifies.
-    pub fn verify(&self) -> Result<CounterfactualTransportWitnessCheck, IdentificationError> {
+    /// verifies; a budget or cancellation error when the verification was stopped.
+    pub fn verify(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CounterfactualTransportWitnessCheck, IdentificationError> {
         verify_counterfactual_transport_witness(
             &self.problem,
             &self.query,
             &self.catalog,
             &self.witness,
+            ctx,
         )
     }
 }
@@ -1661,6 +1669,15 @@ impl WitnessMeter for Search<'_> {
 
     fn operations_remaining(&self) -> u64 {
         u64::try_from(self.budget.operations_remaining()).unwrap_or(u64::MAX)
+    }
+
+    fn lease_storage(
+        &mut self,
+        bytes: u64,
+    ) -> Result<Option<antecedent_core::execution::AdmissionLease>, SearchStop> {
+        self.budget.lease_storage(bytes).map(Some).inspect_err(|stop| {
+            self.stop.get_or_insert(*stop);
+        })
     }
 }
 
@@ -2534,15 +2551,24 @@ fn assemble(
 /// declared class, agree on every regime of the declared family and give
 /// different, recorded query values. No theorem is trusted.
 ///
+/// The witness is untrusted input, so the verification runs under the limits of
+/// [`COUNTERFACTUAL_TRANSPORT_MAX_LIMITS`] charged to the context: the family
+/// enumeration, then the simulations of the exact evaluation (quoted before it
+/// starts, paid as it runs, polling cancellation), with its tables leased from
+/// the context's admission pool for the duration.
+///
 /// # Errors
 ///
 /// `counterfactual_transport.invalid_witness` when any check fails, or the
-/// request's own validation errors.
+/// request's own validation errors. A budget, memory or cancellation stop is its
+/// own error, never `invalid_witness`: a stopped verification says nothing about
+/// the witness.
 pub fn verify_counterfactual_transport_witness(
     problem: &CounterfactualTransportProblem,
     query: &CounterfactualTransportQuery,
     catalog: &EvidenceCatalog,
     witness: &CounterfactualTransportWitness,
+    ctx: &ExecutionContext,
 ) -> Result<CounterfactualTransportWitnessCheck, IdentificationError> {
     let validated = match validate(problem, query, catalog) {
         Ok(v) => v,
@@ -2552,9 +2578,18 @@ pub fn verify_counterfactual_transport_witness(
         }
     };
     let bad = || IdentificationError::invalid_derivation(INVALID_WITNESS);
+    let budget = SearchBudget::with_memory(
+        COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
+        COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+        ctx,
+    )
+    .map_err(|receipt| super::stop_error(receipt.stop))?;
+    let mut search = Search { budget, stop: None, stages: Vec::new(), failures: Vec::new() };
     let supplied = supplied_seeds(&validated);
-    let candidates =
-        candidate_seeds(&validated, problem, &mut |_, _, _| Ok(())).map_err(|_| bad())?;
+    let candidates = candidate_seeds(&validated, problem, &mut |depth, bytes, leaves| {
+        search.work(depth, bytes, leaves)
+    })
+    .map_err(super::stop_error)?;
     let mut family: Vec<(usize, u32)> = supplied
         .iter()
         .chain(&candidates)
@@ -2573,12 +2608,14 @@ pub fn verify_counterfactual_transport_witness(
         worlds: &validated.worlds,
         numerator: &numerator,
         given: &given,
-        // A witness is verified against the most simulations any permitted search could pay for.
-        simulations: u64::try_from(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS.operations)
+        simulations: u64::try_from(search.budget.operations_remaining())
             .unwrap_or(u64::MAX)
             .saturating_mul(witness::SIMULATIONS_PER_OPERATION),
     };
-    verify_witness(&wp, witness).map_err(|_| bad())
+    verify_witness_metered(&wp, witness, &mut search).map_err(|failure| match failure {
+        VerifyFailure::Invalid(_) => bad(),
+        VerifyFailure::Stopped(stop) => super::stop_error(stop),
+    })
 }
 
 #[cfg(test)]
@@ -2887,7 +2924,7 @@ mod tests {
         let query = interventional_query(0, 1.0, 1, vec![source(&[], &[])]);
         match decide(&problem, &query, &cat) {
             CounterfactualTransportDecision::ProvenNonTransportable(obstruction) => {
-                obstruction.verify().unwrap();
+                obstruction.verify(&ExecutionContext::for_tests(1)).unwrap();
                 assert_ne!(obstruction.check.first_value, obstruction.check.second_value);
             }
             other => panic!("expected an obstruction, got {other:?}"),
@@ -2960,7 +2997,7 @@ mod tests {
         let query = interventional_query(0, 1.0, 1, vec![source(&[1], &[0])]);
         match decide(&problem, &query, &cat) {
             CounterfactualTransportDecision::ProvenNonTransportable(obstruction) => {
-                obstruction.verify().unwrap();
+                obstruction.verify(&ExecutionContext::for_tests(1)).unwrap();
             }
             other => panic!("expected an obstruction, got {other:?}"),
         }
