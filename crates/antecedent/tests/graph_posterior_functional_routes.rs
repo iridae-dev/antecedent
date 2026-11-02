@@ -257,10 +257,11 @@ fn the_admg_conditional_mixture_weights_the_atoms_and_states_the_lost_mass() {
         }
         assert!(value_of(&result, keys[2]).is_none(), "the bow arc identifies nothing");
 
-        // Both identified atoms report row influence, so the interval is the one of the weighted
-        // influence on the shared sample (the mixture is not re-bootstrapped).
-        let se = effect.se_analytic();
-        assert!(se.is_finite() && se > 0.01 && se < 0.2, "{se}");
+        // `functional.effect` is a discrete plug-in with neither an analytic SE nor row
+        // influence, and the mixture of two atoms is not re-bootstrapped, so no standard error
+        // covers the weighted contrast: it is withheld, not borrowed from one atom.
+        assert!(effect.se_analytic().is_nan(), "{}", effect.se_analytic());
+        assert!(effect.se_bootstrap().is_none());
         assert!(has(&result, "estimate.graph_posterior.atom_route"));
         assert!(has(&result, "estimate.graph_posterior.structural_aggregation"));
     });
@@ -383,8 +384,13 @@ fn the_temporal_admg_conditional_mixture_is_the_counted_contrast_with_the_lost_m
                 .run(&ExecutionContext::for_tests(8_901))
                 .unwrap();
         assert!((ate(&admg) - ate(&result)).abs() < 1e-12);
-        let se = result.estimate().as_effect().unwrap().se_analytic();
-        assert!(se.is_finite() && se > 0.01 && se < 0.2, "{se}");
+        // The plug-in atoms carry no analytic SE, so none is published for the weighted
+        // contrast; the standard error is the spread of the draw-wise mixture of the atoms'
+        // bootstrap replicates, evaluated at the same resampled window table.
+        let effect = result.estimate().as_effect().unwrap();
+        assert!(effect.se_analytic().is_nan(), "{}", effect.se_analytic());
+        let se = effect.se_bootstrap().expect("the mixture of the shared bootstrap replicates");
+        assert!(se.is_finite() && se > 0.0, "{se}");
         // No atom identifies: the identifier's refusal.
         let none = conditional_study(
             temporal_admg_posterior(&[refused_mask(), refused_mask()], &[0.5, 0.5]),
