@@ -315,3 +315,27 @@ def test_mnar_result_api_requests_the_sensitivity_of_the_analysed_effect() -> No
     assert sensitivity.observed_case_effect == pytest.approx(5 / 7 - 2 / 6, abs=1e-12)
     assert sensitivity.assumption_range.is_confidence_interval is False
     assert sensitivity.decisions[0].name == "act"
+
+
+def test_from_analysis_uses_the_checked_query_and_rejects_a_foreign_result() -> None:
+    from antecedent import analyze
+    from antecedent.errors import CausalTypeError
+    from antecedent.mnar_sensitivity import from_analysis
+    from antecedent.outcomes import require_success
+    from antecedent.query import AverageEffect
+
+    data = _analysis_data()
+    result = require_success(
+        analyze(
+            {"a": data["a"], "y": np.nan_to_num(data["y"], nan=0.0)},
+            query=AverageEffect("a", "y"),
+            graph=[("a", "y")],
+        )
+    )
+    sensitivity = from_analysis(
+        result, data=data, model="delta_pattern_mixture", lower=-1.0, upper=1.0
+    )
+    assert sensitivity.estimator == "difference_in_means"
+    assert sensitivity.mar.effect == pytest.approx(5 / 7 - 2 / 6, abs=1e-12)
+    with pytest.raises(CausalTypeError, match="AverageEffect"):
+        from_analysis(object(), data=data, model="delta_pattern_mixture", lower=-1.0, upper=1.0)

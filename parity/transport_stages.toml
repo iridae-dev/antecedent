@@ -413,7 +413,7 @@ guarantee = "cross_fitted_augmented_inverse_odds_score"
 limits = "Known randomized treatment probabilities; nested-cohort nonparticipants or separately sampled representative target. Joint outer refit intervals remain nominal and uncalibrated: the transport.trial_ipw coverage records measure the analyze-cell estimator, not this three-fold cross-fitted augmented inverse-odds score, so none is cited. No recursive-factor or dependent-sampling license."
 calibration_reason = "estimator_grid_not_measured"
 evidence_test = "python/tests/test_learned_transport.py"
-evidence_assertion = "test_prepare_trial_executes_retained_checked_score_after_builder_disposal"
+evidence_assertion = "test_canonical_trial_executes_retained_checked_score_after_builder_disposal"
 
 [[routes]]
 route = "transport.learned_categorical_plugin"
@@ -1076,7 +1076,7 @@ evidence_test = "python/tests/test_learned_continuous_transport.py"
 evidence_assertion = "test_estimate_executes_the_retained_plan_after_builder_disposal"
 
 [[routes]]
-route = "antecedent.transport.advanced.PreparedLearnedContinuous.refresh"
+route = "antecedent.transport.advanced.PreparedLearnedContinuous.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "checked_direct_or_baseline_standardization"
@@ -1086,7 +1086,7 @@ guarantee = "certificate_and_options_unchanged_snapshot_replaced"
 reference = "https://doi.org/10.1002/sim.8426"
 limits = "Recompiles nothing and fits nothing; a changed feature schema or sampling design refuses (transport.reprepare_required); clears the last claim."
 evidence_test = "python/tests/test_learned_continuous_transport.py"
-evidence_assertion = "test_refresh_rebinds_rows_and_re_executes_the_retained_plan"
+evidence_assertion = "test_rebinding_rows_re_executes_the_retained_plan_on_a_new_branch"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedLearnedContinuous.export"
@@ -1615,7 +1615,7 @@ evidence_test = "python/tests/test_transport_mixed_source.py"
 evidence_assertion = "test_estimate_executes_every_request_from_the_retained_plan"
 
 [[routes]]
-route = "antecedent.transport.advanced.PreparedMixedSourceStage.refresh"
+route = "antecedent.transport.advanced.PreparedMixedSourceStage.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "finite_discrete_admg_target_population_studies"
@@ -1625,7 +1625,7 @@ guarantee = "proof_and_requests_unchanged_snapshot_identity_enforced"
 reference = "https://www.jstatsoft.org/article/view/v099i05"
 limits = "Recompiles every request's plan against laws of the snapshots the frozen catalog binds; another snapshot, regime or population needs a new decision. Clears the last claim."
 evidence_test = "python/tests/test_transport_mixed_source.py"
-evidence_assertion = "test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan"
+evidence_assertion = "test_rebinding_snapshots_re_executes_the_retained_plan_on_a_new_branch"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedMixedSourceStage.export"
@@ -1838,7 +1838,7 @@ evidence_test = "python/tests/test_transport_multi_source.py"
 evidence_assertion = "test_estimate_executes_every_request_and_contrast_from_the_retained_plan"
 
 [[routes]]
-route = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.refresh"
+route = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "checked_catalog_bound_mz_transport_functional"
@@ -1847,7 +1847,7 @@ functional = "target_interventional_distributions_and_mean_contrasts_against_req
 guarantee = "proof_and_requests_unchanged_snapshot_identity_enforced"
 limits = "Recompiles every request's plan against laws of the snapshots the frozen catalog binds; another snapshot, regime or population needs a new decision. Clears the last claim."
 evidence_test = "python/tests/test_transport_multi_source.py"
-evidence_assertion = "test_refresh_rebinds_snapshots_and_re_executes_the_retained_plan"
+evidence_assertion = "test_rebinding_snapshots_re_executes_the_retained_plan_on_a_new_branch"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedMultiSourceZTransportStage.export"
@@ -2125,7 +2125,7 @@ evidence_test = "python/tests/test_transport_admg_conditional.py"
 evidence_assertion = "test_estimate_returns_exact_points_only"
 
 [[routes]]
-route = "antecedent.transport.advanced.PreparedAdmgConditionalTransportStage.refresh"
+route = "antecedent.transport.advanced.PreparedAdmgConditionalTransportStage.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "selection_admg_at_most_6_observed"
@@ -2135,7 +2135,7 @@ guarantee = "checked_prepared_point_route"
 reference = "https://arxiv.org/abs/1312.7485v1"
 limits = "Replaces laws for the frozen catalog's regimes; the proof is unchanged."
 evidence_test = "python/tests/test_transport_admg_conditional.py"
-evidence_assertion = "test_refresh_keeps_the_proof_and_moves_the_point"
+evidence_assertion = "test_rebinding_laws_keeps_the_proof_and_moves_the_point"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedAdmgConditionalTransportStage.export"
@@ -2622,7 +2622,7 @@ evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs"
 evidence_assertion = "known_truth_curve_under_both_designs"
 
 [[routes]]
-route = "antecedent.PreparedSmoothedDose.refresh"
+route = "antecedent.PreparedSmoothedDose.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "checked_direct_or_baseline_standardization_single_dose_experiment"
@@ -2713,7 +2713,7 @@ evidence_test = "python/tests/test_smoothed_dose_transport.py"
 evidence_assertion = "test_estimate_executes_the_retained_plan_after_builder_disposal"
 
 [[routes]]
-route = "antecedent.transport.advanced.PreparedSmoothedDose.refresh"
+route = "antecedent.transport.advanced.PreparedSmoothedDose.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "checked_direct_or_baseline_standardization_single_dose_experiment"
@@ -2723,7 +2723,7 @@ guarantee = "certificate_query_and_options_unchanged_snapshot_replaced"
 reference = "https://arxiv.org/abs/1507.00747"
 limits = "Recompiles nothing and fits nothing; a changed schema or sampling design refuses (transport.reprepare_required); clears the last claim."
 evidence_test = "python/tests/test_smoothed_dose_transport.py"
-evidence_assertion = "test_refresh_rebinds_rows_and_re_executes_the_retained_plan"
+evidence_assertion = "test_rebinding_rows_re_executes_the_retained_plan_on_a_new_branch"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedSmoothedDose.export"
@@ -6774,7 +6774,7 @@ evidence_test = "python/tests/test_transport_counterfactual.py"
 evidence_assertion = "test_estimate_returns_the_bound_state_of_the_retained_plan_after_builder_disposal"
 
 [[routes]]
-route = "antecedent.transport.advanced.CounterfactualTransportDerivation.refresh"
+route = "antecedent.transport.advanced.CounterfactualTransportDerivation.bind_snapshot"
 stage = "prepare"
 status = "licensed"
 graph = "static_finite_discrete_acyclic_semi_markovian_admg_at_most_8_variables_4_levels_with_one_selection_diagram_per_source"
@@ -6784,7 +6784,7 @@ guarantee = "derivation_unchanged_changed_numbers_replace_the_previous_numbers"
 reference = "provenance/counterfactual.transport_general.toml"
 limits = "Returns a new derivation bound to the replaced laws; the receiver is untouched and a refused refresh (counted, mislabelled or incompatible law) leaves the previous state. Laws of another population or regime are refused."
 evidence_test = "python/tests/test_transport_counterfactual.py"
-evidence_assertion = "test_refresh_rebinds_laws_to_the_retained_plan_after_builder_disposal"
+evidence_assertion = "test_bind_snapshot_rebinds_laws_to_the_retained_plan_after_builder_disposal"
 
 [[routes]]
 route = "antecedent.transport.advanced.CounterfactualTransportResult.export"
@@ -12753,7 +12753,7 @@ functional = "arm_mean_contrast_re_run_over_a_bounded_departure_grid_by_pattern_
 guarantee = "mnar_departure_assumption_range_untestable_assumption_conditional_sampling_interval_point_only"
 limits = "Binary 0/1 treatment and an outcome with missing entries; the departure is one declared parameter with a per-arm loading, bounded and containing zero (missing at random). The range is an assumption range (never a confidence interval, never empirically established); the departure is an untestable assumption; the per-point sampling interval is conditional on the parameter and is never composed with the range (cell_not_licensed). Estimators: difference in means, regression adjustment, inverse-propensity weighting and augmented weighting; others refuse. At most 67108864 rows, 64 covariates, 4096 grid points, 5000 bootstrap replicates and 64 decisions. Calibration of the sampling interval is unmeasured."
 evidence_test = "python/tests/test_mnar_sensitivity.py"
-evidence_assertion = "test_mnar_result_api_requests_the_sensitivity_of_the_analysed_effect"
+evidence_assertion = "test_from_analysis_uses_the_checked_query_and_rejects_a_foreign_result"
 notes = "Missing-outcome departure sensitivity; point-only."
 
 [[routes]]

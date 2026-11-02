@@ -9,6 +9,21 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 
 class SourceScans(unittest.TestCase):
+    def test_libtest_names_follow_enabled_path_module_aliases(self):
+        from test_evidence import libtest_name
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src"
+            src.mkdir()
+            root = src / "lib.rs"
+            root.write_text("mod engine;\n", encoding="utf-8")
+            (src / "engine.rs").write_text(
+                '#[cfg(test)]\n#[path = "fixture.rs"]\nmod tests;\n', encoding="utf-8"
+            )
+            fixture = src / "fixture.rs"
+            fixture.write_text("#[test]\nfn proves_it() { assert!(true); }\n", encoding="utf-8")
+            self.assertEqual(libtest_name(fixture, "proves_it", root), "engine::tests::proves_it")
+
     def test_lint_scans_quoted_brackets_spaces_and_untracked_sources(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

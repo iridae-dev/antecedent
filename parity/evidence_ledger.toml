@@ -4085,7 +4085,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "counterfactual.transport_general"
-route = "antecedent.transport.advanced.CounterfactualTransportDerivation.refresh"
+route = "antecedent.transport.advanced.CounterfactualTransportDerivation.bind_snapshot"
 algorithm_provenance = ["provenance/counterfactual.transport_general.toml"]
 parity_registry = "parity/promotion.toml"
 support_registry = "parity/transport_stages.toml"

@@ -472,9 +472,40 @@ def cargo_listed(
     return out
 
 
+@source_cache
+def _path_module_aliases(root_file: Path) -> dict[Path, list[tuple[Path, str]]]:
+    """Map enabled, file-scope #[path] modules to their actual declaring names."""
+    aliases: dict[Path, list[tuple[Path, str]]] = {}
+    boundary = root_file.parent.parent
+    for parent in target_modules(root_file, boundary):
+        masked = source_masked(parent)
+        blocks = module_items(masked)
+        enabled = {child for child, _ in _declared_modules(parent, boundary)}
+        for match in _MOD_DECL.finditer(masked.skeleton):
+            attrs = _attrs_before(masked.skeleton, masked.code, match.start())
+            declared = _rust_path_attribute(attrs)
+            if declared is None or _disabling_cfg(attrs):
+                continue
+            if any(b.body[0] < match.start() < b.body[1] for b in blocks):
+                continue
+            child = (parent.parent / declared).resolve()
+            if child in enabled:
+                aliases.setdefault(child, []).append((parent, match.group(1)))
+    return aliases
+
+
 def module_path(path: Path, root_file: Path) -> str:
     """Module prefix (`a::b::`) of a source file inside its target."""
-    rel = path.resolve().relative_to(root_file.resolve().parent).with_suffix("").parts
+    path, root_file = path.resolve(), root_file.resolve()
+    if path == root_file:
+        return ""
+    aliases = _path_module_aliases(root_file).get(path, [])
+    if aliases:
+        if len(aliases) != 1:
+            raise ValueError(f"ambiguous #[path] declarations for {path}")
+        parent, name = aliases[0]
+        return module_path(parent, root_file) + name + "::"
+    rel = path.relative_to(root_file.parent).with_suffix("").parts
     parts = [p for p in rel if p not in ("mod", "lib", "main")]
     if root_file.parent.name == "tests" and parts and parts[0] == root_file.stem:
         parts = parts[1:]

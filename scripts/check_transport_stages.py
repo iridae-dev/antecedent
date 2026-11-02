@@ -75,7 +75,8 @@ for route in registry.get("routes", []):
                         closure(evidence_path, assertion), assertion
                     )
                 )
-        if route.get("stage") == "identify" and route.get("guarantee") != "sound_incomplete":
+        if (name.startswith("antecedent.transport.") and route.get("stage") == "identify"
+                and route.get("guarantee") != "sound_incomplete"):
             pinned = {
                 "antecedent.transport.advanced.identify_classical": (
                     "complete_in_classical_evidence_scope",
