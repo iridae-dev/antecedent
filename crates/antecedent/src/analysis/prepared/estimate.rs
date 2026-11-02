@@ -128,6 +128,37 @@ impl PreparedStudy {
         self.estimate_with_shared(data, shared, ctx)
     }
 
+    /// Execute a declaration-only, precompiled Bayesian DAG atom as part of an
+    /// already lowered composite. The composite supplies its own exact program
+    /// identity; arbitrary routes or calls outside that dispatch are refused.
+    /// The child execution retains its own proof and incomplete-data binding is
+    /// left for the enclosing operation to seal.
+    #[cfg_attr(
+        not(any(test, feature = "calibration-internal")),
+        allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
+    )]
+    pub(crate) fn execute_compiled_bayesian_atom(
+        &self,
+        data: &TabularData,
+        enclosing_program: antecedent_core::SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        if ctx.lowered_dispatch() != Some(enclosing_program) {
+            return Err(crate::unsupported_reason!(
+                "public_builder_reentry",
+                "graph_imputation.wrong_dispatch: a graph atom must execute within its retained composite"
+            ));
+        }
+        if !matches!(&self.execution, PreparedExecution::BayesianGcomp(_)) {
+            return Err(crate::unsupported_reason!(
+                "route_not_lowered",
+                "graph_imputation.atom_not_lowered: this graph has no retained Bayesian g-computation atom"
+            ));
+        }
+        let mut notes = ClickNotes::deferred();
+        self.estimate_with_shared_unnamed(data, None, ctx, &mut notes)
+    }
+
     /// Execute the retained binding with native observations on success or failure.
     pub fn estimate_retained_observed(
         &self,
@@ -327,5 +358,45 @@ impl PreparedStudy {
         data: &TabularData,
     ) -> Result<Option<Box<PreparedExecution>>, CausalError> {
         Ok(self.execution.rebind_for_dispatch(data)?.map(Box::new))
+    }
+}
+
+#[cfg(test)]
+mod graph_imputation_atom_tests {
+    use super::*;
+    use crate::{BayesianConfig, EstimatorId, InferenceMode, RefuteSuite, Study};
+    use antecedent_core::{AverageEffectQuery, SemanticDigest, VariableId};
+    use antecedent_graph::{Dag, NodeRef};
+
+    #[test]
+    fn deferred_atom_executes_only_under_its_enclosing_program_without_a_public_rebuild() {
+        let treatment: Vec<f64> = (0..96).map(|i| f64::from(i % 2)).collect();
+        let outcome: Vec<f64> =
+            (0..96).map(|i| 2.0 * treatment[i] + ((i * 11 % 19) as f64) / 19.0).collect();
+        let data =
+            TabularData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())])
+                .unwrap();
+        let mut graph = Dag::empty();
+        let t = graph.add_node(NodeRef::Static(VariableId::from_raw(0))).unwrap();
+        let y = graph.add_node(NodeRef::Static(VariableId::from_raw(1))).unwrap();
+        graph.insert_directed(t, y).unwrap();
+        let ctx = ExecutionContext::for_tests(11);
+        let study = Study::tabular(data.clone())
+            .graph(graph)
+            .query(AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1)))
+            .estimator(EstimatorId::BayesianGcomp)
+            .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(32)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap();
+        let atom = study.prepare_deferred(&ctx).unwrap();
+        let parent = SemanticDigest::from_bytes([7; 32]);
+        assert!(atom.execute_compiled_bayesian_atom(&data, parent, &ctx).is_err());
+        let unrelated = ctx.enter_lowered_dispatch(SemanticDigest::from_bytes([8; 32]));
+        assert!(atom.execute_compiled_bayesian_atom(&data, parent, &unrelated).is_err());
+        let bound = ctx.enter_lowered_dispatch(parent);
+        let result = atom.execute_compiled_bayesian_atom(&data, parent, &bound).unwrap();
+        assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+        assert!(result.executed_contract.is_none());
     }
 }

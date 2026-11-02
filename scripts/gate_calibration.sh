@@ -1728,6 +1728,14 @@ fi
 check "learner_ate_known_truth: coverage" cargo test --release -p antecedent-estimate --lib \
   dml::tests::learner_ate_known_truth_coverage -- --ignored --exact --nocapture
 
+# Candidate only: records require a later real measurement and review.
+run_graph_imputation_candidate() {
+  local filter="$1"
+  check "graph_imputation_interval_calibration: ${filter}" cargo test --release -p antecedent --features calibration-internal --test graph_imputation_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_graph_imputation_candidate graph_imputation_mar_bic_nearest_rank_candidate
+
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"
   printf '%s' "$FAILED"

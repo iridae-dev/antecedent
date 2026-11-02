@@ -12964,3 +12964,38 @@ evidence = "native_choice_posterior_and_pending_coverage"
 functional = "declared_population_choice_share"
 guarantee = "none_until_matching_coverage_is_measured"
 notes = "The supported candidate intervals remain closed until a matching measured record attests the procedure."
+
+[[routes]]
+route = "antecedent.graph_imputation.compiled_point"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Bounded native compiled candidate only; independent scientific review and licensing remain outstanding. Its numerical output is diagnostic."
+
+[[routes]]
+route = "antecedent.graph_imputation.compiled_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The whole-method calibration candidate is registered but has not been measured or licensed."
+
+[[routes]]
+route = "antecedent.python.missing.PreparedGraphImputation"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The Python prepared handle delegates to the same bounded native compiler; its numerical result is diagnostic pending scientific review and licensing."
+
+[[routes]]
+route = "antecedent.python.missing.CompiledGraphImputationResult.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "The Python facade delegates the unlicensed interval refusal to the native graph-imputation boundary."
+
+[[routes]]
+route = "antecedent.graph_imputation.decision"
+stage = "evaluate"
+status = "closed"
+reason_code = "decision_contract_unsatisfied"
+notes = "The unlicensed graph-imputation realization offers no licensed decision carrier."

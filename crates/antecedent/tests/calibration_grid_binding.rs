@@ -426,3 +426,15 @@ fn a_non_gaussian_likelihood_binds_only_to_records_of_that_likelihood() {
     assert_eq!(calibration_slot_in(&logit, &logit_records).status, "calibrated");
     assert_ne!(calibration_slot_in(&default, &logit_records).status, "calibrated");
 }
+
+#[test]
+fn a_forged_composite_label_cannot_borrow_a_frequentist_record() {
+    let (study, result) = default_ate(500, InferenceMode::Frequentist);
+    let contract = study.inspect().unwrap();
+    assert!(!result.calibration_bases(&contract).unwrap().is_empty());
+    for label in ["GraphImputationCompositeV1", "graphimputationcompositev0"] {
+        let mut forged = contract.clone();
+        forged.inference = std::sync::Arc::from(label);
+        assert!(result.calibration_bases(&forged).unwrap().is_empty());
+    }
+}

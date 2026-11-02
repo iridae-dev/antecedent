@@ -60,6 +60,7 @@ pub mod exact_marginals;
 pub mod exact_pag_posterior;
 pub mod fci;
 pub mod ges;
+pub mod graph_imputation_enumeration;
 pub mod graph_mcmc;
 pub mod graph_posterior;
 #[cfg(test)]

@@ -90,6 +90,8 @@ pub enum RouteFamily {
     /// A chain of transformations carrying uncertainty from declared sources to a
     /// reading.
     PropagationChain,
+    /// Graph selection repeated on each completed imputation table.
+    GraphImputation,
     /// A noncausal association of the observed data: a conditional law, regression
     /// coefficients, an association measure or a scored predictive model.
     Associational,
@@ -110,6 +112,7 @@ impl RouteFamily {
             Self::Cyclic => "cyclic",
             Self::Planning => "planning",
             Self::PropagationChain => "propagation_chain",
+            Self::GraphImputation => "graph_imputation",
             Self::Associational => "associational",
         }
     }
@@ -1688,6 +1691,7 @@ impl PlanView {
             | RouteFamily::Cyclic
             | RouteFamily::Planning
             | RouteFamily::PropagationChain
+            | RouteFamily::GraphImputation
             | RouteFamily::Associational => None,
         };
         let scientific = program.scientific();
@@ -1977,6 +1981,7 @@ const fn plan_route(cell: ProgramCell) -> PlanRoute {
         ProgramCell::CyclicFamily(family) => PlanRoute::CyclicFamily(family),
         ProgramCell::Planning(design) => PlanRoute::Planning(design),
         ProgramCell::PropagationChain(reading) => PlanRoute::PropagationChain(reading),
+        ProgramCell::GraphImputation => PlanRoute::GraphImputation,
     }
 }
 
@@ -2032,6 +2037,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::Bayesian(_) => "bayesian",
         Realization::GeneralizedBayes(_) => "generalized_bayes",
         Realization::Envelope(_) => "envelope",
+        Realization::GraphImputationV1 => "graph_imputation_v1",
         Realization::ExactPoint { .. } => "exact_point",
     }
 }

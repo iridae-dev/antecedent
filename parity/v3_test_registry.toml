@@ -21305,6 +21305,13 @@ path = "crates/antecedent-core/src/treatment_indicator.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "inventory-crates-antecedent-src-decision-evidence-panel-bridge-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/decision_evidence/panel_bridge.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "inventory-crates-antecedent-design-src-decision-evidence-derive-rs"
 crate = "antecedent-design"
 cargo_target = "lib"
@@ -21739,4 +21746,74 @@ id = "inventory-crates-antecedent-identify-src-response-intervention-rs"
 crate = "antecedent-identify"
 cargo_target = "lib"
 path = "crates/antecedent-identify/src/response_intervention.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-native-compiled"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-native-mixture"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation_mix.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-native-receipt"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation_receipt.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-native-replay"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/graph_imputation/wire.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-prepared-atom"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/estimate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-inference-guard"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/contract/calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-python-facade"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_graph_imputation.py"
+gates = ["inventory"]
+
+[[test]]
+id = "graph-imputation-decision-refusal"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/compile_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "graph-imputation-whole-method-calibration-candidate"
+crate = "antecedent"
+cargo_target = "graph_imputation_interval_calibration"
+path = "crates/antecedent/tests/graph_imputation_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-discovery-src-graph-imputation-enumeration-rs"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs"
 gates = ["inventory"]

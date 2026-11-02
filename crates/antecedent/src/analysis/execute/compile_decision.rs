@@ -280,6 +280,7 @@ const fn realization_name(realization: &Realization) -> &'static str {
         Realization::Bayesian(_) => "bayesian",
         Realization::GeneralizedBayes(_) => "generalized_bayes",
         Realization::Envelope(_) => "envelope",
+        Realization::GraphImputationV1 => "graph_imputation_v1",
         Realization::ExactPoint { .. } => "exact_point",
     }
 }
@@ -292,7 +293,7 @@ const fn offered_port(realization: &Realization) -> EvidencePort {
             EvidencePort::ParameterPosterior
         }
         Realization::Envelope(_) => EvidencePort::IdentifiedSet,
-        Realization::ExactPoint { .. } => EvidencePort::Mean,
+        Realization::ExactPoint { .. } | Realization::GraphImputationV1 => EvidencePort::Mean,
     }
 }
 
@@ -321,6 +322,14 @@ pub(crate) fn require_carrier(
 ) -> Result<(), DecisionCarrierError> {
     let demanded = program.carrier();
     let name = realization_name(realization);
+    if matches!(realization, Realization::GraphImputationV1) {
+        return Err(DecisionCarrierError::contract(
+            "the graph-imputation realization does not license a decision carrier",
+            demanded,
+            name,
+            DISTRIBUTIONAL_CARRIER,
+        ));
+    }
     let envelope = matches!(realization, Realization::Envelope(_));
     let attempt = |otherwise: NextAttempt| {
         if envelope { ROBUST_OVER_IDENTIFIED_SET } else { otherwise }
@@ -666,4 +675,31 @@ fn canonical_candidates(request: &EvsiRequest) -> Result<Arc<[Arc<str>]>, Causal
         }
     }
     Ok(ids.into_iter().take(request.max_candidates).map(Arc::<str>::from).collect())
+}
+
+#[cfg(test)]
+mod graph_imputation_carrier_tests {
+    use super::*;
+
+    #[test]
+    fn graph_imputation_candidate_refuses_decision_carriers() {
+        for carrier in
+            [CarrierDemand::Mean, CarrierDemand::ParameterPosterior, CarrierDemand::OutcomeLaw]
+        {
+            let program = DecisionProgram {
+                carrier,
+                utility: DecisionProgram::utility_form(Some(vec![(0.0, 1.0)])),
+                actions: 1,
+                constraints: 0,
+                chance_threshold: 0.95,
+                utility_unit: None,
+                contract_identity: None,
+                information_value: None,
+            };
+            let refusal =
+                require_carrier(RouteCell::StaticAteDag, &Realization::GraphImputationV1, &program)
+                    .unwrap_err();
+            assert_eq!(refusal.code, "decision_contract_unsatisfied");
+        }
+    }
 }

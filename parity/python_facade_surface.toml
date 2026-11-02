@@ -3121,3 +3121,88 @@ rust = "antecedent::analysis::api::retained_source_from_artifact"
 kind = "fn"
 status = "bound"
 python = "antecedent.choice_inference.RetainedSource.from_result"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::compile"
+kind = "fn"
+status = "bound"
+python = "antecedent.missing.PreparedGraphImputation"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::execute"
+kind = "fn"
+status = "bound"
+python = "antecedent.missing.PreparedGraphImputation.execute"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::export"
+kind = "fn"
+status = "bound"
+python = "antecedent.missing.PreparedGraphImputation.export"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::consume"
+kind = "fn"
+status = "bound"
+python = "antecedent.missing.consume_compiled_graph_imputation"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationPoint::interval"
+kind = "fn"
+status = "bound"
+python = "antecedent.missing.CompiledGraphImputationResult.interval"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.PreparedGraphImputation"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationSpec"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.PreparedGraphImputation"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationPoint"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.CompiledGraphImputationResult"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationArtifact"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.CompiledGraphImputationArtifact"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationExpectation"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.CompiledGraphImputationArtifact"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationError"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.GraphSelectionImputationRefusal"
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::CompiledGraphImputation::replay"
+kind = "fn"
+status = "internal"
+reason = "Python independently recompiles and replays through consume_compiled_graph_imputation using separately retained identities."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::graph_imputation_calibration_candidate"
+kind = "fn"
+status = "internal"
+reason = "Feature-gated calibration harness entry; no Python interval authority or public calibrated claim."
+
+[[entry]]
+rust = "antecedent::analysis::graph_imputation::GraphImputationSupport"
+kind = "type"
+status = "bound"
+python = "antecedent.missing.PreparedGraphImputation"
+reason = "The mandatory graph_support keyword explicitly declares treatment-root direct-edge support."

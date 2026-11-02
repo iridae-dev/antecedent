@@ -38,6 +38,12 @@ pub(super) fn cluster_reference_key(
     }
 }
 
+// These versioned constructions are produced and matched only by their sealed
+// composite operation. Never classify them as historical Frequentist contracts.
+fn requires_composite_producer(label: &str) -> bool {
+    label.to_ascii_lowercase().starts_with("graphimputationcomposite")
+}
+
 impl StudyResult {
     /// Calibration match bases of every interval this execution reported
     /// ([`StudyResult::reported_interval_bindings`]), primary first: the keys
@@ -68,6 +74,12 @@ impl StudyResult {
             CalibrationBasisWire, CalibrationInference, CalibrationKeyWire, CalibrationScopeWire,
             CalibrationStructure,
         };
+        // Refuse before even consulting the support coordinate: neither an
+        // unknown-label fallback nor a forged coordinate may normalize this
+        // producer-specific construction to a legacy inference family.
+        if requires_composite_producer(&contract.inference) {
+            return Vec::new();
+        }
         let coordinate = contract
             .reasoning
             .support
@@ -479,4 +491,18 @@ pub(super) fn overlap_policy_tag(policy: antecedent_estimate::OverlapPolicy) -> 
 
 pub(super) fn ordered_float_bits(value: f64) -> String {
     format!("{:016x}", value.to_bits())
+}
+
+#[cfg(test)]
+mod graph_imputation_inference_guard_tests {
+    use super::requires_composite_producer;
+
+    #[test]
+    fn versioned_or_mutated_composite_labels_cannot_fall_back_to_frequentist() {
+        assert!(requires_composite_producer("GraphImputationCompositeV1"));
+        assert!(requires_composite_producer("graphimputationcompositev0"));
+        assert!(requires_composite_producer("GRAPHIMPUTATIONCOMPOSITEV1.extra"));
+        assert!(!requires_composite_producer("Frequentist"));
+        assert!(!requires_composite_producer("Bayesian"));
+    }
 }

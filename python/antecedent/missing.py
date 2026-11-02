@@ -467,3 +467,165 @@ __all__ = [
     "coerce_missing",
     "multiple_imputation_with_graph_selection",
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledGraphImputationArtifact:
+    """Original-source bytes and separately retained program, source and receipt identities."""
+
+    data: bytes
+    program: bytes
+    source: bytes
+    receipt: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledGraphImputationResult:
+    """Model-conditional diagnostics; no licensed interval or coverage claim is made."""
+
+    mean: float
+    diagnostic_sd: float
+    receipt: bytes
+    unidentified_by_table: tuple[float, ...]
+    _handle: Any = field(repr=False, compare=False)
+
+    def interval(self) -> None:
+        """Request an interval; currently raises the native unlicensed refusal."""
+        try:
+            self._handle.interval()
+        except ValueError as error:
+            _compiled_refusal(error)
+
+
+def _compiled_refusal(error: ValueError) -> None:
+    from ._refusal import raise_refusal
+
+    raise_refusal(str(error), GraphSelectionImputationRefusal)
+    raise error
+
+
+def _compiled_result(text: str, handle: Any) -> CompiledGraphImputationResult:
+    import json
+
+    value = json.loads(text)
+    return CompiledGraphImputationResult(
+        mean=value["mean"],
+        diagnostic_sd=value["diagnostic_sd"],
+        receipt=bytes(value["receipt"]),
+        unidentified_by_table=tuple(value["unidentified_by_table"]),
+        _handle=handle,
+    )
+
+
+class PreparedGraphImputation:
+    """Retained program with explicitly declared treatment-root and direct-edge graph support.
+
+    The support is a substantive causal assumption; it is not established by the source data.
+    """
+
+    def __init__(
+        self,
+        data: Mapping[str, Any],
+        *,
+        treatment: str,
+        outcome: str,
+        graph_support: Literal["treatment_root_direct_effect"],
+        domains: Mapping[str, str],
+        imputations: int = 8,
+        iterations: int = 10,
+        n_draws: int = 500,
+        prior_scale: float = 1.0,
+        execution: Execution | None = None,
+    ) -> None:
+        from ._data import _is_missing_scalar
+        from ._native import CompiledGraphImputationHandle
+        from .execution import resolve_execution
+
+        if not isinstance(data, Mapping) or not data:
+            raise CausalTypeError("data must be a non-empty mapping")
+        names = list(data)
+        if not 2 <= len(names) <= 3 or any(not 4 <= len(data[name]) <= 10_000 for name in names):
+            raise CausalValueError("source shape is outside the bounded candidate")
+        if set(domains) != set(names):
+            raise CausalValueError("declare one domain for each source column")
+        columns = [
+            [float("nan") if _is_missing_scalar(value) else float(value) for value in data[name]]
+            for name in names
+        ]
+        self._execution = resolve_execution(execution)
+        try:
+            self._handle = self._execution._call(
+                CompiledGraphImputationHandle,
+                names,
+                columns,
+                treatment,
+                outcome,
+                graph_support,
+                [domains[name] for name in names],
+                imputations,
+                iterations,
+                n_draws,
+                float(prior_scale),
+                self._execution.seed,
+            )
+        except ValueError as error:
+            _compiled_refusal(error)
+
+    def execute(self) -> CompiledGraphImputationResult:
+        """Execute only the retained graph-specific operations on the original source."""
+        try:
+            return _compiled_result(self._execution._call(self._handle.execute), self._handle)
+        except ValueError as error:
+            _compiled_refusal(error)
+            raise
+
+    def export(self) -> CompiledGraphImputationArtifact:
+        """Export after execution; retain identities separately from the encoded source."""
+        try:
+            data, program, source, receipt = self._execution._call(self._handle.export)
+        except ValueError as error:
+            _compiled_refusal(error)
+            raise
+        return CompiledGraphImputationArtifact(*map(bytes, (data, program, source, receipt)))
+
+
+def consume_compiled_graph_imputation(
+    data: bytes,
+    *,
+    program: bytes,
+    source: bytes,
+    receipt: bytes,
+    execution: Execution | None = None,
+) -> CompiledGraphImputationResult:
+    """Recompile and replay original bytes against separately retained expected identities."""
+    from ._native import consume_compiled_graph_imputation as consume
+    from .execution import resolve_execution
+
+    execution = resolve_execution(execution)
+    try:
+        if len(data) > 512 * 1024 or any(len(value) != 32 for value in (program, source, receipt)):
+            raise CausalValueError("invalid artifact size or expected identity")
+        text = execution._call(
+            consume, list(data), list(program), list(source), list(receipt), execution.seed
+        )
+    except ValueError as error:
+        _compiled_refusal(error)
+        raise
+    # No retained execution handle is manufactured from the wire.
+    return _compiled_result(text, _ConsumedGraphImputation())
+
+
+class _ConsumedGraphImputation:
+    def interval(self) -> None:
+        from ._native import compiled_graph_imputation_interval
+        from ._refusal import raise_refusal
+
+        raise_refusal(compiled_graph_imputation_interval(), GraphSelectionImputationRefusal)
+
+
+__all__ += [
+    "CompiledGraphImputationArtifact",
+    "CompiledGraphImputationResult",
+    "PreparedGraphImputation",
+    "consume_compiled_graph_imputation",
+]

@@ -19155,3 +19155,52 @@ fixtures = [
   { id = "choice_inference.interval_candidates.posterior.positive", role = "positive", intent = "The pooled posterior agrees with its qualified conjugate prior and counts.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "the_posterior_is_the_dirichlet_closed_form_on_the_qualified_prior" },
   { id = "choice_inference.interval_candidates.replay.artifact", role = "artifact", intent = "The consumer refuses semantically altered resealed artifacts.", evidence_test = "crates/antecedent-io/tests/choice_inference_result_artifact.rs", evidence_assertion = "resealed_semantic_edits_are_refused" },
 ]
+
+[[record]]
+id = "graph_imputation.compiled_candidate"
+capability = "graph_imputation.compiled_candidate"
+status = "frozen"
+consumer_question = "Can original incomplete observations be imputed, graph-scored and evaluated by retained native graph-specific operations with an independently replayed source identity?"
+theorem = "The bounded candidate enumerates the predeclared treatment-root direct-edge DAG support on two or three variables, combines Gaussian BIC scores with a uniform prior over that support, and mixes the retained per-graph conjugate effects within each completed table. These stages are model-conditional and do not assert one joint posterior or measured interval coverage."
+reference = "provenance/graph_imputation.compiled_candidate.toml"
+guarantee = "candidate_only_no_licensed_point_interval_or_decision"
+graph_class = "Only labeled two- or three-variable DAGs with treatment a root and a direct treatment-to-outcome edge; declared before scoring, with graph identity and proofs retained separately."
+population_semantics = "Rows from the declared source population, with missing-at-random chained-equation assumptions and declared variable domains."
+evidence_family = "Exact source-bound observations and native retained graph-specific operations only."
+provider = "antecedent::analysis::graph_imputation::CompiledGraphImputation"
+estimand = "Model-conditional binary-treatment mean contrast; no identified population claim is issued."
+inference_claim = "none"
+coverage_records = []
+candidate_coverage_records = ["cov.average_effect.dag.graphimputationcompositev2.nearest_rank_95.l95.graph_imputation_mar_bic_nearest_rank_candidate.v2_validation_none"]
+owners = ["antecedent-discovery", "antecedent", "antecedent-py", "python/antecedent"]
+identity_inputs = ["source content and schema", "predeclared treatment-root direct-edge graph support", "variable domains, treatment, outcome, model, seeds and bounds", "every graph mask, identification proof and child program", "each completed input, graph weight and child execution"]
+wire_changes = ["Bounded original-source artifact with separately retained expected program, source and receipt identities; consumption recompiles and replays."]
+compatibility = "Additive closed candidate; no existing inference family or legacy calibration label is reinterpreted."
+search = true
+bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = 4096, depth_limit = 1, memory_limit = 26214400 }
+search_impl = ["crates/antecedent/src/analysis/graph_imputation.rs", "crates/antecedent/src/analysis/lowering/graph_imputation.rs", "crates/antecedent-discovery/src/graph_imputation_enumeration.rs"]
+refusals = [
+  { code = "cell_not_licensed", detail = "graph_imputation.interval_unlicensed", when = "An interval is requested before measurement and licensing.", remedy = "Run the registered whole-method candidate and obtain applicable scientific review before promotion." },
+  { code = "cell_not_licensed", detail = "graph_imputation.unlicensed", when = "A point or interval is requested before this candidate is licensed." },
+  { code = "invalid_argument", detail = "graph_imputation.candidate_refused", when = "The source, declaration, child execution or replay does not satisfy the bounded candidate contract." },
+  { code = "invalid_argument", detail = "graph_imputation.lowering", when = "A retained atom or graph proof is inconsistent with the compiled declaration." },
+  { code = "invalid_argument", detail = "graph_imputation.compiled", when = "The Python bridge receives an invalid source or declaration." },
+  { code = "invalid_argument", detail = "graph_imputation.execution_refused", when = "A bounded native graph atom or scoring operation refuses." },
+  { code = "execution_resource_limit", detail = "graph_imputation.resource_limit", when = "The execution admission pool cannot fund preparation or replay." },
+  { code = "cancelled_no_claim", detail = "graph_imputation.cancelled", when = "The supplied execution token is cancelled." },
+  { code = "execution_resource_limit", detail = "graph_imputation.search_stopped", when = "The shared search budget stops bounded graph enumeration." },
+  { code = "cancelled_no_claim", detail = "graph_imputation.search_stopped", when = "Cancellation stops bounded graph enumeration." },
+]
+routes = [
+  { name = "antecedent.graph_imputation.compiled_point", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.graph_imputation.decision", stage = "evaluate", status = "closed", reason_code = "decision_contract_unsatisfied", refusal_test = "crates/antecedent/src/analysis/execute/compile_decision.rs", refusal_assertion = "graph_imputation_candidate_refuses_decision_carriers" },
+  { name = "antecedent.graph_imputation.compiled_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/src/analysis/graph_imputation.rs", refusal_assertion = "retained_execution_replay_and_source_mutation" },
+  { name = "antecedent.python.missing.PreparedGraphImputation", stage = "evaluate", status = "closed", reason_code = "cell_not_licensed" },
+  { name = "antecedent.python.missing.CompiledGraphImputationResult.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_compiled_graph_imputation.py", refusal_assertion = "test_python_interval_request_refuses_before_licensing" },
+]
+fixtures = [
+  { id = "graph_imputation.compiled_candidate.enumeration.positive", role = "positive", intent = "Independent labeled DAG counts and mixture-moment identities constrain the bounded native operation.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "exact_dag_enumeration_matches_known_counts_and_rejects_cycles" },
+  { id = "graph_imputation.compiled_candidate.replay.artifact", role = "artifact", intent = "Original-source replay refuses altered source or identities.", evidence_test = "crates/antecedent/src/analysis/graph_imputation.rs", evidence_assertion = "retained_execution_replay_and_source_mutation" },
+  { id = "graph_imputation.compiled_candidate.scope.negative", role = "negative", intent = "Unsupported dimensions and missing domains refuse.", evidence_test = "python/tests/test_compiled_graph_imputation.py", evidence_assertion = "test_declaration_refuses_missing_domains_and_unbounded_shape" },
+  { id = "graph_imputation.compiled_candidate.budget.budget", role = "budget", intent = "The native bounded DAG search returns a SearchReceipt on operation exhaustion.", evidence_test = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", evidence_assertion = "bounded_search_returns_precise_operation_stop_receipt" },
+]

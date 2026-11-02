@@ -242,14 +242,38 @@ pub(super) fn stacked_posterior(
     let first = posteriors.first().ok_or_else(|| refused("no posterior to stack"))?;
     let n = first.draws.n_draws;
     let quantities = first.draws.schema.n_quantities();
-    if posteriors
-        .iter()
-        .any(|p| p.draws.n_draws != n || p.draws.schema.n_quantities() != quantities)
-    {
+    if posteriors.iter().any(|p| p.draws.n_draws != n || p.draws.schema != first.draws.schema) {
         return Err(refused(
-            "the completed tables' posteriors differ in draws or quantities, so the mixture \
-             weights would not be equal",
+            "the completed tables' posteriors differ in draw count or quantity schema, so the \
+             mixture cannot align them with equal table weights",
         ));
+    }
+    // Equal numbers of conditional draws represent equal table weights only when each table
+    // conditions on the same retained structural mass. Distinct lost masses would require a
+    // weighted mixture, and silently cloning the first table would lose that distinction.
+    let masses =
+        |p: &CausalPosterior| [p.unidentified_mass, p.unevaluable_mass, p.subsampled_out_mass];
+    let first_mass = masses(first);
+    for posterior in posteriors {
+        let mass = masses(posterior);
+        if mass.iter().any(|x| !x.is_finite() || !(0.0..=1.0).contains(x))
+            || mass.iter().sum::<f64>() > 1.0 + 1e-12
+        {
+            return Err(refused("a completed table has invalid structural mass"));
+        }
+        if mass.iter().zip(first_mass).any(|(x, y)| x.to_bits() != y.to_bits()) {
+            return Err(refused(
+                "completed tables have different unidentified, failed or subsampled mass; \
+                 equal conditional draws cannot be combined without a retained weighted rule",
+            ));
+        }
+        if posterior.identification != first.identification
+            || posterior.assumptions != first.assumptions
+            || posterior.treatment_contrast.map(f64::to_bits)
+                != first.treatment_contrast.map(f64::to_bits)
+        {
+            return Err(refused("completed tables have incompatible posterior semantics"));
+        }
     }
     let m = posteriors.len();
     let mut values = Vec::with_capacity(quantities * n * m);
@@ -580,5 +604,70 @@ mod tests {
         let graph = evidence_entries(&report("stacked_graph_posterior"));
         let structure = graph.iter().filter(|e| e.starts_with("missing_imputation_structure:"));
         assert_eq!(structure.count(), 1);
+    }
+
+    fn posterior_fixture(name: &str) -> CausalPosterior {
+        let schema = antecedent_prob::PosteriorSchema {
+            quantities: Arc::from([antecedent_prob::PosteriorQuantityKind::Effect {
+                name: Arc::from(name),
+            }]),
+        };
+        let draws = PosteriorDraws::from_column_major(schema, 2, Arc::from([1.0, 3.0])).unwrap();
+        CausalPosterior {
+            summaries: draws.summarize(),
+            draws,
+            identification: antecedent_core::IdentificationStatus::NonparametricallyIdentified,
+            prior_sensitivity: None,
+            conflict_summary: None,
+            diagnostics: antecedent_prob::InferenceDiagnostics::analytic("test.stacked_posterior"),
+            assumptions: antecedent_core::AssumptionSet::new(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            unevaluable_mass: 0.0,
+            early_stopped: false,
+            treatment_contrast: None,
+            preparation: None,
+        }
+    }
+
+    #[test]
+    fn posterior_stack_preserves_schema_and_rejects_semantic_mutations() {
+        let first = posterior_fixture("ate");
+        let second = first.clone();
+        let pooled = stacked_posterior(&[first.clone(), second]).unwrap();
+        assert_eq!(pooled.draws.n_draws, 4);
+        assert_eq!(pooled.draws.values.as_ref(), &[1.0, 3.0, 1.0, 3.0]);
+        assert_eq!(pooled.draws.schema, first.draws.schema);
+        assert!(stacked_posterior(&[first.clone(), posterior_fixture("other")]).is_err());
+        let mut changed = first.clone();
+        changed.treatment_contrast = Some(2.0);
+        assert!(stacked_posterior(&[first, changed]).is_err());
+    }
+
+    #[test]
+    fn posterior_stack_never_drops_failed_or_unidentified_mass() {
+        let mut first = posterior_fixture("ate");
+        first.unidentified_mass = 0.1;
+        first.unevaluable_mass = 0.2;
+        first.subsampled_out_mass = 0.3;
+        let pooled = stacked_posterior(&[first.clone(), first.clone()]).unwrap();
+        assert!((pooled.unidentified_mass - 0.1).abs() < f64::EPSILON);
+        assert!((pooled.unevaluable_mass - 0.2).abs() < f64::EPSILON);
+        assert!((pooled.subsampled_out_mass - 0.3).abs() < f64::EPSILON);
+        for mutation in 0..3 {
+            let mut changed = first.clone();
+            match mutation {
+                0 => changed.unidentified_mass = 0.11,
+                1 => changed.unevaluable_mass = 0.21,
+                _ => changed.subsampled_out_mass = 0.31,
+            }
+            assert!(stacked_posterior(&[first.clone(), changed]).is_err());
+        }
+        let mut invalid = first.clone();
+        invalid.unevaluable_mass = f64::NAN;
+        assert!(stacked_posterior(&[first.clone(), invalid]).is_err());
+        let mut invalid = first.clone();
+        invalid.unevaluable_mass = 0.9;
+        assert!(stacked_posterior(&[first, invalid]).is_err());
     }
 }

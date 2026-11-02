@@ -163,6 +163,17 @@ pub use finite_discrete::{FiniteDiscreteContrast, finite_discrete_contrast};
 pub(crate) mod four_way;
 pub(crate) mod functional_sensitivity;
 pub(crate) mod functional_validation;
+pub mod graph_imputation;
+#[cfg_attr(
+    not(any(test, feature = "calibration-internal")),
+    allow(dead_code, reason = "candidate execution is closed outside calibration and tests")
+)]
+mod graph_imputation_mix;
+#[cfg_attr(
+    not(any(test, feature = "calibration-internal")),
+    allow(dead_code, reason = "candidate receipts are closed outside calibration and tests")
+)]
+mod graph_imputation_receipt;
 pub mod horizon_composition;
 mod imputed_graph_selection;
 pub mod interface_contract;

@@ -38,6 +38,8 @@ pub enum Realization {
     GeneralizedBayes(GeneralizedBayes),
     /// Identified set or envelope with its supported estimation uncertainty.
     Envelope(PartialIdentificationEnvelope),
+    /// The fixed, bounded graph-selection and row-imputation realization.
+    GraphImputationV1,
     /// Exact evaluation of an identified functional, with no sampling law.
     ExactPoint {
         /// Name of the evaluator.
@@ -59,6 +61,9 @@ impl Realization {
             }
             Self::Envelope(realization) => {
                 writer.text("envelope").bytes(realization.identity().as_bytes());
+            }
+            Self::GraphImputationV1 => {
+                writer.text("graph_imputation_v1");
             }
             Self::ExactPoint { evaluator } => {
                 writer.text("exact_point").text(evaluator);

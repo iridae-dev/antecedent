@@ -193,6 +193,8 @@ macro_rules! route_lowerings {
             Planning(&'static str),
             /// A chain of transformations, by the reading it answers.
             PropagationChain(&'static str),
+            /// A graph-selection imputation composite.
+            GraphImputation,
         }
 
         impl PlanRoute {
@@ -206,6 +208,7 @@ macro_rules! route_lowerings {
                     Self::CyclicFamily(_) => "CyclicFamily",
                     Self::Planning(_) => "ExperimentPlanning",
                     Self::PropagationChain(_) => "PropagationChain",
+                    Self::GraphImputation => "GraphImputation",
                 }
             }
 
@@ -222,6 +225,7 @@ macro_rules! route_lowerings {
                     Self::CyclicFamily(_) => RouteFamily::Cyclic,
                     Self::Planning(_) => RouteFamily::Planning,
                     Self::PropagationChain(_) => RouteFamily::PropagationChain,
+                    Self::GraphImputation => RouteFamily::GraphImputation,
                 }
             }
         }

@@ -296,3 +296,20 @@ fn rebind_estimate(
     *prepared = branch;
     Ok(result)
 }
+
+#[test]
+fn deferred_bayesian_dag_retains_its_checked_operation_before_data_fit() {
+    let ctx = ExecutionContext::for_tests(883);
+    let (data, graph, query) = confounded_scm(120, 883);
+    let builder = Study::tabular(data.clone())
+        .graph(graph)
+        .query(query)
+        .estimator(EstimatorId::BayesianGcomp)
+        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(96)))
+        .refute(RefuteSuite::None);
+    let study = builder.build().unwrap();
+    let deferred = study.prepare_deferred(&ctx).unwrap();
+    assert!(matches!(deferred.retained_operation(), RetainedOperation::BayesianGcomp { .. }));
+    let result = deferred.estimate(&data, &ctx).unwrap();
+    assert!(result.estimate().as_effect().unwrap().ate.is_finite());
+}

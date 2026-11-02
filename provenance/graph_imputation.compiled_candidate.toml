@@ -1,0 +1,19 @@
+feature_id = "graph_imputation.compiled_candidate"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Fixed composition of native chained-equation imputation, Gaussian BIC graph scoring and conjugate g-computation, restricted in advance to DAGs where treatment is a root with a direct edge to outcome. No single joint Bayesian posterior is claimed.",
+  "The graph mixture and nearest-rank interval candidate are unlicensed. Independent scientific review and whole-procedure measurement remain pending; no review or calibration record is asserted.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/src/analysis/graph_imputation.rs",
+  "crates/antecedent/src/analysis/graph_imputation_mix.rs",
+  "crates/antecedent-discovery/src/graph_imputation_enumeration.rs",
+  "python/tests/test_compiled_graph_imputation.py",
+  "crates/antecedent/tests/graph_imputation_interval_calibration.rs",
+]

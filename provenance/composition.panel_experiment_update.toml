@@ -38,7 +38,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "The numerical update in crates/antecedent-prob/src/finite_belief.rs: condition (prior mass times exp of a declared log likelihood, normalised through the largest log weight, zero prior or zero likelihood kept as exact zeros), AffineGaussianExperiment::condition (the log density of the observed experimental mean under N((target - intercept) / slope, variance / n) for every aligned slot, with the standardisation that avoids overflow of a large finite deviation), and linear_functional_rows. Not the joint-panel wiring, estimand bridge, native proof binding, mapping dependence, identity or authority checks, preposterior ranking, or any claim that the experimental likelihood is the correct model of the study."
+scope = "The numerical update in crates/antecedent-prob/src/finite_belief.rs: condition (prior mass times exp of a declared log likelihood, normalised through the largest log weight, zero prior or zero likelihood kept as exact zeros), AffineGaussianExperiment::condition (the log density of the observed experimental mean under N((target - intercept) / slope, variance / n) for every aligned slot, with the standardisation that avoids overflow of a large finite deviation), and linear_functional_rows. Not JointAffineGaussianExperiment or its appended tests, the joint-panel wiring, estimand bridge, native proof binding, mapping dependence, identity or authority checks, preposterior ranking, or any claim that the experimental likelihood is the correct model of the study. The reviewed scalar implementation and assertions are unchanged by the later joint-likelihood addition."
 assumptions = ["The experimental sample mean is the only retained datum and is N(mu, v / n) with the variance v of one observation known and the observations independent; the review checks arithmetic given that declaration, not the declaration.", "The prior over aligned slots is a probability vector over whole-function realisations that already carries the observational evidence; the update is modular and does not refit it, as the record states.", "The affine map target = intercept + slope * experimental_mean is supplied per slot and is exact; no Jacobian enters because the likelihood is a density of the observed mean, which is common to every slot."]
 historical_exposure = "Historical author exposure cannot be independently established. This review read the product source named in its scope and wrote its own reference from the stated model at 80 digits (mpmath logarithm, exponential and the log-sum-exp normalisation done in high precision); no upstream implementation was consulted. No primary paper is cited: Bayes' rule on a finite set with a Gaussian likelihood is textbook, and none was retrieved."
 redistribution = "The reference script and frozen output are repository-authored under MIT OR Apache-2.0; mpmath is not a product dependency."
@@ -50,12 +50,12 @@ record_sha256 = "d3f7032e0a8a8f0fddae15df67e6b6c3aa9ad42fe90f0ca1140d5fa1c517f7b
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-prob/src/finite_belief.rs"
-sha256 = "46d54f6b4ab0583b4bc86d481a1bb2896ee90baffa44b0d1cac13360070ff59c"
+sha256 = "231433a04ec379ddd9c005912d3e1766800814d136e52a8473887c9b60e0c516"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-prob/tests/finite_belief_reference.rs"
-sha256 = "088b9fc53793b85c57e6c91b466886e069a137a125054b0ca0fcdeff0c67e742"
+sha256 = "117b98521bbbc69544a33f5dd8ea08ace0be87059a8d951acef2e76d8fb082a2"
 
 [[method_review.artifacts]]
 role = "reference"

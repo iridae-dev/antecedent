@@ -80,6 +80,10 @@ name = "mnar_interval_calibration"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "graph_imputation_interval_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "categorical_posterior_calibration"
 required-features = ["calibration-internal"]
 

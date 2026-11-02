@@ -111,6 +111,8 @@ pub enum FunctionalKind {
     /// mapping, a transport, a pool, a derived quantity, a decision utility and a
     /// preposterior update.
     PropagatedChain,
+    /// A graph-selected effect pooled across completed imputation tables.
+    GraphImputationEffect,
     /// A noncausal association of an outcome with predictors in the observed law: a
     /// conditional law, regression coefficients, an association measure or a scored
     /// predictive model. It states no intervention.
@@ -143,6 +145,7 @@ impl FunctionalKind {
             Self::Attribution => "attribution",
             Self::Simulation => "simulation",
             Self::PropagatedChain => "propagated_chain",
+            Self::GraphImputationEffect => "graph_imputation_effect",
             Self::Association => "association",
         }
     }
@@ -858,6 +861,43 @@ impl ChainLoweredParts {
     }
 }
 
+/// The six layers of a bounded graph-selection imputation operation.
+pub(crate) struct GraphImputationLoweredParts {
+    pub(crate) scientific: ScientificProblem,
+    pub(crate) identification: IdentificationLayer,
+    pub(crate) statistical: StatisticalProgram,
+    pub(crate) evidence: EvidenceDecisionProgram,
+    pub(crate) physical: PhysicalLayer,
+    pub(crate) claim: ClaimDemand,
+}
+
+impl GraphImputationLoweredParts {
+    /// Bind all semantic layers; physical quotes do not alter scientific identity.
+    pub(crate) fn finish(self) -> LoweredProgram {
+        let cell = ProgramCell::GraphImputation;
+        let depth = LoweringDepth::Complete;
+        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+        writer.text(cell.as_str()).text(depth.as_str());
+        self.scientific.write(&mut writer);
+        self.identification.write(&mut writer);
+        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.evidence.identity().as_bytes());
+        writer.text(self.claim.uncertainty.as_str());
+        let identity = SemanticDigest::from_bytes(writer.finish());
+        LoweredProgram {
+            cell,
+            depth,
+            scientific: self.scientific,
+            identification: self.identification,
+            statistical: Arc::new(self.statistical),
+            evidence: self.evidence,
+            physical: self.physical,
+            claim: self.claim,
+            identity,
+        }
+    }
+}
+
 /// The compiled cell a lowered program was lowered for: a route cell of
 /// `Study::compile`, a cyclic family that prepares through its own entry, a
 /// standalone experiment plan, or a propagation chain.
@@ -871,6 +911,8 @@ pub(crate) enum ProgramCell {
     Planning(&'static str),
     /// A chain of transformations, by the reading it answers.
     PropagationChain(&'static str),
+    /// A bounded graph-selection imputation composite.
+    GraphImputation,
 }
 
 impl ProgramCell {
@@ -881,6 +923,7 @@ impl ProgramCell {
             Self::CyclicFamily(_) => "CyclicFamily",
             Self::Planning(_) => "ExperimentPlanning",
             Self::PropagationChain(_) => "PropagationChain",
+            Self::GraphImputation => "GraphImputation",
         }
     }
 }
@@ -928,9 +971,10 @@ impl LoweredProgram {
     pub const fn cyclic_family(&self) -> Option<&'static str> {
         match self.cell {
             ProgramCell::CyclicFamily(family) => Some(family),
-            ProgramCell::Route(_) | ProgramCell::Planning(_) | ProgramCell::PropagationChain(_) => {
-                None
-            }
+            ProgramCell::Route(_)
+            | ProgramCell::Planning(_)
+            | ProgramCell::PropagationChain(_)
+            | ProgramCell::GraphImputation => None,
         }
     }
 
@@ -941,7 +985,8 @@ impl LoweredProgram {
             ProgramCell::Planning(design) => Some(design),
             ProgramCell::Route(_)
             | ProgramCell::CyclicFamily(_)
-            | ProgramCell::PropagationChain(_) => None,
+            | ProgramCell::PropagationChain(_)
+            | ProgramCell::GraphImputation => None,
         }
     }
 
@@ -950,7 +995,10 @@ impl LoweredProgram {
     pub const fn chain_reading(&self) -> Option<&'static str> {
         match self.cell {
             ProgramCell::PropagationChain(reading) => Some(reading),
-            ProgramCell::Route(_) | ProgramCell::CyclicFamily(_) | ProgramCell::Planning(_) => None,
+            ProgramCell::Route(_)
+            | ProgramCell::CyclicFamily(_)
+            | ProgramCell::Planning(_)
+            | ProgramCell::GraphImputation => None,
         }
     }
 

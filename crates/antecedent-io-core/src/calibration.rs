@@ -930,6 +930,32 @@ mod tests {
     }
 
     #[test]
+    fn versioned_graph_imputation_key_matches_only_its_exact_construction() {
+        // Synthetic in-memory record: this does not assert that measurement exists.
+        let mut record = RECORDS[0];
+        record.id = "test.graph_imputation.v2_validation_none";
+        record.validation_schema = 2;
+        record.validation = "none";
+        record.structure = "graph_posterior";
+        record.inference = "GraphImputationCompositeV1";
+        record.estimator = "graph_imputation.bic_conjugate";
+        record.interval_method = "nearest_rank_95";
+        record.posterior = "mar_bic_graph_mixture_conjugate";
+        record.functional = "graph_imputation.v1:synthetic";
+        let mut key = key_from(&record);
+        assert!(key.same_construction(&record));
+        for legacy in ["Frequentist", "Bayesian", "Composite", "GraphImputationCompositeV0"] {
+            key.inference = legacy.to_owned();
+            assert!(!key.same_construction(&record));
+        }
+        // Historical generic conversion remains untouched.
+        assert_eq!(
+            CalibrationInference::from_label("GraphImputationCompositeV1"),
+            CalibrationInference::Frequentist
+        );
+    }
+
+    #[test]
     fn construction_index_matches_a_linear_scan() {
         let mut positive_modes = std::collections::BTreeSet::new();
         for record in &RECORDS {

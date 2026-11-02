@@ -11931,3 +11931,27 @@ def decision_evidence_excursion_quantity(
     max_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+
+class CompiledGraphImputationHandle:
+    def __init__(
+        self,
+        names: list[str],
+        columns: list[list[float]],
+        treatment: str,
+        outcome: str,
+        graph_support: str,
+        domains: list[str],
+        imputations: int,
+        iterations: int,
+        n_draws: int,
+        prior_scale: float,
+        seed: int,
+    ) -> None: ...
+    def execute(self) -> str: ...
+    def export(self) -> tuple[list[int], list[int], list[int], list[int]]: ...
+    def interval(self) -> None: ...
+
+def consume_compiled_graph_imputation(
+    data: list[int], program: list[int], source: list[int], receipt: list[int], seed: int
+) -> str: ...
+def compiled_graph_imputation_interval() -> str: ...
