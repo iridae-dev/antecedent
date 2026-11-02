@@ -23,6 +23,11 @@ pub struct OwnedColumnarStorage {
     /// Memoised on first read. Shared across clones: every clone views the same
     /// immutable columns, mask, and weights, so one computation serves all.
     content_digest: Arc<OnceLock<[u8; 32]>>,
+    /// Lifetime guard: the admission that funded the bytes this table retains, held until
+    /// the last clone of the storage (and of every table derived from it by
+    /// [`Self::derive`]) drops. Not part of the table's value: no identity, digest or
+    /// comparison reads it.
+    retention: Option<Arc<antecedent_core::execution::AdmissionLease>>,
 }
 
 impl OwnedColumnarStorage {
@@ -89,7 +94,45 @@ impl OwnedColumnarStorage {
             analysis_mask,
             weights,
             content_digest: Arc::new(OnceLock::new()),
+            retention: None,
         })
+    }
+
+    /// This table holding `lease` until it, its clones and the tables [`Self::derive`]d from
+    /// it have all dropped, whatever the column types. Attach before publishing the table:
+    /// an alias made earlier does not hold the lease.
+    #[must_use]
+    pub fn with_retention(
+        mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Self {
+        self.retention = Some(lease);
+        self
+    }
+
+    /// Whether an admission lease is held for this table's retained bytes.
+    #[must_use]
+    pub const fn is_retained(&self) -> bool {
+        self.retention.is_some()
+    }
+
+    /// A table built from this one's columns, mask or weights (a reweighting, a mask, a
+    /// projection of the same buffers). As [`Self::try_new`], and the result holds this
+    /// table's retention lease, so the bytes stay funded while any derived view shares them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::try_new`].
+    pub fn derive(
+        &self,
+        schema: CausalSchema,
+        columns: Vec<OwnedColumn>,
+        analysis_mask: Option<crate::column::ValidityBitmap>,
+        weights: Option<Arc<[f64]>>,
+    ) -> Result<Self, DataError> {
+        let mut derived = Self::try_new(schema, columns, analysis_mask, weights)?;
+        derived.retention.clone_from(&self.retention);
+        Ok(derived)
     }
 
     /// The same columns, mask and weights under another schema (a rename, a role or a unit
@@ -100,12 +143,7 @@ impl OwnedColumnarStorage {
     ///
     /// A schema whose variable count is not the column count.
     pub fn with_schema(&self, schema: CausalSchema) -> Result<Self, DataError> {
-        Self::try_new(
-            schema,
-            self.columns.to_vec(),
-            self.analysis_mask.clone(),
-            self.weights.clone(),
-        )
+        self.derive(schema, self.columns.to_vec(), self.analysis_mask.clone(), self.weights.clone())
     }
 
     /// Version-1 BLAKE3 digest of typed column contents, validity, mask, and weights.
@@ -298,5 +336,28 @@ mod tests {
         ));
         // Zero weights on some rows are legitimate (Bayesian-bootstrap draws).
         assert!(build(vec![0.0, 1.0, 3.0], None).is_ok());
+    }
+
+    #[test]
+    fn a_retention_guard_lives_exactly_as_long_as_the_storage_and_its_derivations() {
+        use antecedent_core::ExecutionContext;
+        use antecedent_core::execution::AdmissionPool;
+
+        let pool = AdmissionPool::fixed(1, 64);
+        let ctx = ExecutionContext::for_tests(1).with_admission(pool.clone());
+        let lease = Arc::new(ctx.acquire_admission(0, 16).unwrap());
+        let storage = build(vec![1.0; 3], None).unwrap().with_retention(lease);
+        assert!(storage.is_retained());
+        assert_eq!(pool.available().bytes(), 48);
+
+        // A rebuild that shares the columns keeps the guard; a plain `try_new` does not.
+        let derived = storage
+            .derive(storage.schema().clone(), storage.columns().to_vec(), None, None)
+            .unwrap();
+        assert!(derived.is_retained());
+        drop(storage);
+        assert_eq!(pool.available().bytes(), 48);
+        drop(derived);
+        assert_eq!(pool.available().bytes(), 64);
     }
 }

@@ -61,6 +61,7 @@ pub mod surrogate;
 pub mod table;
 pub mod temporal;
 pub mod unbalanced_panel;
+pub mod unit_key;
 pub mod vector_vars;
 
 #[cfg(test)]
@@ -126,6 +127,7 @@ pub use unbalanced_panel::{
     AttritionBaseline, AttritionRow, BalanceRequirement, PanelBalanceReport, PanelLayout,
     PanelPreparationError, PeriodRun, PreparationMode, PreparedPanel, UnitRun, UnitSummary,
 };
+pub use unit_key::UnitKey;
 pub use vector_vars::{VectorVariableGroups, column_blocks_for_frame};
 
 #[cfg(test)]

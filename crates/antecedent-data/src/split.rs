@@ -197,6 +197,25 @@ impl DiscoveryEstimationSplit {
         Ok(self)
     }
 
+    /// Refuse a series whose length differs from the one this split was declared for.
+    ///
+    /// The windows are absolute row ranges; on a series of another length they select
+    /// other observations than the ones the split separated.
+    ///
+    /// # Errors
+    ///
+    /// [`DataError::InvalidValue`] when `rows` is not `series_len`.
+    pub fn ensure_series_len(&self, rows: usize) -> Result<(), DataError> {
+        if self.series_len == rows {
+            Ok(())
+        } else {
+            Err(DataError::invalid_value(
+                "split series_len",
+                "must equal the row count of the series it splits",
+            ))
+        }
+    }
+
     /// Discovery, then an embargo gap, then estimation.
     ///
     /// The gap rows are in neither window. `discovery_len + embargo + estimation_len`
@@ -273,6 +292,14 @@ mod tests {
         assert_eq!(s.discovery, TimeRange { start: 0, end: 60 });
         assert_eq!(s.gap, 10);
         assert_eq!(s.estimation, TimeRange { start: 70, end: 100 });
+    }
+
+    #[test]
+    fn a_split_refuses_a_series_of_another_length() {
+        let s = DiscoveryEstimationSplit::from_sizes(100, 60, 10, 30).unwrap();
+        assert!(s.ensure_series_len(100).is_ok());
+        assert!(s.ensure_series_len(99).is_err());
+        assert!(s.ensure_series_len(101).is_err());
     }
 
     #[test]

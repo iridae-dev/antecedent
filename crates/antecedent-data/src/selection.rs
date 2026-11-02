@@ -12,7 +12,6 @@ use antecedent_core::{
 use crate::column::{ColumnView, Float64Column, OwnedColumn, ValidityBitmap};
 use crate::dataset::TabularData;
 use crate::error::DataError;
-use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
 impl TabularData {
@@ -149,7 +148,7 @@ impl TabularData {
                 ValidityBitmap::all_valid(n),
             )?);
         }
-        let storage = OwnedColumnarStorage::try_new(
+        let storage = storage.derive(
             storage.schema().clone(),
             cols,
             storage.analysis_mask().cloned(),
@@ -186,7 +185,7 @@ impl TabularData {
             }
             None => mask,
         };
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             Some(combined),
@@ -213,7 +212,7 @@ impl TabularData {
                 context: "observation weights",
             });
         }
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             storage.analysis_mask().cloned(),
@@ -275,7 +274,7 @@ impl TabularData {
             values,
             ValidityBitmap::all_valid(n),
         )?));
-        let storage = OwnedColumnarStorage::try_new(
+        let storage = storage.derive(
             schema,
             cols,
             storage.analysis_mask().cloned(),

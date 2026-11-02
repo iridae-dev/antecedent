@@ -18,13 +18,53 @@ use crate::temporal::{SamplingRegularity, TimeIndex};
 #[derive(Clone, Debug)]
 pub struct TabularData {
     storage: OwnedColumnarStorage,
+    /// Declared unit of every row. A declaration beside the data, outside its content digest.
+    unit_key: Option<Arc<crate::unit_key::UnitKey>>,
 }
 
 impl TabularData {
     /// Wrap owned storage.
     #[must_use]
     pub fn new(storage: OwnedColumnarStorage) -> Self {
-        Self { storage }
+        Self { storage, unit_key: None }
+    }
+
+    /// This table holding `lease` for as long as it, its clones and the tables derived from
+    /// its columns live, whatever the column types (see
+    /// [`OwnedColumnarStorage::with_retention`]). Keeps the declared unit key.
+    #[must_use]
+    pub fn with_retention(
+        mut self,
+        lease: Arc<antecedent_core::execution::AdmissionLease>,
+    ) -> Self {
+        self.storage = self.storage.with_retention(lease);
+        self
+    }
+
+    /// This table with the declared unit of each row.
+    ///
+    /// A study that bound its units refuses a replacement table whose key differs, even at the
+    /// same row count; a table without a key inherits the study's binding. Every derived table
+    /// (a projection, a schema change) drops the key.
+    ///
+    /// # Errors
+    ///
+    /// [`DataError::InvalidValue`] when the key labels another number of rows.
+    pub fn with_unit_key(mut self, key: crate::unit_key::UnitKey) -> Result<Self, DataError> {
+        if key.rows() != self.storage.row_count() {
+            return Err(DataError::invalid_value(
+                "unit key rows",
+                "must equal the row count of the table",
+            ));
+        }
+        self.unit_key = Some(Arc::new(key));
+        Ok(self)
+    }
+
+    /// The declared unit of each row, when one was attached.
+    #[must_use]
+    pub fn unit_key(&self) -> Option<&crate::unit_key::UnitKey> {
+        self.unit_key.as_deref()
     }
 
     /// Build continuous `f64` columns from named slices (equal length).
@@ -286,7 +326,7 @@ impl TimeSeriesData {
                 context: "observation weights",
             });
         }
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             storage.analysis_mask().cloned(),
@@ -323,7 +363,7 @@ impl TimeSeriesData {
             }
             None => mask,
         };
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             storage.schema().clone(),
             storage.columns().to_vec(),
             Some(combined),

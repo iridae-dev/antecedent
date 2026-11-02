@@ -8,7 +8,6 @@ use antecedent_core::{CausalSchemaBuilder, VariableId};
 
 use crate::dataset::TabularData;
 use crate::error::DataError;
-use crate::storage::OwnedColumnarStorage;
 use crate::table::TableView;
 
 /// Dense-id remap produced by [`TabularData::project`].
@@ -95,7 +94,7 @@ impl TabularData {
         }
 
         let new_schema = builder.build().map_err(DataError::from)?;
-        let new_storage = OwnedColumnarStorage::try_new(
+        let new_storage = storage.derive(
             new_schema,
             cols,
             storage.analysis_mask().cloned(),
@@ -123,6 +122,7 @@ mod tests {
 
     use super::*;
     use crate::column::{Float64Column, OwnedColumn, ValidityBitmap};
+    use crate::storage::OwnedColumnarStorage;
     use antecedent_core::{MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
     use std::sync::Arc;
 
