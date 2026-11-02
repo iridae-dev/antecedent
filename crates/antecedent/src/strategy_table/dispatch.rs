@@ -623,6 +623,9 @@ pub(crate) fn estimate_static_effect(
     workspaces: &mut StaticEstimateWorkspaces,
 ) -> Result<EffectEstimate, CausalError> {
     let StaticEstimateInput { data, estimand, query, .. } = input;
+    if let Some(design) = input.sampling_design {
+        crate::estimator_spec::ensure_dependence_honoured(spec, design)?;
+    }
     let target = FitTarget { data, estimand, query, ctx };
     match spec {
         EstimatorSpec::Default(id) => {
@@ -765,6 +768,9 @@ pub(crate) fn estimate_static_effect_streamed(
     ceiling_bytes: u64,
 ) -> Result<Option<EffectEstimate>, CausalError> {
     let StaticEstimateInput { data, estimand, query, .. } = input;
+    if let Some(design) = input.sampling_design {
+        crate::estimator_spec::ensure_dependence_honoured(spec, design)?;
+    }
     if let Some(est) = streamed_iv_estimator(spec, estimator) {
         if !est.supports_streamed_reduction() {
             return Ok(None);
@@ -857,8 +863,9 @@ fn estimate_static_effect_default(
             prepare_fit!(est, target, assumptions, &mut FrontDoorWorkspace::default())
         }
         EstimatorId::FrontDoorFunctional => {
-            let est =
+            let mut est =
                 FrontDoorFunctional::new().with_bootstrap_replicates(input.bootstrap_replicates);
+            est.sampling_design = crate::estimator_spec::declared_sampling(input.sampling_design);
             prepare_fit!(est, target, assumptions)
         }
         EstimatorId::IvWald => {
@@ -921,6 +928,12 @@ pub fn attach_static_bootstrap(
         population_registry,
         sampling_design,
     } = input;
+    if let Some(design) = sampling_design {
+        crate::estimator_spec::ensure_dependence_honoured(
+            &EstimatorSpec::Default(estimator),
+            design,
+        )?;
+    }
     match estimator {
         EstimatorId::PropensityWeighting => {
             let mut est = PropensityWeighting::new();
@@ -977,7 +990,9 @@ pub fn attach_static_bootstrap(
             est.attach_bootstrap(&prep, &mut ws, ctx, point).map_err(est_err)
         }
         EstimatorId::FrontDoorFunctional => {
-            let est = FrontDoorFunctional::new().with_bootstrap_replicates(bootstrap_replicates);
+            let mut est =
+                FrontDoorFunctional::new().with_bootstrap_replicates(bootstrap_replicates);
+            est.sampling_design = crate::estimator_spec::declared_sampling(sampling_design);
             let prep = est.prepare(data, estimand, query).map_err(est_err)?;
             est.attach_bootstrap(&prep, ctx, point).map_err(est_err)
         }

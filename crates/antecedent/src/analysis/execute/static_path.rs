@@ -218,8 +218,10 @@ impl<'a> StaticAteExecution<'a> {
                 // Point stage only: the uncertainty stage below attaches the
                 // study's replicate count, so the estimator's own default must
                 // not bootstrap here.
-                let fitter =
+                let mut fitter =
                     antecedent_estimate::FrontDoorFunctional::new().with_bootstrap_replicates(0);
+                fitter.sampling_design =
+                    crate::estimator_spec::declared_sampling(self.study.declared.sampling_design);
                 Some((fitter.clone(), fitter.prepare_checked(data, identification, 0)?))
             } else {
                 None
@@ -737,8 +739,10 @@ impl<'a> StaticAteExecution<'a> {
     ) -> Result<EffectEstimate, CausalError> {
         let ctx = self.run.ctx;
         self.clock.begin(ctx, super::super::stage::STAGE_UNCERTAINTY, 0.55)?;
-        let fitter = antecedent_estimate::FrontDoorFunctional::new()
+        let mut fitter = antecedent_estimate::FrontDoorFunctional::new()
             .with_bootstrap_replicates(self.study.settings.bootstrap_replicates);
+        fitter.sampling_design =
+            crate::estimator_spec::declared_sampling(self.study.declared.sampling_design);
         let filled =
             fitter.attach_bootstrap(receipt.problem(), ctx, point).map_err(CausalError::from)?;
         self.clock.finish(super::super::stage::STAGE_UNCERTAINTY);

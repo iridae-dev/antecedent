@@ -1901,6 +1901,12 @@ impl StudyBuilder {
     /// bootstraps or splits is held to the declared design, and a request the design does not
     /// allow is refused with a typed sampling-design error. The declaration enters the
     /// data-snapshot identity. Without it each estimator takes the design its grouping implies.
+    ///
+    /// A clustered panel or dependent time series must also be read by the selected estimator,
+    /// which is resolved from its id first: matching, instrumental fits and the front-door
+    /// functional read neither and are refused (`option_not_applicable`, naming a next attempt),
+    /// and double ML, the DR-learner and the causal forest read a clustered panel only through a
+    /// declared whole-cluster independence unit (`with_cluster_dml` with the cluster labels).
     #[must_use]
     pub fn sampling_design(mut self, design: antecedent_core::DeclaredSamplingDesign) -> Self {
         self.declared.sampling_design = Some(design);

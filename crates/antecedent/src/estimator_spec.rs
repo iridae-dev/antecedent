@@ -106,49 +106,23 @@ impl EstimatorSpec {
 
     /// Bind the study-level sampling design to a configured estimator that resamples or splits.
     ///
-    /// An estimator that declared no design takes the study's. An estimator that declared a
-    /// different design than the study is a conflict, never a silent override. An id-only spec
-    /// and an estimator that neither bootstraps by design nor splits are left as they are.
+    /// First the shared admission [`ensure_dependence_honoured`] holds the estimator (an id-only
+    /// spec resolved to its default configuration) to the declared dependence. An estimator that
+    /// declared no design then takes the study's. An estimator that declared a different design
+    /// than the study is a conflict, never a silent override. An id-only spec and an estimator
+    /// that neither bootstraps by design nor splits are left as they are.
     ///
     /// # Errors
     ///
-    /// [`crate::CausalError::Conflict`] when the estimator declared another design.
+    /// `option_not_applicable` when the estimator reads none of the declared dependence (see
+    /// [`ensure_dependence_honoured`]); [`crate::CausalError::Conflict`] when the estimator
+    /// declared another design.
     pub fn bind_sampling_design(
         &mut self,
         design: antecedent_core::DeclaredSamplingDesign,
     ) -> Result<(), crate::CausalError> {
         use antecedent_estimate::util::SamplingDeclaration;
-        let dependent = matches!(
-            design,
-            antecedent_core::DeclaredSamplingDesign::ClusteredPanel
-                | antecedent_core::DeclaredSamplingDesign::DependentTimeSeries
-        );
-        if dependent
-            && matches!(
-                self,
-                Self::PropensityMatching(_)
-                    | Self::DistanceMatching(_)
-                    | Self::IvWald(_)
-                    | Self::Iv2Sls(_)
-                    | Self::Default(
-                        EstimatorId::PropensityMatching
-                            | EstimatorId::DistanceMatching
-                            | EstimatorId::IvWald
-                            | EstimatorId::Iv2Sls
-                    )
-            )
-        {
-            return Err(crate::unsupported_reason!(
-                "option_not_applicable",
-                "this estimator reads no cluster or serial dependence: matching has no valid \
-                 cluster or HAC error (donors belong to other clusters and times than the \
-                 matched unit) and instrumental fits publish heteroskedasticity-robust errors \
-                 only, so a clustered-panel or dependent-time-series design would be silently \
-                 ignored. Next attempt: declare independent subject trajectories, or use \
-                 LinearAdjustmentAte, AIPW or propensity weighting with a cluster or Newey-West \
-                 standard error"
-            ));
-        }
+        ensure_dependence_honoured(self, design)?;
         let slot: &mut SamplingDeclaration = match self {
             Self::LinearAdjustmentAte(cfg) => &mut cfg.inference.sampling_design,
             Self::PropensityWeighting(cfg) => &mut cfg.inference.sampling_design,
@@ -365,6 +339,136 @@ impl EstimatorSpec {
     }
 }
 
+/// How a resolved estimator reads a declared clustered-panel or dependent-time-series design.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DependenceRead {
+    /// Through its inference declarations (a cluster or Newey-West error, or a resample under
+    /// the declared design); the study-level check that the configuration really does so is
+    /// `require_declared_dependence_read` at build.
+    Inference,
+    /// Through a whole-cluster cross-fit over declared independence units (cross-fitted AIPW
+    /// scores summed by unit, with the cluster sandwich). A clustered panel only; the units
+    /// are `declared` or the rows stand alone.
+    Units { declared: bool },
+    /// Not at all: matching and instrumental fits.
+    MatchingOrInstrument,
+    /// Not at all: the front-door functional plug-in, which carries no unit labels.
+    FrontDoorFunctional,
+}
+
+impl EstimatorSpec {
+    /// The estimator an id-only spec stands for, with its default configuration; `None` for an
+    /// id with no configured variant.
+    fn default_configuration(id: EstimatorId) -> Option<Self> {
+        Some(match id {
+            EstimatorId::PropensityMatching => PropensityMatching::new().into(),
+            EstimatorId::DistanceMatching => DistanceMatching::new().into(),
+            EstimatorId::IvWald => WaldIv::new().into(),
+            EstimatorId::Iv2Sls => TwoStageLeastSquares::new().into(),
+            EstimatorId::Dml => DmlAte::new().into(),
+            EstimatorId::DrLearner => DrLearner::new().into(),
+            EstimatorId::CausalForest => CausalForest::new().into(),
+            _ => return None,
+        })
+    }
+
+    /// How this estimator, resolved from its id when id-only, reads a declared dependent design.
+    fn dependence_read(&self) -> DependenceRead {
+        match self {
+            Self::Default(EstimatorId::FrontDoorFunctional) => DependenceRead::FrontDoorFunctional,
+            Self::Default(id) => Self::default_configuration(*id)
+                .map_or(DependenceRead::Inference, |resolved| resolved.dependence_read()),
+            Self::PropensityMatching(_)
+            | Self::DistanceMatching(_)
+            | Self::IvWald(_)
+            | Self::Iv2Sls(_) => DependenceRead::MatchingOrInstrument,
+            Self::Dml(cfg) => DependenceRead::Units { declared: cfg.units.spec.is_some() },
+            Self::DrLearner(cfg) => DependenceRead::Units { declared: cfg.units.spec.is_some() },
+            Self::CausalForest(cfg) => DependenceRead::Units { declared: cfg.units.spec.is_some() },
+            _ => DependenceRead::Inference,
+        }
+    }
+
+    /// Whether the estimator reads a declared clustered panel through its own independence
+    /// units, so no standard-error kind or bootstrap setting has to carry the declaration.
+    #[must_use]
+    pub(crate) fn reads_dependence_through_units(&self) -> bool {
+        self.dependence_read() == DependenceRead::Units { declared: true }
+    }
+}
+
+/// The one admission of an estimator under a declared sampling design: the estimator must use
+/// the declared dependence or the study is refused.
+///
+/// An id-only spec is resolved to the estimator it stands for first, so the id and the same
+/// estimator configured by hand are held to the same rule. Independent subject trajectories
+/// declare no dependence to read. A clustered panel or dependent time series is read by an
+/// estimator that carries its inference declarations (checked against the configuration by the
+/// study), and by a cross-fitted estimator (double ML, DR-learner, causal forest) only through a
+/// declared whole-cluster independence unit and only for a panel. Matching, instrumental fits and
+/// the front-door functional read neither, and the cross-fit of a series reads no serial lag, so
+/// each is refused rather than answered with an error that treats the rows as independent.
+///
+/// Every dispatch that builds an estimator under a declared design calls this.
+///
+/// # Errors
+///
+/// `option_not_applicable` naming why the estimator reads none of the declared dependence and a
+/// next attempt.
+pub(crate) fn ensure_dependence_honoured(
+    spec: &EstimatorSpec,
+    design: antecedent_core::DeclaredSamplingDesign,
+) -> Result<(), crate::CausalError> {
+    use antecedent_core::DeclaredSamplingDesign as Design;
+    if design == Design::IndependentSubjectTrajectories {
+        return Ok(());
+    }
+    let series = design == Design::DependentTimeSeries;
+    match (spec.dependence_read(), series) {
+        (DependenceRead::Inference, _) | (DependenceRead::Units { declared: true }, false) => {
+            Ok(())
+        }
+        (DependenceRead::MatchingOrInstrument, _) => Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "this estimator reads no cluster or serial dependence: matching has no valid \
+             cluster or HAC error (donors belong to other clusters and times than the \
+             matched unit) and instrumental fits publish heteroskedasticity-robust errors \
+             only, so a clustered-panel or dependent-time-series design would be silently \
+             ignored. Next attempt: declare independent subject trajectories, or use \
+             LinearAdjustmentAte, AIPW or propensity weighting with a cluster or Newey-West \
+             standard error"
+        )),
+        (DependenceRead::FrontDoorFunctional, _) => Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "this estimator reads no cluster or serial dependence: the front-door functional \
+             publishes an influence-function error and resamples single rows, and carries no \
+             cluster label or lag, so a clustered-panel or dependent-time-series design would \
+             be silently ignored and its error too small. Next attempt: declare independent \
+             subject trajectories if the rows are independent, or use FrontDoorTwoStage with \
+             cluster labels for a clustered panel"
+        )),
+        (DependenceRead::Units { .. }, true) => Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "this estimator reads no serial dependence: a cross-fitted estimator folds rows \
+             (or whole clusters) at random and sums its scores as independent terms, so a \
+             declared dependent-time-series design would be silently ignored and its error too \
+             small. Next attempt: declare independent subject trajectories if the rows are \
+             independent, or use LinearAdjustmentAte, AIPW or propensity weighting with a \
+             Newey-West standard error"
+        )),
+        (DependenceRead::Units { declared: false }, false) => Err(crate::unsupported_reason!(
+            "option_not_applicable",
+            "this estimator reads no cluster dependence without a declared independence unit: \
+             a cross-fitted estimator folds and sandwiches single rows as independent, so a \
+             clustered-panel design would be silently ignored and its error too small. Next \
+             attempt: declare the units with with_cluster_dml and the cluster labels \
+             (with_cluster_ids), declare independent subject trajectories if the rows are \
+             independent, or use LinearAdjustmentAte, AIPW or propensity weighting with a \
+             cluster standard error"
+        )),
+    }
+}
+
 /// What a study fills into an estimator built from an id alone.
 #[derive(Clone, Copy)]
 pub struct BuildDefaults<'a> {
@@ -528,6 +632,63 @@ mod tests {
             EstimatorSpec::Default(id)
                 .bind_sampling_design(Design::IndependentSubjectTrajectories)
                 .unwrap();
+        }
+    }
+
+    #[test]
+    fn the_shared_admission_resolves_ids_and_reads_only_declared_units() {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        use antecedent_estimate::ClusterDml;
+
+        let units = ClusterDml::new(20).unwrap();
+        // An id and the estimator it resolves to are held to the same rule: with no declared
+        // unit a cross-fit reads neither a clustered panel nor a series.
+        for (id, configured) in [
+            (EstimatorId::Dml, DmlAte::new().into()),
+            (EstimatorId::DrLearner, DrLearner::new().into()),
+            (EstimatorId::CausalForest, CausalForest::new().into()),
+        ] {
+            let configured: EstimatorSpec = configured;
+            for design in [Design::ClusteredPanel, Design::DependentTimeSeries] {
+                for spec in [EstimatorSpec::Default(id), configured.clone()] {
+                    let error = ensure_dependence_honoured(&spec, design).unwrap_err();
+                    assert_eq!(error.reason_code(), Some("option_not_applicable"), "{id:?}");
+                    assert!(error.to_string().contains("Next attempt"), "{error}");
+                }
+            }
+            ensure_dependence_honoured(
+                &EstimatorSpec::Default(id),
+                Design::IndependentSubjectTrajectories,
+            )
+            .unwrap();
+        }
+        // A declared independence unit is read for a clustered panel and never for a series.
+        let declared: [EstimatorSpec; 3] = [
+            DmlAte::new().with_cluster_dml(units).into(),
+            DrLearner::new().with_cluster_dml(units).into(),
+            CausalForest::new().with_cluster_dml(units).into(),
+        ];
+        for spec in &declared {
+            assert!(spec.reads_dependence_through_units());
+            ensure_dependence_honoured(spec, Design::ClusteredPanel).unwrap();
+            let error = ensure_dependence_honoured(spec, Design::DependentTimeSeries).unwrap_err();
+            assert_eq!(error.reason_code(), Some("option_not_applicable"));
+        }
+        // The front-door functional carries no labels at all; it is selectable by id only.
+        let functional = EstimatorSpec::Default(EstimatorId::FrontDoorFunctional);
+        for design in [Design::ClusteredPanel, Design::DependentTimeSeries] {
+            let error = ensure_dependence_honoured(&functional, design).unwrap_err();
+            assert_eq!(error.reason_code(), Some("option_not_applicable"));
+            assert!(error.to_string().contains("front-door functional"), "{error}");
+        }
+        ensure_dependence_honoured(&functional, Design::IndependentSubjectTrajectories).unwrap();
+        // An estimator that carries its inference declarations is checked against them by the
+        // study, not refused here.
+        for id in [EstimatorId::Aipw, EstimatorId::LinearAdjustmentAte, EstimatorId::GlmAdjustment]
+        {
+            let spec = EstimatorSpec::Default(id);
+            assert!(!spec.reads_dependence_through_units());
+            ensure_dependence_honoured(&spec, Design::ClusteredPanel).unwrap();
         }
     }
 }

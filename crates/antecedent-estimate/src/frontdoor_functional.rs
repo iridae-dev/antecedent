@@ -108,6 +108,12 @@ pub struct FrontDoorFunctional {
     pub overlap: OverlapPolicy,
     /// Outcome model inside the functional.
     pub outcome_model: FrontDoorOutcomeModel,
+    /// Sampling design of the rows, for the bootstrap. The functional carries no unit labels,
+    /// so it can only draw single rows: undeclared, that is the subject draw of one row per
+    /// subject; a declared design never allows a row-level draw, and a declared clustered
+    /// panel or dependent series is refused outright (see
+    /// [`Self::prepare`]).
+    pub sampling_design: crate::util::SamplingDeclaration,
 }
 
 impl Default for FrontDoorFunctional {
@@ -125,10 +131,41 @@ impl FrontDoorFunctional {
             bootstrap_replicates: 200,
             overlap: OverlapPolicy::ExplicitOverride,
             outcome_model: FrontDoorOutcomeModel::Auto,
+            sampling_design: crate::util::SamplingDeclaration::Undeclared,
         }
     }
 
     crate::inference::with_bootstrap_replicates!();
+
+    crate::inference::with_sampling_design!();
+
+    /// Refuse a declared clustered panel or dependent series, which this estimator cannot read.
+    ///
+    /// Both the influence-function error and the bootstrap treat single rows as independent
+    /// draws, and the table carries no cluster label or lag to do otherwise, so under either
+    /// design the published error would be too small. Independent subject trajectories are
+    /// held to the bootstrap's own rule (a row-level draw is refused unless undeclared).
+    fn require_declared_design_read(&self) -> Result<(), EstimationError> {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+        let crate::util::SamplingDeclaration::Declared(
+            design @ (Design::ClusteredPanel | Design::DependentTimeSeries),
+        ) = self.sampling_design
+        else {
+            return Ok(());
+        };
+        Err(EstimationError::refused(
+            antecedent_core::reason_code!("option_not_applicable"),
+            format!(
+                "FrontDoorFunctional declares the {} design, but its influence-function error \
+                 and its bootstrap draw single rows as independent and the table carries no \
+                 cluster label or lag, so the declared dependence would be silently ignored and \
+                 the error too small. Next attempt: declare independent subject trajectories if \
+                 the rows are independent, or use FrontDoorTwoStage with cluster labels for a \
+                 clustered panel",
+                design.as_str(),
+            ),
+        ))
+    }
 
     /// Set the outcome model.
     #[must_use]
@@ -148,6 +185,7 @@ impl FrontDoorFunctional {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedFrontDoorProblem, EstimationError> {
+        self.require_declared_design_read()?;
         prepare_frontdoor_problem(data, estimand, query, self.overlap)
     }
 
@@ -158,6 +196,7 @@ impl FrontDoorFunctional {
         identification: &IdentificationResult,
         estimand_index: usize,
     ) -> Result<crate::frontdoor::CheckedFrontDoorPreparation, EstimationError> {
+        self.require_declared_design_read()?;
         crate::frontdoor::prepare_frontdoor_checked(
             data,
             identification,
@@ -267,7 +306,12 @@ impl FrontDoorFunctional {
         let k = problem.mediators.len();
         // Each worker gathers treatment, outcome, and `k` mediator columns.
         let _gather = crate::util::admit_gather_scratch(ctx, n, k + 2, self.bootstrap_replicates)?;
-        crate::util::bootstrap_se_with_scratch(
+        crate::util::bootstrap_by_design(
+            crate::util::BootstrapDesign {
+                clusters: None,
+                series_block: None,
+                declared: self.sampling_design,
+            },
             self.bootstrap_replicates,
             ctx,
             0xF80E_u64,
@@ -977,5 +1021,30 @@ mod tests {
         let boot = effect.se_bootstrap().expect("bootstrap SE");
         let rel = (effect.se_analytic() - boot).abs() / boot;
         assert!(rel < 0.15, "analytic={} boot={boot}", effect.se_analytic());
+    }
+
+    #[test]
+    fn a_declared_panel_or_series_is_refused_and_a_declared_row_draw_never_runs() {
+        use antecedent_core::DeclaredSamplingDesign as Design;
+
+        let data = binary_scm_draw(400, 5);
+        for design in [Design::ClusteredPanel, Design::DependentTimeSeries] {
+            let est = no_bootstrap(FrontDoorOutcomeModel::Auto).with_sampling_design(design);
+            let err = est.prepare(&data, &frontdoor_estimand(), &query()).unwrap_err();
+            assert!(
+                matches!(err, EstimationError::Refused { code: "option_not_applicable", .. }),
+                "err={err}"
+            );
+            assert!(err.to_string().contains("Next attempt"), "err={err}");
+        }
+        // Rows are the only draw unit: a declared trajectory design forbids a row-level draw,
+        // while the analytic error alone (no bootstrap) is unaffected.
+        let design = Design::IndependentSubjectTrajectories;
+        let est =
+            FrontDoorFunctional::new().with_bootstrap_replicates(20).with_sampling_design(design);
+        let err = fit(&est, &data, &frontdoor_estimand()).unwrap_err();
+        assert!(err.to_string().contains("row_iid"), "err={err}");
+        let est = no_bootstrap(FrontDoorOutcomeModel::Auto).with_sampling_design(design);
+        fit(&est, &data, &frontdoor_estimand()).unwrap();
     }
 }

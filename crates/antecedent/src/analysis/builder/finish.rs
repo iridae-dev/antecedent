@@ -145,8 +145,15 @@ fn bind_schema(input: FinishInput) -> Result<BoundSchema, CausalError> {
         execution,
     } = input;
     if let Some(design) = declared.sampling_design {
-        if let Some(spec) = declared.estimator_spec.as_mut() {
-            spec.bind_sampling_design(design)?;
+        // The shared admission holds the selected estimator to the declared dependence; an
+        // estimator selected by id alone (no spec, as a batch does) is resolved the same way.
+        match (declared.estimator_spec.as_mut(), declared.estimator) {
+            (Some(spec), _) => spec.bind_sampling_design(design)?,
+            (None, Some(id)) => crate::estimator_spec::ensure_dependence_honoured(
+                &EstimatorSpec::Default(id),
+                design,
+            )?,
+            (None, None) => {}
         }
     }
     let design_based = query.as_ref().is_some_and(is_graphless_design);
@@ -1388,6 +1395,18 @@ fn require_declared_dependence_read(
         _ => return Ok(()),
     };
     if !matches!(carry.data, DataInput::Tabular(_)) || carry.settings.inference.is_bayesian() {
+        return Ok(());
+    }
+    // A cross-fitted estimator with declared independence units reads the declared clustered
+    // panel in its own whole-cluster cross-fit and cluster sandwich (the shared admission has
+    // already refused the designs and configurations it does not read), so neither a
+    // standard-error kind nor a bootstrap setting has to carry it.
+    if carry
+        .declared
+        .estimator_spec
+        .as_ref()
+        .is_some_and(EstimatorSpec::reads_dependence_through_units)
+    {
         return Ok(());
     }
     let inference = carry.declared.estimator_spec.as_ref().and_then(EstimatorSpec::inference_spec);
