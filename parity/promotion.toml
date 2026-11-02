@@ -15345,6 +15345,40 @@ inference_inventory_disposition = "no_new_inference_outputs"
 inference_outputs = []
 
 [[record]]
+id = "cyclic.general_systems"
+capability = "cyclic.general_systems"
+status = "in_progress"
+consumer_question = "Can a specified cyclic system be evaluated and its retained family independently replayed?"
+theorem = "Specified feedback equations are solved subject to their recorded existence, uniqueness and numerical certificates; retained family artifacts are independently re-derived under the recorded contract. General identification and calibrated uncertainty are not implied."
+reference = "provenance/cyclic.general_systems.toml"
+guarantee = "specified_model_conditional_cyclic_execution_and_checked_replay"
+graph_class = "Specified cyclic systems, with graph and equilibrium assumptions retained."
+population_semantics = "The declared model, interventions, disturbances and observed regimes; no population transport is implied."
+evidence_family = "Built-in cyclic equilibrium and dynamics systems and their retained family artifacts."
+provider = "antecedent_model::nonlinear_equilibrium; antecedent_estimate::cyclic_likelihood; antecedent_io::cyclic_family_artifact"
+estimand = "Model-conditional equilibrium, response or likelihood for the declared system."
+inference_claim = "none"
+owners = ["antecedent-model", "antecedent-estimate", "antecedent-io", "antecedent"]
+identity_inputs = ["equations", "noise law", "regimes", "interventions", "solve policy", "recorded contract"]
+wire_changes = ["None; existing cyclic family artifacts retain their current version and verification."]
+compatibility = "Registers the existing implementation and evidence; no new calibrated uncertainty is licensed."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "route_not_supported", detail = "sde.unbounded_growth", when = "The declared state box does not bound a required derivative." },
+  { code = "route_not_supported", detail = "sde.input_outside_certified_envelope", when = "An input lies outside its certified envelope." },
+  { code = "route_not_supported", detail = "sde.action_time_off_grid", when = "An action time is not representable on the declared grid." },
+  { code = "route_not_supported", detail = "sde.milstein_noncommutative", when = "The diagonal Milstein correction cannot represent the declared cross-state diffusion." },
+]
+routes = [{ name = "antecedent.cyclic.consume_family_artifact", stage = "consume", status = "licensed", claim = "none" }]
+fixtures = [
+  { id = "cyclic.general_systems.equilibrium.positive", role = "positive", intent = "A linear feedback equilibrium and its clamped worlds match closed form with shared disturbances.", evidence_test = "crates/antecedent-model/src/nonlinear_equilibrium.rs", evidence_assertion = "nonlinear_equilibrium_linear_truth_clamps_and_shared_noise" },
+  { id = "cyclic.general_systems.likelihood.positive", role = "positive", intent = "The equilibrium likelihood retains the Jacobian and marginal noise.", evidence_test = "crates/antecedent-model/src/nonlinear_equilibrium.rs", evidence_assertion = "nonlinear_equilibrium_likelihood_keeps_jacobian_and_marginal_noise" },
+  { id = "cyclic.general_systems.refused_tampering.negative", role = "negative", intent = "The independent consumer refuses changed identities, reports, contracts and versions.", evidence_test = "crates/antecedent/tests/cyclic_independent_consumer.rs", evidence_assertion = "identity_report_contract_and_version_tampering_are_refused" },
+  { id = "cyclic.general_systems.independent_replay.artifact", role = "artifact", intent = "An independent consumer replays the specified feedback family and verifies its distinct worlds.", evidence_test = "crates/antecedent/tests/cyclic_independent_consumer.rs", evidence_assertion = "the_specified_feedback_pair_replays_its_three_distinct_quantities" },
+]
+
+[[record]]
 id = "cyclic.external_mechanisms"
 capability = "cyclic.external_mechanisms"
 status = "in_progress"

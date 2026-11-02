@@ -9662,6 +9662,18 @@ evidence_assertion = "a_result_resumes_with_a_compatible_provider_and_is_unavail
 notes = "Rust route; point values or draws of an external provider, no interval, posterior guarantee or native trust. The Python surface is a later step."
 
 [[routes]]
+route = "antecedent.cyclic.consume_family_artifact"
+stage = "consume"
+status = "licensed"
+graph = "specified_cyclic_system_and_recorded_model_contract"
+evidence = "retained_cyclic_family_artifact_and_expected_identity"
+functional = "cyclic.general_systems"
+guarantee = "model_conditional_independent_checked_replay_no_calibrated_uncertainty"
+evidence_test = "crates/antecedent/tests/cyclic_independent_consumer.rs"
+evidence_assertion = "the_specified_feedback_pair_replays_its_three_distinct_quantities"
+notes = "Replays the existing model-conditional family contract; no external mechanism or calibrated interval authority is implied."
+
+[[routes]]
 route = "antecedent.external_mechanism.export_artifact"
 stage = "prepare"
 status = "licensed"
