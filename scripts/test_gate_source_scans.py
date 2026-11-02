@@ -5,10 +5,47 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parent
 
 class SourceScans(unittest.TestCase):
+    def test_posterior_consumer_contract_rejects_missing_replay_evidence(self):
+        from transport_replay_contract import posterior_consumer_problems
+
+        route = {
+            "route": "antecedent.transport.advanced.consume_smoothed_dose_posterior",
+            "stage": "consume",
+            "claim": "none",
+            "evidence_assertion": "test_posterior_artifact_is_consumed_independently_and_refuses_changes",
+        }
+        path = SCRIPTS.parent / "python/tests/test_smoothed_dose_transport.py"
+        body = path.read_text(encoding="utf-8")
+        self.assertEqual(posterior_consumer_problems(route, body), [])
+        self.assertTrue(posterior_consumer_problems(route, body.replace(
+            "del query, data, study, result", "del query, data, study"
+        )))
+        self.assertTrue(posterior_consumer_problems({**route, "claim": "calibrated"}, body))
+
+    def test_evidence_collection_includes_calibration_markers_without_running_tests(self):
+        from test_evidence import _python_collection
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            test_file = root / "python/tests/test_example.py"
+            test_file.parent.mkdir(parents=True)
+            test_file.write_text("def test_example(): pass\n", encoding="utf-8")
+            with patch("test_evidence.subprocess.run") as run:
+                run.return_value.returncode = 0
+                run.return_value.stdout = "tests/test_example.py::test_example\n"
+                run.return_value.stderr = ""
+                code, output = _python_collection(test_file, root)
+            args = run.call_args.args[0]
+            self.assertIn("--collect-only", args)
+            self.assertEqual(args[args.index("-o") + 1], "addopts=")
+            self.assertEqual(code, 0)
+            self.assertIn("test_example", output)
+
     def test_libtest_names_follow_enabled_path_module_aliases(self):
         from test_evidence import libtest_name
 

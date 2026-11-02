@@ -368,7 +368,8 @@ def test_consume_response_grid_replays_the_consumed_family_after_builder_disposa
     expected_execution = family.execution_id
     del identification_builder, graph_builder, family
     consumed = transport.consume_response_grid(family_wire)
-    assert consumed.inspect().identification.available
+    plan = consumed.inspect()
+    assert plan.identification.available
     assert consumed.execution_id == expected_execution
     assert consumed.points == expected_points
     # No fitting, fetching or resampling on load: raw samples are an explicit dependency.

@@ -863,6 +863,8 @@ def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     rel = path.resolve().relative_to((cwd / "python").resolve())
     # Evidence collection is read-only. CI and local release gates install the
     # project environment first; resolving one test must not fetch packages.
+    # Override marker filters only while collecting: excluded calibration tests
+    # can be cited as evidence without executing them or creating records.
     proc = subprocess.run(
         [
             "uv",
@@ -873,6 +875,8 @@ def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
             ".",
             "pytest",
             "--collect-only",
+            "-o",
+            "addopts=",
             "-q",
             "-p",
             "no:cacheprovider",

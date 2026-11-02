@@ -313,7 +313,7 @@ def test_consume_statistical_rechecks_the_point_and_rebinds_after_builder_dispos
     forged = replace(result, probabilities=(1.0, 0.0), uncertainty={"available": False})
     wire = bytes(forged.export())
     assert wire == bytes(result.export())
-    del identified
+    del producer_builder, identified
     consumed = transport.consume_statistical(wire)
     assert consumed.inspect().program_id == result.inspect().program_id
     assert consumed.inspect().identification.available
@@ -321,7 +321,11 @@ def test_consume_statistical_rechecks_the_point_and_rebinds_after_builder_dispos
     # Raw samples are an explicit dependency for re-estimation; nothing is fitted or fetched on load.
     assert not consumed.acceptance.resumable
     assert any("not embedded" in item for item in consumed.acceptance.unresolved)
-    replay = require_success(estimate(rebind(producer_builder, data=data)))
+    fresh_identification, fresh_catalog, _ = fixture()
+    fresh_study = statistical_study(
+        fresh_identification, fresh_catalog, data, {"x": 1.0}, bootstrap=29, seed=41
+    )
+    replay = require_success(estimate(rebind(fresh_study, data=data)))
     # Independent arithmetic: 80 of 100 trial rows have y = 1.
     assert replay.mean("y") == pytest.approx(0.8)
     assert replay.probabilities == pytest.approx(result.probabilities)

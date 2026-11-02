@@ -31,6 +31,44 @@ CONTRACTS = {
 }
 
 
+def posterior_consumer_problems(route, body):
+    """Require the exact unlicensed posterior consumer's independent replay evidence."""
+    if (
+        route.get("route") != "antecedent.transport.advanced.consume_smoothed_dose_posterior"
+        or route.get("stage") != "consume"
+        or route.get("claim") != "none"
+        or route.get("evidence_assertion")
+        != "test_posterior_artifact_is_consumed_independently_and_refuses_changes"
+    ):
+        return ["posterior consumer replay contract is restricted to its unlicensed route"]
+    try:
+        tree = ast.parse(body)
+        test = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == route["evidence_assertion"]
+        )
+        statements = [ast.unparse(node) for node in test.body]
+        required = [
+            "result = require_success(study.posterior(posterior_model(draws=2000)))",
+            "artifact = bytes(result.export())",
+            "expected_posterior, expected_certificate = (result.posterior, result.certificate)",
+            "del query, data, study, result",
+            "consumed = advanced.consume_smoothed_dose_posterior(artifact)",
+            "assert consumed.posterior == expected_posterior",
+            "assert consumed.certificate == expected_certificate",
+        ]
+        positions = [statements.index(statement) for statement in required]
+        assert positions == sorted(positions) and len(set(positions)) == len(positions)
+        refusals = [node for node in test.body if isinstance(node, ast.With)]
+        assert len(refusals) >= 2
+        for refusal in refusals[:2]:
+            assert "pytest.raises(CausalSerializationError" in ast.unparse(refusal)
+            assert "advanced.consume_smoothed_dose_posterior(" in ast.unparse(refusal)
+    except (SyntaxError, StopIteration, ValueError, AssertionError):
+        return ["posterior consumer evidence must export, discard its producer, replay and verify its posterior and certificate, and refuse malformed artifacts"]
+    return []
+
+
 def replay_body_problems(body, assertion, producer):
     try:
         tree = ast.parse(body)

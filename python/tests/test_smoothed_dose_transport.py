@@ -486,15 +486,18 @@ def test_posterior_artifact_is_consumed_independently_and_refuses_changes():
         query, data, options=options(), execution=ac.Execution(seed=7)
     )
     result = require_success(study.posterior(posterior_model(draws=2_000)))
-    consumed = advanced.consume_smoothed_dose_posterior(bytes(result.export()))
-    assert consumed.posterior == result.posterior
-    assert consumed.certificate == result.certificate
+    artifact = bytes(result.export())
+    expected_posterior, expected_certificate = result.posterior, result.certificate
+    del query, data, study, result
+    consumed = advanced.consume_smoothed_dose_posterior(artifact)
+    assert consumed.posterior == expected_posterior
+    assert consumed.certificate == expected_certificate
     with pytest.raises(CausalSerializationError):
         advanced.consume_smoothed_dose_posterior(b"not a smoothed dose posterior")
     with pytest.raises(CausalSerializationError, match="smoothed dose posterior"):
         advanced.consume_smoothed_dose_posterior(
             b"ANTECEDENT-SMOOTHED-DOSE\x01"
-            + bytes(result.export())[len(b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01") :]
+            + artifact[len(b"ANTECEDENT-SMOOTHED-DOSE-POSTERIOR\x01") :]
         )
 
 

@@ -354,7 +354,7 @@ def reviewed_nonemitting_boundary(registration: dict, path: Path) -> bool:
     expected = {
         name: "7b4cf337d050b09e1ad8ddce6c1c404ea4dfdf581fdc96eab9650f6293bac630",
         "named_boundary": "4ebe326283cc811eccaca2f87a41afd08ba2bc49d8dc393921769db8f76bf88e",
-        "score": "503171f8d5a4096e09d6ffa02ae9159531f7c3a458e8e4f029392f285823c48d",
+        "score": "fb40a0ea9cdb201980d7c2439bae828ac26877a96a4e1a8375e52f35e5e460ec",
     }
     masked, items = rust_items(path.resolve())
     for function, digest in expected.items():

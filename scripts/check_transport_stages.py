@@ -11,7 +11,11 @@ from test_evidence import (
     resolve_python_test,
     resolve_rust_test,
 )
-from transport_replay_contract import shared_evidence_problems, source_replay_problems
+from transport_replay_contract import (
+    posterior_consumer_problems,
+    shared_evidence_problems,
+    source_replay_problems,
+)
 
 # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
 registry_path = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
@@ -59,8 +63,17 @@ for route in registry.get("routes", []):
             # A public stage route executes through its retained checked plan:
             # the cited test drops its builder, executes, and inspects the plan.
             contract = route.get("execution_contract", "retained_checked_plan")
-            if contract not in {"retained_checked_plan", "source_bound_replay"}:
+            if contract not in {
+                "retained_checked_plan", "source_bound_replay", "posterior_consumer_replay"
+            }:
                 errors.append(f"{name}: unknown execution contract {contract}")
+            elif not problems and contract == "posterior_consumer_replay":
+                errors.extend(
+                    f"{name}: {problem}"
+                    for problem in posterior_consumer_problems(
+                        route, evidence_path.read_text(encoding="utf-8")
+                    )
+                )
             elif not problems and contract == "source_bound_replay":
                 errors.extend(
                     f"{name}: {problem}"
