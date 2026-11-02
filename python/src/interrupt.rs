@@ -432,7 +432,11 @@ where
                 let result = catch_ffi(|| {
                     setup();
                     let _execution_scope = crate::execution_api::enter(execution_policy);
-                    ACTIVE.with(|active| *active.borrow_mut() = Some(worker_scope));
+                    // Clear the worker's strong TLS owner before publishing completion.
+                    // Relying on thread exit leaves a window in which retained weak
+                    // adapters can upgrade a run whose result has been published.
+                    let _active =
+                        ActiveGuard(ACTIVE.with(|active| active.replace(Some(worker_scope))));
                     observation.execute(f)
                 });
                 *slot.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
