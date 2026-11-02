@@ -1038,8 +1038,8 @@ record = "counterfactual.transport_general"
 key = "max_worlds"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_WORLDS" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_WORLDS" }]
-guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'self\.query\.event\.worlds\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS' }
-refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_WORLDS \{\s*return Err\(E::LimitsExceeded\("worlds"\)' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'query\.event\.worlds\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_WORLDS \{\s*return Err\(DecisionInputFault::Limit\("worlds"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
@@ -1047,23 +1047,23 @@ key = "max_atoms"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_ATOMS" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_ATOMS" }]
 guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = '> COUNTERFACTUAL_TRANSPORT_MAX_ATOMS\s*\{' }
-refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = '> COUNTERFACTUAL_TRANSPORT_MAX_ATOMS\s*\{\s*return Err\(E::LimitsExceeded\("atoms"\)' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = '> COUNTERFACTUAL_TRANSPORT_MAX_ATOMS\s*\{\s*return Err\(DecisionInputFault::Limit\("atoms"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
 key = "max_sources"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SOURCES" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_SOURCES" }]
-guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'self\.query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES' }
-refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_SOURCES \{\s*return Err\(E::LimitsExceeded\("sources"\)' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'query\.sources\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_SOURCES \{\s*return Err\(DecisionInputFault::Limit\("sources"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
 key = "max_regimes"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_REGIMES" }]
 documentation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", constant = "COUNTERFACTUAL_TRANSPORT_MAX_REGIMES" }]
-guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'self\.catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES' }
-refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_REGIMES \{\s*return Err\(E::LimitsExceeded\("regimes"\)' }
+guard = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'catalog\.regimes\.len\(\) > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES' }
+refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_REGIMES \{\s*return Err\(DecisionInputFault::Limit\("regimes"\)' }
 
 [[bound]]
 record = "counterfactual.transport_general"
