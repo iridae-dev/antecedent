@@ -239,6 +239,20 @@ pub enum CapacityError {
         /// The operating-system error kind.
         kind: io::ErrorKind,
     },
+    /// A spill write failed and removing the files it had already written failed too, so
+    /// they remain in the directory. The account itself is unchanged.
+    #[error(
+        "spill file could not {cause}, and {leftover} file(s) it had written could not be \
+         removed: {kind}"
+    )]
+    SpillRollback {
+        /// The step of the original failure.
+        cause: &'static str,
+        /// Written files still on disk.
+        leftover: usize,
+        /// The operating-system error kind of the first failed removal.
+        kind: io::ErrorKind,
+    },
     /// The allocator refused a spill buffer.
     #[error("could not allocate {bytes} bytes for a spill buffer")]
     SpillAllocation {
@@ -328,6 +342,18 @@ struct DiskRecord {
     payload_bytes: u64,
     frame_bytes: u64,
     digest: [u8; 32],
+}
+
+impl CapacityError {
+    /// The step a spill failure happened in, for a rollback report.
+    fn step(&self) -> &'static str {
+        match self {
+            Self::SpillIo { context, .. } => context,
+            Self::Spill(_) => "verify a spill file",
+            Self::SpillAllocation { .. } => "allocate a spill buffer",
+            _ => "write the spill files",
+        }
+    }
 }
 
 impl From<spill_file::IoFail> for CapacityError {
@@ -613,6 +639,28 @@ impl CapacityAccount {
         }
         self.require_no_reservation()?;
         let mut written = SpillDirectory::default();
+        let next = match self.spill_entries(directory, &mut written) {
+            Ok(next) => next,
+            Err(error) => {
+                return Err(match written.rollback() {
+                    None => error,
+                    Some((leftover, kind)) => {
+                        CapacityError::SpillRollback { cause: error.step(), leftover, kind }
+                    }
+                });
+            }
+        };
+        written.keep();
+        self.entries = next;
+        self.retention = OutputRetention::DiskBacked;
+        Ok(())
+    }
+
+    fn spill_entries(
+        &self,
+        directory: &Path,
+        written: &mut SpillDirectory,
+    ) -> Result<BTreeMap<u64, Entry>, CapacityError> {
         let mut next = BTreeMap::new();
         for (id, entry) in &self.entries {
             let record = match &entry.body {
@@ -624,10 +672,7 @@ impl CapacityAccount {
             };
             next.insert(*id, Entry { class: entry.class.clone(), body: Body::Disk(record) });
         }
-        written.keep();
-        self.entries = next;
-        self.retention = OutputRetention::DiskBacked;
-        Ok(())
+        Ok(next)
     }
 
     /// Read a disk entry back, checking its length and digest.
@@ -813,13 +858,26 @@ impl SpillDirectory {
     fn keep(&mut self) {
         self.0.clear();
     }
+
+    /// Remove every file this call published. Returns how many could not be removed and the
+    /// first failure's kind; `None` when the directory is as it was.
+    fn rollback(&mut self) -> Option<(usize, io::ErrorKind)> {
+        let mut leftover = 0;
+        let mut first = None;
+        for path in std::mem::take(&mut self.0) {
+            if let Err(fail) = spill_file::remove_file(&path) {
+                leftover += 1;
+                first.get_or_insert(fail.source.kind());
+            }
+        }
+        first.map(|kind| (leftover, kind))
+    }
 }
 
 impl Drop for SpillDirectory {
     fn drop(&mut self) {
-        for path in &self.0 {
-            let _ = spill_file::remove_file(path);
-        }
+        // Reached only by unwinding: every return path calls `keep` or `rollback`.
+        let _ = self.rollback();
     }
 }
 
@@ -1159,6 +1217,24 @@ mod tests {
         assert_eq!(account.resident_bytes().expect("payloads kept"), 4);
         assert!(account.stored_bytes(first).is_some());
         assert_eq!(dir.entries(), vec![format!("entry-{second}.spill")]);
+    }
+
+    #[test]
+    fn a_rollback_that_cannot_remove_a_written_file_reports_it() {
+        let dir = TempDir::new("rollback-failure");
+        let stuck = dir.0.join("entry-1.spill");
+        std::fs::create_dir(&stuck).expect("directory where the file should be");
+        std::fs::write(stuck.join("occupant"), b"x").expect("make it non-empty");
+        let gone = dir.0.join("entry-2.spill");
+        let mut written = SpillDirectory(vec![stuck.clone(), gone]);
+        let (leftover, kind) = written.rollback().expect("one removal fails");
+        assert_eq!(leftover, 1);
+        assert_ne!(kind, io::ErrorKind::NotFound);
+        assert!(stuck.exists());
+        assert!(written.rollback().is_none(), "the list is spent");
+        let error = CapacityError::SpillRollback { cause: "sync the spill file", leftover, kind };
+        assert!(error.to_string().contains("1 file(s) it had written could not be removed"));
+        assert_eq!(CapacityError::SpillIo { context: "sync", kind }.step(), "sync");
     }
 
     #[test]

@@ -180,3 +180,20 @@ fn unknown_features_versions_and_noncanonical_scenes_are_refused() {
         .expect_err("claims not in key order");
     assert!(matches!(error, TransportRevalidationArtifactError::Malformed(_)), "{error:?}");
 }
+
+#[test]
+fn observed_effects_must_be_listed_in_canonical_key_order() {
+    use antecedent_io_core::composition_verification_artifact::EffectWire;
+
+    let (_, meta) = sealed_after_new_data();
+    let effect = |key: &str| EffectWire {
+        key: key.to_owned(),
+        kind: "recomputed".to_owned(),
+        text: "data".to_owned(),
+    };
+    let mut unordered = meta.clone();
+    unordered.effects = vec![effect("b"), effect("a")];
+    let error = TransportRevalidationArtifact::from_meta(&reseal(unordered), None)
+        .expect_err("effects not in key order");
+    assert!(matches!(error, TransportRevalidationArtifactError::Malformed(_)), "{error:?}");
+}

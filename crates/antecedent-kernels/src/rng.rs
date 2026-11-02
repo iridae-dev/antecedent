@@ -1,5 +1,10 @@
 //! Small RNG helpers for sampling kernels.
 //!
+//! The generator stream is integer arithmetic and identical on every platform. The
+//! transforms use the platform's `ln`, `cos` and `powf`, so a draw agrees across
+//! platforms to the last digits only; artifact replays of sampled results compare within
+//! a stated tolerance rather than bit for bit.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CausalRng;

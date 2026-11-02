@@ -338,6 +338,17 @@ fn resealed_semantic_mutations_are_refused() {
     )
     .unwrap_err();
     assert!(matches!(error, ArtifactError::LimitsExceeded("count tables")), "{error:?}");
+
+    // Stored decision inputs outside the contract's maxima are refused at decode, as the
+    // exact artifact refuses them, before any digest check or replay.
+    let mut over = wire.clone();
+    over.search.memory_limit_bytes = u64::MAX;
+    let error = consume(&to_bytes_unchecked(&over)).unwrap_err();
+    assert!(matches!(error, ArtifactError::LimitsExceeded("search limits")), "{error:?}");
+    let mut named = wire.clone();
+    named.variable_names = vec![" ".to_owned()];
+    let error = consume(&to_bytes_unchecked(&named)).unwrap_err();
+    assert!(matches!(error, ArtifactError::Malformed { slot: "variable_names", .. }), "{error:?}");
 }
 
 /// Encode a wire without sealing or shape checks, as a tampered file would be.

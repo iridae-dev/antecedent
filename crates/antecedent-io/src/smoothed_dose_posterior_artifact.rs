@@ -25,6 +25,7 @@ use crate::bayesian_posterior_row_artifact::{
 use crate::learned_continuous_artifact::CertificateRecord;
 use crate::smoothed_dose_artifact::SmoothedDoseQueryWire;
 use crate::{IoError, admg_from_wire, admg_to_wire, wire::AdmgWire};
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{IdentityDomain, SmoothedDoseTransportQuery, VariableId};
 use antecedent_estimate::SmoothedDoseInput;
 use antecedent_estimate::smoothed_dose::DoseBasis;
@@ -33,6 +34,7 @@ use antecedent_estimate::smoothed_dose_posterior::{
 };
 use antecedent_identify::{TransportIdentification, TransportIdentifier};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// The artifact format this reader writes and accepts.
 pub const SMOOTHED_DOSE_POSTERIOR_ARTIFACT_VERSION: u32 = POSTERIOR_ROW_ARTIFACT_VERSION;
@@ -89,6 +91,9 @@ pub struct SmoothedDosePosteriorArtifactWire {
     pub premises_digest: String,
     /// Digest of the rows.
     pub data_digest: String,
+    /// Admission funding the retained rows and result; released with the last clone.
+    #[serde(skip)]
+    retention: Option<Arc<AdmissionLease>>,
 }
 
 /// Everything a public producer hands to [`SmoothedDosePosteriorArtifactWire::checked`].
@@ -209,6 +214,39 @@ fn cancelled() -> Refusal {
     }
 }
 
+/// Conservative bytes the retained wire holds after the posterior is dropped: the cloned
+/// rows, the stored grid result (per-dose summaries and two grid-squared covariances) and
+/// the variable names. `None` when the count does not fit in a `u64`.
+fn retained_wire_bytes(input: &SmoothedDoseInput, grid: usize, names: &[String]) -> Option<u64> {
+    let columns = input.covariates.len().checked_add(5)?;
+    let rows = input.source.len().checked_mul(columns.checked_mul(8)?.checked_add(1)?)?;
+    let summaries = grid.checked_mul(96)?;
+    let covariances = grid.checked_mul(grid)?.checked_mul(16)?;
+    let names = names.iter().try_fold(0usize, |sum, name| sum.checked_add(name.len() + 24))?;
+    let total = rows
+        .checked_add(summaries)?
+        .checked_add(covariances)?
+        .checked_add(names)?
+        .checked_add(4096)?;
+    u64::try_from(total).ok()
+}
+
+/// A refusal for retained-result admission; operational exhaustion, never a causal verdict.
+fn exhausted(error: Option<AdmissionError>) -> Refusal {
+    match error {
+        Some(AdmissionError::Cancelled) => cancelled(),
+        other => Refusal::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            detail: "smoothed_dose_posterior.resource_limit".to_owned(),
+            message: format!(
+                "the retained posterior artifact is not funded by the admission pool{}. Next \
+                 attempt: fewer rows or grid doses, or a larger memory limit",
+                other.map_or_else(String::new, |error| format!(" ({error})"))
+            ),
+        },
+    }
+}
+
 impl SmoothedDosePosteriorArtifactWire {
     /// Build an artifact from checked premises, run the posterior and verify the result.
     ///
@@ -217,6 +255,13 @@ impl SmoothedDosePosteriorArtifactWire {
     /// identification, a window outside the declared support, thin local support, an
     /// invalid prior or draw count).
     pub fn checked(input: SmoothedDosePosteriorArtifactInput<'_>) -> Result<Self, Refusal> {
+        Self::build(input, None)
+    }
+
+    fn build(
+        input: SmoothedDosePosteriorArtifactInput<'_>,
+        retention: Option<Arc<AdmissionLease>>,
+    ) -> Result<Self, Refusal> {
         let undecodable = |e: IoError| Refusal::Undecodable(e.to_string());
         let certificate = CertificateRecord::from_identification(input.identification)
             .map_err(|message| invalid("smoothed_dose_posterior.not_certified", message))?;
@@ -234,6 +279,7 @@ impl SmoothedDosePosteriorArtifactWire {
             result,
             premises_digest: String::new(),
             data_digest: String::new(),
+            retention,
         };
         wire.premises_digest = wire.expected_premises_digest().map_err(undecodable)?;
         wire.data_digest = wire.expected_data_digest().map_err(undecodable)?;
@@ -252,7 +298,12 @@ impl SmoothedDosePosteriorArtifactWire {
         if ctx.cancellation.is_cancelled() {
             return Err(cancelled());
         }
-        antecedent_core::numerical_admission::with_context(ctx, || Self::checked(input))
+        let bytes = retained_wire_bytes(input.input, input.query.grid.len(), input.variable_names)
+            .ok_or_else(|| exhausted(None))?;
+        let retention = Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| exhausted(Some(e)))?);
+        antecedent_core::numerical_admission::with_context(ctx, || {
+            Self::build(input, Some(retention))
+        })
     }
 
     /// The premises digest this artifact's stored premises hash to.
@@ -404,7 +455,7 @@ impl SmoothedDosePosteriorArtifactWire {
             return Err(cancelled());
         }
         antecedent_core::numerical_admission::with_context(ctx, || {
-            Self::consume_typed(bytes, limits)
+            Self::consume(bytes, limits, Some(ctx))
         })
     }
 
@@ -414,11 +465,26 @@ impl SmoothedDosePosteriorArtifactWire {
     /// # Errors
     /// Any reconstruction failure, with the reason code and `bayesian_row.*` detail.
     pub fn consume_typed(bytes: &[u8], limits: PosteriorRowConsumeLimits) -> Result<Self, Refusal> {
-        let wire = Self::decode(bytes).map_err(|e| match e {
+        Self::consume(bytes, limits, None)
+    }
+
+    fn consume(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: Option<&antecedent_core::ExecutionContext>,
+    ) -> Result<Self, Refusal> {
+        let mut wire = Self::decode(bytes).map_err(|e| match e {
             IoError::Refused { .. } => Refusal::UnsupportedSemantics("shape"),
             other => Refusal::Undecodable(other.to_string()),
         })?;
         wire.check_limits(&limits)?;
+        if let Some(ctx) = ctx {
+            let bytes =
+                retained_wire_bytes(&wire.input, wire.query.grid.len(), &wire.variable_names)
+                    .ok_or_else(|| exhausted(None))?;
+            wire.retention =
+                Some(Arc::new(ctx.acquire_admission(0, bytes).map_err(|e| exhausted(Some(e)))?));
+        }
         let undecodable = |e: IoError| Refusal::Undecodable(e.to_string());
         crate::require_digest(
             &wire.premises_digest,

@@ -51,7 +51,8 @@ use antecedent_identify::{
 };
 use antecedent_io_core::counterfactual_transport_wire::{
     CounterfactualTransportDerivationWire, CounterfactualTransportProblemWire,
-    CounterfactualTransportQueryWire, CounterfactualTransportSearchLimitsWire,
+    CounterfactualTransportQueryWire, CounterfactualTransportSearchLimitsWire, DecisionInputFault,
+    check_decision_inputs,
 };
 use antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire;
 use serde::{Deserialize, Serialize};
@@ -790,6 +791,20 @@ impl SampledCounterfactualTransportArtifactWire {
         if self.derivation.contract != antecedent_identify::COUNTERFACTUAL_TRANSPORT_CONTRACT {
             return Err(Error::UnsupportedSemantics("contract"));
         }
+        check_decision_inputs(
+            &self.problem,
+            &self.query,
+            &self.variable_names,
+            &self.search,
+            &self.catalog,
+        )
+        .map_err(|fault| match fault {
+            DecisionInputFault::Limit(what) => Error::LimitsExceeded(what),
+            DecisionInputFault::VariableNames => malformed(
+                "variable_names",
+                "names must be empty or one distinct, non-blank name per variable",
+            ),
+        })?;
         if self.tables.is_empty() {
             return Err(malformed("tables", "a sampled artifact carries count tables"));
         }

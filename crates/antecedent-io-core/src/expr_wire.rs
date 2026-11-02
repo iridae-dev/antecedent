@@ -389,10 +389,13 @@ fn decode_arena(w: &ExprArenaWire, max_depth: usize) -> Result<CausalExprArena, 
             return Err(IoError::Convert("duplicate expression-node table entry".into()));
         }
     }
-    let mut seen = std::collections::BTreeSet::new();
+    if w.derivations.windows(2).any(|pair| pair[0].0 >= pair[1].0) {
+        return Err(IoError::Convert(
+            "expression derivations are not in strictly ascending node order".into(),
+        ));
+    }
     for (id, d) in &w.derivations {
         if *id as usize >= arena.len()
-            || !seen.insert(*id)
             || d.output.is_some_and(|out| out != *id)
             || d.input.iter().chain(d.parents.iter()).any(|p| *p >= *id)
         {
@@ -821,6 +824,42 @@ mod tests {
             regime: None,
         });
         assert!(expr_arena_from_wire(&invalid).is_err());
+    }
+
+    #[test]
+    fn derivations_must_be_listed_in_ascending_node_order() {
+        use antecedent_identify::{
+            PopulationFactor, TransportCertificate, TransportFormula, bind_transport_derivation,
+            lower_transport_formula,
+        };
+        let mut arena = CausalExprArena::new();
+        let formula = TransportFormula::Direct(PopulationFactor {
+            population: Arc::from("trial"),
+            regime: None,
+            variables: Arc::from([VariableId::from_raw(1)]),
+            conditioned_on: Arc::from([]),
+            interventions: Arc::from([VariableId::from_raw(0)]),
+        });
+        let root = lower_transport_formula(&mut arena, &formula);
+        bind_transport_derivation(
+            &mut arena,
+            root,
+            &TransportCertificate {
+                rule: Arc::from("transport.sid.direct"),
+                selection_targets: Arc::from([]),
+                premises: Arc::from([Arc::from("invariant outcome mechanism")]),
+            },
+            "test certificate",
+        );
+        let mut wire = expr_arena_to_wire(&arena).unwrap();
+        assert!(expr_arena_from_wire(&wire).is_ok());
+        if wire.derivations.len() >= 2 {
+            wire.derivations.reverse();
+            assert!(expr_arena_from_wire(&wire).is_err());
+        }
+        let first = wire.derivations[0].clone();
+        wire.derivations.push(first);
+        assert!(expr_arena_from_wire(&wire).is_err());
     }
 
     #[test]

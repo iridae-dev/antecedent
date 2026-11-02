@@ -888,3 +888,41 @@ fn a_caller_limit_on_changes_gates_a_further_change() {
         Err(PropagationChainError::LimitsExceeded("changes"))
     );
 }
+
+#[test]
+fn point_sources_replicated_past_the_cell_budget_are_refused_before_any_column_is_built() {
+    let rows = 1usize << 20;
+    let nodes = MAX_PROPAGATION_CHAIN_CELLS / rows + 1;
+    let draws: Vec<f64> = (0..rows).map(|i| i as f64 / rows as f64).collect();
+    let sources = vec![
+        ChainSourceWire::draws("effect", LawMeaning::Posterior, TABLE, &draws),
+        ChainSourceWire::point("offset", 0.25),
+    ];
+    let mut stages = vec![ChainStageWire::new(
+        "s0",
+        StageKind::DerivedQuantity,
+        &["effect", "offset"],
+        ChainOpWire::binary("difference"),
+    )];
+    for index in 1..(nodes - sources.len()) {
+        let previous = format!("s{}", index - 1);
+        stages.push(ChainStageWire::new(
+            &format!("s{index}"),
+            StageKind::DerivedQuantity,
+            &[previous.as_str()],
+            ChainOpWire::affine(ChainCoefficientWire::fixed(1.0), ChainCoefficientWire::fixed(0.0)),
+        ));
+    }
+    let output = format!("s{}", stages.len() - 1);
+    assert!(rows * (sources.len() + stages.len()) > MAX_PROPAGATION_CHAIN_CELLS);
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        &output,
+        sources,
+        stages,
+    );
+    let refusal =
+        PropagationChainRecordWire::seal(draft, &ctx()).expect_err("over budget").to_refusal();
+    assert_eq!(refusal.detail(), "propagation_chain.budget_exceeded");
+}

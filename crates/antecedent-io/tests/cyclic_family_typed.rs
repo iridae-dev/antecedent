@@ -123,6 +123,35 @@ fn a_supplied_recovered_request_keeps_its_encoding_identity_and_replay() {
     ));
 }
 
+#[test]
+fn a_declared_draw_origin_must_match_the_supplied_draws() {
+    let supplied: CyclicFamilyRequest = serde_json::from_str(SUPPLIED_RECOVERED_LINEAR).unwrap();
+    let with_origin = |origin: RecoveredDrawOriginWire| {
+        let mut request = supplied.clone();
+        if let CyclicFamilyRequest::RecoveredLinear { uncertainty, .. } = &mut request {
+            *uncertainty = origin;
+        }
+        request
+    };
+    for mismatched in [
+        RecoveredDrawOriginWire::AsymptoticNormal { draws: 64, seed: 7 },
+        RecoveredDrawOriginWire::Bootstrap {
+            replicates: 2,
+            seed: 1,
+            design: SamplingDesignWire::IndependentSubjectTrajectories,
+            rule: ResamplingRuleWire::RowSubjectIid,
+        },
+    ] {
+        let error = with_origin(mismatched).export(&ctx()).unwrap_err();
+        assert!(
+            refusal_text(error).contains("recovered draw origin differs from the supplied draws")
+        );
+    }
+    with_origin(RecoveredDrawOriginWire::AsymptoticNormal { draws: 1, seed: 7 })
+        .export(&ctx())
+        .unwrap();
+}
+
 fn linear_request(
     coefficients: Vec<f64>,
     worlds: Vec<CyclicWorldWire>,

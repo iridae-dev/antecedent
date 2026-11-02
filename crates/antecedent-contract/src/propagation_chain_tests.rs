@@ -443,3 +443,26 @@ fn canonical_tags_are_distinct_and_names_round_trip() {
         assert_eq!(ChainReading::from_name(reading.as_str()), Some(reading));
     }
 }
+
+#[test]
+fn stage_tables_are_charged_by_identifier_bytes_not_by_cell_count() {
+    let ancestors: BTreeSet<String> =
+        (0..64).map(|index| format!("{index:03}{}", "x".repeat(1 << 16))).collect();
+    let stage = stage("late", StageKind::DerivedQuantity, OperatorClass::Affine, &["a"]);
+    let mut state = ChainState::default();
+    let per_stage = 2 * ancestors.iter().map(String::len).sum::<usize>();
+    let fits = MAX_CHAIN_ANCESTRY_BYTES / per_stage;
+    for _ in 0..fits {
+        charge_stage_tables(&stage, &mut state, &ancestors, &FactorSet::new()).expect("within");
+    }
+    let refusal = charge_stage_tables(&stage, &mut state, &ancestors, &FactorSet::new())
+        .expect_err("over the byte budget");
+    assert_eq!(refusal.detail(), "propagation_chain.ancestry_bytes");
+    assert_eq!(refusal.stage(), Some("late"));
+    // The same cell count with short identifiers is nowhere near the budget.
+    let short: BTreeSet<String> = (0..64).map(|index| format!("s{index}")).collect();
+    let mut fresh = ChainState::default();
+    for _ in 0..1000 {
+        charge_stage_tables(&stage, &mut fresh, &short, &FactorSet::new()).expect("short ids");
+    }
+}

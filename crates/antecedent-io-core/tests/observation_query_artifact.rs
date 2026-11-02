@@ -1015,6 +1015,24 @@ fn redrawn_parameters_are_aligned_draws_with_the_distribution_alignment_identity
         forged.consume(None, &ctx()).unwrap_err(),
         ObservationQueryArtifactError::ResultMismatch
     );
+
+    // A last-digit difference (another platform's libm) replays; a visible one does not.
+    let nudge = |relative: f64| {
+        let mut edited = wire.clone();
+        if let ObservationResultWire::ParameterDraws { values_bits, point_bits, .. } =
+            &mut edited.result
+        {
+            let first = f64::from_bits(values_bits[0]);
+            values_bits[0] = (first + first.abs().max(1.0) * relative).to_bits();
+            point_bits[0] += 1;
+        }
+        edited
+    };
+    assert!(nudge(1e-14).consume(None, &ctx()).is_ok());
+    assert_eq!(
+        nudge(1e-6).consume(None, &ctx()).unwrap_err(),
+        ObservationQueryArtifactError::ResultMismatch
+    );
 }
 
 #[test]

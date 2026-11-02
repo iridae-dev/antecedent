@@ -650,7 +650,7 @@ impl LearnedJointArtifactWire {
         if expected.data_digest.as_ref().is_some_and(|d| *d != wire.data_digest) {
             return Err(LearnedJointArtifactError::ExpectationMismatch("data identity").into());
         }
-        let id = transport_identification_from_wire(&wire.identification);
+        let id = transport_identification_from_wire(&wire.identification)?;
         let model = wire.model.to_model();
         let sources: Vec<SourceData> = wire.sources.iter().map(source_from_wire).collect();
         let target = TargetData {

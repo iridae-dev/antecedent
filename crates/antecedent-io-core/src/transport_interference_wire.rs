@@ -14,10 +14,12 @@ use antecedent_identify::{
 use serde::{Deserialize, Serialize};
 
 mod borrowed;
+mod verify;
 pub use borrowed::BorrowedTransportIdentificationWire;
 
 /// Population-labelled symbolic distribution wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct PopulationFactorWire {
     /// Population key.
     pub population: String,
@@ -34,7 +36,7 @@ pub struct PopulationFactorWire {
 
 /// Symbolic transport formula wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TransportFormulaWire {
     /// Direct source response.
     Direct(PopulationFactorWire),
@@ -58,6 +60,7 @@ pub enum TransportFormulaWire {
 
 /// Positive transport certificate wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct InterferenceTransportCertificateWire {
     /// Stable rule id.
     pub rule: String,
@@ -74,6 +77,7 @@ pub type TransportCertificateWire = InterferenceTransportCertificateWire;
 
 /// Inconclusive transport certificate wire form; never an impossibility proof.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct NotCertifiedCertificateWire {
     /// Stable reason id.
     pub reason: String,
@@ -85,7 +89,7 @@ pub struct NotCertifiedCertificateWire {
 
 /// Transport identification result wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum TransportIdentificationWire {
     /// Sound formula and positive certificate.
     Transportable {
@@ -208,11 +212,19 @@ pub fn transport_identification_to_wire(
     }
 }
 
-/// Decode structural transport identification.
-#[must_use]
+/// Decode structural transport identification after verifying it.
+///
+/// # Errors
+/// An oversized list, a blank text, a repeated variable id, a `Transportable` rule the
+/// identifier does not emit, or a formula inconsistent with its rule or its own factors.
 pub fn transport_identification_from_wire(
     value: &TransportIdentificationWire,
-) -> TransportIdentification {
+) -> Result<TransportIdentification, crate::IoError> {
+    verify::verify(value)?;
+    Ok(decode_verified(value))
+}
+
+fn decode_verified(value: &TransportIdentificationWire) -> TransportIdentification {
     match value {
         TransportIdentificationWire::Transportable { formula, certificate } => {
             TransportIdentification::Transportable {
@@ -351,7 +363,7 @@ mod tests {
         let bytes = crate::to_cbor(&transport_identification_to_wire(&original)).unwrap();
         let wire: TransportIdentificationWire = crate::from_cbor(&bytes).unwrap();
         assert!(matches!(wire, TransportIdentificationWire::MissingEvidence(_)));
-        assert_eq!(transport_identification_from_wire(&wire), original);
+        assert_eq!(transport_identification_from_wire(&wire).unwrap(), original);
         assert_ne!(original.outcome().kind.as_str(), "not_certified");
     }
 
@@ -364,6 +376,141 @@ mod tests {
         });
         let bytes = crate::to_cbor(&transport_identification_to_wire(&original)).unwrap();
         let wire: TransportIdentificationWire = crate::from_cbor(&bytes).unwrap();
-        assert_eq!(transport_identification_from_wire(&wire), original);
+        assert_eq!(transport_identification_from_wire(&wire).unwrap(), original);
+    }
+
+    fn factor_wire(
+        population: &str,
+        variables: &[u32],
+        conditioned_on: &[u32],
+        interventions: &[u32],
+    ) -> PopulationFactorWire {
+        PopulationFactorWire {
+            population: population.into(),
+            regime: None,
+            variables: variables.to_vec(),
+            conditioned_on: conditioned_on.to_vec(),
+            interventions: interventions.to_vec(),
+        }
+    }
+
+    fn standardized() -> TransportIdentificationWire {
+        TransportIdentificationWire::Transportable {
+            formula: Box::new(TransportFormulaWire::Standardize {
+                over: vec![2],
+                source_response: factor_wire("source", &[1], &[2], &[0]),
+                target_law: factor_wire("target", &[2], &[], &[]),
+            }),
+            certificate: InterferenceTransportCertificateWire {
+                rule: "transport.sid.standardize".into(),
+                selection_targets: vec![2],
+                premises: vec!["standardizers are pre-treatment".into()],
+            },
+        }
+    }
+
+    fn factorized() -> TransportIdentificationWire {
+        TransportIdentificationWire::Transportable {
+            formula: Box::new(TransportFormulaWire::RecursiveFactorization {
+                sum_out: vec![2],
+                factors: vec![
+                    factor_wire("target", &[2], &[0], &[]),
+                    factor_wire("target", &[1], &[0, 2], &[]),
+                ],
+            }),
+            certificate: InterferenceTransportCertificateWire {
+                rule: "transport.sid.singleton_c_components".into(),
+                selection_targets: vec![2],
+                premises: vec!["all c-components are singleton".into()],
+            },
+        }
+    }
+
+    #[test]
+    fn a_transportable_wire_is_verified_before_it_becomes_a_proof() {
+        assert!(transport_identification_from_wire(&standardized()).is_ok());
+        assert!(transport_identification_from_wire(&factorized()).is_ok());
+
+        let edit = |wire: &TransportIdentificationWire,
+                    change: &dyn Fn(
+            &mut TransportFormulaWire,
+            &mut InterferenceTransportCertificateWire,
+        )| {
+            let mut wire = wire.clone();
+            if let TransportIdentificationWire::Transportable { formula, certificate } = &mut wire {
+                change(formula, certificate);
+            }
+            transport_identification_from_wire(&wire)
+        };
+        let refused = |result: Result<TransportIdentification, crate::IoError>| {
+            matches!(result, Err(crate::IoError::Convert(_) | crate::IoError::TooLarge))
+        };
+
+        assert!(refused(edit(&standardized(), &|_, c| c.rule = "standardization".into())));
+        assert!(refused(edit(&standardized(), &|_, c| c.rule = "transport.sid.direct".into())));
+        assert!(refused(edit(&standardized(), &|_, c| c.premises.clear())));
+        assert!(refused(edit(&standardized(), &|_, c| c.selection_targets = vec![2, 2])));
+        assert!(refused(edit(&standardized(), &|_, c| c.selection_targets = vec![7])));
+        assert!(refused(edit(&standardized(), &|f, _| {
+            if let TransportFormulaWire::Standardize { over, .. } = f {
+                *over = vec![2, 3];
+            }
+        })));
+        assert!(refused(edit(&standardized(), &|f, _| {
+            if let TransportFormulaWire::Standardize { target_law, .. } = f {
+                target_law.conditioned_on = vec![0];
+            }
+        })));
+        assert!(refused(edit(&standardized(), &|f, _| {
+            if let TransportFormulaWire::Standardize { source_response, .. } = f {
+                source_response.population = "  ".into();
+            }
+        })));
+        assert!(refused(edit(&factorized(), &|f, _| {
+            if let TransportFormulaWire::RecursiveFactorization { factors, .. } = f {
+                factors.reverse();
+            }
+        })));
+        assert!(refused(edit(&factorized(), &|f, _| {
+            if let TransportFormulaWire::RecursiveFactorization { sum_out, .. } = f {
+                *sum_out = vec![9];
+            }
+        })));
+        assert!(refused(edit(&factorized(), &|f, _| {
+            if let TransportFormulaWire::RecursiveFactorization { factors, .. } = f {
+                factors[0].variables = vec![2, 1];
+            }
+        })));
+    }
+
+    #[test]
+    fn a_refusal_wire_checks_its_text_and_witness() {
+        let mut wire = NotCertifiedCertificateWire {
+            reason: "transport.sid.multinode_c_component_not_implemented".into(),
+            witness: vec![1, 1],
+            message: "no non-transportability claim is made".into(),
+        };
+        assert!(
+            transport_identification_from_wire(&TransportIdentificationWire::NotCertified(
+                wire.clone()
+            ))
+            .is_err()
+        );
+        wire.witness = vec![1];
+        wire.message = " ".into();
+        assert!(
+            transport_identification_from_wire(&TransportIdentificationWire::MissingEvidence(wire))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn unknown_wire_fields_are_refused_at_decode() {
+        let mut value = serde_json::to_value(standardized()).unwrap();
+        value["transportable"]["certificate"]["extra"] = serde_json::json!(1);
+        assert!(serde_json::from_value::<TransportIdentificationWire>(value).is_err());
+        let mut factor = serde_json::to_value(factor_wire("source", &[1], &[], &[])).unwrap();
+        factor["extra"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<PopulationFactorWire>(factor).is_err());
     }
 }

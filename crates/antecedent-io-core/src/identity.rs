@@ -12,7 +12,7 @@
 //! | --- | --- |
 //! | Format tag | `IDENTITY_FORMAT` (little-endian `u16`) prefixes the hash; the same tag is stored on every payload. |
 //! | Ordered fields | Schema variables, query lists, partitions, and estimands keep writer order. |
-//! | Graphs | Edge lists are sorted; temporal-DAG nodes are sorted by `(variable, lag)` and edges re-indexed. Insertion order never reaches a digest. |
+//! | Graphs | Edge lists are sorted; temporal-DAG, temporal-ADMG and temporal-class nodes are sorted by their key, repeated nodes merged, and edges re-indexed (class edges re-oriented to ascending endpoints with marks swapped); the class kinds are `temporal_cpdag.v2` and `temporal_pag.v2`. Insertion order never reaches a digest. |
 //! | Set-valued fields | Observation tags (with their variable arguments), named prior-parameter pairs (a CBOR list of `(source, target)` tuples), selection targets, and class-prior pairs are sorted then deduplicated. Graph-posterior atoms are sorted by their encoding with the position-derived execution key cleared. |
 //! | Configuration | Estimator, prior, response, observation, and execution settings are structured wires of scalar fields; data-sized vectors are [`PayloadDigestWire`]s. Nothing is rendered through `Debug` or `Display`. |
 //! | Sub-digests | [`payload_digest`] (derive-key `antecedent.identity.payload`, a `kind` label, then little-endian bytes) is the only sub-digest convention. |
@@ -1082,7 +1082,7 @@ impl GraphIdentityWire {
 /// Temporal CPDAG / PAG identity: lagged edges plus contemporaneous marks.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TemporalClassIdentityWire {
-    /// `temporal_cpdag` or `temporal_pag`.
+    /// `temporal_cpdag.v2` or `temporal_pag.v2`.
     pub kind: String,
     /// Nodes in dense order.
     pub nodes: Vec<IdentityNodeWire>,
@@ -1091,7 +1091,9 @@ pub struct TemporalClassIdentityWire {
 }
 
 /// Node identity that includes lagged and contemporaneous bindings.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+///
+/// The derived order is the canonical node order of a temporal class identity.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum IdentityNodeWire {
     /// Static variable.
@@ -1341,27 +1343,86 @@ fn canonical_temporal_admg_wire(graph: &TemporalAdmg) -> Result<TemporalAdmgIden
 }
 
 /// Encode a temporal CPDAG, including lagged and contemporaneous edges.
-#[must_use]
-pub fn temporal_cpdag_identity(graph: &TemporalCpdag) -> GraphIdentityWire {
-    temporal_class_identity("temporal_cpdag", graph.nodes(), graph.edges())
+///
+/// Nodes are sorted and edges re-indexed, so insertion order never reaches the digest. Nodes
+/// with one key are one node (the graph treats them as the same variable at the same lag), so
+/// a graph that repeats a node digests as the graph that does not.
+///
+/// # Errors
+///
+/// An edge index outside the node list, an edge joining two copies of one node, or two
+/// different edges between one pair of nodes once copies are merged.
+pub fn temporal_cpdag_identity(graph: &TemporalCpdag) -> Result<GraphIdentityWire, IoError> {
+    temporal_class_identity(TEMPORAL_CPDAG_KIND, graph.nodes(), graph.edges())
 }
 
 /// Encode a temporal PAG, including lagged and contemporaneous edges.
-#[must_use]
-pub fn temporal_pag_identity(graph: &TemporalPag) -> GraphIdentityWire {
-    temporal_class_identity("temporal_pag", graph.nodes(), graph.edges())
+///
+/// Canonical as [`temporal_cpdag_identity`].
+///
+/// # Errors
+///
+/// As [`temporal_cpdag_identity`].
+pub fn temporal_pag_identity(graph: &TemporalPag) -> Result<GraphIdentityWire, IoError> {
+    temporal_class_identity(TEMPORAL_PAG_KIND, graph.nodes(), graph.edges())
 }
+
+/// Kind of a temporal CPDAG identity. The `.v2` marks the sorted, merged-node encoding; the
+/// earlier encoding kept insertion order under `temporal_cpdag`.
+const TEMPORAL_CPDAG_KIND: &str = "temporal_cpdag.v2";
+/// Kind of a temporal PAG identity; see [`TEMPORAL_CPDAG_KIND`].
+const TEMPORAL_PAG_KIND: &str = "temporal_pag.v2";
 
 fn temporal_class_identity(
     kind: &'static str,
     nodes: &[NodeRef],
     edges: impl IntoIterator<Item = MarkedEdge>,
-) -> GraphIdentityWire {
-    GraphIdentityWire::TemporalClass(TemporalClassIdentityWire {
+) -> Result<GraphIdentityWire, IoError> {
+    let keys: Vec<IdentityNodeWire> =
+        nodes.iter().copied().map(IdentityNodeWire::from_node).collect();
+    let mut distinct = keys.clone();
+    distinct.sort();
+    distinct.dedup();
+    let mut position = Vec::with_capacity(keys.len());
+    for key in &keys {
+        let index = distinct.binary_search(key).map_err(|_| {
+            IoError::Convert("temporal class node is missing from its own node set".into())
+        })?;
+        position.push(u32::try_from(index).map_err(|_| IoError::TooLarge)?);
+    }
+    let remap = |index: u32| {
+        position.get(index as usize).copied().ok_or_else(|| {
+            IoError::Convert("temporal class edge references a node outside the graph".into())
+        })
+    };
+    let mut marked = Vec::new();
+    for edge in edges {
+        let mut wire = marked_identity_edge(edge);
+        wire.a = remap(wire.a)?;
+        wire.b = remap(wire.b)?;
+        if wire.a == wire.b {
+            return Err(IoError::Convert(
+                "temporal class edge joins two copies of one node".into(),
+            ));
+        }
+        if wire.a > wire.b {
+            std::mem::swap(&mut wire.a, &mut wire.b);
+            std::mem::swap(&mut wire.at_a, &mut wire.at_b);
+        }
+        marked.push(wire);
+    }
+    marked.sort_by_key(|edge| (edge.a, edge.b));
+    marked.dedup();
+    if marked.windows(2).any(|pair| (pair[0].a, pair[0].b) == (pair[1].a, pair[1].b)) {
+        return Err(IoError::Convert(
+            "temporal class has different edges between one pair of nodes".into(),
+        ));
+    }
+    Ok(GraphIdentityWire::TemporalClass(TemporalClassIdentityWire {
         kind: kind.into(),
-        nodes: nodes.iter().copied().map(IdentityNodeWire::from_node).collect(),
-        edges: edges.into_iter().map(marked_identity_edge).collect(),
-    })
+        nodes: distinct,
+        edges: marked,
+    }))
 }
 
 /// Structure of one graph-posterior atom.
@@ -1454,7 +1515,8 @@ fn posterior_atom_graph_wire(
                 let graph =
                     temporal_cpdag_from_dbn_atoms(adjacency, lag_mask, n_vars, max_lag, ids)
                         .map_err(|err| IoError::Convert(err.to_string()))?;
-                let GraphIdentityWire::TemporalClass(wire) = temporal_cpdag_identity(&graph) else {
+                let GraphIdentityWire::TemporalClass(wire) = temporal_cpdag_identity(&graph)?
+                else {
                     return Err(IoError::Convert(
                         "temporal CPDAG posterior atom must encode as TemporalClass".into(),
                     ));
@@ -1484,7 +1546,7 @@ fn posterior_atom_graph_wire(
                     adjacency, lag_mask, mark_mask, n_vars, max_lag, ids,
                 )
                 .map_err(|err| IoError::Convert(err.to_string()))?;
-                let GraphIdentityWire::TemporalClass(wire) = temporal_pag_identity(&graph) else {
+                let GraphIdentityWire::TemporalClass(wire) = temporal_pag_identity(&graph)? else {
                     return Err(IoError::Convert(
                         "temporal PAG posterior atom must encode as TemporalClass".into(),
                     ));
@@ -1854,6 +1916,24 @@ pub struct ParticipantBindingWire {
     pub labels: String,
     /// Digest (hex) of the per-row label codes.
     pub codes: String,
+}
+
+impl ParticipantBindingWire {
+    /// The binding a table's declared unit key states.
+    #[must_use]
+    pub fn from_unit_key(key: &antecedent_data::UnitKey) -> Self {
+        Self {
+            rows: u64::try_from(key.rows()).unwrap_or(u64::MAX),
+            labels: key.labels_digest().to_owned(),
+            codes: key.codes_digest().to_owned(),
+        }
+    }
+
+    /// Whether `key` is the unit assignment this binding declares.
+    #[must_use]
+    pub fn names(&self, key: &antecedent_data::UnitKey) -> bool {
+        *self == Self::from_unit_key(key)
+    }
 }
 
 /// A declared missing-data policy that differs from the route's default, with the covariates
@@ -3687,6 +3767,78 @@ mod tests {
         assert_eq!(
             temporal_dag_identity(&temporal_first).unwrap(),
             temporal_dag_identity(&temporal_second).unwrap()
+        );
+    }
+
+    #[test]
+    fn temporal_class_identity_ignores_node_insertion_order() {
+        let build_pag = |order: [(u32, u32); 3]| {
+            let mut graph = TemporalPag::empty();
+            let mut ids = std::collections::HashMap::new();
+            for (variable, lag) in order {
+                ids.insert(
+                    (variable, lag),
+                    graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap(),
+                );
+            }
+            graph.insert_directed(ids[&(0, 1)], ids[&(0, 0)]).unwrap();
+            graph
+                .insert_circle_circle_with_middle(
+                    ids[&(0, 0)],
+                    ids[&(1, 0)],
+                    antecedent_graph::MiddleMark::Empty,
+                )
+                .unwrap();
+            graph
+        };
+        let first = build_pag([(0, 1), (0, 0), (1, 0)]);
+        let second = build_pag([(1, 0), (0, 0), (0, 1)]);
+        assert_ne!(first.nodes(), second.nodes());
+        assert_eq!(temporal_pag_identity(&first).unwrap(), temporal_pag_identity(&second).unwrap());
+
+        let build_cpdag = |order: [(u32, u32); 3]| {
+            let mut graph = TemporalCpdag::empty();
+            let mut ids = std::collections::HashMap::new();
+            for (variable, lag) in order {
+                ids.insert(
+                    (variable, lag),
+                    graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap(),
+                );
+            }
+            graph.insert_directed(ids[&(0, 1)], ids[&(0, 0)]).unwrap();
+            graph.insert_undirected(ids[&(0, 0)], ids[&(1, 0)]).unwrap();
+            graph
+        };
+        assert_eq!(
+            temporal_cpdag_identity(&build_cpdag([(0, 1), (0, 0), (1, 0)])).unwrap(),
+            temporal_cpdag_identity(&build_cpdag([(1, 0), (0, 0), (0, 1)])).unwrap()
+        );
+        assert_ne!(
+            temporal_cpdag_identity(&build_cpdag([(0, 1), (0, 0), (1, 0)])).unwrap(),
+            temporal_pag_identity(&first).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_temporal_class_that_repeats_a_node_digests_as_the_merged_graph() {
+        let node = |graph: &mut TemporalPag, variable: u32, lag: u32| {
+            graph.add_lagged(VariableId::from_raw(variable), Lag::from_raw(lag)).unwrap()
+        };
+        let mut repeated = TemporalPag::empty();
+        let (t_a, z) = (node(&mut repeated, 0, 1), node(&mut repeated, 2, 1));
+        let (t_b, y) = (node(&mut repeated, 0, 1), node(&mut repeated, 1, 0));
+        repeated
+            .insert_circle_circle_with_middle(t_a, z, antecedent_graph::MiddleMark::Empty)
+            .unwrap();
+        repeated.insert_directed(t_b, y).unwrap();
+        let mut merged = TemporalPag::empty();
+        let (t, y) = (node(&mut merged, 0, 1), node(&mut merged, 1, 0));
+        let z = node(&mut merged, 2, 1);
+        merged.insert_directed(t, y).unwrap();
+        merged.insert_circle_circle_with_middle(t, z, antecedent_graph::MiddleMark::Empty).unwrap();
+        assert_eq!(
+            temporal_pag_identity(&repeated).unwrap(),
+            temporal_pag_identity(&merged).unwrap()
         );
     }
 

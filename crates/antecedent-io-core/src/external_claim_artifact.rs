@@ -19,6 +19,14 @@ use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 pub const MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES: usize = 4 * 1024 * 1024;
 /// Maximum number of response coordinates.
 pub const MAX_EXTERNAL_CLAIM_COORDINATES: usize = 100_000;
+/// Maximum entries in each evidence, assumption, equivalence, lineage and verification list.
+pub const MAX_EXTERNAL_CLAIM_LIST_ITEMS: usize = 1024;
+/// Maximum declared provider capabilities.
+pub const MAX_EXTERNAL_CLAIM_CAPABILITIES: usize = 64;
+/// Metadata version of external claim artifacts. Version 2 computes the provider
+/// fingerprint over explicit coordinate fields and counted lists, and requires
+/// sorted, distinct capabilities.
+pub const EXTERNAL_CLAIM_METADATA_VERSION: u16 = 2;
 const ARTIFACT_KIND: &str = crate::artifact_kinds::EXTERNAL_RESPONSE_CLAIM;
 const META_SECTION: &str = "external_claim.meta";
 const VALUES_SECTION: &str = "external_claim.values";
@@ -287,6 +295,7 @@ impl ExternalClaimIdentity {
                     .map(|c| antecedent_contract::capability_name(*c).to_owned())
                     .collect();
                 names.sort();
+                names.dedup();
                 names
             },
             provider_fingerprint: String::new(),
@@ -317,26 +326,33 @@ impl ExternalClaimIdentity {
     pub fn compute_fingerprint(&self) -> String {
         let mut hasher =
             antecedent_core::CanonicalWriter::new("antecedent.external_claim.provider_fingerprint");
-        let mut put = |value: &str| {
-            hasher.text(value);
-        };
-        for field in [
-            &self.provider_id,
-            &self.object_id,
-            &self.version_id,
-            &self.snapshot_id,
-            &self.request_id,
-            &self.provider_meaning,
-        ] {
-            put(field);
-        }
+        hasher
+            .text(&self.provider_id)
+            .text(&self.object_id)
+            .text(&self.version_id)
+            .text(&self.snapshot_id)
+            .text(&self.request_id)
+            .text(&self.provider_meaning);
         let mut capabilities = self.capabilities.clone();
         capabilities.sort();
-        for capability in &capabilities {
-            put(capability);
-        }
+        hasher.texts(&capabilities);
+        hasher.word(self.quantities.len() as u64);
         for quantity in &self.quantities {
-            put(&format!("{quantity:?}"));
+            hasher
+                .word(u64::from(quantity.version))
+                .text(&quantity.variable_id)
+                .text(&quantity.variable_name)
+                .text(&quantity.role)
+                .text(&quantity.units)
+                .text(&quantity.population_id)
+                .text(&quantity.regime_id)
+                .word(u64::from(quantity.horizon))
+                .text(&quantity.functional_id)
+                .word(quantity.conditioning.len() as u64);
+            for condition in &quantity.conditioning {
+                hasher.text(&condition.variable_id).text(&condition.value_id);
+            }
+            hasher.text(&quantity.transform_id);
         }
         hasher.finish_hex()
     }
@@ -344,6 +360,28 @@ impl ExternalClaimIdentity {
     pub(crate) fn validate(&self) -> Result<(), IoError> {
         if self.quantities.is_empty() || self.quantities.len() > MAX_EXTERNAL_CLAIM_COORDINATES {
             return Err(IoError::TooLarge);
+        }
+        if [
+            self.evidence_ids.len(),
+            self.assumption_ids.len(),
+            self.equivalence_ids.len(),
+            self.lineage.len(),
+            self.verification.as_ref().map_or(0, Vec::len),
+        ]
+        .into_iter()
+        .any(|count| count > MAX_EXTERNAL_CLAIM_LIST_ITEMS)
+            || self.capabilities.len() > MAX_EXTERNAL_CLAIM_CAPABILITIES
+            || self.lineage.iter().any(|link| {
+                link.parents.len() > MAX_EXTERNAL_CLAIM_LIST_ITEMS
+                    || link.parent_digests.len() > MAX_EXTERNAL_CLAIM_LIST_ITEMS
+            })
+        {
+            return Err(IoError::TooLarge);
+        }
+        if self.capabilities.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(IoError::Convert(
+                "external claim capabilities must be sorted and distinct".into(),
+            ));
         }
         for quantity in &self.quantities {
             ScientificQuantity::try_from(quantity.clone())
@@ -435,7 +473,7 @@ pub struct ExternalClaimArtifact {
 }
 
 fn validate(meta: &ExternalClaimMetadata, values: &[f64]) -> Result<(), IoError> {
-    if meta.version != 1 {
+    if meta.version != EXTERNAL_CLAIM_METADATA_VERSION {
         return Err(IoError::UnsupportedVersion { version: u32::from(meta.version) });
     }
     if meta.native_estimation {
@@ -473,7 +511,7 @@ impl ExternalClaimArtifact {
             .ok_or_else(|| IoError::Convert("claim is not a finite response grid".into()))?
             .to_vec();
         let metadata = ExternalClaimMetadata {
-            version: 1,
+            version: EXTERNAL_CLAIM_METADATA_VERSION,
             identity: ExternalClaimIdentity::from_claim(claim, causal_contract_id)?,
             native_estimation: false,
         };

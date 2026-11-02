@@ -468,6 +468,7 @@ fn estimate_of(
         &input,
         &premises_of(&request.premises),
         &config_of(&request.config)?,
+        ctx,
     )?)
 }
 

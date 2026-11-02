@@ -309,6 +309,12 @@ program, execution, uncertainty distribution, calibration record, or portable
 analysis-result seal. Composition can use a different execution context from the
 parent runs. Cloned results share their retained admission lease.
 
+From Python, `antecedent.program_claims.compose_study_claims` takes `ClaimParent`
+values (a completed study or its retained `Outcome`, a coefficient and an optional
+declared output weight). Each parent claim is minted from the study's retained
+result, never supplied, and the output target is assembled from the parents' own
+average-effect contrast worlds.
+
 The legacy `compose_claims` function now refuses arbitrary caller-supplied
 contrast and aggregate children. Its retarget operation can relay one unchanged
 parent, optionally weakening positive domain labels to Unknown; it cannot change

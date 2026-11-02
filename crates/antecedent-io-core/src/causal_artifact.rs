@@ -375,9 +375,8 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
         }
         CausalPayloadWire::TransportIdentification(wire) => {
             validate_transport_identification_ids(wire, variable_count)?;
-            // transport_identification_from_wire is infallible: it has no fallible decode
-            // step to check here, unlike the transport estimate below.
             validate_transport_identification(wire)?;
+            crate::transport_interference_wire::transport_identification_from_wire(wire)?;
         }
         CausalPayloadWire::TransportEstimate(wire) => {
             // The decode into the estimator's report fails only when a weight count

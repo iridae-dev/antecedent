@@ -268,3 +268,49 @@ fn caller_intake_limits_refuse_what_the_defaults_admit() {
         Err(SelectiveDiscoveryArtifactError::LimitsExceeded("artifact bytes"))
     ));
 }
+
+#[test]
+fn a_state_whose_claims_contradict_each_other_is_refused() {
+    let refused = |edit: &dyn Fn(&mut PortableDiscoveryState)| {
+        let mut edited = state();
+        edit(&mut edited);
+        edited.reseal();
+        SelectiveDiscoveryArtifact::seal(&edited).is_err()
+    };
+    assert!(!refused(&|_| {}));
+    assert!(refused(&|s| s.route = "static_fci".to_owned()));
+    assert!(refused(&|s| s.route = "static_ges".to_owned()));
+    assert!(refused(&|s| s.variables = vec![0, 1]));
+    assert!(refused(&|s| s.variables = vec![0, 1, 1, 2]));
+    assert!(refused(&|s| s.rows = 0));
+    assert!(refused(&|s| s.components.reverse()));
+    assert!(refused(&|s| s.work.ci_tests_completed = 4));
+    assert!(refused(&|s| s.work.score_evaluations = 1));
+    assert!(refused(&|s| s.work.algorithm_executions = 2));
+    assert!(refused(&|s| {
+        let node = |variable: u32| StructureNode { kind: 0, variable, aux: 0 };
+        let edge = StructureEdge {
+            a: node(0),
+            b: node(1),
+            at_a: Mark::Circle,
+            at_b: Mark::Arrow,
+            middle: 4,
+        };
+        let nodes = s.structure.nodes().to_vec();
+        s.structure =
+            DiscoveredStructure::from_parts(StructureClass::Cpdag, nodes, vec![edge]).unwrap();
+    }));
+    assert!(refused(&|s| {
+        let node = |variable: u32| StructureNode { kind: 0, variable, aux: 0 };
+        let edge = StructureEdge {
+            a: node(0),
+            b: node(1),
+            at_a: Mark::Tail,
+            at_b: Mark::Conflict,
+            middle: 4,
+        };
+        let nodes = s.structure.nodes().to_vec();
+        s.structure =
+            DiscoveredStructure::from_parts(StructureClass::Cpdag, nodes, vec![edge]).unwrap();
+    }));
+}

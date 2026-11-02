@@ -21,7 +21,10 @@
 //! A consumer trusts none of it. It recomputes the identity over the rule,
 //! inputs, numbers and plan; re-runs the propagation rule on the stored
 //! declaration and requires the stored route, label and alignment identity to
-//! be the ones the rule yields; recomputes the result from the stored numbers
+//! be the ones the rule yields; requires the stored numbers to be the ones the
+//! operation names (unit coefficients for a sum, coefficients summing to zero
+//! for a contrast, the product functional for a product, the matching envelope
+//! query); recomputes the result from the stored numbers
 //! and accepts only identical result bits. What this protects against:
 //! corruption, edits that are not resealed, and resealed edits that change the
 //! operation, the dependence declaration, the alignment identity, a number or
@@ -1215,6 +1218,40 @@ fn require_len(actual: usize, expected: usize, what: &str) -> Result<(), Error> 
     }
 }
 
+/// Relative tolerance under which contrast coefficients sum to zero.
+const CONTRAST_SUM_TOLERANCE: f64 = 1e-12;
+
+/// Whether the stored linear coefficients are the ones `operation` names: a sum
+/// has unit coefficients, a contrast coefficients summing to zero, a transform
+/// one coefficient. A non-finite coefficient is left to the computation, which
+/// refuses it with its own typed error.
+#[allow(
+    clippy::float_cmp,
+    reason = "a sum's coefficients are the exact literal 1.0, not a computed quantity"
+)]
+fn coefficients_fit(operation: PropagationOperation, coefficients: &[f64]) -> bool {
+    use PropagationOperation as Op;
+    if coefficients.iter().any(|c| !c.is_finite()) {
+        return true;
+    }
+    match operation {
+        Op::Sum => coefficients.iter().all(|c| *c == 1.0),
+        Op::Contrast => {
+            let total: f64 = coefficients.iter().sum();
+            let scale: f64 = coefficients.iter().map(|c| c.abs()).sum();
+            total.abs() <= CONTRAST_SUM_TOLERANCE * scale
+        }
+        Op::LinearTransform => coefficients.len() == 1,
+        _ => true,
+    }
+}
+
+/// Whether the stored functional is the one `operation` names: a product is
+/// the `product` functional, any other nonlinear operation names its own.
+fn functional_fits(operation: PropagationOperation, functional: &str) -> bool {
+    operation != PropagationOperation::Product || functional == ValueFunctional::Product.as_str()
+}
+
 /// Whether the numbers fit the route and operation the rule yielded.
 fn variant_fits(
     operation: PropagationOperation,
@@ -1231,36 +1268,44 @@ fn variant_fits(
     let nonlinear =
         matches!(operation, Op::Product | Op::NonlinearFunctional | Op::TransportedComposition);
     match (route, request) {
-        (PropagationRoute::LinearMoments, W::LinearCombination { .. })
-        | (PropagationRoute::AlignedJointLaw, W::AlignedLinearCombination { .. }) => linear,
-        (PropagationRoute::AlignedJointLaw, W::AlignedFunctional { .. }) => nonlinear,
+        (PropagationRoute::LinearMoments, W::LinearCombination { coefficients, .. }) => {
+            linear && coefficients_fit(operation, &floats(coefficients))
+        }
+        (PropagationRoute::AlignedJointLaw, W::AlignedLinearCombination { a, b, .. }) => {
+            linear && coefficients_fit(operation, &[f64::from_bits(*a), f64::from_bits(*b)])
+        }
+        (PropagationRoute::AlignedJointLaw, W::AlignedFunctional { functional, .. }) => {
+            nonlinear && functional_fits(operation, functional)
+        }
         // The draw-based spread and decision numbers are a spread reading's
         // own: a point reading is not given a spread under its own label.
         (
             PropagationRoute::AlignedJointLaw,
-            W::AlignedFunctionalSpread { .. } | W::AlignedExceedance { .. },
-        ) => spread && nonlinear,
+            W::AlignedFunctionalSpread { functional, .. } | W::AlignedExceedance { functional, .. },
+        ) => spread && nonlinear && functional_fits(operation, functional),
         (PropagationRoute::KnownWeightMixture, W::MixtureExceedance { .. }) => {
             spread && operation == Op::Mixture
         }
         (PropagationRoute::KnownWeightMixture, W::Mixture { .. }) => operation == Op::Mixture,
         (PropagationRoute::FrechetEnvelope, W::FrechetEnvelope { query, .. }) => match query {
-            EnvelopeQueryWire::SumCdf { .. }
-            | EnvelopeQueryWire::DifferenceCdf { .. }
-            | EnvelopeQueryWire::LinearVariance { .. } => {
+            EnvelopeQueryWire::SumCdf { .. } => operation == Op::Sum,
+            EnvelopeQueryWire::DifferenceCdf { .. } => operation == Op::Contrast,
+            EnvelopeQueryWire::LinearVariance { a, b } => {
                 matches!(operation, Op::Sum | Op::Contrast | Op::WeightedSum)
+                    && coefficients_fit(operation, &[f64::from_bits(*a), f64::from_bits(*b)])
             }
             EnvelopeQueryWire::ProductMoment | EnvelopeQueryWire::Covariance => {
                 operation == Op::Product
             }
-            EnvelopeQueryWire::Functional { .. } => {
+            EnvelopeQueryWire::Functional { functional } => {
                 matches!(operation, Op::Product | Op::NonlinearFunctional)
+                    && functional_fits(operation, functional)
             }
         },
-        (
-            PropagationRoute::CorrelationRangeEnvelope,
-            W::CorrelationRange { .. } | W::PooledCorrelationRange { .. },
-        ) => true,
+        (PropagationRoute::CorrelationRangeEnvelope, W::CorrelationRange { a, b, .. }) => {
+            !linear || coefficients_fit(operation, &[f64::from_bits(*a), f64::from_bits(*b)])
+        }
+        (PropagationRoute::CorrelationRangeEnvelope, W::PooledCorrelationRange { .. }) => true,
         _ => false,
     }
 }

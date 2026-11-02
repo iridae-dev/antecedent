@@ -153,6 +153,49 @@ fn lineage_records_a_merkle_digest_per_link_and_refuses_tampered_digests() {
 }
 
 #[test]
+fn fingerprint_covers_every_quantity_field_and_counts_its_lists() {
+    let base = expected_identity();
+    let moved = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
+        let mut identity = base.clone();
+        edit(&mut identity);
+        identity.compute_fingerprint()
+    };
+    assert_eq!(moved(&|_| {}), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities[0].units = "kPa".into()), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities[0].horizon = 1), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities[0].variable_name = "Z".into()), base.provider_fingerprint);
+    assert_ne!(moved(&|i| i.quantities.truncate(2)), base.provider_fingerprint);
+    assert_ne!(
+        moved(&|i| i.capabilities = vec!["mean".into(), "sample".into()]),
+        base.provider_fingerprint
+    );
+}
+
+#[test]
+fn identity_refuses_unbounded_lists_and_unsorted_capabilities() {
+    let artifact = bound_artifact();
+    let refuses = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
+        let mut meta = artifact.metadata().clone();
+        edit(&mut meta.identity);
+        ExternalClaimArtifact::new(meta, artifact.values().to_vec()).is_err()
+    };
+    assert!(refuses(&|i| i.evidence_ids = vec!["factor:z".into(); 1025]));
+    assert!(refuses(&|i| i.capabilities = vec!["sample".into(), "mean".into()]));
+    assert!(refuses(&|i| i.capabilities = vec!["mean".into(), "mean".into()]));
+}
+
+#[test]
+fn metadata_version_one_is_refused() {
+    let artifact = bound_artifact();
+    let mut meta = artifact.metadata().clone();
+    meta.version = 1;
+    assert!(matches!(
+        ExternalClaimArtifact::new(meta, artifact.values().to_vec()),
+        Err(antecedent_io::IoError::UnsupportedVersion { version: 1 })
+    ));
+}
+
+#[test]
 #[allow(clippy::too_many_lines, reason = "the reference fixture checks one complete round trip")]
 fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
     const PATH_ENV: &str = "ANTECEDENT_23_EXTERNAL_CLAIM_TEST_PATH";

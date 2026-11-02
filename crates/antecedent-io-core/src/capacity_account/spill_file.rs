@@ -196,12 +196,17 @@ where
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
-/// Removes the file it names unless it was disarmed.
+/// Names a file to remove unless it was disarmed. [`Cleanup::remove`] reports a failed
+/// removal; the drop only covers unwinding, where nothing can be reported.
 struct Cleanup(Option<PathBuf>);
 
 impl Cleanup {
     fn disarm(&mut self) {
         self.0 = None;
+    }
+
+    fn remove(&mut self) -> Result<(), IoFail> {
+        self.0.take().map_or(Ok(()), |path| remove_file(&path))
     }
 }
 
@@ -262,25 +267,42 @@ where
     }
     let mut file = options.open(&temp).map_err(io_fail("create the temporary spill file"))?;
     let mut cleanup = Cleanup(Some(temp.clone()));
-    write(&mut file, &frame).map_err(io_fail("write the spill file"))?;
-    file.flush().map_err(io_fail("flush the spill file"))?;
-    file.sync_all().map_err(io_fail("sync the spill file"))?;
-    drop(file);
-    drop(frame);
-    before_publish()?;
-    match publication {
-        Publication::ReplaceExisting => fs::rename(&temp, target),
-        Publication::CreateNew => fs::hard_link(&temp, target),
+    let mut published = Cleanup(None);
+    let outcome = (|| -> Result<FrameReceipt, E> {
+        write(&mut file, &frame).map_err(io_fail("write the spill file"))?;
+        file.flush().map_err(io_fail("flush the spill file"))?;
+        file.sync_all().map_err(io_fail("sync the spill file"))?;
+        drop(file);
+        drop(frame);
+        before_publish()?;
+        match publication {
+            Publication::ReplaceExisting => fs::rename(&temp, target),
+            Publication::CreateNew => fs::hard_link(&temp, target),
+        }
+        .map_err(io_fail("move the spill file into place"))?;
+        published.0 = Some(target.to_path_buf());
+        if matches!(publication, Publication::CreateNew) {
+            fs::remove_file(&temp).map_err(io_fail("remove the temporary spill file"))?;
+        }
+        cleanup.disarm();
+        read_verified::<E>(target, Declared { frame_bytes, digest })?;
+        Ok(FrameReceipt { frame_bytes, digest })
+    })();
+    match outcome {
+        Ok(receipt) => {
+            published.disarm();
+            Ok(receipt)
+        }
+        // A file that could not be rolled back is the fact the caller must act on, so its
+        // removal failure is reported in place of the failure that caused the rollback.
+        Err(error) => match (cleanup.remove(), published.remove()) {
+            (Ok(()), Ok(())) => Err(error),
+            (Err(fail), _) | (Ok(()), Err(fail)) => Err(E::from(IoFail {
+                context: "remove a partly written spill file after a failed write",
+                source: fail.source,
+            })),
+        },
     }
-    .map_err(io_fail("move the spill file into place"))?;
-    let mut published = Cleanup(Some(target.to_path_buf()));
-    if matches!(publication, Publication::CreateNew) {
-        fs::remove_file(&temp).map_err(io_fail("remove the temporary spill file"))?;
-    }
-    cleanup.disarm();
-    read_verified::<E>(target, Declared { frame_bytes, digest })?;
-    published.disarm();
-    Ok(FrameReceipt { frame_bytes, digest })
 }
 
 /// Write the whole frame. The default `write` step of [`commit_frame`].

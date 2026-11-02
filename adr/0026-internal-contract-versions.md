@@ -16,7 +16,10 @@ Extends ADR 0022. The encoding those domains hash is the CBOR wire of ADR 0002.
 
 - Format tag `antecedent.identity.v2` (`IDENTITY_FORMAT = 2`). A version-2
   digest is not comparable with a version-1 digest. A canonical-payload change
-  bumps this format; it does not reuse a v2 derive-key.
+  bumps this format; it does not reuse a v2 derive-key. A change confined to one
+  identity domain is versioned inside that domain's own payload instead (the
+  temporal CPDAG and PAG graph identities carry `.v2` in their `kind`), so
+  digests of every other domain are unchanged.
 - Each layer keeps its own BLAKE3 derive-key. The closed set is:
 
   | Domain | Derive-key |

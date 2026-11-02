@@ -4,6 +4,8 @@
 
 - Automatic, bounded, fit-free data diagnostics on prepared tabular and series studies, with configurable built-in suites, explicit opt-out, standalone Rust/Python calls, immutable identity-bound reports, coverage and human follow-up guidance. See [data diagnostics](docs/guides/data-diagnostics.md).
 
+- **Identity and artifact versions.** `IDENTITY_FORMAT` stays 2. Temporal CPDAG and PAG graph identities are versioned inside their own payload (`kind` is `temporal_cpdag.v2` / `temporal_pag.v2`): nodes are sorted and edges re-indexed, so insertion order no longer reaches their digest, and a digest of the earlier encoding is not comparable with it. No other identity digest changes. External response claim metadata is version 2: the provider fingerprint is computed over explicit coordinate fields and counted lists, capabilities are sorted and distinct, and version-1 claims are refused and must be regenerated. Transport proofs, selective-discovery structures, temporal-design, counterfactual-contrast and rollout result sections, and sampled transport artifacts are decoded under stricter checks of the same formats.
+
 ## 2.4.1
 
 Changes since 2.4.0. Released identities, artifact encodings and goldens are unchanged; new fields enter an identity or encoding only when a request sets them.

@@ -22,7 +22,7 @@ allocation/memory contracts, and owning crates.
 | Discover-once / estimate-many | `antecedent` / Python | (conformance) `latency_tiers::discovered_graph_builds_under_every_latency_tier`, `test_accepted_graph` | — | Python `prepare` / `analyze` refuse an unexecuted discovery configuration and name `ant.discovery.discover` (the Rust builder cannot express the combination); `AcceptedGraph` version stable across estimate clicks |
 | Shared estimate→refute workspace | `antecedent` | (conformance) `shared_workspace` | — | `StaticEstimateWorkspaces` for linear / propensity / AIPW across estimate→refute |
 | Interactive graph×effect subsample | `antecedent-estimate` / `antecedent` | (unit) `envelope::interactive_subsample_mass_accounting_honest`; (conformance) `response_facade::interactive_graph_posterior_*`, `response_facade::interactive_bayesian_*` | — | Identified atoms left out of the subsample are never fit (DBN-posterior envelopes fit first and leave them out of the mixture). Every subsampling path reports their mass as `subsampled_out_mass` (not unidentified, not unevaluable) and stays `GraphDependent`: the Frequentist graph-posterior ATE in its envelope diagnostic, graph-posterior responses on `StructuralResponseMixture`, and the Bayesian graph-posterior, DBN-posterior and CPDAG/PAG class envelopes on `CausalPosterior` (and its artifact). The `estimate.envelope.interactive_subsample` diagnostic lists the skipped atom keys and where their mass is reported |
-| Arrow CDI interactive estimate | Python / `antecedent-data` | (conformance) `test_arrow_interactive_smoke` | — | PyArrow tables borrow via CDI whenever `try_as_arrow_c_columns` succeeds (no population kwargs); pandas/dict go through `as_columns`. `latency=interactive` is the intended consumer, not a gate on the ingest path. `performance.bytes_borrowed` is set on the Arrow analyze path |
+| Arrow CDI interactive estimate | Python / `antecedent-data` | (conformance) `test_arrow_interactive_smoke` | — | PyArrow tables enter through CDI whenever `try_as_arrow_c_columns` succeeds (no population kwargs); pandas/dict go through `as_columns`. A study, rebind or click retains its data, so Arrow buffers are copied once into owned storage (a writable NumPy alias behind an Arrow array cannot change a retained study); that copy, like the NumPy copy of dict/pandas columns, is funded from the `Execution` memory pool before it is made and the lease is held by the retained table itself, whatever its column types, until the last holder drops (`CausalResourceError` when `memory_bytes` cannot fund it); only the `load_float64_arrow_c_columns` probe, `refute` on supplied data and `table(..., borrow=True)` borrow. `latency=interactive` is the intended consumer, not a gate on the ingest path |
 | Post-ID column projection | `antecedent-data` / `antecedent` | (conformance) `projection_wide` | — | Wide sheet → gather T/Y/Z only; ATE matches; `exec.project.columns` diagnostic |
 | Batch multi-query | `antecedent` / Python | (conformance) `batch_analysis`, `test_analyze_many`; (integration) `batch_analyze_many` | — | One table ingest, N AverageEffect queries; identical cross-fitted propensity/outcome fits shared across queries; bit-identical to solo |
 | Refute second click | `antecedent` / Python | (conformance) `refute_second_click`, `test_prepared_refute_second_click` | — | Prepared estimate then `refute(suite)`; ATE frozen; validation replaced |
@@ -111,9 +111,9 @@ call, so treat it as a lower bound on non-ingest work).
 
 How to read it alongside the Arrow CDI row above:
 
-- Prefer **Arrow** (CDI borrow) for interactive / hot-loop estimates when you
-  already hold a PyArrow table — that is the zero-copy path
-  (`performance.bytes_borrowed`).
+- Prefer **Arrow** (CDI) for interactive / hot-loop estimates when you
+  already hold a PyArrow table — one ownership copy per column, no Python
+  conversion. Zero-copy borrowing is an explicit `table(..., borrow=True)`.
 - Prefer a **dict of float64 NumPy arrays** when you control the producer and
   want minimal Python conversion without an Arrow dependency.
 - **pandas** is correct and convenient, but `as_columns` / `to_f64` copies;

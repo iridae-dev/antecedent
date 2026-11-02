@@ -392,7 +392,7 @@ fn fit_of(
         treatment: &request.data.treatment,
         covariates: &request.data.covariates,
     };
-    Ok(fit_latent_class_effects(&data, &config_of(&request.config))?)
+    Ok(fit_latent_class_effects(&data, &config_of(&request.config), ctx)?)
 }
 
 fn data_bytes(data: &LatentClassDataWire) -> Vec<u8> {

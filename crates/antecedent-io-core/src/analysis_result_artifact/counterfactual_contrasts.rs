@@ -6,14 +6,21 @@
 //! interventions that the single form does not state, publishes one contrast per outcome here,
 //! in the order the query lists its outcomes. A loader checks that the section belongs to a
 //! counterfactual query, that its outcomes are the query's, that every contrast covers the
-//! same units, and that each contrast's per-unit effects are well formed.
+//! same units, that each contrast's per-unit effects are well formed, and that its mean is the
+//! mean of those effects.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use serde::{Deserialize, Serialize};
 
 use super::{AnalysisResultWire, UnitEffectsWire};
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 use crate::{CausalQueryWire, IoError};
+
+/// Replay policy of a contrast's published mean against the mean of its own unit effects: a
+/// relative `1e-9` of the larger value, absolute below one; non-finite is refused.
+const CONTRAST_MEAN_AGREEMENT: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::OnePlusLarger, ReplayNonFinite::Refuse);
 
 /// The unit-level contrast of one outcome between the active and control worlds.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -121,6 +128,13 @@ pub(crate) fn validate_outcome_contrasts(
             }
         } else {
             super::validate::validate_unit_effects(&contrast.unit_effects)?;
+            let effects = &contrast.unit_effects.effects;
+            let rederived = effects.iter().sum::<f64>() / effects.len() as f64;
+            if !CONTRAST_MEAN_AGREEMENT.close(contrast.mean, rederived) {
+                return Err(IoError::Convert(
+                    "a counterfactual contrast mean is not the mean of its unit effects".into(),
+                ));
+            }
         }
     }
     Ok(())

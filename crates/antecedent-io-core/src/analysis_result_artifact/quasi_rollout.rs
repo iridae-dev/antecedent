@@ -25,7 +25,7 @@ const ROLLOUT_AGREEMENT: ReplayTolerance =
     ReplayTolerance::new(1e-9, ReplayScale::OnePlusLarger, ReplayNonFinite::Refuse);
 
 /// Normal 97.5% quantile of the pointwise intervals.
-const NORMAL_Q975: f64 = 1.959_963_984_540_054;
+pub(super) const NORMAL_Q975: f64 = 1.959_963_984_540_054;
 
 /// One reported effect of a rollout design.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -218,14 +218,21 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
         return fail("replicate counts do not add up");
     }
     if rollout.critical_value.is_some_and(|critical| {
-        critical.partial_cmp(&(NORMAL_Q975 - 1e-12)).is_none_or(Ordering::is_lt)
+        !critical.is_finite()
+            || critical.partial_cmp(&(NORMAL_Q975 - 1e-12)).is_none_or(Ordering::is_lt)
     }) {
-        return fail("a simultaneous critical value is below the pointwise quantile");
+        return fail("a critical value is not finite or is below the pointwise quantile");
+    }
+    if rollout.diagnostics.iter().any(|(_, value)| !value.is_finite()) {
+        return fail("a diagnostic is not finite");
     }
     let near = |a: f64, b: f64| ROLLOUT_AGREEMENT.close(a, b);
     for effect in &rollout.effects {
         if !effect.estimate.is_finite() {
             return fail("an effect estimate is not finite");
+        }
+        if effect.standard_error.is_some_and(|se| !se.is_finite()) {
+            return fail("a standard error is not finite");
         }
         if effect.interval.iter().chain(effect.band.iter()).flatten().any(|v| !v.is_finite()) {
             return fail("a pointwise interval or band is not finite");
@@ -235,11 +242,15 @@ pub(in crate::analysis_result_artifact) fn validate_quasi_rollout(
                 return fail("a pointwise interval is reversed");
             }
             // A conformal set is the hull of the accepted effects and need not contain the
-            // pre-period point; a standard-error interval is centred on its estimate.
+            // pre-period point; a standard-error interval is centred on its estimate, except
+            // the robust bias-corrected local-ratio interval, which is centred on the
+            // bias-corrected estimate and sits beside the conventional standard error.
             if let Some(se) = effect.standard_error {
+                let centred = !rollout.uncertainty.starts_with("rbc_");
                 if se.partial_cmp(&0.0) != Some(Ordering::Greater)
-                    || !near(interval[0], effect.estimate - NORMAL_Q975 * se)
-                    || !near(interval[1], effect.estimate + NORMAL_Q975 * se)
+                    || (centred
+                        && (!near(interval[0], effect.estimate - NORMAL_Q975 * se)
+                            || !near(interval[1], effect.estimate + NORMAL_Q975 * se)))
                 {
                     return fail(
                         "a pointwise interval is not the normal interval of its standard error",

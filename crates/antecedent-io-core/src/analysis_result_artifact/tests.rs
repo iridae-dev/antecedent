@@ -1160,3 +1160,181 @@ mod source_witness_cases {
         );
     }
 }
+
+fn temporal_design_result() -> AnalysisResultWire {
+    let query: crate::CausalQueryWire = serde_json::from_value(serde_json::json!({
+        "temporal_design": {
+            "outcome": 1,
+            "units": ["a", "a", "b", "b"],
+            "periods": [0, 1, 0, 1],
+            "lag": 0,
+            "assignment": {"two_arm": {
+                "assignment": [true, false, true, false],
+                "probability": [0.5, 0.5, 0.5, 0.5]
+            }},
+            "min_probability": 0.1
+        }
+    }))
+    .unwrap();
+    let mut result = fixture();
+    result.query = query.clone();
+    result.identification.query = query;
+    result.estimate = None;
+    result.standard_error = None;
+    result.temporal_design = Some(TemporalDesignWire {
+        design: "two_arm".into(),
+        functional: "mean".into(),
+        coordinates: vec!["effect".into(), "second".into()],
+        estimate: vec![1.0, 2.0],
+        standard_error: vec![0.5, 0.5],
+        lower: vec![0.0, 1.0],
+        upper: vec![2.0, 3.0],
+        covariance: Some(vec![0.25, 0.1, 0.1, 0.25]),
+        band_coordinates: vec![0, 1],
+        band_critical_value: Some(2.2),
+        band_lower: Some(vec![-0.1, 0.9]),
+        band_upper: Some(vec![2.1, 3.1]),
+        holm_adjusted_p: None,
+        smoothing_bias_bound: None,
+        pairs: 4,
+        clusters: 2,
+        unpaired: 0,
+        minimum_probability: Some(0.5),
+        replicates: Some([10, 0]),
+        draws: None,
+        uncertainty: "cluster_bootstrap".into(),
+        calibration: "unmeasured".into(),
+        licensed: false,
+    });
+    result
+}
+
+#[test]
+fn temporal_design_section_fields_are_linked_to_the_query_and_each_other() {
+    let validate = |edit: &dyn Fn(&mut TemporalDesignWire)| {
+        let mut result = temporal_design_result();
+        edit(result.temporal_design.as_mut().unwrap());
+        super::temporal_design::validate_temporal_design(&result)
+    };
+    validate(&|_| {}).expect("the consistent section validates");
+    refused(validate(&|s| s.functional = "quantile:0.5".into()), "functional");
+    validate(&|s| s.functional = "mean".into()).expect("a mean functional");
+    refused(validate(&|s| s.clusters = 5), "exceeds the rows");
+    refused(validate(&|s| s.unpaired = 5), "exceeds the rows");
+    refused(validate(&|s| s.minimum_probability = Some(0.0)), "minimum assignment probability");
+    refused(
+        validate(&|s| s.minimum_probability = Some(f64::NAN)),
+        "minimum assignment probability",
+    );
+    refused(validate(&|s| s.draws = Some(0)), "posterior has draws");
+    refused(validate(&|s| s.smoothing_bias_bound = Some(vec![0.0, -1.0])), "smoothing bias");
+    refused(validate(&|s| s.covariance = Some(vec![0.25, 0.1, 0.2, 0.25])), "covariance");
+    refused(validate(&|s| s.covariance = Some(vec![0.25, 0.9, 0.9, 0.25])), "covariance");
+    refused(validate(&|s| s.covariance = Some(vec![f64::NAN, 0.0, 0.0, 0.25])), "covariance");
+    refused(validate(&|s| s.band_lower = Some(vec![f64::NAN, 0.9])), "band is not finite");
+    refused(validate(&|s| s.band_coordinates = vec![1, 0]), "strictly ascending");
+}
+
+#[test]
+fn quasi_rollout_intervals_bands_and_diagnostics_must_be_finite() {
+    let mut query = crate::causal_query_to_wire(&antecedent_core::CausalQuery::PanelDid(
+        antecedent_core::PanelDidQuery::new(
+            antecedent_core::VariableId::from_raw(1),
+            [true, true, false, false],
+            [false, true, false, true],
+            ["a", "a", "b", "b"].map(std::sync::Arc::<str>::from),
+            ["x", "x", "y", "y"].map(std::sync::Arc::<str>::from),
+        ),
+    ))
+    .unwrap();
+    if let crate::CausalQueryWire::PanelDid(panel) = &mut query {
+        panel.rollout = Some(crate::rollout_query_wire::RolloutDidWire {
+            design: "staggered_heterogeneity_robust".into(),
+            estimator: "callaway_santanna".into(),
+            comparison: "never_treated".into(),
+            nuisance: "outcome_regression".into(),
+            base_period: "varying".into(),
+            aggregation: "simple".into(),
+            anticipation: 0,
+            covariates: Vec::new(),
+            observation: None,
+            observation_shift_bound: None,
+        });
+    }
+    let q = super::quasi_rollout::NORMAL_Q975;
+    let build = |edit: &dyn Fn(&mut QuasiRolloutWire)| {
+        let mut result = fixture();
+        result.query = query.clone();
+        result.identification.query = query.clone();
+        result.estimate = Some(1.0);
+        result.standard_error = None;
+        let mut rollout = QuasiRolloutWire {
+            design: "staggered_did".into(),
+            method: "callaway_santanna.simple".into(),
+            effects: vec![DesignEffectWire {
+                kind: "overall".into(),
+                group: None,
+                period: None,
+                event_time: None,
+                unit: None,
+                estimate: 1.0,
+                standard_error: Some(0.5),
+                interval: Some([1.0 - q * 0.5, 1.0 + q * 0.5]),
+                band: Some([1.0 - 2.2 * 0.5, 1.0 + 2.2 * 0.5]),
+                treated: 2,
+                comparison: 2,
+            }],
+            uncertainty: "cluster_bootstrap".into(),
+            calibration: "unmeasured".into(),
+            replicates_requested: 10,
+            replicates_ok: 10,
+            replicates_failed: 0,
+            critical_value: Some(2.2),
+            diagnostics: vec![("pre_trend_p".into(), 0.4)],
+            licensed: false,
+        };
+        edit(&mut rollout);
+        result.quasi_rollout = Some(rollout);
+        super::quasi_rollout::validate_quasi_rollout(&result)
+    };
+    build(&|_| {}).expect("the consistent section validates");
+    refused(build(&|r| r.critical_value = Some(f64::INFINITY)), "critical value");
+    refused(build(&|r| r.critical_value = Some(f64::NAN)), "critical value");
+    refused(build(&|r| r.diagnostics[0].1 = f64::NAN), "diagnostic is not finite");
+    refused(build(&|r| r.effects[0].standard_error = Some(f64::INFINITY)), "standard error");
+    refused(build(&|r| r.effects[0].interval = Some([f64::NEG_INFINITY, 2.0])), "not finite");
+    refused(build(&|r| r.effects[0].band = Some([0.0, f64::NAN])), "not finite");
+    refused(build(&|r| r.effects[0].estimate = f64::NAN), "quasi rollout section");
+    let off_centre = |r: &mut QuasiRolloutWire| {
+        r.effects[0].interval = Some([0.0, 2.5]);
+        r.effects[0].band = None;
+        r.critical_value = None;
+    };
+    refused(build(&off_centre), "normal interval");
+    build(&|r| {
+        off_centre(r);
+        r.uncertainty = "rbc_hc0_delta_normal_fixed_bandwidth".into();
+    })
+    .expect("the robust bias-corrected interval is not centred on the conventional estimate");
+}
+
+#[test]
+fn a_contrast_mean_must_be_the_mean_of_its_unit_effects() {
+    let contrast = |mean: f64| OutcomeContrastWire {
+        outcome: 1,
+        mean,
+        standard_error: None,
+        unit_effects: UnitEffectsWire {
+            effects: vec![1.0, 2.0, 3.0],
+            homogeneous: false,
+            intervals: None,
+            extrapolative: None,
+        },
+    };
+    super::counterfactual_contrasts::validate_outcome_contrasts(&[contrast(2.0)], &[1], 3)
+        .expect("the mean of the effects");
+    refused(
+        super::counterfactual_contrasts::validate_outcome_contrasts(&[contrast(2.5)], &[1], 3),
+        "mean of its unit effects",
+    );
+}

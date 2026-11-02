@@ -79,6 +79,7 @@ use crate::mechanism_composition_artifact::{
     MechanismCompositionPremisesWire, refusals_for_findings,
 };
 use crate::quantity_wire::DistributionMeaningWire;
+use crate::replay_tolerance::{ReplayNonFinite, ReplayScale, ReplayTolerance};
 
 /// The artifact format this reader writes and accepts.
 pub const OBSERVATION_QUERY_ARTIFACT_VERSION: u32 = 1;
@@ -799,6 +800,209 @@ pub enum ObservationResultWire {
         /// Bayes factor of one reading, as bits, for a likelihood-ratio route.
         bayes_factor_bits: Option<u64>,
     },
+}
+
+/// How far a replayed number may sit from the stored one.
+///
+/// Parameter redraws and the log, exp and gamma functions of the posterior queries run on
+/// the platform's math library, which differs between operating systems in the last
+/// digits. An artifact sealed on one platform therefore replays within this tolerance, not
+/// bit for bit; integers, labels, counts and flags still match exactly. Identical bit
+/// patterns always match, so a same-platform replay stays exact, including non-finite
+/// values.
+const OBSERVATION_REPLAY: ReplayTolerance =
+    ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::SameBits);
+
+fn bits_close(stored: u64, replayed: u64) -> bool {
+    OBSERVATION_REPLAY.close(f64::from_bits(stored), f64::from_bits(replayed))
+}
+
+fn all_bits_close(stored: &[u64], replayed: &[u64]) -> bool {
+    stored.len() == replayed.len() && stored.iter().zip(replayed).all(|(s, r)| bits_close(*s, *r))
+}
+
+fn optional_bits_close(stored: Option<u64>, replayed: Option<u64>) -> bool {
+    match (stored, replayed) {
+        (Some(s), Some(r)) => bits_close(s, r),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn levels_close(stored: &[(String, u64)], replayed: &[(String, u64)]) -> bool {
+    stored.len() == replayed.len()
+        && stored.iter().zip(replayed).all(|(s, r)| s.0 == r.0 && bits_close(s.1, r.1))
+}
+
+fn optional_levels_close(
+    stored: Option<&Vec<(String, u64)>>,
+    replayed: Option<&Vec<(String, u64)>>,
+) -> bool {
+    match (stored, replayed) {
+        (Some(s), Some(r)) => levels_close(s, r),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+impl ObservationResultWire {
+    /// Whether this stored result is the replay of `replayed`: the same variant, exactly
+    /// equal discrete fields and numbers within [`OBSERVATION_REPLAY`].
+    #[must_use]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per result variant keeps the field-by-field comparison reviewable"
+    )]
+    fn replays_as(&self, replayed: &Self) -> bool {
+        match (self, replayed) {
+            (
+                Self::Conditional {
+                    operation: so,
+                    evidence_probability_bits: se,
+                    levels: sl,
+                    construct_posterior: sc,
+                },
+                Self::Conditional {
+                    operation: ro,
+                    evidence_probability_bits: re,
+                    levels: rl,
+                    construct_posterior: rc,
+                },
+            ) => {
+                so == ro
+                    && bits_close(*se, *re)
+                    && levels_close(sl, rl)
+                    && optional_levels_close(sc.as_ref(), rc.as_ref())
+            }
+            (
+                Self::Interventional { operation: so, levels: sl },
+                Self::Interventional { operation: ro, levels: rl },
+            ) => so == ro && levels_close(sl, rl),
+            (
+                Self::Paired {
+                    conditioning_evidence_bits: se,
+                    conditioning: sc,
+                    intervention: si,
+                    max_abs_difference_bits: sm,
+                },
+                Self::Paired {
+                    conditioning_evidence_bits: re,
+                    conditioning: rc,
+                    intervention: ri,
+                    max_abs_difference_bits: rm,
+                },
+            ) => {
+                bits_close(*se, *re)
+                    && levels_close(sc, rc)
+                    && levels_close(si, ri)
+                    && bits_close(*sm, *rm)
+            }
+            (
+                Self::ThresholdCrossing { crossing_probability_bits: sp, rows: sr },
+                Self::ThresholdCrossing { crossing_probability_bits: rp, rows: rr },
+            ) => {
+                bits_close(*sp, *rp)
+                    && sr.len() == rr.len()
+                    && sr.iter().zip(rr).all(|(s, r)| {
+                        s.0 == r.0 && bits_close(s.1, r.1) && bits_close(s.2, r.2) && s.3 == r.3
+                    })
+            }
+            (
+                Self::GaussianConditional {
+                    operation: so,
+                    mean_bits: sm,
+                    variance_bits: sv,
+                    evidence_log_density_bits: sd,
+                },
+                Self::GaussianConditional {
+                    operation: ro,
+                    mean_bits: rm,
+                    variance_bits: rv,
+                    evidence_log_density_bits: rd,
+                },
+            ) => {
+                so == ro
+                    && bits_close(*sm, *rm)
+                    && bits_close(*sv, *rv)
+                    && optional_bits_close(*sd, *rd)
+            }
+            (
+                Self::ParameterDraws {
+                    quantities: sq,
+                    draws: sd,
+                    point_bits: sp,
+                    values_bits: sv,
+                    alignment_identity: sa,
+                    reading: sr,
+                },
+                Self::ParameterDraws {
+                    quantities: rq,
+                    draws: rd,
+                    point_bits: rp,
+                    values_bits: rv,
+                    alignment_identity: ra,
+                    reading: rr,
+                },
+            ) => {
+                sq == rq
+                    && sd == rd
+                    && sa == ra
+                    && sr == rr
+                    && all_bits_close(sp, rp)
+                    && all_bits_close(sv, rv)
+            }
+            (
+                Self::FinitePosterior {
+                    posterior: sp,
+                    log_evidence_bits: sl,
+                    evidence_probability_bits: se,
+                    predictive: sd,
+                },
+                Self::FinitePosterior {
+                    posterior: rp,
+                    log_evidence_bits: rl,
+                    evidence_probability_bits: re,
+                    predictive: rd,
+                },
+            ) => {
+                levels_close(sp, rp)
+                    && bits_close(*sl, *rl)
+                    && bits_close(*se, *re)
+                    && levels_close(sd, rd)
+            }
+            (
+                Self::ConjugatePosterior {
+                    alpha_bits: sa,
+                    beta_bits: sb,
+                    predictive_success_bits: sp,
+                },
+                Self::ConjugatePosterior {
+                    alpha_bits: ra,
+                    beta_bits: rb,
+                    predictive_success_bits: rp,
+                },
+            ) => bits_close(*sa, *ra) && bits_close(*sb, *rb) && bits_close(*sp, *rp),
+            (
+                Self::RequiredBayesFactor { factor_bits: sf, already_satisfied: ss },
+                Self::RequiredBayesFactor { factor_bits: rf, already_satisfied: rs },
+            ) => ss == rs && bits_close(*sf, *rf),
+            (
+                Self::RequiredObservations {
+                    observations: so,
+                    value_bits: sv,
+                    already_satisfied: ss,
+                    bayes_factor_bits: sb,
+                },
+                Self::RequiredObservations {
+                    observations: ro,
+                    value_bits: rv,
+                    already_satisfied: rs,
+                    bayes_factor_bits: rb,
+                },
+            ) => so == ro && ss == rs && bits_close(*sv, *rv) && optional_bits_close(*sb, *rb),
+            _ => false,
+        }
+    }
 }
 
 /// The versioned artifact.
@@ -1726,7 +1930,7 @@ impl ObservationQueryArtifactWire {
             }
         }
         let result = evaluate_observation_query(spec.as_ref(), &self.query, ctx)?;
-        if result != self.result {
+        if !self.result.replays_as(&result) {
             return Err(ObservationQueryArtifactError::ResultMismatch);
         }
         Ok(ConsumedObservationQuery {

@@ -153,6 +153,7 @@ pub struct EvidenceLedger {
     result_index: BTreeMap<ResultId, usize>,
     log: Vec<AppliedOperation>,
     head: OperationId,
+    standings_stale: bool,
 }
 
 impl Default for EvidenceLedger {
@@ -205,6 +206,7 @@ impl EvidenceLedger {
             result_index: BTreeMap::new(),
             log: Vec::new(),
             head: genesis(),
+            standings_stale: false,
         }
     }
 
@@ -1326,6 +1328,7 @@ impl EvidenceLedger {
             };
             self.results[i].status = updated;
         }
+        self.standings_stale = false;
         self.source_loss_classification()
     }
 
@@ -1548,7 +1551,7 @@ impl EvidenceLedger {
     }
 
     /// Apply one operation. On refusal the ledger is unchanged.
-    ///
+    ///    ///
     /// # Errors
     /// A typed [`LedgerError`] naming the rule and what would license the request.
     pub fn apply(&mut self, operation: LedgerOperation) -> Result<&AppliedOperation, LedgerError> {
@@ -1581,7 +1584,14 @@ impl EvidenceLedger {
                 effect.revalidation = self.reclassify(id);
             }
             Plan::Revalidate => {
-                effect.revalidation = self.reclassify(id);
+                // A retirement reclassifies and an add or a plain combination changes no
+                // standing; only a replacement leaves results to reclassify. Absent one, the
+                // standings are at their fixed point and the walk would change nothing.
+                effect.revalidation = if self.standings_stale {
+                    self.reclassify(id)
+                } else {
+                    self.source_loss_classification()
+                };
             }
             Plan::Combine(checked) => {
                 if let Some(replaced) = checked.replaces {
@@ -1589,6 +1599,7 @@ impl EvidenceLedger {
                     self.results[index].status =
                         ResultStatus::Replaced { by: checked.id, operation: id };
                     effect.replaced_result = Some(replaced);
+                    self.standings_stale = true;
                 }
                 effect.created_result = Some(checked.id);
                 self.result_index.insert(checked.id, self.results.len());

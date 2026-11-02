@@ -428,14 +428,9 @@ impl PreparedCyclicExecution {
     ) -> Result<Vec<antecedent_model::compile::CompiledSystemPlan>, CyclicArtifactError> {
         let fit = self.fit.lock().map_err(|_| invalid("frozen fit lock poisoned"))?;
         let model = fit.as_ref().map_or(&self.request.model, |(_, fit)| &fit.model);
-        self.request
-            .worlds
-            .iter()
-            .map(|world| {
-                antecedent_model::compile::compile_equilibrium(model, world)
-                    .map_err(CyclicArtifactError::from)
-            })
-            .collect()
+        let clamp_sets: Vec<&[_]> = self.request.worlds.iter().map(Vec::as_slice).collect();
+        antecedent_model::compile::compile_equilibria(model, &clamp_sets)
+            .map_err(CyclicArtifactError::from)
     }
     /// Execute the retained program, fitting once per active kernel policy and reusing that fit.
     pub fn estimate(

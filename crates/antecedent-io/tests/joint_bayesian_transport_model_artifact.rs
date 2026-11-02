@@ -58,27 +58,29 @@ fn source(id: &str, offset: usize, effect: f64) -> SourceData {
     }
 }
 
-fn factor() -> PopulationFactor {
-    PopulationFactor {
-        population: Arc::from("source"),
-        regime: None,
-        variables: Arc::from([]),
-        conditioned_on: Arc::from([]),
-        interventions: Arc::from([]),
-    }
-}
-
 fn identified() -> TransportIdentification {
     TransportIdentification::Transportable {
         formula: TransportFormula::Standardize {
             over: Arc::from([VariableId::from_raw(FEATURE)]),
-            source_response: factor(),
-            target_law: factor(),
+            source_response: PopulationFactor {
+                population: Arc::from("source"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(100)]),
+                conditioned_on: Arc::from([VariableId::from_raw(FEATURE)]),
+                interventions: Arc::from([VariableId::from_raw(101)]),
+            },
+            target_law: PopulationFactor {
+                population: Arc::from("target"),
+                regime: None,
+                variables: Arc::from([VariableId::from_raw(FEATURE)]),
+                conditioned_on: Arc::from([]),
+                interventions: Arc::from([]),
+            },
         },
         certificate: TransportCertificate {
-            rule: Arc::from("standardization"),
-            selection_targets: Arc::from([]),
-            premises: Arc::from([]),
+            rule: Arc::from("transport.sid.standardize"),
+            selection_targets: Arc::from([VariableId::from_raw(FEATURE)]),
+            premises: Arc::from([Arc::from("standardizers are pre-treatment")]),
         },
     }
 }

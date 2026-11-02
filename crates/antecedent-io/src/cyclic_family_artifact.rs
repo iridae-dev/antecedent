@@ -1141,6 +1141,7 @@ impl CyclicFamilyRequest {
         identity: &str,
         frozen: Option<&FrozenFamilyFitValue>,
         source_proof: Option<&crate::cyclic_functional::CheckedCyclicFunctionalSource>,
+        linear_routes: Option<&antecedent_model::scc_compile::LinearRouteSet>,
         ctx: &ExecutionContext,
     ) -> Result<CyclicFamilyReport, CyclicArtifactError> {
         if ctx.cancellation.is_cancelled() {
@@ -1686,10 +1687,11 @@ impl CyclicFamilyRequest {
                 outcome,
                 source_id,
                 certifying_evidence,
-                uncertainty: _,
+                uncertainty,
             } => compiled::execute_recovered_linear(
                 nodes,
                 draws,
+                uncertainty,
                 worlds,
                 *outcome,
                 source_id,
@@ -1738,6 +1740,7 @@ impl CyclicFamilyRequest {
                     component,
                     worlds,
                     *certificate,
+                    linear_routes,
                     ctx,
                 )?
             }
@@ -1992,12 +1995,16 @@ fn decode_record(bytes: &[u8]) -> Result<Decoded, CyclicArtifactError> {
 /// then every payload is re-derived from the decoded request and its compiled
 /// solve schedules, so a consistently resealed contract over other payloads is
 /// refused. Compilation does not fit or solve.
+///
+/// The compiled program is returned for the replay to execute. It is derived from the decoded
+/// request alone, never from the producer's contract, so the replay trusts nothing that this
+/// check did not compare, and the request's routes and plans are computed and charged once.
 fn verify_contract(
     request: &CyclicFamilyRequest,
     request_bytes: &[u8],
     contract: &antecedent_io_core::contract_section::CyclicContractWire,
     ctx: &ExecutionContext,
-) -> Result<(), CyclicArtifactError> {
+) -> Result<CompiledCyclicFamilyProgram, CyclicArtifactError> {
     let unresolved = antecedent_io_core::contract_section::verify_cyclic_contract_against_body(
         contract,
         request_bytes,
@@ -2012,7 +2019,7 @@ fn verify_contract(
     if program.contract()? != *contract {
         return Err(CyclicArtifactError::Mismatch);
     }
-    Ok(())
+    Ok(program)
 }
 
 /// Check a separately retained request identity and recompute the typed answer.
@@ -2049,13 +2056,20 @@ fn consume_decoded(
     {
         return Err(CyclicArtifactError::Mismatch);
     }
-    if let Some(contract) = &decoded.contract {
+    let verified = if let Some(contract) = &decoded.contract {
         if contract.request_identity != expected_identity {
             return Err(CyclicArtifactError::Mismatch);
         }
-        verify_contract(&decoded.record.request, &decoded.request_bytes, contract, ctx)?;
-    }
-    let report = decoded.record.request.execute(ctx)?;
+        Some(verify_contract(&decoded.record.request, &decoded.request_bytes, contract, ctx)?)
+    } else {
+        None
+    };
+    let program = if let Some(program) = verified {
+        program
+    } else {
+        CompiledCyclicFamilyProgram::compile(&decoded.record.request, ctx)?
+    };
+    let report = program.execute(ctx)?;
     let projected_bytes = crate::retained_allocation::allocation_bytes(&report).map_err(invalid)?;
     let _projection =
         ctx.acquire_admission(0, projected_bytes).map_err(CyclicArtifactError::Admission)?;
@@ -2241,6 +2255,18 @@ mod previous_version {
             ],
             certificate: CertificateDemandWire::Required,
         }
+    }
+
+    #[test]
+    fn execution_reuses_the_routes_computed_with_the_plans_and_answers_the_same() {
+        let program = CompiledCyclicFamilyProgram::compile(&request(), &ctx()).unwrap();
+        let routes = program.linear_routes().expect("a linear-worlds program holds its routes");
+        assert_eq!(program.execution_plans().len(), 3);
+        assert_eq!(routes.len(), 2, "the observational and the shifted world share one route");
+        let routed = program.execute(&ctx()).unwrap();
+        let unrouted =
+            request().execute_bound(program.identity(), None, None, None, &ctx()).unwrap();
+        assert_eq!(routed, unrouted);
     }
 
     #[test]

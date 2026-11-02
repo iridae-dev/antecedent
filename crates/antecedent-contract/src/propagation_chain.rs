@@ -744,6 +744,14 @@ fn factor_label(kind: SharedFactorKind, id: &str) -> String {
 /// of nodes otherwise free.
 pub const MAX_CHAIN_ANCESTRY_CELLS: usize = 1 << 22;
 
+/// Bytes of identifier text the per-stage ancestry and factor tables of a chain may retain.
+///
+/// The cell budget counts entries, but an entry is an owned identifier: sources of
+/// kilobyte-long ids read by a thousand stages retain gigabytes. Every stage keeps its
+/// ancestor ids twice (the running table and the stage plan) and the union of the factors
+/// it inherits once, and each is charged here at its identifier length.
+pub const MAX_CHAIN_ANCESTRY_BYTES: usize = 1 << 25;
+
 /// What the chain check has established about each declared node so far.
 #[derive(Default)]
 struct ChainState<'a> {
@@ -751,6 +759,7 @@ struct ChainState<'a> {
     factors: BTreeMap<String, FactorSet>,
     disclosure: BTreeMap<String, bool>,
     ancestors: BTreeMap<String, BTreeSet<String>>,
+    retained_bytes: usize,
 }
 
 /// Check a declared chain.
@@ -952,6 +961,7 @@ fn check_stage<'a>(
             stage_sources.extend(set.iter().cloned());
         }
     }
+    charge_stage_tables(stage, state, &stage_sources, &union_factors)?;
     let representation = check_stage_representation(stage, &input_facts)?;
     let meaning = check_stage_meaning(stage, &input_facts)?;
     let dependence = check_stage_dependence(stage, state)?;
@@ -968,6 +978,36 @@ fn check_stage<'a>(
         sources: stage_sources.into_iter().collect(),
         dependence,
     })
+}
+
+/// Charge the identifier text a stage's ancestry and inherited factors retain.
+///
+/// The stage's own tables already exist when this runs, so a refusal leaves at most one
+/// stage's worth of text above the budget.
+fn charge_stage_tables(
+    stage: &ChainStageDecl,
+    state: &mut ChainState<'_>,
+    sources: &BTreeSet<String>,
+    factors: &FactorSet,
+) -> Result<(), ChainRefusal> {
+    let ancestry: usize = sources.iter().map(String::len).sum();
+    let inherited: usize = factors.iter().map(|(_, id)| id.len()).sum();
+    let charge = ancestry.saturating_mul(2).saturating_add(inherited);
+    state.retained_bytes = state.retained_bytes.saturating_add(charge);
+    if state.retained_bytes > MAX_CHAIN_ANCESTRY_BYTES {
+        return Err(refuse(
+            INVALID_CODE,
+            "propagation_chain.ancestry_bytes",
+            format!(
+                "the ancestry of the stages up to `{}` would retain more than \
+                 {MAX_CHAIN_ANCESTRY_BYTES} bytes of identifier text",
+                stage.id
+            ),
+            Some(&stage.id),
+            RAISE_BUDGET_OR_THIN_DRAWS,
+        ));
+    }
+    Ok(())
 }
 
 /// A stage's own declaration: a fresh id, at least one input, an operator its kind licenses,

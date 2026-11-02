@@ -12,7 +12,9 @@ use antecedent_contract::{BoundExternalClaim, ColumnClaim};
 use serde::{Deserialize, Serialize};
 
 use crate::error::IoError;
-use crate::external_claim_artifact::{ExternalClaimIdentity, values_digest};
+use crate::external_claim_artifact::{
+    EXTERNAL_CLAIM_METADATA_VERSION, ExternalClaimIdentity, values_digest,
+};
 
 /// Maximum artifact bytes accepted before decode allocation.
 pub const MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES: usize = 1024 * 1024;
@@ -171,7 +173,7 @@ pub struct ExternalColumnClaimArtifact {
 }
 
 fn validate(meta: &ExternalColumnClaimMetadata, max_rows: u64) -> Result<(), IoError> {
-    if meta.version != 1 {
+    if meta.version != EXTERNAL_CLAIM_METADATA_VERSION {
         return Err(IoError::UnsupportedVersion { version: u32::from(meta.version) });
     }
     if meta.native_estimation {
@@ -208,7 +210,7 @@ impl ExternalColumnClaimArtifact {
         limits: &ExternalColumnIntakeLimits,
     ) -> Result<Self, IoError> {
         let metadata = ExternalColumnClaimMetadata {
-            version: 1,
+            version: EXTERNAL_CLAIM_METADATA_VERSION,
             identity: ExternalColumnIdentity::from_claim(
                 claim,
                 causal_contract_id,

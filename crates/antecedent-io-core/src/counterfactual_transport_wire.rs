@@ -611,6 +611,63 @@ fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoErro
     Ok(laws.into_iter().map(|(_, law)| law).collect())
 }
 
+/// A stored decision input outside the contract's bounds or shape.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DecisionInputFault {
+    /// A count or search limit above the contract's maximum, by name.
+    Limit(&'static str),
+    /// Variable names that are not empty or one distinct, non-blank name per variable.
+    VariableNames,
+}
+
+/// Bound the stored inputs of a counterfactual transport decision (model class, query,
+/// catalog, search limits and names) by the contract's maxima.
+///
+/// Every artifact that re-decides a stored derivation calls this before any work, so the
+/// bounds of the decision are one definition.
+///
+/// # Errors
+/// The first [`DecisionInputFault`] found.
+pub fn check_decision_inputs(
+    problem: &CounterfactualTransportProblemWire,
+    query: &CounterfactualTransportQueryWire,
+    variable_names: &[String],
+    search: &CounterfactualTransportSearchLimitsWire,
+    catalog: &EvidenceCatalogWire,
+) -> Result<(), DecisionInputFault> {
+    let n = problem.variables.len();
+    if n == 0 || n > COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES {
+        return Err(DecisionInputFault::Limit("variables"));
+    }
+    if query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES {
+        return Err(DecisionInputFault::Limit("sources"));
+    }
+    if query.event.worlds.len() > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS {
+        return Err(DecisionInputFault::Limit("worlds"));
+    }
+    if query.event.event.len() + query.event.given.len() > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS {
+        return Err(DecisionInputFault::Limit("atoms"));
+    }
+    if catalog.regimes.len() > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES {
+        return Err(DecisionInputFault::Limit("regimes"));
+    }
+    let maxima = COUNTERFACTUAL_TRANSPORT_MAX_LIMITS;
+    if search.operations > maxima.operations
+        || search.depth > maxima.depth
+        || search.memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
+    {
+        return Err(DecisionInputFault::Limit("search limits"));
+    }
+    if !variable_names.is_empty()
+        && (variable_names.len() != n
+            || variable_names.iter().any(|name| name.trim().is_empty())
+            || variable_names.iter().collect::<std::collections::BTreeSet<_>>().len() != n)
+    {
+        return Err(DecisionInputFault::VariableNames);
+    }
+    Ok(())
+}
+
 impl CounterfactualTransportArtifactWire {
     /// The wire of an identified query: the derivation, the exact laws the point
     /// was computed on and the stored point, sealed with both digests.
@@ -737,41 +794,20 @@ impl CounterfactualTransportArtifactWire {
             COUNTERFACTUAL_TRANSPORT_OBSTRUCTED => false,
             _ => return Err(E::UnsupportedSemantics("status")),
         };
-        let n = self.problem.variables.len();
-        if n == 0 || n > COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES {
-            return Err(E::LimitsExceeded("variables"));
-        }
-        if self.query.sources.len() > COUNTERFACTUAL_TRANSPORT_MAX_SOURCES {
-            return Err(E::LimitsExceeded("sources"));
-        }
-        if self.query.event.worlds.len() > COUNTERFACTUAL_TRANSPORT_MAX_WORLDS {
-            return Err(E::LimitsExceeded("worlds"));
-        }
-        if self.query.event.event.len() + self.query.event.given.len()
-            > COUNTERFACTUAL_TRANSPORT_MAX_ATOMS
-        {
-            return Err(E::LimitsExceeded("atoms"));
-        }
-        if self.catalog.regimes.len() > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES {
-            return Err(E::LimitsExceeded("regimes"));
-        }
-        let maxima = COUNTERFACTUAL_TRANSPORT_MAX_LIMITS;
-        if self.search.operations > maxima.operations
-            || self.search.depth > maxima.depth
-            || self.search.memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
-        {
-            return Err(E::LimitsExceeded("search limits"));
-        }
-        if !self.variable_names.is_empty()
-            && (self.variable_names.len() != n
-                || self.variable_names.iter().any(|name| name.trim().is_empty())
-                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len() != n)
-        {
-            return Err(malformed(
+        check_decision_inputs(
+            &self.problem,
+            &self.query,
+            &self.variable_names,
+            &self.search,
+            &self.catalog,
+        )
+        .map_err(|fault| match fault {
+            DecisionInputFault::Limit(what) => E::LimitsExceeded(what),
+            DecisionInputFault::VariableNames => malformed(
                 "variable_names",
                 "names must be empty or one distinct, non-blank name per variable",
-            ));
-        }
+            ),
+        })?;
         if identified {
             let (Some(derivation), None, Some(result)) =
                 (&self.derivation, &self.obstruction, &self.result)

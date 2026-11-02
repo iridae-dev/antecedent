@@ -112,9 +112,14 @@ fn aligned_product(
     xs: &[f64],
     ys: &[f64],
 ) -> JointLawPropagationArtifactWire {
+    let operation = if functional == "product" {
+        PropagationOperation::Product
+    } else {
+        PropagationOperation::NonlinearFunctional
+    };
     JointLawPropagationArtifactWire::seal(
         &declared(
-            PropagationOperation::Product,
+            operation,
             vec![aligned(ids.0, "snapshot_j", "joint_7"), aligned(ids.1, "snapshot_j", "joint_7")],
             PropagationDependence::AlignedJointLaw,
             RequestedReading::Point,
@@ -231,7 +236,7 @@ fn independent_claims_refuse_covariance_cross_terms_even_after_resealing() {
 #[test]
 fn aligned_linear_claims_refuse_nonfinite_coefficients_and_overflow() {
     let request = declared(
-        PropagationOperation::Contrast,
+        PropagationOperation::WeightedSum,
         vec![aligned("x", "snapshot", "joint"), aligned("y", "snapshot", "joint")],
         PropagationDependence::AlignedJointLaw,
         RequestedReading::Point,
@@ -737,4 +742,78 @@ fn a_mixture_exceedance_uses_the_known_weights_and_no_joint_law() {
     let variance: f64 = 0.0625 * 0.25 / 4.0 + 0.5625 * 0.1875 / 4.0;
     assert!((value(&wire, "standard_error") - variance.sqrt()).abs() < 1e-15);
     wire.consume(None, &ctx()).expect("replays");
+}
+
+#[test]
+fn the_declared_operation_is_bound_to_the_stored_numbers() {
+    let invalid = |error: &JointLawPropagationArtifactError| {
+        assert_eq!(details(error)[0].1, "joint_law_propagation.invalid_request");
+    };
+    let linear = |operation, coefficients: &[f64]| {
+        JointLawPropagationArtifactWire::seal(
+            &declared(
+                operation,
+                vec![summary("a", "s1"), summary("b", "s2")],
+                PropagationDependence::DeclaredIndependent,
+                RequestedReading::Point,
+            ),
+            PropagationRequestWire::LinearCombination {
+                coefficients: float_bits(coefficients),
+                means: float_bits(&[0.0, 0.0]),
+                covariance: float_bits(&[1.0, 0.0, 0.0, 1.0]),
+            },
+            &ctx(),
+        )
+    };
+    invalid(&linear(PropagationOperation::Sum, &[1.0, 2.0]).expect_err("not a sum"));
+    invalid(&linear(PropagationOperation::Contrast, &[1.0, 1.0]).expect_err("not a contrast"));
+    linear(PropagationOperation::Sum, &[1.0, 1.0]).expect("a sum");
+    linear(PropagationOperation::Contrast, &[2.0, -2.0]).expect("a contrast");
+    linear(PropagationOperation::WeightedSum, &[2.0, 3.0]).expect("a weighted sum");
+
+    let mut resealed = contrast();
+    if let PropagationRequestWire::LinearCombination { coefficients, .. } = &mut resealed.request {
+        *coefficients = float_bits(&[1.0, 1.0]);
+    }
+    reseal(&mut resealed);
+    invalid(&resealed.consume(None, &ctx()).expect_err("a resealed non-contrast"));
+
+    let (xs, ys) = joint_rows();
+    let relabelled_product = JointLawPropagationArtifactWire::seal(
+        &declared(
+            PropagationOperation::Product,
+            vec![aligned("x", "snapshot_j", "joint_7"), aligned("y", "snapshot_j", "joint_7")],
+            PropagationDependence::AlignedJointLaw,
+            RequestedReading::Point,
+        ),
+        PropagationRequestWire::AlignedFunctional {
+            functional: "minimum".to_owned(),
+            x: float_bits(&xs),
+            y: float_bits(&ys),
+        },
+        &ctx(),
+    )
+    .expect_err("a product is the product functional");
+    invalid(&relabelled_product);
+
+    let difference_as_sum = JointLawPropagationArtifactWire::seal(
+        &declared(
+            PropagationOperation::Sum,
+            vec![summary("x", "s1"), summary("y", "s2")],
+            PropagationDependence::MarginalsOnly,
+            RequestedReading::Envelope,
+        ),
+        PropagationRequestWire::FrechetEnvelope {
+            query: EnvelopeQueryWire::DifferenceCdf { threshold: bits(0.0) },
+            x: bernoulli(0.3),
+            y: bernoulli(0.6),
+        },
+        &ctx(),
+    )
+    .expect_err("a difference CDF is a contrast");
+    invalid(&difference_as_sum);
+    envelope(
+        EnvelopeQueryWire::DifferenceCdf { threshold: bits(0.0) },
+        PropagationOperation::Contrast,
+    );
 }

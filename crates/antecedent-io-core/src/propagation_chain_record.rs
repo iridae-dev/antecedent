@@ -79,6 +79,10 @@ pub const MAX_PROPAGATION_CHAIN_CHANGES: usize = 256;
 pub const MAX_PROPAGATION_CHAIN_TEXT_BYTES: usize = 4096;
 /// Most named values one stage result may hold.
 pub const MAX_STAGE_VALUES: usize = 64;
+/// Most cells (`rows × (sources + stages)`) a record may evaluate. Point sources are
+/// replicated down every row of the table, so the cells, not the wire bytes, set the memory
+/// an execution needs; the check runs before any column is built.
+pub const MAX_PROPAGATION_CHAIN_CELLS: usize = 1 << 26;
 
 /// Intake bounds for a propagation chain record. The defaults are
 /// [`MAX_PROPAGATION_CHAIN_BYTES`], [`MAX_PROPAGATION_CHAIN_CHANGES`],
@@ -1382,6 +1386,12 @@ impl PropagationChainRecordWire {
             return Ok(Executed { plan, results });
         }
         let table_rows = rows.unwrap_or(1);
+        if table_rows
+            .checked_mul(n_sources.saturating_add(self.stages.len()))
+            .is_none_or(|cells| cells > MAX_PROPAGATION_CHAIN_CELLS)
+        {
+            return Err(map_chain_error(ChainError::Budget("table cells")));
+        }
         let columns: Vec<Vec<f64>> = self
             .sources
             .iter()

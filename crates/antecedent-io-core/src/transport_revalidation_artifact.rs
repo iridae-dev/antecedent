@@ -580,6 +580,9 @@ fn check(
     let current = scene_from_wire(&meta.current)?;
     let previous = meta.previous.as_ref().map(scene_from_wire).transpose()?;
     let effects = effects_from_wire(&meta.effects)?;
+    if effects_to_wire(&effects)? != meta.effects {
+        return Err(malformed("effects are not in canonical key order"));
+    }
     // The classification is derived again from the stored scenes; no stored
     // class, reason, authority or calibration state is believed.
     let report = derive(previous.as_ref(), &current, &effects)?;

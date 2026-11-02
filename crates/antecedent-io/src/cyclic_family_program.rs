@@ -11,9 +11,10 @@ use antecedent_core::{
     execution_attempt::{PhysicalEvent, record_physical},
 };
 use antecedent_model::compile::{
-    CompiledSystemPlan, ExecutionBlock, SystemSemantics, compile_constraints, compile_equilibrium,
-    compile_ode, compile_ou,
+    CompiledSystemPlan, ExecutionBlock, SystemSemantics, compile_constraints, compile_equilibria,
+    compile_equilibrium, compile_ode, compile_ou,
 };
+use antecedent_model::scc_compile::LinearRouteSet;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug)]
@@ -45,7 +46,8 @@ pub(crate) use antecedent_estimate::cyclic_gaussian_functional::FrozenGaussianDe
 struct FrozenFit {
     kernel: KernelPolicy,
     value: FrozenFamilyFitValue,
-    retention: AdmissionLease,
+    /// `None` for a system owner, which holds the lease of what it retains.
+    retention: Option<AdmissionLease>,
 }
 impl FrozenFit {
     fn capture(
@@ -137,7 +139,7 @@ impl FrozenFit {
             },
             _ => return Ok(None),
         };
-        Ok(Some(Self { kernel, value, retention }))
+        Ok(Some(Self { kernel, value, retention: Some(retention) }))
     }
 }
 /// One immutable scientific request, compiled family schedules and synchronized statistical products.
@@ -148,6 +150,9 @@ pub struct CompiledCyclicFamilyProgram {
     identity: String,
     fit_identity: String,
     plans: Arc<[CompiledSystemPlan]>,
+    /// Support routes of a linear-worlds request, computed with `plans` and handed to the
+    /// executor, which uses a route only for the exact map and clamp set it was computed for.
+    linear_routes: Option<Arc<LinearRouteSet>>,
     fit: Arc<Mutex<Option<FrozenFit>>>,
     source: Option<Arc<crate::cyclic_functional::CheckedCyclicFunctionalSource>>,
     retention: Arc<AdmissionLease>,
@@ -165,7 +170,7 @@ impl CompiledCyclicFamilyProgram {
         if ctx.cancellation.is_cancelled() {
             return Err(CyclicArtifactError::Cancelled);
         }
-        let plans = compile_plans(request)?;
+        let (plans, linear_routes) = compile_plans(request)?;
         let retained_source = previous
             .filter(|previous| same_source(request, &previous.request))
             .and_then(|previous| previous.source.clone());
@@ -213,6 +218,7 @@ impl CompiledCyclicFamilyProgram {
             identity,
             fit_identity,
             plans: plans.into(),
+            linear_routes: linear_routes.map(Arc::new),
             fit: Arc::default(),
             source,
             retention: Arc::new(retention),
@@ -227,7 +233,7 @@ impl CompiledCyclicFamilyProgram {
         program.fit = Arc::new(Mutex::new(Some(FrozenFit {
             kernel: ctx.kernel_policy,
             value: FrozenFamilyFitValue::SystemOwner(product),
-            retention: ctx.acquire_admission(0, 0).map_err(CyclicArtifactError::Admission)?,
+            retention: None,
         })));
         Ok(program)
     }
@@ -252,6 +258,11 @@ impl CompiledCyclicFamilyProgram {
     pub fn execution_plans(&self) -> &[CompiledSystemPlan] {
         &self.plans
     }
+    #[cfg(test)]
+    pub(super) fn linear_routes(&self) -> Option<&LinearRouteSet> {
+        self.linear_routes.as_deref()
+    }
+
     /// Actual request reservation retained by this owner.
     #[must_use]
     pub fn retained_bytes(&self) -> u64 {
@@ -281,7 +292,9 @@ impl CompiledCyclicFamilyProgram {
                     || matches!(&fit.value, FrozenFamilyFitValue::SystemOwner(_))
             });
             if let Some(fit) = retained {
-                fit.retention.observe_current();
+                if let Some(lease) = &fit.retention {
+                    lease.observe_current();
+                }
                 record_physical(PhysicalEvent::CacheHit, 1);
                 record_physical(PhysicalEvent::ModelFit, 0);
             }
@@ -289,6 +302,7 @@ impl CompiledCyclicFamilyProgram {
                 &self.identity,
                 retained.map(|fit| &fit.value),
                 self.source.as_deref(),
+                self.linear_routes.as_deref(),
                 ctx,
             )?;
             if retained.is_none() {
@@ -648,7 +662,10 @@ pub(super) fn output_bytes(request: &R) -> Result<u64, CyclicArtifactError> {
     clippy::too_many_lines,
     reason = "one arm per family keeps each family's compiler product next to its admission"
 )]
-fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactError> {
+fn compile_plans(
+    request: &R,
+) -> Result<(Vec<CompiledSystemPlan>, Option<LinearRouteSet>), CyclicArtifactError> {
+    let mut linear_routes = None;
     let plans = match request {
         R::AdamFit { model, .. }
         | R::EquilibriumRoots { model, .. }
@@ -669,10 +686,8 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             };
             if let Some(worlds) = worlds {
                 super::worlds::check_world_count(worlds.len())?;
-                worlds
-                    .iter()
-                    .map(|world| compile_equilibrium(model, world))
-                    .collect::<Result<Vec<_>, _>>()?
+                let clamp_sets: Vec<&[_]> = worlds.iter().map(Vec::as_slice).collect();
+                compile_equilibria(model, &clamp_sets)?
             } else {
                 vec![compile_equilibrium(model, &[])?]
             }
@@ -707,8 +722,16 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             outcome,
             source_id,
             certifying_evidence,
-            ..
-        } => recovered_plans(nodes, draws, worlds, *outcome, source_id, certifying_evidence)?,
+            uncertainty,
+        } => recovered_plans(
+            nodes,
+            draws,
+            uncertainty,
+            worlds,
+            *outcome,
+            source_id,
+            certifying_evidence,
+        )?,
         R::RetainedExperimentalRecovery { inputs, worlds, outcome, .. } => {
             let R::ExperimentalRecovery {
                 regimes,
@@ -757,7 +780,9 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
             certifying_evidence,
         )?,
         R::LinearWorlds { variables, model, worlds, .. } => {
-            super::worlds::linear_world_plans(variables, model, worlds)?
+            let (plans, routes) = super::worlds::linear_world_plans(variables, model, worlds)?;
+            linear_routes = Some(routes);
+            plans
         }
         R::EquilibriumWorlds { variables, model, worlds, .. } => {
             super::worlds::equilibrium_world_plans(variables, model, worlds)?
@@ -776,14 +801,11 @@ fn compile_plans(request: &R) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactE
         R::System { request } => {
             request.model.validate()?;
             super::worlds::check_world_count(request.worlds.len())?;
-            request
-                .worlds
-                .iter()
-                .map(|world| compile_equilibrium(&request.model, world))
-                .collect::<Result<Vec<_>, _>>()?
+            let clamp_sets: Vec<&[_]> = request.worlds.iter().map(Vec::as_slice).collect();
+            compile_equilibria(&request.model, &clamp_sets)?
         }
     };
-    Ok(plans)
+    Ok((plans, linear_routes))
 }
 
 /// Typed fit dependencies: the request fields a frozen statistical product was
@@ -980,13 +1002,22 @@ pub(super) fn fit_dependency_identity(request: &R) -> Result<String, CyclicArtif
 fn recovered_plans(
     nodes: &[u32],
     draws: &[super::RecoveredDrawWire],
+    uncertainty: &super::RecoveredDrawOriginWire,
     worlds: &[super::RecoveredInterventionWire],
     outcome: usize,
     source_id: &str,
     certifying_evidence: &[String],
 ) -> Result<Vec<CompiledSystemPlan>, CyclicArtifactError> {
     // Retention checks the supplied law. It does not fit, sample, or estimate.
-    validate_recovered_law(nodes, draws, worlds, outcome, source_id, certifying_evidence)?;
+    validate_recovered_law(
+        nodes,
+        draws,
+        uncertainty,
+        worlds,
+        outcome,
+        source_id,
+        certifying_evidence,
+    )?;
     let support = support_map(nodes, draws)?;
     worlds
         .iter()
@@ -1012,12 +1043,21 @@ fn recovered_plans(
 pub(super) fn execute_recovered_linear(
     nodes: &[u32],
     draws: &[super::RecoveredDrawWire],
+    uncertainty: &super::RecoveredDrawOriginWire,
     worlds: &[super::RecoveredInterventionWire],
     outcome: usize,
     source_id: &str,
     certifying_evidence: &[String],
 ) -> Result<A, CyclicArtifactError> {
-    validate_recovered_law(nodes, draws, worlds, outcome, source_id, certifying_evidence)?;
+    validate_recovered_law(
+        nodes,
+        draws,
+        uncertainty,
+        worlds,
+        outcome,
+        source_id,
+        certifying_evidence,
+    )?;
     let law = retain_recovered(nodes, draws)?;
     let mut answers = Vec::with_capacity(worlds.len());
     for world in worlds {
@@ -1038,14 +1078,29 @@ pub(super) fn execute_recovered_linear(
     Ok(A::RecoveredLinear(super::RecoveredLinearReport { worlds: answers }))
 }
 
+/// Draws a declared origin says the law holds: a sampling or posterior law of
+/// `n` draws is `n` retained draws, failed replicates included.
+fn declared_draw_count(origin: &super::RecoveredDrawOriginWire) -> Option<usize> {
+    use super::RecoveredDrawOriginWire as O;
+    match origin {
+        O::Supplied => None,
+        O::AsymptoticNormal { draws, .. } | O::Posterior { draws, .. } => Some(*draws),
+        O::Bootstrap { replicates, .. } => Some(*replicates),
+    }
+}
+
 fn validate_recovered_law(
     nodes: &[u32],
     draws: &[super::RecoveredDrawWire],
+    uncertainty: &super::RecoveredDrawOriginWire,
     worlds: &[super::RecoveredInterventionWire],
     outcome: usize,
     source_id: &str,
     certifying_evidence: &[String],
 ) -> Result<(), CyclicArtifactError> {
+    if declared_draw_count(uncertainty).is_some_and(|declared| declared != draws.len()) {
+        return Err(invalid("recovered draw origin differs from the supplied draws"));
+    }
     if nodes.is_empty()
         || nodes.len() > 64
         || draws.is_empty()
@@ -1370,6 +1425,7 @@ mod resource_tests {
         let answer = A::StructureFit { fit, bootstrap };
         let ctx = ExecutionContext::for_tests(3);
         let cached = FrozenFit::capture(&answer, ctx.kernel_policy, &ctx).unwrap().unwrap();
-        assert!(cached.retention.remainder().bytes() >= expected);
+        let retention = cached.retention.as_ref().expect("a captured fit holds its own lease");
+        assert!(retention.remainder().bytes() >= expected);
     }
 }

@@ -433,8 +433,14 @@ fn consume_obstructed(
         });
     }
     let check =
-        verify_counterfactual_transport_witness(&problem, &query, &catalog, &stored.witness)
-            .map_err(|error| Error::ObstructionInvalid(error.to_string()))?;
+        verify_counterfactual_transport_witness(&problem, &query, &catalog, &stored.witness, ctx)
+            .map_err(|error| {
+            if error.is_budget_or_cancel() {
+                replay_refusal(&error)
+            } else {
+                Error::ObstructionInvalid(error.to_string())
+            }
+        })?;
     if check.first_value == check.second_value {
         return Err(Error::ObstructionInvalid("the two models give the same query value".into()));
     }

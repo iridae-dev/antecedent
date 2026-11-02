@@ -2900,14 +2900,14 @@ reason = "Standalone and prepared fit-free diagnostic reporting; tested in pytho
 [[entry]]
 rust = "antecedent::PreparedClaimParent"
 kind = "type"
-status = "missing"
-reason = "Python has no binding that pairs a retained prepared study and trusted claim envelope for checked in-process claim composition."
+status = "bound"
+python = "antecedent.program_claims.ClaimParent"
 
 [[entry]]
 rust = "antecedent::analysis::api::compose_checked_study_claims"
 kind = "fn"
-status = "missing"
-reason = "The checked composition of prepared-study claims, including its parent program and target checks, has no Python binding; composition verification exposes a different workflow."
+status = "bound"
+python = "antecedent.program_claims.compose_study_claims"
 
 [[entry]]
 rust = "antecedent::analysis::consume_smoothed_dose_posterior_artifact_with_context"
@@ -2918,20 +2918,23 @@ reason = "Python exposes posterior artifact replay with row and point limits but
 [[entry]]
 rust = "antecedent::analysis::joint_panel::PreparedJointPanelImputation"
 kind = "type"
-status = "missing"
-reason = "Python's joint-panel wrapper prepares the ordinary panel path and does not expose the prepared panel multiple-imputation and pooled-vector workflow."
+status = "bound"
+python = "antecedent.joint_panel.PreparedPanelImputation"
+reason = "prepare_imputed prepares it and estimate pools the response vectors; tested in python/tests/test_joint_panel_imputation.py."
 
 [[entry]]
 rust = "antecedent::analysis::joint_panel::declare_joint_panel_gaussian_restriction"
 kind = "fn"
-status = "missing"
-reason = "Python joint-panel preparation builds a target and can declare exogenous context but does not expose this distinct Gaussian identifying restriction."
+status = "bound"
+python = "antecedent.joint_panel.prepare"
+reason = "prepare(..., gaussian_restriction=True) declares it on the target and PreparedPanel.with_unrolled_graph consumes it; tested in python/tests/test_joint_panel_restriction.py."
 
 [[entry]]
 rust = "antecedent::analysis::joint_panel::dummy_code_panel"
 kind = "fn"
-status = "missing"
-reason = "Python's joint-panel surface does not expose the native categorical channel declaration and dummy-coded panel conversion with its domain and reference checks."
+status = "bound"
+python = "antecedent.joint_panel.dummy_code_panel"
+reason = "Standalone coding, and the same coding inside prepare(..., categorical=...); tested in python/tests/test_joint_panel_categorical.py."
 
 [[entry]]
 rust = "antecedent::support::support_cell_named_for_data"
