@@ -1,0 +1,18 @@
+# K0 evidence references transcribed from the previously generated readiness report.
+# These references are inputs to live path and evidence checks, not proof of completion.
+schema = 1
+milestone = "K0"
+
+[prerequisites]
+B01 = ["parity/predecessor/"]
+B02 = ["parity/capabilities/route_manifest.toml"]
+B03 = ["parity/method_children/children.toml"]
+B04 = ["parity/method_specs/specs.toml"]
+B05 = ["parity/release_scope/scope.toml"]
+B10 = ["adr/0026-internal-contract-versions.md"]
+C01 = ["docs/architecture/compiler-layers.md", "docs/architecture/compiler-crate-graph.md"]
+C02 = ["crates/antecedent-core/src/scientific_target.rs"]
+C03 = ["crates/antecedent-core/src/operator.rs"]
+C04 = ["crates/antecedent-core/src/provider_capability.rs"]
+C05 = ["crates/antecedent-core/src/physical_operator.rs"]
+"C05.1" = ["crates/antecedent-identify/src/compiled_product.rs"]

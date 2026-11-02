@@ -49,6 +49,7 @@ import route_methods  # noqa: E402
 from method_evidence import Evidence  # noqa: E402
 
 OUTPUT = "parity/milestone_readiness.toml"
+PREREQUISITE_SOURCE = "parity/milestone_prerequisites.toml"
 PREREQUISITES = (
     "B01",
     "B02",
@@ -102,6 +103,15 @@ def evidence_exists(ev: Evidence, path: str) -> bool:
     return ev.repo.exists(clean) or (clean.endswith(".rs") and (ev.root / clean[:-3]).is_dir())
 
 
+def prerequisite_paths(item: str, todo: dict, declared: dict) -> list[str]:
+    """Current roadmap evidence takes precedence; older references are checked when absent."""
+    return todo[item][1] if item in todo else declared.get(item, [])
+
+
+def missing_evidence(paths: list[str], exists) -> list[str]:
+    return [path for path in paths if not exists(path)]
+
+
 def conditions(ev: Evidence) -> list[dict]:
     out: list[dict] = []
 
@@ -109,6 +119,10 @@ def conditions(ev: Evidence) -> list[dict]:
         out.append({"id": ident, "met": met, "evidence": evidence, "detail": detail})
 
     todo = todo_items(ev.text("TODO.md"))
+    declaration = tomllib.loads(ev.text(PREREQUISITE_SOURCE))
+    if declaration.get("schema") != 1 or declaration.get("milestone") != MILESTONE:
+        raise ValueError("invalid milestone prerequisite references")
+    references = declaration["prerequisites"]
     children = tomllib.loads(ev.text(method_children.CHILDREN))["child"]
     specs = tomllib.loads(ev.text(specs_module.SPECS))["spec"]
 
@@ -135,8 +149,8 @@ def conditions(ev: Evidence) -> list[dict]:
         ),
     }
     for item in PREREQUISITES:
-        checked, paths = todo.get(item, (False, []))
-        missing = [p for p in paths if not evidence_exists(ev, p)]
+        paths = prerequisite_paths(item, todo, references)
+        missing = missing_evidence(paths, lambda path: evidence_exists(ev, path))
         ok_paths = bool(paths) and not missing
         met, label, extra = derived.get(item, (True, "evidence paths exist", []))
         detail = "; ".join(map(str, missing + list(extra)))
@@ -241,6 +255,13 @@ def self_test() -> int:
     items = todo_items(todo)
     assert items["B01"] == (True, ["parity/predecessor/"]), items
     assert items["C07"] == (False, ["crates/a/b.rs", "scripts/c.py"]), items
+    declared = {"B01": ["prior/reference"], "B02": ["missing/path"]}
+    assert prerequisite_paths("B01", items, declared) == ["parity/predecessor/"]
+    assert prerequisite_paths("B02", items, declared) == ["missing/path"]
+    assert missing_evidence(prerequisite_paths("B02", items, declared), lambda _: False) == [
+        "missing/path"
+    ]
+    assert not bool(re.search(rf"- \[x\] \*\*{MILESTONE}\b", todo))
     met = [{"id": "x", "met": True, "evidence": "e", "detail": ""}]
     unmet = met + [{"id": "y", "met": False, "evidence": "e", "detail": "why"}]
     assert findings(met, True) == []
