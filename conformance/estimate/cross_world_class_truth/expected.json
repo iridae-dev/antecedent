@@ -916,7 +916,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/cross_world_class_truth.rs",
-          "sha256": "44bee37afd9c6d36d87409d4343a5deda83987dccfee06dc93c7154ea5c586a7"
+          "sha256": "ec40660b8cdfcc3d9eb9dd8a676b82c35b71876ff401f916860d714331719ff2"
         },
         {
           "role": "assertion_source",
