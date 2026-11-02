@@ -140,6 +140,12 @@ test-threads = "num-cpus"
 filter = 'binary(transport_exact_scm) and test(/three_node_selection|every_treatment_position|four_node_branch/)'
 threads-required = "num-cpus"
 
+# The paired wall-clock growth measurement must not compete with other tests
+# in this nextest run; its existing ratio and absolute bounds remain unchanged.
+[[profile.default.overrides]]
+filter = 'package(=antecedent-identify) and kind(lib) and test(=tiered::tests::joint_closure_growth_stays_cubic_in_p)'
+threads-required = "num-cpus"
+
 # Longest-processing-time-first scheduling. Nextest starts tests in binary
 # order unless told otherwise, so a multi-minute test in a late binary starts
 # after the pool has drained and alone sets the wall time. Priority only orders
