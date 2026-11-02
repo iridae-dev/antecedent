@@ -646,8 +646,10 @@ pub struct PosteriorContrastWire {
     /// Posterior standard deviation; absent when the degrees of freedom are at most two.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standard_deviation: Option<f64>,
-    /// Equal-tailed credible interval at the declared level.
-    pub interval: [f64; 2],
+    /// Unlicensed endpoints are withheld. Legacy artifacts may contain an interval; the
+    /// consumer verifies and removes it before returning the report.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval: Option<[f64; 2]>,
     /// Posterior probability that the contrast is positive.
     pub probability_positive: f64,
 }
@@ -706,7 +708,7 @@ fn contrast_wire(c: &ContrastPosterior) -> PosteriorContrastWire {
         degrees_of_freedom: c.posterior.degrees_of_freedom,
         mean: c.mean,
         standard_deviation: c.standard_deviation.is_finite().then_some(c.standard_deviation),
-        interval: c.interval,
+        interval: None,
         probability_positive: c.probability_positive,
     }
 }
@@ -1850,7 +1852,7 @@ impl CategoricalTreatmentArtifact {
         ctx: &ExecutionContext,
         max_replay_operations: usize,
     ) -> Result<Self, CategoricalTreatmentArtifactError> {
-        let (meta, raw) = decode_parts_impl(bytes)?;
+        let (mut meta, raw) = decode_parts_impl(bytes)?;
         crate::artifact_codec::require_semantics::<CategoricalTreatmentArtifactError>(
             meta.feature == CATEGORICAL_TREATMENT_ARTIFACT_FEATURE,
             "feature marker",
@@ -1907,9 +1909,38 @@ impl CategoricalTreatmentArtifact {
                 return Err(CategoricalTreatmentArtifactError::IdentityMismatch { field });
             }
         }
-        if let Some(stored) = &meta.posterior {
+        if let Some(stored) = &mut meta.posterior {
             reject_posterior_of_declared_rows(&decl)?;
             let replayed = posterior_wire(&decl, &replay, &stored.declaration)?;
+            // Older v1 artifacts carried unlicensed endpoints. Verify each one against the
+            // independently replayed Student-t posterior before removing it from the report
+            // and from any subsequently exported artifact.
+            for (saved, checked) in stored
+                .level_contrasts
+                .iter_mut()
+                .zip(&replayed.level_contrasts)
+                .chain(stored.pairwise.iter_mut().zip(&replayed.pairwise))
+            {
+                if let Some(interval) = saved.interval.take() {
+                    let posterior =
+                        antecedent_estimate::gaussian_linear_posterior::StudentPosterior {
+                            location: checked.location,
+                            scale: checked.scale,
+                            degrees_of_freedom: checked.degrees_of_freedom,
+                        };
+                    #[allow(
+                        clippy::float_cmp,
+                        reason = "legacy endpoints must match the deterministic replay exactly"
+                    )]
+                    let matches_replay = interval
+                        == posterior.equal_tailed_interval(stored.declaration.credible_level);
+                    if !matches_replay {
+                        return Err(CategoricalTreatmentArtifactError::ResultMismatch(
+                            "posterior contrasts, moments or monotonicity bounds",
+                        ));
+                    }
+                }
+            }
             if *stored != replayed {
                 return Err(CategoricalTreatmentArtifactError::ResultMismatch(
                     "posterior contrasts, moments or monotonicity bounds",

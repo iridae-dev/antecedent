@@ -78,7 +78,7 @@ from ._native import consume_categorical_treatment_artifact as _consume
 from ._native import evaluate_categorical_treatment as _evaluate
 from ._refusal import StructuredRefusal
 from ._scientific import ScientificResult
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution, resolve_execution
 
 if TYPE_CHECKING:
@@ -234,11 +234,18 @@ class PosteriorContrast:
     mean: float
     #: ``None`` when the degrees of freedom are at most two.
     standard_deviation: float | None
-    interval: tuple[float, float]
     probability_positive: float
     location: float
     scale: float
     degrees_of_freedom: float
+
+    @property
+    def interval(self) -> tuple[float, float]:
+        """Refuse the posterior interval until its construction is licensed."""
+        raise CausalUnsupportedError(
+            "categorical_treatment.posterior_interval_not_licensed: categorical posterior credible intervals are not licensed",
+            reason_code="cell_not_licensed",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -560,10 +567,7 @@ class CategoricalEffects(ScientificResult):
             else {
                 "estimand": self.posterior.estimand,
                 "calibration": self.posterior.calibration,
-                "effects": [
-                    {"level": e.to_level, "mean": e.mean, "interval": list(e.interval)}
-                    for e in self.posterior.effects
-                ],
+                "effects": [{"level": e.to_level, "mean": e.mean} for e in self.posterior.effects],
             },
         }
 
@@ -575,7 +579,6 @@ def _contrast(raw: Mapping[str, Any]) -> PosteriorContrast:
         to_level=raw["to"],
         mean=float(raw["mean"]),
         standard_deviation=None if sd is None else float(sd),
-        interval=(float(raw["interval"][0]), float(raw["interval"][1])),
         probability_positive=float(raw["probability_positive"]),
         location=float(raw["location"]),
         scale=float(raw["scale"]),

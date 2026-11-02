@@ -113,8 +113,11 @@ outcome=..., imputations=..., n_draws=..., prior_scale=...)` states that study d
 (float columns with `NaN` for missing cells, the treatment and outcome, the Bayesian
 g-computation settings); the exact DAG posterior over the columns in order is searched on every
 completed table and the adjustment is whatever each sampled graph identifies. It returns the
-stacked effect, its posterior sd and central interval (a posterior statement, not a coverage
-claim), the tables' posterior means, and the within, between and total variances beside the
+stacked effect, its posterior sd, the tables' posterior means, and the within, between and total
+variances. An interval is withheld until the combined procedure has its own licensed and
+calibrated uncertainty route; graph selection, imputation and effect estimation must be
+evaluated together, and no confidence or credible interval follows from the point license.
+The result retains the
 declared missing-at-random assumption; refusals raise `GraphSelectionImputationRefusal`. Constructions with
 no justified pooling rule are refused with their own detail: a frequentist study
 (`multiple_imputation.graph_posterior_frequentist`), a series posterior

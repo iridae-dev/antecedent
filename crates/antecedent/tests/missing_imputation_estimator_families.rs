@@ -621,8 +621,17 @@ fn graph_selection_is_rerun_on_every_completed_table_and_the_posteriors_are_stac
         table_draws = draws;
         means.push(mean);
     }
-    let (pooled_mean, pooled_sd, pooled_draws) = effect_summary(&result);
-    assert_eq!(pooled_draws, table_draws * IMPUTATIONS as usize);
+    assert!(result.posterior.is_none(), "unlicensed composite draws must not be published");
+    assert!(result.interval().is_none(), "the composite interval is not licensed");
+    let interval_refusal = GraphSelectionPerImputation::interval().unwrap_err();
+    assert_eq!(interval_refusal.reason_code(), Some("cell_not_licensed"));
+    assert!(
+        interval_refusal.to_string().contains("graph_selection_imputation.interval_unmeasured")
+    );
+    let effect = result.estimate().as_effect().unwrap();
+    let pooled_mean = effect.ate;
+    let pooled_sd = effect.uncertainty.analytic.se;
+    let pooled_draws = table_draws * IMPUTATIONS as usize;
     let reference = means.iter().sum::<f64>() / means.len() as f64;
     let mc = 8.0 * pooled_sd / (pooled_draws as f64).sqrt();
     assert!((pooled_mean - reference).abs() < mc, "stacked {pooled_mean} against {reference}");

@@ -137,29 +137,40 @@ fn mnar_shift_tipping_points_match_the_closed_form() {
     assert!(sign.negative.is_none());
 }
 
+#[cfg(feature = "calibration-internal")]
 #[test]
 fn mnar_sampling_interval_is_the_delta_method_interval_at_each_point() {
     let data = shift_data();
     let mut spec = shift(ArmLoading::common(), -10.0, 10.0);
     spec.level = 0.95;
-    let result = run(&data, &spec).unwrap();
+    let result = antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate(
+        &MnarData::new(&data.0, &data.1),
+        &spec,
+    )
+    .unwrap();
     let point = result.grid.iter().find(|p| p.parameter == 2.0).unwrap();
+    let sampling = point.sampling.unwrap();
     let variance: f64 = 3.5 / 6.0 + 4.0 * 0.24 / 10.0 + 2.5 / 5.0 + 4.0 * 0.25 / 10.0;
-    close(point.sampling.standard_error, variance.sqrt(), 1e-12);
+    close(sampling.standard_error, variance.sqrt(), 1e-12);
     let z = 1.959_963_984_540_054;
-    close(point.sampling.lower, point.effect - z * variance.sqrt(), 1e-9);
-    close(point.sampling.upper, point.effect + z * variance.sqrt(), 1e-9);
+    close(sampling.lower, point.effect - z * variance.sqrt(), 1e-9);
+    close(sampling.upper, point.effect + z * variance.sqrt(), 1e-9);
     // At MAR the variance has no missingness-rate term.
-    close(result.mar.sampling.standard_error, (3.5 / 6.0 + 2.5 / 5.0_f64).sqrt(), 1e-12);
+    close(result.mar.sampling.unwrap().standard_error, (3.5 / 6.0 + 2.5 / 5.0_f64).sqrt(), 1e-12);
 }
 
+#[cfg(feature = "calibration-internal")]
 #[test]
 fn mnar_excludes_null_tips_between_the_grid_points_where_the_interval_flips() {
     let data = shift_data();
-    let result = run(&data, &shift(ArmLoading::treated_only(), -10.0, 10.0)).unwrap();
+    let result = antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate(
+        &MnarData::new(&data.0, &data.1),
+        &shift(ArmLoading::treated_only(), -10.0, 10.0),
+    )
+    .unwrap();
     let null = result.tipping.iter().find(|t| t.kind == MnarConclusionKind::ExcludesNull).unwrap();
     let excludes = |p: &antecedent_validate::mnar_sensitivity::MnarPoint| {
-        p.sampling.lower > 0.0 || p.sampling.upper < 0.0
+        p.sampling.is_some_and(|s| s.lower > 0.0 || s.upper < 0.0)
     };
     let mar_excludes = excludes(&result.mar);
     for side in [null.negative, null.positive].into_iter().flatten() {
@@ -231,8 +242,11 @@ fn mnar_ranges_are_assumption_ranges_never_confidence_intervals() {
     });
     close(result.assumption_range.effect_lower, low, 0.0);
     close(result.assumption_range.effect_upper, high, 0.0);
-    // The sampling interval at a point is wider than zero and distinct from the range.
-    assert!(result.grid.iter().all(|p| p.sampling.standard_error > 0.0));
+    // Sampling endpoints and interval-derived tipping are withheld until calibrated.
+    assert!(result.grid.iter().all(|p| p.sampling.is_none()));
+    assert!(result.mar.sampling.is_none());
+    assert_eq!(result.sampling_status, "cell_not_licensed");
+    assert!(!result.tipping.iter().any(|t| t.kind == MnarConclusionKind::ExcludesNull));
     let departure = result
         .assumptions
         .iter()
@@ -369,7 +383,15 @@ fn mnar_matches_the_independent_reference() {
                 threshold: threshold.as_f64().unwrap(),
             })
             .collect();
-        let result = run(&(treatment, outcome), &spec).unwrap();
+        let data = (treatment, outcome);
+        let result = run(&data, &spec).unwrap();
+        #[cfg(feature = "calibration-internal")]
+        let candidate =
+            antecedent_validate::mnar_sensitivity::mnar_sensitivity_calibration_candidate(
+                &MnarData::new(&data.0, &data.1),
+                &spec,
+            )
+            .unwrap();
         for probe in case["probe"].as_array().unwrap() {
             let parameter = probe["parameter"].as_f64().unwrap();
             let point = result
@@ -378,7 +400,20 @@ fn mnar_matches_the_independent_reference() {
                 .find(|p| (p.parameter - parameter).abs() < 1e-9)
                 .unwrap_or_else(|| panic!("{name}: no grid point at {parameter}"));
             close(point.effect, probe["effect"].as_f64().unwrap(), 1e-9);
-            close(point.sampling.standard_error, probe["standard_error"].as_f64().unwrap(), 1e-6);
+            assert!(point.sampling.is_none());
+            #[cfg(feature = "calibration-internal")]
+            {
+                let candidate_point = candidate
+                    .grid
+                    .iter()
+                    .find(|p| (p.parameter - parameter).abs() < 1e-9)
+                    .expect("candidate contains the same grid point");
+                close(
+                    candidate_point.sampling.unwrap().standard_error,
+                    probe["standard_error"].as_f64().unwrap(),
+                    1e-6,
+                );
+            }
         }
         for tipping in &result.tipping {
             let expected = &case["tipping"][tipping.label.as_str()];
@@ -464,9 +499,7 @@ fn mnar_adjusted_estimators_match_the_stratified_closed_form() {
         close(result.mar.effect, 1.5, 1e-9);
         for point in &result.grid {
             close(point.effect, 1.5 + 0.25 * point.parameter, 1e-9);
-            assert!(
-                point.sampling.standard_error.is_finite() && point.sampling.standard_error > 0.0
-            );
+            assert!(point.sampling.is_none());
         }
         let sign = result.tipping.iter().find(|t| t.kind == MnarConclusionKind::Sign).unwrap();
         close(sign.negative.unwrap().parameter, -6.0, 1e-7);

@@ -76,6 +76,14 @@ name = "choice_inference_calibration"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "mnar_interval_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
+name = "categorical_posterior_calibration"
+required-features = ["calibration-internal"]
+
+[[test]]
 name = "temporal_recalc_calibration"
 required-features = ["calibration-internal"]
 

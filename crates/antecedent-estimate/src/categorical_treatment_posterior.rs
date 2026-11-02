@@ -87,6 +87,7 @@ pub struct ContrastPosterior {
     /// Posterior standard deviation; `NaN` when the degrees of freedom are at most two.
     pub standard_deviation: f64,
     /// Equal-tailed credible interval at the requested level.
+    #[cfg(feature = "calibration-internal")]
     pub interval: [f64; 2],
     /// Posterior probability that the contrast is positive.
     pub probability_positive: f64,
@@ -157,6 +158,8 @@ fn summarize(
     names: (&str, &str),
     level: f64,
 ) -> Result<ContrastPosterior, EstimationError> {
+    #[cfg(not(feature = "calibration-internal"))]
+    let _ = level;
     let student = posterior.linear_functional(weights).ok_or_else(|| {
         refuse(
             reason_code!("invalid_argument"),
@@ -169,6 +172,7 @@ fn summarize(
         to: names.1.to_string(),
         mean: student.location,
         standard_deviation: student.standard_deviation(),
+        #[cfg(feature = "calibration-internal")]
         interval: student.equal_tailed_interval(level),
         probability_positive: student.probability_above(0.0),
         posterior: student,
@@ -277,6 +281,71 @@ pub fn posterior_categorical_treatment(
     validate_spec(spec)?;
     let summary = summarize_categorical_design(input, spec)?;
     posterior_categorical_from_summary(&summary, spec, prior, credible_level)
+}
+
+/// Compute a fixed two-arm prior-predictive candidate and its native calibration basis.
+/// This internal operation grants no licensed interval or coverage claim.
+///
+/// # Errors
+/// Refuses rows outside the fixed balanced design or invalid posterior input.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+pub fn categorical_prior_predictive_calibration_candidate(
+    input: &CategoricalTreatmentInput,
+) -> Result<([f64; 2], antecedent_core::CalibrationBasis), EstimationError> {
+    if input.outcome.len() != 40
+        || input.levels.len() != 40
+        || !input.adjustment.is_empty()
+        || input.levels.iter().filter(|level| level.as_str() == "control").count() != 20
+        || input.levels.iter().filter(|level| level.as_str() == "treated").count() != 20
+    {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "categorical_treatment_posterior.calibration_design",
+            "the candidate requires 20 control and 20 treated rows and no adjustment",
+        ));
+    }
+    let spec = CategoricalTreatmentSpec {
+        declared_levels: vec!["control".into(), "treated".into()],
+        scale: crate::categorical_treatment::LevelScale::Unordered,
+        reference: "control".into(),
+        min_level_rows: 2,
+        pairwise: vec![],
+        monotonicity: None,
+        covariance: crate::vector_treatment::VectorCovariance::ModelBased,
+    };
+    let prior = CategoricalPosteriorPrior {
+        level_precision: 1.0,
+        nuisance_precision: 0.5,
+        variance_shape: 2.0,
+        variance_scale: 1.0,
+    };
+    let posterior = posterior_categorical_treatment(input, &spec, &prior, 0.95)?;
+    let interval = posterior.level_contrasts[0].interval;
+    let a = |s: &str| std::sync::Arc::<str>::from(s);
+    let basis = antecedent_core::CalibrationBasis::new(
+        [
+            a("CategoricalTreatmentContrast"),
+            a("NotApplicable"),
+            a("declared_linear_model"),
+            a("tabular"),
+            a("Bayesian"),
+            a("categorical_normal_inverse_gamma"),
+            a("posterior_quantile"),
+            a("posterior_student_t"),
+            a("independent_rows"),
+            a("conjugate_normal_inverse_gamma"),
+            a("treated_minus_control"),
+        ],
+        0.95,
+        a("model_conditional"),
+        40,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("not_applicable");
+    Ok((interval, basis))
 }
 
 fn check_level(credible_level: f64) -> Result<(), EstimationError> {

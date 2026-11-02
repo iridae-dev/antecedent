@@ -76,20 +76,20 @@ fn level_and_pair_posteriors_match_augmented_least_squares_and_student_t() {
     close(b.mean, 1.270_164_620_382, "b - a mean");
     close(b.posterior.scale, 1.171_931_378_603, "b - a scale");
     close(b.posterior.degrees_of_freedom, 13.0, "df");
-    close(b.interval[0], -0.805_247_795_790, "b - a lo");
-    close(b.interval[1], 3.345_577_036_554, "b - a hi");
+    close(b.posterior.equal_tailed_interval(0.9)[0], -0.805_247_795_790, "b - a lo");
+    close(b.posterior.equal_tailed_interval(0.9)[1], 3.345_577_036_554, "b - a hi");
     close(b.probability_positive, 0.850_931_905_979, "P(b > a)");
     let c = &posterior.level_contrasts[1];
     close(c.mean, 4.872_763_310_026, "c - a mean");
-    close(c.interval[0], 2.884_143_902_253, "c - a lo");
-    close(c.interval[1], 6.861_382_717_798, "c - a hi");
+    close(c.posterior.equal_tailed_interval(0.9)[0], 2.884_143_902_253, "c - a lo");
+    close(c.posterior.equal_tailed_interval(0.9)[1], 6.861_382_717_798, "c - a hi");
     close(c.probability_positive, 0.999_598_689_489, "P(c > a)");
     // The pair uses the off-diagonal of the posterior covariance, not the two marginals.
     let pair = &posterior.pairwise[0];
     close(pair.mean, 3.602_598_689_644, "c - b mean");
     close(pair.posterior.scale, 1.136_419_210_808, "c - b scale");
-    close(pair.interval[0], 1.590_075_957_383, "c - b lo");
-    close(pair.interval[1], 5.615_121_421_905, "c - b hi");
+    close(pair.posterior.equal_tailed_interval(0.9)[0], 1.590_075_957_383, "c - b lo");
+    close(pair.posterior.equal_tailed_interval(0.9)[1], 5.615_121_421_905, "c - b hi");
     close(pair.probability_positive, 0.996_310_007_347, "P(c > b)");
 }
 

@@ -21080,6 +21080,27 @@ path = "crates/antecedent/tests/choice_inference_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "categorical-posterior-calibration"
+crate = "antecedent"
+cargo_target = "categorical_posterior_calibration"
+path = "crates/antecedent/tests/categorical_posterior_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "mnar-interval-calibration"
+crate = "antecedent"
+cargo_target = "mnar_interval_calibration"
+path = "crates/antecedent/tests/mnar_interval_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "mnar-sensitivity-candidate-unit"
+crate = "antecedent-validate"
+cargo_target = "lib"
+path = "crates/antecedent-validate/src/mnar_sensitivity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "choice-interval-calibration"
 crate = "antecedent-estimate"
 cargo_target = "choice_interval_calibration"

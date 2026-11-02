@@ -346,9 +346,8 @@ class GraphSelectionImputationResult:
     """The pooled answer of :func:`multiple_imputation_with_graph_selection`.
 
     ``effect`` and ``posterior_sd`` summarise the equal-weight stack of the completed tables'
-    effect posteriors, each a mixture over that table's own graph posterior; ``credible_interval``
-    is the central posterior interval of the stack at ``level``, a posterior statement
-    conditional on the imputation model and the exact-DAG search, not a coverage claim.
+    effect posteriors, each a mixture over that table's own graph posterior. An interval is
+    withheld until the combined procedure has a licensed uncertainty route.
     ``points`` are the tables' posterior means. Three things stay apart: ``within`` is the mean
     posterior variance inside a table, ``between`` is the spread of the table means (the
     uncertainty the missing cells and the changing selected structure add), and ``assumption``
@@ -358,8 +357,6 @@ class GraphSelectionImputationResult:
 
     effect: float
     posterior_sd: float
-    credible_interval: Mapping[str, float] | None
-    posterior_draws: int | None
     imputations: int
     points: tuple[float, ...]
     within: float
@@ -374,6 +371,13 @@ class GraphSelectionImputationResult:
     domains: Mapping[str, str] = field(default_factory=dict)
     binary_boundaries: Mapping[str, Mapping[str, str | int]] = field(default_factory=dict)
 
+    def interval(self) -> None:
+        """Refuse an interval until the combined procedure is licensed."""
+        from ._native import graph_selection_imputation_interval
+        from ._refusal import raise_refusal
+
+        raise_refusal(graph_selection_imputation_interval(), GraphSelectionImputationRefusal)
+
 
 def multiple_imputation_with_graph_selection(
     data: Mapping[str, Any],
@@ -385,7 +389,6 @@ def multiple_imputation_with_graph_selection(
     model: str = "chained_equations",
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    level: float = 0.95,
     domains: Iterable[tuple[str, str]] = (),
     execution: Execution | None = None,
 ) -> GraphSelectionImputationResult:
@@ -429,7 +432,6 @@ def multiple_imputation_with_graph_selection(
         iterations=iterations,
         n_draws=n_draws,
         prior_scale=float(prior_scale),
-        level=float(level),
         domains=list(declaration.domains),
         **native_controls(execution, seed="seed"),
     )
@@ -440,8 +442,6 @@ def multiple_imputation_with_graph_selection(
     return GraphSelectionImputationResult(
         effect=raw["effect"],
         posterior_sd=raw["posterior_sd"],
-        credible_interval=raw["credible_interval"],
-        posterior_draws=raw["posterior_draws"],
         imputations=raw["imputations"],
         points=tuple(raw["points"]),
         within=raw["within"],

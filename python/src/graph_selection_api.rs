@@ -26,31 +26,26 @@ fn refusal(code: &str, detail: &str, message: &str) -> String {
 
 fn error_refusal(error: &CausalError) -> String {
     let text = error.to_string();
-    let (detail, message) = split_detail(&text);
+    let message = antecedent_core::reason_code::split_prefix(&text)
+        .map_or(text.as_str(), |(_, message)| message);
+    let (detail, message) = split_detail(message);
     let code = error.reason_code().unwrap_or(reason_code!("invalid_argument"));
     refusal(code, detail, message)
 }
 
-/// The `level` central interval of the effect draws of a posterior.
-fn central_interval(draws: &[f64], level: f64) -> (f64, f64) {
-    let mut sorted = draws.to_vec();
-    sorted.sort_by(f64::total_cmp);
-    let last = sorted.len().saturating_sub(1);
-    let tail = (1.0 - level) / 2.0;
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_precision_loss,
-        reason = "The probability is bounded and the rounded index is clamped to the draw range."
-    )]
-    let at = |p: f64| sorted[((p * last as f64).round() as usize).min(last)];
-    (at(tail), at(1.0 - tail))
+#[pyfunction]
+#[doc(hidden)]
+fn graph_selection_imputation_interval() -> String {
+    match GraphSelectionPerImputation::interval() {
+        Err(error) => error_refusal(&error),
+        Ok(never) => match never {},
+    }
 }
 
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, treatment, outcome, *, model="chained_equations".to_owned(), imputations=20,
-    iterations=10, seed=1, n_draws=1000, prior_scale=10.0, level=0.95, domains=Vec::new()
+    iterations=10, seed=1, n_draws=1000, prior_scale=10.0, domains=Vec::new()
 ))]
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
@@ -66,7 +61,6 @@ fn graph_selection_imputation_run(
     seed: u64,
     n_draws: usize,
     prior_scale: f64,
-    level: f64,
     domains: Vec<(String, String)>,
 ) -> PyResult<(Option<String>, Option<String>)> {
     detach_catch(py, move || {
@@ -92,12 +86,6 @@ fn graph_selection_imputation_run(
                 format!("unknown imputation model `{model}`"),
             );
         };
-        if !(level > 0.0 && level < 1.0) {
-            return invalid(
-                "graph_selection_imputation.level",
-                format!("level must lie in (0, 1), got {level}"),
-            );
-        }
         let table = match TabularData::from_f64_columns(
             names.iter().zip(&columns).map(|(name, column)| (name.as_str(), column.as_slice())),
         ) {
@@ -162,18 +150,9 @@ fn graph_selection_imputation_run(
                 "the pooled result carries no imputation report".to_owned(),
             );
         };
-        let interval = result.posterior.as_ref().and_then(|posterior| {
-            let column = posterior.effect_column()?;
-            let n = posterior.draws.n_draws;
-            Some(central_interval(&posterior.draws.values[column * n..(column + 1) * n], level))
-        });
         let mut payload = json!({
             "effect": effect.ate,
             "posterior_sd": effect.uncertainty.analytic.se,
-            "credible_interval": interval.map(|(lower, upper)| json!({
-                "level": level, "lower": lower, "upper": upper,
-            })),
-            "posterior_draws": result.posterior.as_ref().map(|p| p.draws.n_draws),
             "imputations": report.spec.imputations,
             "points": report.points.as_ref(),
             "within": report.within,
@@ -197,5 +176,6 @@ fn graph_selection_imputation_run(
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(graph_selection_imputation_run, module)?)?;
+    module.add_function(wrap_pyfunction!(graph_selection_imputation_interval, module)?)?;
     Ok(())
 }

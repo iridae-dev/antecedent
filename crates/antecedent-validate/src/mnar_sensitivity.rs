@@ -36,14 +36,13 @@
 //! `(ybar - g)^2 pi (1 - pi) / n + Var_obs(pi y_i + (1 - pi) psi_i) / n_obs`, with `psi_i`
 //! the influence of the missing-pattern mean (`y_i - ybar` for the shift,
 //! `w_i (y_i - g) / mean(w)` for the tilt); the arms are independent. It is a sampling
-//! interval conditional on the parameter value and is reported per grid point, never merged
-//! with the assumption range. The assumption range is the envelope of the point effects over
+//! interval conditional on the parameter value. Its public endpoint is withheld until its
+//! exact construction has applicable calibration evidence. The assumption range is the envelope of the point effects over
 //! the declared parameter range and is never a confidence interval.
 //!
 //! # Conclusions and tipping points
 //!
-//! A conclusion is the sign of the effect, whether the conditional sampling interval
-//! excludes the null, or whether a declared decision (act when the effect exceeds a
+//! A conclusion is the sign of the effect, or whether a declared decision (act when the effect exceeds a
 //! threshold) acts. Its tipping point is the smallest departure (searched separately on
 //! each side of MAR) at which the conclusion differs from its MAR value: the declared
 //! grid locates the first changed grid point and bisection on the conclusion refines the
@@ -96,7 +95,9 @@ pub const MNAR_ASSUMPTION_RANGE_CLAIM: &str = "assumption_range";
 /// Empirical status of the departure: the data cannot establish it.
 pub const MNAR_EMPIRICAL_STATUS: &str = "not_empirically_established";
 /// What the per-point sampling interval is conditional on.
-pub const MNAR_SAMPLING_BASIS: &str = "sampling interval conditional on the sensitivity parameter (delta method for the difference in means, seeded bootstrap that repeats the imputation fit for adjusted estimators); kept distinct from the assumption range and never combined with it";
+pub const MNAR_SAMPLING_BASIS: &str = "sampling interval conditional on the sensitivity parameter is withheld pending calibration; distinct from the assumption range and never combined with it";
+/// Detail for the withheld pointwise sampling interval and derived conclusions.
+pub const MNAR_SAMPLING_DETAIL: &str = "mnar_sensitivity.sampling_interval_not_licensed";
 /// Stable id of the untestable departure assumption.
 pub const MNAR_DEPARTURE_ASSUMPTION_ID: &str = "outcome_missingness_departure_from_mar";
 /// Status of the departure assumption.
@@ -104,7 +105,7 @@ pub const MNAR_DEPARTURE_ASSUMPTION_STATUS: AssumptionStatus = AssumptionStatus:
 /// Stable id of the treatment-ignorability assumption the analysis holds fixed.
 pub const MNAR_ASSIGNMENT_ASSUMPTION_ID: &str = "treatment_independent_of_potential_outcomes";
 /// Method recorded in every result.
-pub const MNAR_METHOD: &str = "re-run of the declared estimator (difference in means in closed form; regression adjustment, inverse-propensity weighting or augmented weighting on a table completed by the departure) over a declared parameter grid (pattern-mixture shift; exponential-tilting selection model), with sampling intervals per grid point and tipping points found by sub-cell scanning and bisection on the continuous effect";
+pub const MNAR_METHOD: &str = "re-run of the declared estimator (difference in means in closed form; regression adjustment, inverse-propensity weighting or augmented weighting on a table completed by the departure) over a declared parameter grid (pattern-mixture shift; exponential-tilting selection model), with sampling intervals withheld and point tipping found by sub-cell scanning and bisection on the continuous effect";
 
 /// The departure model of the outcome-missingness mechanism.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -385,8 +386,8 @@ pub struct MnarPoint {
     pub control_mean: f64,
     /// The effect, `treated_mean - control_mean`.
     pub effect: f64,
-    /// Sampling interval conditional on the parameter.
-    pub sampling: MnarSamplingInterval,
+    /// Withheld until the exact sampling construction has applicable calibration evidence.
+    pub sampling: Option<MnarSamplingInterval>,
     /// Whether each declared decision acts, in declaration order.
     pub acts: Vec<bool>,
 }
@@ -519,7 +520,7 @@ pub struct MnarSensitivityResult {
     pub grid: Vec<MnarPoint>,
     /// The assumption range over the declared parameter range.
     pub assumption_range: MnarAssumptionRange,
-    /// Tipping points of the sign, of excluding the null, and of every declared decision.
+    /// Tipping points of the sign and of every declared decision.
     pub tipping: Vec<MnarTipping>,
     /// Decision changes for the declared decisions.
     pub decisions: Vec<MnarDecisionReport>,
@@ -539,6 +540,10 @@ pub struct MnarSensitivityResult {
     pub empirical_status: &'static str,
     /// [`MNAR_SAMPLING_BASIS`].
     pub sampling_basis: &'static str,
+    /// The public interval route remains closed until its own coverage record exists.
+    pub sampling_status: &'static str,
+    /// Why the sampling interval and its derived conclusions are withheld.
+    pub sampling_detail: &'static str,
 }
 
 /// One arm's observed outcomes and missing count.
@@ -913,11 +918,11 @@ impl Context<'_> {
             treated_mean,
             control_mean,
             effect,
-            sampling: MnarSamplingInterval {
+            sampling: Some(MnarSamplingInterval {
                 standard_error,
                 lower: effect - self.z * standard_error,
                 upper: effect + self.z * standard_error,
-            },
+            }),
             acts: self.spec.decisions.iter().map(|d| effect > d.threshold).collect(),
         })
     }
@@ -930,11 +935,11 @@ impl Context<'_> {
             treated_mean: f64::NAN,
             control_mean: f64::NAN,
             effect: f64::NAN,
-            sampling: MnarSamplingInterval {
+            sampling: Some(MnarSamplingInterval {
                 standard_error: f64::NAN,
                 lower: f64::NAN,
                 upper: f64::NAN,
-            },
+            }),
             acts: vec![false; self.spec.decisions.len()],
         })
     }
@@ -956,9 +961,10 @@ fn sign_label(point: &MnarPoint) -> i8 {
 }
 
 fn null_label(point: &MnarPoint) -> i8 {
-    if point.sampling.lower > 0.0 {
+    let Some(sampling) = point.sampling else { return 0 };
+    if sampling.lower > 0.0 {
         1
-    } else if point.sampling.upper < 0.0 {
+    } else if sampling.upper < 0.0 {
         -1
     } else {
         0
@@ -1095,11 +1101,79 @@ pub fn mnar_sensitivity(
     data: &MnarData<'_>,
     spec: &MnarSensitivitySpec,
 ) -> Result<MnarSensitivityResult, MnarSensitivityError> {
+    mnar_sensitivity_impl(data, spec, false)
+}
+
+/// Evaluate the unlicensed candidate solely for a registered calibration study.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+pub fn mnar_sensitivity_calibration_candidate(
+    data: &MnarData<'_>,
+    spec: &MnarSensitivitySpec,
+) -> Result<MnarSensitivityResult, MnarSensitivityError> {
+    mnar_sensitivity_impl(data, spec, true)
+}
+
+/// The closed delta-method candidate at a fixed treated-arm shift of one.
+/// The returned basis is derived from this exact native construction, not the test harness.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+pub fn mnar_shift_delta_calibration_candidate(
+    data: &MnarData<'_>,
+) -> Result<(MnarSamplingInterval, antecedent_core::CalibrationBasis), MnarSensitivityError> {
+    let spec = MnarSensitivitySpec::new(
+        MnarMechanism {
+            model: MnarModel::DeltaPatternMixture,
+            loading: ArmLoading::treated_only(),
+        },
+        -1.0,
+        1.0,
+    );
+    let result = mnar_sensitivity_impl(data, &spec, true)?;
+    let interval = result.grid.last().and_then(|point| point.sampling).ok_or_else(|| {
+        refuse(
+            reason_code!("invalid_argument"),
+            "mnar_sensitivity.invalid_data",
+            "the calibration candidate did not produce its fixed endpoint",
+        )
+    })?;
+    let a = |s: &str| std::sync::Arc::<str>::from(s);
+    let basis = antecedent_core::CalibrationBasis::new(
+        [
+            a("AverageEffect"),
+            a("NotApplicable"),
+            a("fixed"),
+            a("tabular"),
+            a("Frequentist"),
+            a("mnar_shift_difference_in_means"),
+            a("delta_normal"),
+            a("influence_function"),
+            a("independent_units"),
+            a(""),
+            a("ate_at_delta_1"),
+        ],
+        0.95,
+        a("point"),
+        result.rows as u64,
+        None,
+        None,
+        0.0,
+    )
+    .with_validation("not_applicable");
+    Ok((interval, basis))
+}
+
+#[allow(clippy::too_many_lines, reason = "the bounded validation keeps related checks together")]
+fn mnar_sensitivity_impl(
+    data: &MnarData<'_>,
+    spec: &MnarSensitivitySpec,
+    calibration_candidate: bool,
+) -> Result<MnarSensitivityResult, MnarSensitivityError> {
     let mechanism = check_spec(spec)?;
     let prepared = prepare(data, spec.estimator)?;
     let evaluations = (spec.grid_points as u64)
         + 4 * (MNAR_MAX_BISECTIONS as u64) * (2 + spec.decisions.len() as u64);
-    let interval_evaluations = if prepared.adjusted.is_some() {
+    let interval_evaluations = if calibration_candidate && prepared.adjusted.is_some() {
         u64::from(spec.bootstrap_replicates)
             .saturating_mul(spec.grid_points as u64 + 2 * MNAR_MAX_BISECTIONS as u64)
     } else {
@@ -1119,25 +1193,25 @@ pub fn mnar_sensitivity(
     }
     let z = normal_ppf(0.5 + spec.level / 2.0);
     let context = Context { prepared: &prepared, mechanism, spec, z };
-    let mar = context.try_point(0.0, true)?;
+    let mut mar = context.try_point(0.0, calibration_candidate)?;
     let grid_parameters = parameter_grid(spec);
-    let grid = grid_parameters
+    let mut grid = grid_parameters
         .iter()
-        .map(|&p| context.try_point(p, true))
+        .map(|&p| context.try_point(p, calibration_candidate))
         .collect::<Result<Vec<MnarPoint>, MnarSensitivityError>>()?;
     let tolerance = spec.tolerance * (spec.upper - spec.lower);
-    let mut tipping = vec![
-        tipping_of(
-            &context,
-            MnarConclusionKind::Sign,
-            "sign",
-            0.0,
-            &sign_label,
-            false,
-            &grid_parameters,
-            tolerance,
-        ),
-        tipping_of(
+    let mut tipping = vec![tipping_of(
+        &context,
+        MnarConclusionKind::Sign,
+        "sign",
+        0.0,
+        &sign_label,
+        false,
+        &grid_parameters,
+        tolerance,
+    )];
+    if calibration_candidate {
+        tipping.push(tipping_of(
             &context,
             MnarConclusionKind::ExcludesNull,
             "excludes_null",
@@ -1146,8 +1220,8 @@ pub fn mnar_sensitivity(
             true,
             &grid_parameters,
             tolerance,
-        ),
-    ];
+        ));
+    }
     let mut decisions = Vec::with_capacity(spec.decisions.len());
     for (index, decision) in spec.decisions.iter().enumerate() {
         let label = |point: &MnarPoint| i8::from(point.acts[index]);
@@ -1179,6 +1253,12 @@ pub fn mnar_sensitivity(
         is_confidence_interval: false,
         empirically_established: false,
     };
+    if !calibration_candidate {
+        mar.sampling = None;
+        for point in &mut grid {
+            point.sampling = None;
+        }
+    }
     let observed_case_effect = prepared.treated.mean - prepared.control.mean;
     Ok(MnarSensitivityResult {
         family: MNAR_FAMILY,
@@ -1204,6 +1284,12 @@ pub fn mnar_sensitivity(
         inference_claim: MNAR_ASSUMPTION_RANGE_CLAIM,
         empirical_status: MNAR_EMPIRICAL_STATUS,
         sampling_basis: MNAR_SAMPLING_BASIS,
+        sampling_status: if calibration_candidate {
+            "calibration_candidate"
+        } else {
+            reason_code!("cell_not_licensed")
+        },
+        sampling_detail: MNAR_SAMPLING_DETAIL,
     })
 }
 
@@ -1222,4 +1308,42 @@ pub fn assumptions() -> Vec<MnarAssumptionRecord> {
             status: AssumptionStatus::Declared,
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mnar_shift_candidate_matches_hand_derived_delta_variance() {
+        let mut treatment = vec![1.0; 10];
+        treatment.extend(vec![0.0; 10]);
+        let mut outcomes: Vec<Option<f64>> = (1..=6).map(|x| Some(f64::from(x))).collect();
+        outcomes.extend([None; 4]);
+        outcomes.extend((0..=4).map(|x| Some(f64::from(x))));
+        outcomes.extend([None; 5]);
+        let spec = MnarSensitivitySpec::new(
+            MnarMechanism { model: MnarModel::DeltaPatternMixture, loading: ArmLoading::common() },
+            -10.0,
+            10.0,
+        );
+        let result = mnar_sensitivity_impl(&MnarData::new(&treatment, &outcomes), &spec, true)
+            .expect("candidate is defined on this hand-derived fixture");
+        let point = result
+            .grid
+            .iter()
+            .find(|p| (p.parameter - 2.0).abs() < 1e-12)
+            .expect("grid contains 2");
+        let interval = point.sampling.expect("candidate contains its sampling interval");
+        let variance: f64 = 3.5 / 6.0 + 4.0 * 0.24 / 10.0 + 2.5 / 5.0 + 4.0 * 0.25 / 10.0;
+        assert!((interval.standard_error - variance.sqrt()).abs() < 1e-12);
+        assert!(
+            (interval.lower - (point.effect - 1.959_963_984_540_054 * variance.sqrt())).abs()
+                < 1e-9
+        );
+        assert!(
+            (interval.upper - (point.effect + 1.959_963_984_540_054 * variance.sqrt())).abs()
+                < 1e-9
+        );
+    }
 }

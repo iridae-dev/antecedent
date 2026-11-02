@@ -247,15 +247,18 @@ def test_graph_selection_is_rerun_on_every_completed_table():
     assert result.estimator == "bayesian.gcomp"
     assert result.assumption == "missing_at_random"
     assert result.imputations == 4 and len(result.points) == 4
-    assert result.posterior_draws == 4 * 200
+    assert not hasattr(result, "posterior_draws")
     assert result.imputed_cells["y"] > 0
     assert result.imputed_cells["t"] == 50
     assert result.domains == {"t": "binary"}
     assert result.binary_boundaries == {}
     # The stack's mean is the mean of the tables' posterior means, up to Monte Carlo error.
     assert result.effect == pytest.approx(np.mean(result.points), abs=8 * result.posterior_sd / 28)
-    lower, upper = result.credible_interval["lower"], result.credible_interval["upper"]
-    assert lower < result.effect < upper
+    assert not hasattr(result, "credible_interval")
+    with pytest.raises(GraphSelectionImputationRefusal) as interval:
+        result.interval()
+    assert interval.value.reason_code == "cell_not_licensed"
+    assert interval.value.detail == "graph_selection_imputation.interval_unmeasured"
     assert result.total >= result.within and result.between >= 0.0
 
     with pytest.raises(GraphSelectionImputationRefusal) as unknown:

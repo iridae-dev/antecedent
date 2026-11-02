@@ -23,9 +23,9 @@ Three things stay distinct and are never merged:
   over the declared parameter range, *conditional on the departure model*: it is not a
   confidence interval and it is not empirically established;
 * the **departure assumption** is recorded in ``result.assumptions`` with status ``untestable``;
-* the **sampling interval** at each grid point (``point.sampling``) is a delta-method interval
-  conditional on that parameter value. It is reported beside the range, and composing it with the
-  range refuses (``cell_not_licensed`` / ``mnar_sensitivity.composition_not_licensed``).
+* the **sampling interval** at each grid point is withheld pending its own calibration;
+  ``point.sampling`` is ``None`` and ``result.sampling_status`` is ``cell_not_licensed``.
+  Composing sampling uncertainty with the range also refuses.
 
 Rust owns the estimates, the tipping search and every refusal; this module builds declarations
 and raises each refusal as :class:`MnarSensitivityRefusal`, a
@@ -108,7 +108,7 @@ class MnarPoint:
     treated_mean: float
     control_mean: float
     effect: float
-    sampling: MnarSamplingInterval
+    sampling: MnarSamplingInterval | None
     acts: tuple[bool, ...]
 
 
@@ -124,11 +124,10 @@ class MnarTippingSide:
 
 @dataclass(frozen=True, slots=True)
 class MnarTipping:
-    """The tipping points of one conclusion (``sign``, ``excludes_null`` or a decision).
+    """The tipping points of one conclusion (``sign`` or a decision).
 
     ``at_mar`` is the conclusion at parameter 0: the sign of the effect for ``sign``; ``-1``,
-    ``0`` or ``1`` for a sampling interval entirely below, including or entirely above the null
-    for ``excludes_null``; ``1`` when a decision acts and ``0`` when it does not.
+    ``1`` when a decision acts and ``0`` when it does not. Interval-derived tipping is withheld.
     """
 
     kind: str
@@ -201,15 +200,25 @@ class MnarResult:
     inference_claim: str
     empirical_status: str
     sampling_basis: str
+    sampling_status: str
+    sampling_detail: str
 
     def tipping_point(self, label: str = "sign") -> MnarTipping:
         """The tipping points of the conclusion named ``label``.
 
-        ``"sign"``, ``"excludes_null"`` or the name of a declared decision.
+        ``"sign"`` or the name of a declared decision.
 
         Raises:
             CausalValueError: no such conclusion was analysed.
         """
+        if label == "excludes_null":
+            raise MnarSensitivityRefusal(
+                {
+                    "code": self.sampling_status,
+                    "detail": self.sampling_detail,
+                    "message": "interval-derived tipping is withheld pending calibration",
+                }
+            )
         for tipping in self.tipping:
             if tipping.label == label:
                 return tipping
@@ -246,7 +255,9 @@ def _point(wire: Mapping[str, Any]) -> MnarPoint:
         treated_mean=float(wire["treated_mean"]),
         control_mean=float(wire["control_mean"]),
         effect=float(wire["effect"]),
-        sampling=MnarSamplingInterval(
+        sampling=None
+        if sampling is None
+        else MnarSamplingInterval(
             standard_error=float(sampling["standard_error"]),
             lower=float(sampling["lower"]),
             upper=float(sampling["upper"]),
@@ -300,6 +311,8 @@ def _result(wire: Mapping[str, Any]) -> MnarResult:
         inference_claim=str(wire["inference_claim"]),
         empirical_status=str(wire["empirical_status"]),
         sampling_basis=str(wire["sampling_basis"]),
+        sampling_status=str(wire["sampling_status"]),
+        sampling_detail=str(wire["sampling_detail"]),
     )
 
 
@@ -405,8 +418,8 @@ def mnar_ate_sensitivity(
     ``"regression_adjusted"``, ``"ipw"`` or ``"aipw"``. Each is re-run at every grid point on
     the table completed by the departure: a missing outcome is imputed from the arm's outcome
     regression plus the shift, or, for the selection model, plus the mean residual under the
-    tilted weights. An adjusted estimator's per-point sampling interval is a seeded bootstrap
-    (``bootstrap_replicates`` 20 to 5000, stream ``seed``) that repeats the imputation fit.
+    tilted weights. Sampling intervals, including adjusted bootstrap intervals, are withheld
+    pending calibration.
     Any other estimator refuses (``unsupported_estimator``).
 
     ``sampling_composition`` requests composing the sampling interval with the assumption range

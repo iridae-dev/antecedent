@@ -22,14 +22,13 @@ use antecedent_data::column::OwnedColumn;
 use antecedent_data::{
     ImputationSpec, MissingPolicy, RowAccounting, TableView, TabularData, complete_float_columns,
 };
-use antecedent_estimate::bayesian::CausalPosterior;
 use antecedent_estimate::multiple_imputation::{
     self, ImputationColumn, ImputationFit, Imputer, MultipleImputationFailure, PooledEstimate,
 };
 
 use super::StudyBuilder;
 use super::missing_data::{self, MissingRoute};
-use super::missing_imputation::{analysed_variables, fit_of, refused, stacked_posterior};
+use super::missing_imputation::{analysed_variables, fit_of, refused};
 use crate::discovery::{BayesianDiscoverParams, GraphPosterior};
 use crate::error::CausalError;
 use crate::result::{ImputationReport, StudyResult};
@@ -67,6 +66,19 @@ impl GraphSelectionPerImputation {
     #[must_use]
     pub fn variables(&self) -> &[VariableId] {
         &self.variables
+    }
+
+    /// Request an interval for the combined imputation and graph-selection procedure.
+    ///
+    /// # Errors
+    /// Always returns `cell_not_licensed`: the combined procedure has no
+    /// source-bound, independently verified and calibrated interval route.
+    pub fn interval() -> Result<std::convert::Infallible, CausalError> {
+        Err(crate::unsupported_reason!(
+            "cell_not_licensed",
+            "graph_selection_imputation.interval_unmeasured: an interval for the combined \
+             imputation, graph-selection and effect procedure is not licensed"
+        ))
     }
 }
 
@@ -149,7 +161,6 @@ where
         .collect();
 
     let mut base: Option<StudyResult> = None;
-    let mut posteriors: Vec<CausalPosterior> = Vec::new();
     let run = multiple_imputation::run(&imputer, ctx, |table, ctx| {
         let replacements: Vec<(VariableId, Arc<[f64]>)> =
             imputed.iter().map(|&j| (float_ids[j], Arc::clone(&table.columns()[j]))).collect();
@@ -170,9 +181,6 @@ where
             )));
         }
         let fit = fit_of(&result, true)?;
-        if let Some(posterior) = &result.posterior {
-            posteriors.push(posterior.clone());
-        }
         if base.is_none() {
             base = Some(result);
         }
@@ -186,7 +194,10 @@ where
     let PooledEstimate::Stacked(stacked) = &run.pooled else {
         return Err(refused("the pooling rule is not one a Bayesian effect posterior reports"));
     };
-    result.posterior = Some(stacked_posterior(&posteriors)?);
+    // The first table's posterior is not a source-bound posterior of the full
+    // imputation-and-selection procedure. Keep the pooled point and diagnostic
+    // variance, but do not publish its draws or derived quantiles as authority.
+    result.posterior = None;
     if let Some(effect) = result.estimate.as_effect_mut() {
         effect.ate = stacked.mean;
         effect.uncertainty.analytic.se = stacked.variance.sqrt();

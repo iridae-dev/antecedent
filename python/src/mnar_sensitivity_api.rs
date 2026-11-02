@@ -4,7 +4,7 @@
 //! changes.
 //!
 //! Python declares the data, the mechanism, the parameter range and the decisions; the effect
-//! as a function of the parameter, the sampling interval at every point, the tipping points,
+//! as a function of the parameter, withheld sampling intervals, the tipping points,
 //! the assumption records and every refusal are Rust's. A refusal comes back as structured
 //! JSON (`code`, `detail`, `message`) for the Python layer to raise as its own typed
 //! exception. Every range is an assumption range, never a confidence interval.
@@ -33,11 +33,11 @@ fn point_json(point: &MnarPoint) -> Value {
         "treated_mean": point.treated_mean,
         "control_mean": point.control_mean,
         "effect": point.effect,
-        "sampling": {
-            "standard_error": point.sampling.standard_error,
-            "lower": point.sampling.lower,
-            "upper": point.sampling.upper,
-        },
+        "sampling": point.sampling.map(|sampling| json!({
+            "standard_error": sampling.standard_error,
+            "lower": sampling.lower,
+            "upper": sampling.upper,
+        })),
         "acts": point.acts,
     })
 }
@@ -111,6 +111,8 @@ fn result_json(result: &MnarSensitivityResult) -> Value {
         "inference_claim": result.inference_claim,
         "empirical_status": result.empirical_status,
         "sampling_basis": result.sampling_basis,
+        "sampling_status": result.sampling_status,
+        "sampling_detail": result.sampling_detail,
     })
 }
 

@@ -6333,6 +6333,7 @@ def msm_sensitivity_run(
     tolerance: float,
     sampling_composition: str | None = None,
 ) -> tuple[str | None, str | None]: ...
+def graph_selection_imputation_interval() -> str: ...
 def graph_selection_imputation_run(
     names: list[str],
     columns: list[list[float]],
@@ -6345,7 +6346,6 @@ def graph_selection_imputation_run(
     seed: int = 1,
     n_draws: int = 1000,
     prior_scale: float = 10.0,
-    level: float = 0.95,
     domains: list[tuple[str, str]] = ...,
 ) -> tuple[str | None, str | None]: ...
 def mnar_sensitivity_run(

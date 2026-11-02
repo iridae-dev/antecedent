@@ -1629,6 +1629,24 @@ run_ri() {
     cargo test --release -p antecedent --test randomized_interval_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
+echo "== fixed-departure missing-outcome sensitivity candidate =="
+run_mnar() {
+  local filter="$1"
+  echo "== antecedent: mnar_interval_calibration ${filter} =="
+  check "mnar_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --features calibration-internal --test mnar_interval_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_mnar mnar_shift_delta_interval
+echo "== categorical conjugate posterior candidate =="
+run_categorical_posterior() {
+  local filter="$1"
+  echo "== antecedent: categorical_posterior_calibration ${filter} =="
+  check "categorical_posterior_calibration: ${filter}" \
+    cargo test --release -p antecedent --features calibration-internal --test categorical_posterior_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_categorical_posterior categorical_conjugate_contrast_prior_predictive_interval
 run_ri randomized_score_balanced_interval
 run_ri randomized_score_two_to_one_interval
 run_ri randomized_ancova_balanced_interval

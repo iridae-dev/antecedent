@@ -80,15 +80,18 @@ def test_mnar_tipping_points_match_the_closed_form() -> None:
 def test_mnar_sampling_interval_is_conditional_and_separate_from_the_range() -> None:
     result = _shift(loading="common")
     point = next(p for p in result.grid if p.parameter == 2.0)
-    variance = 3.5 / 6 + 4 * 0.24 / 10 + 2.5 / 5 + 4 * 0.25 / 10
-    assert point.sampling.standard_error == pytest.approx(math.sqrt(variance), abs=1e-12)
-    assert point.sampling.upper - point.sampling.lower == pytest.approx(
-        2 * 1.959963984540054 * math.sqrt(variance), abs=1e-9
-    )
+    assert point.sampling is None
+    assert result.mar.sampling is None
+    assert result.sampling_status == "cell_not_licensed"
+    assert all(t.kind != "excludes_null" for t in result.tipping)
+    with pytest.raises(mnar.MnarSensitivityRefusal) as withheld:
+        result.tipping_point("excludes_null")
+    assert withheld.value.code == "cell_not_licensed"
+    assert withheld.value.detail == "mnar_sensitivity.sampling_interval_not_licensed"
     envelope = result.assumption_range
     effects = [p.effect for p in result.grid]
     assert (envelope.effect_lower, envelope.effect_upper) == (min(effects), max(effects))
-    assert min(p.sampling.lower for p in result.grid) < envelope.effect_lower
+    assert all(p.sampling is None for p in result.grid)
 
 
 def test_mnar_tilt_selection_matches_the_closed_form() -> None:
@@ -226,7 +229,7 @@ def test_mnar_adjusted_estimators_match_the_stratified_closed_form(estimator: st
     )
     for point in result.grid:
         assert point.effect == pytest.approx(1.5 + 0.25 * point.parameter, abs=1e-9)
-        assert point.sampling.standard_error > 0.0
+        assert point.sampling is None
     assert result.tipping_point("sign").negative.parameter == pytest.approx(-6.0, abs=1e-7)
     assert result.decisions[0].tipping.negative.parameter == pytest.approx(-2.0, abs=1e-7)
 

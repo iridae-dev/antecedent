@@ -368,7 +368,9 @@ def test_the_posterior_section_matches_the_normal_equations_reference() -> None:
         assert got.scale == pytest.approx(scale, abs=1e-9)
         assert got.degrees_of_freedom == pytest.approx(df)
         assert got.mean == pytest.approx(location, abs=1e-9)
-        assert got.interval[0] < location < got.interval[1]
+        with pytest.raises(CausalUnsupportedError) as refused:
+            _ = got.interval
+        assert refused.value.reason_code == "cell_not_licensed"
     location, scale, _ = _posterior_reference(LEVELS, OUTCOME, ["a", "b", "c"], "a", [0, -1, 1])
     pair = posterior.pair("b", "c")
     assert pair.location == pytest.approx(location, abs=1e-9)
@@ -383,6 +385,17 @@ def test_the_posterior_states_its_estimand_prior_and_standing() -> None:
     assert posterior.licensed is False
     assert posterior.prior == PRIOR
     assert abc().posterior is None
+
+
+def test_categorical_posterior_interval_is_withheld_until_calibrated() -> None:
+    result = abc(posterior=PRIOR)
+    posterior = result.posterior
+    assert posterior is not None
+    with pytest.raises(CausalUnsupportedError) as refused:
+        _ = posterior.effect("b").interval
+    assert refused.value.reason_code == "cell_not_licensed"
+    assert "categorical_treatment.posterior_interval_not_licensed" in str(refused.value)
+    assert all("interval" not in effect for effect in result.to_dict()["posterior"]["effects"])
 
 
 def test_the_ordered_posterior_reports_monotonicity_bounds_and_round_trips() -> None:

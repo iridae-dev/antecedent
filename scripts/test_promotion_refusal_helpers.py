@@ -948,13 +948,18 @@ class SharedNamespaceTests(unittest.TestCase):
                 '"multiple_imputation.admission_refused" => { '
                 'JointPanelError::Engine(super::engine::PanelError::Resource(error.to_string())) }'
             )
-            panel.write_text('fn run(error: E) { match error.detail() { ' + arm + ' } }')
+            panel.write_text(
+                'fn run(error: E) { match error.detail() { ' + arm + ' } }', encoding="utf-8"
+            )
             self.assertEqual(
                 refusal_stage_literals(panel, in_crate=False),
                 {(1, "multiple_imputation.admission_refused")},
             )
-            panel.write_text('fn run(error: E) { match error.detail() { '
-                             + arm.replace('error.to_string()', 'emit(error)') + ' } }')
+            panel.write_text(
+                'fn run(error: E) { match error.detail() { '
+                + arm.replace('error.to_string()', 'emit(error)') + ' } }',
+                encoding="utf-8",
+            )
             self.assertEqual(refusal_stage_literals(panel, in_crate=False), set())
 
 

@@ -118,14 +118,13 @@ fn the_posterior_contrasts_match_the_normal_equations_reference() {
             1.280_327_595_738,
         ),
     ];
-    for (c, (location, scale, interval, positive, sd)) in
+    for (c, (location, scale, _interval, positive, sd)) in
         posterior.level_contrasts.iter().zip(expected)
     {
         close(c.location, location, 1e-9, "location");
         close(c.scale, scale, 1e-9, "scale");
         close(c.degrees_of_freedom, 13.0, 1e-12, "df");
-        close(c.interval[0], interval[0], 1e-8, "lower");
-        close(c.interval[1], interval[1], 1e-8, "upper");
+        assert!(c.interval.is_none());
         close(c.probability_positive, positive, 1e-9, "P(> 0)");
         close(c.standard_deviation.expect("df > 2"), sd, 1e-9, "sd");
     }
@@ -133,7 +132,7 @@ fn the_posterior_contrasts_match_the_normal_equations_reference() {
     assert_eq!((pair.from.as_str(), pair.to.as_str()), ("b", "c"));
     close(pair.location, 3.265_432_098_765, 1e-9, "pair location");
     close(pair.scale, 1.321_274_964_096, 1e-9, "pair scale");
-    close(pair.interval[0], 0.410_991_079_763, 1e-8, "pair lower");
+    assert!(pair.interval.is_none());
     close(pair.probability_positive, 0.985_970_325_135, 1e-9, "pair P(> 0)");
 }
 
@@ -180,6 +179,25 @@ fn an_independent_consumer_recomputes_the_section_and_refuses_edits() {
     let bytes = sealed.export("posterior").unwrap();
     let again = CategoricalTreatment::consume(&bytes, Some(sealed.identity())).unwrap();
     assert_eq!(again.posterior(), sealed.posterior());
+
+    // A v1 artifact written before interval publication was closed can still be
+    // consumed, but its endpoint is verified and withheld from the new report.
+    let (mut legacy, numbers) = decode_parts(&bytes).unwrap();
+    // Old artifacts used the exact native quantile, not rounded fixture constants.
+    let posterior = &legacy.posterior.as_ref().unwrap().level_contrasts[0];
+    let dist = antecedent_estimate::gaussian_linear_posterior::StudentPosterior {
+        location: posterior.location,
+        scale: posterior.scale,
+        degrees_of_freedom: posterior.degrees_of_freedom,
+    };
+    legacy.posterior.as_mut().unwrap().level_contrasts[0].interval =
+        Some(dist.equal_tailed_interval(0.95));
+    let old_bytes = encode_parts(&legacy, &numbers, "legacy-interval").unwrap();
+    let old_result = CategoricalTreatment::consume(&old_bytes, Some(sealed.identity())).unwrap();
+    assert!(old_result.posterior().unwrap().level_contrasts[0].interval.is_none());
+    legacy.posterior.as_mut().unwrap().level_contrasts[0].interval.as_mut().unwrap()[0] += 0.5;
+    let altered = encode_parts(&legacy, &numbers, "legacy-interval-altered").unwrap();
+    assert!(CategoricalTreatment::consume(&altered, Some(sealed.identity())).is_err());
 
     // A resealed posterior edit is caught by the recomputation.
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();

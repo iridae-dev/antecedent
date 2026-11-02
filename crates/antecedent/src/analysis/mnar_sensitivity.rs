@@ -4,8 +4,7 @@
 //!
 //! * [`mnar_sensitivity`] re-runs the declared arm-mean contrast across a declared bounded
 //!   grid of a delta-adjusted pattern-mixture shift or an exponential-tilting selection model
-//!   of the outcome-missingness mechanism, with the tipping points of the sign, of excluding
-//!   the null and of every declared decision;
+//!   of the outcome-missingness mechanism, with tipping points of the sign and of every declared decision;
 //! * [`mnar_sensitivity_for_table`] reads the treatment, outcome and covariate columns of a
 //!   table (an invalid outcome cell is a missing outcome) and runs the same analysis;
 //! * [`mnar_sensitivity_for_study`] starts from a built [`Study`]: it takes the treatment and
@@ -15,13 +14,12 @@
 //!
 //! The adjusted estimators (`regression_adjusted`, `ipw`, `aipw`) impute each missing outcome
 //! from the arm's outcome regression plus the departure (the shift, or the mean residual under
-//! tilted weights), re-run the estimator on the completed table at every grid point and report
-//! a seeded bootstrap sampling interval.
+//! tilted weights) and re-run the estimator on the completed table at every grid point.
 //!
 //! Every effect over the range is an assumption-dependent range, never a confidence interval
 //! and never empirically established: the departure from missing at random is recorded as an
-//! assumption with status `untestable`. The sampling interval at each grid point is conditional
-//! on the parameter and is reported beside, never merged with, the range.
+//! assumption with status `untestable`. Sampling intervals and their derived tipping conclusions
+//! are withheld pending calibration and are never merged with the range.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
