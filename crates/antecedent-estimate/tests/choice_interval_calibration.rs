@@ -53,7 +53,7 @@ const POOLED_DGP: &str =
     "uniform_dirichlet_shares_one_choice_per_respondent_dirichlet_multinomial_posterior";
 const HIERARCHICAL_DGP: &str = "uniform_population_shares_ln_kappa_normal_ln5_sd1_three_choices_per_respondent_hierarchical_posterior";
 
-fn pooled(test: &'static str, options: usize) {
+fn pooled(test: &'static str, options: usize, expected_id: &str) {
     let n = grid_n(50);
     let prior = vec![1.0; options];
     let mut tally = CoverageTally::for_record(
@@ -84,11 +84,12 @@ fn pooled(test: &'static str, options: usize) {
         candidate::bind(&mut tally, &basis);
         tally.record(Some(interval), truth);
     }
+    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
     tally.assert();
 }
 
 #[allow(clippy::cast_sign_loss, reason = "choice counts are nonnegative integers")]
-fn hierarchical(test: &'static str) {
+fn hierarchical(test: &'static str, expected_id: &str) {
     let n = grid_n(30);
     let hyper = HierarchicalChoicePrior {
         shapes: vec![1.0; 3],
@@ -134,25 +135,45 @@ fn hierarchical(test: &'static str) {
         candidate::bind(&mut tally, &basis);
         tally.record(Some(interval), truth);
     }
+    assert_eq!(tally.record_id().as_deref(), Some(expected_id));
     tally.assert();
 }
 
-macro_rules! pooled_design {
-    ($name:ident, $options:expr) => {
-        #[test]
-        #[ignore = "calibration: run only at the final measurement step"]
-        fn $name() {
-            pooled(stringify!($name), $options);
-        }
-    };
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn choice_dirichlet_share_options_2_l95() {
+    pooled(
+        "choice_dirichlet_share_options_2_l95",
+        2,
+        "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_dirichlet_share_options_2_l95.v2_validation_not_applicable",
+    );
 }
 
-pooled_design!(choice_dirichlet_share_options_2_l95, 2);
-pooled_design!(choice_dirichlet_share_options_3_l95, 3);
-pooled_design!(choice_dirichlet_share_options_5_l95, 5);
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn choice_dirichlet_share_options_3_l95() {
+    pooled(
+        "choice_dirichlet_share_options_3_l95",
+        3,
+        "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_dirichlet_share_options_3_l95.v2_validation_not_applicable",
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn choice_dirichlet_share_options_5_l95() {
+    pooled(
+        "choice_dirichlet_share_options_5_l95",
+        5,
+        "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_dirichlet_share_options_5_l95.v2_validation_not_applicable",
+    );
+}
 
 #[test]
 #[ignore = "calibration: run only at the final measurement step"]
 fn choice_hierarchical_share_options_3_l95() {
-    hierarchical("choice_hierarchical_share_options_3_l95");
+    hierarchical(
+        "choice_hierarchical_share_options_3_l95",
+        "cov.choice_experiment_share.not_applicable.bayesian.posterior_quantile.l95.choice_hierarchical_share_options_3_l95.v2_validation_not_applicable",
+    );
 }
