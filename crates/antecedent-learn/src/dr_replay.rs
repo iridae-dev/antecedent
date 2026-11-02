@@ -29,6 +29,7 @@ use crate::aipw_crossfit::{
     AipwCrossFitError, AipwLearners, ColumnMajorDesign, aipw_scores, clip_propensities,
     cross_fit_aipw_nuisances, design_for_spec,
 };
+use crate::crossfit::diagnose;
 use crate::crossfit_plan::crossfit_fold_plan;
 use crate::design::{DesignView, RowSelection, TargetView};
 use crate::error::LearnError;
@@ -325,6 +326,11 @@ pub struct DrReplay {
     pub retained: Option<Vec<usize>>,
     /// The analytic standard error of [`Self::ate`] ([`retained_standard_error`]).
     pub standard_error: f64,
+    /// Out-of-fold R² of the outcome nuisance at each row's observed arm, as the estimator
+    /// reports it; `None` when it cannot be scored.
+    pub outcome_oof_r2: Option<f64>,
+    /// Out-of-fold log loss of the cross-fitted propensity model, as the estimator reports it.
+    pub treatment_oof_logloss: Option<f64>,
     /// The final model's prediction for every row.
     pub cate: Vec<f64>,
     /// Pointwise HC0 standard errors of the CATE for a linear final stage, else `None`.
@@ -575,6 +581,17 @@ pub fn replay_dr_ate(
         ));
     }
     let phi = aipw_scores(input.treatment, input.outcome, &propensity, &mu0, &mu1);
+    // The nuisance diagnostics the estimator publishes, from the same predictions.
+    let observed_arm_prediction: Vec<f64> = input
+        .treatment
+        .iter()
+        .zip(&mu0)
+        .zip(&mu1)
+        .map(|((&t, &m0), &m1)| if is_treated_indicator(t) { m1 } else { m0 })
+        .collect();
+    let outcome_oof_r2 =
+        diagnose(PredictionTask::Regression, input.outcome, &observed_arm_prediction).r2;
+    let treatment_oof_logloss = treat.validation.logloss;
     if phi.iter().any(|score| !score.is_finite()) {
         return Err(DrReplayError::Overlap("the doubly-robust scores are not all finite"));
     }
@@ -638,6 +655,8 @@ pub fn replay_dr_ate(
         raw_propensity,
         propensity,
         phi,
+        outcome_oof_r2,
+        treatment_oof_logloss,
         standard_error,
         cate_se,
         fold_ids: treat.fold_assignment.clone(),

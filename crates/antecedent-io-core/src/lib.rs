@@ -332,7 +332,7 @@ pub use response_wire::{
 };
 pub use source_witness::{
     SOURCE_WITNESS_FORMAT, SOURCE_WITNESS_SECTION, SourceColumnWire, SourceWitnessError,
-    SourceWitnessLimits, SourceWitnessWire, verify_source_witness,
+    SourceWitnessLimits, SourceWitnessWire, verify_source_witness, verify_source_witness_schema,
 };
 pub use structure_query_wire::{
     AttributeQueryWire, AttributeTargetWire, ChangeEstimatorWire, DiscoverQueryWire,

@@ -141,28 +141,26 @@ fn checked_response_grid_rejects_reordered_member_values() {
     );
 }
 
-fn schema_and_query() -> (antecedent_core::CausalSchema, CausalQuery) {
+/// Treatment and outcome candidates first, then any further continuous variables.
+fn schema_and_query_for(names: &[&str]) -> (antecedent_core::CausalSchema, CausalQuery) {
     let mut builder = CausalSchemaBuilder::new();
-    builder
-        .add_variable(
-            "t",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
-    builder
-        .add_variable(
-            "y",
-            ValueType::Continuous,
-            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
-            None,
-            None,
-            MeasurementSpec::default(),
-        )
-        .unwrap();
+    for (index, name) in names.iter().enumerate() {
+        let role = match index {
+            0 => SmallRoleSet::from_hint(RoleHint::TreatmentCandidate),
+            1 => SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            _ => SmallRoleSet::empty(),
+        };
+        builder
+            .add_variable(
+                *name,
+                ValueType::Continuous,
+                role,
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .unwrap();
+    }
     let schema = builder.build().unwrap();
     let query = CausalQuery::AverageEffect(AverageEffectQuery::binary_ate(
         VariableId::from_raw(0),
@@ -172,7 +170,11 @@ fn schema_and_query() -> (antecedent_core::CausalSchema, CausalQuery) {
 }
 
 fn fixture_body() -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
-    let (schema, query) = schema_and_query();
+    fixture_body_for(&["t", "y"])
+}
+
+fn fixture_body_for(names: &[&str]) -> (AnalysisResultWire, TargetIdentityWire, Vec<String>) {
+    let (schema, query) = schema_and_query_for(names);
     let query_wire = causal_query_to_wire(&query).unwrap();
     let body = AnalysisResultWire {
         native_execution: None,
@@ -277,7 +279,21 @@ fn contract_for(
     body: &AnalysisResultWire,
 ) -> AnalysisResultContractWire {
     use antecedent_graph::{Dag, DenseNodeId};
+    let mut dag = Dag::with_variables(2);
+    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+    contract_for_dag(target, body, &dag)
+}
 
+/// [`contract_for`] with the carried identification graph chosen by the caller.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture exercised end to end; later assertions read locals built above them"
+)]
+fn contract_for_dag(
+    target: TargetIdentityWire,
+    body: &AnalysisResultWire,
+    dag: &antecedent_graph::Dag,
+) -> AnalysisResultContractWire {
     use crate::identity::{
         InferentialCommitmentsWire, ObservationIdentityWire, ObservationOptionsWire, dag_identity,
         data_snapshot_digest, execution_digest, identification_digest,
@@ -292,8 +308,6 @@ fn contract_for(
         observation: Vec::new(),
     };
     let observation_digest = digest_wire(IdentityDomain::Observation, &observation).unwrap();
-    let mut dag = Dag::with_variables(2);
-    dag.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
     let identification = IdentificationIdentityWire {
         format: IDENTITY_FORMAT,
         target_question: *question_digest.as_bytes(),
@@ -306,7 +320,7 @@ fn contract_for(
         accepted_version: 0,
         algorithm_id: None,
         schema_names: Some(target.schema.variable_names()),
-        graph: dag_identity(&dag).unwrap(),
+        graph: dag_identity(dag).unwrap(),
         observation: *observation_digest.as_bytes(),
     };
     let identification_digest = identification_digest(&identification).unwrap();
@@ -2274,8 +2288,10 @@ mod dr_replay {
             &ExecutionContext::for_tests(SEED),
         )
         .unwrap();
-        let (mut body, target, _) = fixture_body();
+        let (mut body, target, _) = fixture_body_for(&spec.names);
         body.estimate = Some(replay.ate);
+        body.outcome_oof_r2 = replay.outcome_oof_r2;
+        body.treatment_oof_logloss = replay.treatment_oof_logloss;
         body.standard_error = Some(replay.standard_error).filter(|se| se.is_finite() && *se > 0.0);
         body.cate_se = replay.cate_se.clone().map(Arc::from);
         body.cate = Some(Arc::from(replay.cate.clone()));
@@ -2290,7 +2306,11 @@ mod dr_replay {
             functional: 0,
             rd_design: None,
         });
-        let mut contract = contract_for(target, &body);
+        let mut contract = contract_for_dag(
+            target,
+            &body,
+            &adjustment_dag(&spec.adjustment, 0, 1, spec.names.len()),
+        );
         contract.estimator = Some("dr.learner".into());
         let program = contract.program.as_mut().unwrap();
         program.commitments.estimator = Some("dr.learner".into());
@@ -2304,6 +2324,24 @@ mod dr_replay {
         };
         bind_snapshot(&mut case, &witness);
         case
+    }
+
+    /// `treatment -> outcome`, with every adjustment variable a common cause of both.
+    fn adjustment_dag(
+        adjustment: &[u32],
+        treatment: u32,
+        outcome: u32,
+        nodes: usize,
+    ) -> antecedent_graph::Dag {
+        use antecedent_graph::{Dag, DenseNodeId};
+        let node = DenseNodeId::from_raw;
+        let mut dag = Dag::with_variables(u32::try_from(nodes).unwrap());
+        dag.insert_directed(node(treatment), node(outcome)).unwrap();
+        for &z in adjustment {
+            dag.insert_directed(node(z), node(treatment)).unwrap();
+            dag.insert_directed(node(z), node(outcome)).unwrap();
+        }
+        dag
     }
 
     fn standard() -> Case {
@@ -2360,6 +2398,82 @@ mod dr_replay {
 
     fn bump(value: f64) -> f64 {
         f64::from_bits(value.to_bits() + 1)
+    }
+
+    #[test]
+    fn a_carried_adjustment_set_must_be_a_backdoor_set_of_the_carried_graph() {
+        use antecedent_graph::{Dag, DenseNodeId};
+        let case = standard();
+        assert_eq!(replay(&case), Ok(()));
+        // The declared adjustment variable is caused by the treatment: adjusting for it blocks
+        // part of the effect, and a resealed product could still repeat the set.
+        let node = DenseNodeId::from_raw;
+        let mut dag = Dag::with_variables(3);
+        dag.insert_directed(node(0), node(1)).unwrap();
+        dag.insert_directed(node(0), node(2)).unwrap();
+        dag.insert_directed(node(2), node(1)).unwrap();
+        let mut descendant = case.clone();
+        descendant.contract.identification.as_mut().unwrap().graph =
+            crate::identity::dag_identity(&dag).unwrap();
+        assert!(matches!(replay(&descendant), Err(DrReplayRefusal::Binding(_))));
+        // The same variable as a collider of treatment and outcome opens a backdoor path.
+        let mut collider = Dag::with_variables(3);
+        collider.insert_directed(node(0), node(1)).unwrap();
+        collider.insert_directed(node(0), node(2)).unwrap();
+        collider.insert_directed(node(1), node(2)).unwrap();
+        let mut collided = case;
+        collided.contract.identification.as_mut().unwrap().graph =
+            crate::identity::dag_identity(&collider).unwrap();
+        assert!(matches!(replay(&collided), Err(DrReplayRefusal::Binding(_))));
+    }
+
+    #[test]
+    fn the_published_nuisance_diagnostics_are_replayed_with_the_fit() {
+        let case = standard();
+        assert!(case.body.outcome_oof_r2.is_some() && case.body.treatment_oof_logloss.is_some());
+        assert_eq!(replay(&case), Ok(()));
+        let mut r2 = case.clone();
+        r2.body.outcome_oof_r2 = r2.body.outcome_oof_r2.map(bump);
+        assert_eq!(
+            replay(&r2),
+            Err(DrReplayRefusal::Mismatch("the outcome out-of-fold R-squared"))
+        );
+        let mut logloss = case.clone();
+        logloss.body.treatment_oof_logloss = logloss.body.treatment_oof_logloss.map(bump);
+        assert_eq!(
+            replay(&logloss),
+            Err(DrReplayRefusal::Mismatch("the treatment out-of-fold log loss"))
+        );
+        let mut withheld = case;
+        withheld.body.outcome_oof_r2 = None;
+        assert_eq!(
+            replay(&withheld),
+            Err(DrReplayRefusal::Mismatch("the outcome out-of-fold R-squared"))
+        );
+    }
+
+    #[test]
+    fn the_witness_is_bound_to_the_observation_schema_the_contract_declares() {
+        let case = standard();
+        let mut renamed = case.clone();
+        renamed.contract.observation.as_mut().unwrap().schema.variables[2].name = "w".into();
+        assert_eq!(
+            replay(&renamed),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema variable name"
+            )))
+        );
+        let mut dropped = case.clone();
+        dropped.contract.observation.as_mut().unwrap().schema.variables.pop();
+        assert_eq!(
+            replay(&dropped),
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema column count"
+            )))
+        );
+        let mut unbound = case;
+        unbound.contract.observation = None;
+        assert!(matches!(replay(&unbound), Err(DrReplayRefusal::Binding(_))));
     }
 
     #[test]
@@ -2702,15 +2816,20 @@ mod dr_replay {
         dropped.witness.columns.pop();
         assert!(matches!(
             replay(&dropped),
-            Err(DrReplayRefusal::Source(SourceWitnessError::Malformed(_)))
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema column count"
+            )))
         ));
-        // Even renamed to fit, the narrower table is not the snapshotted one.
+        // Even renamed to fit, the narrower table is not the observation's schema.
         dropped.header.variable_names.pop();
         assert_eq!(
             replay(&dropped),
-            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch("content digest")))
+            Err(DrReplayRefusal::Source(SourceWitnessError::Mismatch(
+                "observation schema column count"
+            )))
         );
-        assert_eq!(added(&case, &dropped), set(&[SOURCE, OPERATION]));
+        // The header was edited to fit, so it now also disagrees with the observation.
+        assert_eq!(added(&case, &dropped), set(&[SOURCE, OPERATION, "header.variable_names"]));
     }
 
     #[test]

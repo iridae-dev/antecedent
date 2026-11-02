@@ -244,7 +244,8 @@ impl SourceWitnessWire {
 ///
 /// The rebuilt storage's content digest, the existing storage digest, must
 /// equal the snapshot's single partition digest, and the row counts must
-/// agree. Observation and schema-role identity are not checked here.
+/// agree. Observation and schema-role identity are bound separately by
+/// [`verify_source_witness_schema`].
 ///
 /// # Errors
 ///
@@ -266,6 +267,43 @@ pub fn verify_source_witness(
     }
     if storage.content_digest() != partition.content {
         return Err(SourceWitnessError::Mismatch("content digest"));
+    }
+    Ok(())
+}
+
+/// Accept `witness` only when it is a table of the schema the contract's observation declares.
+///
+/// The content digest covers the stored values, not the schema, so a witness could otherwise be
+/// replayed under names, ids or measurement scales the observation contract never declared.
+/// The carried schema must list exactly the witnessed columns in dense id order under the same
+/// names, and each of those variables must be a scalar the witness can store.
+///
+/// # Errors
+///
+/// [`SourceWitnessError::Mismatch`] for a different variable count, id, name, or a variable
+/// whose declared value type is a fixed-width vector.
+pub fn verify_source_witness_schema(
+    witness: &SourceWitnessWire,
+    variable_names: &[String],
+    observation: &crate::ObservationIdentityWire,
+) -> Result<(), SourceWitnessError> {
+    let variables = &observation.schema.variables;
+    if variables.len() != witness.columns.len() || variables.len() != variable_names.len() {
+        return Err(SourceWitnessError::Mismatch("observation schema column count"));
+    }
+    for (index, ((variable, column), name)) in
+        variables.iter().zip(&witness.columns).zip(variable_names).enumerate()
+    {
+        let expected = u32::try_from(index).map_err(|_| SourceWitnessError::TooLarge)?;
+        if variable.id != expected || column.variable != expected {
+            return Err(SourceWitnessError::Mismatch("observation schema variable id"));
+        }
+        if &variable.name != name {
+            return Err(SourceWitnessError::Mismatch("observation schema variable name"));
+        }
+        if matches!(variable.value_type, crate::wire::ValueTypeWire::Vector { .. }) {
+            return Err(SourceWitnessError::Mismatch("observation schema value type"));
+        }
     }
     Ok(())
 }

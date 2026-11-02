@@ -258,6 +258,7 @@ fn read_declaration(
 /// The declaration must describe the contract's own query, estimator, estimand and inference
 /// choices: the program digest binds the declaration, and these checks bind the declaration
 /// back to everything else the contract says.
+#[allow(clippy::too_many_lines)]
 fn check_binding(
     contract: &AnalysisResultContractWire,
     declaration: &Declaration<'_>,
@@ -309,6 +310,16 @@ fn check_binding(
     if !estimand_matches {
         return Err(DrReplayRefusal::Binding(
             "no identified estimand has the declared adjustment set",
+        ));
+    }
+    if !super::replay::carried_adjustment_is_backdoor(
+        contract,
+        lowering.treatment,
+        lowering.outcome,
+        &lowering.adjustment,
+    ) {
+        return Err(DrReplayRefusal::Binding(
+            "the declared adjustment set is not a backdoor set of the carried graph",
         ));
     }
     let binding = contract
@@ -477,6 +488,12 @@ pub fn verify_checked_dr_replay(
             ));
         }
     };
+    let observation = contract
+        .observation
+        .as_ref()
+        .ok_or(DrReplayRefusal::Binding("the contract carries no observation identity"))?;
+    crate::verify_source_witness_schema(witness, &header.variable_names, observation)
+        .map_err(DrReplayRefusal::Source)?;
     verify_source_witness(witness, &header.variable_names, snapshot, &bounds.witness)
         .map_err(DrReplayRefusal::Source)?;
 
@@ -543,6 +560,18 @@ pub fn verify_checked_dr_replay(
         (Some(replayed), Some(reported)) if replayed.to_bits() == reported.to_bits() => {}
         (None, None) => {}
         _ => return Err(DrReplayRefusal::Mismatch("the standard error")),
+    }
+    // The nuisance diagnostics are part of what the estimator published, so they replay too.
+    let same_bits = |replayed: Option<f64>, reported: Option<f64>| match (replayed, reported) {
+        (Some(left), Some(right)) => left.to_bits() == right.to_bits(),
+        (None, None) => true,
+        _ => false,
+    };
+    if !same_bits(replay.outcome_oof_r2, body.outcome_oof_r2) {
+        return Err(DrReplayRefusal::Mismatch("the outcome out-of-fold R-squared"));
+    }
+    if !same_bits(replay.treatment_oof_logloss, body.treatment_oof_logloss) {
+        return Err(DrReplayRefusal::Mismatch("the treatment out-of-fold log loss"));
     }
     match (replay.cate_se.as_deref(), body.cate_se.as_deref()) {
         (Some(replayed), Some(reported))

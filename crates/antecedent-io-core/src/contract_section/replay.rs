@@ -417,6 +417,38 @@ pub(in crate::contract_section) fn verify_checked_linear_adjustment(
     }
 }
 
+/// Whether the carried adjustment set is a sufficient backdoor set for the carried graph.
+///
+/// A resealed product can repeat any adjustment set, and the lowerings only compare their
+/// adjustment with that product. For a static DAG this re-checks the set against the graph
+/// the identification itself carries (no treatment descendant, treatment and outcome
+/// d-separated once the arrows out of treatment are removed), with the identifier's own
+/// criterion and no search budget. Other graph classes certify adjustment by other criteria,
+/// so no independent check exists for them here and they are not refused for it.
+pub(in crate::contract_section) fn carried_adjustment_is_backdoor(
+    contract: &AnalysisResultContractWire,
+    treatment: u32,
+    outcome: u32,
+    adjustment: &[u32],
+) -> bool {
+    let Some(identification) = contract.identification.as_ref() else { return true };
+    let crate::identity::GraphIdentityWire::Dag(graph) = &identification.graph else {
+        return true;
+    };
+    let Ok(dag) = crate::dag_from_wire(graph) else { return false };
+    let adjustment =
+        adjustment.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>();
+    matches!(
+        antecedent_identify::backdoor::check_joint_adjustment(
+            &dag,
+            &[antecedent_core::VariableId::from_raw(treatment)],
+            antecedent_core::VariableId::from_raw(outcome),
+            &adjustment,
+        ),
+        Ok(Some(_))
+    )
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "The lowering verifier compares one complete checked product across its target, design, and evidence."
@@ -472,6 +504,14 @@ pub(in crate::contract_section) fn verify_linear_adjustment_lowering(
     }) else {
         return false;
     };
+    if !carried_adjustment_is_backdoor(
+        contract,
+        lowering.treatment,
+        lowering.outcome,
+        &lowering.adjustment,
+    ) {
+        return false;
+    }
     let target_matches = match &contract.target.query {
         crate::CausalQueryWire::AverageEffect {
             treatment,
@@ -1192,7 +1232,13 @@ pub(in crate::contract_section) fn verify_checked_aipw(
         lowering.adjustment.iter().copied().collect::<std::collections::BTreeSet<_>>().len()
             == lowering.adjustment.len()
             && !lowering.adjustment.contains(&lowering.treatment)
-            && !lowering.adjustment.contains(&lowering.outcome);
+            && !lowering.adjustment.contains(&lowering.outcome)
+            && carried_adjustment_is_backdoor(
+                contract,
+                lowering.treatment,
+                lowering.outcome,
+                &lowering.adjustment,
+            );
     if !query_matches
         || !estimand_matches
         || !adjustments_unique
