@@ -13,7 +13,7 @@ use antecedent_core::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ComponentId, ExecutionContext,
     IdentificationStatus, Lag, PopulationSelector, VariableId,
 };
-use antecedent_data::{TabularData, TimeSeriesData};
+use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_discovery::{
     GraphPosterior, GraphPosteriorAtomKind, LagMask, SamplingSummary, adjacency_mask_from_cpdag,
     set_edge, with_lagged_edge,
@@ -419,13 +419,26 @@ fn a_series_posterior_attributes_each_template_as_a_supplied_temporal_dag() {
         assert_eq!(built.support_status(), Some(CellStatus::Licensed));
         let result = built.run(&ctx).unwrap();
         let merged = &result.anomaly().expect("anomaly payload")[0];
+        // The posterior fits both atoms on the common complete-window anchors. A lagless
+        // standalone graph would otherwise fit the extra first source row, changing both its
+        // fitted baseline and its anomaly reference distribution. Fit it on the same anchors.
+        let common = TimeSeriesData::from_f64_columns(
+            [
+                ("x", &data.float64_slice(variable(0)).unwrap()[1..]),
+                ("y", &data.float64_slice(variable(1)).unwrap()[1..]),
+                ("z", &data.float64_slice(variable(2)).unwrap()[1..]),
+            ],
+            1,
+        )
+        .unwrap();
         let (driven, empty) =
-            (series_reference(true, &data, &query), series_reference(false, &data, &query));
+            (series_reference(true, &data, &query), series_reference(false, &common, &query));
         let (driven, empty) = (&driven.anomaly().unwrap()[0], &empty.anomaly().unwrap()[0]);
         assert_eq!(merged.scores, driven.scores, "the factual scores do not depend on the graph");
-        // Each template scores its own complete windows: the lagged template starts one row
-        // later than the empty one. The mixture scores the rows every member scores, and each
-        // member's score of a source row is found by that row's coordinate, not its position.
+        assert_eq!(merged.scores, empty.scores, "the aligned standalone scores agree");
+        assert_eq!(merged.rows, driven.rows, "the lagged member keeps source coordinates");
+        // The truncated standalone series numbers its rows from zero, while the mixture and
+        // lagged standalone result retain original source coordinates.
         let position = |scores: &AnomalyScores, source: usize| {
             scores
                 .rows
@@ -434,8 +447,9 @@ fn a_series_posterior_attributes_each_template_as_a_supplied_temporal_dag() {
                 .unwrap_or_else(|| panic!("source row {source} is a common member row"))
         };
         for (row, &source) in merged.rows.iter().enumerate() {
+            let aligned_source = source.checked_sub(1).expect("a complete lag-one window");
             let expected = 0.7 * driven.baseline_scores[position(driven, source)]
-                + 0.3 * empty.baseline_scores[position(empty, source)];
+                + 0.3 * empty.baseline_scores[position(empty, aligned_source)];
             assert!((merged.baseline_scores[row] - expected).abs() < 1e-9, "row {row}");
         }
         let mixture = result.structural_response.as_ref().expect("the atom mixture");
