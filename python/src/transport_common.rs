@@ -42,9 +42,9 @@ fn coded_refusal(code: &'static str, message: String) -> PyErr {
     let lower = message.to_ascii_lowercase();
     if code == reason_code!("transport_budget_cancel") {
         if lower.contains("cancel") {
-            return crate::CausalCancelledError::new_err(message);
+            return crate::with_reason_code(crate::CausalCancelledError::new_err(message), code);
         }
-        return crate::CausalResourceError::new_err(message);
+        return crate::with_reason_code(crate::CausalResourceError::new_err(message), code);
     }
     if code == reason_code!("transport_missing_provider") && lower.contains("budget exceeded") {
         return crate::CausalResourceError::new_err(message);
@@ -669,8 +669,25 @@ pub(crate) fn obligation_ids(
 
 #[cfg(test)]
 mod structured_classification_tests {
-    use super::classify;
+    use super::{classify, coded_refusal};
     use pyo3::prelude::*;
+
+    #[test]
+    fn budget_and_cancellation_refusals_keep_their_reason_code() {
+        Python::initialize();
+        Python::attach(|py| {
+            let code = antecedent_core::reason_code!("transport_budget_cancel");
+            let budget = coded_refusal(code, "retained result exceeds memory budget".into());
+            let cancelled = coded_refusal(code, "posterior execution cancelled".into());
+            assert!(budget.is_instance_of::<crate::CausalResourceError>(py));
+            assert!(cancelled.is_instance_of::<crate::CausalCancelledError>(py));
+            for error in [budget, cancelled] {
+                let actual: String =
+                    error.value(py).getattr("reason_code").unwrap().extract().unwrap();
+                assert_eq!(actual, code);
+            }
+        });
+    }
 
     #[test]
     fn user_names_cannot_turn_structured_refusals_into_resource_or_cancel_errors() {

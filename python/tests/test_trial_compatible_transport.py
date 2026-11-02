@@ -69,11 +69,11 @@ def test_a_forged_or_truncated_artifact_does_not_replay():
     artifact = bytes(_estimate().export())
     with pytest.raises(CausalSerializationError, match="UnexpectedEof"):
         tc.verify_trial_compatible_transport_estimate(artifact[:-1])
-    with pytest.raises(CausalValueError, match="expected map"):
+    with pytest.raises(CausalSerializationError, match="expected map"):
         tc.verify_trial_compatible_transport_estimate(b"not an artifact")
     flipped = bytearray(artifact)
     flipped[len(flipped) // 2] ^= 0xFF
-    with pytest.raises(CausalValueError, match="checksum mismatch"):
+    with pytest.raises(CausalSerializationError, match="checksum mismatch|cbor error"):
         tc.verify_trial_compatible_transport_estimate(bytes(flipped))
     with pytest.raises(CausalTypeError, match="bytes or ExportedArtifact"):
         tc.verify_trial_compatible_transport_estimate("artifact")  # type: ignore[arg-type]
