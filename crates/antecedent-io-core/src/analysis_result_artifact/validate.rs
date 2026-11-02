@@ -717,6 +717,8 @@ fn validate_mediation_grid(
     grid: &TemporalMediationGridWire,
     base_variable_count: usize,
 ) -> Result<(), IoError> {
+    use crate::IdentificationStatusWire as Status;
+
     if grid.slices.is_empty() {
         return Err(IoError::Convert("mediation grid must contain at least one slice".into()));
     }
@@ -743,7 +745,6 @@ fn validate_mediation_grid(
                 "mediation grid effects must be finite when present".into(),
             ));
         }
-        use crate::IdentificationStatusWire as Status;
         if slice.effect.is_none()
             && (!matches!(
                 slice.identification_status,
