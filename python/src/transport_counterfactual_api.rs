@@ -469,7 +469,7 @@ impl CounterfactualTransportResultNative {
         to_py_json(py, &point_json(&self.inner, &self.names))
     }
 
-    /// The point as a `counterfactual_transport_v1` artifact.
+    /// The point as a `counterfactual_transport_v2` artifact.
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let bytes = self.inner.export_artifact().map_err(error)?;
         Ok(pyo3::types::PyBytes::new(py, &bytes).unbind())

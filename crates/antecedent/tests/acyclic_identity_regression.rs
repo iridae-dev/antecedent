@@ -210,10 +210,10 @@ fn acyclic_identities_are_byte_identical_to_their_goldens() {
         .map(|(name, hex)| (name.to_owned(), hex.to_owned()))
         .collect();
     let now = current();
-    let changed: Vec<&String> = golden
+    let changed: Vec<_> = golden
         .iter()
         .filter(|(name, hex)| now.get(*name) != Some(*hex))
-        .map(|(name, _)| name)
+        .map(|(name, expected)| (name, expected, now.get(name)))
         .collect();
     assert!(changed.is_empty(), "acyclic identities changed: {changed:?}");
     assert_eq!(golden.len(), now.len(), "the golden names every pinned identity");

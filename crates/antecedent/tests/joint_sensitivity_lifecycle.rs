@@ -868,7 +868,7 @@ fn the_one_factor_sensitivity_artifact_is_unchanged_and_refuses_the_joint_format
     );
 }
 
-/// Cross-format: a z-transport point artifact (version 2) is refused by the
+/// Cross-format: a z-transport point artifact (version 3) is refused by the
 /// mz-transport consumer (version 1) by version, before its payload is read.
 #[test]
 fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
@@ -881,7 +881,7 @@ fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
             antecedent_io::mz_transport_artifact::MzTransportConsumeLimits::default(),
             &ctx
         ),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        Err(IoError::UnsupportedVersion { version: 3 })
     ));
 }
 

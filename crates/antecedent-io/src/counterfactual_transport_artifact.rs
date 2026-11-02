@@ -1,5 +1,5 @@
 //! Independent replay of general finite counterfactual transport artifacts
-//! (kind `counterfactual_transport_v1`, format version 1).
+//! (kind `counterfactual_transport_v2`, format version 2).
 //!
 //! The wire, the digests and the typed errors are estimator-free and live in
 //! `antecedent-io-core` ([`antecedent_io_core::counterfactual_transport_wire`]);

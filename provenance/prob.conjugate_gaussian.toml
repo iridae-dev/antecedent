@@ -59,7 +59,7 @@ sha256 = "c976cb3ac67c674b45428ea5477401d205c3df23cb463a5b8b1af329aeb603ef"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-kernels/src/rng.rs"
-sha256 = "ddf9f81f578d407dbc7c9b0ad96472771adb2ef17a60697be008403c8794f0cd"
+sha256 = "2f2c3b3131920b1b90548aec7ff20c83d5bda13d342dce398dd953873f787259"
 
 [[method_review.artifacts]]
 role = "assertion"

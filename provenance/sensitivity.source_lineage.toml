@@ -24,7 +24,7 @@ sha256 = "853482e7a204487a4ec56a4ac28a42975bef346614d61d48a73f068473d167a1"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
-sha256 = "fed6ce20a11ca26d3204c5083604025b2f2029e1440e775f7bfaad94991fe079"
+sha256 = "441b0123282a416447901d8ede78a98a8ab577517e43db1b3b9616aa5ac956eb"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

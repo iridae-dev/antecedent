@@ -447,16 +447,14 @@ fn a_collider_class_publishes_the_enumerated_identified_set() {
     let mixture = result.structural_response.as_ref().expect("a partially identified class");
     let set = mixture.identified_set.as_ref().expect("an identified set over the completions");
     let truth = &case["truth"];
-    // The pinned reference set spans the completions with a directed path from the
-    // treatment. The collider completion has none: its path-specific effect is structurally
-    // zero whatever the data say, so it is identified at 0, extends the set to 0 and takes
-    // the third of the mass the reference leaves unidentified.
-    let pinned_lower = truth["identified_set_lower"].as_f64().unwrap();
-    assert!(pinned_lower > 0.0);
-    assert!(set.lower[0].abs() < 1e-9, "{}", set.lower[0]);
+    // The completion with no selected path identifies a structural zero. The reference
+    // still independently pins the generating and adjusted completion values.
+    let generating = fixture["routed_markov"]["truth"]["path_specific_effect"].as_f64().unwrap();
+    assert!(generating > 0.0);
+    assert!((set.lower[0] - truth["identified_set_lower"].as_f64().unwrap()).abs() < 1e-9);
     assert!((set.upper[0] - truth["identified_set_upper"].as_f64().unwrap()).abs() < 1e-9);
     assert!(
-        mixture.unidentified_mass.abs() < 1e-12,
+        (mixture.unidentified_mass - truth["unidentified_mass"].as_f64().unwrap()).abs() < 1e-12,
         "the structurally zero completion is identified: {}",
         mixture.unidentified_mass
     );

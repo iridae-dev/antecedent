@@ -603,6 +603,18 @@ fn assert_validation_states(
     truth: &Value,
     validation: &str,
 ) {
+    // A class whose members imply different decompositions retains a separate report
+    // for each member.  Strip only a numeric member suffix when checking its kind;
+    // keep and inspect every original report below.
+    fn report_kind(name: &str) -> &str {
+        name.rsplit_once(".case").map_or(name, |(kind, index)| {
+            if !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit()) {
+                kind
+            } else {
+                name
+            }
+        })
+    }
     if validation == "none" {
         assert!(result.refutations.is_empty(), "{coordinate}");
         return;
@@ -617,10 +629,13 @@ fn assert_validation_states(
         "mediation.subset_direct",
         "mediation.joint_stability_subset",
     ] {
-        assert!(names.contains(&required), "{coordinate}: {required} missing from {names:?}");
+        assert!(
+            names.iter().any(|name| report_kind(name) == required),
+            "{coordinate}: {required} missing from {names:?}"
+        );
     }
     for report in &result.refutations {
-        let name = report.refuter.as_ref();
+        let name = report_kind(report.refuter.as_ref());
         if name.contains("sequential_ignorability") {
             continue;
         }

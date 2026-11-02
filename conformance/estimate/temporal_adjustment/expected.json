@@ -41,7 +41,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/temporal_adjustment.rs",
-          "sha256": "d6e32dd827c0c6567a1f8467b44ec39988b74fd7a8c4d017ab88f0007474493b"
+          "sha256": "01b8c637f08280034e8396319468d56a36b42d56635d938e932880b5bdc35656"
         }
       ],
       "fixture_payload_sha256": "ba7061746c7913883504a70e2181399aed45211b79b6aa8c524e8813a2c35b6d"

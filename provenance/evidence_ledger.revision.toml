@@ -28,7 +28,7 @@ record_sha256 = "bd58e298fb8ba36c582bfaacf10a4c82a2751ed81f4631f9f21757305ccc638
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_ledger/ledger.rs"
-sha256 = "b778771c87769bb8430c31b8b6ac85cb87a059e131c79edf285de75540e36a7e"
+sha256 = "f5ae60629a19ef9b3aabda2835d9a4208e2b01410ecff58c443aaa5e4bca9456"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

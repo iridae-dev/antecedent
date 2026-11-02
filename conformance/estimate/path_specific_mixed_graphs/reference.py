@@ -38,8 +38,8 @@ collider_class takes the (t, a, b, y) marginal of routed_markov, which is Markov
 T -> B, A -> Y, B -> Y, and the class with A -> Y <- B compelled and T - A, T - B undirected. Its
 three completions are (T -> A, T -> B): the structural truth above; (B -> T -> A): B is a
 non-descendant of T and so adjusted, sum_b P(b) sum_a (P(a | T=1) - P(a | T=0)) E[Y | a, b]; and
-(A -> T -> B): no directed path T -> A -> Y, so that completion carries no effect and is
-unidentified mass, one third of the equally weighted completions.
+(A -> T -> B): no directed path T -> A -> Y, so the selected path effect is identified at
+zero. All three equally weighted completions are identified.
 
     uv run --frozen --script conformance/estimate/path_specific_mixed_graphs/reference.py --check
     uv run --frozen --script conformance/estimate/path_specific_mixed_graphs/reference.py --self-test
@@ -199,6 +199,22 @@ def fnum(value: F) -> float:
     return float(value)
 
 
+def has_directed_path(edges: tuple[tuple[str, str], ...], start: str, end: str) -> bool:
+    """Check directed reachability independently of the identification implementation."""
+    seen = {start}
+    todo = [start]
+    while todo:
+        current = todo.pop()
+        for source, target in edges:
+            if source != current or target in seen:
+                continue
+            if target == end:
+                return True
+            seen.add(target)
+            todo.append(target)
+    return False
+
+
 def build() -> dict:
     district = list(district_cells())
     routed = list(routed_cells())
@@ -217,6 +233,10 @@ def build() -> dict:
         "active_level": 1.0,
     }
     upper = edge_functional(collider_table, ("t", "a", "b", "y"), adjusted=True)
+    zero_edges = (("a", "t"), ("t", "b"), ("a", "y"), ("b", "y"))
+    if has_directed_path(zero_edges, "t", "a"):
+        raise ValueError("the zero completion unexpectedly has a path from t through a")
+    zero_effect = F(0)
     return {
         "schema_version": 1,
         "case": "path_specific_mixed_graphs",
@@ -261,9 +281,9 @@ def build() -> dict:
             "contingency_table": collider_table,
             "completions": 3,
             "truth": {
-                "identified_set_lower": fnum(routed_truth["path_specific_effect"]),
+                "identified_set_lower": fnum(min(zero_effect, routed_truth["path_specific_effect"], upper)),
                 "identified_set_upper": fnum(upper),
-                "unidentified_mass": fnum(F(1, 3)),
+                "unidentified_mass": fnum(F(0)),
             },
         },
         "frequentist": {"estimator": "functional.effect", "absolute_tolerance": 1e-9},
@@ -317,7 +337,7 @@ def check(document: dict) -> list[str]:
     columns = tuple(collider["columns"])
     close(
         edge_functional(collider["contingency_table"], columns, False),
-        collider["truth"]["identified_set_lower"],
+        document["routed_markov"]["truth"]["path_specific_effect"],
         "collider completion T->A, T->B",
         problems,
     )
@@ -327,7 +347,8 @@ def check(document: dict) -> list[str]:
         "collider completion B->T->A (adjusted)",
         problems,
     )
-    close(F(1, collider["completions"]), collider["truth"]["unidentified_mass"], "mass", problems)
+    close(F(0), collider["truth"]["identified_set_lower"], "zero completion", problems)
+    close(F(0), collider["truth"]["unidentified_mass"], "mass", problems)
     for name in ("district_admg", "routed_markov"):
         truth = document[name]["truth"]
         if abs(truth["path_specific_effect"]) < 0.03:
@@ -342,6 +363,7 @@ MUTATIONS = [
     ("district truth changed", lambda d: d["district_admg"]["truth"].__setitem__("path_specific_effect", 0.2)),
     ("routed truth changed", lambda d: d["routed_markov"]["truth"].__setitem__("path_specific_effect", 0.3)),
     ("upper bound changed", lambda d: d["collider_class"]["truth"].__setitem__("identified_set_upper", 0.1)),
+    ("lower bound changed", lambda d: d["collider_class"]["truth"].__setitem__("identified_set_lower", 0.1)),
     ("mass changed", lambda d: d["collider_class"]["truth"].__setitem__("unidentified_mass", 0.5)),
 ]
 

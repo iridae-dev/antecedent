@@ -59,12 +59,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/response_facade.rs",
-          "sha256": "3673b0a028927117567c0257c1574b6212cdfb53fc34d8a57f6280405db8c5fa"
+          "sha256": "76cf6b917cca13cdeca1673b0440a81a3378ff55bea93809ba18ae4a27e03f64"
         },
         {
           "role": "input_fixture",
           "path": "conformance/response/two_point_curve_average_effect/expected.json",
-          "sha256": "7adb3f0555d4bf224ff0a4c07e91b88f01bcd8cb76add9cf3dbe9aa8c820d236"
+          "sha256": "f7f83fe11ccf059f0b03d158e38da03c1b1064ebb12a769c3be8329cdd004db5"
         },
         {
           "role": "input_fixture",

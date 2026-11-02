@@ -39,7 +39,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/prepared_analysis.rs",
-          "sha256": "028b9720f318229cbca1e9153cf5d6cc6c55bc36eb1d1da1655d61e5908f83cf"
+          "sha256": "5077fc1e998d97577be6a880af4f3b0a958b9c6e687bbbd3fb04993c51821692"
         }
       ],
       "fixture_payload_sha256": "bf4ce9ad0180572d8e9cfad6f27814505527dfb7dfe89f7a76d13139b241c7d5"

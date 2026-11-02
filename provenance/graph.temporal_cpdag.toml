@@ -36,7 +36,7 @@ record_sha256 = "98eaa06036cdb3964d7af698503f3b4b7a28a120f53be80edb52ca2e594f894
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cpdag.rs"
-sha256 = "689d1e7508d87bd14833e9b61713bb917a6e30f2dee1015bf85a99e4dbd00558"
+sha256 = "d35c41ac7e1ace37f70b1e46c341eb89766f0b81e0a4b0e9482f81e1be743aa5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

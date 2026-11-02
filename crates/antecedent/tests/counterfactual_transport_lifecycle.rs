@@ -1,5 +1,5 @@
 //! General finite counterfactual transport end to end: prepare once, evaluate
-//! and refresh on exact laws, export the `counterfactual_transport_v1`
+//! and refresh on exact laws, export the `counterfactual_transport_v2`
 //! artifact, replay it from bytes and an expected identity in this process and
 //! in a fresh one, and refuse every negative gate by name.
 //!
@@ -768,12 +768,12 @@ fn edits_that_are_not_resealed_identity_versions_and_limits_are_refused() {
 
     // Another version and another required feature are refused, not guessed.
     let mut future = wire.clone();
-    future.version = 2;
+    future.version = 3;
     let error =
         consume_typed(&antecedent_io::to_cbor(&future).unwrap(), &none, &ctx()).unwrap_err();
-    assert_eq!(error, E::UnsupportedVersion { version: 2 });
+    assert_eq!(error, E::UnsupportedVersion { version: 3 });
     let mut foreign = wire.clone();
-    foreign.required_features = vec!["counterfactual_transport_v2".into()];
+    foreign.required_features = vec!["counterfactual_transport_v3".into()];
     let error =
         consume_typed(&antecedent_io::to_cbor(&foreign).unwrap(), &none, &ctx()).unwrap_err();
     assert_eq!(error, E::UnsupportedSemantics("required_features"));

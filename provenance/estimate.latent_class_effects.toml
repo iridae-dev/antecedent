@@ -46,12 +46,12 @@ record_sha256 = "1e832a8373df5b306ce7c0b56039e0c81b0b8f99974fb6769e0396bc0735ef8
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/latent_class_effects.rs"
-sha256 = "51e6980cd4d24bb69f2910670741f371afe22dab1d43fb95c07f324a0b6342a8"
+sha256 = "18b47f7a3b675ac6c0abd95f85ac540f8e4c28b426199a03dabcc06d01b2319d"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/latent_class_reference.rs"
-sha256 = "98fc68167f2de2483d5da01a42ffb791b884ee1e17be573ab2686cdc3f8a927a"
+sha256 = "1bee4d6241b6739cda9eed14593493eb35ee682d34d39e05093046966a79fb18"
 
 [[method_review.artifacts]]
 role = "reference"

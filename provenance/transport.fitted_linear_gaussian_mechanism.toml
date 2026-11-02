@@ -50,4 +50,4 @@ sha256 = "501e90eb0c092667885fa217ba6fa15c3ba6c38890d5667d2fd480ad21f915fe"
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-model/tests/transport_obstruction_agreement.rs"
-sha256 = "e399508e4c0121cc6e524a3d7d59e5b78789f0d265020f072eb3a0e6f23b47e2"
+sha256 = "ad67d65ad53ddbaee6a33aa8492ac64a0a601f3554b0dfab71d80beceacb9fa8"

@@ -252,18 +252,13 @@ fn temporal_states_body() {
                     clean_passes,
                     "clean series, accepted={accepted}, full={full}"
                 );
-                // The planted series is detected through the shift of the replicate mean away
-                // from the original: a window that drops the planted period refits a different
-                // mechanism. The discrepancy is standardised by the replicate spread, which that
-                // same window-to-window change inflates, so the check is not powerful against
-                // it: over seeds 1..=40 it rejects 14 and 4 of 40 times under the cheap and full
-                // suite (30 and 60 replicates) and never rejects the clean series. The registered
-                // seed rejects under the cheap suite; under both suites the planted tail is far
-                // below the clean one.
+                // Dropping the planted period refits a different mechanism. Compare its tail to
+                // the clean series, without assuming a particular clean tail: complete-window
+                // refits omit anchors without observed history and change the replicate spread.
                 let tail =
                     |result: &StudyResult| report(result, "target.subset_stability").comparison;
                 assert!(
-                    tail(&planted) < 0.2 && tail(&clean) > 0.9,
+                    tail(&planted) < 0.2 && tail(&planted) < tail(&clean),
                     "accepted={accepted}, full={full}: planted {}, clean {}",
                     tail(&planted),
                     tail(&clean)

@@ -18,7 +18,7 @@
 //!    (changed numbers at the same shape included) and rebuilds the numerical
 //!    state. A refresh that is refused leaves the prepared value untouched.
 //! 3. [`CounterfactualTransportResult::export_artifact`] writes the
-//!    `counterfactual_transport_v1` artifact and
+//!    `counterfactual_transport_v2` artifact and
 //!    [`consume_counterfactual_transport_artifact`] replays it from bytes and
 //!    an expected identity: it re-decides under the stored limits, requires the
 //!    identical derivation, re-evaluates the point bit for bit, or re-verifies
@@ -145,7 +145,7 @@ impl CounterfactualTransportObstructionReport {
         self.obstruction.verify(ctx).map_err(identification_error)
     }
 
-    /// Export the obstruction as a `counterfactual_transport_v1` artifact that a
+    /// Export the obstruction as a `counterfactual_transport_v2` artifact that a
     /// fresh consumer re-verifies from bytes.
     ///
     /// # Errors
@@ -236,7 +236,7 @@ impl CounterfactualTransportResult {
     }
 
     /// Export the premises, derivation, laws and point as a
-    /// `counterfactual_transport_v1` artifact.
+    /// `counterfactual_transport_v2` artifact.
     ///
     /// # Errors
     /// The artifact does not encode, a bound is exceeded or names do not cover

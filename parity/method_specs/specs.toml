@@ -1244,7 +1244,7 @@ decision_basis = "executing_unlicensed per the counterpart inventory; execution 
 provenance = [
   "transport.smoothed_dose_response.bayesian",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 4 of 4 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 5 of 5 public items reviewed"
 identifying_result = "The bandwidth and the kernel are part of the estimand."
 assumptions = "The target is the one of crate::smoothed_dose: for each grid dose a, one declared bandwidth h and the Epanechnikov kernel, The residual variance is known or inverse-gamma."
 sampling_units = "y_i = mu(a_i, x_i) + e_i, e_i ~ N(0, sigma^2), independent source rows, with mu linear in the declared dose-by-covariate basis (DoseBasis) and a Gaussian coefficient prior beta_j | sigma^2 ~ N(0, sigma^2 s_j^2): one scale for the intercept and one for every other coefficient (the covariates enter the basis as given, so their units set the prior's meaning)."

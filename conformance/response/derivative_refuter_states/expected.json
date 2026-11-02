@@ -58,7 +58,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/derivative_refuter_known_truth.rs",
-          "sha256": "4e96fea42b7eaf066938e6ecca2718151f522d6636a336273e7a28acbfde4315"
+          "sha256": "04213dfe95ff7d9750f18a41003f4dcb45d17e9e06d33e716782437f316493aa"
         }
       ],
       "fixture_payload_sha256": "3afddd65c0e6763829ecdb8fe4ea1f57d4d515c65302897395cfbc8767b6a0c0"

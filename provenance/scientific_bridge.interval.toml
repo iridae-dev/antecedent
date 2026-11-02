@@ -44,7 +44,7 @@ record_sha256 = "274e7ec57bce7a2abda000d9f9c46497ea69e37fc732de55e329f23ab4754cc
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io/src/bridge_interval.rs"
-sha256 = "e0b8b4d75f4d37fad8e3b05b0bc740624e5e4a91c065a73036f00487ab195618"
+sha256 = "242d7e67ed52f0ee7294b7086449eb51d231a6a14458557adac0dda9f0a53642"
 
 [[method_review.artifacts]]
 role = "assertion"

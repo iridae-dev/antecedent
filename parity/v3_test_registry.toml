@@ -21621,3 +21621,80 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_audit_small_items.py"
 gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-execute-derivative-refutation-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/execute/derivative_refutation.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-mediator-read-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/mediator_read.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-analysis-prepared-retarget-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/prepared/retarget.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-src-planner-statistical-rs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/planner/statistical.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-data-src-unit-key-rs"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/unit_key.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-crates-antecedent-model-src-cyclic-world-rs"
+crate = "antecedent-model"
+cargo_target = "lib"
+path = "crates/antecedent-model/src/cyclic_world.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-arrow-retained-ownership-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_arrow_retained_ownership.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-checked-claim-composition-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_checked_claim_composition.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-joint-panel-categorical-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_categorical.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-joint-panel-imputation-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_imputation.py"
+gates = ["inventory"]
+
+[[test]]
+id = "inventory-python-tests-test-joint-panel-restriction-py"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_joint_panel_restriction.py"
+gates = ["inventory"]

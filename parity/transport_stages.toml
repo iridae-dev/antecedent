@@ -6795,7 +6795,7 @@ evidence = "exact_laws_and_point_with_cited_law_identities"
 functional = "versioned_counterfactual_transport_artifact_of_an_identified_query"
 guarantee = "canonical_wire_sealed_with_premises_and_data_digests"
 reference = "provenance/counterfactual.transport_general.toml"
-limits = "The unchanged counterfactual_transport_v1 artifact (the format binds the variable names in its verified identity). Point only: no interval or posterior slot exists."
+limits = "The counterfactual_transport_v2 artifact binds variable names and cumulative search accounting in its verified identity. The reader refuses v1 receipts. Point only: no interval or posterior slot exists."
 evidence_test = "python/tests/test_transport_counterfactual.py"
 evidence_assertion = "test_result_export_binds_the_plan_and_the_laws_into_the_verified_identity"
 

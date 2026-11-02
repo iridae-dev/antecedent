@@ -48,7 +48,7 @@ sha256 = "199addf6ad780854e1a6d0b6dd623928a29f80d7d4c13e51ef1d6573cf1bf25f"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-graph/src/cyclic.rs"
-sha256 = "ac94c64e9b2b25b37e12874df90e50e7b7a4811c9b31987c98e50696b6ebed8b"
+sha256 = "c28a67840ce29f27c9e1bc50227b867d9ed796507becb1edd6421da7edb6e4a3"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -38,12 +38,12 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent-model/src/nonlinear_sde/tests.rs",
-          "sha256": "a4c1918157e2aea2fe5b036b03466f9c75d3b867d945638c35ae0b34ab462de0"
+          "sha256": "865f11c8a06e9d61cfcd16415dbf8f0fdaef5f776a52afc32c1da75cacfd99e4"
         },
         {
           "role": "assertion_source",
           "path": "crates/antecedent-estimate/src/nonlinear_sde_fit/tests.rs",
-          "sha256": "1ce7372160c83d04b78e85fcf02907acc9cb041450f7db7dd237517ab820eda6"
+          "sha256": "349ecd22dc9ca6c4245d1d1ec058312d2f0bee70a86ddaf6a764d2ac49667d53"
         },
         {
           "role": "assertion_source",

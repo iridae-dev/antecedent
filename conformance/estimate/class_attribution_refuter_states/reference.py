@@ -206,12 +206,20 @@ def build_document(old_oracle=None):
         "fixture_id": "class_attribution_refuter_states",
         "tables": {name: derive(name) for name in DESIGNS},
         "expected_verdicts": {
-            "clean_all_refuters_pass": True,
+            "clean_static_refuters_pass": True,
             "planted_subset_stability_passes": False,
         },
     }
     if old_oracle is not None:
-        document["oracle"] = old_oracle
+        oracle = dict(old_oracle)
+        oracle["asserted_outputs"] = [
+            item.replace(
+                "expected_verdicts (the clean table passes every refuter, the planted table fails subset stability), by the leverage and coefficient derivation",
+                "expected_verdicts (deterministic fixture checks for clean static refuters and planted subset stability; leverage and coefficient bounds describe the inputs, not a guarantee of any stochastic diagnostic verdict)",
+            )
+            for item in oracle["asserted_outputs"]
+        ]
+        document["oracle"] = oracle
     return document
 
 
@@ -250,7 +258,7 @@ def check(document):
         if d["planted_response_robust_z_row"] != DESIGNS[name][4]:
             problems.append(f"{name}: the planted response is not the response of largest robust z")
     if document["expected_verdicts"] != {
-        "clean_all_refuters_pass": True,
+        "clean_static_refuters_pass": True,
         "planted_subset_stability_passes": False,
     }:
         problems.append("the declared verdicts are not clean passes / planted fails")
@@ -271,7 +279,7 @@ MUTATIONS = [
     ("coefficient shift bar too high", lambda d: d["tables"]["series_abt"]["bars"].__setitem__("coefficient_shift_above", 500.0)),
     ("planted value moved off the extreme", lambda d: d["tables"]["xy"]["planted"]["x"].__setitem__(7, 0.2)),
     ("robust z bar too high", lambda d: d["tables"]["xy"]["bars"].__setitem__("planted_response_robust_z_above", 1.0e6)),
-    ("verdicts swapped", lambda d: d["expected_verdicts"].__setitem__("clean_all_refuters_pass", False)),
+    ("verdicts swapped", lambda d: d["expected_verdicts"].__setitem__("clean_static_refuters_pass", False)),
 ]
 
 
@@ -300,7 +308,7 @@ def main() -> int:
         document = build_document(old)
         for name, table in document["tables"].items():
             table["bars"] = BARS[name]
-        FIXTURE.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
+        FIXTURE.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
         print("written")
         return 0
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))

@@ -1,5 +1,7 @@
 //! Portable, estimator-free wire of the general finite counterfactual
-//! transport artifact (kind `counterfactual_transport_v1`).
+//! transport artifact (kind `counterfactual_transport_v2`). Version 1 receipts
+//! predate cumulative closure-work accounting and are refused rather than
+//! interpreted as current receipts.
 //!
 //! The artifact keeps every premise a consumer needs to decide the request
 //! again: the model class (variables with their declared levels, directed and
@@ -52,7 +54,7 @@ use crate::exact_law_wire::ExactLawWire;
 use crate::transport_catalog_wire::EvidenceCatalogWire;
 
 /// The artifact format this reader writes and accepts.
-pub const COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
+pub const COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker (and artifact kind) of the accepted format.
 pub const COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE: &str =
     crate::artifact_kinds::COUNTERFACTUAL_TRANSPORT;
@@ -749,7 +751,7 @@ impl CounterfactualTransportArtifactWire {
 
     fn premises_view(&self) -> PremisesView<'_> {
         PremisesView {
-            tag: "counterfactual_transport_v1",
+            tag: COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE,
             status: &self.status,
             problem: &self.problem,
             query: &self.query,

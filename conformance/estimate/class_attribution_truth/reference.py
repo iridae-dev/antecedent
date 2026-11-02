@@ -38,9 +38,9 @@ Definitions used (each case states its members, their parents and their players 
   "y -> x in every period". A member's mechanisms are fitted on the columns of its window.
 * An unfitted member (a parent that is constant leaves the regression rank deficient) is
   unevaluable mass: it is neither a hedge nor redistributed.
-* A series is analysed on its lag-aligned design: the column of lag L at row t reads the series at
-  row max(t - L, 0), so the first rows repeat the first period. That convention is the route's
-  stated alignment and the one object this reference shares with it.
+* An anomaly series is analysed only at anchors with complete observed lag history: the column
+  of lag L at anchor t reads the series at t - L, with t at least the longest lag. The source
+  row of each score remains its anchor. Change-attribution cases retain their existing design.
 
     uv run --frozen --script conformance/estimate/class_attribution_truth/reference.py --check
     uv run --frozen --script conformance/estimate/class_attribution_truth/reference.py --self-test
@@ -132,10 +132,12 @@ def score(value, center, scale):
 def design_of(case):
     """The columns the member graphs are fitted on: the series columns, plus `name@L` lag columns."""
     cols = case["columns"]
-    out = {name: list(values) for name, values in cols.items()}
+    complete_anomaly = case.get("series") and case["kind"] == "anomaly"
+    start = max((lag for _, lag in case.get("lags", [])), default=0) if complete_anomaly else 0
+    out = {name: list(values[start:]) for name, values in cols.items()}
     for name, lag in case.get("lags", []):
         values = cols[name]
-        out[f"{name}@{lag}"] = [values[max(t - lag, 0)] for t in range(len(values))]
+        out[f"{name}@{lag}"] = [values[max(t - lag, 0)] for t in range(start, len(values))]
     return out
 
 
@@ -405,9 +407,49 @@ def dirichlet_mean_var(values, series):
     n = len(v)
     if series:
         block = max(cube_root_ceil(n), 2)
-        if n % block:
-            raise SystemExit("the series does not divide into whole blocks")
-        v = [sum(v[i : i + block]) / block for i in range(0, n, block)]
+        blocks = [v[i : i + block] for i in range(0, n, block)]
+        if len(blocks[-1]) != block:
+            # Each block has an independent Exp(1) multiplier, shared by its rows. A shorter
+            # last block is not a Dirichlet-weighted mean of equally weighted block means.
+            # Integrate E[N/D] and E[N²/D²] using 1/D = ∫ exp(-tD) dt and
+            # 1/D² = ∫ t exp(-tD) dt for D = sum_b len(b) * Exp_b.
+            sums = [float(sum(part)) for part in blocks]
+            sizes = [len(part) for part in blocks]
+
+            def integrand(u, second):
+                if u == 1.0:
+                    return 0.0
+                inverse = 1.0 - u
+                t = u / inverse
+                factors = [1.0 / (1.0 + size * t) for size in sizes]
+                transformed = [total * factor for total, factor in zip(sums, factors, strict=True)]
+                first = sum(transformed)
+                value = first if not second else t * (first * first + sum(x * x for x in transformed))
+                return math.prod(factors) * value / (inverse * inverse)
+
+            def integral(second):
+                def simpson(a, b, fa, fm, fb):
+                    return (b - a) * (fa + 4.0 * fm + fb) / 6.0
+
+                def refine(a, b, fa, fm, fb, whole, tolerance, depth):
+                    mid = (a + b) / 2.0
+                    left_mid, right_mid = (a + mid) / 2.0, (mid + b) / 2.0
+                    fl, fr = integrand(left_mid, second), integrand(right_mid, second)
+                    left = simpson(a, mid, fa, fl, fm)
+                    right = simpson(mid, b, fm, fr, fb)
+                    difference = left + right - whole
+                    if depth == 0 or abs(difference) <= 15.0 * tolerance:
+                        return left + right + difference / 15.0
+                    return refine(a, mid, fa, fl, fm, left, tolerance / 2.0, depth - 1) + refine(
+                        mid, b, fm, fr, fb, right, tolerance / 2.0, depth - 1
+                    )
+
+                fa, fm, fb = integrand(0.0, second), integrand(0.5, second), integrand(1.0, second)
+                return refine(0.0, 1.0, fa, fm, fb, simpson(0.0, 1.0, fa, fm, fb), 1e-11, 20)
+
+            mean, second = integral(False), integral(True)
+            return mean, max(0.0, second - mean * mean)
+        v = [sum(part) / block for part in blocks]
         n = len(v)
     mean = sum(v) / n
     spread = sum((x - mean) ** 2 for x in v) / n
@@ -1020,7 +1062,18 @@ def build_document(old_oracle=None):
         "cases": cases,
     }
     if old_oracle is not None:
-        document["oracle"] = old_oracle
+        oracle = copy.deepcopy(old_oracle)
+        oracle["independence_basis"] = oracle["independence_basis"].replace(
+            "the stated lag alignment (a lagged column reads row max(t - L, 0))",
+            "the stated complete-window alignment for temporal anomalies and the earlier lag alignment for change cases",
+        ).replace(
+            "the Bayesian row-weight posterior is held to the closed-form moments of a Dirichlet(1, ..., 1) weighted mean.",
+            "Bayesian row-weight moments use exact equal-block formulas or one-dimensional integration of the independent exponential block weights when the last block is shorter.",
+        )
+        note = " The later complete-window anomaly revision was made after inspecting the product's row alignment and block-weight construction; the numerical reference is independently evaluated."
+        if note not in oracle["historical_exposure"]:
+            oracle["historical_exposure"] += note
+        document["oracle"] = oracle
     return document
 
 
@@ -1089,7 +1142,7 @@ def main() -> int:
         old = None
         if FIXTURE.exists():
             old = json.loads(FIXTURE.read_text(encoding="utf-8")).get("oracle")
-        FIXTURE.write_text(json.dumps(build_document(old), indent=1) + "\n", encoding="utf-8")
+        FIXTURE.write_text(json.dumps(build_document(old), indent=2) + "\n", encoding="utf-8")
         print("written")
         return 0
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))

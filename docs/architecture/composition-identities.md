@@ -168,7 +168,7 @@ under `IdentityDomain::TransportCertificate`
 
 | Identity | Tag | Binds |
 | --- | --- | --- |
-| premises digest (exact) | `counterfactual_transport_v1` | status, problem (graph, levels, selection targets), query (worlds, interventions as bits, routes, event, conditioning, sources), variable names, search limits, evaluation limits, derivation and obstruction |
+| premises digest (exact) | `counterfactual_transport_v2` | status, problem (graph, levels, selection targets), query (worlds, interventions as bits, routes, event, conditioning, sources), variable names, search limits, evaluation limits, derivation and obstruction |
 | data digest (exact) | `counterfactual_transport_data_v1` | the evidence catalog (environments, regimes and bindings each sorted, and the target sampling contract) and every law table, sorted |
 | count table | `antecedent.estimate.counterfactual_transport_sampled.counts.v1` | population, regime, intervention levels as bits, axes and levels, every count, snapshot identity and sampling design |
 | sampled evidence | `antecedent.estimate.counterfactual_transport_sampled.evidence.v1` | every table's identity in canonical order, the overlap declaration, the unseen-cell rule and its parameter, minimum table total, sparsity and envelope limits and evaluation limits |

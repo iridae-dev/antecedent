@@ -17,7 +17,8 @@ level and `B` at the control level, selecting the path `T -> A -> Y` only.
   edges out of `T` and into `Y` are visible.
 - `collider_class` (the `(t, a, b, y)` marginal, class `A -> Y <- B`, `T - A`, `T - B`): three
   completions. `T -> A, T -> B` gives `0.15625`; `B -> T -> A` adjusts `B` and gives `0.1875`;
-  `A -> T -> B` has no directed path through `A` and is one third unidentified mass.
+  `A -> T -> B` has no directed path through `A` and identifies an effect of zero. The
+  identified set spans zero to `0.1875`, with no unidentified mass.
 
 Run `uv run --frozen --script conformance/estimate/path_specific_mixed_graphs/reference.py --check`
 (add `--self-test` to confirm the check rejects mutated fixtures).

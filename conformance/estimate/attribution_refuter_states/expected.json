@@ -58,7 +58,7 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/attribution_refuter_known_truth.rs",
-          "sha256": "f9e205b351513e7731b44c3b80c5a8908f3228033cbcb1a90b1e379360a6b83e"
+          "sha256": "c9baa49d576c305f8c2a3be888260ac65191357e871c38d0a65e88884a1a786f"
         }
       ],
       "fixture_payload_sha256": "e62d4b628bc4bb1c9f32540b78193366629e47235ac3569329d3c3b45b32e58a"

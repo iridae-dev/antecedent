@@ -1,13 +1,11 @@
-//! Golden fixture for the counterfactual transport artifact
-//! (`counterfactual_transport_v1`).
+//! Compatibility boundary for counterfactual transport artifacts.
 //!
-//! The golden lives at `tests/fixtures/counterfactual_transport_v1.bin`. The loader
-//! consumes it as a fresh consumer (re-deciding identification and re-evaluating the
-//! stored laws rather than trusting the stored point) under the identity and the
-//! enumerated truth a producer derives today from the same fixture. A missing golden
-//! fails with the command that writes it.
+//! The historical v1 fixture is retained unchanged, but its search receipt used
+//! different accounting. A v2 consumer must refuse those bytes rather than
+//! silently reinterpret the receipt. A freshly produced v2 artifact is independently
+//! re-decided and evaluated under the identity and truth of the same fixture.
 //!
-//! Generate or refresh it with
+//! An optional current-format fixture can be written separately with
 //! `cargo test -p antecedent --test artifact_compat_counterfactual_transport_golden -- --ignored write_`
 //!
 //! The expected value is enumerated by the independent finite-SCM oracle used by the
@@ -48,8 +46,8 @@ use antecedent_test_support::read_fixture_bytes;
 use counterfactual_transport_adapter as adapter;
 use counterfactual_transport_cases::{Case, ExpectedClass, all_cases};
 
-const GENERATOR: &str = "cargo test -p antecedent --test artifact_compat_counterfactual_transport_golden -- --ignored write_";
-const GOLDEN: &str = "counterfactual_transport_v1.bin";
+const LEGACY_GOLDEN: &str = "counterfactual_transport_v1.bin";
+const CURRENT_GOLDEN: &str = "counterfactual_transport_v2.bin";
 const CASE: &str = "nonlinear_mediation_covariate_shift";
 const TARGET: &str = "Y_{x0,M_{x1}}";
 
@@ -102,21 +100,24 @@ fn consume(
 }
 
 #[test]
-#[ignore = "writes tests/fixtures; run with `-- --ignored write_`"]
-fn write_counterfactual_transport_golden() {
+#[ignore = "writes the v2 fixture; run with `-- --ignored write_`"]
+fn write_counterfactual_transport_v2_golden() {
     let case = case();
     let prepared = prepared(&case);
     let result = prepared.estimate(&ctx()).expect("estimates");
     let dir = fixture_dir();
     std::fs::create_dir_all(&dir).expect("create the fixture directory");
-    std::fs::write(dir.join(GOLDEN), result.export_artifact().expect("export"))
+    std::fs::write(dir.join(CURRENT_GOLDEN), result.export_artifact().expect("export"))
         .expect("write the golden");
 }
 
 #[test]
-fn the_counterfactual_transport_golden_is_replayed_and_gated() {
-    let bytes =
-        read_fixture_bytes(&fixture_dir(), GOLDEN, &format!("generate it with `{GENERATOR}`"));
+fn the_legacy_golden_is_refused_and_v2_is_replayed_and_gated() {
+    let bytes = read_fixture_bytes(
+        &fixture_dir(),
+        LEGACY_GOLDEN,
+        "the historical v1 compatibility fixture must be retained unchanged",
+    );
     let case = case();
     let fresh_prepared = prepared(&case);
     let fresh = fresh_prepared.estimate(&ctx()).expect("estimates");
@@ -128,8 +129,10 @@ fn the_counterfactual_transport_golden_is_replayed_and_gated() {
         .and_then(|t| t.expected_value)
         .expect("an identified target is defined");
 
-    let consumed = consume(&bytes, &identity)
-        .expect("a fresh consumer re-decides and re-evaluates the stored artifact");
+    assert_eq!(consume(&bytes, &identity).unwrap_err(), E::UnsupportedVersion { version: 1 });
+    let current_bytes = fresh.export_artifact().expect("current artifact exports");
+    let consumed = consume(&current_bytes, &identity)
+        .expect("a fresh consumer re-decides and re-evaluates the v2 artifact");
     let ConsumedCounterfactualTransportOutcome::Identified(identified) = &consumed.outcome else {
         panic!("expected an identified artifact");
     };
@@ -141,10 +144,14 @@ fn the_counterfactual_transport_golden_is_replayed_and_gated() {
     newer.version = COUNTERFACTUAL_TRANSPORT_ARTIFACT_VERSION + 1;
     let none = CounterfactualTransportExpectedIdentity::default();
     let error = consume(&antecedent_io::to_cbor(&newer).expect("encode"), &none).unwrap_err();
-    assert_eq!(error, E::UnsupportedVersion { version: 2 });
-    // An unknown required feature is refused, not guessed.
+    assert_eq!(error, E::UnsupportedVersion { version: 3 });
+    // A v2 envelope cannot claim the legacy receipt semantics, nor can it
+    // claim an unknown required feature.
     let mut feature = consumed.wire;
-    feature.required_features = vec!["counterfactual_transport_v2".into()];
+    feature.required_features = vec!["counterfactual_transport_v1".into()];
+    let error = consume(&antecedent_io::to_cbor(&feature).expect("encode"), &none).unwrap_err();
+    assert_eq!(error, E::UnsupportedSemantics("required_features"));
+    feature.required_features = vec!["counterfactual_transport_v3".into()];
     let error = consume(&antecedent_io::to_cbor(&feature).expect("encode"), &none).unwrap_err();
     assert_eq!(error, E::UnsupportedSemantics("required_features"));
 }

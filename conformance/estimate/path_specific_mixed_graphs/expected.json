@@ -2,7 +2,7 @@
   "oracle": {
     "kind": "enumeration",
     "method": "enumeration of the structural noise cells with exact rational arithmetic",
-    "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the structural equations under the cross-world assignment (A at the active arm, B at the control arm) on every cell, which gives the path-specific, total and complementary-path truths with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the identified functionals (the district formula for the latent-confounded graph, the edge g-formula for the Markovian one, and the two completion formulas of the collider class) are applied to the table alone and must reproduce the truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited.",
+    "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the structural equations under the cross-world assignment (A at the active arm, B at the control arm) on every cell, which gives the path-specific, total and complementary-path truths with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the identified functionals (the district formula for the latent-confounded graph, the edge g-formula for the Markovian one, and the two completion formulas of the collider class) are applied to the table alone and must reproduce the truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited. The zero completion is checked independently by directed reachability: there is no directed path from the treatment to the selected child, so the selected path effect is zero.",
     "generator": "conformance/estimate/path_specific_mixed_graphs/reference.py",
     "command": "uv run --frozen --script conformance/estimate/path_specific_mixed_graphs/reference.py --check",
     "environment_lock": "conformance/estimate/path_specific_mixed_graphs/reference.py.lock",
@@ -17,19 +17,19 @@
       "frequentist and bayesian estimator ids and tolerances",
       "graph edge lists"
     ],
-    "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. The model shapes follow those of existing route tests that were read for structure only; thresholds, tables and every value here are new.",
+    "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. The model shapes follow those of existing route tests that were read for structure only; thresholds, tables and every value here are new. For the later zero-completion correction, the product output and identification implementation were inspected before the independent reachability check was written.",
     "reference_review": {
       "scope": "Two binary structural models (one with a latent common cause of the selected child and the outcome, one Markovian with a root parent of the treatment) and the equivalence class that the Markovian one induces: contingency tables, the path-specific effect along one path, and the completion bounds.",
-      "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the structural equations under the cross-world assignment (A at the active arm, B at the control arm) on every cell, which gives the path-specific, total and complementary-path truths with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the identified functionals (the district formula for the latent-confounded graph, the edge g-formula for the Markovian one, and the two completion formulas of the collider class) are applied to the table alone and must reproduce the truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited.",
-      "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. The model shapes follow those of existing route tests that were read for structure only; thresholds, tables and every value here are new.",
+      "independence_basis": "Enumerating the 4^5 equally likely noise cells of each declared binary SCM, with exact rational arithmetic, evaluates the structural equations under the cross-world assignment (A at the active arm, B at the control arm) on every cell, which gives the path-specific, total and complementary-path truths with no identification formula involved. The contingency tables are rebuilt from the same cells (each cell one observed row, counts divided by their gcd) and the identified functionals (the district formula for the latent-confounded graph, the edge g-formula for the Markovian one, and the two completion formulas of the collider class) are applied to the table alone and must reproduce the truths exactly. It imports no Antecedent code and no statistics package. The shared object is the stated SCM, so a wrong coefficient in the fixture would be inherited. The zero completion is checked independently by directed reachability: there is no directed path from the treatment to the selected child, so the selected path effect is zero.",
+      "historical_exposure": "The generator and its numbers were written during this review from the declared structural equations; the product's output was not consulted. The model shapes follow those of existing route tests that were read for structure only; thresholds, tables and every value here are new. For the later zero-completion correction, the product output and identification implementation were inspected before the independent reachability check was written.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "Exact arithmetic on fixed tables; no sampling variability, no uncertainty or coverage claim. Graph classes, identification rules and estimator tolerances are context the generator cannot derive. The collider completions other than the generating one are derived from the observed law by their identification formulas, not from a structural model that generated it. No calibration.",
+      "limitations": "Exact arithmetic on fixed tables; no sampling variability, no uncertainty or coverage claim. Graph classes, identification rules and estimator tolerances are context the generator cannot derive. The collider completions other than the generating one are derived from the observed law by their identification formulas, not from a structural model that generated it. No calibration. The structural-zero completion uses its declared graph and a reachability argument, not a separate data-generating model.",
       "sources": [],
       "artifacts": [
         {
           "role": "generator",
           "path": "conformance/estimate/path_specific_mixed_graphs/reference.py",
-          "sha256": "1afbbfcaf78beb039d49a600fa1e2625b6fa10875eaf946e0a1c59e5e3d54d34"
+          "sha256": "92075d83ee68488af1663207002c51c98b91c1e69fffae7f5ce3522658cccfd1"
         },
         {
           "role": "environment_lock",
@@ -39,10 +39,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/path_specific_mixed_graph_route_evidence.rs",
-          "sha256": "8445f85bb795eb667b9be0d9fec90dff31477a000072cc4aceda1845a7075444"
+          "sha256": "74c55516760424d950bc1c79a0a43ad37d6e3729cdaae3f849ba1241e0a46ca1"
         }
       ],
-      "fixture_payload_sha256": "c2a20431fa5791272b7ab643c4f2735f41c752300ef182da4b22a05c2cdb947a"
+      "fixture_payload_sha256": "a211ce4a66839f4ef68da24913aede135967881b2956c34ab5f2e0f9e9707de0"
     }
   },
   "schema_version": 1,
@@ -628,9 +628,9 @@
     ],
     "completions": 3,
     "truth": {
-      "identified_set_lower": 0.15625,
+      "identified_set_lower": 0.0,
       "identified_set_upper": 0.1875,
-      "unidentified_mass": 0.3333333333333333
+      "unidentified_mass": 0.0
     }
   },
   "frequentist": {

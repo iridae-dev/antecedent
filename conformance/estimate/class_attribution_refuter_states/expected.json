@@ -635,7 +635,7 @@
     }
   },
   "expected_verdicts": {
-    "clean_all_refuters_pass": true,
+    "clean_static_refuters_pass": true,
     "planted_subset_stability_passes": false
   },
   "oracle": {
@@ -648,26 +648,26 @@
     "generator_retained": true,
     "asserted_outputs": [
       "tables.*.derived (clean_max_leverage, planted_row_leverage, planted_is_max_leverage_row, coefficient_shift, clean_response_max_robust_z, planted_response_max_robust_z)",
-      "expected_verdicts (the clean table passes every refuter, the planted table fails subset stability), by the leverage and coefficient derivation"
+      "expected_verdicts (deterministic fixture checks for clean static refuters and planted subset stability; leverage and coefficient bounds describe the inputs, not a guarantee of any stochastic diagnostic verdict)"
     ],
     "context_only_outputs": [
       "the bars (the declared margins of the derivation)",
       "fixture_id"
     ],
     "independence_basis": "The generator rebuilds every table from the stated formulas, computes every leverage, the least-squares coefficients with and without the planted row and the robust z-scores in exact rational arithmetic on the float inputs, and imports no Antecedent code and no statistics package. The shared object is the stated table.",
-    "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted. Planted designs were chosen after probing which lifts the subset refuter separates from the clean table, so the lift sizes are tuned to the product; the derivation states the design property, not the verdict.",
+    "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted. Planted designs were chosen after probing which lifts the subset refuter separates from the clean table, so the lift sizes are tuned to the product; the derivation states the design property, not the verdict. A later revision followed inspection of the product resampling implementation and observed clean-series results; it no longer claims every stochastic diagnostic must pass for a clean series.",
     "reference_review": {
       "scope": "A 24-row clean and planted table of two variables and of three, and a 20-period and a 24-period series with one planted period each.",
       "independence_basis": "The generator rebuilds every table from the stated formulas, computes every leverage, the least-squares coefficients with and without the planted row and the robust z-scores in exact rational arithmetic on the float inputs, and imports no Antecedent code and no statistics package. The shared object is the stated table.",
-      "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted. Planted designs were chosen after probing which lifts the subset refuter separates from the clean table, so the lift sizes are tuned to the product; the derivation states the design property, not the verdict.",
+      "historical_exposure": "Written for this fixture from the stated tables and the definition of leverage; no product implementation source was consulted. Planted designs were chosen after probing which lifts the subset refuter separates from the clean table, so the lift sizes are tuned to the product; the derivation states the design property, not the verdict. A later revision followed inspection of the product resampling implementation and observed clean-series results; it no longer claims every stochastic diagnostic must pass for a clean series.",
       "redistribution": "Repository-authored MIT OR Apache-2.0 generator and deterministic inputs. Python standard library only, in an isolated locked script environment, outside the product and ordinary CI; no upstream source is stored.",
-      "limitations": "The reference derives the design property (one row decides the fit, or is far from the bulk) and not the refuter's p-value, which depends on the seeded subsets; the verdicts are asserted against the design. A clean table passes by the 5 percent false-alarm rate of the chi-square test only for the tables fixed here. Only the anomaly attribution is held; a change attribution validation is a refusal. No uncertainty or calibration.",
+      "limitations": "The reference derives the design property (one row decides the fit, or is far from the bulk) and not the refuter's p-value, which depends on the seeded subsets; the verdicts are asserted against the design. Fixed static checks and the planted comparison are asserted on these tables; a clean temporal series is not guaranteed to pass a stochastic resampling diagnostic. Only the anomaly attribution is held; a change attribution validation is a refusal. No uncertainty or calibration.",
       "sources": [],
       "artifacts": [
         {
           "role": "generator",
           "path": "conformance/estimate/class_attribution_refuter_states/reference.py",
-          "sha256": "f21e49749bf860f1d08f7086983845c2d0e4cc3c0835a6f548937dc487c18190"
+          "sha256": "493cd9f38bc65f559efac16df410648e9575c4eb8d1eb44b252f9a3b004f54fc"
         },
         {
           "role": "environment_lock",
@@ -677,10 +677,10 @@
         {
           "role": "assertion_source",
           "path": "crates/antecedent/tests/class_attribution_known_truth.rs",
-          "sha256": "82ee319bec0e211c6300d2c761641c197fca46afb4499fe39598746509b20d11"
+          "sha256": "181508fcb4a5f8ca0856e69760b9ef8c5dd0459b16efef3dc275e5ee7121253d"
         }
       ],
-      "fixture_payload_sha256": "793918962d9239637a812bb8bcef1f8a1af9271e02f561a7b393d8123b7f1c56"
+      "fixture_payload_sha256": "d38ec788dfc3dd46779d9ff579bc367649ed58ebaca9bca2019c7c4d08a15cd7"
     }
   }
 }

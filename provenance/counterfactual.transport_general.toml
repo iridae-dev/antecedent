@@ -53,7 +53,7 @@ record_sha256 = "ddca060ab4c8fee03971de96df92421a8e2cf7e05c2417e5cd82847b08299d6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs"
-sha256 = "19d7fd5429d918e3d1218ea64ce664a9afd9fa3153ee4fc5ddb8ba49bc61019d"
+sha256 = "77933f1c803f5bc68015ae8d7c66f06854f277cf478558fc4cc9f5b859220510"
 
 [[method_review.artifacts]]
 role = "implementation"

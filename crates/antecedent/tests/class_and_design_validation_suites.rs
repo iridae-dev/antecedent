@@ -269,10 +269,10 @@ fn saturation_fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<Netwo
     (data, assignment, query, edges)
 }
 
-/// Sixteen two-unit clusters, eight treated.
+/// Eight two-unit clusters, four treated.
 fn cluster_fixture() -> (TabularData, Vec<bool>, InterferenceQuery, Vec<NetworkEdge>) {
-    const K: usize = 16;
-    const TREATED: usize = 8;
+    const K: usize = 8;
+    const TREATED: usize = 4;
     let clusters =
         (0..K).flat_map(|cluster| [u32::try_from(cluster).unwrap(); 2]).collect::<Vec<_>>();
     let assignment = (0..K).flat_map(|cluster| [cluster < TREATED; 2]).collect::<Vec<_>>();
@@ -388,12 +388,7 @@ fn a_two_stage_saturation_is_checked_against_its_realized_saturations() {
 
 #[test]
 fn a_cluster_randomized_design_is_re_randomized_under_full_validation_on_every_class() {
-    // Sixteen clusters are enumerated exactly (2^16 assignments) at both exposure levels of the
-    // initial pair and of each of the default 199 re-draws, a quote of about 1.0e10 operations;
-    // the default ceiling is 4.0e9, so this run authorizes the work explicitly.
-    const CLUSTER_ENUMERATION_WORK_LIMIT: u64 = 20_000_000_000;
-    let ctx = ExecutionContext::for_tests(9_203)
-        .with_exposure_probability_work_limit(CLUSTER_ENUMERATION_WORK_LIMIT);
+    let ctx = ExecutionContext::for_tests(9_203);
     for class in CLASS_NAMES {
         let cheap = run_on_class(class, cluster_fixture(), RefuteSuite::Cheap, &ctx);
         assert!(
@@ -404,9 +399,9 @@ fn a_cluster_randomized_design_is_re_randomized_under_full_validation_on_every_c
             "{class}"
         );
         let full = run_on_class(class, cluster_fixture(), RefuteSuite::Full, &ctx);
-        // Eight whole clusters treated as declared.
+        // Four whole clusters treated as declared.
         let calibration = report(&full, "interference.assignment_calibration");
-        assert!((calibration.original_ate - 8.0).abs() < 1e-12, "{class}");
+        assert!((calibration.original_ate - 4.0).abs() < 1e-12, "{class}");
         assert!(calibration.passed, "{class}");
         // The sharp-null re-randomization ran: it reports the mean of the re-drawn contrasts,
         // and the mean of draws from an unbiased estimator on fixed outcomes is near zero

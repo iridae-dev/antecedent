@@ -327,7 +327,7 @@ class CounterfactualTransportResult(ScientificResult):
 
     @artifact_export
     def export(self) -> ExportedArtifact[Any]:
-        """The point as a ``counterfactual_transport_v1`` artifact."""
+        """The point as a ``counterfactual_transport_v2`` artifact."""
         return artifact_from_receipt(self, bytes(self._native.export()))
 
     def to_dict(self) -> dict[str, Any]:
@@ -597,7 +597,7 @@ class CounterfactualTransportDecision(ScientificResult):
 
     @artifact_export
     def export(self) -> ExportedArtifact[Any]:
-        """A proven obstruction as a ``counterfactual_transport_v1`` artifact."""
+        """A proven obstruction as a ``counterfactual_transport_v2`` artifact."""
         return artifact_from_receipt(self, bytes(self._native.export()))
 
 

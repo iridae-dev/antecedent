@@ -48,12 +48,12 @@ record_sha256 = "39ea2ef09282b08db1ec83706365babda15ea47d0f31e5a1a0f43175bd5b6b6
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/nonlinear_mediation.rs"
-sha256 = "998f479e88c1a511232c71a223ca0471eb5f2502c86d42678b21c6c84f54f804"
+sha256 = "c27771bfb06d412e02459468c8451c523cb02ce7d950499ddbdd57d76f7618f5"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-estimate/tests/nonlinear_mediation_reference.rs"
-sha256 = "cb9fe2d7c5c09ebb1241d422dd257361b04d348fc3a60c9c76398793ed6a16c9"
+sha256 = "9354e9d5c87393a7f09b93320fc27b7d6c07db988819fd0a624f988bb8619a75"
 
 [[method_review.artifacts]]
 role = "reference"

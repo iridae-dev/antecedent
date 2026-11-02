@@ -5,8 +5,9 @@
 //! kernels, another seed than the producer) and never calls the producer. The
 //! consumer verifies the version-two contract from bytes, re-derives every payload
 //! from the request, replays the answer, and must reproduce the committed report
-//! bit for bit. The analytic truths below are written out here, not read from the
-//! fixture.
+//! bit for bit in its original wire format. New diagnostics recomputed during replay
+//! are checked separately. The analytic truths below are written out here, not read
+//! from the fixture.
 //!
 //! Generate the fixtures with
 //! `cargo test -p antecedent --test cyclic_family_fixtures -- --ignored write_`
@@ -72,7 +73,20 @@ fn committed(name: &str) -> Committed {
 }
 
 fn pretty(report: &CyclicFamilyReport) -> String {
-    serde_json::to_string_pretty(report).unwrap() + "\n"
+    // The committed v1/v2 records predate block diagnostics. Replay recomputes
+    // them from the request, but their presence must not change the historical
+    // report bytes or conceal changes to any other field.
+    let mut legacy = report.clone();
+    if let CyclicFamilyAnswer::Worlds(worlds) = &mut legacy.answer {
+        for world in worlds {
+            if let CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics, .. } =
+                &mut world.outcome
+            {
+                *block_diagnostics = None;
+            }
+        }
+    }
+    serde_json::to_string_pretty(&legacy).unwrap() + "\n"
 }
 
 /// Verify the contract, replay on the CPU context, and compare bit for bit.
@@ -115,6 +129,25 @@ fn the_specified_feedback_pair_replays_its_three_distinct_quantities() {
     ));
     let worlds = worlds(&report);
     assert_eq!(worlds.iter().map(|w| w.world).collect::<Vec<_>>(), [0, 1, 2, 3]);
+    // Replay adds diagnostics absent from the v1/v2 report. Check the actual
+    // feedback and clamped blocks against their closed-form condition numbers.
+    for (world, members, kappa) in [
+        (&worlds[0], &[0, 1][..], 2.8125),
+        (&worlds[1], &[1][..], 1.0),
+        (&worlds[2], &[1][..], 1.0),
+        (&worlds[3], &[0, 1][..], 2.8125),
+    ] {
+        let CyclicWorldOutcomeAnswer::GaussianLaw { block_diagnostics: Some(blocks), .. } =
+            &world.outcome
+        else {
+            panic!("world {} must retain its recomputed block diagnostics", world.world);
+        };
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].members.as_slice(), members);
+        close(blocks[0].residual_inf, 0.0, 1e-12);
+        close(blocks[0].kappa_inf, kappa, 1e-12);
+        assert!(blocks[0].exact);
+    }
     for world in worlds {
         assert!(world.certificate.certified, "{world:?}");
         close(world.failed_mass, 0.0, 0.0);
