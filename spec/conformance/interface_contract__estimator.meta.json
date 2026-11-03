@@ -215,7 +215,7 @@
         "calibration": {
           "input": null,
           "record_id": null,
-          "status": "unmeasured"
+          "status": "not_measured"
         },
         "evidence": {
           "declared": false,
@@ -339,7 +339,7 @@
         "calibration": {
           "input": null,
           "record_id": null,
-          "status": "unmeasured"
+          "status": "not_measured"
         },
         "evidence": {
           "declared": false,

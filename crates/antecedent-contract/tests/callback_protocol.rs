@@ -125,7 +125,7 @@ fn a_complete_declaration_validates_and_is_an_instance_of_the_interface_contract
             .into_iter()
             .collect();
     assert_eq!(port.operations, expected);
-    assert_eq!(port.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(port.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(
         port.uncertainty.map(|u| u.meaning),
         Some(DistributionMeaning::InterventionalPredictive)

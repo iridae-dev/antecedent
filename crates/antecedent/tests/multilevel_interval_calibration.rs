@@ -24,7 +24,7 @@
 mod common;
 
 use antecedent::analysis::multi_level_treatment::{
-    AdjustmentColumn, MULTI_LEVEL_INTERVAL_WITHHELD, MULTI_LEVEL_TREATMENT_CALIBRATION,
+    AdjustmentColumn, MULTI_LEVEL_INTERVAL_NOT_MEASURED, MULTI_LEVEL_TREATMENT_CALIBRATION,
     MultiLevelReportWire, MultiLevelSpecWire, MultiLevelTargetWire, MultiLevelTreatment,
     MultiLevelTreatmentRequest, multi_level_interval_basis, multi_level_normal_interval,
 };
@@ -139,7 +139,7 @@ fn the_design_construction_is_the_one_the_route_keys() {
 }
 
 /// A published interval is `effect ± z · se` of the report; without a covering record the
-/// interval is withheld as `scope_not_assessed` and the standard error stays unmeasured.
+/// interval is withheld with its calibration status and the standard error stays unmeasured.
 #[test]
 fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withheld() {
     let report = fit(3000, BASE_SEED).expect("a full-population fit");
@@ -159,7 +159,12 @@ fn a_published_interval_is_the_estimate_plus_or_minus_z_standard_errors_or_withh
         assert_eq!(report.calibration, "calibrated");
         assert!(report.interval_reason.is_none());
     } else {
-        assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_WITHHELD);
+        assert!(
+            ["outside_measured_scope", "measured_below_nominal", "not_measured"]
+                .contains(&report.interval_status.as_str()),
+            "{}",
+            report.interval_status
+        );
         assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
         assert!(report.interval_reason.is_some());
     }
@@ -184,7 +189,7 @@ fn the_pairwise_target_publishes_no_interval() {
     })
     .expect("a pairwise fit");
     assert!(report.interval.is_none());
-    assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_WITHHELD);
+    assert_eq!(report.interval_status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
     assert_eq!(report.calibration, MULTI_LEVEL_TREATMENT_CALIBRATION);
 }
 

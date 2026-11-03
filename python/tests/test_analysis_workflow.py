@@ -123,10 +123,10 @@ def test_report_has_json_types_and_explicit_calibration_scope():
     assert report.answer.value == result.effect
     # A record measured this exact construction (Dag / Frequentist /
     # analytic_se at 0.95), but over a sample-size grid of 150 to 600 rows and
-    # this study runs 128, so the scope is not assessed and the slot names which
+    # this study runs 128, so the scope is outside the measured scope and the slot names which
     # bound put it outside and which record it would otherwise cite. That is the explicit
-    # scope the test is about: an unqualified "unavailable" would hide it.
-    assert report.calibration.status == "scope_not_assessed"
+    # scope the test is about: an unqualified "not_measured" would hide it.
+    assert report.calibration.status == "outside_measured_scope"
     assert report.calibration.reason == "sample_size_outside_measured_range"
     assert report.calibration.record_id is not None
     assert report.uncertainty.available

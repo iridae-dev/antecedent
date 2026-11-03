@@ -34,7 +34,7 @@ def test_inspect_is_pydantic_and_to_dict_matches_dump() -> None:
     dumped = report.to_dict()
     assert dumped == report.model_dump(mode="json")
     json.dumps(dumped, allow_nan=False)
-    assert report.calibration.status == "unavailable"
+    assert report.calibration.status == "not_measured"
     reconstructed = InspectionReport.model_validate(dumped)
     assert reconstructed.program_id == report.program_id
     live = require_success(ant.estimate(prepared))

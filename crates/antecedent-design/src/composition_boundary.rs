@@ -87,7 +87,7 @@ pub enum CalibrationStatus {
     /// A separately cited calibration record exists.
     Measured,
     /// Inferential calibration is absent.
-    Unmeasured,
+    NotMeasured,
     /// The artifact said `exact` but no native record or verification receipt
     /// backs it, so the claim is not used.
     ExactClaimUnverified,
@@ -364,7 +364,7 @@ const fn calibration_status(
         }
         DistributionCalibration::PointOnly => CalibrationStatus::PointOnly,
         DistributionCalibration::Measured => CalibrationStatus::Measured,
-        DistributionCalibration::Unmeasured => CalibrationStatus::Unmeasured,
+        DistributionCalibration::Unmeasured => CalibrationStatus::NotMeasured,
     }
 }
 

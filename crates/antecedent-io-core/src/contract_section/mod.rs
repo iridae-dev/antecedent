@@ -139,29 +139,44 @@ pub struct ClaimSectionWire {
 
 /// Calibration status of a reported interval.
 ///
-/// CBOR is the historical text: `calibrated`, `scope_not_assessed`, or
-/// `unavailable`.
+/// An annotation on every reported interval, never a gate: the interval is
+/// reported whatever the status. Wire text is the snake_case variant name.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CalibrationStatus {
-    /// The governing record attests the reported interval.
+    /// Inside the measured scope of a current attesting coverage record.
     Calibrated,
-    /// A record matches the construction but not the measured scope.
-    ScopeNotAssessed,
-    /// No attesting record covers this interval.
-    Unavailable,
+    /// A record matches the construction, but this request lies outside its
+    /// measured range, replicates, draws or unidentified mass, or the record no
+    /// longer attests the current code.
+    OutsideMeasuredScope,
+    /// The governing record is a boundary record: it measured coverage below
+    /// nominal at this request's sample size (the observed coverage is carried).
+    MeasuredBelowNominal,
+    /// No record measured this construction, level or identification, or no
+    /// interval was reported.
+    NotMeasured,
 }
 
 impl CalibrationStatus {
-    /// Historical wire text.
+    /// Wire text.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Calibrated => "calibrated",
-            Self::ScopeNotAssessed => "scope_not_assessed",
-            Self::Unavailable => "unavailable",
+            Self::OutsideMeasuredScope => "outside_measured_scope",
+            Self::MeasuredBelowNominal => "measured_below_nominal",
+            Self::NotMeasured => "not_measured",
         }
     }
+
+    /// Every status, in wire order.
+    pub const ALL: [Self; 4] = [
+        Self::Calibrated,
+        Self::OutsideMeasuredScope,
+        Self::MeasuredBelowNominal,
+        Self::NotMeasured,
+    ];
 }
 
 impl std::fmt::Display for CalibrationStatus {
@@ -186,9 +201,10 @@ impl From<&str> for CalibrationStatus {
     fn from(value: &str) -> Self {
         match value {
             "calibrated" => Self::Calibrated,
-            "scope_not_assessed" => Self::ScopeNotAssessed,
-            "unavailable" => Self::Unavailable,
-            other => panic!("calibration status `{other}` is not a historical code"),
+            "outside_measured_scope" => Self::OutsideMeasuredScope,
+            "measured_below_nominal" => Self::MeasuredBelowNominal,
+            "not_measured" => Self::NotMeasured,
+            other => panic!("calibration status `{other}` is not a status code"),
         }
     }
 }
@@ -200,7 +216,7 @@ impl From<&str> for CalibrationStatus {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationSlotWire {
-    /// `calibrated` | `scope_not_assessed` | `unavailable`.
+    /// `calibrated` | `outside_measured_scope` | `measured_below_nominal` | `not_measured`.
     pub status: CalibrationStatus,
     /// Governing coverage record id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -268,11 +284,11 @@ pub struct AttestedEvidenceWire {
 }
 
 impl CalibrationSlotWire {
-    /// Unavailable slot with a reason code.
+    /// Not-measured slot with a reason code.
     #[must_use]
-    pub fn unavailable(reason: impl Into<String>) -> Self {
+    pub fn not_measured(reason: impl Into<String>) -> Self {
         Self {
-            status: CalibrationStatus::Unavailable,
+            status: CalibrationStatus::NotMeasured,
             record_id: None,
             reason: Some(reason.into()),
             scope_n: None,

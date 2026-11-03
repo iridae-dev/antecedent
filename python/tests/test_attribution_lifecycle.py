@@ -109,7 +109,12 @@ def _assert_identities(result, study, updated, report, loaded, *, fresh, coordin
     assert study.inspect().data_snapshot_id == result.data_snapshot_id
 
     assert report["identification"]["available"] is True
-    assert report["calibration"]["status"] in {"calibrated", "scope_not_assessed", "unavailable"}
+    assert report["calibration"]["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
     for identity in ("program_id", "claim_id", "data_snapshot_id", "identification_id"):
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate

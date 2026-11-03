@@ -463,7 +463,7 @@ fn a_bridged_claim_reports_a_point_value_and_its_labels() {
     assert!(!claim.reasoning.identification.is_available());
     assert!(!claim.reasoning.uncertainty.is_available());
     assert!(claim.reasoning.assumptions.is_available());
-    assert_eq!(&*claim.calibration.status, "unavailable");
+    assert_eq!(&*claim.calibration.status, "not_measured");
 }
 
 #[test]

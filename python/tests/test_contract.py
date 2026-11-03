@@ -299,7 +299,7 @@ def test_four_slots_agree_between_inspect_and_prepared_contract() -> None:
     assert inspected.rendering_limitation() is None
     assert prepared.preflight().identification.available is False
     report = inspected.to_dict()
-    assert report["calibration"]["status"] == "unavailable"
+    assert report["calibration"]["status"] == "not_measured"
     assert report["calibration"]["reason"] == "not_executed"
     outcome = ant.estimate(prepared)
     result = require_success(outcome)
@@ -382,14 +382,19 @@ def test_four_slots_refuse_identified_atom_mean_for_partial_claim() -> None:
 def test_calibration_reads_from_contract() -> None:
     result = require_success(ant.estimate(_prepare(_data())))
     slot = result.calibration
-    assert slot.status in {"calibrated", "scope_not_assessed", "unavailable"}
-    if slot.status == "unavailable":
+    assert slot.status in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
+    if slot.status == "not_measured":
         assert slot.reason
 
 
 def test_calibration_prepared_is_not_executed() -> None:
     calibration = _prepare(_data()).inspect().calibration
-    assert calibration.status == "unavailable"
+    assert calibration.status == "not_measured"
     assert calibration.reason == "not_executed"
 
 

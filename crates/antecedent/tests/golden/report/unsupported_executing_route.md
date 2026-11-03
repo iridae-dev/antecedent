@@ -13,12 +13,12 @@
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
 - The query is off the support-matrix axis; no matrix support applies to it.
-- Calibration status is unavailable: the reported uncertainty carries no measured-coverage record.
+- Calibration status is not\_measured: the reported uncertainty carries no measured-coverage record.
 - Identification status is nonparametrically\_identified.
 
 ## Claim
 
-- **Claim id:** 3d16ca6cfe7a92ce67861501ce9672ee7d909e6c281285cbda87da54cdfd2e5e
+- **Claim id:** d764da1bf0b04c28a88778f11b893f4989fd9a141cc5b2b820aa853fedd67f85
 - **Kind:** point
 - **Value:** none
 - **Outcome units:** none
@@ -80,7 +80,7 @@ The uncertainty slot is unavailable: omitted.
 
 ### Calibration
 
-- **Calibration status:** unavailable
+- **Calibration status:** not\_measured
 - **Governing record:** none
 - **Reason:** calibration\_basis\_missing
 - **Measured rows (smallest):** none
@@ -121,7 +121,7 @@ The uncertainty slot is unavailable: omitted.
 ### Limits
 
 - The claim states no scalar value.
-- Calibration is unavailable (calibration\_basis\_missing).
+- Calibration is not\_measured (calibration\_basis\_missing).
 
 ### Blockers and refusals
 

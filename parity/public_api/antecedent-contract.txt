@@ -8271,8 +8271,8 @@ pub variant antecedent_contract::DomainStatus::Unknown
 pub variant antecedent_contract::EquivalenceScope::ConditionedTreatment { variable_id: alloc::string::String, value_to_regime: alloc::vec::Vec<(alloc::string::String, alloc::string::String)> }
 pub variant antecedent_contract::EquivalenceScope::Regime { interventional_regime_id: alloc::string::String }
 pub variant antecedent_contract::EvidenceCalibration::Calibrated { record_id: alloc::sync::Arc<str> }
-pub variant antecedent_contract::EvidenceCalibration::ScopeNotAssessed
-pub variant antecedent_contract::EvidenceCalibration::Unavailable { reason: alloc::sync::Arc<str> }
+pub variant antecedent_contract::EvidenceCalibration::NotMeasured
+pub variant antecedent_contract::EvidenceCalibration::Unstated { reason: alloc::sync::Arc<str> }
 pub variant antecedent_contract::EvidenceDependence::Independent
 pub variant antecedent_contract::EvidenceDependence::Shared
 pub variant antecedent_contract::EvidenceDependence::Unknown
@@ -8859,8 +8859,8 @@ pub variant antecedent_contract::interface_contract::CalibrationRequirement::Not
 pub variant antecedent_contract::interface_contract::CalibrationStatus::Inherited { input: alloc::string::String }
 pub variant antecedent_contract::interface_contract::CalibrationStatus::Measured { record_id: alloc::string::String }
 pub variant antecedent_contract::interface_contract::CalibrationStatus::None
+pub variant antecedent_contract::interface_contract::CalibrationStatus::NotMeasured
 pub variant antecedent_contract::interface_contract::CalibrationStatus::PointOnly
-pub variant antecedent_contract::interface_contract::CalibrationStatus::Unmeasured
 pub variant antecedent_contract::interface_contract::ContractOperation::Covariance
 pub variant antecedent_contract::interface_contract::ContractOperation::Draws
 pub variant antecedent_contract::interface_contract::ContractOperation::Interval

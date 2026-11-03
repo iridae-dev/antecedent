@@ -1960,13 +1960,13 @@ python = "antecedent._native.encode_model_bundle"
 reason = "model bundle encoding"
 
 [[entry]]
-rust = "antecedent::supported_neighbors"
+rust = "antecedent::support::supported_neighbors"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
-rust = "antecedent::supported_cells"
+rust = "antecedent::support::supported_cells"
 kind = "fn"
 status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"

@@ -169,8 +169,8 @@ pub(crate) static FUNCTIONAL_IDENTITY_ALIASES: StaticTable<FunctionalIdentityAli
     table(functional_identity_aliases);
 
 /// Ids of the records in [`RECORDS`] that attest the tree this snapshot was
-/// generated from (`scripts/calibration_facets.py`: no facet drifted since the
-/// record's `calibration_sha`, or a valid replay waiver covers it). Regenerated
+/// generated from (`scripts/calibration_status.py`: the record's dependency
+/// fingerprint is unchanged since it was measured or last passed a probe). Regenerated
 /// with the registry; a `calibrated` slot requires its governing record to be
 /// listed.
 pub static ATTESTING_RECORD_IDS: StaticTable<&str> = table(attesting_record_ids);

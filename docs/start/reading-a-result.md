@@ -50,13 +50,14 @@ for binding in result.value.interval_bindings:
 
 ## Calibration status
 
-`result.inspect().calibration.status` says whether a measured coverage record supports the reported interval.
+`result.inspect().calibration.status` annotates the reported interval with whether a measured coverage record supports it. The interval is reported whatever the status says.
 
 | Status | Meaning |
 |---|---|
 | `calibrated` | A matching coverage record still attests the current code and includes this execution's scope |
-| `scope_not_assessed` | A record matches, but does not assess this execution's scope, records a boundary, or no longer attests the current code |
-| `unavailable` | No coverage record is available; read the reason code |
+| `outside_measured_scope` | A record matches the construction, but this execution is outside its measured range, replicates, draws or unidentified mass, or the record no longer attests the current code |
+| `measured_below_nominal` | The governing record is a boundary record: it measured coverage below nominal at this sample size (`observed_coverage` carries it) |
+| `not_measured` | No coverage record measured this construction, level or identification, or no interval was reported; read the reason code |
 
 An implemented interval, an identified effect or a passing diagnostic does not establish calibration. Calibration is recorded per method and scope, so when the status is not `calibrated`, read the reason code. [Assurance](../concepts/assurance.md) describes what a coverage record holds.
 

@@ -164,7 +164,7 @@ pub struct ClaimEnvelope {
 /// Calibration slot projected onto a claim.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CalibrationView {
-    /// `calibrated` | `scope_not_assessed` | `unavailable`.
+    /// `calibrated` | `outside_measured_scope` | `measured_below_nominal` | `not_measured`.
     pub status: Arc<str>,
     /// Governing coverage record id.
     pub record_id: Option<Arc<str>>,
@@ -191,7 +191,7 @@ pub struct CalibrationView {
 impl Default for CalibrationView {
     fn default() -> Self {
         Self {
-            status: Arc::from("unavailable"),
+            status: Arc::from("not_measured"),
             record_id: None,
             reason: Some(Arc::from(antecedent_core::reason_code!("not_executed"))),
             scope_n: None,

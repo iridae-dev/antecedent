@@ -9930,7 +9930,7 @@ pub const antecedent::analysis::joint_panel::designs::MAX_DESIGN_ARTIFACT_BYTES:
 pub const antecedent::analysis::missing_support::ALL_QUERY_KINDS: [antecedent_core::query::variants::CausalQueryKind; 31]
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_ESTIMATOR: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_CALIBRATED: &str
-pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_WITHHELD: &str
+pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_INTERVAL_NOT_MEASURED: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_NO_STANDARD_ERROR: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_QUERY: &str
 pub const antecedent::analysis::multi_level_treatment::MULTI_LEVEL_SE_KIND: &str
@@ -16370,10 +16370,10 @@ pub fn antecedent::support::support_cell(query: &antecedent_core::query::variant
 pub fn antecedent::support::support_cell_from_coordinate(coordinate: &str) -> core::option::Option<antecedent::SupportCell>
 pub fn antecedent::support::support_cell_named(query: &antecedent_core::query::variants::CausalQuery, graph_class: &'static str, structure: antecedent::StructureSource, inference: &antecedent::InferenceMode, refute: antecedent::RefuteSuite) -> core::option::Option<antecedent::SupportCell>
 pub fn antecedent::support::support_cell_named_for_data(query: &antecedent_core::query::variants::CausalQuery, graph_class: &'static str, structure: antecedent::StructureSource, inference: &antecedent::InferenceMode, refute: antecedent::RefuteSuite, series: bool) -> core::option::Option<antecedent::SupportCell>
+pub fn antecedent::support::supported_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>
 pub fn antecedent::support::supported_estimators(cell: antecedent::SupportCell) -> &'static [&'static str]
 pub fn antecedent::support::supported_neighbors(cell: antecedent::SupportCell) -> alloc::vec::Vec<antecedent_contract::capability::SupportedNeighbor>
 pub fn antecedent::support::supported_route_estimator(cell: antecedent::SupportCell) -> core::option::Option<antecedent::EstimatorId>
-pub fn antecedent::support::supported_cells() -> impl core::iter::traits::iterator::Iterator<Item = antecedent::SupportCell>
 pub mod antecedent::accepted
 pub mod antecedent::analysis
 pub mod antecedent::analysis::adaptive_inference
@@ -20811,8 +20811,8 @@ pub use antecedent::support::classify = antecedent::classify
 pub use antecedent::support::classify_graphless = antecedent_io::graphless_support::classify_graphless
 pub use antecedent::support::refused_message = antecedent::refused_message
 pub use antecedent::support_cell_from_coordinate = antecedent::support::support_cell_from_coordinate
-pub use antecedent::supported_neighbors = antecedent::support::supported_neighbors
 pub use antecedent::supported_cells = antecedent::support::supported_cells
+pub use antecedent::supported_neighbors = antecedent::support::supported_neighbors
 pub use antecedent::temporal_dependent_interval = antecedent::analysis::api::temporal_dependent_interval
 pub use antecedent::temporal_dependent_interval_candidate = antecedent::analysis::temporal_dependent_interval_candidate
 pub use antecedent::tier_diagnostics = antecedent::analysis::api::tier_diagnostics

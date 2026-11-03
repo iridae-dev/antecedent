@@ -38,6 +38,7 @@ _STUB = Path(_native.__file__).with_name("_native.pyi")
 # the extension genuinely does not define.
 _STUB_ONLY = {
     "CiArg",  # `str | Callable[..., Any] | None`, used across discovery signatures
+    "CalibrationStatus",  # Literal alias of the four calibration status words
     "_PeriodPrior",  # tuple alias of the period-refresh prior wire form
     "_PeriodWindow",  # tuple alias of the period-refresh window wire form
 }

@@ -89,7 +89,7 @@ def test_verified_provider_capability_records_evidence_and_shared_result():
         provider_name="external", query_family="effect", provider_result=result
     )
     assert view.support == ("verified_extension",)
-    assert view.calibration.status == "unavailable"
+    assert view.calibration.status == "not_measured"
     assert view.calibration.reason == "extension_fixture_verification_does_not_calibrate_inference"
     assert view.to_dict()["provider_result"]["support_status"] == "verified_extension"
     with pytest.raises(ValueError, match="only externally attested"):

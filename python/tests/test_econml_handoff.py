@@ -120,7 +120,7 @@ def test_econml_runtime_adapter_registers_and_round_trips_attested_artifact(monk
     executed = require_success(registry.execute("econml", {"data": data}))
     loaded = require_success(antecedent.load(executed.artifact))
     assert seen["columns"]["W"].shape == (len(data["t"]), 1)
-    assert loaded.calibration.status == "unavailable"
+    assert loaded.calibration.status == "not_measured"
     assert loaded.calibration.reason == "attested_not_reverifiable"
     assert executed.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert executed.provenance["adapter"] == "antecedent.handoff.EconMLProviderAdapter"
@@ -423,12 +423,12 @@ def test_attach_export_load_keeps_attested_external_estimate() -> None:
         == loaded.decoded_artifact.contract["claim"]["claim_id"]
     )
     assert forwarded.decoded_artifact.contract["claim"]["attested"] == attested
-    assert loaded.calibration.status == "unavailable"
+    assert loaded.calibration.status == "not_measured"
     assert loaded.calibration.reason == "attested_not_reverifiable"
     inspect = loaded.inspect()
-    assert inspect.calibration.status == "unavailable"
+    assert inspect.calibration.status == "not_measured"
     assert inspect.calibration.reason == "attested_not_reverifiable"
-    assert attached.inspect().calibration.status == "unavailable"
+    assert attached.inspect().calibration.status == "not_measured"
     other = spec.attach(
         learner="econml.dml.CausalForestDML",
         learner_config={"n_estimators": 100},
@@ -466,7 +466,7 @@ def test_attach_from_analyzed_parent_does_not_claim_native_calibration() -> None
         label="ate",
     )
     loaded = require_success(antecedent.load(bytes(attached.export())))
-    assert loaded.calibration.status == "unavailable"
+    assert loaded.calibration.status == "not_measured"
     assert loaded.calibration.reason == "attested_not_reverifiable"
     claim = loaded.decoded_artifact.contract["claim"]
     assert claim["kind"] == "point"
@@ -510,7 +510,7 @@ def test_attach_scalar_ate_is_bound_through_external_bind() -> None:
     # The attested-estimate receipt is unchanged.
     assert (
         require_success(antecedent.load(bytes(attached.export()))).calibration.status
-        == "unavailable"
+        == "not_measured"
     )
 
     bare = spec.attach(learner="x", effect=1.0, data=data, label="ate")
@@ -575,7 +575,7 @@ def test_attach_cate_column_is_bound_with_lineage_support_and_provider_version()
     # The attested-estimate receipt is built exactly as for any attach.
     assert (
         require_success(antecedent.load(bytes(attached.export()))).calibration.status
-        == "unavailable"
+        == "not_measured"
     )
     plain = spec.attach(learner="econml.dml.CausalForestDML", effect=cate, data=data)
     assert plain.claim is None

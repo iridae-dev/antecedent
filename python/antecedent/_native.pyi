@@ -13,6 +13,17 @@ from .transport._impl import ZTransportSensitivityResult
 
 CiArg = str | Callable[..., Any] | None
 
+# Calibration annotation on a reported interval (never a gate): the wire text of a claim's
+# calibration slot `status`. `calibrated`: inside a current attesting coverage record's
+# measured scope. `outside_measured_scope`: a record matches the construction but the request
+# is outside its measured range, replicates, draws or unidentified mass, or the record no
+# longer attests the current code. `measured_below_nominal`: the governing record measured
+# coverage below nominal at this sample size (`observed` carries it). `not_measured`: no
+# record for the construction, level or identification, or no interval reported.
+CalibrationStatus = Literal[
+    "calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"
+]
+
 __version__: str
 __build_optimized__: bool
 

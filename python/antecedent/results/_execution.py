@@ -8,7 +8,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
 from math import isfinite
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from .._artifact_protocol import ExportedArtifact
@@ -51,23 +51,47 @@ _CALIBRATION_FIELDS = (
     "calibration_sha",
     "level",
     "observed_coverage",
+    "observed",
     "replicates",
 )
+
+
+CalibrationStatus = Literal[
+    "calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"
+]
+CALIBRATION_STATUSES: tuple[CalibrationStatus, ...] = get_args(CalibrationStatus)
+
+
+def _calibration_status(value: Any) -> CalibrationStatus:
+    """The claim's status text; an absent status is ``not_measured``, an unknown one an error."""
+    if value is None or value == "":
+        return "not_measured"
+    if value not in CALIBRATION_STATUSES:
+        raise ValueError(
+            f"unknown calibration status {value!r}; expected one of {CALIBRATION_STATUSES}"
+        )
+    return value  # type: ignore[no-any-return]
 
 
 @dataclass(frozen=True, slots=True)
 class CalibrationInfo:
     """Calibration slot projected from ``contract["claim"]["calibration"]``.
 
-    ``status`` is the native string (``calibrated``, ``boundary``,
-    ``scope_not_assessed``, ``unavailable``, or any status a newer claim
-    carries); it is never normalized. ``reason`` is the reason code when the
-    interval is not calibrated. ``level`` / ``observed_coverage`` /
+    Calibration is an annotation on the reported interval, never a gate: the
+    interval is reported whatever ``status`` says. ``status`` is the native
+    string, one of :data:`CalibrationStatus`: ``calibrated`` (inside a current
+    attesting coverage record's measured scope), ``outside_measured_scope`` (a
+    record matches the construction but this request lies outside its measured
+    scope, or the record no longer attests the current code),
+    ``measured_below_nominal`` (the governing record measured coverage below
+    nominal at this sample size; ``observed_coverage`` carries it) or
+    ``not_measured`` (no record, or no interval reported). ``reason`` is the
+    reason code when the interval is not calibrated. ``level`` / ``observed_coverage`` /
     ``replicates`` are the record's measured coverage fields when the claim
     carries them, and ``extra`` keeps every other slot field.
     """
 
-    status: str = "unavailable"
+    status: CalibrationStatus = "not_measured"
     record_id: str | None = None
     reason: str | None = None
     scope_n: int | None = None
@@ -81,12 +105,12 @@ class CalibrationInfo:
     @classmethod
     def from_contract(cls, contract: Mapping[str, Any] | None) -> CalibrationInfo:
         if not isinstance(contract, Mapping):
-            return cls(status="unavailable", reason="not_executed")
+            return cls(status="not_measured", reason="not_executed")
         claim = contract.get("claim")
         raw_slot = claim.get("calibration") if isinstance(claim, Mapping) else None
         slot: Mapping[str, Any] = raw_slot if isinstance(raw_slot, Mapping) else {}
         if not slot and "calibration_status" not in contract:
-            return cls(status="unavailable", reason="not_executed")
+            return cls(status="not_measured", reason="not_executed")
 
         def pick(name: str) -> Any:
             value = slot.get(name)
@@ -106,14 +130,16 @@ class CalibrationInfo:
                 and k != "calibration_sha"
             )
         return cls(
-            status=str(pick("status") or "unavailable"),
+            status=_calibration_status(pick("status")),
             record_id=pick("record_id"),
             reason=pick("reason"),
             scope_n=_as_optional_int(pick("scope_n")),
             scope_dependence=pick("scope_dependence"),
             calibration_sha=pick("calibration_sha"),
             level=_as_optional_float(pick("level")),
-            observed_coverage=_as_optional_float(pick("observed_coverage")),
+            observed_coverage=_as_optional_float(
+                pick("observed_coverage") if pick("observed_coverage") is not None else pick("observed")
+            ),
             replicates=_as_optional_int(pick("replicates")),
             extra=extra,
         )
@@ -121,8 +147,7 @@ class CalibrationInfo:
     def describe(self) -> str:
         """One line: status, then reason code, record id, and measured fields when present.
 
-        Absent fields are omitted, never printed as ``None``; an unrecognized
-        status renders as itself.
+        Absent fields are omitted, never printed as ``None``.
         """
         bits = [self.status]
         if self.reason:
@@ -843,7 +868,7 @@ class ResultAPI:
             contract = getattr(slots, "contract", None) if slots is not None else None
         if isinstance(contract, Mapping):
             return CalibrationInfo.from_contract(contract)
-        return CalibrationInfo(status="unavailable", reason="not_executed")
+        return CalibrationInfo(status="not_measured", reason="not_executed")
 
     def inspect(self) -> InspectionReport:
         """Inspect this execution, including uncertainty and all available evidence."""
@@ -918,7 +943,7 @@ class ResultAPI:
                     ),
                     Mapping,
                 )
-                else CalibrationInfo(status="unavailable", reason="not_executed")
+                else CalibrationInfo(status="not_measured", reason="not_executed")
             ),
             diagnostics=tuple(getattr(self, "diagnostics", ())),
         )

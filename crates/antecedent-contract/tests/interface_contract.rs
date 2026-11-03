@@ -303,7 +303,7 @@ fn measured_calibration_is_required_not_assumed() {
             .with_uncertainty(DistributionMeaning::EstimatorSampling)
             .with_calibration(CalibrationRequirement::Measured),
     );
-    for status in [CalibrationStatus::None, CalibrationStatus::Unmeasured] {
+    for status in [CalibrationStatus::None, CalibrationStatus::NotMeasured] {
         let label = status.label();
         let producer = producer_of(
             produced(&[ContractOperation::Interval])
@@ -479,7 +479,7 @@ fn identity_ignores_port_order_and_binds_every_declared_field() {
     changes.push(label);
     changes.push(a.clone().with_evidence([source(3)]));
     changes.push(a.clone().with_measurement_models([MODEL_A]));
-    changes.push(a.clone().with_calibration(CalibrationStatus::Unmeasured));
+    changes.push(a.clone().with_calibration(CalibrationStatus::NotMeasured));
     let mut support = a.clone();
     support.support = SupportDomain::NonNegative;
     changes.push(support);
@@ -695,7 +695,7 @@ fn inherited_calibration_resolves_against_the_upstream_that_holds_it() {
     // An upstream that no longer holds a measured record: the inheritance is refused,
     // and the downstream that relies on it is refused too.
     let mut unmeasured = measured("rec-7");
-    unmeasured.produces[0].calibration = CalibrationStatus::Unmeasured;
+    unmeasured.produces[0].calibration = CalibrationStatus::NotMeasured;
     let refusals = check_composition(&[unmeasured, interval_in("mid", false), sink], &wires)
         .expect_err("not held");
     assert_eq!(

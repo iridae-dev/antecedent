@@ -130,11 +130,12 @@ A reported interval is `calibrated` only when its construction has a coverage
 record whose measured range contains the execution's row count. The range is
 the span of the record's sample-size grid points, and nothing beyond it is
 inferred: three passing grid points support the span they bracket, not an
-unlimited range, and a larger sample is `scope_not_assessed` with reason
+unlimited range, and a larger sample is `outside_measured_scope` with reason
 `sample_size_outside_measured_range`. The ranges below are the designs the
 calibration gate measures (`crates/antecedent/tests/practitioner_scale_calibration.rs`);
 a design that fails at any grid point is recorded as a named boundary over its
-whole range, and a result stays `scope_not_assessed` until a record exists.
+whole range and reports `measured_below_nominal`, and a result stays
+`not_measured` until a record exists.
 
 | Construction | Measured range (design) | Beyond the range |
 | --- | --- | --- |
@@ -156,6 +157,6 @@ files, Parquet datasets and Arrow IPC files are read in bounded chunks under the
 admission pool, row ids are checked 64-bit, and the weighted Gaussian / OLS
 summary streams a file one chunk at a time ([large tables](guides/large-tables.md)).
 Executing a larger table does not extend a measured range: its intervals remain
-`scope_not_assessed` until a coverage record measures that size. A route that
+`outside_measured_scope` until a coverage record measures that size. A route that
 needs the whole table resident is quoted before reading and refused, with the
 quote and the next attempt, when the pool cannot hold it.

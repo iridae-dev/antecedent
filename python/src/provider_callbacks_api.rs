@@ -1507,7 +1507,7 @@ fn handoff_summary(
     let calibration = match calibration {
         CalibrationStatus::None => "none",
         CalibrationStatus::PointOnly => "point_only",
-        CalibrationStatus::Unmeasured => "unmeasured",
+        CalibrationStatus::NotMeasured => "not_measured",
         CalibrationStatus::Measured { .. } => "measured",
         CalibrationStatus::Inherited { .. } => "inherited",
     };

@@ -407,7 +407,7 @@ fn receipt_contract(
             identification_domain: domains.identification,
             support_domain: domains.support,
             evaluated_domain: domains.evaluated,
-            calibration: CalibrationSlotWire::unavailable(antecedent_core::reason_code!(
+            calibration: CalibrationSlotWire::not_measured(antecedent_core::reason_code!(
                 "attested_not_reverifiable"
             )),
             attested: vec![evidence.clone()],

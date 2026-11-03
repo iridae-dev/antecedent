@@ -5344,7 +5344,7 @@ fn assert_measured_record_status(
     if antecedent_io::calibration::record_attests_current_code(record) {
         assert_eq!(status, "calibrated");
     } else {
-        assert_eq!(status, "scope_not_assessed");
+        assert_eq!(status, "outside_measured_scope");
         assert_eq!(reason, Some("coverage_record_not_attesting"));
     }
 }
@@ -5450,12 +5450,12 @@ fn calibration_slot_is_calibrated_inside_record_scope() {
 }
 
 #[test]
-fn calibration_slot_is_scope_not_assessed_outside_the_measured_sample_size() {
+fn calibration_slot_is_outside_measured_scope_outside_the_measured_sample_size() {
     let ctx = ExecutionContext::for_tests(22);
     let (prepared, data) = gcomp_measured_study(50, 400, 22);
     let result = prepared.estimate(&data, &ctx).unwrap();
     let claim = calibration_of(&prepared, &result, &ctx);
-    assert_eq!(claim.status.as_ref(), "scope_not_assessed", "{claim:#?}");
+    assert_eq!(claim.status.as_ref(), "outside_measured_scope", "{claim:#?}");
     assert_eq!(claim.reason.as_deref(), Some("sample_size_outside_measured_range"));
     assert!(claim.record_id.is_some());
 }
@@ -5768,7 +5768,7 @@ fn calibration_slot_is_unavailable_with_code_when_no_record() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let claim = calibration_of(&prepared, &result, &ctx);
-    assert_eq!(claim.status.as_ref(), "unavailable");
+    assert_eq!(claim.status.as_ref(), "not_measured");
     assert!(claim.reason.is_some());
     assert!(claim.record_id.is_none());
 }
@@ -5854,7 +5854,7 @@ fn calibration_slot_is_covered_by_claim_id() {
     let mut contract = antecedent_io::decode_analysis_result_contract(&artifact).unwrap().unwrap();
     let claim = contract.claim.as_mut().unwrap();
     claim.calibration.status = if original.status == "calibrated" {
-        "scope_not_assessed".into()
+        "outside_measured_scope".into()
     } else {
         "calibrated".into()
     };

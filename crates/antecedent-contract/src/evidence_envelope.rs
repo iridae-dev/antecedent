@@ -226,10 +226,10 @@ pub enum EvidenceCalibration {
         /// Identity of the governing calibration record.
         record_id: Arc<str>,
     },
-    /// No calibration record was assessed for this scope.
-    ScopeNotAssessed,
+    /// No calibration record measured this scope.
+    NotMeasured,
     /// Calibration cannot be stated.
-    Unavailable {
+    Unstated {
         /// Stable reason id.
         reason: Arc<str>,
     },
@@ -337,11 +337,11 @@ impl EvidenceCalibration {
                 "evidence_envelope.calibration",
                 "a calibrated envelope names a non-blank calibration record",
             )),
-            Self::Unavailable { reason } if is_blank(reason) => Err(binding_error(
+            Self::Unstated { reason } if is_blank(reason) => Err(binding_error(
                 "evidence_envelope.calibration",
-                "an unavailable calibration names a non-blank reason",
+                "an unstated calibration names a non-blank reason",
             )),
-            Self::Calibrated { .. } | Self::ScopeNotAssessed | Self::Unavailable { .. } => Ok(()),
+            Self::Calibrated { .. } | Self::NotMeasured | Self::Unstated { .. } => Ok(()),
         }
     }
 }
@@ -513,10 +513,10 @@ fn write_calibration(writer: &mut CanonicalWriter, calibration: &EvidenceCalibra
         EvidenceCalibration::Calibrated { record_id } => {
             writer.word(1).text(record_id);
         }
-        EvidenceCalibration::ScopeNotAssessed => {
+        EvidenceCalibration::NotMeasured => {
             writer.word(2);
         }
-        EvidenceCalibration::Unavailable { reason } => {
+        EvidenceCalibration::Unstated { reason } => {
             writer.word(3).text(reason);
         }
     }
@@ -709,7 +709,7 @@ mod tests {
         assert_ne!(base.identity(), support.identity());
 
         let mut calibration = base.clone();
-        calibration.binding.calibration = EvidenceCalibration::ScopeNotAssessed;
+        calibration.binding.calibration = EvidenceCalibration::NotMeasured;
         assert_ne!(base.identity(), calibration.identity());
     }
 
@@ -820,7 +820,7 @@ mod tests {
 
         for calibration in [
             EvidenceCalibration::Calibrated { record_id: " ".into() },
-            EvidenceCalibration::Unavailable { reason: "".into() },
+            EvidenceCalibration::Unstated { reason: "".into() },
         ] {
             let mut blank = binding();
             blank.calibration = calibration;

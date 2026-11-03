@@ -142,7 +142,7 @@ pub struct UncertaintyWire {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CalibrationWire {
-    /// `none`, `point_only`, `unmeasured`, `measured` or `inherited`.
+    /// `none`, `point_only`, `not_measured`, `measured` or `inherited`.
     pub status: String,
     /// Measured record identity (`measured`).
     pub record_id: Option<String>,
@@ -433,12 +433,12 @@ fn calibration_from_wire(wire: &CalibrationWire) -> Result<CalibrationStatus, Fa
         }
     };
     match wire.status.as_str() {
-        "none" | "point_only" | "unmeasured" => {
+        "none" | "point_only" | "not_measured" => {
             stray(wire.record_id.is_some() || wire.input.is_some())?;
             Ok(match wire.status.as_str() {
                 "none" => CalibrationStatus::None,
                 "point_only" => CalibrationStatus::PointOnly,
-                _ => CalibrationStatus::Unmeasured,
+                _ => CalibrationStatus::NotMeasured,
             })
         }
         "measured" => {

@@ -617,7 +617,7 @@ MEANING_PARADIGM = {
 }
 ROLE_TAG = {"treatment": 1, "outcome": 2, "covariate": 3, "mediator": 4, "selection": 5,
             "utility": 6}
-CALIBRATION_TAG = {"none": 1, "point_only": 2, "unmeasured": 3, "measured": 4, "inherited": 5}
+CALIBRATION_TAG = {"none": 1, "point_only": 2, "not_measured": 3, "measured": 4, "inherited": 5}
 CALIBRATION_REQUIREMENT_TAG = {"not_required": 0, "measured": 1}
 DEPENDENCE_TAG = {"unconstrained": 0, "declared_evidence": 1, "disjoint_evidence": 2}
 SUPPORT_TAG = {"real": 1, "non_negative": 2, "binary": 3, "interval": 4, "categorical": 5}

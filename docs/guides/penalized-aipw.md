@@ -260,7 +260,7 @@ and interval method match the public facade.
 | Lasso: 2, 10, 40 | 150–600 | 600–2400; at least 40 replicates |
 
 A different penalty grid, sample-size range, level or bootstrap count is reported as
-`scope_not_assessed`, not covered by these records. The fallback
+`outside_measured_scope`, not covered by these records. The fallback
 route has no coverage test of its own: its destination's interval is the ridge or lasso
 interval, but its calibration key (`propensity=glm_fallback_...`) matches no record, so a
 fallback interval stays unassessed until one is measured. An in-repo, fixed-seed repeated

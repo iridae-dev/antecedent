@@ -10619,6 +10619,7 @@ macro antecedent_io_core::first_identity_difference!
 macro antecedent_io_core::map_artifact_check!
 macro antecedent_io_core::sectioned_artifact_enum!
 macro antecedent_io_core::sectioned_artifact_error!
+pub const <antecedent_io_core::CalibrationStatus>::ALL: [Self; 4]
 pub const <antecedent_io_core::bound_identity::IdentitySlot>::ALL: [Self; 5]
 pub const <antecedent_io_core::capacity_account::AccountedOperation>::ALL: [Self; 14]
 pub const <antecedent_io_core::dependency_key::DependencyClass>::ALL: [Self; 8]
@@ -14739,7 +14740,7 @@ pub fn <antecedent_io_core::AttributeQueryWire>::fn from_domain(query: &antecede
 pub fn <antecedent_io_core::AttributeQueryWire>::fn to_domain(&self) -> core::result::Result<antecedent_core::query::attribute::AttributeQuery, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::AttributeQueryWire>::fn variable_ids(&self) -> alloc::vec::Vec<u32>
 pub fn <antecedent_io_core::CalibrationSlotWire>::fn from_record(record: &antecedent_io_core::coverage_records_data::CoverageRecord, status: antecedent_io_core::CalibrationStatus) -> Self
-pub fn <antecedent_io_core::CalibrationSlotWire>::fn unavailable(reason: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent_io_core::CalibrationSlotWire>::fn not_measured(reason: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_io_core::CalibrationSlotWire>::fn with_basis(self, basis: &antecedent_io_core::calibration::CalibrationBasisWire) -> Self
 pub fn <antecedent_io_core::CalibrationSlotWire>::fn with_reason(self, reason: &str) -> Self
 pub fn <antecedent_io_core::CalibrationStatus>::const fn as_str(self) -> &'static str
@@ -17400,8 +17401,9 @@ pub variant antecedent_io_core::AttributeTargetWire::RootCauses { change: alloc:
 pub variant antecedent_io_core::AttributeTargetWire::StructureChange { change: alloc::boxed::Box<antecedent_io_core::CausalQueryWire>, comparison: alloc::vec::Vec<(u32, u32)>, measure: alloc::string::String, n_samples: u64, seed: u64 }
 pub variant antecedent_io_core::AttributeTargetWire::UnitChange { query: alloc::boxed::Box<antecedent_io_core::CausalQueryWire> }
 pub variant antecedent_io_core::CalibrationStatus::Calibrated
-pub variant antecedent_io_core::CalibrationStatus::ScopeNotAssessed
-pub variant antecedent_io_core::CalibrationStatus::Unavailable
+pub variant antecedent_io_core::CalibrationStatus::MeasuredBelowNominal
+pub variant antecedent_io_core::CalibrationStatus::NotMeasured
+pub variant antecedent_io_core::CalibrationStatus::OutsideMeasuredScope
 pub variant antecedent_io_core::CausalPayloadKind::InterferenceEstimate
 pub variant antecedent_io_core::CausalPayloadKind::Query
 pub variant antecedent_io_core::CausalPayloadKind::ResponseResult

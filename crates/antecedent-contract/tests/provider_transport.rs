@@ -167,7 +167,7 @@ fn a_verified_provider_output_is_source_evidence_that_reaches_a_transported_clai
     let contract = admitted.interface_contract();
     contract.validate().expect("the projection is a valid interface contract");
     let port = contract.produced("provider_source").expect("one produced port");
-    assert_eq!(port.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(port.calibration, CalibrationStatus::NotMeasured);
     assert!(port.provenance.contains("external_provider"));
 
     // Connection to the route's consumer: same population, regime, operations.
@@ -181,7 +181,7 @@ fn a_verified_provider_output_is_source_evidence_that_reaches_a_transported_clai
     let connection = connect_provider_source(&admitted, &consumer, TRANSPORT_SOURCE_PORT)
         .expect("population, regime, operations and provenance agree");
     assert_eq!(connection.operations, [ContractOperation::Mean].into_iter().collect());
-    assert_eq!(connection.calibration, CalibrationStatus::Unmeasured);
+    assert_eq!(connection.calibration, CalibrationStatus::NotMeasured);
     assert_eq!(connection.evidence, EvidenceBasis::Declared([trial].into_iter().collect()));
 
     // Ledger: external claim, derived from the trial rows, no transport identity yet.

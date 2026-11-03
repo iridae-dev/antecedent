@@ -31,10 +31,11 @@ What the answer is **not**:
   95% interval ``effect ± z · se_analytic`` is published (``interval`` set,
   ``interval_status == "calibrated"``) only when a current coverage record measured this
   construction (the full-population target, its number of levels, folds and row count).
-  Otherwise ``interval`` is ``None``, ``interval_status == "scope_not_assessed"``,
-  ``interval_reason`` names why, and the standard error is labelled ``calibration ==
-  "unmeasured"``. The pairwise-subpopulation target has no coverage measurement and always
-  withholds its interval.
+  Otherwise ``interval`` is ``None``, ``interval_status`` is the calibration status of the
+  construction (``"outside_measured_scope"``, ``"measured_below_nominal"`` or
+  ``"not_measured"``), ``interval_reason`` names why, and the standard error is labelled
+  ``calibration == "unmeasured"``. The pairwise-subpopulation target has no coverage
+  measurement and always reports ``interval_status == "not_measured"``.
 * With ``target="full_population"`` every row must be at a declared level; a row at an
   undeclared level refuses ``treatment_level_undeclared`` instead of being dropped.
 
@@ -48,13 +49,16 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from ._native import evaluate_multi_level_treatment as _evaluate
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution, resolve_execution
+
+if TYPE_CHECKING:
+    from ._native import CalibrationStatus
 
 __all__ = ["LevelMean", "LevelRows", "MultiLevelEffect", "MultiLevelInterval", "multi_level_effect"]
 
@@ -115,8 +119,9 @@ class MultiLevelEffect:
     calibration: str
     #: The 95% interval, present only when a current coverage record covers this construction.
     interval: MultiLevelInterval | None
-    #: ``"calibrated"`` when the interval is published, ``"scope_not_assessed"`` when withheld.
-    interval_status: str
+    #: The calibration status of the interval: ``"calibrated"`` when it is published, otherwise
+    #: ``"outside_measured_scope"``, ``"measured_below_nominal"`` or ``"not_measured"``.
+    interval_status: CalibrationStatus
     #: Why the interval is withheld, when it is.
     interval_reason: str | None
 

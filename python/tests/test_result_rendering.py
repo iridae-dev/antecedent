@@ -359,28 +359,28 @@ def test_report_target_query_uses_variable_names_live_and_loaded(identified):
             "calibrated · record cov.a",
         ),
         (
-            {"status": "scope_not_assessed", "record_id": "cov.b"},
-            "scope_not_assessed · record cov.b",
+            {"status": "outside_measured_scope", "record_id": "cov.b"},
+            "outside_measured_scope · record cov.b",
         ),
         (
-            {"status": "unavailable", "reason": "estimator_grid_not_measured"},
-            "unavailable · reason estimator_grid_not_measured",
+            {"status": "not_measured", "reason": "estimator_grid_not_measured"},
+            "not_measured · reason estimator_grid_not_measured",
         ),
         (
             {
-                "status": "boundary",
+                "status": "measured_below_nominal",
                 "record_id": "cov.c",
                 "reason": "boundary_record",
                 "level": 0.95,
                 "observed_coverage": 0.912,
                 "replicates": 400,
             },
-            "boundary · reason boundary_record · record cov.c · level 0.95"
+            "measured_below_nominal · reason boundary_record · record cov.c · level 0.95"
             " · observed coverage 0.912 · 400 replicates",
         ),
         (
-            {"status": "some_future_status", "record_id": "cov.d", "new_field": "x"},
-            "some_future_status · record cov.d · new_field x",
+            {"status": "calibrated", "record_id": "cov.d", "new_field": "x"},
+            "calibrated · record cov.d · new_field x",
         ),
     ],
 )
@@ -389,6 +389,12 @@ def test_calibration_describe_renders_every_status(slot, expected):
     assert info.status == slot["status"]
     assert info.describe() == expected
     assert "None" not in info.describe()
+
+
+def test_calibration_status_outside_the_four_codes_is_refused():
+    for old in ("scope_not_assessed", "unavailable", "boundary"):
+        with pytest.raises(ValueError, match="unknown calibration status"):
+            CalibrationInfo.from_contract({"claim": {"calibration": {"status": old}}})
 
 
 def test_calibration_row_in_notebook_card_has_no_none(partial_bayesian, identified):

@@ -592,7 +592,7 @@ def test_exported_result_round_trips_and_mutations_are_refused():
     assert consumed.values == pytest.approx(done.output.values, abs=0)
     meta = pc.inspect_callback_result(result.data)
     assert meta["stage"]["status"] == "computed" and meta["standing"] == "supported_external"
-    assert meta["contract"]["produces"][0]["calibration"]["status"] == "unmeasured"
+    assert meta["contract"]["produces"][0]["calibration"]["status"] == "not_measured"
     assert meta["contract"]["produces"][0]["calibration"]["record_id"] is None
     error = refusal_of(pc.consume_callback_result, result.data, "0" * 64)
     assert error.detail == "callback_protocol.identity_mismatch"

@@ -14,12 +14,12 @@
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
 - The route is a supported support-matrix cell.
-- Calibration status is scope\_not\_assessed: the reported uncertainty carries no measured-coverage record.
+- Calibration status is outside\_measured\_scope: the reported uncertainty carries no measured-coverage record.
 - Identification status is nonparametrically\_identified.
 
 ## Claim
 
-- **Claim id:** 79674cdac8657a9847dff2f6dd0e0734134be9206b8740dcb16fe5af5963c54d
+- **Claim id:** 6e5f052439cf4593baed2ecc8554eaf67966d89a04d1a76487ef6155df90596c
 - **Kind:** point
 - **Value:** 2
 - **Outcome units:** none
@@ -82,7 +82,7 @@
 
 ### Calibration
 
-- **Calibration status:** scope\_not\_assessed
+- **Calibration status:** outside\_measured\_scope
 - **Governing record:** cov.average\_effect.dag.frequentist.analytic\_se.l95.practitioner\_linear\_adjustment\_analytic\_interval
 - **Reason:** sample\_size\_outside\_measured\_range
 - **Measured rows (smallest):** 1000
@@ -137,7 +137,7 @@
 
 ### Limits
 
-- Calibration is scope\_not\_assessed (sample\_size\_outside\_measured\_range).
+- Calibration is outside\_measured\_scope (sample\_size\_outside\_measured\_range).
 
 ### Blockers and refusals
 

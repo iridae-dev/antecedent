@@ -770,7 +770,8 @@ fn uncertainty_findings(rep: &mut Rep) -> Vec<String> {
         );
     }
     found.check(
-        ["calibrated", "scope_not_assessed", "unavailable"].contains(&&*claim.calibration.status),
+        ["calibrated", "outside_measured_scope", "measured_below_nominal", "not_measured"]
+            .contains(&&*claim.calibration.status),
         format!("calibration axis `{}` is not a declared status", claim.calibration.status),
     );
     match rep.label {

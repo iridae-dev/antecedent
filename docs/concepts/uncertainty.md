@@ -37,12 +37,13 @@ result.inspect().calibration.status
 | Status | Meaning |
 | --- | --- |
 | `calibrated` | A coverage record matches this execution, the execution is inside that record's measured scope, and the record still attests the current code |
-| `scope_not_assessed` | A record matches, but the execution is outside its scope, the record marks a boundary, or the record is stale or no longer attesting |
-| `unavailable` | No record exists; a reason code says why |
+| `outside_measured_scope` | A record matches, but the execution is outside its measured scope, or the record is stale or no longer attesting |
+| `measured_below_nominal` | The governing record measured coverage below nominal at this sample size; the observed coverage is reported |
+| `not_measured` | No record exists, or no interval was reported; a reason code says why |
 
 "Calibrated" is a property of a matching measurement that still applies, not of the method in general. A passing diagnostic, an identified effect and a successful run do not establish it. An interval can be a useful, well-defined construction and still be uncalibrated for the setting you ran.
 
-A route without a matching record reports `unavailable` with its reason, even when its interval is well defined. Read each result's status rather than assuming one; the [support matrix](../support-matrix.md) lists which constructions have measurements.
+A route without a matching record reports `not_measured` with its reason, even when its interval is well defined. Read each result's status rather than assuming one; the [support matrix](../support-matrix.md) lists which constructions have measurements.
 
 ## Point-only and enclosures
 

@@ -611,7 +611,7 @@ impl CallbackDeclaration {
         if carries {
             produced = produced
                 .with_uncertainty(self.meaning)
-                .with_calibration(CalibrationStatus::Unmeasured);
+                .with_calibration(CalibrationStatus::NotMeasured);
         } else {
             produced = produced.with_calibration(CalibrationStatus::PointOnly);
         }

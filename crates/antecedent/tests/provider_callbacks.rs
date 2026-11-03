@@ -1011,7 +1011,7 @@ fn interval_posterior_guarantee_native_trust_identification_and_joint_law_stay_c
     let joint = refuse_joint_law();
     assert_eq!(joint.code, antecedent_core::reason_code!("joint_law_required"));
     // An accepted callback law carries no calibration: its interface projection
-    // is unmeasured, never a measured record.
+    // is not measured, never a measured record.
     let projection = seeded().interface_contract();
     let port = projection.produced(CALLBACK_OUTPUT_PORT).expect("port");
     assert!(!port.calibration.is_measured());
@@ -1355,7 +1355,7 @@ fn an_exported_callback_result_carries_no_calibration_record_and_no_interval() {
     let mut provider = gaussian_provider("1.0", MU, calls);
     let mut session = CallbackSession::new();
     for (declaration, query, label) in [
-        (seeded(), CallbackQuery::Sample { draws: 3 }, "unmeasured"),
+        (seeded(), CallbackQuery::Sample { draws: 3 }, "not_measured"),
         (mean_only(ReplayContract::DeterministicPure), CallbackQuery::Mean, "point_only"),
     ] {
         run(&mut session, &mut provider, &declaration, &CallbackRequest::new(query, 1))

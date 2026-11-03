@@ -136,6 +136,6 @@ changed value changes it. It is issued only after a complete first scan.
 
 Reading a large table does not extend a route's calibrated range. Intervals are
 calibrated up to 100,000 rows for the measured constructions; larger tables run and
-report `scope_not_assessed` (see
+report `outside_measured_scope` (see
 [what the routes do not do](../user-facing-limits.md#sample-size-series-length-and-the-measured-range)).
 Polars is not a backend; direct Arrow remains the preparation path.

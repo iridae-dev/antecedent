@@ -2513,7 +2513,7 @@ impl CyclicEvidence {
                         status: SupportStatus::MissingEvidence,
                         domain_id: "empirical_support_not_assessed".into(),
                     },
-                    EvidenceCalibration::ScopeNotAssessed,
+                    EvidenceCalibration::NotMeasured,
                 )
                 .map_err(invalid)?,
                 UncertaintyAxes::absent(),
@@ -3459,7 +3459,7 @@ mod tests {
         assert_eq!(evidence.report.columns[0].port, "mean");
         assert!(matches!(
             evidence.envelopes[0].binding().calibration,
-            EvidenceCalibration::ScopeNotAssessed
+            EvidenceCalibration::NotMeasured
         ));
         assert!(evidence.envelopes[0].binding().origins.training.is_none());
         let bytes = evidence.export(&ctx).unwrap();

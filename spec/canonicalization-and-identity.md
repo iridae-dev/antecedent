@@ -198,7 +198,7 @@ where
   interval 7, posterior 8).
 * **uncertainty** is: word `0` for none, or word `1`, text meaning, text
   paradigm.
-* **calibration label** is: word tag (none 1, point_only 2, unmeasured 3,
+* **calibration label** is: word tag (none 1, point_only 2, not_measured 3,
   measured 4, inherited 5), followed for `measured` by text `record_id` and for
   `inherited` by text `input`.
 * **evidence** is: word `0` when undeclared, or word `1`, word count, then

@@ -476,7 +476,7 @@ class Overlap:
     ``Overlap()`` computes exactly as the default and shares its calibration
     and identity. Any other policy is a different interval construction: its
     calibration binds only to coverage records measured under that policy, and
-    otherwise reports ``scope_not_assessed``.
+    otherwise reports ``outside_measured_scope`` or ``not_measured``.
     """
 
     clip: float | None = OMITTED["overlap_clip"]

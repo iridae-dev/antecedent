@@ -275,7 +275,7 @@ fn estimator_contract() -> InterfaceContract {
                 [Op::Law, Op::JointDraws],
             )
             .with_uncertainty(DistributionMeaning::InterventionalPredictive)
-            .with_calibration(CalibrationStatus::Unmeasured),
+            .with_calibration(CalibrationStatus::NotMeasured),
             ProducedPort::new(
                 "mediated",
                 quantity("adherence", QuantityRole::Mediator, "indicator"),
@@ -300,7 +300,7 @@ fn estimator_contract() -> InterfaceContract {
                 [Op::Mean, Op::Interval],
             )
             .with_uncertainty(DistributionMeaning::Bootstrap)
-            .with_calibration(CalibrationStatus::Unmeasured),
+            .with_calibration(CalibrationStatus::NotMeasured),
         ],
         consumes: vec![
             ConsumedPort::new(
@@ -1255,11 +1255,11 @@ fn schema_vocabularies_equal_the_implementations() {
     let labels = [
         CalibrationStatus::None,
         CalibrationStatus::PointOnly,
-        CalibrationStatus::Unmeasured,
+        CalibrationStatus::NotMeasured,
         CalibrationStatus::Measured { record_id: "r".into() },
         CalibrationStatus::Inherited { input: "i".into() },
     ];
-    let schema_labels: BTreeSet<String> = ["none", "point_only", "unmeasured"]
+    let schema_labels: BTreeSet<String> = ["none", "point_only", "not_measured"]
         .iter()
         .chain(["measured"].iter())
         .chain(["inherited"].iter())

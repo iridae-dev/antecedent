@@ -43,7 +43,7 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             if self.provider_result.trust.value == "verified_extension"
             else "attested_not_reverifiable"
         )
-        return CalibrationInfo(status="unavailable", reason=reason)
+        return CalibrationInfo(status="not_measured", reason=reason)
 
     @property
     def estimate(self) -> Any:

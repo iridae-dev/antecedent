@@ -79,7 +79,7 @@ def test_overlap_reaches_rust_changes_the_answer_and_the_binding(estimator: Any)
 def test_a_non_default_overlap_never_borrows_default_calibration() -> None:
     clipped = _frequentist(Aipw(bootstrap=0, overlap=Overlap(clip=0.05)))
     calibration = clipped.inspect().to_dict()["calibration"]
-    assert calibration["status"] in ("unavailable", "scope_not_assessed")
+    assert calibration["status"] in ("not_measured", "outside_measured_scope")
     assert calibration["reason"] == "estimator_grid_not_measured"
     assert calibration["record_id"] is None
 

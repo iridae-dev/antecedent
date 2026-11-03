@@ -117,7 +117,7 @@ UNCERTAINTY_MEANINGS: dict[str, str] = {
 CALIBRATION_STATUSES: tuple[str, ...] = (
     "none",
     "point_only",
-    "unmeasured",
+    "not_measured",
     "measured",
     "inherited",
 )
@@ -147,7 +147,7 @@ _STAGES = (
 OperationsName = Literal[
     "point", "mean", "law", "draws", "joint_draws", "covariance", "interval", "posterior"
 ]
-CalibrationStatusesName = Literal["none", "point_only", "unmeasured", "measured", "inherited"]
+CalibrationStatusesName = Literal["none", "point_only", "not_measured", "measured", "inherited"]
 DependenceRequirementsName = Literal["unconstrained", "declared_evidence", "disjoint_evidence"]
 CalibrationRequirementsName = Literal["not_required", "measured"]
 StagesName = Literal[
@@ -315,8 +315,8 @@ class Calibration:
         return cls("point_only")
 
     @classmethod
-    def unmeasured(cls) -> Calibration:
-        return cls("unmeasured")
+    def not_measured(cls) -> Calibration:
+        return cls("not_measured")
 
     @classmethod
     def measured(cls, record_id: str) -> Calibration:

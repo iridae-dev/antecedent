@@ -215,12 +215,12 @@ fn a_default_frequentist_ate_is_calibrated_anywhere_inside_its_grid() {
 }
 
 #[test]
-fn outside_the_grid_is_scope_not_assessed_never_extrapolated() {
+fn outside_the_grid_is_outside_measured_scope_never_extrapolated() {
     let records = registry();
     for n in [120, 249, 1001, 2000] {
         let basis = primary_basis(default_ate(n, InferenceMode::Frequentist));
         let slot = slot(&basis, &records);
-        assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:#?}");
+        assert_eq!(slot.status, "outside_measured_scope", "n = {n}: {slot:#?}");
         assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
         assert_eq!(
             slot.record_id.as_deref(),
@@ -241,7 +241,7 @@ fn a_default_bayesian_ate_binds_inside_its_grid() {
     let outside =
         primary_basis(default_ate(1500, InferenceMode::Bayesian(BayesianConfig::laplace())));
     let slot_outside = slot(&outside, &records);
-    assert_eq!(slot_outside.status, "scope_not_assessed", "{slot_outside:#?}");
+    assert_eq!(slot_outside.status, "outside_measured_scope", "{slot_outside:#?}");
     assert_eq!(slot_outside.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
 }
 
@@ -254,7 +254,7 @@ fn a_default_temporal_pulse_binds_inside_its_grid() {
         assert_eq!(slot.record_id.as_deref(), Some("cov.fixture.pulse.v2_validation_none"));
     }
     let slot_short = slot(&primary_basis(default_pulse(60)), &records);
-    assert_eq!(slot_short.status, "scope_not_assessed", "{slot_short:#?}");
+    assert_eq!(slot_short.status, "outside_measured_scope", "{slot_short:#?}");
     assert_eq!(slot_short.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
 }
 
@@ -273,7 +273,7 @@ fn a_construction_that_failed_at_one_grid_point_is_a_named_boundary_over_its_ran
     for n in [250, 500, 1000] {
         let basis = primary_basis(default_ate(n, InferenceMode::Frequentist));
         let slot = slot(&basis, &records);
-        assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:#?}");
+        assert_eq!(slot.status, "measured_below_nominal", "n = {n}: {slot:#?}");
         assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
         assert_eq!(slot.observed, Some(0.87), "the failing point's coverage is reported");
     }
@@ -369,9 +369,9 @@ fn a_non_default_overlap_policy_does_not_bind_to_records_measured_at_the_default
         let basis = aipw_basis(AipwAte::new().with_bootstrap_replicates(0).with_overlap(policy));
         assert_eq!(basis.key.functional, label);
         let slot = slot(&basis, &records);
-        // No record measured this construction: unavailable, never borrowed
+        // No record measured this construction: not measured, never borrowed
         // from the default-policy record.
-        assert_eq!(slot.status, "unavailable", "{label}: {slot:#?}");
+        assert_eq!(slot.status, "not_measured", "{label}: {slot:#?}");
         assert_eq!(
             slot.reason.as_deref(),
             Some(antecedent_io::calibration::CONSTRUCTION_NOT_MEASURED),
@@ -420,7 +420,7 @@ fn a_non_gaussian_likelihood_binds_only_to_records_of_that_likelihood() {
     assert_eq!(logit.key.posterior, "laplace.bernoulli_logit.prior_scale=10");
     let gaussian_records = registry();
     let slot = slot(&logit, &gaussian_records);
-    assert_eq!(slot.status, "unavailable", "{slot:#?}");
+    assert_eq!(slot.status, "not_measured", "{slot:#?}");
     assert_eq!(slot.reason.as_deref(), Some(antecedent_io::calibration::CONSTRUCTION_NOT_MEASURED));
     let logit_records = vec![record_for("cov.fixture.logit", &logit)];
     assert_eq!(calibration_slot_in(&logit, &logit_records).status, "calibrated");

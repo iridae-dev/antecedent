@@ -26,7 +26,7 @@ One `InterfaceContract` declares a component identity and two lists of ports.
 | support | the values the quantity takes (produced) or the component accepts (consumed): real, non-negative, binary, a closed interval (bounds as bit patterns), or a finite set of levels |
 | operations | what a producer offers or a consumer requires: `point`, `mean`, `law`, `draws`, `joint_draws`, `covariance`, `interval`, `posterior`; none implies another |
 | uncertainty meaning | what a covariance, law, draws, interval or posterior means (parameter posterior, causal functional posterior, posterior predictive, interventional predictive, estimator sampling, bootstrap, empirical outcome) and therefore its paradigm (posterior, sampling, resampling, empirical) |
-| calibration | produced: a label `none`, `point_only`, `unmeasured`, `measured` (with a record identity) or `inherited` (from a consumed port); consumed: `not_required` or `measured` |
+| calibration | produced: a label `none`, `point_only`, `not_measured`, `measured` (with a record identity) or `inherited` (from a consumed port); consumed: `not_required` or `measured` |
 | measurement models | the identities of the measurement models the quantity is established under; the set must match exactly |
 | evidence | produced: the evidence-ledger sources the value rests on, or undeclared; consumed: `unconstrained`, `declared_evidence` or `disjoint_evidence` |
 | provenance | the composition stages supplied (produced) or required (consumed) |
@@ -62,9 +62,9 @@ A malformed declaration is refused alone, before any comparison, as
 
 An accepted `Connection` carries the producer's label and evidence unchanged
 and a connection identity. **A connection never raises a label**: a point-only
-producer stays point-only, an unmeasured interval stays unmeasured, and a
+producer stays point-only, a not-measured interval stays not measured, and a
 consumer that relies on measured calibration is refused rather than served an
-unmeasured interval.
+not-measured interval.
 
 ## Checking a composition, and cycles
 

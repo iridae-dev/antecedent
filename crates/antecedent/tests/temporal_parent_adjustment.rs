@@ -392,7 +392,7 @@ fn parent_adjusted_interval_binds_only_to_parent_adjustment_records() {
         record_for(&unfolding.key, "cov.unfolding.v2_validation_none", 100, 1000);
     let parent_record = record_for(&parent.key, "cov.parent.v2_validation_none", 100, 1000);
     let slot = calibration_slot_in(&parent, &[unfolding_record]);
-    assert_eq!(slot.status, "unavailable");
+    assert_eq!(slot.status, "not_measured");
     assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
     let slot = calibration_slot_in(&parent, &[unfolding_record, parent_record]);
     assert_eq!(slot.status, "calibrated", "{slot:?}");

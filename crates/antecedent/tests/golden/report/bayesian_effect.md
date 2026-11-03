@@ -14,12 +14,12 @@
 
 - The claim publishes a value of kind point; the sections below state what it rests on and where it stops.
 - The route is a supported support-matrix cell.
-- Calibration status is unavailable: the reported uncertainty carries no measured-coverage record.
+- Calibration status is not\_measured: the reported uncertainty carries no measured-coverage record.
 - Identification status is nonparametrically\_identified.
 
 ## Claim
 
-- **Claim id:** 32efec0310d3671901debcaa7e0a7431a3c3dcd5451d7f0b1684b9dd8690019b
+- **Claim id:** b559df8d7bb88a583a09d702e11c55ac31753ebf05facf3349e4ad818b009d42
 - **Kind:** point
 - **Value:** 2.0322712926
 - **Outcome units:** none
@@ -86,7 +86,7 @@
 
 ### Calibration
 
-- **Calibration status:** unavailable
+- **Calibration status:** not\_measured
 - **Governing record:** none
 - **Reason:** estimator\_grid\_not\_measured
 - **Measured rows (smallest):** none
@@ -143,7 +143,7 @@
 
 ### Limits
 
-- Calibration is unavailable (estimator\_grid\_not\_measured).
+- Calibration is not\_measured (estimator\_grid\_not\_measured).
 
 ### Blockers and refusals
 

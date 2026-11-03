@@ -15,7 +15,8 @@
 //! always reported. The 95% normal interval `effect ± z · se_analytic` is published only when a
 //! current attesting coverage record measured this construction (the target, the number of
 //! declared levels, the folds and the row count are part of the key); otherwise it is withheld
-//! with status `scope_not_assessed` and the standard error is labelled **unmeasured**. Only the
+//! with the calibration status of the slot (`outside_measured_scope`, `measured_below_nominal` or
+//! `not_measured`) and the standard error is labelled **unmeasured**. Only the
 //! full-population target has a measurement design; the pairwise subpopulation target has none
 //! and stays withheld.
 //!
@@ -42,8 +43,8 @@ pub const MULTI_LEVEL_TREATMENT_CALIBRATION: &str = "unmeasured";
 pub const MULTI_LEVEL_TREATMENT_CALIBRATED: &str = "calibrated";
 /// Interval status when a governing coverage record measured the construction at this scope.
 pub const MULTI_LEVEL_INTERVAL_CALIBRATED: &str = "calibrated";
-/// Interval status when no current attesting record covers this construction and scope.
-pub const MULTI_LEVEL_INTERVAL_WITHHELD: &str = "scope_not_assessed";
+/// Interval status when no record measured this construction (also the default of an absent status).
+pub const MULTI_LEVEL_INTERVAL_NOT_MEASURED: &str = "not_measured";
 /// Reason when the contrast has no positive finite standard error to build an interval from.
 pub const MULTI_LEVEL_NO_STANDARD_ERROR: &str = "no_positive_standard_error";
 
@@ -145,7 +146,7 @@ pub struct MultiLevelIntervalWire {
 }
 
 fn interval_status_default() -> String {
-    MULTI_LEVEL_INTERVAL_WITHHELD.into()
+    MULTI_LEVEL_INTERVAL_NOT_MEASURED.into()
 }
 
 /// The self-describing result.
@@ -178,7 +179,8 @@ pub struct MultiLevelReportWire {
     /// coverage record measured this construction at this row count.
     #[serde(default)]
     pub interval: Option<MultiLevelIntervalWire>,
-    /// `calibrated` when the interval is published, `scope_not_assessed` when it is withheld.
+    /// The calibration status of the interval: `calibrated`, `outside_measured_scope`,
+    /// `measured_below_nominal` or `not_measured`.
     #[serde(default = "interval_status_default")]
     pub interval_status: String,
     /// Why the interval is withheld (the matcher's reason code), when it is.
@@ -347,6 +349,7 @@ fn publish_interval(
     let levels = spec.levels.as_ref().map_or(0, Vec::len);
     let slot = calibration_slot(&multi_level_interval_basis(spec.target, levels, folds, n_obs));
     let interval = multi_level_normal_interval(estimate.effect.ate, estimate.effect.se_analytic());
+    let status = slot.status.as_str();
     match (slot.record_id, interval) {
         (Some(record), Some((lower, upper))) if slot.status == "calibrated" => {
             let level = crate::result::REPORTED_SE_INTERVAL_LEVEL;
@@ -354,9 +357,9 @@ fn publish_interval(
             (Some(wire), MULTI_LEVEL_INTERVAL_CALIBRATED, None)
         }
         (Some(_), None) if slot.status == "calibrated" => {
-            (None, MULTI_LEVEL_INTERVAL_WITHHELD, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))
+            (None, status, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))
         }
-        _ => (None, MULTI_LEVEL_INTERVAL_WITHHELD, slot.reason),
+        _ => (None, status, slot.reason),
     }
 }
 

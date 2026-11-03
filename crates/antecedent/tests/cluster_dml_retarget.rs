@@ -222,7 +222,10 @@ fn unweighted_normal_cluster_never_borrows_student_calibration() {
         let basis = routing_basis(basis);
         let selected = calibration_slot_in(&basis, &[student, normal]);
         assert_eq!(selected.record_id.as_deref(), Some(normal.id));
-        assert_eq!(selected.status, if rows == 800 { "scope_not_assessed" } else { "calibrated" });
+        assert_eq!(
+            selected.status,
+            if rows == 800 { "outside_measured_scope" } else { "calibrated" }
+        );
     }
 }
 

@@ -464,7 +464,7 @@ impl AdmittedProviderSource {
             if let Some(meaning) = object_meaning(&source.object) {
                 port = port.with_uncertainty(meaning);
             }
-            port = port.with_calibration(CalibrationStatus::Unmeasured);
+            port = port.with_calibration(CalibrationStatus::NotMeasured);
         } else {
             port = port.with_calibration(CalibrationStatus::PointOnly);
         }
@@ -692,7 +692,7 @@ impl TransportedClaimOffer {
             port = port.with_uncertainty(meaning);
         }
         port = port.with_calibration(if carries {
-            CalibrationStatus::Unmeasured
+            CalibrationStatus::NotMeasured
         } else {
             CalibrationStatus::PointOnly
         });

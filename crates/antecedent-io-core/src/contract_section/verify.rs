@@ -1401,7 +1401,10 @@ pub(in crate::contract_section) fn verify_claim_calibration(
 ) {
     let slot = &claim.calibration;
     let statuses_ok = std::iter::once(slot).chain(slot.secondary.iter()).all(|slot| {
-        matches!(slot.status.as_str(), "calibrated" | "scope_not_assessed" | "unavailable")
+        matches!(
+            slot.status.as_str(),
+            "calibrated" | "outside_measured_scope" | "measured_below_nominal" | "not_measured"
+        )
     });
     if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
         unresolved.push(ContractReason::ClaimCalibration);

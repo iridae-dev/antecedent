@@ -2063,7 +2063,7 @@ class _PreparedEngine(Generic[ResultT]):
             replace(
                 ReasoningSlots.from_contract(dict(self._native.contract())),
                 answer=Answer("unavailable", detail="not_executed"),
-                calibration=CalibrationInfo(status="unavailable", reason="not_executed"),
+                calibration=CalibrationInfo(status="not_measured", reason="not_executed"),
             )
         )
         identification = self.identification

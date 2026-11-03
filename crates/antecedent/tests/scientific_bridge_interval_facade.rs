@@ -303,7 +303,7 @@ fn checked_bridge_slot(basis: &CalibrationBasisWire, expected_method: &str) -> C
         assert_eq!(live.status, CalibrationStatus::Calibrated);
         assert_eq!(live.calibration_sha, fixture_slot.calibration_sha);
     } else {
-        assert_eq!(live.status, CalibrationStatus::ScopeNotAssessed);
+        assert_eq!(live.status, CalibrationStatus::OutsideMeasuredScope);
         assert_eq!(live.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
     }
     live

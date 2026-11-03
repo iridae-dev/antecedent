@@ -470,7 +470,7 @@ mod tests {
     fn sealed_calibrated_flags_and_forged_record_never_grant_source_authority() {
         let source = vec![1, 2, 3];
         for route in ["joint_bayesian", "learned_joint", "nested_fisher", "nested_bayesian"] {
-            let mut slot = CalibrationSlotWire::unavailable("invented");
+            let mut slot = CalibrationSlotWire::not_measured("invented");
             slot.status = "calibrated".into();
             slot.record_id = Some("invented.record".into());
             slot.calibration_sha = Some("0".repeat(40));

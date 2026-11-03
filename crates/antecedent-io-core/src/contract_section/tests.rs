@@ -1253,7 +1253,7 @@ fn tampered_claim_fields_fail_the_claim_id() {
     let edits: [fn(&mut ClaimSectionWire); 5] = [
         |claim| claim.support_domain = "supported".into(),
         |claim| claim.identification_domain = "unknown".into(),
-        |claim| claim.calibration = CalibrationSlotWire::unavailable("forged"),
+        |claim| claim.calibration = CalibrationSlotWire::not_measured("forged"),
         |claim| claim.value_bits = Some(3.0f64.to_bits()),
         |claim| claim.execution = Some([5; 32]),
     ];

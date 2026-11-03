@@ -10,7 +10,7 @@
 //! `CoverageTally::for_record` and collected by
 //! `scripts/collect_coverage_records.py`).
 //!
-//! Vocabulary:
+//! Vocabulary (an annotation on every reported interval, never a gate):
 //!
 //! - `calibrated`: a non-boundary record that still attests the current code
 //!   (its facets have not drifted since `calibration_sha`) measured this
@@ -20,19 +20,20 @@
 //!   sample-size grid points, never extrapolated beyond them), at least as many
 //!   successful resampling replicates and posterior draws, and no more
 //!   non-identified mass. A record is a boundary when any of its grid points
-//!   is: a construction that failed at one measured sample size is not
+//!   is: a construction that measured below nominal at one sample size is not
 //!   calibrated anywhere in the range, except inside a
 //!   [`confirmed_passing_region`]: a contiguous run of grid points that passed
 //!   in the measurement and again in an independent re-measurement with fresh
 //!   seeds. There the slot is `calibrated`, governed by the worst of those
-//!   points; a row count in the failing region still refuses. A matching but
-//!   stale (non-attesting) record is never `calibrated`.
-//! - `scope_not_assessed`: a record measured the construction but the
-//!   execution is outside its scope (the reason names which bound), the
-//!   covering record is a named boundary / under-coverage measurement
-//!   (`boundary_record`, with its observed coverage), or the covering record
-//!   no longer attests the current code (`coverage_record_not_attesting`).
-//! - `unavailable`: no record measured this construction, level or
+//!   points. A matching but stale (non-attesting) record is never `calibrated`.
+//! - `outside_measured_scope`: a record measured the construction but the
+//!   execution is outside its scope (the reason names which bound), or the
+//!   covering record no longer attests the current code
+//!   (`coverage_record_not_attesting`).
+//! - `measured_below_nominal`: the covering record is a named boundary /
+//!   under-coverage measurement at this sample size (`boundary_record`, with
+//!   its observed coverage in `observed`).
+//! - `not_measured`: no record measured this construction, level or
 //!   identification; or no interval was reported.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -93,9 +94,9 @@ pub const REASON_CODES: [&str; 11] = [
 ///
 /// A `calibrated` slot requires this to be true for the governing record. The
 /// answer is generated with the registry ([`ATTESTING_RECORD_IDS`], from
-/// `scripts/calibration_facets.py`), so it changes when a record is re-measured
-/// or the statistical surface drifts, and never by hand. Stale or otherwise
-/// non-attesting records may still be reported as `scope_not_assessed` with
+/// `scripts/calibration_status.py`), so it changes when a record is re-measured,
+/// probed or its dependency fingerprint changes, and never by hand. Stale or otherwise
+/// non-attesting records may still be reported as `outside_measured_scope` with
 /// [`RECORD_NOT_ATTESTING`].
 #[must_use]
 pub fn record_attests_current_code(record: &CoverageRecord) -> bool {
@@ -461,7 +462,7 @@ fn construction_index() -> &'static HashMap<String, Vec<usize>> {
 #[must_use]
 pub fn calibration_slots(bases: &[CalibrationBasisWire]) -> CalibrationSlotWire {
     let Some((primary, rest)) = bases.split_first() else {
-        return CalibrationSlotWire::unavailable(BASIS_MISSING);
+        return CalibrationSlotWire::not_measured(BASIS_MISSING);
     };
     let mut slot = calibration_slot(primary);
     slot.secondary = rest.iter().map(calibration_slot).collect();
@@ -486,7 +487,7 @@ pub fn calibration_slot_in(
 /// [`calibration_slot_in`] with an explicit attestation predicate.
 ///
 /// `attests` decides whether a covering record may yield `calibrated`. A
-/// matching record that fails `attests` is `scope_not_assessed` with
+/// matching record that fails `attests` is `outside_measured_scope` with
 /// [`RECORD_NOT_ATTESTING`].
 #[must_use]
 pub fn calibration_slot_with(
@@ -496,26 +497,26 @@ pub fn calibration_slot_with(
 ) -> CalibrationSlotWire {
     let key = &basis.key;
     let scope = &basis.scope;
-    let unavailable = |reason: &str| CalibrationSlotWire::unavailable(reason).with_basis(basis);
+    let not_measured = |reason: &str| CalibrationSlotWire::not_measured(reason).with_basis(basis);
     if key.interval_method == "none" {
-        return unavailable(NO_INTERVAL_REPORTED);
+        return not_measured(NO_INTERVAL_REPORTED);
     }
     let construction: Vec<&CoverageRecord> =
         records.iter().filter(|record| key.same_construction(record)).collect();
     if construction.is_empty() {
-        return unavailable(CONSTRUCTION_NOT_MEASURED);
+        return not_measured(CONSTRUCTION_NOT_MEASURED);
     }
     let at_level: Vec<&CoverageRecord> = construction
         .into_iter()
         .filter(|record| (record.nominal - key.level).abs() <= TOLERANCE)
         .collect();
     if at_level.is_empty() {
-        return unavailable(LEVEL_NOT_MEASURED);
+        return not_measured(LEVEL_NOT_MEASURED);
     }
     let measured: Vec<&CoverageRecord> =
         at_level.into_iter().filter(|record| record.identification == key.identification).collect();
     if measured.is_empty() {
-        return unavailable(IDENTIFICATION_NOT_MEASURED);
+        return not_measured(IDENTIFICATION_NOT_MEASURED);
     }
     let covering: Vec<&CoverageRecord> = measured
         .iter()
@@ -535,7 +536,7 @@ pub fn calibration_slot_with(
                 (lo.saturating_sub(scope.row_count)).max(scope.row_count.saturating_sub(hi))
             })
             .expect("measured is non-empty");
-        return CalibrationSlotWire::from_record(nearest, CalibrationStatus::ScopeNotAssessed)
+        return CalibrationSlotWire::from_record(nearest, CalibrationStatus::OutsideMeasuredScope)
             .with_reason(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE)
             .with_basis(basis);
     };
@@ -546,7 +547,7 @@ pub fn calibration_slot_with(
         .collect();
     if let Some(boundary) = worst(&boundaries, rows) {
         let mut slot =
-            CalibrationSlotWire::from_record(boundary, CalibrationStatus::ScopeNotAssessed)
+            CalibrationSlotWire::from_record(boundary, CalibrationStatus::MeasuredBelowNominal)
                 .with_reason(BOUNDARY_RECORD)
                 .with_basis(basis);
         // The coverage that makes it a boundary: the worst failing grid point.
@@ -580,9 +581,12 @@ pub fn calibration_slot_with(
         None
     };
     if let Some(reason) = outside {
-        return CalibrationSlotWire::from_record(governing, CalibrationStatus::ScopeNotAssessed)
-            .with_reason(reason)
-            .with_basis(basis);
+        return CalibrationSlotWire::from_record(
+            governing,
+            CalibrationStatus::OutsideMeasuredScope,
+        )
+        .with_reason(reason)
+        .with_basis(basis);
     }
     let mut slot = CalibrationSlotWire::from_record(governing, CalibrationStatus::Calibrated)
         .with_basis(basis);
@@ -795,25 +799,25 @@ fn worst<'a>(records: &[&'a CoverageRecord], rows: u64) -> Option<&'a CoverageRe
 
 /// Re-derive a claim's slot (primary and secondary) from the bases it carries.
 ///
-/// A slot without a basis re-derives to `unavailable` / `calibration_basis_missing`.
+/// A slot without a basis re-derives to `not_measured` / `calibration_basis_missing`.
 /// Caller-attested evidence that records `attested_not_reverifiable` is
 /// uncalibrated by construction, not a missing match key.
 #[must_use]
 pub fn rederive_calibration(slot: &CalibrationSlotWire) -> CalibrationSlotWire {
     let Some(primary) = slot.basis.as_ref() else {
-        if slot.status == "unavailable"
+        if slot.status == "not_measured"
             && slot.reason.as_deref()
                 == Some(antecedent_core::reason_code!("attested_not_reverifiable"))
         {
-            return CalibrationSlotWire::unavailable("attested_not_reverifiable");
+            return CalibrationSlotWire::not_measured("attested_not_reverifiable");
         }
-        return CalibrationSlotWire::unavailable(BASIS_MISSING);
+        return CalibrationSlotWire::not_measured(BASIS_MISSING);
     };
     let mut bases = vec![primary.clone()];
     for secondary in &slot.secondary {
         let Some(reported) = secondary.basis.as_ref() else {
             let mut out = calibration_slots(&bases);
-            out.secondary.push(CalibrationSlotWire::unavailable(BASIS_MISSING));
+            out.secondary.push(CalibrationSlotWire::not_measured(BASIS_MISSING));
             return out;
         };
         bases.push(reported.clone());
@@ -826,12 +830,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn calibration_status_keeps_historical_cbor_text() {
-        for status in [
-            CalibrationStatus::Calibrated,
-            CalibrationStatus::ScopeNotAssessed,
-            CalibrationStatus::Unavailable,
-        ] {
+    fn calibration_status_wire_text_is_the_four_status_codes() {
+        for status in CalibrationStatus::ALL {
             crate::convert::assert_cbor_text_code(status.as_str(), &status);
         }
     }
@@ -1267,12 +1267,12 @@ mod tests {
         let mut b = basis();
         b.scope.replicates_ok = Some(2);
         let slot = calibration_slot_in(&b, &[record("cov.a")]);
-        assert_eq!(slot.status, "scope_not_assessed");
+        assert_eq!(slot.status, "outside_measured_scope");
         assert_eq!(slot.reason.as_deref(), Some(REPLICATES_BELOW_MEASURED));
     }
 
     #[test]
-    fn level_and_identification_mismatches_are_unavailable() {
+    fn level_and_identification_mismatches_are_not_measured() {
         let mut b = basis();
         b.key.level = 0.9;
         assert_eq!(
@@ -1282,7 +1282,7 @@ mod tests {
         let mut b = basis();
         b.key.identification = "partial".into();
         let slot = calibration_slot_in(&b, &[record("cov.a")]);
-        assert_eq!(slot.status, "unavailable");
+        assert_eq!(slot.status, "not_measured");
         assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
     }
 
@@ -1302,7 +1302,7 @@ mod tests {
         let mut b = basis();
         b.key.identification = parent;
         let slot = calibration_slot_in(&b, &[unfolding]);
-        assert_eq!(slot.status, "unavailable");
+        assert_eq!(slot.status, "not_measured");
         assert_eq!(slot.reason.as_deref(), Some(IDENTIFICATION_NOT_MEASURED));
         let slot = calibration_slot_in(&b, &[unfolding, measured]);
         assert_eq!(slot.status, "calibrated");
@@ -1318,7 +1318,7 @@ mod tests {
         let mut b = basis();
         b.scope.row_count = 1200;
         let slot = calibration_slot_in(&b, &[record("cov.a")]);
-        assert_eq!(slot.status, "scope_not_assessed");
+        assert_eq!(slot.status, "outside_measured_scope");
         assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
         assert_eq!(slot.scope_n, Some(500));
     }
@@ -1380,7 +1380,7 @@ mod tests {
             let mut b = basis();
             b.scope.row_count = n;
             let slot = calibration_slot_in(&b, &[gridded("cov.grid", &GRID)]);
-            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.status, "outside_measured_scope", "n = {n}: {slot:?}");
             assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
         }
     }
@@ -1403,7 +1403,7 @@ mod tests {
             let mut b = basis();
             b.scope.row_count = n;
             let slot = calibration_slot_in(&b, &[gridded("cov.grid", &FAILING_SMALL)]);
-            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.status, "measured_below_nominal", "n = {n}: {slot:?}");
             assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
             assert_eq!(slot.observed, Some(0.90), "the failing point's coverage is reported");
         }
@@ -1447,7 +1447,7 @@ mod tests {
             let mut b = basis();
             b.scope.row_count = n;
             let slot = calibration_slot_in(&b, &[recovered(&CONFIRMED_UPPER)]);
-            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.status, "measured_below_nominal", "n = {n}: {slot:?}");
             assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
             assert_eq!(slot.observed, Some(0.90), "the failing point stays on the record");
         }
@@ -1480,7 +1480,7 @@ mod tests {
             let mut b = basis();
             b.scope.row_count = 800;
             let slot = calibration_slot_in(&b, &[recovered(confirmation)]);
-            assert_eq!(slot.status, "scope_not_assessed", "{confirmation:?}");
+            assert_eq!(slot.status, "measured_below_nominal", "{confirmation:?}");
             assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
         }
     }
@@ -1529,14 +1529,14 @@ mod tests {
         boundary.boundary = true;
         boundary.observed = 0.885;
         let slot = calibration_slot_in(&basis(), &[record("cov.a"), boundary]);
-        assert_eq!(slot.status, "scope_not_assessed");
+        assert_eq!(slot.status, "measured_below_nominal");
         assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
         assert_eq!(slot.record_id.as_deref(), Some("cov.boundary.v2_validation_none"));
         assert_eq!(slot.observed, Some(0.885));
     }
 
     #[test]
-    fn no_interval_and_no_record_are_unavailable_with_codes() {
+    fn no_interval_and_no_record_are_not_measured_with_codes() {
         let mut b = basis();
         b.key.interval_method = "none".into();
         assert_eq!(
@@ -1575,7 +1575,7 @@ mod tests {
         assert_eq!(fresh_slot.reason, None);
 
         let stale_slot = calibration_slot_with(&basis(), &[stale], attests);
-        assert_eq!(stale_slot.status, "scope_not_assessed");
+        assert_eq!(stale_slot.status, "outside_measured_scope");
         assert_eq!(stale_slot.record_id.as_deref(), Some("cov.stale.v2_validation_none"));
         assert_eq!(stale_slot.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
 
@@ -1590,10 +1590,10 @@ mod tests {
 
     #[test]
     fn attested_external_estimate_stays_uncalibrated_without_a_basis() {
-        let slot = CalibrationSlotWire::unavailable("attested_not_reverifiable");
+        let slot = CalibrationSlotWire::not_measured("attested_not_reverifiable");
         assert_eq!(rederive_calibration(&slot), slot);
         assert_eq!(
-            rederive_calibration(&CalibrationSlotWire::unavailable("forged")).reason.as_deref(),
+            rederive_calibration(&CalibrationSlotWire::not_measured("forged")).reason.as_deref(),
             Some(BASIS_MISSING)
         );
     }
@@ -1673,7 +1673,7 @@ mod tests {
         );
         for n in [400, 500, 799] {
             let slot = calibration_slot_in(&at(n), &[subrange]);
-            assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+            assert_eq!(slot.status, "measured_below_nominal", "n = {n}: {slot:?}");
             assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
             assert_eq!(slot.observed, Some(0.902), "the failing point's coverage is reported");
             assert_eq!(
@@ -1718,7 +1718,10 @@ mod tests {
         for (index, record) in unconfirmed.iter().enumerate() {
             for n in [800, 1600, 3200] {
                 let slot = calibration_slot_in(&at(n), &[*record]);
-                assert_eq!(slot.status, "scope_not_assessed", "record {index} n = {n}: {slot:?}");
+                assert_eq!(
+                    slot.status, "measured_below_nominal",
+                    "record {index} n = {n}: {slot:?}"
+                );
                 assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
                 assert_eq!(
                     resolve_passing_range(record, n),
@@ -1744,7 +1747,7 @@ mod tests {
             let record = boundary_over(&MIDDLE_FAILS, &ENDS_CONFIRMED, range);
             for n in [400, 600, 800, 1000, 1600] {
                 let slot = calibration_slot_in(&at(n), &[record]);
-                assert_eq!(slot.status, "scope_not_assessed", "n = {n}: {slot:?}");
+                assert_eq!(slot.status, "measured_below_nominal", "n = {n}: {slot:?}");
                 assert_eq!(slot.reason.as_deref(), Some(BOUNDARY_RECORD));
                 assert_eq!(slot.observed, Some(0.905), "the failed interior point is reported");
                 assert_eq!(
@@ -1830,7 +1833,7 @@ mod tests {
             let mut b = at(1600);
             edit(&mut b.key);
             let slot = calibration_slot_in(&b, &[record]);
-            assert_eq!(slot.status, "unavailable", "{what}: {slot:?}");
+            assert_eq!(slot.status, "not_measured", "{what}: {slot:?}");
             assert_eq!(slot.reason.as_deref(), Some(CONSTRUCTION_NOT_MEASURED), "{what}");
         }
         // The nominal level and the identification are exact too.
@@ -1848,7 +1851,7 @@ mod tests {
         );
         // And the record must still attest the current code.
         let stale = calibration_slot_with(&at(1600), &[record], |_| false);
-        assert_eq!(stale.status, "scope_not_assessed");
+        assert_eq!(stale.status, "outside_measured_scope");
         assert_eq!(stale.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
     }
 }

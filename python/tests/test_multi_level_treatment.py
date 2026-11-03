@@ -102,7 +102,7 @@ def test_the_interval_is_withheld_until_a_coverage_record_covers_the_constructio
     )
     # The pairwise subpopulation target has no coverage measurement: always withheld.
     assert pair.interval is None
-    assert pair.interval_status == "scope_not_assessed"
+    assert pair.interval_status == "not_measured"
     assert pair.interval_reason is not None
     assert pair.calibration == "unmeasured"
     assert pair.to_dict()["interval"] is None
@@ -112,7 +112,7 @@ def test_the_interval_is_withheld_until_a_coverage_record_covers_the_constructio
     )
     z = 1.959963984540054
     if full.interval is None:
-        assert full.interval_status == "scope_not_assessed"
+        assert full.interval_status in {"outside_measured_scope", "measured_below_nominal", "not_measured"}
         assert full.interval_reason is not None
         assert full.calibration == "unmeasured"
     else:

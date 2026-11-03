@@ -216,7 +216,7 @@ pub enum CalibrationStatus {
     /// A point value; no uncertainty statement is made or supported.
     PointOnly,
     /// An uncertainty statement is made whose coverage has not been measured.
-    Unmeasured,
+    NotMeasured,
     /// Coverage was measured, in the record with this identity.
     Measured {
         /// Identity of the measured calibration record.
@@ -239,7 +239,7 @@ impl CalibrationStatus {
         match self {
             Self::None => "none",
             Self::PointOnly => "point_only",
-            Self::Unmeasured => "unmeasured",
+            Self::NotMeasured => "not_measured",
             Self::Measured { .. } => "measured",
             Self::Inherited { .. } => "inherited",
         }
@@ -671,7 +671,7 @@ impl PortFacts {
     }
 
     /// A produced port for `quantity` under these facts. The calibration is
-    /// `calibration` when stated, otherwise `unmeasured` for an offering that
+    /// `calibration` when stated, otherwise `not_measured` for an offering that
     /// carries uncertainty and `point_only` for one that does not; it is never
     /// measured by default.
     pub(crate) fn produced(
@@ -697,7 +697,7 @@ impl PortFacts {
             port = port.with_uncertainty(meaning);
         }
         port = port.with_calibration(calibration.unwrap_or(if carries {
-            CalibrationStatus::Unmeasured
+            CalibrationStatus::NotMeasured
         } else {
             CalibrationStatus::PointOnly
         }));
@@ -823,7 +823,7 @@ impl ProducedPort {
         check_models("measurement_models", &self.measurement_models)?;
         check_stages(&self.provenance)?;
         match &self.calibration {
-            CalibrationStatus::None | CalibrationStatus::Unmeasured => {}
+            CalibrationStatus::None | CalibrationStatus::NotMeasured => {}
             CalibrationStatus::PointOnly => {
                 if uncertainty_ops(&self.operations) {
                     return Err(point_only_with_uncertainty(&self.name));
@@ -999,7 +999,7 @@ fn write_produced(writer: &mut CanonicalWriter, port: &ProducedPort) {
         CalibrationStatus::PointOnly => {
             writer.word(2);
         }
-        CalibrationStatus::Unmeasured => {
+        CalibrationStatus::NotMeasured => {
             writer.word(3);
         }
         CalibrationStatus::Measured { record_id } => {

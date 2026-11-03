@@ -438,7 +438,7 @@ fn a_noncausal_claim_says_so_and_never_reads_as_an_effect() {
     }
     let markdown = scenario.render(ReportFormat::Markdown);
     assert_eq!(fact(&markdown, "Claim kind"), "associational");
-    assert_eq!(fact(&markdown, "Identification domain"), "not\\_claimed");
+    assert_eq!(fact(&markdown, "Identification domain"), "not_claimed");
     assert!(fact(&markdown, "Causal reading").starts_with("noncausal"), "{markdown}");
 }
 

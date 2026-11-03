@@ -144,7 +144,12 @@ def _assert_lifecycle(
     assert report["identification"]["available"] is True
     assert report["answer"]["kind"] == "point"
     assert report["answer"]["value"] == result.answer.value
-    assert report["calibration"]["status"] in {"calibrated", "scope_not_assessed", "unavailable"}
+    assert report["calibration"]["status"] in {
+        "calibrated",
+        "outside_measured_scope",
+        "measured_below_nominal",
+        "not_measured",
+    }
     for identity in ("program_id", "claim_id", "data_snapshot_id", "identification_id"):
         assert report[identity], identity
     assert report["support"]["payload"]["matrix_coordinate"] == coordinate
@@ -336,7 +341,7 @@ def test_cluster_partial_interference_retains_study_and_refuses_cross_cluster_ed
     assert result.estimate.se_analytic == pytest.approx(0.0)
     assert result.answer.kind == "point"
     assert result.evidence_status == "off_axis"
-    assert result.inspect().to_dict()["calibration"]["status"] == "unavailable"
+    assert result.inspect().to_dict()["calibration"]["status"] == "not_measured"
     assert "partial_interference" in " ".join(result.assumptions or [])
     rebound = ant.rebind(result.study, data={"y": [2.0] * 4 + [5.0] * 4})
     assert require_success(ant.estimate(rebound)).estimate.ate == pytest.approx(3.0)

@@ -280,7 +280,7 @@ const fn calibration_name(status: CalibrationStatus) -> &'static str {
         CalibrationStatus::Exact => "exact",
         CalibrationStatus::PointOnly => "point_only",
         CalibrationStatus::Measured => "measured",
-        CalibrationStatus::Unmeasured => "unmeasured",
+        CalibrationStatus::NotMeasured => "unmeasured",
         CalibrationStatus::ExactClaimUnverified => "exact_claim_unverified",
     }
 }

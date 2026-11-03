@@ -307,7 +307,7 @@ fn resolve_inherited_calibration<'a>(
                     match feeding.get(&(*component, input.as_str())) {
                         None => {
                             refusals.push(calibration_inherited_unfed(&port.name, input));
-                            CalibrationStatus::Unmeasured
+                            CalibrationStatus::NotMeasured
                         }
                         Some(upstream) => {
                             // A retained unresolved declaration is inspectable, but it may
@@ -322,7 +322,7 @@ fn resolve_inherited_calibration<'a>(
                                 refusals.push(calibration_without_interval(&port.name));
                                 effective.insert(
                                     (*component, port.name.as_str()),
-                                    CalibrationStatus::Unmeasured,
+                                    CalibrationStatus::NotMeasured,
                                 );
                                 continue;
                             }
@@ -346,14 +346,14 @@ fn resolve_inherited_calibration<'a>(
                                 ));
                                 effective.insert(
                                     (*component, port.name.as_str()),
-                                    CalibrationStatus::Unmeasured,
+                                    CalibrationStatus::NotMeasured,
                                 );
                                 continue;
                             }
                             let held = effective
                                 .get(&(upstream.producer.as_str(), upstream.produced_port.as_str()))
                                 .cloned()
-                                .unwrap_or(CalibrationStatus::Unmeasured);
+                                .unwrap_or(CalibrationStatus::NotMeasured);
                             if !held.is_measured() {
                                 refusals.push(calibration_inherited_not_held(
                                     &port.name,

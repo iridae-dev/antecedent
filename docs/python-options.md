@@ -278,7 +278,7 @@ tabular `AverageEffect` on a `Dag`:
   every draw.
 
 Any other route refuses the option with `reason_code="invalid_argument"` rather
-than ignore it. The interval stays `scope_not_assessed` until a coverage record
+than ignore it. The interval is annotated `not_measured` until a coverage record
 covers the draw count and sample size.
 
 ## Clip or trim propensity scores
@@ -293,7 +293,7 @@ the weights, and `trim` drops units whose propensity lies outside
 `[trim, 1 - trim]`. Trimming narrows the population the effect describes.
 `None` turns either one off. A non-default policy changes the inference-binding
 identity and is part of the calibration key, so it reports
-`scope_not_assessed` unless a coverage record measured that policy.
+`not_measured` unless a coverage record measured that policy.
 
 ## Penalize the AIPW propensity
 
@@ -306,7 +306,7 @@ covariance) and publishes the cross-fitted influence-function SE; with `bootstra
 publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
 fitting (`penalized_bootstrap` lists the penalties each replicate selected). Both
 rest on a stated remainder condition and are calibration-wired and unmeasured, so
-they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
+they report `not_measured`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
 `PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
 GLM fit fails and records the failed fit in `penalized_fallback`;
 `nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_supported`) and a lasso outside

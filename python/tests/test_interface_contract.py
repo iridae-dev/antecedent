@@ -136,7 +136,7 @@ def test_measured_calibration_is_required_not_assumed():
     wanted = consumer(
         operations=("interval",), uncertainty="estimator_sampling", calibration="measured"
     )
-    for label in (ic.Calibration.none(), ic.Calibration.unmeasured()):
+    for label in (ic.Calibration.none(), ic.Calibration.not_measured()):
         error = refusal_of(
             lambda label=label: ic.check_connection(
                 producer(

@@ -14034,8 +14034,8 @@ pub variant antecedent_design::composition_boundary::BoundaryError::Verification
 pub variant antecedent_design::composition_boundary::CalibrationStatus::Exact
 pub variant antecedent_design::composition_boundary::CalibrationStatus::ExactClaimUnverified
 pub variant antecedent_design::composition_boundary::CalibrationStatus::Measured
+pub variant antecedent_design::composition_boundary::CalibrationStatus::NotMeasured
 pub variant antecedent_design::composition_boundary::CalibrationStatus::PointOnly
-pub variant antecedent_design::composition_boundary::CalibrationStatus::Unmeasured
 pub variant antecedent_design::composition_boundary::CompositionOperation::BayesianBorrowing
 pub variant antecedent_design::composition_boundary::CompositionOperation::CausalTransport
 pub variant antecedent_design::composition_boundary::CompositionOperation::EvidenceReuse
