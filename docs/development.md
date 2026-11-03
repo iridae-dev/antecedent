@@ -43,9 +43,7 @@ GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
   and `ml-neural`.
 - **`deny`** — `cargo deny check` (licenses, advisories, sources) and the
   crates.io publish dry-run.
-- **`gates`** — requires every parallel `gate-sections` job to pass. Each starts
-  with the calibration attestation (`scripts/gate_calibration_attestation.sh`).
-  The sections divide inventory, capability evidence, graphless and support
+- **`gates`** — requires every parallel `gate-sections` job to pass. The sections divide inventory, capability evidence, graphless and support
   matrix checks, checked execution, feature gates, and benchmark smokes.
   Running `scripts/gate_release.sh` without `--section` still executes all of
   them for a local release-candidate check.
@@ -87,7 +85,7 @@ bash scripts/gate_support_matrix.sh   # public support cells; default refused
 bash scripts/gate_checked_execution.sh   # every supported estimator executes from its retained checked plan with no builder alive
 bash scripts/gate_docs_support_matrix.sh
 bash scripts/gate_public_api.sh   # published crates' public items match parity/public_api/*.txt
-bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is owed, collect, attest
+bash scripts/measure_calibration.sh   # coverage / CI Type I: measure what is not current, collect, print the status
 bash scripts/gate_release.sh       # prior gates + inventory + benches + optional deny
 bash scripts/gate_python_lint.sh   # local equivalent of the CI lint/type checks
 ```
@@ -145,9 +143,9 @@ points, and the row is a boundary when any point is. It refuses a record that
 misses a point, or whose points do not measure strictly growing sample sizes (a
 design that does not scale its `n`). The matcher labels an execution
 `calibrated` only inside `n_min..n_max` of a record that passed at every point;
-a record that failed at any point is `scope_not_assessed` /
+a record that failed at any point is `measured_below_nominal` /
 `boundary_record` over its whole range, reporting the failing point's
-coverage; outside the range it is `scope_not_assessed` /
+coverage; outside the range it is `outside_measured_scope` /
 `sample_size_outside_measured_range`. Nothing is extrapolated.
 
 A boundary record can recover the passing part of its range, but only from an
@@ -168,7 +166,7 @@ in the middle of the grid leaves nothing to recover. The matcher is
 axis, the attestation and the scope checks unchanged), governed by the lowest
 coverage over those points in the measurement and the confirmation, and it
 reports that range as the scope. A row count in the failing region, or between
-it and the range, is still `scope_not_assessed` / `boundary_record`.
+it and the range, is still `measured_below_nominal` / `boundary_record`.
 `scripts/gate_parity_schema.sh` checks that the stated range is exactly what the
 grid and the confirmation establish.
 
@@ -199,67 +197,45 @@ A wiring smoke run (`ANTECEDENT_CALIBRATION_SMOKE=1` with a small
 `--smoke --log-dir <dir> --out <scratch.toml>`, which writes a scratch registry
 and never touches `parity/`.
 
-### When a record stands
+### Two flows: engineering and calibration
+
+Engineering and calibration are separate. No code change fails CI because of
+calibration state, and no measurement runs in CI. A measurement is made on a
+development machine; the status of each committed record is computed from the
+records and printed as information.
 
 The measurement is deterministic: every replicate's data and resamples come
 from fixed seeds, so re-running unchanged code reproduces the same numbers
 (`crates/antecedent-estimate/tests/coverage_determinism.rs` holds that in
-ordinary CI). A record therefore stands until the code it measured changes,
-and is never re-measured on a timer.
+ordinary CI). A record is never re-measured on a timer.
 
-`scripts/calibration_surface.list` is the only owner of that code. It assigns
-every path that can move a number (crate sources, manifests, the toolchain, the
-shared harness, each calibration suite) to a facet:
+**Fingerprint.** `scripts/evidence_fingerprint.py` computes a sha256 over
+everything a test depends on: the normalized sources and manifests of the
+workspace crates in its dependency closure (comments and workspace version
+lines ignored), the test file with its helpers and the DGP file, `Cargo.lock`
+and the workspace manifest, the toolchain file and the feature set. The
+scientific records (`scripts/scientific_records.py`) and the calibration status
+use this one implementation. The calibration fingerprint leaves the platform
+out, because a record is measured on one machine and read on others.
 
-- `core` — shared numerical and harness code (least-squares, conjugate,
-  bootstrap, RNG, facade dispatch, manifests, toolchain). Every record
-  carries it: a core edit owes a re-measurement unless a reviewed replay
-  waiver covers the change.
-- `estimator.*` / `identity.*` — one estimator or identification
-  implementation. A change owes only the records that use that estimator or
-  identity.
-- narrower facets — `mechanism` (the fitted-SCM crates and the dispatch path
-  that alone reaches them), `design`, one `suite.<file>` per calibration
-  suite, and `registry_mirror` (generated tables no measurement reads). A
-  change invalidates only the records carrying the facet.
+**Status.** `python3 scripts/calibration_status.py status` classifies every
+record in `parity/coverage_records.toml`:
 
-Each record's `facets` are derived from the record itself by
-`scripts/calibration_facets.py`: the suite of its test and DGP file, and every
-`estimator.*` / `identity.*` (or `mechanism` / `design`) a `key` line assigns
-to its fields. Every record also carries `core`. `scripts/gate_parity_schema.sh`
-rejects a record whose facets are not exactly the derived set. `estimator.*` /
-`identity.*` isolation is the `key` line: a change owes only records whose
-fields match. For `mechanism` / `design`, `check` still fails when a file
-outside the facet names the facet's items, unless an `allow` line records that
-reviewed reference exactly; a new reference or a stale entry fails.
+- `current` — the record's stored `fingerprint` (written by the collector when it
+  stamps a measurement at HEAD) equals the fingerprint of the tree, or a passing
+  probe attestation made at a tree with that fingerprint covers its measurement
+  (see [Probes](#probes));
+- `probe_owed` — not current, and the measurement stored replicate digests, so a
+  probe can reproduce them;
+- `measurement_owed` — not current and nothing to probe; only a re-measurement
+  makes it current.
 
-A record is **attested** while none of its facets differs between its
-`calibration_sha` and the tree.
-
-### The rule: measure locally, CI rejects what does not match
-
-A change to statistical code is measured on your machine before you push. CI
-rejects an upload whose records do not match the code:
-`scripts/gate_calibration_attestation.sh` runs first in the `gates` job on every
-pull request and every push to `main`, and again inside `gate_release.sh`. It
-never runs a replicate. It compares file contents through git and takes a few
-seconds. It fails when:
-
-- a record **owes a re-measurement**: a path in a facet it depends on changed
-  between its `calibration_sha` and the tree, and no valid replay waiver covers
-  the change. The failure names the drifted facets, their changed paths, the
-  number of records owed, and the command to run;
-- a record's `calibration_sha` **does not resolve**. A rebase, squash or deleted
-  branch orphans the commit a record names. Push the branch or a tag that
-  preserves it (`git tag calibration/<name> <sha>` and
-  `git push origin calibration/<name>`), or re-measure. The `gates` job checks
-  out with `fetch-depth: 0`, so any pushed commit or tag resolves;
-- a replay waiver is invalid, or the list or its facet boundaries are broken
-  (`calibration_facets.py check`).
-
-Records that are attested, or `attested_by_replay` under a valid waiver, pass.
-The same check is what a release cut requires, so there is no separate release
-mode.
+A record without a stored `fingerprint` is never current through its
+measurement. `status --owed` prints the ids that are not current, `status --json`
+the counts and per-record status. The command always exits 0. `gate_release.sh`
+and the release workflow print it; the release candidate lists what is owed and
+is not blocked by it. The runtime snapshot of attesting record ids is the
+`current` set.
 
 ### Measuring
 
@@ -273,9 +249,10 @@ One command, from a clean checkout of the commit you are about to push:
 bash scripts/measure_calibration.sh --dry-run   # the groups it would run
 bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no coverage evidence
 bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
-bash scripts/measure_calibration.sh             # measure what is owed, collect, re-run the gate
+bash scripts/measure_calibration.sh             # measure what is not current, collect, print the status
+bash scripts/measure_calibration.sh --owed      # the same set, spelled out (`calibration_status.py status --owed`)
 bash scripts/measure_calibration.sh --all       # re-measure every group
-bash scripts/measure_calibration.sh --missing-only # fill missing evidence while waivers are pending
+bash scripts/measure_calibration.sh --missing-only # fill missing evidence; keep prior evidence
 bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
 bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the core count)
 ```
@@ -283,8 +260,8 @@ bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the 
 It refuses a dirty working tree, because a measurement must correspond to a real
 commit. It then works in four steps:
 
-1. It asks `scripts/calibration_facets.py` which records owe a re-measurement
-   (or name a commit this clone lacks). `scripts/calibration_groups.py` maps
+1. It asks `scripts/calibration_status.py status` which records are not current;
+   probe first, so a record whose digests reproduce is not measured again. `scripts/calibration_groups.py` maps
    those records to the gate groups that measure them.
 2. It builds the selected test binaries once, then runs each group alone through
    `scripts/gate_calibration.sh`, several at a time; a record-emitting group runs
@@ -297,10 +274,11 @@ commit. It then works in four steps:
    `target/calibration-archives/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
    to `target/calibration-timings.tsv` for post-run review.
-3. It runs `scripts/collect_coverage_records.py --keep-attested` (without the
+3. It runs `scripts/collect_coverage_records.py --keep-unmeasured` (without the
    flag under `--all`). Each record is stamped with the commit it was measured
-   at. Records that still stand keep their own `calibration_sha`.
-4. It runs the attestation gate on the result.
+   at and the fingerprint of its test there. Records the logs do not re-measure
+   keep their own `calibration_sha` and `fingerprint`.
+4. It prints the calibration status of the result.
 
 Commit `parity/coverage_records.toml` and the files the collector regenerates,
 then push. A normal run that fails its calibration band stops before collection.
@@ -313,11 +291,11 @@ groups are deferred, leaving their original evidence intact.
 
 Without `--all`, the selection has three parts:
 
-- the groups behind owed records;
+- the groups behind records that are not current;
 - any group in a calibration suite that has no record in the registry yet;
 - when anything else runs, the pass/fail gates that emit no record (CI Type I,
-  discovery FPR, SBC, `gate_response_calibration.sh`). Nothing can attest those
-  gates, so they run with every re-measurement.
+  discovery FPR, SBC, `gate_response_calibration.sh`). No record describes
+  those gates, so they run with every re-measurement.
 
 Formal runner measurements use `suite_coverage_fwer.v1` after the complete source
 family and hypothesis audit are frozen in `scripts/calibration_family_manifest.json`
@@ -361,7 +339,7 @@ recheck. Earlier collected evidence retains its original decision protocol.
 
 Use `--missing-only` to finish an incomplete collection while existing evidence awaits
 reviewed waivers. It selects groups with neither matching coverage records nor a
-complete passed entry in `parity/calibration_gates.toml`, irrespective of facet drift.
+complete passed entry in `parity/calibration_gates.toml`, irrespective of status.
 The collector uses `--keep-existing`: it preserves every old record, its original SHA,
 and earlier gate evidence, and refuses collisions with existing record IDs.
 For incremental evidence-only batches, `--no-cells --defer-generated` also leaves
@@ -379,17 +357,17 @@ more replicates apply their registered final-look decision directly, without an 
 The formal family protocol accepts only these three registered replicate budgets.
 Decide the budget before examining results, retain the outcomes, and do not search
 seeds or repeat until a pass. These options do not
-waive drift: the final attestation gate still requires actual replay waivers or new
-evidence. Passing collected records whose numerical outputs changed must be
-explicitly replayed or remeasured separately; `--missing-only` does not select them.
+make a record current: only new evidence or a passing probe does. Passing collected records whose numerical outputs changed must be
+remeasured separately; `--missing-only` does not select them.
 
-Facets and replay waivers keep the cost proportional to the change:
+The fingerprint and probes keep the cost proportional to the change:
 
-- an edit confined to one suite owes only that suite's records;
-- an estimator or identification-path edit owes only the records that use it;
-- a `mechanism` edit owes only the fitted-SCM records;
-- a reviewed change that cannot move a number owes nothing, through a waiver;
-- a `core` edit owes every record, unless a reviewed replay waiver covers it;
+- an edit to a crate only the owed tests do not depend on moves no fingerprint;
+- a comment, whitespace or workspace-version edit moves none either;
+- a change that cannot move a number is cleared once a probe reproduces the
+  records' digests at the new fingerprint;
+- a change to a shared crate, the lock file or the toolchain moves every
+  fingerprint that reads it.
 
 **How long it takes.** Groups run side by side (`measure_calibration.sh
 --jobs`). Independent seeds inside a group run across `map_replicates` workers;
@@ -406,57 +384,55 @@ does not scale perfectly with replicates, and a changed coverage rate changes th
 count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
 forecast that summed wall times of suites competing on the same CPU substantially
 overstated the full-pass time. The measurement runs the longest previously measured grid
-jobs first (falling back to pilot timings) to reduce the final straggler. A change that drifts one suite or
-facet costs only the groups behind its records.
+jobs first (falling back to pilot timings) to reduce the final straggler. A change
+costs only the groups behind the records whose fingerprint it moves.
 
-The collector refuses to stamp HEAD while the surface its records depend on
-differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
+The collector refuses to stamp HEAD while the sources a fingerprint reads
+(`crates/`, `python/`, the manifests and the toolchain file) differ from HEAD. It keeps a rechecked point's more precise run, rewrites the
 `calibration` / `calibration_reason` pair on every supported cell and estimator
 row (a supported cell whose every reported-level record is a boundary also states
 `calibration_reason = "boundary_record"` beside its list), and regenerates `crates/antecedent-io-core/data/coverage_records.json`
 (the snapshot `coverage_records_data` loads).
 `scripts/gate_parity_schema.sh` then checks what those rows claim. To collect
-logs measured at another commit, pass `--sha <commit>`. After you edit
-`scripts/calibration_surface.list`, `collect_coverage_records.py --retag`
-recomputes the facets without measuring anything.
-`python3 scripts/calibration_facets.py status` prints the per-commit, per-facet
-drift report on its own.
+logs measured at another commit, pass `--sha <commit>`; those records carry no
+fingerprint and stay owed to a probe or a re-measurement.
 
-### Replay waivers
+### Probes
 
-A reviewed change that cannot move a measured number (a new field with a
-default, a diagnostic) can stand in for a re-measurement through a waiver in
-`parity/calibration_waivers.toml`, which is outside the surface. A waiver names
-`from` (the commit or tag the records were measured at), `to` (the commit it
-attests forward to), the exact surface `paths` that changed between them, a
-`justification`, `reviewed_by`, and `replay` records, each with the waived
-paths its test `exercises`. A record is **attested_by_replay** only when it was
-measured at `from`, every drifted path in its facets is one the waiver names,
-and none of those facets changed between `to` and the tree. Any other change
-leaves it owing, as before.
-
-The evidence is a replay: `calibration_facets.py replay --waiver <id>`, run on a
-clean checkout of `to`, re-runs the gate groups behind the replay records
-through the unchanged `scripts/gate_calibration.sh` and compares each emitted
-`calibration-record` payload with the stored record bit for bit (covered count,
-observed, mcse, replicates and every other emitted field). It writes the
-outcome (the commit replayed at, the record ids, `identical`, any differing
-fields, and a fingerprint of each stored record) into the waiver. `check`
-fails a waiver whose replay was not identical, whose outcome is missing or was
-run elsewhere, whose stored records changed since, whose `from` or `to` does not
-resolve, which names a path that is off the surface or unchanged within its
-range, or whose `exercises` are empty, name a path outside the waiver, leave a
-waived path unexercised, or name a file the record's test cannot reach or a facet
-it does not carry. The attestation gate reports covered records as
-`attested_by_replay (waiver <id>)`, accepts them, and prints their count and
-waiver ids.
+A measurement stores, for every grid point, the chained digests of its first
+10 / 32 / 100 / 320 / 1000 replicates (the record's `probe` table). Replicate
+`k` is a deterministic function of `k`, and the harness folds each replicate's
+interval endpoints, truth and bound scope facts, as raw bits in a fixed order,
+into a fingerprint (`CoverageTally::record`, `ReplicateDigest`). Re-running the
+record's test at `ANTECEDENT_CALIBRATION_NSIM=k` therefore reproduces the stored
+prefix digest exactly when the first `k` replicates are bit-identical. A match
+for `k` replicates bounds the per-replicate rate of any undetected change at
+`3/k`; the bound has to fit inside the record's margin, the observed coverage
+minus the acceptance floor at its worst grid point (3 MCSE for a boundary
+record).
 
 ```bash
-python3 scripts/calibration_facets.py replay-candidates --from <measured tag> --to <sha>
-# write the waiver (without `outcome`), check out `to`, then:
-python3 scripts/calibration_facets.py replay --waiver <id> --dry-run   # the gate groups it runs
-python3 scripts/calibration_facets.py replay --waiver <id>
+python3 scripts/calibration_probe.py quick   --dry-run   # k = 10 per grid point; the commands only
+python3 scripts/calibration_probe.py bounded             # k = smallest stored prefix >= 3/margin
+python3 scripts/calibration_probe.py bounded --record <id>
 ```
+
+Each probe runs the record's group through `scripts/gate_calibration.sh` under
+the measurement's frozen decision environment, in smoke mode (never gated), on a
+clean commit, with logs in `target/calibration-probe/`. It writes
+`parity/calibration_probe_attestations.toml`, one row per record and
+measurement: `record_id`, `calibration_sha`, `sha` (the probed commit),
+`fingerprint` (the record's fingerprint at that commit), `k`, `bound = 3/k`,
+`result`. A mismatch leaves the record owed. A record whose
+margin needs more replicates than its longest stored prefix, or that stores no
+digests (measured before probes existed), is reported `owed`; only a
+re-measurement makes it current. `quick` is a cheap detector: a record stands on a row
+only when `k` is at least what its margin needs.
+
+`calibration_status.py status` counts a record as current when a passing row
+covers it and the row's `fingerprint` equals the fingerprint of the tree.
+Commit the attestation file with the change it attests; re-measuring a record
+drops its rows.
 
 Mark a `parity/*.toml` capability `done` only with conformance under `conformance/`
 **or** a named harness in the gate script, plus a recorded reference-generation
@@ -493,8 +469,8 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
-- The gate then runs `gate_release.sh` (which includes the same calibration
-  attestation every PR passes), Python lint/types, the Python suite with
+- The gate then runs `gate_release.sh` (which prints the calibration status; the
+  records that are not current are listed and do not fail the cut), Python lint/types, the Python suite with
   its coverage floor, and builds one wheel into a fresh directory, installs it
   into a fresh venv and runs the full Python test suite against that installed
   wheel (outside `python/`, so the source tree cannot shadow it).
@@ -502,7 +478,7 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
 Each gate that decides a release has a `--self-test` mode that feeds it
 deliberately broken input and requires a failure: `gate_composition.sh`, `gate_transport.sh`, `gate_gcm_conformance.sh`,
 `gate_parity_schema.sh`, `gate_docs_support_matrix.sh`,
-`gate_release_candidate.sh` and `gate_calibration_attestation.sh`, plus the
+`gate_release_candidate.sh`, plus the
 citation, reachability, metadata and support-matrix gates.
 `scripts/gate_selftests.sh` runs all of them. Each case builds a repo overlay and
 runs a whole gate, so it takes tens of minutes and is run on demand (after
@@ -541,6 +517,41 @@ downstream notices. A debug-profile extension warns on import (the flag is
 `antecedent._native.__build_optimized__`), and `tests/test_build_profile.py`
 fails the pytest suite — locally and in CI — if the extension under test is
 unoptimized (`ANTECEDENT_ALLOW_DEBUG_NATIVE=1` opts out deliberately).
+
+## Recorded scientific tests
+
+The scientific assertions (those whose claims carry the `scientific` role; calibration
+simulations and acceptance measurements are excluded) are recorded like measurements:
+`parity/scientific_records.toml` keeps, per assertion, its exact selector, roles, the
+commit it passed at, a fingerprint of its dependencies and the time. If the fingerprint
+still matches, the recorded pass carries forward to the latest commit and the assertion
+does not rerun.
+
+The fingerprint is a sha256 over the comment-stripped sources and normalized manifests
+of every workspace crate in the test crate's dependency closure, the test file and its
+shared helper modules, the fixture/oracle files the citing claims declare, `Cargo.lock`
+and the workspace manifest with workspace version lines normalized (a version-only
+bump changes nothing), `rust-toolchain.toml`, the feature set
+(`ANTECEDENT_SCIENTIFIC_FEATURES`) and the platform. A Python test adds
+`python/antecedent`, the native crate closure, its `conftest.py` chain and
+`python/uv.lock`. So a leaf-crate edit owes only the assertions that depend on it, and a
+fixture edit owes only the assertions that cite it.
+
+```bash
+python3 scripts/scientific_records.py status          # which assertions are owed
+python3 scripts/scientific_records.py status --check  # same, exit 1 if any owed
+python3 scripts/scientific_records.py run             # run owed ones, record passes
+python3 scripts/scientific_records.py run --all       # rerun and re-record everything
+bash scripts/test.sh scientific                       # same as run
+```
+
+The capability, transport, composition, checked-execution and GCM conformance gates run
+the same carry-forward for the scientific rows they cite; their other rows run as before.
+Everything that does run keeps the runner's proof that the exact assertion executed and
+was not ignored; failures are reported and never recorded. A release candidate sets
+`ANTECEDENT_SCIENTIFIC_ALL=1` (or passes `--all` to a gate or `test.sh scientific`) and
+runs everything. A recorded pass is evidence for support only; it is never a calibration
+measurement or coverage record.
 
 ## Tests that matter
 
@@ -638,10 +649,10 @@ Before merging the release PR:
    `gates` job (`gate_release.sh`), Python lint/pytest, and `python-wheels`
    matrix. The full release gate runs in CI; a local full run is optional.
 3. For an actual release cut, run
-   `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. Every coverage
-   record must be attested, exactly as on every PR: measured, in a run that
-   passed, at a commit whose calibration surface matches HEAD in every facet the
-   record depends on.
+   `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. It prints the
+   coverage records that are not current for HEAD (`calibration_status.py`);
+   measure or probe them before the cut so the release labels them `calibrated`.
+   They do not fail the gate.
 4. Run `cargo deny check` with a freshly fetched advisory database. A cached
    offline audit is useful evidence, but does not establish current advisory status.
 5. Run `bash scripts/publish_crates.sh --dry-run`. Inspect any fallback to
@@ -660,8 +671,8 @@ is optional: when it is present, `target_version` names the release notes
 absent, X.Y.Z is the workspace package version in `Cargo.toml` and the missing
 file is not an error. Those notes must be current, the supported-versions table
 in `SECURITY.md` and the version in `CITATION.cff` must name that version, and
-release-status text must match the cut. Coverage records must be attested at
-HEAD. Tag only the approved, clean commit after these checks pass.
+release-status text must match the cut. Coverage records that are not current
+for HEAD are listed by the candidate gate. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
 Tagged releases drive docs and artifact publishing (GitHub Release assets and

@@ -254,16 +254,17 @@ bash scripts/gate_release.sh
 ```
 
 `gate_calibration.sh` is the statistical calibration suite (SE coverage, CI
-Type I / permutation uniformity, discovery null FPR). It never runs in CI: a
-change to statistical code is measured on a development machine before upload
-with `bash scripts/measure_calibration.sh`, which runs only the groups behind
-records that owe a re-measurement and collects them. Its coverage records stand
-until the statistical surface they measured changes
-(`scripts/calibration_surface.list`), and CI fails any PR or push whose records
-do not match the code (`scripts/gate_calibration_attestation.sh`). A reviewed
-change that cannot move a number may instead be covered by a replay waiver in
-`calibration_waivers.toml`, whose records are reported as `attested_by_replay`
-(see `docs/development.md`).
+Type I / permutation uniformity, discovery null FPR). It never runs in CI and
+CI never fails on calibration state. A change to statistical code is measured on
+a development machine with `bash scripts/measure_calibration.sh`, which runs only
+the groups behind records that are not current and collects them. A record is
+current while the dependency fingerprint of its test (`scripts/evidence_fingerprint.py`,
+stored as the record's `fingerprint`) equals the tree's, or while a passing probe
+(`scripts/calibration_probe.py`: re-running the record's first replicates
+reproduces its stored digests bit for bit, recorded in
+`calibration_probe_attestations.toml`) was made at a tree with that fingerprint.
+`python3 scripts/calibration_status.py status` prints the result (see
+`docs/development.md`).
 
 PAG: inventory (`pag.toml`), LPCMCI / latent-projection / envelope /
 DAG-only-reject conformance; static FCI/RFCI `done`. Permanent: PAG-native

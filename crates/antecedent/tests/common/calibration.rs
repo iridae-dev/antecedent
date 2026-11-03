@@ -121,6 +121,19 @@
 //! `map_replicates`. Smoke runs ([`SMOKE_ENV`]) extend like measured runs:
 //! the extension is wiring, which is what a smoke run proves.
 //!
+//! **Replicate digests.** Every `record` / `skip` / `bind` / `absorb` folds what
+//! the replicate produced (the interval endpoints and truth as raw `f64` bits,
+//! the bound scope facts, in a fixed field order; see [`ReplicateDigest`]) into
+//! one 128-bit fingerprint per scored replicate. The tally keeps the first
+//! [`MAX_DIGEST_PREFIX`] of them, and its `calibration-record` line and tally
+//! sidecar carry the chained prefix digests at [`DIGEST_PREFIXES`] replicates
+//! (`prefix_digests`: the fingerprint of the first `k` replicate fingerprints).
+//! A later run at a smaller replicate count (`scripts/calibration_probe.py`)
+//! reproduces the stored prefix digest exactly when the first `k` replicates
+//! are bit-identical, which is what lets a coverage record stand across a
+//! change that moves no measured number. The fingerprint is for equality
+//! checks, not security.
+//!
 //! Every `calibration-recheck` line is followed by a
 //! `calibration-recheck-test <test>` line naming the libtest thread (the test
 //! function), so `scripts/gate_calibration.sh` can recheck only that test of a
@@ -421,6 +434,145 @@ fn last_map_end() -> Option<u32> {
     MAP_STATE.with(|state| state.get().0)
 }
 
+/// Prefix lengths (replicates) at which a tally reports a chained digest.
+pub const DIGEST_PREFIXES: [u32; 5] = [10, 32, 100, 320, 1000];
+
+/// Replicate fingerprints a tally retains: the longest digest prefix.
+pub const MAX_DIGEST_PREFIX: usize = 1000;
+
+/// Canonical bytes of a replicate's output: floats as raw bits, integers
+/// little-endian, optional values behind a presence byte, sequences behind a
+/// length, always in the fixed field order of the implementation. Two runs
+/// that produce bit-identical output produce identical bytes.
+pub trait ReplicateDigest {
+    fn write_digest(&self, out: &mut Vec<u8>);
+}
+
+impl ReplicateDigest for f64 {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.to_bits().to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for u64 {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for u32 {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&self.to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for usize {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&(*self as u64).to_le_bytes());
+    }
+}
+
+impl ReplicateDigest for bool {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        out.push(u8::from(*self));
+    }
+}
+
+impl<T: ReplicateDigest + ?Sized> ReplicateDigest for &T {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        (**self).write_digest(out);
+    }
+}
+
+impl<T: ReplicateDigest> ReplicateDigest for Option<T> {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        match self {
+            Some(value) => {
+                out.push(1);
+                value.write_digest(out);
+            }
+            None => out.push(0),
+        }
+    }
+}
+
+impl<T: ReplicateDigest> ReplicateDigest for [T] {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        (self.len() as u64).write_digest(out);
+        for value in self {
+            value.write_digest(out);
+        }
+    }
+}
+
+impl<T: ReplicateDigest> ReplicateDigest for Vec<T> {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        self.as_slice().write_digest(out);
+    }
+}
+
+impl<A: ReplicateDigest, B: ReplicateDigest> ReplicateDigest for (A, B) {
+    fn write_digest(&self, out: &mut Vec<u8>) {
+        self.0.write_digest(out);
+        self.1.write_digest(out);
+    }
+}
+
+/// 128-bit non-cryptographic fingerprint of `bytes` (two FNV-1a style lanes
+/// with a final avalanche), as 16 bytes.
+fn fingerprint(chunks: &[&[u8]]) -> [u8; 16] {
+    fn avalanche(mut x: u64) -> u64 {
+        x ^= x >> 30;
+        x = x.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        x ^= x >> 27;
+        x = x.wrapping_mul(0x94d0_49bb_1331_11eb);
+        x ^ (x >> 31)
+    }
+    let mut a: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut b: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut length: u64 = 0;
+    for chunk in chunks {
+        for &byte in *chunk {
+            a = (a ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+            b = (b.rotate_left(5) ^ u64::from(byte)).wrapping_mul(0xff51_afd7_ed55_8ccd);
+            length += 1;
+        }
+    }
+    let hi = avalanche(a ^ length);
+    let lo = avalanche(b ^ hi.rotate_left(17));
+    let mut out = [0_u8; 16];
+    out[..8].copy_from_slice(&hi.to_le_bytes());
+    out[8..].copy_from_slice(&lo.to_le_bytes());
+    out
+}
+
+fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
+        let _ = write!(out, "{byte:02x}");
+        out
+    })
+}
+
+fn unhex_digests(text: &str) -> Vec<[u8; 16]> {
+    assert!(
+        text.len() % 32 == 0,
+        "event digests: hex length {} is not a multiple of 32",
+        text.len()
+    );
+    (0..text.len() / 32)
+        .map(|index| {
+            let mut digest = [0_u8; 16];
+            for (k, slot) in digest.iter_mut().enumerate() {
+                let at = index * 32 + 2 * k;
+                *slot = u8::from_str_radix(&text[at..at + 2], 16)
+                    .unwrap_or_else(|err| panic!("event digests: bad hex: {err}"));
+            }
+            digest
+        })
+        .collect()
+}
+
 /// Evaluate `f(0), …, f(n-1)` on [`worker_threads`] workers, or, when
 /// [`REPLICATE_START_ENV`] is `k > 0`, `f(k), …, f(n-1)` (a recheck by
 /// extension; the tallies fed afterwards seed from the first run's state).
@@ -663,6 +815,12 @@ pub struct CoverageTally {
     /// Whether the first `record` / `skip` / `bind` has run (and, on an
     /// extending thread, seeded the tally from its prior state).
     seeded: bool,
+    /// Canonical bytes folded since the last scored replicate (bound scope
+    /// facts, [`Self::absorb`]), prepended to that replicate's fingerprint.
+    pending: Vec<u8>,
+    /// Fingerprint of each scored replicate, in order, up to
+    /// [`MAX_DIGEST_PREFIX`].
+    events: Vec<[u8; 16]>,
 }
 
 /// The raw state one tally writes to [`TALLY_OUT_ENV`] and an extending run
@@ -681,6 +839,13 @@ struct TallyState {
     /// the tally was emitted; an extension must start exactly there.
     map_end: Option<u32>,
     record: Option<RecordState>,
+    /// Hex of the retained replicate fingerprints (16 bytes each, in order),
+    /// from which an extension continues the digest chain.
+    #[serde(default)]
+    event_digests: String,
+    /// Chained digests of the first `k` replicate fingerprints, by `k`.
+    #[serde(default)]
+    prefix_digests: std::collections::BTreeMap<String, String>,
     /// A prefix belongs to one source, family, grid and validation domain.
     /// Historical extensions have no family declaration and remain unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -751,7 +916,40 @@ impl CoverageTally {
             length_sum: 0.0,
             record: None,
             seeded: false,
+            pending: Vec::new(),
+            events: Vec::new(),
         }
+    }
+
+    /// Fold extra replicate output into the next scored replicate's
+    /// fingerprint (see [`ReplicateDigest`]). Call it before the `record` /
+    /// `skip` of the same replicate.
+    pub fn absorb(&mut self, value: &(impl ReplicateDigest + ?Sized)) {
+        self.seed();
+        value.write_digest(&mut self.pending);
+    }
+
+    /// Close the current replicate: its fingerprint covers the pending bytes,
+    /// the event tag and the event's own canonical bytes.
+    fn push_event(&mut self, tag: u8, body: &[u8]) {
+        let pending = std::mem::take(&mut self.pending);
+        if self.events.len() < MAX_DIGEST_PREFIX {
+            self.events.push(fingerprint(&[pending.as_slice(), &[tag][..], body]));
+        }
+    }
+
+    /// Chained digests of the first `k` replicate fingerprints for every
+    /// [`DIGEST_PREFIXES`] length the tally has reached.
+    fn prefix_digests(&self) -> std::collections::BTreeMap<String, String> {
+        DIGEST_PREFIXES
+            .iter()
+            .filter_map(|&k| {
+                let k = usize::try_from(k).expect("prefix fits usize");
+                let head = self.events.get(..k)?;
+                let chunks: Vec<&[u8]> = head.iter().map(<[u8; 16]>::as_slice).collect();
+                Some((k.to_string(), hex(&fingerprint(&chunks))))
+            })
+            .collect()
     }
 
     /// The key this tally's state is stored under: the libtest thread (the
@@ -815,6 +1013,7 @@ impl CoverageTally {
         self.skipped = prior.skipped;
         self.with_interval = prior.with_interval;
         self.length_sum = prior.length_sum;
+        self.events = unhex_digests(&prior.event_digests);
         match (self.record.as_mut(), prior.record.as_ref()) {
             (Some(record), Some(prior)) => {
                 record.construction.clone_from(&prior.construction);
@@ -851,6 +1050,8 @@ impl CoverageTally {
             length_sum: self.length_sum,
             map_end: last_map_end(),
             decision_context: decision_context(),
+            event_digests: hex(&self.events.concat()),
+            prefix_digests: self.prefix_digests(),
             record: self.record.as_ref().map(|record| RecordState {
                 construction: record.construction.clone(),
                 validation: record.validation.clone(),
@@ -1028,6 +1229,10 @@ impl CoverageTally {
         record.replicates_min = min_opt(record.replicates_min, scope.replicates_ok);
         record.posterior_draws_min = min_opt(record.posterior_draws_min, scope.posterior_draws);
         record.unidentified_mass_max = record.unidentified_mass_max.max(scope.unidentified_mass);
+        scope.row_count.write_digest(&mut self.pending);
+        scope.replicates_ok.write_digest(&mut self.pending);
+        scope.posterior_draws.write_digest(&mut self.pending);
+        scope.unidentified_mass.write_digest(&mut self.pending);
     }
 
     /// A versioned, complete-family Monte Carlo decision, when requested by
@@ -1270,6 +1475,7 @@ impl CoverageTally {
                 "mcse": (rate * (1.0 - rate) / f64::from(attempts.max(1))).sqrt(),
                 "replicates": attempts,
                 "bound_replicates": record.bound,
+                "prefix_digests": self.prefix_digests(),
                 "grid_point": grid_point(),
                 "measured_at": measured_at(),
                 "boundary": boundary,
@@ -1315,6 +1521,10 @@ impl CoverageTally {
     pub fn record(&mut self, interval: Option<(f64, f64)>, truth: f64) {
         self.seed();
         self.scored += 1;
+        let mut body = Vec::with_capacity(25);
+        interval.write_digest(&mut body);
+        truth.write_digest(&mut body);
+        self.push_event(b'R', &body);
         let Some((lo, hi)) =
             interval.filter(|(lo, hi)| lo.is_finite() && hi.is_finite() && lo <= hi)
         else {
@@ -1334,6 +1544,7 @@ impl CoverageTally {
     pub fn skip(&mut self) {
         self.seed();
         self.skipped += 1;
+        self.push_event(b'S', &[]);
     }
 
     /// Scored replicates plus skips: the denominator of [`Self::rate`].

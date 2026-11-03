@@ -79,17 +79,10 @@ disposition = "constant_comparison_removed"
 reason = "The removed case only compared frozen policy numbers with locally constructed constants, exercising no product algorithm or upstream oracle. The existing replacement executes the real gate at inclusive boundaries and faults R-hat, ESS, missing tail ESS and missing divergences. Historical context numbers remain in the software-only fixture."
 
 [[case]]
-previous = "scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_real_registry_accepts_nine_exact_receipts_including_fresh_family"
-replacement = "scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_historical_registry_accepts_nine_exact_receipts_on_frozen_source"
-additional_replacements = ["scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_changed_current_numerical_implementation_cannot_borrow_old_receipt", "scripts/test_calibration_recipe_receipts.py::RecipeReceiptTests.test_missing_current_numerical_dependency_cannot_borrow_old_receipt"]
-disposition = "historical_positive_control_separated_from_current_applicability"
-reason = "Preserve all nine original receipt validations on their frozen source footprint. Changed or moved current source must fail applicability rather than break fixture setup or borrow historical calibration. No measurement, receipt or attestation is regenerated."
-
-[[case]]
 previous = "scripts/test_rust_equivalence.py::TerminalObserverTests.test_actual_exact_two_terminal_primitive_observers"
 replacement = "scripts/test_rust_equivalence.py::TerminalObserverTests.test_historical_exact_two_terminal_primitive_observers"
 disposition = "historical_positive_control_pinned"
-reason = "Bind the success control to the immutable reviewed witness source used by count_observer_proof, retaining full-tree checks and every mutation rejection. A moving HEAD with source changes cannot be assumed equivalent or gain a replay waiver from this test."
+reason = "Bind the success control to the immutable reviewed witness source used by count_observer_proof, retaining full-tree checks and every mutation rejection. A moving HEAD with source changes cannot be assumed equivalent from this test."
 
 [[case]]
 previous = "python/tests/test_native_interrupts_and_callbacks.py::test_a_long_native_estimator_lets_other_python_threads_run"

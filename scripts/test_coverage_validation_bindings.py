@@ -9,17 +9,15 @@ class HistoricalValidationBindingsTest(unittest.TestCase):
     def setUp(self):
         sha = "a" * 40
         self.record = {"id": "cov.example", "calibration_sha": sha,
-                       "test": "crates/example/tests/case.rs::test_case", "surface_list_blob": "d" * 40}
+                       "test": "crates/example/tests/case.rs::test_case"}
         self.row = {"record_id": self.record["id"], "calibration_sha": sha,
                     "test": self.record["test"], "validation": "none",
                     "test_source_blob": "b" * 40, "bridge_source_blob": "c" * 40,
-                    "surface_list_blob": "d" * 40,
                     "evidence": "crates/example/tests/case.rs:50",
                     "review_basis": "the scored study explicitly uses None", "review_status": "approved"}
         self.doc = {"schema_version": 1, "binding": [self.row]}
         self.blobs = {"crates/example/tests/case.rs": "b" * 40,
-                      bindings.BRIDGE: "c" * 40,
-                      "scripts/calibration_surface.list": "d" * 40}
+                      bindings.BRIDGE: "c" * 40}
 
     def resolve(self, doc=None):
         return bindings.checked_bindings([self.record], doc or self.doc,
@@ -52,7 +50,7 @@ class HistoricalValidationBindingsTest(unittest.TestCase):
         for field, value in (("record_id", "other"), ("calibration_sha", "e" * 40),
                              ("test", "crates/example/tests/other.rs::test_case"),
                              ("test_source_blob", "e" * 40), ("bridge_source_blob", "e" * 40),
-                             ("surface_list_blob", "e" * 40), ("validation", "unknown"),
+                             ("validation", "unknown"),
                              ("evidence", "elsewhere:50"), ("review_status", "unrecognized")):
             with self.subTest(field=field):
                 doc = deepcopy(self.doc)

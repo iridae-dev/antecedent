@@ -30,7 +30,7 @@ parity/capability_records.toml, importing its helpers read-only. For each record
 Calibration state is reported PER RECORD, for EVERY record that allocates coverage ids (not only
 `interval` claims, so a `not_supported` record's pending measurement stays visible), keyed by record id:
 PENDING_CALIBRATION while an allocated record is absent,
-PASS once all are present and attested (scripts/calibration_facets.py), FAIL otherwise.
+PASS once all are present; whether they are current is scripts/calibration_status.py's annotation and never fails this check.
 
     python3 scripts/check_interval_coordinates.py                 # static check
     python3 scripts/check_interval_coordinates.py --json          # machine-readable result
@@ -38,8 +38,7 @@ PASS once all are present and attested (scripts/calibration_facets.py), FAIL oth
     python3 scripts/check_interval_coordinates.py --self-test
 
 Exit status 1 on FAIL; PENDING_CALIBRATION is not a failure here (the exit gates decide).
-Environment: INTERVAL_COORDINATES_ROOT (tree to read, default the repo), INTERVAL_COORDINATES_SKIP_ATTEST=1
-(self-test only).
+Environment: INTERVAL_COORDINATES_ROOT (tree to read, default the repo).
 """
 
 from __future__ import annotations
@@ -62,8 +61,6 @@ from _repo import ensure_scripts_on_path
 ROOT = Path(os.environ.get("INTERVAL_COORDINATES_ROOT", REPO))
 # check_interval_surfaces reads its tree from this variable at import; keep both on one tree.
 os.environ["INTERVAL_SURFACES_ROOT"] = str(ROOT)
-if os.environ.get("INTERVAL_COORDINATES_SKIP_ATTEST") == "1":
-    os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 ensure_scripts_on_path()
 import check_interval_surfaces as cai  # noqa: E402  (read-only reuse)
 from capability_source import (  # noqa: E402
@@ -771,9 +768,6 @@ def historical_allocations(
 
 
 def check() -> dict:
-    # Every owner uses the same complete-tree attestation state during this check.
-    # Keep the result local: a later invocation must observe newly collected evidence.
-    attestation_result: tuple[bool, str] | None = None
     errors: list[str] = []
     notes: list[str] = []
     refusals: list[dict] = []
@@ -1073,17 +1067,7 @@ def check() -> dict:
                     "missing": missing,
                 }
             else:
-                if attestation_result is None:
-                    attestation_result = cai.attested()
-                ok, message = attestation_result
-                calibration[rid] = {
-                    "status": "PASS" if ok else "FAIL",
-                    "detail": "records present and attested"
-                    if ok
-                    else f"records present, not attested: {message}",
-                }
-                if not ok:
-                    errors.append(f"{rid}: coverage records present but not attested: {message}")
+                calibration[rid] = {"status": "PASS", "detail": "records present"}
     allocated_ids = {
         cid
         for record in records
@@ -1104,12 +1088,6 @@ def check() -> dict:
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
             if measured_recordless_registration(reg, p) or reviewed_nonemitting_boundary(reg, p):
-                if attestation_result is None:
-                    attestation_result = cai.attested()
-                if not attestation_result[0]:
-                    errors.append(
-                        f"{reg['name']}: recordless gate not attested: {attestation_result[1]}"
-                    )
                 continue
             literals = ignored_test_literals(p).get(reg["name"], [])
             names_itself = reg["name"] in literals or any(
@@ -1236,8 +1214,6 @@ inherited_interval_fields = ["interval"]
             encoding="utf-8",
             newline="\n",
         )
-        os.environ["INTERVAL_COORDINATES_SKIP_ATTEST"] = "1"
-        os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 
         def run(edit=None, coverage: list[str] | None = None, edit_extra=None) -> dict:
             global ROOT

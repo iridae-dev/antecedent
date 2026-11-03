@@ -1,11 +1,44 @@
 #!/usr/bin/env python3
-"""Negative and actual-history oracles for restricted Rust source waivers."""
+"""Negative and actual-history oracles for the restricted Rust source equivalence proofs."""
 
+import subprocess
 import unittest
-from unittest.mock import patch
 
 import _rust_equivalence as proof
-import calibration_facets as facets
+from _repo import REPO_ROOT
+
+COUNT_WITNESS_SOURCE = "767659966d856f0bb882196b5ff9e1aeb47e0a04"
+
+
+class Repo:
+    """Rust sources and Cargo manifests of a commit, read through git."""
+
+    def rust_sources(self, sha):
+        listing = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", sha],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+        paths = [
+            p for p in listing if p.endswith(".rs") or p.endswith("/Cargo.toml") or p == "Cargo.toml"
+        ]
+        batch = subprocess.run(
+            ["git", "cat-file", "--batch"],
+            cwd=REPO_ROOT,
+            input="".join(f"{sha}:{path}\n" for path in paths).encode(),
+            capture_output=True,
+            check=True,
+        ).stdout
+        offset, sources = 0, {}
+        for path in paths:
+            end = batch.index(b"\n", offset)
+            length = int(batch[offset:end].split()[2])
+            offset = end + 1
+            sources[path] = batch[offset : offset + length].decode("utf-8")
+            offset += length + 1
+        return sources
 
 PATH = "crates/example/src/analysis/parent.rs"
 OLD = "pub use engine::nested::{OLD};\npub fn value() -> f64 { 1.0 }\n"
@@ -212,68 +245,8 @@ class RustEquivalenceTests(unittest.TestCase):
             proof.prove("rust_pub_use_addition", PATH, OLD, NEW, old_tree, new_tree)
         )
 
-    def test_numerical_owner_only_bypasses_replay_after_proof_and_exact_blobs(self):
-        old, new = "a" * 40, "b" * 40
-        path = "crates/antecedent-estimate/src/example.rs"
-        before, after = "pub const X:f64=1.0;", "// docs\npub const X:f64=1.0;"
-        old_blob, new_blob = facets.git_blob_identity(before), facets.git_blob_identity(after)
-        repo = facets.FakeRepo(
-            {old: old, new: new},
-            {(old, new): [path]},
-            {(old, path): old_blob, (new, path): new_blob},
-        )
-        manifest = {
-            "crates/antecedent-estimate/Cargo.toml": '[package]\nname="antecedent-estimate"\n'
-        }
-        repo._rust_trees = {old: {path: before, **manifest}, new: {path: after, **manifest}}
-        surface = facets.Surface(entries=[("estimator.example", path)])
-        certificate = facets.ReviewedEquivalence(
-            path, old_blob, new_blob, "rust_comments", "docs", "token proof"
-        )
-        waiver = facets.Waiver(
-            "rust-source-proof",
-            old,
-            new,
-            "reviewer",
-            "source proof",
-            [path],
-            [],
-            reviewed_equivalence=[certificate],
-        )
-        refs = facets.References({}, [], [])
-
-        def check():
-            with patch.object(facets, "_crate_deps", return_value={}):
-                return facets.validate_waivers(
-                    surface,
-                    [waiver],
-                    [{"id": "sample", "calibration_sha": old}],
-                    repo,
-                    refs,
-                    require_outcome=False,
-                )
-
-        self.assertEqual(check().problems, [])
-        certificate.to_blob = "c" * 40
-        self.assertTrue(any("exact from/to blobs" in x for x in check().problems))
-        certificate.to_blob = new_blob
-        certificate.from_blob = ""
-        self.assertTrue(any("exact from/to blobs" in x for x in check().problems))
-        certificate.from_blob = old_blob
-        certificate.kind = "retained_formula"
-        self.assertTrue(
-            any("numerical owners require exercised numeric replay" in x for x in check().problems)
-        )
-        certificate.kind = "rust_comments"
-        repo._rust_trees[new][path] = after.replace("1.0", "2.0")
-        result = check()
-        self.assertTrue(any("Rust equivalence proof failed" in x for x in result.problems))
-        self.assertTrue(
-            any("numerical owners require exercised numeric replay" in x for x in result.problems)
-        )
-
     def test_actual_facade_history_has_exact_qualified_reference_proof(self):
-        repo = facets.Repo()
+        repo = Repo()
         old = repo.rust_sources("c30e10304f4bd85a01ad81dd133a360ddc95c2f1")
         new = repo.rust_sources("e15c4b0c33daf638d11f64b6a7fff6e3bc216022")
         path = "crates/antecedent/src/analysis/sample_split_parent_set_effect.rs"
@@ -286,11 +259,10 @@ class RustEquivalenceTests(unittest.TestCase):
 class TerminalObserverTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        repo = facets.Repo()
+        repo = Repo()
         cls.old = repo.rust_sources("c30e10304f4bd85a01ad81dd133a360ddc95c2f1")
         # Positive controls bind the retained, reviewed observer source; HEAD
         # legitimately changes during development and requires its own proof.
-        from calibration_recipe_receipts import COUNT_WITNESS_SOURCE
         cls.new = repo.rust_sources(COUNT_WITNESS_SOURCE)
         cls.path = "crates/antecedent-stats/src/ci/calibration.rs"
 
@@ -384,7 +356,7 @@ class TerminalObserverTests(unittest.TestCase):
 class ReviewedLintTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        repo = facets.Repo()
+        repo = Repo()
         cls.old = repo.rust_sources("70a71dd33")
         cls.new = repo.rust_sources("48da497f4")
         cls.path = "crates/antecedent/tests/sample_split_parent_set_effect_calibration.rs"

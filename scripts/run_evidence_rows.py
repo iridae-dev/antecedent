@@ -7,6 +7,12 @@ relative to ROOT, and REPO supplies the Python project. TABLE names the array
 of rows (`id`, `evidence_test`, `evidence_assertion`, optional
 `composition_filter`); GATE labels the summary lines. Simulation evidence is
 incomplete unless ANTECEDENT_RUN_CALIBRATION_SIMULATIONS=1 explicitly opts in.
+
+Scientific rows (see scripts/scientific_records.py) whose recorded pass is still
+current are carried forward instead of run, and new passes are recorded in
+parity/scientific_records.toml. ANTECEDENT_SCIENTIFIC_ALL=1 runs everything (a
+release candidate); ANTECEDENT_SCIENTIFIC_RECORD=0 stops recording;
+ANTECEDENT_EVIDENCE_PASSED_OUT=FILE writes the ids that were proven to run.
 """
 
 import os
@@ -80,6 +86,7 @@ def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
 
 
 failures: list[str] = []
+passed_labels: set[str] = set()
 
 
 def check(labels: list[str], cmd: list[str], cwd: Path, counter, exact: bool) -> None:
@@ -96,6 +103,7 @@ def check(labels: list[str], cmd: list[str], cwd: Path, counter, exact: bool) ->
             f"(want {wanted} passed, 0 failed)\n  $ {' '.join(cmd)}\n{tail}"
         )
     else:
+        passed_labels.update(labels)
         print(f"ok: {label} ({passed} passed)")
 
 
@@ -172,6 +180,31 @@ rows = tomllib.loads((root / ledger).read_text(encoding="utf-8")).get(table, [])
 if not rows:
     print(f"FAIL: {ledger} has no [[{table}]] rows")
     sys.exit(1)
+
+total_rows = len(rows)
+scientific = None
+carry_all = os.environ.get("ANTECEDENT_SCIENTIFIC_ALL") != "1"
+recording = os.environ.get("ANTECEDENT_SCIENTIFIC_RECORD") != "0"
+if (
+    (carry_all or recording)
+    and (root / "parity/scientific_records.toml").is_file()
+    and (Path(__file__).parent / "scientific_records.py").is_file()
+):
+    try:
+        import scientific_records
+
+        scientific = scientific_records.GateSession(root)
+    except Exception as error:  # carrying forward is an optimization: run everything instead
+        print(f"{gate}: scientific records unavailable ({error}); running every row")
+if scientific is not None and carry_all:
+    carried = [r for r in rows if r.get("evidence_test") and scientific.current(r)]
+    rows = [r for r in rows if r not in carried]
+    for r in carried:
+        print(f"carried: {r.get('id') or r.get('route')} (recorded scientific pass is current)")
+    print(f"{gate}: {len(carried)} scientific row(s) carried forward, {len(rows)} to run", flush=True)
+by_id = {}
+for r in rows:
+    by_id.setdefault(r.get("id") or r.get("route") or "<no id>", []).append(r)
 
 rust_batches: dict[tuple[str, tuple[str, ...]], dict[str, list[str]]] = defaultdict(
     lambda: defaultdict(list)
@@ -307,6 +340,7 @@ for (crate, target), members in rust_batches.items():
     else:
         for labels in members.values():
             for label in labels:
+                passed_labels.add(label)
                 print(f"ok: {label} (cited Rust test executed)")
 
 if python_nodes:
@@ -357,6 +391,7 @@ if python_nodes:
             )
         if node_passed:
             for label in labels:
+                passed_labels.add(label)
                 print(f"ok: {label} (cited Python test executed)")
         else:
             isolated_failures += 1
@@ -371,8 +406,24 @@ for (crate, target, part), labels in filter_batches.items():
         labels, ["cargo", "test", "-p", crate, *target, "--", part], root, cargo_counts, exact=False
     )
 
+if os.environ.get("ANTECEDENT_EVIDENCE_PASSED_OUT"):
+    import json
+
+    Path(os.environ["ANTECEDENT_EVIDENCE_PASSED_OUT"]).write_text(
+        json.dumps(sorted(passed_labels - set(failures))), encoding="utf-8"
+    )
+if scientific is not None and recording:
+    # Only a row proven to have run, alone under its id, is recorded.
+    proven = [
+        group[0]
+        for cid, group in by_id.items()
+        if len(group) == 1 and cid in passed_labels and cid not in failures
+    ]
+    recorded = scientific.record(proven)
+    if recorded:
+        print(f"{gate}: recorded {recorded} scientific pass(es) in parity/scientific_records.toml")
 if failures:
     print(f"{gate}: {len(failures)} failing row(s): {', '.join(failures)}")
     sys.exit(1)
-print(f"{gate} rows: ok ({len(rows)} rows)")
+print(f"{gate} rows: ok ({total_rows} rows)")
 print(f"{gate}: total evidence runtime {time.monotonic() - started:.1f}s")

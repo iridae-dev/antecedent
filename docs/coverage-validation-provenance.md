@@ -11,12 +11,13 @@ has no support-matrix validation axis. Unknown and legacy records never imply
 Historical measurements remain unchanged. `parity/coverage_validation_bindings.toml`
 proposes reviewed bindings keyed by exact record id, measurement commit and test
 identity. Each binding names the test and support-bridge source blobs at that
-commit, the attested calibration surface blob, and a source-review rationale.
+commit, and a source-review rationale.
 Validation checks the registry identity and every blob. Each row has its own
 review status: only rows marked `approved` are exported to the snapshot used
 by the runtime and collector; `pending_review` rows grant no authority. Matching a binding never changes its
-record's coverage, grid, estimator, attestation, or test; current-code
-attestation and all existing construction and scope checks remain required.
+record's coverage, grid, estimator, fingerprint, or test; the record's
+calibration status (`scripts/calibration_status.py`) and all existing
+construction and scope checks are unaffected.
 
 Validation mode does not transfer between `none`, `cheap`, and `full` without
 separate construction-specific evidence. Existing fixture equality checks alone
@@ -31,3 +32,9 @@ support cells. The old `fixed` construction spelling alone does not establish
 whether the scored input was explicit or accepted. New accepted records include
 an accepted-structure marker in their identity; the resolver fails closed when
 that marker or the matching source is missing.
+
+A record also stores its replicate digests (`probe`), which attest only that a
+later run reproduces the same numbers. They carry no validation coordinate and
+change no binding: the bindings above decide what a record's coverage is about,
+and a passing probe only makes that same measurement current again after a change
+that moved none of its numbers (see [calibration runtime](calibration-runtime.md#keep-records-current-with-probes)).

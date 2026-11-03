@@ -133,7 +133,6 @@ def verify_release(source: Path, release: Release) -> None:
     )
     if any(jobs.get(name) != "success" for name in required):
         raise ValueError("the original source verification and Python release must have succeeded")
-    run(source, "bash", "scripts/gate_calibration_attestation.sh")
     # This manual workflow runs on main; verification operates on the actual
     # release-tag checkout, whose exact identity was checked above.
     env = {

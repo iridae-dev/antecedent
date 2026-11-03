@@ -10,8 +10,8 @@ gate (`ANTECEDENT_CALIBRATION_SHARD=<index-1>/<groups>` selects exactly that
 group), so the gate's recheck and its record logs in `target/calibration-records/`
 are the ones `scripts/collect_coverage_records.py` reads.
 
-Which records owe a re-measurement is decided by `scripts/calibration_facets.py`
-(the only drift computation); this module maps those records to groups.
+Which records are not current is decided by `scripts/calibration_status.py`
+(the only status computation); this module maps those records to groups.
 
     python3 scripts/calibration_groups.py plan [--all]          # what would run
     python3 scripts/calibration_groups.py pilot [--all] [--jobs N]
@@ -33,14 +33,13 @@ first run did not), so the plan books it at
 each suite's grid points the last measurement rechecked.
 
 `scripts/measure_calibration.sh` is the one command a developer runs: it
-refuses a dirty tree, runs `run`, collects the records and re-runs the
-attestation gate.
+refuses a dirty tree, runs `run`, collects the records and prints the
+calibration status.
 
 Selection without `--all`:
 
-* every group that measures a record owing a re-measurement (a facet it depends
-  on drifted since its `calibration_sha` with no valid replay waiver, or that
-  commit is missing from this clone);
+* every group that measures a record that is not current
+  (`scripts/calibration_status.py`);
 * every group in a record-emitting suite file that has no record in the
   registry yet (a new coverage cell), whether or not anything else is owed;
 * when anything above runs, the pass/fail gates that emit no record (CI Type I,
@@ -364,9 +363,9 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
     if everything:
         return Selection(groups, 0, {g.index: "--all" for g in groups})
     ensure_scripts_on_path()
-    import calibration_facets as facets
+    import calibration_status as status
 
-    records = facets.load_records()
+    records = status.load_records()
     if missing_only:
         ledger = (
             tomllib.loads(GATE_REGISTRY.read_text(encoding="utf-8"))
@@ -405,9 +404,10 @@ def select(groups: list[Group], everything: bool, missing_only: bool = False) ->
             chosen.append(group)
             reasons[group.index] = "no coverage record or complete passed gate ledger"
         return Selection(chosen, 0, reasons)
-    assessments = facets.assess(facets.load_surface(), records)
-    wanted = [rec for a in assessments for rec in a.stale]
-    wanted += [rec for a in assessments if not a.resolved for rec in a.records]
+    verdicts = status.classify(
+        records, status.load_attestations(), status.tree_fingerprints(records, status.tree_fingerprinter())
+    )
+    wanted = [rec for rec in records if verdicts[str(rec["id"])].status != status.CURRENT]
     reasons: dict[int, str] = {}
     matched: set[str] = set()
     recordless: list[Group] = []

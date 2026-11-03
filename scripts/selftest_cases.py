@@ -323,9 +323,7 @@ role = "{role}"
 {points}]
 dgp = "{suite}::confounded_scm"
 test = "{suite}::linear_adjustment_analytic_ci_coverage"
-facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
 calibration_sha = "{"1" * 40}"
-surface_list_blob = "{"1" * 40}"
 """
 
 
@@ -467,45 +465,6 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "publish_without_attestation",
-            {
-                ".github/workflows/publish-release.yml": replace(
-                    "        run: bash scripts/gate_calibration_attestation.sh\n",
-                    "        run: echo skipped\n",
-                )
-            },
-            ["publish-release.yml: no step runs gate_calibration_attestation.sh"],
-        ),
-        case(
-            g,
-            "docs_built_before_attestation",
-            {".github/workflows/publish-release.yml": replace("    needs: prepare\n", "")},
-            ["publish-release.yml: job 'docs' does not depend on the attestation job 'prepare'"],
-        ),
-        case(
-            g,
-            "pypi_without_attestation",
-            {
-                ".github/workflows/publish-release.yml": replace(
-                    "    needs: [prepare, crates-dry-run]\n", "    needs: []\n"
-                )
-            },
-            [
-                "publish-release.yml: job 'publish-pypi' does not depend on the attestation job 'prepare'"
-            ],
-        ),
-        case(
-            g,
-            "attestation_on_shallow_clone",
-            {
-                ".github/workflows/publish-release.yml": replace(
-                    "          fetch-depth: 0\n", "          fetch-depth: 1\n"
-                )
-            },
-            ["publish-release.yml: job 'prepare' checks out without fetch-depth: 0"],
-        ),
-        case(
-            g,
             "reason_code_list_stale",
             {
                 "parity/reason_codes.toml": append(
@@ -514,17 +473,6 @@ def schema_cases() -> list[bool]:
                 )
             },
             ["reason_codes_data.rs is stale against"],
-        ),
-        case(
-            g,
-            "record_facets_narrowed_by_hand",
-            {
-                "parity/coverage_records.toml": replace(
-                    'facets = ["core", "mechanism", "suite.static_calibration"]',
-                    'facets = ["suite.static_calibration"]',
-                )
-            },
-            ["are not the derived", "collect_coverage_records.py --retag"],
         ),
         case(
             g,
@@ -680,17 +628,6 @@ def schema_cases() -> list[bool]:
                 )
             },
             ["one_sided on a gated record"],
-        ),
-        case(
-            g,
-            "record_without_facets",
-            {
-                "parity/coverage_records.toml": replace(
-                    'facets = ["core", "estimator.temporal_adjustment", "identity.temporal", "suite.temporal_frequentist"]\n',
-                    "",
-                )
-            },
-            ["missing facets"],
         ),
         case(
             g,

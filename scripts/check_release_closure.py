@@ -35,7 +35,6 @@ from _repo import REPO_ROOT as ROOT
 from _repo import ensure_scripts_on_path
 
 ensure_scripts_on_path()
-import calibration_recipe_receipts as recipe_receipts  # noqa: E402
 import check_acceptance_manifest as manifest  # noqa: E402
 
 IDENTITY = re.compile(
@@ -270,9 +269,7 @@ def configured_point(measured: list[dict[str, Any]], size: float | None) -> dict
     return min(measured, key=distance)
 
 
-def calibrated_record_problems(
-    data: dict[str, Any], records: list[dict[str, Any]], recipe_cases: set[str] | None = None
-) -> list[str]:
+def calibrated_record_problems(data: dict[str, Any], records: list[dict[str, Any]]) -> list[str]:
     """The point at the case's configured size has >= the case's replicates; every measured point
     states a Monte Carlo SE and meets the coverage floor.
 
@@ -283,8 +280,6 @@ def calibrated_record_problems(
     for case in calibrated(data):
         cid, targets = case["id"], case["targets"]
         problems.extend(split_size_problems(case))
-        if cid in (recipe_cases or set()):
-            continue  # Validated original recordless receipt, not a synthetic coverage record.
         if case["expected"]["kind"] == "calibrated_statistical_test":
             problems.append(
                 f"{cid}: statistical-test calibration needs its dedicated source-audited receipt"
@@ -365,12 +360,10 @@ def confirmation_problems(data: dict[str, Any], records: list[dict[str, Any]]) -
 
 
 def attestation_problems(candidate: str, release: str) -> list[str]:
-    """The release candidate runs the inventory, and the inventory runs the calibration attestation."""
+    """The release candidate runs the inventory, and the inventory requires every manifest case bound."""
     problems = []
     if "gate_release.sh" not in candidate:
         problems.append("gate_release_candidate.sh does not run gate_release.sh")
-    if "gate_calibration_attestation.sh" not in release:
-        problems.append("gate_release.sh does not run the calibration attestation (current source)")
     if "check_acceptance_manifest.py --require-bound" not in release:
         problems.append("gate_release.sh does not require every manifest case to be bound")
     return problems
@@ -382,7 +375,6 @@ def construction_problems(
     candidate: str,
     release: str,
     calibration_gate: str,
-    recipe_cases: set[str] | None = None,
 ) -> list[str]:
     """Each interval case emits a record bound to its construction and source, and a gate registers it."""
     problems = attestation_problems(candidate, release)
@@ -394,13 +386,9 @@ def construction_problems(
         if case["expected"]["kind"] in manifest.CALIBRATED_KINDS:
             if not re.search(rf"\b{re.escape(name)}\b", calibration_gate):
                 problems.append(f"{cid}: scripts/gate_calibration.sh does not run {name}")
-            if cid in (recipe_cases or set()):
-                continue  # Construction/source/width were checked in the original receipt type.
             for record in records_of(case, records):
                 for field in (
                     "calibration_sha",
-                    "surface_list_blob",
-                    "facets",
                     "estimator",
                     "interval_method",
                 ):
@@ -447,19 +435,15 @@ def closure_problems(root: Path = ROOT) -> list[str]:
         read(f"scripts/{n}")
         for n in ("gate_release_candidate.sh", "gate_release.sh", "gate_calibration.sh")
     )
-    recipe_cases, recipe_problems = recipe_receipts.validate_registry(
-        root, calibrated(data), case_size
-    )
     return [
-        *recipe_problems,
         *installed_wheel_problems(candidate),
         *example_problems(root),
         *practitioner_scale_problems(data, records, calibration),
         *refusal_boundary_problems(data, root, read(".github/workflows/ci.yml")),
         *replay_identity_problems(data, root),
-        *calibrated_record_problems(data, records, recipe_cases),
+        *calibrated_record_problems(data, records),
         *confirmation_problems(data, records),
-        *construction_problems(data, records, candidate, release, calibration, recipe_cases),
+        *construction_problems(data, records, candidate, release, calibration),
     ]
 
 

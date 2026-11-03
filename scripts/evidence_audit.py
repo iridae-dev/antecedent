@@ -814,7 +814,7 @@ def render(report: dict) -> str:
         owed = Counter(
             (c["facet"], c["owed"]) for c in matrix["cells"] if c["status"] == "pending_measurement"
         )
-        lines += ["", "Pending measurement by closing facet:", ""]
+        lines += ["", "Pending measurement by label:", ""]
         lines += [f"- {facet} ({kind}): {n}" for (facet, kind), n in sorted(owed.items())] or [
             "- none"
         ]
@@ -858,14 +858,24 @@ def scientific_rows(claims: list[dict]) -> list[dict]:
             continue
         path, assertion = row.get("evidence_test"), row.get("evidence_assertion")
         if path and assertion:
-            found.setdefault(
+            entry = found.setdefault(
                 (path, assertion),
                 {
                     "id": row["key"],
                     "evidence_test": path,
                     "evidence_assertion": assertion,
+                    "roles": [],
+                    "fixtures": [],
                 },
             )
+            # Every claim citing the assertion contributes its roles and its
+            # declared fixtures/oracles; scientific_records fingerprints them.
+            entry["roles"] = sorted(set(entry["roles"]) | set(row["roles"]))
+            declared = {
+                f for f in (row.get("known_truth_fixture"), row.get("external_oracle"))
+                if isinstance(f, str) and f
+            }
+            entry["fixtures"] = sorted(set(entry["fixtures"]) | declared)
     if incomplete:
         raise ValueError("scientific evidence incomplete: calibration simulations were not run: "
                          + ", ".join(sorted(set(incomplete))))

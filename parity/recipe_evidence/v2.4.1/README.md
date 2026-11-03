@@ -1,7 +1,6 @@
 # Recordless manual interval recipes
 
-`parity/calibration_recipe_receipts.json` binds five policy/survival acceptance cases to their
-original passed gate receipts. The original harness used `CoverageTally::new`,
+These files hold the original passed gate receipts of five policy/survival acceptance cases. The original harness used `CoverageTally::new`,
 which emits no typed coverage record. These files preserve that receipt type;
 they do not create `cov.*` IDs, a sample-size range, or additional grid runs.
 

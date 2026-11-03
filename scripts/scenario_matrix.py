@@ -9,9 +9,9 @@ test, a test whose name says smoke or limit, and a measurement-only test do not 
 registry derives and the curated file does not record is a gap.
 
 A cell that executes and is tested but owes a calibration measurement is `pending_measurement`,
-never a gap, and only through parity/pending_measurement.toml: the entry names the calibration facet
-of scripts/calibration_surface.list whose records will close it and the kind of measurement owed.
-An entry without a defined facet or a known kind, an entry that names no open cell, and an axis
+never a gap, and only through parity/pending_measurement.toml: the entry names the kind of
+measurement owed (and may carry a `facet` label for the records that will close it).
+An entry without a known kind, an entry that names no open cell, and an axis
 other than design_inference or uncertainty are findings, and the cell stays a gap.
 """
 
@@ -208,27 +208,12 @@ def _curated(root: Path, family, axis_id, value, src, checked, findings) -> dict
                  src.get("what") or src.get("reason", ""))
 
 
-def surface_facets(root: Path) -> set[str]:
-    """The facet names scripts/calibration_surface.list defines (a path, key or key_all line)."""
-    facets: set[str] = set()
-    path = root / "scripts/calibration_surface.list"
-    if not path.is_file():
-        return facets
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        parts = raw.split()
-        if not parts or parts[0].startswith("#") or parts[0] in ("allow", "testmod"):
-            continue
-        facets.add(parts[1] if parts[0] in ("key", "key_all") and len(parts) > 1 else parts[0])
-    return facets
-
-
 def _apply_pending(root: Path, cells: list[dict], findings: list[str]) -> None:
     """Turn the gap cells a registered entry owes to calibration into `pending_measurement`."""
     path = root / "parity/pending_measurement.toml"
     if not path.is_file():
         return
     entries = tomllib.loads(path.read_text(encoding="utf-8")).get("pending", [])
-    facets = surface_facets(root)
     seen: set[str] = set()
     for entry in entries:
         row = entry.get("row", "")
@@ -239,15 +224,11 @@ def _apply_pending(root: Path, cells: list[dict], findings: list[str]) -> None:
         seen.add(row)
         facet, owed = str(entry.get("facet", "")).strip(), entry.get("owed")
         axes = entry.get("axes") or list(PENDING_AXES)
-        if not facet:
-            findings.append(f"{where}: no calibration facet that will close it")
-        elif facet not in facets:
-            findings.append(f"{where}: facet {facet} is not defined in scripts/calibration_surface.list")
         if owed not in OWED_KINDS:
             findings.append(f"{where}: owed {owed!r} is not one of {', '.join(OWED_KINDS)}")
         if any(axis not in PENDING_AXES for axis in axes):
             findings.append(f"{where}: axes {axes} are not among {', '.join(PENDING_AXES)}")
-        if not facet or facet not in facets or owed not in OWED_KINDS:
+        if owed not in OWED_KINDS:
             continue
         hit = [
             c for c in cells

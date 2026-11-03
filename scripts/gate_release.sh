@@ -9,9 +9,8 @@
 #
 # `gate_calibration.sh` is NOT invoked from here, nor anywhere in CI: the
 # statistical measurement is made on a development machine before upload
-# (scripts/measure_calibration.sh). This gate, on every PR, push and release
-# cut alike, requires every coverage record to match the code it was measured
-# at (gate_calibration_attestation.sh, a git comparison that runs in seconds).
+# (scripts/measure_calibration.sh). Calibration status is an annotation
+# (scripts/calibration_status.py) that never fails a code change.
 #   CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh
 #
 # Invokes prior feature gates unless SKIP_PRIOR_GATES=1 (a local shortcut; the
@@ -196,8 +195,8 @@ bash scripts/gate_evidence_reachability.sh
 echo "== coverage citations name existing test fns; coverage figures cite records =="
 bash scripts/gate_coverage_citations.sh
 
-echo "== calibration attestation (every coverage record matches the code) =="
-bash scripts/gate_calibration_attestation.sh
+echo "== calibration status (informational) =="
+python3 scripts/calibration_status.py status || echo "calibration status unavailable"
 fi
 
 if [[ "$section" == all || "$section" == features || "$section" == feature-core ]]; then

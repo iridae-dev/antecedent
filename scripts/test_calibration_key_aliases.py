@@ -130,7 +130,6 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
             self.validate_modified(metadata + '\ncanonical_functional = "fabricated"\n')
 
     def test_verified_receipts_require_exact_native_protocol_and_all_replayed_values(self) -> None:
-        import calibration_facets
         import collect_coverage_records
 
         records = tomllib.loads((ROOT / "parity/coverage_records.toml").read_text(encoding="utf-8"))
@@ -188,7 +187,7 @@ class CalibrationIdentityAliasTests(unittest.TestCase):
         raw = {
             key: value
             for key, value in original.items()
-            if key not in calibration_facets.NOT_EMITTED
+            if key not in aliases.NOT_EMITTED
         }
         raw["functional"] = canonical
         text = "synthetic backend fixture log\n"

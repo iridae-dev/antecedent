@@ -38,9 +38,9 @@ Calibration is tied to commit hashes and is a later phase. The choice routes are
 
 - `crates/antecedent/tests/choice_inference_calibration.rs` holds `#[ignore]`d prior-predictive expectation gates (probability-best calibration, correctness of the selected option at the stopping threshold, EVSI against realized gain, the procedure law against simulation, and the conflict screen's false-flag rate against its Markov bound of one in ten).
 - `crates/antecedent-estimate/tests/choice_interval_calibration.rs` holds four record-emitting coverage designs (pooled share interval, hierarchical population-share interval, with and without looks).
-- Both are registered in `scripts/calibration_surface.list`, `scripts/gate_calibration.sh` and `parity/v3_test_registry.toml`.
+- Both are registered in `scripts/gate_calibration.sh` and `parity/v3_test_registry.toml`.
 
-Owed at that phase: run the gates, refresh the frozen family roster after review, and let the collector write the rows. Until then every output carries `calibration: unmeasured`, intervals are closed, and any edit to files in the adaptive-interval or core calibration facets re-opens existing records.
+Owed: run the gates, refresh the frozen family roster after review, and let the collector write the rows. Until then every output carries `calibration: not_measured`. A record stays current while its dependency fingerprint is unchanged; otherwise a probe decides whether it still applies.
 
 ## What is not claimed
 

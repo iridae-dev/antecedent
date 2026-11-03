@@ -1,0 +1,16 @@
+# Recorded passes of the scientific assertions (see scripts/scientific_records.py).
+#
+# One [[record]] per scientific assertion that passed, written by
+# `python3 scripts/scientific_records.py run` and by the gates that execute
+# scientific rows. A record is current while its fingerprint matches; an owed
+# assertion reruns, a current one carries forward. A recorded pass is evidence for
+# support only. It is never a calibration measurement or a coverage claim.
+#
+# test         exact selector: rust `crate::binary::module::name` (`lib` for the
+#              library target) or python node id relative to python/
+# roles        evidence roles of the citing claims
+# passed       always true; failures are reported, never recorded
+# commit       HEAD when the pass was recorded
+# dirty        whether the working tree differed from that commit
+# fingerprint  sha256 over the assertion's dependency closure
+# recorded_at  UTC time of the pass

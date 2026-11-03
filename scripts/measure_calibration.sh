@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Measure statistical calibration on this machine, before upload.
 #
-# CI never measures: it only checks that the committed coverage records match
-# the code (scripts/gate_calibration_attestation.sh). A change to the
-# statistical surface is measured here, from a clean checkout of the commit
-# being uploaded:
+# CI never measures and never fails on calibration state: the status of each
+# committed record (scripts/calibration_status.py) is an annotation. Calibration
+# is measured here, from a clean checkout of the commit being uploaded:
 #
-#   1. find the records that owe a re-measurement (scripts/calibration_facets.py,
-#      through scripts/calibration_groups.py) and the gate groups that measure
-#      them;
+#   1. find the records that are not current (`scripts/calibration_status.py
+#      status`, through scripts/calibration_groups.py) and the gate groups that
+#      measure them. Try `python3 scripts/calibration_probe.py bounded` first: a
+#      record whose stored replicate digests reproduce at HEAD becomes current;
 #   2. run exactly those groups through scripts/gate_calibration.sh, in parallel,
 #      one job per sample-size grid point of a record-emitting group, including
 #      the 2000-replicate recheck of each point; logs land in
@@ -17,11 +17,13 @@
 #   3. collect them with scripts/collect_coverage_records.py, which merges each
 #      record's grid points into its measured range and stamps it with the
 #      commit it was measured at;
-#   4. run the attestation gate to prove the result passes.
+#   4. print the calibration status of the collected registry.
 #
 # Then commit the registry and the files the collector regenerates, and push.
 #
 #   bash scripts/measure_calibration.sh                # only what is owed
+#   bash scripts/measure_calibration.sh --owed         # the same, spelled out: the list
+#                                                      # `calibration_status.py status --owed` prints
 #   bash scripts/measure_calibration.sh --all          # every group
 #   bash scripts/measure_calibration.sh --missing-only # only missing records/gate evidence; preserve prior evidence
 #   bash scripts/measure_calibration.sh --missing-only --group 'weighted_interval_calibration:*'
@@ -33,10 +35,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 usage() {
-  sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 ALL=""
+OWED=0
 MISSING_ONLY=0
 FILTERS=()
 REPLACEMENTS=()
@@ -49,6 +52,7 @@ JOBS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) ALL="--all" ;;
+    --owed) OWED=1 ;;
     --missing-only) MISSING_ONLY=1 ;;
     --group)
       [[ $# -ge 2 ]] || { echo "--group needs a full-label glob" >&2; exit 2; }
@@ -85,6 +89,10 @@ while [[ $# -gt 0 ]]; do
 done
 if [[ "$MISSING_ONLY" == "1" && -n "$ALL" ]]; then
   echo "--all and --missing-only are mutually exclusive" >&2
+  exit 2
+fi
+if [[ "$OWED" == "1" && ( "$MISSING_ONLY" == "1" || -n "$ALL" ) ]]; then
+  echo "--owed excludes --all and --missing-only" >&2
   exit 2
 fi
 MODE=()
@@ -144,7 +152,7 @@ if [[ "$(git rev-parse HEAD)" != "$HEAD_SHA" || -n "$(git status --porcelain --u
   elif [[ -n "$ALL" ]]; then
     echo "  python3 scripts/collect_coverage_records.py"
   else
-    echo "  python3 scripts/collect_coverage_records.py --keep-attested"
+    echo "  python3 scripts/collect_coverage_records.py --keep-unmeasured"
   fi
   exit 1
 fi
@@ -155,7 +163,7 @@ if [[ "$MISSING_ONLY" == "1" || "$HAVE_FILTERS" == 1 || "$HAVE_REPLACEMENTS" == 
 elif [[ -n "$ALL" ]]; then
   python3 scripts/collect_coverage_records.py
 else
-  python3 scripts/collect_coverage_records.py --keep-attested
+  python3 scripts/collect_coverage_records.py --keep-unmeasured
 fi
 
 if [[ "$RUN_STATUS" != "0" ]]; then
@@ -164,12 +172,8 @@ if [[ "$RUN_STATUS" != "0" ]]; then
   exit "$RUN_STATUS"
 fi
 
-echo "== attestation gate on the collected registry =="
-if ! bash scripts/gate_calibration_attestation.sh; then
-  echo "FAIL: attestation still needs attention. The newly collected evidence and preserved"
-  echo "prior records remain saved; resolve the reported replay waivers or remeasurements."
-  exit 1
-fi
+echo "== calibration status of the collected registry =="
+python3 scripts/calibration_status.py status
 
 echo "measure_calibration: ok. Commit the updated registry and the files the collector"
 echo "regenerated (git status lists them), then push."

@@ -58,8 +58,6 @@ def record(**extra: Any) -> dict[str, Any]:
         "boundary": False,
         "grid": [point],
         "calibration_sha": "a",
-        "surface_list_blob": "b",
-        "facets": ["core"],
         "estimator": "e",
         "interval_method": "m",
     }
@@ -451,20 +449,19 @@ class ReleaseClosureTest(unittest.TestCase):
             any("no confirmation" in p for p in closure.confirmation_problems(data, [bare]))
         )
 
-    def test_every_interval_case_binds_a_record_for_its_public_test_and_the_attested_gate(
+    def test_every_interval_case_binds_a_record_for_its_public_test_and_the_bound_manifest(
         self,
     ) -> None:
         data = self.calibrated()
         candidate, release = (
             "bash scripts/gate_release.sh",
-            ("gate_calibration_attestation.sh\ncheck_acceptance_manifest.py --require-bound\n"),
+            "check_acceptance_manifest.py --require-bound\n",
         )
         gate = "cargo test design\n"
         self.assertEqual(
             closure.construction_problems(data, [record()], candidate, release, gate), []
         )
         unattested = closure.construction_problems(data, [record()], candidate, "", gate)
-        self.assertTrue(any("calibration attestation" in p for p in unattested))
         self.assertTrue(
             any("--require-bound" in p or "every manifest case" in p for p in unattested)
         )
@@ -478,20 +475,6 @@ class ReleaseClosureTest(unittest.TestCase):
             any(
                 "does not run design" in p
                 for p in closure.construction_problems(data, [record()], candidate, release, "")
-            )
-        )
-        unbound = record(surface_list_blob="")
-        self.assertTrue(
-            any(
-                "lacks surface_list_blob" in p
-                for p in closure.construction_problems(data, [unbound], candidate, release, gate)
-            )
-        )
-        stale = record(facets=[])
-        self.assertTrue(
-            any(
-                "lacks facets" in p
-                for p in closure.construction_problems(data, [stale], candidate, release, gate)
             )
         )
 

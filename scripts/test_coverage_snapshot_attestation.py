@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import calibration_facets
+import calibration_status
 import generate_support_matrix_docs as generator
 
 write_generated = generator.write_text  # the generator's own writer, not pathlib's
@@ -62,41 +62,18 @@ class GeneratedWriteTests(unittest.TestCase):
 
 
 class SnapshotAttestationTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.snapshot = Path(self.temp.name) / "coverage_records.json"
-        self.snapshot.write_text(
-            json.dumps({"records": [{"id": "cov.old"}], "attesting_record_ids": ["cov.old"]}),
-            encoding="utf-8",
-        )
+    """The snapshot's attesting ids are the live `current` set and nothing cached."""
 
-    def test_empty_live_assessment_invalidates_matching_cached_ids(self):
-        with (
-            patch.object(generator, "COVERAGE_SNAPSHOT", self.snapshot),
-            patch.object(generator, "load", return_value={"record": [{"id": "cov.old"}]}),
-            patch.object(generator, "_live_attesting_record_ids", return_value=[]),
-        ):
-            self.assertEqual(generator.attesting_record_ids(), [])
-
-    def test_nonempty_live_assessment_is_the_only_authority(self):
-        with (
-            patch.object(generator, "COVERAGE_SNAPSHOT", self.snapshot),
-            patch.object(generator, "load", return_value={"record": [{"id": "cov.old"}]}),
-            patch.object(generator, "_live_attesting_record_ids", return_value=["cov.current"]),
-        ):
+    def test_live_current_set_is_the_only_authority(self):
+        with patch.object(calibration_status, "current_ids", return_value=["cov.current"]):
             self.assertEqual(generator.attesting_record_ids(), ["cov.current"])
 
-    def test_unresolvable_surface_does_not_restore_cached_ids(self):
-        with (
-            patch.object(generator, "COVERAGE_SNAPSHOT", self.snapshot),
-            patch.object(generator, "load", return_value={"record": [{"id": "cov.old"}]}),
-            patch.object(calibration_facets, "load_records", return_value={}),
-            patch.object(calibration_facets, "load_surface", return_value=object()),
-            patch.object(
-                calibration_facets, "assess", side_effect=OSError("unresolvable Git surface")
-            ),
-        ):
+    def test_empty_live_set_attests_nothing(self):
+        with patch.object(calibration_status, "current_ids", return_value=[]):
+            self.assertEqual(generator.attesting_record_ids(), [])
+
+    def test_unreadable_tree_attests_nothing(self):
+        with patch.object(calibration_status, "current_ids", side_effect=OSError("no cargo")):
             self.assertEqual(generator.attesting_record_ids(), [])
 
 

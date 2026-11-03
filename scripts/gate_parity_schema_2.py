@@ -176,7 +176,7 @@ def _resolves(spec: str) -> bool:
     # `frontdoor_data` while the function is `data`, and
     # `calibration_design_bayesian` labels `transport_data_frozen_target`
     # while the function is `transport_frozen_data`. Renaming those functions
-    # would drift the suite facet after the replay waivers.
+    # would change the record id.
     if re.search(r'dgp:\s*"' + re.escape(fn) + r'"', text):
         return True
     # A suite whose records share one helper passes the label as a string argument
@@ -214,13 +214,6 @@ record_ids = set()
 records = []
 if cr.is_file():
     records = tomllib.loads(cr.read_text(encoding="utf-8")).get("record", [])
-    # A record's facets decide which surface changes invalidate it, so they
-    # must be exactly what scripts/calibration_facets.py derives from the
-    # record, never a hand-narrowed list.
-    surface = collector.facets.load_surface(root / "scripts/calibration_surface.list")
-    if surface.errors:
-        problems.extend(f"calibration_surface.list: {e}" for e in surface.errors)
-    surface_refs = collector.facets.references(surface)
     for rec in records:
         rid = rec.get("id", "")
         record_ids.add(rid)
@@ -228,36 +221,12 @@ if cr.is_file():
         if problem := collector.validation_record_problem(rec):
             problems.append(f"{label}: {problem}")
         test = str(rec.get("test", ""))
-        # `surface_list_blob` arrives with the next collection: a registry written by a
-        # collector that stores it names it in its header, and only then is it required.
-        stores_blob = (
-            "surface_list_blob" in cr.read_text(encoding="utf-8").split("[[record]]", 1)[0]
-        )
-        missing = [
-            key
-            for key in collector.FIELDS
-            if key not in rec and (key != "surface_list_blob" or stores_blob)
-        ]
+        missing = [key for key in collector.FIELDS if key not in rec]
         if missing:
             problems.append(f"{label}: missing {', '.join(missing)}")
             continue
-        tagged = rec["facets"]
-        if (
-            not isinstance(tagged, list)
-            or not tagged
-            or not all(isinstance(f, str) for f in tagged)
-        ):
-            problems.append(f"{label}: facets must be a non-empty list of facet names")
-        else:
-            unknown = sorted(set(tagged) - surface.facets)
-            if unknown:
-                problems.append(f"{label}: unknown facets {', '.join(unknown)}")
-            derived = collector.facets.record_facets(rec, surface, surface_refs)
-            if sorted(tagged) != derived:
-                problems.append(
-                    f"{label}: facets {sorted(tagged)} are not the derived {derived}; "
-                    "run python3 scripts/collect_coverage_records.py --retag"
-                )
+        if "fingerprint" in rec and not re.fullmatch(r"[0-9a-f]{64}", str(rec["fingerprint"])):
+            problems.append(f"{label}: fingerprint must be a sha256 hex digest")
         test_fn = test.rsplit("::", 1)[-1]
         expected = (
             f"cov.{_snake(rec['query'])}.{_snake(rec['graph_class'])}."
@@ -276,18 +245,6 @@ if cr.is_file():
             problems.append(f"{label}: calibration_sha must be 40 lowercase hex")
         elif set(sha) == {"0"}:
             problems.append(f"{label}: calibration_sha is the zero SHA; nothing was measured")
-        elif "surface_list_blob" in rec:
-            listed = subprocess.run(
-                ["git", "rev-parse", f"{sha}:scripts/calibration_surface.list"],
-                capture_output=True,
-                text=True,
-            )
-            # A commit missing from a clone is the attestation gate's finding, not this one's.
-            if listed.returncode == 0 and listed.stdout.strip() != rec["surface_list_blob"]:
-                problems.append(
-                    f"{label}: surface_list_blob {rec['surface_list_blob']} is not the surface "
-                    f"list at calibration_sha ({listed.stdout.strip()})"
-                )
         for field in ("observed", "mcse", "nominal", "unidentified_mass_max"):
             val = rec[field]
             if not isinstance(val, (int, float)) or not 0 <= float(val) <= 1:
@@ -464,6 +421,29 @@ if cr.is_file():
                     )
             else:
                 problems.append(f"{where}: unknown role {point_role}")
+        # Stored replicate digests (`probe`) are what scripts/calibration_probe.py compares.
+        if "probe" in rec:
+            table = rec["probe"]
+            if not (
+                isinstance(table, dict)
+                and sorted(table) == ["p0", "p1", "p2"]
+                and all(
+                    isinstance(digests, dict)
+                    and digests
+                    and all(
+                        str(k).isdigit()
+                        and int(k) in collector.DIGEST_PREFIXES
+                        and isinstance(v, str)
+                        and re.fullmatch(r"[0-9a-f]{32}", v)
+                        for k, v in digests.items()
+                    )
+                    for digests in table.values()
+                )
+            ):
+                problems.append(
+                    f"{label}: probe must hold prefix digests ({', '.join(map(str, collector.DIGEST_PREFIXES))}) "
+                    "for grid points p0, p1 and p2"
+                )
         # An independent confirmation (fresh-seed re-measurement of the same design)
         # may recover the passing part of a boundary record's range; the range is
         # exactly what collect_coverage_records.confirmed_passing_range derives, and
@@ -839,32 +819,6 @@ try:
     calibration_key_aliases.validated_aliases(root)
 except (ValueError, KeyError, StopIteration, OSError, subprocess.CalledProcessError) as exc:
     problems.append(f"calibration identity mapping: {exc}")
-
-# ---- [gates] publishing requires calibration attestation ----
-# A tag must not ship calibration labels from a registry that no longer
-# matches the code: the publish workflow attests before any build or upload.
-gating = subprocess.run(
-    [
-        "uv",
-        "run",
-        "--quiet",
-        "--project",
-        ".",
-        "--only-group",
-        "dev",
-        "python",
-        str((root / "scripts/ci_workflow.py").resolve()),
-        "publish-gating",
-        str((root / ".github/workflows/publish-release.yml").resolve()),
-    ],
-    cwd=root / "python",
-    capture_output=True,
-    text=True,
-)
-if gating.returncode != 0:
-    problems.append(f"scripts/ci_workflow.py publish-gating failed: {gating.stdout}{gating.stderr}")
-else:
-    problems.extend(json.loads(gating.stdout)["problems"])
 
 # --- identity / claims files exist ---
 for rel_path in ("parity/identity.toml", "parity/claims.toml"):

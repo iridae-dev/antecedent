@@ -12,7 +12,6 @@ ensure_scripts_on_path()
 import scenario_matrix as matrix  # noqa: E402
 
 ROW = "FAM.static.frequentist"
-SURFACE = "core crates/x/\nsuite.closing_calibration crates/y/\n"
 
 
 def counterpart_row(identifier: str, closure: str, gap: str, execution: str) -> str:
@@ -42,13 +41,11 @@ next_attempt = "measure it"
 
 def build_tree(root: Path, pending: str = "", curated: str = "", execution: str = "none.rs::t") -> dict:
     (root / "parity").mkdir()
-    (root / "scripts").mkdir()
     (root / "parity/counterparts.toml").write_text(
         counterpart_row(ROW, "narrowed_promise", "validation", execution), encoding="utf-8"
     )
     (root / "parity/missing_policy_support.toml").write_text("", encoding="utf-8")
     (root / "parity/scenario_matrix.toml").write_text("schema = 1\n" + curated, encoding="utf-8")
-    (root / "scripts/calibration_surface.list").write_text(SURFACE, encoding="utf-8")
     if pending:
         (root / "parity/pending_measurement.toml").write_text(pending, encoding="utf-8")
     return matrix.build(root)
@@ -85,20 +82,6 @@ def test_the_same_cell_without_an_entry_is_a_gap_not_pending():
     assert cell["status"] == matrix.GAP and cell["gap_kind"] == "narrowed_promise"
 
 
-def test_a_pending_entry_with_no_facet_is_rejected_and_the_cell_stays_a_gap():
-    result = run_case(pending=entry(facet=None))
-    assert any("no calibration facet" in f for f in result["findings"]), result["findings"]
-    cell = [c for c in cells_of(result) if c["value"] == "static.frequentist"][0]
-    assert cell["status"] == matrix.GAP
-
-
-def test_a_pending_entry_whose_facet_the_surface_does_not_define_is_rejected():
-    result = run_case(pending=entry(facet="suite.no_such_facet"))
-    assert any("is not defined in scripts/calibration_surface.list" in f for f in result["findings"])
-    cell = [c for c in cells_of(result) if c["value"] == "static.frequentist"][0]
-    assert cell["status"] == matrix.GAP
-
-
 def test_a_pending_entry_with_an_unknown_owed_kind_or_axis_is_rejected():
     kinds = run_case(pending=entry(owed="vibes"))
     assert any("owed 'vibes'" in f for f in kinds["findings"]), kinds["findings"]
@@ -133,14 +116,12 @@ what = "w"
     assert cell["status"] == matrix.GAP
 
 
-def test_every_pending_cell_of_the_live_matrix_names_a_defined_facet_and_nothing_is_delivered_unproven():
+def test_every_pending_cell_of_the_live_matrix_is_owed_a_known_kind_and_nothing_is_delivered_unproven():
     built = matrix.build(REPO_ROOT)
     assert built["findings"] == [], built["findings"]
-    facets = matrix.surface_facets(REPO_ROOT)
     pending = matrix.pending(built)
     assert pending, "the live matrix owes calibration measurements"
     for cell in pending:
-        assert cell["facet"] in facets, cell
         assert cell["owed"] in matrix.OWED_KINDS, cell
         assert cell["evidence"] == "", cell
     assert all(c["evidence"] for c in built["cells"] if c["status"] == matrix.DELIVERED)
@@ -149,12 +130,10 @@ def test_every_pending_cell_of_the_live_matrix_names_a_defined_facet_and_nothing
 _CASES = [
     test_a_registered_calibration_owed_cell_is_pending_and_names_its_closing_facet,
     test_the_same_cell_without_an_entry_is_a_gap_not_pending,
-    test_a_pending_entry_with_no_facet_is_rejected_and_the_cell_stays_a_gap,
-    test_a_pending_entry_whose_facet_the_surface_does_not_define_is_rejected,
     test_a_pending_entry_with_an_unknown_owed_kind_or_axis_is_rejected,
     test_a_pending_entry_that_names_no_open_cell_is_stale,
     test_a_delivered_curated_cell_without_an_exact_test_is_rejected_and_stays_a_gap,
-    test_every_pending_cell_of_the_live_matrix_names_a_defined_facet_and_nothing_is_delivered_unproven,
+    test_every_pending_cell_of_the_live_matrix_is_owed_a_known_kind_and_nothing_is_delivered_unproven,
 ]
 
 

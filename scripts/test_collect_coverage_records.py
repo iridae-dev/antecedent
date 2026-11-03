@@ -293,7 +293,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 collector.append_attested_records(old, new, replace_ids=[invalid])
 
     def test_keep_existing_cli_preserves_stale_rows_and_previous_gate_evidence(self) -> None:
-        old = {"id": "old", "calibration_sha": "old-sha", "facets": ["core"]}
+        old = {"id": "old", "calibration_sha": "old-sha"}
         new = {"id": "new", "calibration_sha": "new-sha"}
         with tempfile.TemporaryDirectory() as directory:
             ledger = Path(directory) / "gates.toml"
@@ -315,12 +315,8 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 patch.object(collector, "OUT", Path(directory) / "records.toml"),
                 patch.object(collector, "GATES", ledger),
                 patch.object(collector, "load_records", return_value={"new": new}),
-                patch.object(
-                    collector,
-                    "tag_facets",
-                    side_effect=lambda rows: rows["new"].update(facets=["core"]),
-                ) as tag,
-                patch.object(collector.facets, "load_records", return_value=[old]),
+                patch.object(collector, "existing_records", return_value={"old": old}),
+                patch.object(collector, "stamp_fingerprints"),
                 patch.object(collector, "write_registry") as write,
                 patch.object(collector, "write_gate_ledger") as gates,
                 patch.object(collector, "gate_ledger", return_value={}),
@@ -329,9 +325,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 self.assertEqual(collector.main(), 0)
                 generated.assert_not_called()
                 self.assertEqual(write.call_args.args[0], {"old": old, "new": new})
-                self.assertEqual(write.call_args.kwargs, {"retag": False})
-                tag.assert_called_once_with({"new": new})
-                self.assertEqual(new["facets"], ["core"])
+                self.assertEqual(write.call_args.kwargs, {})
                 self.assertEqual(old["calibration_sha"], "old-sha")
                 self.assertEqual(gates.call_args.args[1]["old-gate"]["calibration_sha"], "old-sha")
 
@@ -735,43 +729,38 @@ def _point(k: int, observed: float, role: str, **extra) -> dict:
 UPPER = {"side": "upper", "target": "true upper extremal bound U"}
 
 
-class FacetTaggingTest(unittest.TestCase):
-    def test_collection_resolves_source_blob_once_for_all_records(self):
-        records = {str(i): {"id": str(i)} for i in range(3)}
+class FingerprintStampTest(unittest.TestCase):
+    def test_records_measured_at_head_carry_the_fingerprint_of_their_test(self):
+        records = {"a": {"id": "a", "test": "t::a"}, "b": {"id": "b", "test": "t::b"}}
         with (
-            tempfile.TemporaryDirectory() as directory,
-            patch.object(collector, "require_frozen_collection_decisions"),
-            patch.object(collector.coverage_decision_logs, "audit_logs", return_value={}),
-            patch.object(collector, "merged_records", return_value=records),
-            patch.object(collector, "surface_list_blob", return_value="b" * 40) as resolve,
+            patch.object(collector.subprocess, "check_output", return_value="a" * 40 + "\n"),
+            patch.object(collector.subprocess, "run") as status,
+            patch.object(collector.calibration_status, "tree_fingerprinter"),
+            patch.object(
+                collector.calibration_status,
+                "tree_fingerprints",
+                return_value={"a": "f" * 64, "b": None},
+            ),
         ):
-            self.assertEqual(collector.load_records("a" * 40, Path(directory), verify_logs=False), records)
-        resolve.assert_called_once_with("a" * 40)
-        self.assertTrue(all(row["surface_list_blob"] == "b" * 40 for row in records.values()))
+            status.return_value.stdout = ""
+            collector.stamp_fingerprints(records, "a" * 40)
+        self.assertEqual(records["a"]["fingerprint"], "f" * 64)
+        self.assertNotIn("fingerprint", records["b"])
 
-    def test_retag_widens_dependencies_without_changing_measurement_or_attestation(self):
-        record = {"id": "historical", "query": "ObservationConditionalProbability",
-                  "calibration_sha": "a" * 40, "observed": 0.95,
-                  "replicates": 400, "facets": ["core"]}
-        before = dict(record)
-        surface = collector.facets.Surface(keys=[("mechanism", "query", ["ObservationConditionalProbability"])])
-        with (
-            patch.object(collector.facets, "load_surface", return_value=surface),
-            patch.object(collector.facets, "references", side_effect=AssertionError("record-owned tags must not borrow a current source graph")),
-        ):
-            collector.tag_facets({"historical": record})
-        self.assertEqual(record["facets"], ["core", "mechanism"])
-        self.assertEqual({k: v for k, v in record.items() if k != "facets"},
-                         {k: v for k, v in before.items() if k != "facets"})
+    def test_logs_stamped_at_another_commit_carry_no_fingerprint(self):
+        records = {"a": {"id": "a"}}
+        with patch.object(collector.subprocess, "check_output", return_value="b" * 40 + "\n"):
+            collector.stamp_fingerprints(records, "a" * 40)
+        self.assertNotIn("fingerprint", records["a"])
 
-    def test_empty_measurement_needs_no_repository_reference_scan(self):
+    def test_a_dirty_fingerprint_input_refuses_to_stamp(self):
         with (
-            patch.object(collector.facets, "load_surface") as surface,
-            patch.object(collector.facets, "references") as refs,
+            patch.object(collector.subprocess, "check_output", return_value="a" * 40 + "\n"),
+            patch.object(collector.subprocess, "run") as status,
         ):
-            collector.tag_facets({})
-        surface.assert_not_called()
-        refs.assert_not_called()
+            status.return_value.stdout = " M crates/x/src/lib.rs\n"
+            with self.assertRaisesRegex(SystemExit, "differ from HEAD"):
+                collector.stamp_fingerprints({"a": {"id": "a"}}, "a" * 40)
 
 
 class ConservativePointTest(unittest.TestCase):
@@ -804,43 +793,30 @@ class ConservativePointTest(unittest.TestCase):
         self.assertEqual(record["conservative_point"], collector.GAUSSIAN_STUDY_T_CLAIM)
         self.assertNotIn("one_sided", record)
 
-    def test_registry_resolves_only_missing_surface_blobs(self):
+    def test_registry_writes_the_fingerprint_after_the_measurement_commit(self):
         record = collector.merge_grid("gaussian", {k: self.point(k) for k in range(3)})
         record.update({key: "x" for key in collector.FIELDS if key not in record})
-        record.update(facets=["core"], calibration_sha="1" * 40, surface_list_blob="2" * 40)
+        record.update(calibration_sha="1" * 40, fingerprint="2" * 64)
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "records.toml"
-            with patch.object(
-                collector,
-                "surface_list_blob",
-                side_effect=AssertionError("existing evidence must retain its blob"),
-            ):
-                collector.write_registry({"gaussian": record}, out, retag=False)
-            self.assertEqual(
-                collector.tomllib.loads(out.read_text(encoding="utf-8"))["record"][0][
-                    "surface_list_blob"
-                ],
-                "2" * 40,
-            )
-            record.pop("surface_list_blob")
-            with patch.object(collector, "surface_list_blob", return_value="3" * 40) as resolve:
-                collector.write_registry({"gaussian": record}, out, retag=False)
-            resolve.assert_called_once_with("1" * 40)
-            self.assertEqual(
-                collector.tomllib.loads(out.read_text(encoding="utf-8"))["record"][0][
-                    "surface_list_blob"
-                ],
-                "3" * 40,
+            collector.write_registry({"gaussian": record}, out)
+            text = out.read_text(encoding="utf-8")
+            parsed = collector.tomllib.loads(text)["record"][0]
+            self.assertEqual(parsed["fingerprint"], "2" * 64)
+            self.assertLess(text.index("calibration_sha ="), text.index("fingerprint ="))
+            record.pop("fingerprint")
+            collector.write_registry({"gaussian": record}, out)
+            self.assertNotIn(
+                "fingerprint", collector.tomllib.loads(out.read_text(encoding="utf-8"))["record"][0]
             )
 
     def test_theorem_and_target_survive_registry_serialization(self):
         record = collector.merge_grid("gaussian", {k: self.point(k) for k in range(3)})
         record.update({key: "x" for key in collector.FIELDS if key not in record})
-        record.update(facets=["core"], calibration_sha="1" * 40, surface_list_blob="1" * 40)
+        record.update(calibration_sha="1" * 40)
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "records.toml"
-            with patch.object(collector, "surface_list_blob", return_value="1" * 40):
-                collector.write_registry({"gaussian": record}, out, retag=False)
+            collector.write_registry({"gaussian": record}, out)
             parsed = collector.tomllib.loads(out.read_text(encoding="utf-8"))["record"][0]
         self.assertEqual(parsed["conservative_point"], collector.GAUSSIAN_STUDY_T_CLAIM)
         self.assertEqual(parsed["observed"], 0.959)
@@ -912,15 +888,10 @@ class OneSidedRoleTest(unittest.TestCase):
             "rid", {k: _point(k, 0.99, "one_sided", one_sided=UPPER) for k in range(3)}
         )
         record.update({key: "x" for key in collector.FIELDS if key not in record})
-        record.update(facets=["core"], calibration_sha="1" * 40, surface_list_blob="1" * 40)
+        record.update(calibration_sha="1" * 40)
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "records.toml"
-            original = collector.surface_list_blob
-            collector.surface_list_blob = lambda sha: "1" * 40
-            try:
-                collector.write_registry({"rid": record}, out, retag=False)
-            finally:
-                collector.surface_list_blob = original
+            collector.write_registry({"rid": record}, out)
             text = out.read_text(encoding="utf-8")
             parsed = tomllib.loads(text)["record"][0]
         self.assertEqual(parsed["one_sided"], UPPER)
@@ -1019,15 +990,10 @@ class ConfirmedPassingRangeTest(unittest.TestCase):
 
         record = self.confirmed(self.boundary_record((0,)), (1, 2))
         record.update({key: "x" for key in collector.FIELDS if key not in record})
-        record.update(facets=["core"], calibration_sha="1" * 40, surface_list_blob="1" * 40)
+        record.update(calibration_sha="1" * 40)
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory) / "records.toml"
-            original = collector.surface_list_blob
-            collector.surface_list_blob = lambda sha: "1" * 40
-            try:
-                collector.write_registry({"rid": record}, out, retag=False)
-            finally:
-                collector.surface_list_blob = original
+            collector.write_registry({"rid": record}, out)
             text = out.read_text(encoding="utf-8")
             parsed = tomllib.loads(text)["record"][0]
         self.assertEqual(parsed["confirmed_passing_range"], [400, 800])

@@ -10669,24 +10669,10 @@ path = "scripts/test_calibration_private_unit_scaffolding.py"
 gates = ["inventory"]
 
 [[test]]
-id = "calibration-recipe-receipts-script"
+id = "calibration-probe-script"
 crate = "scripts"
 cargo_target = "script"
-path = "scripts/test_calibration_recipe_receipts.py"
-gates = ["inventory"]
-
-[[test]]
-id = "calibration-replay-recipes-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_calibration_replay_recipes.py"
-gates = ["inventory"]
-
-[[test]]
-id = "calibration-source-only-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_calibration_source_only.py"
+path = "scripts/test_calibration_probe.py"
 gates = ["inventory"]
 
 [[test]]
@@ -10799,13 +10785,6 @@ id = "measurement-record-script"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_measurement_record.py"
-gates = ["inventory"]
-
-[[test]]
-id = "parent-calibration-replay-script"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_parent_calibration_replay.py"
 gates = ["inventory"]
 
 [[test]]
@@ -20738,13 +20717,6 @@ id = "audit-inventory-scripts-test-calibration-readiness-parsing-py"
 crate = "scripts"
 cargo_target = "script"
 path = "scripts/test_calibration_readiness_parsing.py"
-gates = ["inventory"]
-
-[[test]]
-id = "audit-inventory-scripts-test-calibration-receipt-failure-py"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_calibration_receipt_failure.py"
 gates = ["inventory"]
 
 [[test]]

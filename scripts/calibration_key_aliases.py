@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import re
+import struct
 import subprocess
 import tempfile
 import tomllib
@@ -21,6 +22,106 @@ MEASUREMENT_SHA = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 COLLECTION_SHA = "e4bc216c0f01bf913f373df721863e0730e0ed14"
 RECORD_SHA256 = "9302ebf37b4ce12679561198caf2c2cf0319b826e0cf3b37d08de53d5ccdffaa"
 FUNCTIONAL_SHA256 = "0067df569dc7b83db8c7f9b8a465e35ab298b4c750a25af619870026a0a0f33a"
+
+
+# Stored fields that are bookkeeping, not measurement output.
+NOT_EMITTED = frozenset({"calibration_sha", "fingerprint"})
+
+
+def _bit_equal(a: object, b: object) -> bool:
+    if isinstance(a, bool) or isinstance(b, bool):
+        return type(a) is type(b) and a == b
+    if isinstance(a, float) or isinstance(b, float):
+        return (
+            isinstance(a, float)
+            and isinstance(b, float)
+            and struct.pack("<d", a) == struct.pack("<d", b)
+        )
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_bit_equal(x, y) for x, y in zip(a, b, strict=True))
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_bit_equal(a[k], b[k]) for k in a)
+    return type(a) is type(b) and a == b
+
+
+def compare_replay(
+    stored: dict, payload: dict, aliases: list[dict] | None = None, source_sha: str | None = None
+) -> list[str]:
+    """Every emitted field of `stored` that the replayed payload does not reproduce
+    bit for bit, named. The covered count is derived from observed × replicates."""
+    rid = stored.get("id")
+    # Only independently verified native construction migrations may normalize
+    # one exact functional label. No statistical field or provenance is changed.
+    for alias in aliases or []:
+        if (
+            alias.get("record_id") == rid
+            and alias.get("original_functional") == stored.get("functional")
+            and alias.get("canonical_functional") == payload.get("functional")
+            and source_sha is not None
+            and alias.get("source_sha") == source_sha
+        ):
+            payload = payload | {"functional": stored["functional"]}
+    differences = []
+
+    def covered(rec: dict) -> object:
+        observed, replicates = rec.get("observed"), rec.get("replicates")
+        if isinstance(observed, float) and isinstance(replicates, int):
+            return round(observed * replicates)
+        return None
+
+    if covered(stored) != covered(payload):
+        differences.append(
+            f"{rid}: covered stored {covered(stored)!r} replayed {covered(payload)!r}"
+        )
+    for key in sorted(set(stored) - NOT_EMITTED):
+        if key not in payload:
+            differences.append(f"{rid}: {key} not emitted by the replay")
+        elif not _bit_equal(stored[key], payload[key]):
+            differences.append(f"{rid}: {key} stored {stored[key]!r} replayed {payload[key]!r}")
+    return differences
+
+
+def replay_payloads(label_logs: list[Path]) -> dict[str, dict]:
+    """Records of one group's logs, merged over their grid points exactly as
+    scripts/collect_coverage_records.py merges them (a point's recheck wins)."""
+    import collect_coverage_records
+
+    return collect_coverage_records.merged_records([p for p in label_logs if p.is_file()])
+
+
+def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> dict[str, dict]:
+    """Verify raw captured logs against an exact source/selection, without running work."""
+    capture = json.loads(read_text(out_dir / "raw-replay-capture.json"))
+    if capture.get("version") == 3:
+        from _temporal_capture_transfer import load_composite
+
+        return load_composite(
+            out_dir, capture, source_sha, records, REPO_ROOT, replay_payloads, _bit_equal
+        )
+    if capture.get("version") == 2:
+        from _temporal_capture_transfer import load_transfer
+
+        return load_transfer(
+            out_dir, capture, source_sha, records, REPO_ROOT, replay_payloads, _bit_equal
+        )
+    if capture.get("version") != 1 or capture.get("source_sha") != source_sha:
+        raise ValueError("capture does not bind this exact source commit")
+    if capture.get("records") != records:
+        raise ValueError("capture does not bind this exact replay selection")
+    logs = capture.get("logs")
+    if not isinstance(logs, dict) or not logs:
+        raise ValueError("capture requires original raw replay logs")
+    for name, digest in logs.items():
+        if (
+            not isinstance(name, str)
+            or Path(name).name != name
+            or hashlib.sha256((out_dir / name).read_bytes()).hexdigest() != digest
+        ):
+            raise ValueError("captured raw replay log changed")
+    payloads = replay_payloads([out_dir / name for name in logs])
+    if not _bit_equal(payloads, capture.get("payloads")):
+        raise ValueError("capture does not reproduce original raw replay logs")
+    return payloads
 
 
 def archived_capture_branch() -> str:
@@ -186,7 +287,6 @@ def parse_native_log(log: str) -> dict:
 
 def validate_evidence(root: Path, original: dict, native: dict, replay: dict) -> dict[str, str]:
     """Check actual producer logs and every emitted value before one exact alias."""
-    import calibration_facets
     import collect_coverage_records
 
     source = native.get("source_sha")
@@ -211,7 +311,7 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     if not isinstance(log, str) or sha256(log) != native.get("log_sha256"):
         raise ValueError("native construction log digest changed")
     proof = parse_native_log(log)
-    if not calibration_facets._bit_equal(proof, native.get("proof")):
+    if not _bit_equal(proof, native.get("proof")):
         raise ValueError("native construction proof differs from actual test output")
     config = {
         "interval_method": "bootstrap_bca",
@@ -283,13 +383,13 @@ def validate_evidence(root: Path, original: dict, native: dict, replay: dict) ->
     if set(actual) != {RECORD_ID}:
         raise ValueError("identity evidence must replay only its governing recovery record")
     raw = actual.get(RECORD_ID)
-    if not isinstance(raw, dict) or not calibration_facets._bit_equal(
+    if not isinstance(raw, dict) or not _bit_equal(
         raw, replay.get("raw_main_replay_record")
     ):
         raise ValueError("raw recovery replay record differs from actual emitted logs")
     if raw.get("functional") != canonical:
         raise ValueError("replay functional differs from original checked native construction")
-    differences = calibration_facets.compare_replay(
+    differences = compare_replay(
         original, raw | {"functional": original["functional"]}
     )
     if differences:
@@ -354,13 +454,11 @@ def capture_native(root: Path) -> dict:
 
 
 def capture_replay(root: Path, path: Path) -> dict:
-    import calibration_facets
-
     source = clean_main_source(root)
     if path.stat().st_size > MAX_RECEIPT_BYTES:
         raise ValueError("raw replay capture exceeds receipt bounds")
     raw = json.loads(path.read_text(encoding="utf-8"))
-    payloads = calibration_facets.load_replay_capture(path.parent, source, raw["records"])
+    payloads = load_replay_capture(path.parent, source, raw["records"])
     if RECORD_ID not in payloads:
         raise ValueError("actual replay selection lacks the original recovery record")
     logs = {}

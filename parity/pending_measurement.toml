@@ -3,8 +3,8 @@
 # A method-family scenario cell (design x inference, uncertainty) whose only open element is the
 # measured calibration of a procedure that already executes is `pending_measurement`, not a gap:
 # the route runs unsupported, its point and interval are tested against known truth, and no coverage
-# or error-rate record exists yet. Each entry names the counterpart row, the calibration facet of
-# scripts/calibration_surface.list whose records will close it, and what is owed. Nothing here is
+# or error-rate record exists yet. Each entry names the counterpart row, a label for the records that
+# will close it, and what is owed. Nothing here is
 # an attestation, waiver or support: calibration stays pending until a frozen candidate is
 # measured, and a record that carries the facet then closes the entry (the entry is removed and the
 # cell is delivered). scripts/scenario_matrix.py rejects an entry with no facet, a facet the

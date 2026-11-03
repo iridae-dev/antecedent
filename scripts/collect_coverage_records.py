@@ -44,20 +44,23 @@ the recheck's verdict is the one the gate takes. When the gate re-ran only some
 of a group's tests (a whole-file group; the log names them in
 `calibration-rechecked-test` lines), only those tests' records are replaced.
 
-Every record is written with `facets`: the parts of the statistical surface it
-depends on, derived by `scripts/calibration_facets.py` from the record itself.
-A record stands until one of those facets changes, so a partial re-measurement
-is enough when only some facets drifted:
+Every record measured at HEAD is written with `fingerprint`: the dependency
+fingerprint of its `test` target (`scripts/evidence_fingerprint.py`) at the
+commit it was measured at. `scripts/calibration_status.py` compares it with the
+fingerprint of the tree to say whether the record is current; nothing here or
+there fails a code change. Existing records the logs do not re-measure stay in
+the registry with the fingerprint they were measured with:
 
-    python3 scripts/collect_coverage_records.py --keep-attested
+    python3 scripts/collect_coverage_records.py --keep-unmeasured
 
-keeps every existing record the logs do not re-measure whose facets are
-unchanged since its own `calibration_sha` (or that a valid replay waiver in
-`parity/calibration_waivers.toml` attests), and drops (and names) the ones
-that still owe a re-measurement. Without it the registry is exactly the logs.
+Without it the registry is exactly the logs.
 
-`--retag` rewrites only the `facets` of the existing records (after a change
-to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
+Each `calibration-record` line carries `prefix_digests`: the chained digests of
+the first 10 / 32 / 100 / 320 / 1000 replicates of that grid point. The merge
+stores them as the record's `probe` table (`probe = { p0 = { 10 = "…", … }, p1 =
+…, p2 = … }`), which `scripts/calibration_probe.py` later compares against a
+re-run at another commit. A line without digests leaves the record without a
+`probe`; such a record can only become current again by a re-measurement.
 
 For a small independently measured set of cells while older records still owe
 re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID`
@@ -76,14 +79,14 @@ Every log must show a passing `test result: ok. N passed` with N >= 1 and no
 failure, and end with the `calibration-measured-at <sha>` line the gate wrote
 (scripts/gate_calibration.sh); all logs must agree on that sha and it must equal
 the stamped one. A run whose groups failed, matched no test, or was measured at
-another commit than the one being stamped is refused. Without `--keep-attested`
+another commit than the one being stamped is refused. Without `--keep-unmeasured`
 the registry is exactly the logs, and the collector refuses to drop a record id
 the registry already holds unless it is named with `--allow-removal <id>`.
 
 `--sha <sha>` stamps that commit instead of HEAD (for logs measured at another
 commit, which must say so in their `calibration-measured-at` line); `--no-cells` leaves the registries alone. Without `--sha` the
-collector refuses to stamp HEAD while the worktree's statistical surface
-differs from HEAD, because the logs would then describe uncommitted code.
+collector refuses to stamp HEAD while the sources a fingerprint reads differ
+from HEAD, because the logs would then describe uncommitted code.
 """
 
 from __future__ import annotations
@@ -98,8 +101,9 @@ from pathlib import Path
 
 import calibration_decision as coverage_decision
 import calibration_decision_logs as coverage_decision_logs
-import calibration_facets as facets
 import calibration_family
+import calibration_probe
+import calibration_status
 from _repo import REPO_ROOT as ROOT
 from _repo import read_text, write_text
 
@@ -121,9 +125,9 @@ HEADER = """# Coverage records bound onto executions at claim time.
 # of the commit the logs were measured at. Do not edit rows by hand; re-run
 # the collector. `scripts/gate_parity_schema.sh` checks every row. The pass/fail
 # groups that emit no record are attested in parity/calibration_gates.toml. Each
-# row's `surface_list_blob` is the git blob of scripts/calibration_surface.list at
-# `calibration_sha`, so the surface a record was attested against is stored, not
-# only re-derived from history.
+# row's `fingerprint` is the dependency fingerprint of its `test` target at
+# `calibration_sha` (scripts/evidence_fingerprint.py); scripts/calibration_status.py
+# compares it with the tree. It is an annotation: no code change fails on it.
 """
 
 FIELDS = (
@@ -154,9 +158,7 @@ FIELDS = (
     "grid",
     "dgp",
     "test",
-    "facets",
     "calibration_sha",
-    "surface_list_blob",
 )
 
 # Fields only some records carry, written after `role` when present: a
@@ -174,6 +176,7 @@ OPTIONAL_FIELDS = (
     "conservative_point",
     "confirmation",
     "confirmed_passing_range",
+    "probe",
 )
 # Coverage roles a grid point may carry. `gated` passes the two-sided band and
 # precision floor/ceiling; `named_boundary` is a documented under-coverage;
@@ -266,7 +269,11 @@ POINT_FIELDS = (
     "boundary",
     "role",
     "grid_point",
+    "prefix_digests",
 )
+# Prefix lengths a `prefix_digests` table may carry (`DIGEST_PREFIXES` in
+# crates/antecedent/tests/common/calibration.rs).
+DIGEST_PREFIXES = (10, 32, 100, 320, 1000)
 GRID_ENTRY_FIELDS = (
     "point",
     "n_min",
@@ -569,7 +576,37 @@ def merge_grid(rid: str, points: dict[int, dict]) -> dict:
     )
     if "decision_protocol" in governing:
         record["decision_protocol"] = governing["decision_protocol"]
+    if probe := probe_table(rid, ordered):
+        record["probe"] = probe
     return record
+
+
+def probe_table(rid: str, ordered: list[dict]) -> dict[str, dict[str, str]] | None:
+    """The record's `probe`: each grid point's prefix digests, or `None` when the
+    lines carry none. Digests must be well formed at every point or absent at all."""
+    tables = [p.get("prefix_digests") for p in ordered]
+    if all(t is None for t in tables):
+        return None
+    out: dict[str, dict[str, str]] = {}
+    for payload, table in zip(ordered, tables, strict=True):
+        point = int(payload["grid_point"])
+        ok = (
+            isinstance(table, dict)
+            and table
+            and all(
+                str(k).isdigit()
+                and int(k) in DIGEST_PREFIXES
+                and isinstance(v, str)
+                and re.fullmatch(r"[0-9a-f]{32}", v)
+                for k, v in table.items()
+            )
+        )
+        if not ok:
+            raise SystemExit(
+                f"record {rid}: grid point {point} carries malformed or missing prefix_digests"
+            )
+        out[f"p{point}"] = {str(k): v for k, v in sorted(table.items(), key=lambda kv: int(kv[0]))}
+    return out
 
 
 CONFIRMATION_LOG = re.compile(r"\.p\d+\.confirm(\.recheck)?\.log$")
@@ -821,33 +858,16 @@ def load_records(
             raise SystemExit(f"invalid frozen-family decision log: {error}") from error
     records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
     # A pass/fail-only re-run (the record-less groups) measures no record but still
-    # refreshes the group ledger; --keep-attested keeps every record that stands.
+    # refreshes the group ledger; --keep-unmeasured keeps every existing record.
     if not records and allow_gate_only and gate_ledger(logs, sha):
         return records
     if not records:
         raise SystemExit(
             f"no calibration-record lines in {log_dir}: nothing measured, so nothing to commit"
         )
-    blob = surface_list_blob(sha)
     for record in records.values():
         record["calibration_sha"] = sha
-        record["surface_list_blob"] = blob
     return records
-
-
-def surface_list_blob(sha: str) -> str:
-    """The git blob of the surface list at `sha`: what the record's facets were derived from."""
-    done = subprocess.run(
-        ["git", "rev-parse", f"{sha}:scripts/calibration_surface.list"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if done.returncode != 0:
-        raise SystemExit(
-            f"cannot read scripts/calibration_surface.list at {sha}: {done.stderr.strip()}"
-        )
-    return done.stdout.strip()
 
 
 def toml_value(key: str, value) -> str:
@@ -867,48 +887,55 @@ def toml_value(key: str, value) -> str:
     return json.dumps(text, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
-def tag_facets(records: dict[str, dict]) -> None:
-    """Set each record's `facets` from the record itself and the surface list."""
-    if not records:
+FINGERPRINT_INPUTS = ("crates", "python", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rust-toolchain")
+
+
+def stamp_fingerprints(records: dict[str, dict], sha: str) -> None:
+    """Stamp each record with the fingerprint of its test target in the tree.
+
+    Only a tree equal to HEAD in everything a fingerprint reads, measured at HEAD,
+    can say what the measurement depended on; logs stamped with another `--sha`
+    carry no fingerprint and stay owed to a probe or a re-measurement."""
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    if sha != head or not records:
         return
-    surface = facets.load_surface()
-    if surface.errors:
-        raise SystemExit("scripts/calibration_surface.list: " + "; ".join(surface.errors))
-    for rec in records.values():
-        rec["facets"] = facets.record_facets(rec, surface)
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=normal", "--", *FINGERPRINT_INPUTS],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    if dirty:
+        raise SystemExit(
+            "the sources a record's fingerprint reads differ from HEAD, so these logs do not "
+            "describe a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
+        )
+    fingerprints = calibration_status.tree_fingerprints(
+        list(records.values()), calibration_status.tree_fingerprinter()
+    )
+    for rid, rec in records.items():
+        if fingerprints.get(rid):
+            rec["fingerprint"] = fingerprints[rid]
 
 
-def keep_attested(measured: dict[str, dict]) -> dict[str, dict]:
-    """Existing records the logs did not re-measure and that still stand."""
-    surface = facets.load_surface()
-    registry = facets.load_records(OUT)
-    existing = [rec for rec in registry if rec["id"] not in measured]
-    kept: dict[str, dict] = {}
-    # A record attested_by_replay under a valid waiver is not stale, so it is
-    # kept; the waiver's evidence is checked against the registry as it stood.
-    for assessment in facets.assess(surface, existing, registry=registry):
-        stale = {rec["id"] for rec in assessment.stale}
-        for rec in assessment.records:
-            if assessment.resolved and rec["id"] not in stale:
-                kept[rec["id"]] = rec
-            else:
-                print(f"dropped {rec['id']}: owes a re-measurement the logs do not contain")
-    return kept
+def existing_records() -> dict[str, dict]:
+    return {rec["id"]: rec for rec in calibration_status.load_records(OUT)}
 
 
-def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = True) -> None:
-    if retag:
-        tag_facets(records)
+def keep_unmeasured(measured: dict[str, dict]) -> dict[str, dict]:
+    """Existing records the logs did not re-measure; their status stays an annotation."""
+    return {rid: rec for rid, rec in existing_records().items() if rid not in measured}
+
+
+def write_registry(records: dict[str, dict], out: Path = OUT) -> None:
     lines = [HEADER]
     for rid in sorted(records):
         rec = records[rid]
-        if "surface_list_blob" not in rec:
-            rec["surface_list_blob"] = surface_list_blob(rec["calibration_sha"])
         lines.append("[[record]]")
         for key in FIELDS:
             if key not in rec:
                 raise SystemExit(f"record {rid} is missing {key}; re-run the coverage tests")
             lines.append(f"{key} = {toml_value(key, rec[key])}")
+            if key == "calibration_sha" and rec.get("fingerprint"):
+                lines.append(f"fingerprint = {toml_value('fingerprint', rec['fingerprint'])}")
             if key == "role":
                 lines += [
                     f"{opt} = {toml_value(opt, rec[opt])}"
@@ -917,6 +944,12 @@ def write_registry(records: dict[str, dict], out: Path = OUT, *, retag: bool = T
                 ]
         lines.append("")
     write_text(out, "\n".join(lines))
+    if out == OUT:
+        # Probe rows describe a measurement; a record measured again or removed
+        # leaves its old rows describing nothing.
+        dropped = calibration_probe.prune_attestations(list(records.values()))
+        if dropped:
+            print(f"dropped {dropped} probe attestation(s) of measurements this registry replaces")
 
 
 REPORTED_LEVEL = 0.95
@@ -1300,14 +1333,10 @@ def main() -> int:
         help="with --keep-existing, permit fresh evidence to replace this existing record (repeatable)",
     )
     parser.add_argument(
-        "--keep-attested",
+        "--keep-unmeasured",
+        dest="keep_attested",
         action="store_true",
-        help="keep existing records the logs do not re-measure whose facets have not drifted",
-    )
-    parser.add_argument(
-        "--retag",
-        action="store_true",
-        help="only recompute the facets of the existing records",
+        help="keep every existing record the logs do not re-measure",
     )
     parser.add_argument(
         "--smoke",
@@ -1320,7 +1349,7 @@ def main() -> int:
         default=[],
         metavar="ID",
         help="record ids the registry holds that this run is allowed to drop "
-        "(without --keep-attested the registry becomes exactly the logs)",
+        "(without --keep-unmeasured the registry becomes exactly the logs)",
     )
     parser.add_argument("--log-dir", type=Path, default=LOG_DIR, help="logs to collect")
     parser.add_argument("--out", type=Path, help="scratch registry path (with --smoke only)")
@@ -1328,7 +1357,7 @@ def main() -> int:
     if args.inspect_legacy_logs:
         if (args.append_attested or args.only_cell or args.defer_generated or args.no_cells
             or args.keep_existing or args.passing_only or args.replace_record or args.keep_attested
-            or args.retag or args.smoke or args.allow_removal or args.out):
+            or args.smoke or args.allow_removal or args.out):
             raise SystemExit("--inspect-legacy-logs cannot be combined with collection options")
         if not args.log_dir.is_dir():
             raise SystemExit(f"missing {args.log_dir}")
@@ -1348,14 +1377,14 @@ def main() -> int:
     if args.replace_record and not args.keep_existing:
         raise SystemExit("--replace-record requires --keep-existing")
     if args.keep_existing and (
-        args.keep_attested or args.append_attested or args.retag or args.allow_removal
+        args.keep_attested or args.append_attested or args.allow_removal
     ):
         raise SystemExit(
-            "--keep-existing forbids --keep-attested/--append-attested/--retag/--allow-removal"
+            "--keep-existing forbids --keep-unmeasured/--append-attested/--allow-removal"
         )
     if args.append_attested and (args.keep_attested or args.no_cells or not args.only_cell):
         raise SystemExit(
-            "--append-attested requires --only-cell and forbids --keep-attested/--no-cells"
+            "--append-attested requires --only-cell and forbids --keep-unmeasured/--no-cells"
         )
     if args.only_cell and not args.append_attested:
         raise SystemExit("--only-cell is only valid with --append-attested")
@@ -1386,11 +1415,6 @@ def main() -> int:
             f"wrote {len(records)} smoke records to {args.out} (not a registry; measures nothing)"
         )
         return 0
-    if args.retag:
-        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
-        write_registry(existing)
-        print(f"retagged the facets of {len(existing)} records in {OUT.relative_to(ROOT)}")
-        return 0
     sha = (
         args.sha
         or subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
@@ -1407,28 +1431,12 @@ def main() -> int:
         selected_logs=collection_logs,
         allow_empty=args.passing_only,
     )
-    if not args.sha:
-        tag_facets(records)
-        surface = facets.load_surface()
-        depended = set().union(*(rec["facets"] for rec in records.values()))
-        dirty = [
-            rel
-            for rel in facets.changed_paths(surface, sha)
-            if (surface.facet_of(rel) or facets.CORE) in depended
-        ]
-        if dirty:
-            raise SystemExit(
-                "the statistical surface differs from HEAD, so these logs do not describe "
-                "a commit; commit first (or pass --sha):\n  " + "\n  ".join(dirty)
-            )
+    stamp_fingerprints(records, sha)
     if args.append_attested:
-        tag_facets(records)
-        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        existing = existing_records()
         records = append_attested_records(existing, records)
     elif args.keep_existing:
-        if args.sha:
-            tag_facets(records)
-        existing = {rec["id"]: rec for rec in facets.load_records(OUT)}
+        existing = existing_records()
         replacements = args.replace_record
         if args.passing_only:
             unknown = set(replacements) - existing.keys()
@@ -1450,20 +1458,20 @@ def main() -> int:
         )
     elif not args.keep_attested:
         dropped = sorted(
-            {rec["id"] for rec in facets.load_records(OUT)} - set(records) - set(args.allow_removal)
+            set(existing_records()) - set(records) - set(args.allow_removal)
         )
         if dropped:
             raise SystemExit(
                 f"the logs do not re-measure {len(dropped)} record(s) the registry holds, so this "
                 "run would silently delete them (a renamed or unrun group?). Run the missing "
-                "groups, use --keep-attested, or name each id in --allow-removal:\n  "
+                "groups, use --keep-unmeasured, or name each id in --allow-removal:\n  "
                 + "\n  ".join(dropped)
             )
     if args.keep_attested:
-        kept = keep_attested(records)
-        print(f"kept {len(kept)} attested records the logs did not re-measure")
+        kept = keep_unmeasured(records)
+        print(f"kept {len(kept)} existing records the logs did not re-measure")
         records = {**kept, **records}
-    write_registry(records, retag=not (args.append_attested or args.keep_existing))
+    write_registry(records)
     print(f"wrote {len(records)} records to {OUT.relative_to(ROOT)} at {sha}")
     if args.append_attested:
         cells = sync_supported_cells(records, only_cells)

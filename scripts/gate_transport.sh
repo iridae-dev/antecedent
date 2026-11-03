@@ -10,6 +10,15 @@
 #   bash scripts/gate_transport.sh              # full gate
 #   bash scripts/gate_transport.sh --self-test  # broken registries must fail
 set -euo pipefail
+
+# Scientific rows with a current recorded pass (parity/scientific_records.toml)
+# are carried forward, not rerun. --all or ANTECEDENT_SCIENTIFIC_ALL=1 runs and
+# re-records every row (release candidate). See scripts/scientific_records.py.
+_args=()
+for _a in "$@"; do
+  if [[ "$_a" == --all ]]; then export ANTECEDENT_SCIENTIFIC_ALL=1; else _args+=("$_a"); fi
+done
+set -- "${_args[@]+"${_args[@]}"}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 REGISTRY=parity/transport_stages.toml

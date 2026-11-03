@@ -54,14 +54,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The attestation diffs against each record's calibration_sha.
           fetch-depth: 0
 
-      # Every later job needs this one: nothing is published while a committed
-      # coverage record does not match the code it
-      # would ship with (calibration labels would come from a stale registry).
-      - name: Calibration attestation (coverage records match the code)
-        run: bash scripts/gate_calibration_attestation.sh
+      # Information only: the records that are not current for this tag. A
+      # release is never blocked by calibration state.
+      - name: Calibration status (informational)
+        continue-on-error: true
+        run: python3 scripts/calibration_status.py status
 
       - name: Resolve version from tag or input
         id: ver

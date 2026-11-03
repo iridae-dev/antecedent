@@ -11,7 +11,8 @@ from _repo import REPO_ROOT
 
 PATH = Path("parity/coverage_validation_bindings.toml")
 BRIDGE = "crates/antecedent/src/support/bridge.rs"
-FIELDS = frozenset({"record_id", "calibration_sha", "test", "validation", "test_source_blob", "bridge_source_blob", "surface_list_blob", "evidence", "review_basis", "review_status"})
+FIELDS = frozenset({"record_id", "calibration_sha", "test", "validation", "test_source_blob", "bridge_source_blob", "evidence", "review_basis", "review_status"})
+IGNORED = frozenset({"surface_list_blob"})  # rows written before the surface list was retired
 MODES = frozenset({"none", "cheap", "full", "not_applicable"})
 
 
@@ -27,7 +28,7 @@ def checked_bindings(records, document, blob_at):
         registry[rid] = record
     result, seen = [], set()
     for row in document.get("binding", []):
-        if not set(row) >= FIELDS or set(row) - FIELDS - {"source_blobs", "source_structure"} or not all(isinstance(row[k], str) and row[k] for k in FIELDS):
+        if not set(row) >= FIELDS or set(row) - FIELDS - IGNORED - {"source_blobs", "source_structure"} or not all(isinstance(row[k], str) and row[k] for k in FIELDS):
             raise ValueError("invalid historical validation binding fields")
         additional = row.get("source_blobs", [])
         if not isinstance(additional, list) or not all(isinstance(item, str) for item in additional):
@@ -43,8 +44,6 @@ def checked_bindings(records, document, blob_at):
         record = registry.get(rid)
         if not record or record.get("calibration_sha") != sha or record.get("test") != test:
             raise ValueError(f"{rid}: historical binding does not identify its exact measurement")
-        if record.get("surface_list_blob") != row["surface_list_blob"]:
-            raise ValueError(f"{rid}: historical binding disagrees with attested surface")
         if row["validation"] not in MODES or not re.fullmatch(r"[0-9a-f]{40}", sha):
             raise ValueError(f"{rid}: invalid mode or commit")
         source, sep, name = test.rpartition("::")
@@ -52,7 +51,7 @@ def checked_bindings(records, document, blob_at):
             raise ValueError(f"{rid}: invalid test source")
         if not row["evidence"].startswith(source + ":"):
             raise ValueError(f"{rid}: evidence is not in its attested test source")
-        for path, field in ((source, "test_source_blob"), (BRIDGE, "bridge_source_blob"), ("scripts/calibration_surface.list", "surface_list_blob")):
+        for path, field in ((source, "test_source_blob"), (BRIDGE, "bridge_source_blob")):
             if not re.fullmatch(r"[0-9a-f]{40}", row[field]) or blob_at(sha, path) != row[field]:
                 raise ValueError(f"{rid}: historical {field} does not match {sha}:{path}")
         paths = set()

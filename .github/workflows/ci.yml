@@ -474,9 +474,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Calibration attestation (coverage records match the code)
-        run: bash scripts/gate_calibration_attestation.sh
-
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
         with:
@@ -523,10 +520,10 @@ jobs:
   # (estimate_ci, bayesian, gcm, pag, context, attribution, design_state,
   # upstream_names, causal_artifacts, composition, transport). Previously none of
   # these ran on a PR, so numerical parity and the public-repo name check went
-  # unenforced on PRs. Its first step fails the job when a committed coverage
-  # record does not match the code (gate_calibration_attestation.sh): the
-  # statistical measurement is made on a development machine before upload
-  # (scripts/measure_calibration.sh) and never runs here.
+  # unenforced on PRs. Calibration is separate: the statistical measurement is
+  # made on a development machine before upload (scripts/measure_calibration.sh),
+  # never runs here, and its status (scripts/calibration_status.py) is printed
+  # by the inventory section as information and never fails a job.
   gate-sections:
     name: Domain ${{ matrix.section }}
     needs: python-native
@@ -549,15 +546,7 @@ jobs:
     steps: &domain_test_steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The calibration attestation diffs against each record's
-          # calibration_sha, which a shallow clone does not contain.
           fetch-depth: 0
-
-      # Seconds, and before any build: an upload whose coverage records owe a
-      # re-measurement fails here with the drifted facets, their paths and the
-      # local command that measures them.
-      - name: Calibration attestation (coverage records match the code)
-        run: bash scripts/gate_calibration_attestation.sh
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85

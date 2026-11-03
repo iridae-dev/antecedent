@@ -45,7 +45,6 @@ python3 scripts/test_gate_compiler_bypass.py
 python3 scripts/test_penalty_resource_guards.py
 python3 scripts/test_check_architecture.py
 python3 scripts/test_gate_retained_routes.py
-python3 scripts/test_calibration_recipe_receipts.py
 python3 scripts/test_generate_calibration_backlog.py
 python3 scripts/test_ci_workflow.py
 bash scripts/gate_scale_cases.sh --self-test
@@ -64,17 +63,15 @@ python3 scripts/test_publish_crates.py
 python3 scripts/test_release_support_delta.py
 python3 scripts/test_rust_source.py
 python3 scripts/test_rust_equivalence.py
-python3 scripts/test_calibration_replay_recipes.py
 python3 scripts/test_calibration_build_cache.py
-python3 scripts/test_calibration_dependency_facets.py
-python3 scripts/test_calibration_private_unit_scaffolding.py
+python3 scripts/test_evidence_fingerprint.py
+python3 scripts/test_calibration_status.py
 python3 scripts/test_temporal_capture_transfer.py
-python3 scripts/test_calibration_source_only.py
+python3 scripts/test_calibration_probe.py
 python3 scripts/test_transport_replay_contract.py
 python3 scripts/verify_release_selftest.py
 python3 scripts/verify_wheel_matrix_selftest.py
 bash scripts/gate_release_candidate.sh --self-test
-bash scripts/gate_calibration_attestation.sh --self-test
 bash scripts/gate_coverage_citations.sh --self-test
 bash scripts/gate_evidence_reachability.sh --self-test
 bash scripts/gate_metadata_consistency.sh --self-test

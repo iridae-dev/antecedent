@@ -112,10 +112,15 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         records = [{"id": "current", "test": "crates/antecedent/tests/facade_current.rs::existing"}]
         facets = SimpleNamespace(
             load_records=lambda records=records: records,
-            load_surface=lambda: {},
-            assess=lambda surface, rows: [SimpleNamespace(stale=[], resolved=True, records=rows)],
+            load_attestations=lambda: [],
+            tree_fingerprinter=lambda: None,
+            tree_fingerprints=lambda rows, fp: {},
+            classify=lambda rows, att, fps: {
+                str(r["id"]): SimpleNamespace(status="current") for r in rows
+            },
+            CURRENT="current",
         )
-        with patch.dict(sys.modules, {"calibration_facets": facets}):
+        with patch.dict(sys.modules, {"calibration_status": facets}):
             selection = groups.select(self.candidates(), False)
         self.assertEqual(selection.owed_records, 0)
         self.assertEqual([g.index for g in selection.groups], [2, 3, 4, 5, 6, 7])
@@ -123,7 +128,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             self.assertEqual(selection.reasons[index], "no record in the registry")
         self.assertEqual(selection.reasons[6], "pass/fail gate, no record")
         # If the missing cells disappear, current registry rows do not trigger gates.
-        with patch.dict(sys.modules, {"calibration_facets": facets}):
+        with patch.dict(sys.modules, {"calibration_status": facets}):
             self.assertEqual(
                 groups.select([self.candidates()[0], self.candidates()[5]], False).groups, []
             )
@@ -139,7 +144,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             encoding="utf-8",
         )
         with (
-            patch.dict(sys.modules, {"calibration_facets": facets}),
+            patch.dict(sys.modules, {"calibration_status": facets}),
             patch.object(groups, "GATE_REGISTRY", ledger),
         ):
             selection = groups.select(self.candidates(), False, missing_only=True)
@@ -186,7 +191,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         for record, expected in ((legacy, [group]), (current, [])):
             facets = SimpleNamespace(load_records=lambda record=record: [record])
             with (
-                patch.dict(sys.modules, {"calibration_facets": facets}),
+                patch.dict(sys.modules, {"calibration_status": facets}),
                 patch.object(groups, "GATE_REGISTRY", ledger),
             ):
                 self.assertEqual(groups.select([group], False, missing_only=True).groups, expected)
@@ -260,7 +265,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
                     patch.dict(
                         sys.modules,
                         {
-                            "calibration_facets": SimpleNamespace(
+                            "calibration_status": SimpleNamespace(
                                 load_records=lambda records=records: records
                             )
                         },
@@ -356,13 +361,13 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
         )
         with (
             patch.dict(
-                sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [old])}
+                sys.modules, {"calibration_status": SimpleNamespace(load_records=lambda: [old])}
             ),
             patch.object(groups, "GATE_REGISTRY", ledger),
         ):
             self.assertEqual(groups.select([group], False, missing_only=True).groups, [group])
         with patch.dict(
-            sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [new])}
+            sys.modules, {"calibration_status": SimpleNamespace(load_records=lambda: [new])}
         ):
             self.assertEqual(groups.select([group], False, missing_only=True).groups, [])
 
@@ -464,7 +469,7 @@ class WorkspaceSuiteOwnershipTest(unittest.TestCase):
             )
             with (
                 patch.dict(
-                    sys.modules, {"calibration_facets": SimpleNamespace(load_records=lambda: [])}
+                    sys.modules, {"calibration_status": SimpleNamespace(load_records=lambda: [])}
                 ),
                 patch.object(groups, "GATE_REGISTRY", ledger),
             ):

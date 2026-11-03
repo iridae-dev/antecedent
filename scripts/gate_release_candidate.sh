@@ -7,9 +7,8 @@
 #      every display-name expansion of every `required_jobs` id
 #      (parity/release.toml) concluded `success`
 #   2. runs gate_release.sh (inventory, composition, prior feature gates, and
-#      the calibration attestation every PR runs: each coverage record's facets
-#      unchanged since its own calibration_sha, or attested_by_replay under a
-#      valid replay waiver)
+#      the calibration status listing, which prints the records that are not
+#      current and never fails)
 #   3. requires the composition and decision exit gates to have no pending calibration or
 #      implementation work, complete bounds documentation and final release claims
 #   4. runs Python lint/types and the full Python test suite

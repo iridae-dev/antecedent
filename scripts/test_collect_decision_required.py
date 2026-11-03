@@ -44,6 +44,6 @@ class CollectionDecisionRequired(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("legacy inspection only", result.stdout)
             self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir()})
-            bad = subprocess.run([sys.executable, str(script), "--inspect-legacy-logs", "--keep-attested", "--log-dir", str(root)], capture_output=True, text=True)
+            bad = subprocess.run([sys.executable, str(script), "--inspect-legacy-logs", "--keep-unmeasured", "--log-dir", str(root)], capture_output=True, text=True)
             self.assertNotEqual(bad.returncode, 0)
             self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir()})

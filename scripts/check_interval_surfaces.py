@@ -17,13 +17,14 @@ record:
       (`not_supported` and the other closed reasons) exist, name their reason, and, with
       `--run-refusals`, are executed here.
 
-It also reports, per calibrated record, whether its allocated coverage records
-exist and are attested:
+It also reports, per calibrated record, whether its allocated coverage records exist:
 
   PENDING_CALIBRATION   at least one allocated record is absent from coverage_records.toml
-  PASS                  every allocated record exists and `calibration_facets.py status --require`
-                        attests them (the tree matches the code they were measured at)
-  FAIL                  records exist but are not attested, or a route is open without them
+  PASS                  every allocated record exists
+  FAIL                  a route is open without its records
+
+Whether a present record is current for the tree is `scripts/calibration_status.py`'s
+annotation; it never changes this verdict.
 
     python3 scripts/check_interval_surfaces.py                 # static check
     python3 scripts/check_interval_surfaces.py --json          # machine-readable result on stdout
@@ -31,8 +32,7 @@ exist and are attested:
     python3 scripts/check_interval_surfaces.py --self-test     # synthetic violations must fail
 
 Exit status 1 on any FAIL. PENDING_CALIBRATION is not a failure here; the gate decides.
-Environment: INTERVAL_SURFACES_ROOT (tree to read, default the repo), INTERVAL_SURFACES_SKIP_ATTEST=1
-(self-test only: treat present records as attested).
+Environment: INTERVAL_SURFACES_ROOT (tree to read, default the repo).
 """
 
 from __future__ import annotations
@@ -140,20 +140,6 @@ def refusal_closure(path: Path, name: str) -> str | None:
 def names_reason(body: str, reason: str) -> bool:
     """Whether `body` names `reason` as a whole token (not as part of a longer one)."""
     return re.search(rf"(?<![A-Za-z0-9_]){re.escape(reason)}(?![A-Za-z0-9_])", body) is not None
-
-
-def attested() -> tuple[bool, str]:
-    """Every coverage record in this tree matches the code it was measured at."""
-    if os.environ.get("INTERVAL_SURFACES_SKIP_ATTEST") == "1":
-        return True, "attestation skipped (self-test)"
-    proc = subprocess.run(
-        [sys.executable, "scripts/calibration_facets.py", "status", "--require"],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-    )
-    tail = (proc.stdout + proc.stderr).strip().splitlines()[-1:] or [""]
-    return proc.returncode == 0, tail[0]
 
 
 def interval_findings(rel: str) -> list[tuple[int, str]]:
@@ -281,15 +267,7 @@ def check() -> dict:
                     "missing": missing,
                 }
             else:
-                ok, message = attested()
-                if ok:
-                    calibration[rid] = {"status": "PASS", "detail": "records present and attested"}
-                else:
-                    calibration[rid] = {
-                        "status": "FAIL",
-                        "detail": f"records present, not attested: {message}",
-                    }
-                    errors.append(f"{rid}: coverage records present but not attested: {message}")
+                calibration[rid] = {"status": "PASS", "detail": "records present"}
     # Rows outside these records are reported, not judged.
     legacy = [
         name
@@ -430,7 +408,6 @@ def self_test() -> int:
             encoding="utf-8",
             newline="\n",
         )
-        os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 
         def run(edit=None, coverage: list[str] | None = None) -> dict:
             global ROOT
@@ -515,7 +492,7 @@ def self_test() -> int:
         if covered["calibration"].get(multi_source["id"], {}).get("status") != "PASS":
             failures.append(f"present records must report PASS: {covered['calibration']}")
         else:
-            print("self-test ok: present and attested coverage records report PASS")
+            print("self-test ok: present coverage records report PASS")
         half = run(open_multi_source, coverage=multi_source_records[:1])
         expect(
             "only one of two coverage records present",

@@ -705,34 +705,18 @@ def rust_f64(value: float) -> str:
 
 
 def attesting_record_ids() -> list[str]:
-    """Ids of the coverage records that attest the tree this is generated from.
+    """Ids of the coverage records that are current in the tree this is generated from.
 
-    The same assessment as `scripts/gate_calibration_attestation.sh` and
-    `collect_coverage_records.py --keep-attested`: a record attests while none of
-    its facets differs between its `calibration_sha` and the tree, or a valid
-    replay waiver covers the change. The runtime reads this list to decide whether
-    a matching record may report `calibrated`. It fails closed: a commit this clone
-    cannot resolve, or no git at all, leaves a record out.
-
-    An empty live assessment invalidates every prior cached attestation. Matching
-    record IDs or unchanged measurement rows cannot establish that the current
-    implementation still matches the measured surface.
+    The `current` set of `scripts/calibration_status.py`: a record's stored
+    fingerprint equals the tree's, or a passing probe covers it at a tree with
+    the same fingerprint. The runtime reads this list to decide whether a
+    matching record may report `calibrated`. It fails closed: a tree whose
+    fingerprints cannot be computed leaves every record out.
     """
-    return _live_attesting_record_ids()
-
-
-def _live_attesting_record_ids() -> list[str]:
-    import calibration_facets as facets
+    import calibration_status
 
     try:
-        registry = facets.load_records(ROOT / "parity/coverage_records.toml")
-        surface = facets.load_surface()
-        ids: set[str] = set()
-        for assessment in facets.assess(surface, registry, registry=registry):
-            stale = {rec["id"] for rec in assessment.stale}
-            if assessment.resolved:
-                ids |= {rec["id"] for rec in assessment.records if rec["id"] not in stale}
-        return sorted(ids)
+        return calibration_status.current_ids(ROOT)
     except (OSError, subprocess.SubprocessError, SystemExit) as exc:
         print(f"warning: no record is marked attesting ({exc})", file=sys.stderr)
         return []
